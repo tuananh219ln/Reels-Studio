@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-28 23:45:00"
-  last_updated: "2026-10-29 01:10:00"
+  last_updated: "2026-10-29 01:40:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -189,6 +189,17 @@ conversation_history:
       1. Chỉ 'Kích hoạt lại' (Recommended)
       2. Giữ tên, bỏ cờ bắt đổi (Recommended)
       3. Chữ đầu của từ cuối (Recommended)
+
+  - asked_at: "2026-10-29 01:35:00"
+    topic_keys: ["deploy_approach", "constraints", "technical_decisions"]
+    agent_questions: |
+      (Validation round 1, userspec-adequacy-validator finding.)
+      Image web/api trong compose đầy đủ chỉ được build, không chạy hay kiểm chứng ở phần này, và spec VPS sau có thể phải làm lại. Giữ hay bỏ?
+      - Bỏ, để spec VPS (Recommended): Phần này chỉ có compose cho Postgres. Dockerfile web/api và compose đầy đủ làm khi deploy VPS, lúc đó chạy và kiểm chứng thật. Ít việc hơn, không tạo cảm giác 'sẵn sàng VPS' giả.
+      - Giữ, chỉ build: Như spec hiện tại: có Dockerfile và kiểm tra docker compose build.
+      - Giữ và chạy thử: docker compose up cả web, api, postgres và đăng nhập được qua container. Nhiều việc hơn.
+    user_answer: |
+      Bỏ, để spec VPS (Recommended)
 
 
 general_understanding:
@@ -385,7 +396,7 @@ user_experience:
 
   deploy_approach:
     score: 80
-    value: "Chỉ local. docker compose cho Postgres; compose đầy đủ (web, api, postgres) chuẩn bị cho VPS nhưng chưa deploy."
+    value: "Chỉ local. docker compose chỉ cho Postgres. Dockerfile web/api và compose đầy đủ để spec deploy VPS."
     gaps: []
     required: false
 

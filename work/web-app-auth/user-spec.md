@@ -94,19 +94,28 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 
 **Dựng và chạy**
 - [ ] Thư mục `web/` và `api/` nằm ở gốc repo, mỗi phần tự quản lý phụ thuộc (giống `worker/`).
-- [ ] `docker-compose.yml` ở gốc repo:
+- [ ] `docker-compose.yml` ở gốc repo chỉ có service `postgres`:
   - `docker compose up -d postgres` bật được Postgres.
-  - Lần khởi động đầu tạo sẵn ba database: dev, `reels_test` và `reels_e2e`.
-  - `docker compose build` build được image của `web` và `api`.
-  - Image web được build với `API_URL=http://api:8000`.
-- [ ] Alembic tạo đủ bảng trên database mới (`alembic upgrade head`).
+  - Lần khởi động đầu (volume trống), script khởi tạo của container tạo sẵn ba database: dev,
+    `reels_test` và `reels_e2e`.
+- [ ] `.gitattributes` ép `*.sh` (và mọi script chạy trong container) dùng xuống dòng LF, để script
+      khởi tạo không hỏng khi checkout trên Windows (`core.autocrlf=true`).
+- [ ] Alembic tạo đủ bảng trên database mới (`alembic upgrade head`):
+  - Database dev: người dùng chạy theo README.
+  - `reels_test`: pytest tự chạy migration trước khi chạy test.
+  - `reels_e2e`: lệnh chạy E2E tự chạy migration.
 - [ ] README ghi đủ các lệnh, theo thứ tự, để từ một máy có Docker đi tới mở được
       `http://localhost:3000`.
 - [ ] `.env.example` có `DATABASE_URL`, `TEST_DATABASE_URL`, `ALLOWED_ORIGINS`, `API_URL`, kèm giá trị
-      mẫu cho localhost. Không có `SESSION_SECRET`. api đọc `.env` ở gốc repo, và biến môi trường thật
-      được ưu tiên hơn `.env`.
-- [ ] Web không nạp nhầm package từ `node_modules/` cũ ở gốc repo (thư mục cũ đã được dọn, hoặc web
-      được cấu hình để không tìm module ở thư mục cha).
+      mẫu cho localhost. Không có `SESSION_SECRET`.
+- [ ] Cấu hình:
+  - api đọc `.env` ở gốc repo, và biến môi trường thật được ưu tiên hơn `.env` (cùng quy tắc với
+    `worker/`).
+  - `ALLOWED_ORIGINS` mặc định là `http://localhost:3000`.
+  - Web đọc `API_URL` làm đích rewrite `/api/*` cả khi chạy `next dev` lẫn `next build`, kể cả khi
+    biến này chỉ nằm trong `.env` ở gốc repo. Mặc định là `http://localhost:8000`.
+- [ ] Web không nạp nhầm package từ `node_modules/` cũ ở gốc repo. Kiểm chứng: không còn
+      `node_modules/` ở gốc repo, hoặc build và E2E của web chạy được khi thư mục đó đã bị đổi tên.
 
 **Đăng nhập và phiên**
 - [ ] Đăng nhập đúng thì vào màn Video. Sai mật khẩu, email không tồn tại hoặc tài khoản bị vô hiệu
@@ -135,7 +144,10 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 - [ ] Web thấy cờ này (khi tải trang hoặc khi gặp lỗi 403 kia) thì mở màn bắt buộc đổi mật khẩu; màn
       này không hỏi mật khẩu cũ.
 - [ ] Mật khẩu mới phải từ 8 ký tự trở lên và hai lần nhập phải khớp; nếu không thì báo lỗi ngay trên
-      form. Đổi xong thì cờ được gỡ và người dùng vào màn Video.
+      form. Đổi xong:
+  - Cờ được gỡ và người dùng vào màn Video.
+  - Mọi phiên khác của người đó (ví dụ đăng nhập bằng mật khẩu tạm trên máy khác) bị thu hồi; phiên
+    hiện tại giữ.
 
 **Quản lý người dùng**
 - [ ] Màn Quản lý người dùng hiện đúng các cột ở mục Expected Behavior 6. Ô tìm lọc theo email hoặc
@@ -160,19 +172,39 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
   - Không làm được trên người đang bị vô hiệu hoá.
 - [ ] "Đăng xuất khỏi mọi thiết bị" thu hồi mọi phiên của người đó, và cột "Phiên hoạt động" về 0.
 - [ ] Cột "Phiên hoạt động" chỉ đếm phiên còn hạn. "Đăng nhập gần nhất" được cập nhật mỗi lần đăng
-      nhập thành công.
+      nhập thành công; người chưa đăng nhập lần nào thì cột hiện "Chưa đăng nhập".
+- [ ] Mỗi người dùng lưu người tạo (người thêm trong app; để trống nếu tạo bằng CLI) và ngày tạo.
+- [ ] Các trường hợp bị từ chối trả lỗi có mã và thông báo tiếng Việt cố định. Web hiện thông báo đó
+      (ở form hoặc dạng thông báo nổi) và tải lại bảng:
+
+      | Trường hợp | HTTP | Thông báo |
+      |---|---|---|
+      | Email đã có | 409 | "Email này đã có trong hệ thống" |
+      | Email sai định dạng | 422 | "Email không hợp lệ" |
+      | Tên rỗng hoặc quá 60 ký tự | 422 | "Tên phải từ 1 đến 60 ký tự" |
+      | Mật khẩu dưới 8 ký tự | 422 | "Mật khẩu phải có ít nhất 8 ký tự" |
+      | Tự vô hiệu hoá | 409 | "Không thể vô hiệu hoá chính mình" |
+      | Vô hiệu hoá người hoạt động cuối (kể cả bên thua khi hai người cùng thao tác) | 409 | "Phải còn ít nhất một người dùng đang hoạt động" |
+      | Đặt mật khẩu tạm cho người bị vô hiệu hoá | 409 | "Hãy kích hoạt lại người dùng trước" |
+      | Sai mật khẩu hiện tại khi đổi từ menu | 400 | "Mật khẩu hiện tại không đúng" |
 
 **Tài khoản của tôi**
 - [ ] Đổi mật khẩu từ menu tài khoản:
   - Phải nhập đúng mật khẩu hiện tại.
   - Đổi xong thì các phiên khác của người đó bị thu hồi, phiên hiện tại vẫn dùng được.
 - [ ] Sửa tên:
-  - Tên dài 1–60 ký tự; để trống thì báo lỗi.
+  - Tên được bỏ khoảng trắng hai đầu rồi mới kiểm tra độ dài 1–60 ký tự (cùng quy tắc khi thêm người
+    dùng và trong CLI); tên rỗng hoặc chỉ có khoảng trắng thì báo lỗi.
   - Tên mới hiện ngay ở header và ở màn Quản lý người dùng.
+- [ ] Ảnh đại diện là chữ cái đầu của từ cuối trong tên, viết hoa và giữ dấu: "Nguyễn Văn An" → "A",
+      "Nguyễn Văn ánh" → "Á", "An" → "A".
 
 **CLI**
 - [ ] Lệnh CLI tạo người dùng (ví dụ `python -m reels_api create-user`) hỏi email và tên, rồi hỏi mật
       khẩu ẩn hai lần (`getpass`). Mật khẩu không được truyền qua tham số.
+- [ ] CLI kiểm tra đầu vào theo đúng quy tắc của app: email đúng định dạng, tên 1–60 ký tự sau khi bỏ
+      khoảng trắng, mật khẩu tối thiểu 8 ký tự. Nhập sai hoặc hai lần mật khẩu không khớp thì CLI báo
+      lỗi tiếng Việt và hỏi lại mục đó.
 - [ ] Email mới thì tạo người dùng với trạng thái Hoạt động, không có cờ "phải đổi mật khẩu".
 - [ ] Email đã có:
   - CLI không hỏi tên mà hỏi xác nhận đặt lại.
@@ -210,7 +242,10 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 - **Chạy local:**
   - Máy dev Windows 10. Postgres chạy trong Docker (Docker Desktop + WSL2).
   - api và web chạy trực tiếp trên máy khi dev.
-  - File compose đầy đủ (web, api, postgres) chỉ cần build được, chưa deploy.
+  - Chưa có Dockerfile cho web/api hay compose đầy đủ; phần đó làm trong spec deploy VPS.
+- **Next.js:** không chạy được hai `next dev` cùng lúc trên một project, và rewrite được cố định lúc
+  build. Vì vậy web cho E2E là một bản `next build` + `next start` riêng (thư mục build riêng, với
+  `API_URL` của E2E có sẵn lúc build), chạy được cả khi server dev đang bật.
 - **Chỉ localhost:** chưa hỗ trợ truy cập qua mạng LAN hay điện thoại thật.
 - **Bảo mật:**
   - Secret và cấu hình chỉ nằm trong `.env` hoặc biến môi trường; `.env` không vào git.
@@ -277,8 +312,10 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
   chung, để người ngoài không dò được email nào có trong hệ thống.
 - **Không giới hạn số lần đăng nhập sai** (người dùng chọn), chấp nhận khi chỉ chạy local.
 - **Dùng Ant Design** vì giao diện MKT-Tools của người dùng là kiểu Ant Design.
-- **Postgres chạy trong Docker; api và web chạy trực tiếp khi dev** để sửa code là thấy ngay. File
-  compose đầy đủ để dành cho VPS.
+- **Postgres chạy trong Docker; api và web chạy trực tiếp khi dev** để sửa code là thấy ngay.
+- **Không làm Dockerfile web/api và compose đầy đủ ở phần này.** Ban đầu định có, nhưng image chỉ
+  được build mà không chạy hay kiểm chứng, và spec VPS sau có thể phải làm lại. Người dùng chọn để
+  sang spec deploy VPS.
 - **Màn Video chỉ có khung trống.** Nút tạo video để spec sau, vì cần bảng Video và Claude.
 - **Các mục menu chưa làm vẫn hiện**, mở ra trang "Sắp có".
 - **Next.js gọi api qua rewrite `/api`** để cookie cùng trang và không cần CORS.
@@ -307,8 +344,16 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
   - Vô hiệu hoá: thu hồi phiên; không vô hiệu hoá được chính mình hay người hoạt động cuối.
   - Kích hoạt lại; đặt mật khẩu tạm (thu hồi phiên, bật cờ, bị từ chối với người đang vô hiệu hoá);
     đăng xuất mọi thiết bị; đếm phiên còn hạn; cập nhật "Đăng nhập gần nhất".
-  - Kiểm tra Origin; mật khẩu không xuất hiện trong phản hồi API.
-  - CLI: tạo mới; email đã có khi đồng ý và khi từ chối; không có terminal.
+  - Kiểm tra Origin.
+  - Mật khẩu không xuất hiện trong phản hồi API, và không xuất hiện trong log của api (bắt log bằng
+    `caplog` trong các test đăng nhập, thêm người dùng, đặt mật khẩu tạm, đổi mật khẩu).
+  - Mã HTTP và thông báo của từng trường hợp bị từ chối trong bảng ở mục "Quản lý người dùng".
+  - Sửa tên: hợp lệ; rỗng; chỉ có khoảng trắng; quá 60 ký tự.
+  - CLI:
+    - Tạo mới; email đã có khi đồng ý và khi từ chối; không có terminal.
+    - Email sai, tên rỗng, mật khẩu ngắn, hai lần nhập không khớp thì báo lỗi và hỏi lại.
+    - Chạy CLI như một tiến trình con với stdout là pipe: thông báo tiếng Việt in đúng, không có
+      traceback.
 - Riêng trường hợp hai người vô hiệu hoá lẫn nhau cùng lúc: một test dùng hai kết nối thật, dữ liệu
   được commit vào `reels_test` và dọn sau test. Test kiểm tra chỉ một thao tác thành công và luôn còn
   ít nhất 1 người hoạt động.
@@ -316,8 +361,9 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 
 **E2E tests:** cần, vì người dùng yêu cầu kiểm thử đăng nhập trên trình duyệt thật.
 - Chạy bằng Playwright với database `reels_e2e` và api/web riêng ở cổng 8100/3100
-  (`API_URL=http://localhost:8100`, `ALLOWED_ORIGINS=http://localhost:3100`). Seed và dọn dữ liệu mỗi
-  lần chạy.
+  (`API_URL=http://localhost:8100`, `ALLOWED_ORIGINS=http://localhost:3100`). Web E2E là bản
+  `next build` vào thư mục build riêng rồi `next start`, nên chạy được cả khi server dev đang bật.
+  Seed và dọn dữ liệu mỗi lần chạy.
 - Cover:
   - Đăng nhập và đăng xuất; chưa đăng nhập thì bị chuyển về trang đăng nhập.
   - Người mới thêm đăng nhập bằng mật khẩu tạm rồi bị bắt đổi mật khẩu.
@@ -325,9 +371,9 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
   - Đổi mật khẩu và sửa tên từ menu tài khoản.
   - Trang "Sắp có".
   - Cỡ màn 390px: menu thu gọn, trang không bị cuộn ngang.
-  - Thông báo lỗi khi api không chạy.
-
-**Build check:** `docker compose build` build được image web và api.
+  - Thông báo lỗi khi api không chạy. Trường hợp api còn chạy nhưng Postgres dừng được kiểm ở
+    integration test: api trả 503 với thông báo lỗi kết nối, và web hiện đúng thông báo đó (kiểm bằng
+    E2E giả lập phản hồi 503 của api).
 
 ## Verification
 
@@ -335,12 +381,12 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 
 | Step | Expected Result |
 |------|-----------------|
-| 1. `docker compose up -d postgres`, rồi chạy `alembic upgrade head` | Postgres chạy; có đủ ba database (dev, `reels_test`, `reels_e2e`); các bảng được tạo |
+| 1. Xoá volume Postgres cũ (nếu có), `docker compose up -d postgres`, rồi chạy `alembic upgrade head` trên database dev | Postgres chạy; có đủ ba database (dev, `reels_test`, `reels_e2e`); database dev có đủ bảng |
 | 2. Chạy pytest trong `api/` | Toàn bộ test pass, không có test nào bị skip vì thiếu database |
-| 3. Chạy Playwright E2E trong `web/` | Toàn bộ test pass trên `reels_e2e`; database dev không bị đổi |
-| 4. Chạy lệnh CLI tạo người dùng đầu tiên, bật api và web, đăng nhập ở `http://localhost:3000` | Vào được màn Video; header hiện tên và chữ cái avatar |
-| 5. Chạy lại lệnh CLI với cùng email và trả lời "không" | Thoát với mã khác 0; dữ liệu không đổi |
-| 6. Chạy `docker compose build` | Build được image web và api |
+| 3. Bật server dev (`next dev` cổng 3000), rồi chạy Playwright E2E trong `web/` | Toàn bộ test pass trên `reels_e2e`; database dev không bị đổi |
+| 4. Đổi tên tạm `node_modules/` ở gốc repo (nếu còn), chạy build web và E2E, rồi trả lại tên cũ | Build và E2E vẫn pass |
+| 5. Chạy lệnh CLI tạo người dùng đầu tiên trong PowerShell, bật api và web, đăng nhập ở `http://localhost:3000` | CLI in tiếng Việt đúng; vào được màn Video; header hiện tên và chữ cái avatar |
+| 6. Chạy lại lệnh CLI với cùng email và trả lời "không" | Thoát với mã khác 0; dữ liệu không đổi |
 | 7. Chụp màn Đăng nhập, Video, Quản lý người dùng ở cỡ 1440px và 390px | Có ảnh để người dùng đối chiếu với bản thiết kế |
 
 ### User Verification
