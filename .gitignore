@@ -62,3 +62,6 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+
+# Local data
+data/

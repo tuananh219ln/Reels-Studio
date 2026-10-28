@@ -1,0 +1,19 @@
+{
+  "hook": {
+    "lines": ["5 MÓN GIÚP", "**XƯƠNG CHẮC KHỎE**", "SAU TUỔI 50"],
+    "seconds": 3,
+    "emoji": "🦴"
+  },
+  "scenes": [
+    { "title": "Cá nhỏ ăn cả xương", "benefit": "Giàu canxi, rẻ, dễ tìm", "seconds": 4, "emoji": "🐟" },
+    { "title": "Sữa chua", "benefit": "Bổ sung canxi và đạm", "seconds": 4, "emoji": "🥛" },
+    { "title": "Đậu phụ", "benefit": "Canxi và đạm thực vật", "seconds": 4, "emoji": "🍲" },
+    { "title": "Rau cải xanh", "benefit": "Có canxi và vitamin K", "seconds": 4, "emoji": "🥬" },
+    { "title": "Vừng đen", "benefit": "Rắc vào cháo, sữa hạt mỗi sáng", "seconds": 4, "emoji": "🥣" }
+  ],
+  "outro": {
+    "text": "Lưu lại & **gửi cho bố mẹ** nhé!",
+    "seconds": 3
+  },
+  "disclaimer": "Thông tin tham khảo, không thay thế tư vấn bác sĩ"
+}
