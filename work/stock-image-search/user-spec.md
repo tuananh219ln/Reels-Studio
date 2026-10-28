@@ -47,8 +47,7 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
      "scenes": [
        { "text": "Cá nhỏ ăn cả xương\nGiàu *canxi*", "seconds": 4,
          "keywords": ["cá kho tộ", "cá kho", "món cá"] },
-       { "text": "Đậu phụ
-Canxi và *đạm thực vật*", "seconds": 4 },
+       { "text": "Vừng đen\nRắc vào *cháo*", "seconds": 4 },
        { "text": "Sữa chua\nBổ sung *canxi*", "seconds": 4, "image": "xuong-khop/02-sua-chua.jpg" }
      ]
    }
@@ -59,7 +58,7 @@ Canxi và *đạm thực vật*", "seconds": 4 },
 3. Với từng cảnh, tool quyết định nguồn ảnh như sau:
    - Có `image` trỏ tới file tồn tại: luôn dùng ảnh đó, không tìm.
    - `image` trống hoặc không có: tìm theo `keywords`. Cảnh nội dung không có `keywords` thì tìm
-     theo dòng chữ đầu tiên của cảnh (ví dụ "Đậu phụ"). Cảnh tiêu đề không có `keywords` thì không
+     theo dòng chữ đầu tiên của cảnh (ví dụ "Vừng đen"). Cảnh tiêu đề không có `keywords` thì không
      tìm (dòng đầu như "5 MÓN GIÚP" không phải tên món) mà chuyển sang hỏi người dùng.
    - `image` trỏ tới file không tồn tại: in cảnh báo (ví dụ
      `Cảnh 2: không thấy file anh-ca.jpg, sẽ tìm ảnh thay thế`) rồi tìm như trường hợp trên.
@@ -101,11 +100,14 @@ Canxi và *đạm thực vật*", "seconds": 4 },
 **Chọn và tìm ảnh**
 - [ ] Cảnh có `image` trỏ tới file tồn tại luôn dùng ảnh đó và không gửi yêu cầu tìm kiếm nào.
 - [ ] Cảnh có `image` trỏ tới file không tồn tại thì in cảnh báo nêu cảnh và tên file, rồi tìm ảnh
-      thay thế (theo `keywords`, hoặc dòng chữ đầu với cảnh nội dung không có `keywords`).
+      thay thế (theo `keywords`, hoặc dòng chữ đầu với cảnh nội dung không có `keywords`). Cảnh
+      tiêu đề không có `keywords` thì cảnh báo ghi "không thấy file …" và cảnh đó được hỏi người
+      dùng như cảnh không có ảnh dùng được.
 - [ ] Từ khóa được thử theo đúng thứ tự trong danh sách. Mỗi từ khóa chỉ có một lần tìm trên
       Pixabay (không tính 1 lần thử lại khi lỗi tạm, và không gọi API nếu từ khóa đã có trong
       cache). Pixabay là nguồn ảnh duy nhất.
-- [ ] Chỉ lấy ảnh chụp (Pixabay `image_type=photo`). Ứng viên là 10 kết quả đầu của mỗi lần
+- [ ] Chỉ lấy ảnh chụp và luôn bật lọc ảnh nhạy cảm (Pixabay `image_type=photo`,
+      `safesearch=true`). Ứng viên là 10 kết quả đầu của mỗi lần
       tìm. Tool chọn ngẫu nhiên trong các ảnh dọc (cao > rộng) chưa dùng. Chỉ khi không còn ảnh
       dọc nào mới chọn ngẫu nhiên trong ảnh ngang hoặc vuông chưa dùng (lõi render cắt phần giữa
       như hiện nay). Không loại ảnh vì kích thước nhỏ.
@@ -221,6 +223,12 @@ Canxi và *đạm thực vật*", "seconds": 4 },
 - **Kho ảnh nước ngoài thiếu món Việt** (cá kho tộ, vừng đen rắc cháo…). **Mitigation:** từ khóa
   từ cụ thể đến chung. Không có ảnh thì CLI hỏi người dùng, và ảnh được giữ trong JSON cho lần
   sau.
+- **Tìm tiếng Việt ra ảnh lạc chủ đề:** cụm từ chung chung hoặc từ nhiều nghĩa cho ảnh sai (đã
+  thử: "thực phẩm tốt cho xương" ra cây xương rồng, "đậu phụ" có kết quả đầu là con cú). Rủi ro cao
+  nhất ở cảnh không có `keywords` (dùng dòng chữ đầu), vì ảnh được chọn ngẫu nhiên và không lọc
+  theo nội dung. **Mitigation:** người dùng chấp nhận ở bản này; viết `keywords` cụ thể (tên món)
+  cho cảnh dễ lạc; xem video trước khi đăng; spec "AI chọn ảnh" sau này sẽ dịch sang từ khóa tiếng
+  Anh chuyên ngành và cho AI lọc ảnh theo nội dung.
 - **Ảnh Pixabay nhỏ:** API miễn phí chỉ cho cạnh dài tối đa 1280px, nên ảnh dọc rộng khoảng 720px
   và hơi mờ trên khung 1080px. **Mitigation:** người dùng chấp nhận. Muốn ảnh nét hơn thì làm kho
   ảnh riêng (spec sau) hoặc xin Pixabay cấp quyền tải ảnh lớn.
@@ -236,7 +244,8 @@ Canxi và *đạm thực vật*", "seconds": 4 },
 ## Accepted Decisions
 
 - Tìm bằng tiếng Việt (`lang=vi`) với từ khóa người dùng viết hoặc dòng chữ đầu của cảnh. Thử
-  thật trên Pixabay: tên món cụ thể cho kết quả tốt ("cá kho tộ", "sữa chua", "vừng đen"), còn
+  thật trên Pixabay: tên món cụ thể cho kết quả đầu đúng món ("cá kho tộ", "sữa chua", "vừng
+  đen"; riêng "cá kho tộ" các kết quả 2-4 đã lạc sang mì ống, xe, con mèo), còn
   cụm từ chung chung hoặc từ nhiều nghĩa dễ lạc ("thực phẩm tốt cho xương" ra cây xương rồng,
   "đậu phụ" có kết quả đầu là con cú). Người dùng chấp nhận, và viết `keywords` cụ thể khi cần.
 - Cảnh tiêu đề chỉ tìm khi có `keywords`, vì dòng đầu của tiêu đề không phải tên món.
@@ -293,7 +302,7 @@ nhiều nhánh và dễ sai. Chạy bằng pytest, HTTP được giả lập, kh
 - Đọc `.env`: BOM, dấu nháy, `#`, `export`; biến môi trường thật được ưu tiên.
 - Thứ tự từ khóa: thử lần lượt, mỗi từ khóa một lần gọi. Cảnh có ảnh hợp lệ không gửi yêu cầu
   nào. Kịch bản đủ ảnh chạy được khi không có key.
-- Gửi đúng tham số: Pixabay `lang=vi`, `image_type=photo`, tải `largeImageURL`; mọi yêu cầu có User-Agent
+- Gửi đúng tham số: Pixabay `lang=vi`, `image_type=photo`, `safesearch=true`, tải `largeImageURL`; mọi yêu cầu có User-Agent
   riêng.
 - Chọn ảnh:
   - có ảnh dọc chưa dùng thì chỉ chọn trong ảnh dọc; không còn ảnh dọc mới dùng ảnh ngang;
