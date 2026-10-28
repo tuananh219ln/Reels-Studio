@@ -108,9 +108,9 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
       người dùng.
 - [ ] Ảnh tự động được tải vào thư mục tạm của lần render và xóa sau khi render. Không ghi ảnh
       tự động vào JSON hay vào repo.
-- [ ] Kết quả tìm kiếm (danh sách ảnh của mỗi từ khóa) được lưu 24 giờ trong thư mục tạm
-      của máy. Trong 24 giờ đó, cùng từ khóa không gọi lại API mà chọn ngẫu nhiên từ danh sách đã
-      lưu. Quá 24 giờ thì gọi lại.
+- [ ] Kết quả tìm kiếm (danh sách ảnh của mỗi từ khóa) được lưu 24 giờ trong thư mục
+      `<thư mục tạm của máy>/reels_render_cache/`. Trong 24 giờ đó, cùng từ khóa không gọi lại
+      API mà chọn ngẫu nhiên từ danh sách đã lưu. Quá 24 giờ thì gọi lại.
 - [ ] File cache được ghi nguyên tử. File cache hỏng hoặc đọc không được thì coi như chưa có cache
       (gọi API lại). Không ghi được cache thì bỏ qua và render vẫn tiếp tục. Lỗi cache không bao
       giờ làm dừng render hay in traceback.
@@ -161,8 +161,11 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
       ảnh, thử lại sau"), không hỏi.
 - [ ] Cảnh đã gặp bất kỳ lỗi mạng nào (khi tìm hoặc khi tải) thì không bao giờ chuyển sang hỏi
       người dùng, kể cả khi các từ khóa khác không có kết quả: hoặc lấy được ảnh từ ứng viên khác,
-      hoặc dừng với lỗi có kiểu. Chỉ cảnh không có ảnh dùng được và không gặp lỗi mạng nào mới
-      được hỏi.
+      hoặc dừng với lỗi có kiểu ("Không tải được ảnh cho Cảnh N do lỗi mạng, thử lại sau"). Chỉ
+      cảnh không có ảnh dùng được và không gặp lỗi mạng nào mới được hỏi. Ở quy tắc này, "lỗi
+      mạng" là lần tải ảnh thất bại vì mạng, hoặc lần tìm vẫn lỗi sau khi đã thử lại. Lần tìm lỗi
+      nhưng thử lại thành công thì không tính. Lỗi được tính cho cảnh đang tìm hoặc tải lúc lỗi
+      xảy ra; kết quả lấy từ cache không mang theo lỗi.
 - [ ] Không thông báo lỗi hay cảnh báo nào chứa giá trị API key (kể cả URL Pixabay có `key=`).
 - [ ] Mọi lỗi tìm ảnh là lỗi có kiểu với thông báo tiếng Việt. CLI in thông báo và thoát mã khác
       0, không in traceback Python.
@@ -324,7 +327,7 @@ nhiều module, và thứ tự giữa tìm, hỏi và dừng chỉ kiểm chứn
 | Step | Expected Result |
 |------|-----------------|
 | 1. Chạy `pytest` trong `worker/` với FFmpeg và key Pixabay | Toàn bộ test pass. Smoke test thật không bị skip |
-| 2. Tạo bản sao `samples/xuong-khop.json` trong `out/` với `image` của mọi cảnh để trống, rồi render bằng CLI | Mã thoát 0. In đường dẫn và dòng "Tìm ảnh: …s (N lượt gọi API) · Render: …s" với N > 0. Video 1080×1920 có ảnh ở mọi cảnh. JSON bản sao không đổi |
+| 2. Xóa thư mục `reels_render_cache` trong thư mục tạm của máy, tạo bản sao `samples/xuong-khop.json` trong `out/` với `image` của mọi cảnh để trống, rồi render bằng CLI | Mã thoát 0. In đường dẫn và dòng "Tìm ảnh: …s (N lượt gọi API) · Render: …s" với N > 0. Video 1080×1920 có ảnh ở mọi cảnh. JSON bản sao không đổi |
 | 3. Render lại bản sao đó lần nữa trong vòng 24 giờ | Số lượt gọi API nhỏ hơn bước 2 (thường là 0, vì các từ khóa đã có trong cache). Trích khung giữa mỗi cảnh của hai video và ghi lại cảnh nào đổi ảnh (thông tin để người dùng xem, không phải điều kiện đạt vì lựa chọn là ngẫu nhiên) |
 | 4. Render `samples/xuong-khop.json` (đủ ảnh) với biến môi trường `PIXABAY_API_KEY=` (rỗng) | Render thành công, dòng in ra có "0 lượt gọi API" |
 | 5. Trích một khung giữa mỗi cảnh của video ở bước 2 ra `out/frames-stock/` | Có file PNG để người dùng xem |
