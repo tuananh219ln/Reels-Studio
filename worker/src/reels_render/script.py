@@ -1,5 +1,7 @@
 import json
 import math
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -7,14 +9,19 @@ from .errors import InputError
 from .markup import MarkupError, Run, parse_scene_text
 
 MIN_SCENE_SECONDS = 1
+MAX_KEYWORD_LENGTH = 100
 
 
 @dataclass(frozen=True)
 class Scene:
     label: str
+    number: int  # 0 for the title scene, 1-based for content scenes
+    first_line: str
     lines: list[list[Run]]
     seconds: float
-    image: Path
+    image: Path | None
+    keywords: tuple[str, ...]
+    missing_image: str | None = None  # the "image" value whose file does not exist
 
 
 @dataclass(frozen=True)
@@ -57,21 +64,22 @@ def parse_script(data: object, base_dir: Path) -> Script:
     if not scenes:
         raise InputError("Kịch bản không có cảnh nội dung nào trong \"scenes\"")
 
-    title = _parse_scene(data["title"], "Cảnh tiêu đề", base_dir)
+    title = _parse_scene(data["title"], 0, base_dir)
     return Script(
         title=title,
-        scenes=[_parse_scene(item, f"Cảnh {number}", base_dir) for number, item in enumerate(scenes, start=1)],
+        scenes=[_parse_scene(item, number, base_dir) for number, item in enumerate(scenes, start=1)],
     )
 
 
-def _parse_scene(item: object, label: str, base_dir: Path) -> Scene:
+def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
+    label = "Cảnh tiêu đề" if number == 0 else f"Cảnh {number}"
     if not isinstance(item, dict):
-        raise InputError(f"{label}: phải là một object có \"text\", \"seconds\", \"image\"")
-    for field in ("text", "seconds", "image"):
+        raise InputError(f"{label}: phải là một object có \"text\", \"seconds\"")
+    for field in ("text", "seconds"):
         if field not in item:
             raise InputError(f"{label}: thiếu trường \"{field}\"")
 
-    text, seconds, image = item["text"], item["seconds"], item["image"]
+    text, seconds, image = item["text"], item["seconds"], item.get("image", "")
     if not isinstance(text, str):
         raise InputError(f"{label}: \"text\" phải là chuỗi")
     # bool is a subclass of int, so it has to be excluded explicitly.
@@ -84,15 +92,66 @@ def _parse_scene(item: object, label: str, base_dir: Path) -> Scene:
         raise InputError(f"{label}: \"seconds\" phải từ {MIN_SCENE_SECONDS} trở lên (đang là {seconds})")
     if not isinstance(image, str):
         raise InputError(f"{label}: \"image\" phải là chuỗi đường dẫn ảnh")
-    if not image.strip():
-        raise InputError(f"{label}: thiếu ảnh (\"image\" đang trống)")
+    keywords = _parse_keywords(item.get("keywords"), label)
 
     try:
         lines = parse_scene_text(text)
     except MarkupError as err:
         raise InputError(f"{label}: {err}") from None
 
-    image_path = base_dir / image
-    if not image_path.is_file():
-        raise InputError(f"{label}: không tìm thấy file ảnh {image_path}")
-    return Scene(label=label, lines=lines, seconds=float(seconds), image=image_path)
+    first_line = text.splitlines()[0].replace("*", "").strip()
+    # The title's first line ("5 MÓN GIÚP") is not a food name, so it is never searched for.
+    if not keywords and number > 0:
+        keywords = (first_line[:MAX_KEYWORD_LENGTH],)
+
+    image_path, missing_image = None, None
+    if image.strip():
+        if (base_dir / image).is_file():
+            image_path = base_dir / image
+        else:
+            missing_image = image
+    return Scene(
+        label=label,
+        number=number,
+        first_line=first_line,
+        lines=lines,
+        seconds=float(seconds),
+        image=image_path,
+        keywords=keywords,
+        missing_image=missing_image,
+    )
+
+
+def _parse_keywords(value: object, label: str) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise InputError(f"{label}: \"keywords\" phải là danh sách từ khóa, ví dụ [\"cá kho tộ\", \"món cá\"]")
+    keywords = []
+    for position, keyword in enumerate(value, start=1):
+        if not isinstance(keyword, str):
+            raise InputError(f"{label}: từ khóa thứ {position} trong \"keywords\" phải là chuỗi")
+        keyword = keyword.strip()
+        if not keyword:
+            raise InputError(f"{label}: từ khóa thứ {position} trong \"keywords\" đang trống")
+        if len(keyword) > MAX_KEYWORD_LENGTH:
+            raise InputError(
+                f"{label}: từ khóa thứ {position} trong \"keywords\" dài quá {MAX_KEYWORD_LENGTH} ký tự"
+            )
+        keywords.append(keyword)
+    return tuple(keywords)
+
+
+def write_scene_image(path: Path, number: int, image: str) -> None:
+    """Set one scene's "image" in the script file, replacing the file atomically."""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    target = data["title"] if number == 0 else data["scenes"][number - 1]
+    target["image"] = image
+    handle, temp_name = tempfile.mkstemp(prefix=f".{path.stem}.", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as file:
+            file.write(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+        os.replace(temp_name, path)
+    except BaseException:
+        Path(temp_name).unlink(missing_ok=True)
+        raise

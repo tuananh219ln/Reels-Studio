@@ -1,7 +1,8 @@
 # Architecture
 
-Status: only the render core is built (see [Render Core](#render-core)). The `web`, `api`,
-queue, database, TTS, and stock search are agreed design and not yet built.
+Status: only the render core, including its Pixabay stock search, is built (see
+[Render Core](#render-core)). The `web`, `api`, queue, database, and TTS are agreed design and
+not yet built.
 
 ## Tech Stack
 
@@ -66,11 +67,20 @@ Steps 3–4 of the render pipeline are built as the Python package `reels_render
 which raises typed errors (subclasses of `RenderError`) whose Vietnamese messages are meant for
 the job log.
 
-- **Script input:** a JSON file with a title scene and content scenes, each with `text`,
-  `seconds`, and `image`. Image paths are relative to the JSON file. See
+- **Script input:** a JSON file with a title scene and content scenes, each with `text` and
+  `seconds`, plus optional `image` and `keywords`. Image paths are relative to the JSON file.
+  `keywords` is a list of Vietnamese search terms, most specific first. See
   [samples/xuong-khop.json](../../../../samples/xuong-khop.json).
-- **Missing image is an error.** There is no placeholder background; stock search will fill images
-  later.
+- **Missing image means stock search.** A scene whose `image` is empty, absent, or points to a
+  missing file (with a warning) gets a Pixabay photo, searched by its `keywords` or, for a content
+  scene without them, by its first text line. The title scene is searched only when it has
+  `keywords`. The choice is random among the first three unused results, so re-renders vary.
+  Stock photos live in the render's temp folder and are never written to the JSON. No source or
+  license info is stored, by the owner's decision.
+- **Nobody to ask means an error.** `render_video` never reads the keyboard. A scene still without
+  an image raises `MissingImagesError`; key, network, and rate-limit problems raise
+  `StockSearchError`. Only the CLI, in a terminal, asks the user to drag an image in, copies it
+  next to the script, and writes its path into `image`.
 - **The title scene has its own image and length.** It never borrows scene 1's image. The data
   model below has no field for these yet; the spec that connects stored videos to the renderer
   must add one.
@@ -91,7 +101,7 @@ the job log.
 | Claude API | Script generation; drafting Knowledge Base content | Model is configurable; the default is `claude-sonnet-5-5`. Knowledge drafting uses web search so it can return source URLs. |
 | edge-tts | Vietnamese TTS in the MVP | Unofficial Microsoft endpoint that may stop working. Must be swappable by config. |
 | Azure Speech | Official TTS fallback | Same neural voices (vi-VN HoaiMy/NamMinh), plus English later. |
-| Pexels, Pixabay | Keyword stock image search for scenes without an upload | Free for commercial use. Store source and license info on the asset. |
+| Pixabay | Stock photo search for scenes without an image; the only stock source | Free for commercial use, no attribution required on the video. API terms: download images (no hotlinking) and cache search results for 24 hours (`<system temp>/reels_render_cache/`). A future web UI that lists Pixabay results must show "Ảnh từ Pixabay". |
 | FFmpeg | Rendering | Planned to ship in the worker image; on the dev host it is installed natively (see [deployment.md](deployment.md#current-state)). |
 
 Later phases add the Meta (Instagram/Facebook) and TikTok publishing APIs.
@@ -123,7 +133,7 @@ The migration tool will be chosen at scaffold time.
 
 ### Sensitive Data
 
-- API keys (Anthropic, Pexels, Pixabay, Azure) live only in environment variables. They are never
+- API keys (Anthropic, Pixabay, Azure) live only in environment variables. They are never
   committed or stored in the database.
 - Passwords are stored hashed.
 - The only personal data is team members' emails.

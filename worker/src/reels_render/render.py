@@ -1,12 +1,14 @@
 import os
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from . import ffmpeg
-from .errors import InputError, OutputNotReplacedError
+from .errors import InputError, MissingImagesError, OutputNotReplacedError
 from .graph import SceneInput, build_ffmpeg_args
 from .images import normalize_image
 from .script import Script
+from .stock import find_stock_images
 from .textbox import (
     SCENE_STYLE,
     TITLE_STYLE,
@@ -27,11 +29,13 @@ def render_video(
     output: Path,
     music: Path | None = None,
     music_volume: float = DEFAULT_MUSIC_VOLUME,
+    on_warning: Callable[[str], None] | None = None,
 ) -> Path:
     """Render the script to an MP4 and return the output path.
 
-    Raises a RenderError subclass for every expected failure. Inputs are fully checked before
-    FFmpeg runs and the output is only replaced after a successful render.
+    Scenes without a usable image get a Pixabay photo; scenes still without one raise
+    MissingImagesError. Raises a RenderError subclass for every expected failure. Inputs are fully
+    checked before FFmpeg runs and the output is only replaced after a successful render.
     """
     output = Path(output)
     tools = ffmpeg.find_tools()
@@ -54,6 +58,10 @@ def render_video(
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
+        found = find_stock_images(script, work_dir, on_warning=on_warning)
+        if found.missing:
+            raise MissingImagesError([scene.label for scene in found.missing])
+        script = found.script
         inputs = []
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             image = work_dir / f"scene-{index:02d}.jpg"

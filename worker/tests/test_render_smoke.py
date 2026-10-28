@@ -4,9 +4,16 @@ from fractions import Fraction
 
 import pytest
 
-from conftest import extract_frame, make_image, make_tone, mean_volume, needs_ffmpeg, script_data, write_script
+from conftest import extract_frame, make_image, make_tone, mean_volume, needs_ffmpeg, script_data, urls, write_script
 from reels_render import render as render_module
-from reels_render.errors import FFmpegError, OutputNotReplacedError, ToolNotFoundError
+from reels_render.errors import (
+    FFmpegError,
+    MissingImagesError,
+    OutputNotReplacedError,
+    RenderError,
+    StockSearchError,
+    ToolNotFoundError,
+)
 from reels_render.ffmpeg import probe
 from reels_render.render import render_video
 from reels_render.script import load_script
@@ -285,3 +292,44 @@ def test_broken_image_reported_before_ffmpeg_and_output_untouched(tmp_path, monk
     with pytest.raises(render_module.InputError, match="^Cảnh 1: ảnh hỏng"):
         render_video(script, tmp_path / "out" / "v.mp4")
     assert not (tmp_path / "out").exists()
+
+
+def test_scene_left_without_image_is_typed_error_before_ffmpeg(tmp_path, monkeypatch):
+    make_image(tmp_path / "a.jpg", (40, 40))
+    script = load_script(write_script(tmp_path, script_data(image="")))
+    monkeypatch.setattr("reels_render.ffmpeg.shutil.which", lambda name: name)
+    monkeypatch.setattr("reels_render.ffmpeg.run", lambda *a: pytest.fail("FFmpeg must not run"))
+    with pytest.raises(MissingImagesError) as err:
+        render_video(script, tmp_path / "out" / "v.mp4")
+    assert isinstance(err.value, RenderError)
+    assert err.value.labels == ["Cảnh tiêu đề"]
+    assert not (tmp_path / "out").exists()
+
+
+def test_failed_image_search_stops_before_ffmpeg(tmp_path, monkeypatch):
+    make_image(tmp_path / "a.jpg", (40, 40))
+    data = script_data()
+    data["scenes"][0]["image"] = ""
+    script = load_script(write_script(tmp_path, data))
+    monkeypatch.setattr("reels_render.ffmpeg.shutil.which", lambda name: name)
+    monkeypatch.setattr("reels_render.ffmpeg.run", lambda *a: pytest.fail("FFmpeg must not run"))
+    with pytest.raises(StockSearchError, match="PIXABAY_API_KEY"):
+        render_video(script, tmp_path / "out" / "v.mp4")
+    assert not (tmp_path / "out").exists()
+
+
+@needs_ffmpeg
+def test_script_without_images_renders_with_stock_photos(tmp_path, pixabay, isolated_tmp):
+    data = script_data(scene_count=2, image="", keywords=["món ăn giàu canxi"])
+    for item in data["scenes"]:
+        item["image"] = ""
+    pixabay.results["món ăn giàu canxi"] = urls("canxi", 2)
+    pixabay.results["Cá nhỏ"] = urls("ca", 3)
+    script = load_script(write_script(tmp_path, data))
+
+    output = render_video(script, tmp_path / "out" / "video.mp4")
+
+    (stream,) = streams(probe("ffprobe", output), "video")
+    assert (stream["width"], stream["height"]) == (1080, 1920)
+    assert len(pixabay.downloads) == 3
+    assert list(isolated_tmp.iterdir()) == []
