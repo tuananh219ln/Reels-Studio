@@ -34,7 +34,9 @@ app replaces CapCut, so the output is a finished MP4.
 
 ## Key Features (MVP)
 
-1. **Team login:** accounts are created by members. There is no self-signup.
+1. **Team login:** email and password; accounts are created by members (the first one by a CLI
+   command). There is no self-signup and no roles: every member can manage users. Google login is
+   planned for when the app has an HTTPS domain.
 2. **Knowledge Base:** editable channel documents and a food bank with sourced benefits. Claude
    drafts the content; food bank rows need a member's approval before use. See [content.md](content.md#knowledge-base).
 3. **Script generation:** one Claude call turns a topic into 5 title options, a 5–7 scene script,

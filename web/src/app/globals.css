@@ -1,0 +1,13 @@
+html,
+body {
+  margin: 0;
+  background: #f7f7f7;
+}
+
+body {
+  overflow-x: hidden;
+}
+
+.ant-table-thead > tr > th {
+  white-space: nowrap;
+}

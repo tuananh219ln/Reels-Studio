@@ -68,3 +68,10 @@ temp/
 
 # Local data
 data/
+
+# Web build and test outputs
+.next-e2e/
+web/next-env.d.ts
+web/test-results/
+web/playwright-report/
+*.tsbuildinfo
