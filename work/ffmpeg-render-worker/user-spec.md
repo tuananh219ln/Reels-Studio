@@ -300,8 +300,13 @@ Lý do: đây là phần logic thuần, dễ sai, và test chạy nhanh.
     - render thành công thì không còn file tạm hay file trung gian;
     - ép FFmpeg lỗi khi đã có output cũ thì output cũ còn nguyên, không sót file tạm;
     - giả lập file đích bị khóa (monkeypatch `os.replace` ném `PermissionError`) thì phải còn
-      `<tên>.new.mp4` và file cũ nguyên vẹn;
-    - giả lập cả file đích lẫn `<tên>.new.mp4` bị khóa thì phải ra `<tên>.new-2.mp4` và không sót file tạm.
+      `<tên>.new.mp4`, file cũ nguyên vẹn, lỗi có kiểu (CLI: mã thoát khác 0), thông báo nói "file
+      đích đang bị mở" và nêu đường dẫn `<tên>.new.mp4`;
+    - giả lập cả file đích lẫn `<tên>.new.mp4` bị khóa thì phải ra `<tên>.new-2.mp4`, không sót file
+      tạm, và thông báo nêu đường dẫn `<tên>.new-2.mp4`;
+    - giả lập mọi lần đổi tên đều ném `PermissionError` (đích và cả 9 tên `.new`…`.new-9`) thì
+      file tạm vẫn còn, thông báo nêu đường dẫn file tạm kèm lỗi của hệ điều hành và không nói
+      "file đích đang bị mở", lỗi có kiểu (CLI: mã thoát khác 0), và không có lần thử thứ 11.
   - CLI chạy qua subprocess:
     - thiếu ảnh thì mã thoát khác 0, có thông báo nêu cảnh và không có file output;
     - thư mục `-o` chưa có thì được tạo;
