@@ -4,7 +4,7 @@
 interview_metadata:
   started: "2026-10-28 22:40:00"
   last_updated: "2026-10-29 03:10:00"
-  status: "in_progress"  # in_progress | completed
+  status: "completed"  # in_progress | completed
   can_resume: true
 
 # Only written/read when the calling context carries the literal signal ONLINE_PIPELINE_AUTOMATED
