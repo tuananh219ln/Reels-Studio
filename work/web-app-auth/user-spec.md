@@ -131,6 +131,8 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
   - Phiên hết hạn hoặc bị thu hồi khiến lần gọi tiếp theo trả 401, và web chuyển về trang đăng nhập.
 - [ ] Mật khẩu được lưu bằng Argon2 và không bao giờ xuất hiện trong log, thông báo lỗi hay phản hồi
       API.
+- [ ] Mở trực tiếp một trang trong app khi không có cookie phiên thì được chuyển về trang đăng nhập
+      trước khi trang đó hiện ra (kiểm tra ở phía server của web), không thoáng thấy nội dung app.
 - [ ] "Đăng xuất" thu hồi phiên hiện tại và về trang đăng nhập.
 - [ ] Request thay đổi dữ liệu (POST/PUT/PATCH/DELETE) có `Origin` không nằm trong `ALLOWED_ORIGINS`
       thì bị từ chối. Mặc định chỉ cho `http://localhost:3000`.
@@ -163,7 +165,12 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
   - Thao tác trên dòng của họ chỉ còn "Kích hoạt lại".
 - [ ] Không vô hiệu hoá được chính mình (dòng của mình không có nút này, và API cũng từ chối).
 - [ ] Không vô hiệu hoá được người hoạt động cuối cùng, kể cả khi hai người vô hiệu hoá lẫn nhau cùng
-      lúc: luôn còn ít nhất 1 người hoạt động.
+      lúc: luôn còn ít nhất 1 người hoạt động. Khi đó bên thua nhận một trong hai kết quả, tuỳ thời
+      điểm, và cả hai đều đúng:
+  - 409 "Phải còn ít nhất một người dùng đang hoạt động" nếu phiên của họ còn hiệu lực lúc kiểm tra.
+    Web hiện thông báo và tải lại bảng.
+  - 401 nếu phiên của họ vừa bị bên kia thu hồi. Web chuyển về trang đăng nhập.
+  - Thao tác của bên thua không được áp dụng.
 - [ ] Kích hoạt lại (có hộp xác nhận) trả người đó về trạng thái Hoạt động. Mật khẩu và cờ "phải đổi
       mật khẩu" của họ giữ nguyên.
 - [ ] Đặt mật khẩu tạm:
@@ -184,7 +191,7 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
       | Tên rỗng hoặc quá 60 ký tự | 422 | "Tên phải từ 1 đến 60 ký tự" |
       | Mật khẩu dưới 8 ký tự | 422 | "Mật khẩu phải có ít nhất 8 ký tự" |
       | Tự vô hiệu hoá | 409 | "Không thể vô hiệu hoá chính mình" |
-      | Vô hiệu hoá người hoạt động cuối (kể cả bên thua khi hai người cùng thao tác) | 409 | "Phải còn ít nhất một người dùng đang hoạt động" |
+      | Vô hiệu hoá người hoạt động cuối | 409 | "Phải còn ít nhất một người dùng đang hoạt động" |
       | Đặt mật khẩu tạm cho người bị vô hiệu hoá | 409 | "Hãy kích hoạt lại người dùng trước" |
       | Sai mật khẩu hiện tại khi đổi từ menu | 400 | "Mật khẩu hiện tại không đúng" |
 
@@ -224,7 +231,10 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 - [ ] Ở chiều rộng 390px: menu trái thu gọn thành nút mở menu, bảng người dùng cuộn ngang, và trang
       không bị cuộn ngang.
 - [ ] Khi api hoặc Postgres không chạy, web hiện thông báo lỗi kết nối bằng tiếng Việt, không trắng
-      trang.
+      trang:
+  - Postgres không kết nối được: api trả 503 với mã `database_unavailable` và thông báo "Không kết
+    nối được cơ sở dữ liệu, thử lại sau"; web hiện đúng thông báo đó.
+  - api không chạy: web hiện "Không kết nối được máy chủ, thử lại sau".
 
 **Tài liệu dự án**
 - [ ] Project Knowledge được cập nhật:
@@ -349,14 +359,16 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
     `caplog` trong các test đăng nhập, thêm người dùng, đặt mật khẩu tạm, đổi mật khẩu).
   - Mã HTTP và thông báo của từng trường hợp bị từ chối trong bảng ở mục "Quản lý người dùng".
   - Sửa tên: hợp lệ; rỗng; chỉ có khoảng trắng; quá 60 ký tự.
+  - Postgres không kết nối được: giả lập bằng cách cho kết nối database ném lỗi kết nối (test này
+    không cần Postgres nên không bị skip); api trả 503 `database_unavailable` với đúng thông báo.
   - CLI:
     - Tạo mới; email đã có khi đồng ý và khi từ chối; không có terminal.
     - Email sai, tên rỗng, mật khẩu ngắn, hai lần nhập không khớp thì báo lỗi và hỏi lại.
     - Chạy CLI như một tiến trình con với stdout là pipe: thông báo tiếng Việt in đúng, không có
       traceback.
 - Riêng trường hợp hai người vô hiệu hoá lẫn nhau cùng lúc: một test dùng hai kết nối thật, dữ liệu
-  được commit vào `reels_test` và dọn sau test. Test kiểm tra chỉ một thao tác thành công và luôn còn
-  ít nhất 1 người hoạt động.
+  được commit vào `reels_test` và dọn sau test. Test kiểm tra chỉ một thao tác thành công, luôn còn
+  ít nhất 1 người hoạt động, và bên thua nhận 409 hoặc 401 (không kiểm một mã cố định).
 - Khi không kết nối được Postgres, các test cần database bị bỏ qua (skip) kèm lý do tiếng Việt.
 
 **E2E tests:** cần, vì người dùng yêu cầu kiểm thử đăng nhập trên trình duyệt thật.
@@ -371,9 +383,11 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
   - Đổi mật khẩu và sửa tên từ menu tài khoản.
   - Trang "Sắp có".
   - Cỡ màn 390px: menu thu gọn, trang không bị cuộn ngang.
-  - Thông báo lỗi khi api không chạy. Trường hợp api còn chạy nhưng Postgres dừng được kiểm ở
-    integration test: api trả 503 với thông báo lỗi kết nối, và web hiện đúng thông báo đó (kiểm bằng
-    E2E giả lập phản hồi 503 của api).
+  - Thông báo "Không kết nối được máy chủ, thử lại sau" khi api không chạy.
+  - Thông báo "Không kết nối được cơ sở dữ liệu, thử lại sau" khi api trả 503 `database_unavailable`
+    (E2E giả lập phản hồi này; phía api được kiểm ở integration test).
+  - Mở thẳng một trang trong app khi chưa đăng nhập thì về trang đăng nhập, không thoáng thấy nội dung
+    app.
 
 ## Verification
 
