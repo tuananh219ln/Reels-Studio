@@ -196,6 +196,15 @@ conversation_history:
     user_answer: |
       1. Giữ bản mới, báo lỗi (Recommended)
       2. Tiếng Việt, đánh số từ 1 (Recommended)
+  - asked_at: "2026-10-28"
+    topic_keys: ["error_scenarios", "edge_cases"]
+    agent_questions: |
+      (Validation round 1, adequacy finding.)
+      1. Nếu cả video.mp4 lẫn video.new.mp4 đều đang mở (bạn xem bản mới rồi render thêm lần nữa) thì sao?
+         - Đánh số tiếp (Recommended): Thử video.new.mp4 → video.new-2.mp4 → video.new-3.mp4… lấy tên đầu tiên ghi được; báo đường dẫn bản mới, thoát mã ≠ 0. Không bao giờ mất bản render.
+         - Ghi đè .new, không được thì giữ file tạm: Ghi đè video.new.mp4 nếu được; nếu nó cũng bị khóa thì để nguyên file tạm và báo đường dẫn file tạm.
+    user_answer: |
+      1. Đánh số tiếp (Recommended)
 # Entry format:
 # - asked_at: "YYYY-MM-DD HH:MM:SS"
 #   topic_keys: ["user_problem", "success_criteria"]

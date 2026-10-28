@@ -88,8 +88,8 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 - [ ] Mọi cảnh có Ken Burns zoom vào chậm quanh tâm, từ 100% đến khoảng 112%.
 
 **Hộp chữ**
-- [ ] Hộp nền vàng (`#FFD60A`), chữ đen in hoa đậm, font Be Vietnam Pro Black. Phần `*...*` có màu
-      đỏ. Dấu tiếng Việt, kể cả dấu chồng như Ổ hay Ặ, hiển thị đủ, không bị cắt hay dính vào dòng
+- [ ] Hộp nền vàng (`#FFD60A`), chữ đen (`#111111`) in hoa đậm, font Be Vietnam Pro Black. Phần
+      `*...*` có màu đỏ (`#E10600`). Dấu tiếng Việt, kể cả dấu chồng như Ổ hay Ặ, hiển thị đủ, không bị cắt hay dính vào dòng
       trên.
 - [ ] Cảnh tiêu đề:
   - chữ nằm giữa khung, cỡ 96px;
@@ -129,7 +129,9 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
       tên, nếu có, giữ nguyên.
 - [ ] Render xong nhưng không thay được file đích (ví dụ file đang mở trong trình phát trên
       Windows): giữ bản mới với tên `<tên>.new.mp4` cạnh file đích, báo đường dẫn bản mới, thoát
-      mã khác 0.
+      mã khác 0. Nếu tên đó cũng đã có và bị khóa thì thử lần lượt `<tên>.new-2.mp4`,
+      `<tên>.new-3.mp4`… và lấy tên đầu tiên ghi được. Bản render không bao giờ bị mất.
+- [ ] Render thành công thì CLI in ra đường dẫn video và thời gian render, thoát mã 0.
 - [ ] Sau một lần render thành công, không còn sót file tạm hay file trung gian nào.
 
 **Tốc độ và dữ liệu mẫu**
@@ -138,7 +140,8 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 - [ ] `samples/xuong-khop.json` được chuyển sang định dạng mới:
   - bỏ emoji, outro và disclaimer;
   - đổi `**...**` thành `*...*`;
-  - đi kèm 6 ảnh trong `samples/xuong-khop/` (1 ảnh tiêu đề và 5 món) do người dùng cung cấp;
+  - đi kèm 6 ảnh trong `samples/xuong-khop/` (1 ảnh tiêu đề và 5 món) do người dùng cung cấp. Ảnh
+    được **commit vào repo** (khoảng 300–500 KB mỗi ảnh) để ai clone về cũng render thử được ngay;
   - render thành công bằng lệnh CLI ở trên.
 
 ## Constraints
@@ -149,8 +152,10 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
   - Mọi thứ ghép trong một filter graph duy nhất.
 - **Chạy trên cả Windows và Linux:**
   - Hiện tại phát triển và chạy native trên Windows, với Python và FFmpeg cài qua winget.
-  - Spec sau sẽ chạy cùng code này trong image worker Linux (Debian, FFmpeg 5.1). Vì vậy chỉ dùng
-    tính năng FFmpeg có ở cả hai phiên bản (≥ 4.3).
+  - Spec sau sẽ chạy cùng code này trong image worker Linux. Image đó chưa được chọn, nên chưa biết
+    phiên bản FFmpeg. Vì vậy chỉ dùng tính năng FFmpeg có từ bản 4.3 trở lên, không viết nhánh code
+    riêng theo phiên bản. Filter graph luôn truyền qua đối số `-filter_complex`, không đọc từ file:
+    với 6–8 cảnh, cả lệnh chỉ dài vài KB, còn xa giới hạn dòng lệnh của Windows.
   - Dùng `pathlib` cho mọi đường dẫn.
   - Đọc JSON bằng `encoding="utf-8"`.
   - Chuẩn hóa văn bản về NFC.
@@ -177,9 +182,10 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 - **Dấu tiếng Việt chồng bị cắt hoặc sát dòng trên.** **Mitigation:** tính chiều cao dòng từ
   `font.getmetrics()` thay vì bbox từng dòng, chuẩn hóa NFC. Có test Pillow cho phần này, và người
   dùng xem tận mắt.
-- **FFmpeg trên Windows (7.x) khác Linux (5.1)**, ví dụ cú pháp đọc filter graph từ file.
-  **Mitigation:** chỉ dùng tính năng chung của hai bản. Nếu graph quá dài để truyền qua đối số,
-  chọn cú pháp theo phiên bản phát hiện được.
+- **FFmpeg trên Windows khác FFmpeg trong image Linux sau này.** winget hiện cài Gyan.FFmpeg bản
+  9.x, còn image Linux chưa được chọn. **Mitigation:** chỉ dùng các filter và tùy chọn ổn định có từ
+  bản 4.3 (`zoompan`, `xfade`, `overlay`, `afade`, `-stream_loop`), truyền graph qua
+  `-filter_complex`, và chạy smoke test lại khi dựng image worker.
 - **Lệch offset xfade làm sai tổng thời lượng.** **Mitigation:** tính timeline ở một module thuần
   có unit test, và snap mọi mốc về khung hình.
 - **Ảnh điện thoại bị xoay** vì FFmpeg bỏ qua EXIF. **Mitigation:** chuẩn hóa ảnh bằng
@@ -220,7 +226,9 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 - Output 1080×1920 ở 30fps, thay vì 720×1280.
 - Font Be Vietnam Pro Black được đóng gói trong repo (giấy phép OFL), không cài trên từng máy.
 - Ghi output an toàn: render ra file tạm rồi mới thay file đích, tự tạo thư mục, luôn dọn file
-  trung gian. Nếu file đích đang bị khóa thì giữ bản mới `<tên>.new.mp4` và báo lỗi.
+  trung gian. Nếu file đích đang bị khóa thì giữ bản mới `<tên>.new.mp4` và báo lỗi. Nếu tên đó
+  cũng bị khóa thì đánh số tiếp (`.new-2`, `.new-3`…) thay vì ghi đè hoặc để lại file tạm.
+- Commit 6 ảnh mẫu vào repo thay vì chỉ để JSON, để ai clone về cũng render thử được ngay.
 - Thông báo lỗi viết bằng tiếng Việt và đánh số cảnh từ 1, đúng quy ước giao diện chỉ tiếng Việt
   và sẵn sàng hiển thị ở Job log sau này.
 - Ảnh không đúng 9:16 thì cắt phần giữa cho phủ kín khung, thay vì dùng nền mờ với ảnh nguyên.
@@ -269,11 +277,12 @@ Lý do: đây là phần logic thuần, dễ sai, và test chạy nhanh.
     - render thành công thì không còn file tạm hay file trung gian;
     - ép FFmpeg lỗi khi đã có output cũ thì output cũ còn nguyên, không sót file tạm;
     - giả lập file đích bị khóa (monkeypatch `os.replace` ném `PermissionError`) thì phải còn
-      `<tên>.new.mp4` và file cũ nguyên vẹn.
+      `<tên>.new.mp4` và file cũ nguyên vẹn;
+    - giả lập cả file đích lẫn `<tên>.new.mp4` bị khóa thì phải ra `<tên>.new-2.mp4` và không sót file tạm.
   - CLI chạy qua subprocess:
     - thiếu ảnh thì mã thoát khác 0, có thông báo nêu cảnh và không có file output;
     - thư mục `-o` chưa có thì được tạo;
-    - thành công thì mã thoát 0.
+    - thành công thì mã thoát 0, stdout chứa đường dẫn video và thời gian render.
 
 Lý do: đây là tầng duy nhất bắt được lỗi ghép graph và lỗi âm thanh (patterns.md: render smoke test).
 
@@ -287,7 +296,7 @@ Lý do: đây là tầng duy nhất bắt được lỗi ghép graph và lỗi �
 |------|-----------------|
 | 1. Cài Python 3.12 và FFmpeg qua winget (người dùng duyệt lệnh), tạo `.venv`, cài package | `python --version` báo 3.12. `ffmpeg -filters` có `zoompan`, `xfade`, `overlay`, `afade` |
 | 2. Chạy `pytest` trong `worker/` | Toàn bộ unit, Pillow và smoke test pass, không có test nào bị skip vì thiếu ffmpeg |
-| 3. Render `samples/xuong-khop.json` bằng CLI ra `out/xuong-khop.mp4`, có và không có `--music` | Mã thoát 0, file tồn tại, không sót file tạm |
+| 3. Render `samples/xuong-khop.json` bằng CLI ra `out/xuong-khop.mp4`, một lần không có `--music` và một lần có `--music`. File nhạc là file người dùng cung cấp, hoặc nếu không có thì là tone thử do agent sinh bằng FFmpeg `sine` vào `out/` (không commit) | Mã thoát 0, in đường dẫn và thời gian render, file tồn tại, không sót file tạm |
 | 4. Chạy `ffprobe` trên file vừa render | 1080×1920, 30fps, h264/yuv420p, có audio, thời lượng bằng tổng `seconds` ±1 khung hình |
 | 5. Đo thời gian render ở bước 3 | Thời gian render ≤ 2 × thời lượng video |
 | 6. Trích khung đầu và một khung giữa mỗi cảnh ra PNG để người dùng xem | Có file PNG tương ứng (agent không tự đánh giá thẩm mỹ) |
