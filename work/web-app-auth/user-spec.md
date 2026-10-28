@@ -65,7 +65,7 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
      - Email.
      - Tên.
      - Trạng thái: Hoạt động hoặc Vô hiệu hoá.
-     - Đăng nhập gần nhất (`dd/mm/yyyy hh:mm`).
+     - Đăng nhập gần nhất (`dd/mm/yyyy hh:mm`, giờ Việt Nam `Asia/Ho_Chi_Minh`; database lưu UTC).
      - Phiên hoạt động: số phiên còn hạn.
      - Thao tác.
    - Thao tác trên người đang hoạt động: "Vô hiệu hoá", "Đặt mật khẩu tạm", "Đăng xuất khỏi mọi
@@ -134,8 +134,9 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 - [ ] Mở trực tiếp một trang trong app khi không có cookie phiên thì được chuyển về trang đăng nhập
       trước khi trang đó hiện ra (kiểm tra ở phía server của web), không thoáng thấy nội dung app.
 - [ ] "Đăng xuất" thu hồi phiên hiện tại và về trang đăng nhập.
-- [ ] Request thay đổi dữ liệu (POST/PUT/PATCH/DELETE) có `Origin` không nằm trong `ALLOWED_ORIGINS`
-      thì bị từ chối. Mặc định chỉ cho `http://localhost:3000`.
+- [ ] Request thay đổi dữ liệu (POST/PUT/PATCH/DELETE) có `Origin` không nằm trong `ALLOWED_ORIGINS`,
+      hoặc thiếu header `Origin`, thì bị từ chối với 403, mã `origin_not_allowed`, và dữ liệu không đổi.
+      Mặc định chỉ cho `http://localhost:3000`.
 - [ ] Web gọi api qua rewrite `/api/*` tới `API_URL`, nên cookie nằm cùng trang và api không cần CORS.
 
 **Bắt buộc đổi mật khẩu**
@@ -171,6 +172,7 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
     Web hiện thông báo và tải lại bảng.
   - 401 nếu phiên của họ vừa bị bên kia thu hồi. Web chuyển về trang đăng nhập.
   - Thao tác của bên thua không được áp dụng.
+  - Không bao giờ trả 500 trong tình huống này (cơ chế khoá ở mục Accepted Decisions).
 - [ ] Kích hoạt lại (có hộp xác nhận) trả người đó về trạng thái Hoạt động. Mật khẩu và cờ "phải đổi
       mật khẩu" của họ giữ nguyên.
 - [ ] Đặt mật khẩu tạm:
@@ -182,7 +184,8 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
       nhập thành công; người chưa đăng nhập lần nào thì cột hiện "Chưa đăng nhập".
 - [ ] Mỗi người dùng lưu người tạo (người thêm trong app; để trống nếu tạo bằng CLI) và ngày tạo.
 - [ ] Các trường hợp bị từ chối trả lỗi có mã và thông báo tiếng Việt cố định. Web hiện thông báo đó
-      (ở form hoặc dạng thông báo nổi) và tải lại bảng:
+      ở form hoặc dạng thông báo nổi; với thao tác trên một dòng của màn Quản lý người dùng thì tải lại
+      bảng sau đó:
 
       | Trường hợp | HTTP | Thông báo |
       |---|---|---|
@@ -198,6 +201,8 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 **Tài khoản của tôi**
 - [ ] Đổi mật khẩu từ menu tài khoản:
   - Phải nhập đúng mật khẩu hiện tại.
+  - Mật khẩu mới theo cùng quy tắc với màn bắt buộc đổi: từ 8 ký tự trở lên, hai lần nhập phải khớp;
+    nếu không thì báo lỗi ngay trên form (api cũng từ chối mật khẩu dưới 8 ký tự với 422).
   - Đổi xong thì các phiên khác của người đó bị thu hồi, phiên hiện tại vẫn dùng được.
 - [ ] Sửa tên:
   - Tên được bỏ khoảng trắng hai đầu rồi mới kiểm tra độ dài 1–60 ký tự (cùng quy tắc khi thêm người
@@ -330,7 +335,14 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
 - **Các mục menu chưa làm vẫn hiện**, mở ra trang "Sắp có".
 - **Next.js gọi api qua rewrite `/api`** để cookie cùng trang và không cần CORS.
 - **Chặn vô hiệu hoá người hoạt động cuối bằng khoá dòng trong transaction**, để đúng cả khi hai
-  người thao tác cùng lúc.
+  người thao tác cùng lúc:
+  - Thao tác vô hiệu hoá khoá **tất cả** dòng người dùng đang hoạt động (`SELECT ... FOR UPDATE`,
+    theo thứ tự id), rồi mới đếm và cập nhật. Không chỉ khoá dòng của người bị vô hiệu hoá, vì như vậy
+    hai bên vẫn có thể cùng thành công.
+  - Việc gia hạn phiên ở mỗi request chạy trong một transaction ngắn riêng và commit trước phần xử lý
+    của endpoint, để không giữ khoá dòng phiên trong lúc chờ khoá dòng người dùng (tránh deadlock).
+  - Nếu Postgres vẫn báo deadlock hoặc lỗi tuần tự hoá, api trả 409 "Phải còn ít nhất một người dùng
+    đang hoạt động", không bao giờ trả 500.
 
 ## Testing
 
@@ -349,12 +361,12 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
     hoặc bị thu hồi.
   - Bắt buộc đổi mật khẩu: `/api/me` được gọi, mọi API khác trả 403 `password_change_required`, đổi
     xong thì gỡ cờ.
-  - Đổi mật khẩu từ menu: sai mật khẩu hiện tại; thu hồi các phiên khác.
+  - Đổi mật khẩu từ menu: sai mật khẩu hiện tại; mật khẩu mới dưới 8 ký tự; thu hồi các phiên khác.
   - Thêm người dùng: email trùng (kể cả khác hoa thường); email sai định dạng; tên rỗng hoặc quá dài.
   - Vô hiệu hoá: thu hồi phiên; không vô hiệu hoá được chính mình hay người hoạt động cuối.
   - Kích hoạt lại; đặt mật khẩu tạm (thu hồi phiên, bật cờ, bị từ chối với người đang vô hiệu hoá);
     đăng xuất mọi thiết bị; đếm phiên còn hạn; cập nhật "Đăng nhập gần nhất".
-  - Kiểm tra Origin.
+  - Kiểm tra Origin: đúng; sai; thiếu header → 403 `origin_not_allowed`, dữ liệu không đổi.
   - Mật khẩu không xuất hiện trong phản hồi API, và không xuất hiện trong log của api (bắt log bằng
     `caplog` trong các test đăng nhập, thêm người dùng, đặt mật khẩu tạm, đổi mật khẩu).
   - Mã HTTP và thông báo của từng trường hợp bị từ chối trong bảng ở mục "Quản lý người dùng".
@@ -368,7 +380,9 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
       traceback.
 - Riêng trường hợp hai người vô hiệu hoá lẫn nhau cùng lúc: một test dùng hai kết nối thật, dữ liệu
   được commit vào `reels_test` và dọn sau test. Test kiểm tra chỉ một thao tác thành công, luôn còn
-  ít nhất 1 người hoạt động, và bên thua nhận 409 hoặc 401 (không kiểm một mã cố định).
+  ít nhất 1 người hoạt động, và bên thua nhận 409 hoặc 401 (không kiểm một mã cố định, không bao giờ
+  500). Test chạy lặp lại nhiều lần (ví dụ 20 lần) với hai luồng bắt đầu cùng lúc để bắt được các thứ
+  tự xen kẽ khác nhau.
 - Khi không kết nối được Postgres, các test cần database bị bỏ qua (skip) kèm lý do tiếng Việt.
 
 **E2E tests:** cần, vì người dùng yêu cầu kiểm thử đăng nhập trên trình duyệt thật.
