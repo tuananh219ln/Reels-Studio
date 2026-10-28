@@ -1,0 +1,380 @@
+# User-spec planning interview
+# Questions and answers are preserved verbatim. Topic fields track what is known and still open.
+
+interview_metadata:
+  started: "2026-10-28 22:40:00"
+  last_updated: "2026-10-29 01:10:00"
+  status: "in_progress"  # in_progress | completed
+  can_resume: true
+
+# Only written/read when the calling context carries the literal signal ONLINE_PIPELINE_AUTOMATED
+# (see user-spec-planning/SKILL.md Step 5). Ignored otherwise; stays null for interactive use.
+automated_validate_state: null
+# automated_validate_state:
+#   round: 2
+#   pending_finding: |
+#     Full finding text from the reviewer that returned user_decision_required.
+#   user_answer: ""  # filled in once the user replies; triggers a re-run of round 2 (not round 1)
+
+conversation_history:
+  - asked_at: "2026-10-28 22:40:00"
+    topic_keys: ["data_requirements", "user_stories", "integration_points", "dependencies"]
+    agent_questions: |
+      1. Từ khóa tìm ảnh lấy từ đâu? (a) thêm trường `keywords` tiếng Anh cho mỗi cảnh, người dùng tự viết; (b) tool gọi Claude API dịch chữ trên cảnh thành từ khóa tiếng Anh; (c) kết hợp. Đề xuất (a).
+      2. Ảnh được chọn thế nào? (a) tool tự lấy ảnh tốt nhất (ưu tiên dọc, >=1080px), tải về, ghi đường dẫn vào JSON; (b) tải 3-5 ứng viên cho người dùng chọn.
+      3. Cách chạy? (a) lệnh riêng `fetch-images` rồi mới render; (b) gộp vào lệnh render, cảnh thiếu ảnh tự tìm lúc render.
+      4. Nguồn ảnh: Pexels, Pixabay, hay cả hai (cần API key miễn phí)?
+    user_answer: |
+      1. a
+      2. a
+      3. b
+      4. nguồn trên google được không
+# Entry format:
+# - asked_at: "YYYY-MM-DD HH:MM:SS"
+#   topic_keys: ["user_problem", "success_criteria"]
+#   agent_questions: |
+#     Full question batch, verbatim.
+#   user_answer: |
+#     Full user answer, verbatim.
+  - asked_at: "2026-10-28 22:50:00"
+    topic_keys: ["dependencies", "data_requirements", "error_scenarios", "edge_cases"]
+    agent_questions: |
+      (Không khuyến nghị Google: bản quyền ảnh, không có cách tải tự động hợp lệ/ổn định; đề xuất Pexels chính, Pixabay dự phòng.)
+      4b. Đồng ý dùng Pexels + Pixabay không? Nếu vẫn muốn Google, cho biết lý do.
+      5. Tải ảnh vào thư mục cạnh JSON và ghi đường dẫn vào trường `image` trong JSON để lần sau không tìm lại và có thể thay ảnh. Đồng ý không?
+      6. Cảnh tiêu đề cũng có `keywords` và tự tìm ảnh?
+      7. Không tìm ra ảnh (không có kết quả, thiếu API key, mất mạng): báo lỗi rõ cảnh nào và không render. Đồng ý không?
+      8. Lưu thông tin nguồn ảnh (tác giả, link, giấy phép) vào `credits.json` cạnh ảnh?
+    user_answer: |
+      4b. tôi vẫn cần ảnh thật mà pexel hay pixabay đều tìm tiếng việt không có. 
+      5. theo đề xuất
+      6. có đề xuất
+      7. tôi nghĩ vẫn nên tìm ảnh hoặc lên kịch bản trong tool để tôi imput ảnh sẽ ok hơn
+      8. Không, tôi sẽ tìm ảnh trắng hoặc tự chụp
+  - asked_at: "2026-10-28 23:00:00"
+    topic_keys: ["feature_description", "dependencies", "error_scenarios", "data_requirements"]
+    agent_questions: |
+      4c. Từ khóa là tiếng Anh nên tránh được vấn đề tìm tiếng Việt; rủi ro thật là món đặc trưng VN không có trong kho ảnh. Đồng ý Pexels chính, Pixabay dự phòng, chỉ lấy ảnh chụp thật?
+      7b. `keywords` là danh sách từ cụ thể đến chung, thử lần lượt; hết mà không ra thì dừng, không render, in danh sách cảnh cần ảnh, giữ ảnh đã tìm được. Đồng ý?
+      8b. Vẫn chọn không lưu nguồn ảnh, kể cả chỉ một dòng link gốc vào `nguon-anh.txt`?
+      9. Cảnh có `image` thì luôn dùng ảnh người dùng; `image` trống mới tìm theo `keywords`; `image` trỏ tới file không tồn tại thì báo lỗi. Đồng ý?
+      10. Người dùng tự đăng ký Pexels/Pixabay API key và đặt vào `.env` (`PEXELS_API_KEY`, `PIXABAY_API_KEY`). Đồng ý?
+    user_answer: |
+      tôi nghĩ tôi sẽ tìm ảnh theo kịch bản và imput lên.
+  - asked_at: "2026-10-28 23:05:00"
+    topic_keys: ["feature_description", "user_problem"]
+    agent_questions: |
+      Nếu tự tìm ảnh thì spec đổi hướng. Chọn: (a) bỏ spec tìm ảnh, giữ cách hiện tại, chuyển sang giọng đọc và nhạc; (b) trang nhập kịch bản đơn giản chạy trên máy để chọn ảnh từng cảnh và render; (c) ứng dụng web đầy đủ như kế hoạch.
+    user_answer: |
+      không tôi thay đổi rồi, vẫn sẽ tìm ảnh tự động
+  - asked_at: "2026-10-28 23:10:00"
+    topic_keys: ["dependencies", "error_scenarios", "data_requirements", "edge_cases", "manual_user_actions"]
+    agent_questions: |
+      4c. Pexels chính, Pixabay dự phòng, chỉ ảnh chụp thật, từ khóa tiếng Anh.
+      7b. `keywords` là danh sách từ cụ thể đến chung, thử lần lượt; hết mà không ra thì dừng, không render, in cảnh cần ảnh, giữ ảnh đã tìm.
+      8b. Không lưu nguồn ảnh.
+      9. Có `image` thì dùng ảnh người dùng; trống thì tìm; `image` trỏ file không tồn tại thì báo lỗi, không tự thay.
+      10. Người dùng tự đăng ký API key Pexels/Pixabay và dán vào `.env`.
+      11. Ảnh tìm được ghi vào `image`, lần render sau dùng lại, không tìm lại; muốn đổi thì xóa `image` của cảnh đó hoặc thay ảnh khác. Đồng ý?
+    user_answer: |
+      4c, tạm thời như vậy
+      7b. Oke chốt thiếu phần nào báo tôi imput vào tool để tiếp tục chạy 
+      8b. Ko lưu
+      9. Oke tìm ảnh khác thay vào
+      10. Bạn xử lý luôn được không
+  - asked_at: "2026-10-28 23:15:00"
+    topic_keys: ["manual_user_actions", "error_scenarios", "edge_cases", "data_requirements"]
+    agent_questions: |
+      10. Agent không đăng ký tài khoản thay được; agent lo đọc `.env`, `.env.example`, báo lỗi thiếu key. Người dùng lấy key Pexels (và Pixabay tùy chọn) rồi dán vào `.env` hoặc gửi agent. Đồng ý?
+      7b. Có phải ý là: cảnh không tìm được ảnh thì tool hỏi ngay trong terminal để kéo thả ảnh, chép ảnh, ghi JSON và render tiếp; khi không chạy trong terminal (worker/test) thì báo lỗi?
+      9. Tự tìm ảnh thay khi file ảnh không tồn tại, nhưng in cảnh báo. Đồng ý?
+      11. Ảnh tìm được ghi vào `image`, lần sau dùng lại; muốn đổi thì xóa `image`. Đồng ý?
+    user_answer: |
+      11. Nên tìm ảnh mới cho đa dạng
+  - asked_at: "2026-10-28 23:20:00"
+    topic_keys: ["data_requirements", "manual_user_actions", "error_scenarios", "edge_cases"]
+    agent_questions: |
+      11b. Đa dạng theo nghĩa nào? (a) mỗi lần render chọn ảnh mới, ảnh tự động không ghi vào JSON; (b) mặc định dùng lại, có `--anh-moi` để tìm mới; (c) không lặp ảnh giữa các video khác nhau (lưu danh sách ảnh đã dùng). Đề xuất (b), có thể thêm (c).
+      10. Người dùng tự lấy key Pexels (và Pixabay nếu muốn), dán vào `.env` hoặc gửi agent; agent lo phần code đọc key. Đồng ý?
+      7b. Không tìm được ảnh thì tool hỏi ngay trong terminal để kéo thả ảnh rồi render tiếp. Đúng ý?
+      9. File ảnh không tồn tại thì tự tìm ảnh thay nhưng in cảnh báo. Đồng ý?
+    user_answer: |
+      7b. hỏi trên tool
+      9. Oke đề xuất
+      11. tự động tìm ảnh mới. tôi không tự tìm để xóa.
+  - asked_at: "2026-10-28 23:22:00"
+    topic_keys: ["manual_user_actions", "dependencies"]
+    agent_questions: |
+      10. Agent không đăng ký tài khoản thay được; agent lo đọc `.env`, `.env.example`, báo lỗi thiếu key. Người dùng lấy key Pexels (và Pixabay tùy chọn).
+    user_answer: |
+      chưa lấy được api
+  - asked_at: "2026-10-28 23:25:00"
+    topic_keys: ["data_requirements", "edge_cases", "technical_decisions", "technical_constraints"]
+    agent_questions: |
+      12. Ảnh người dùng nhập khi tool hỏi được chép vào thư mục cạnh JSON và ghi vào `image`; lần sau dùng luôn, không hỏi lại. Chỉ cảnh tìm tự động mới đổi ảnh mỗi lần render. Đồng ý?
+      13. Hai cảnh trùng từ khóa trong cùng video thì chọn hai ảnh khác nhau. Đồng ý?
+      14. Ưu tiên ảnh dọc; cạnh ngắn >= 1080px; chọn ngẫu nhiên trong khoảng 10 kết quả đầu. Đồng ý?
+      15. Mỗi lần render thêm khoảng 5-15 giây để tìm và tải 6-8 ảnh. Chấp nhận không?
+    user_answer: |
+      12. ok
+      13. Đồng ý
+      14. Đồng ý
+      15. Chấp nhận
+  - asked_at: "2026-10-28 23:35:00"
+    topic_keys: ["dependencies", "technical_constraints", "technical_decisions"]
+    agent_questions: |
+      16. Pixabay API miễn phí chỉ cho ảnh tối đa 1280px (ảnh dọc rộng ~720px), dưới mức >=1080px. (a) vẫn dùng Pixabay dự phòng, chấp nhận ảnh nhỏ hơn; (b) bỏ Pixabay, chỉ Pexels.
+      17. Pixabay yêu cầu lưu kết quả tìm kiếm 24 giờ: tool lưu danh sách kết quả mỗi từ khóa 24 giờ trong thư mục tạm của máy, mỗi lần render bốc ngẫu nhiên ảnh khác trong danh sách. (Thông báo.)
+      Lưu ý: hướng dẫn Pexels khuyến khích ghi nguồn; vì không lưu nguồn nên ghi thành giới hạn đã chấp nhận.
+    user_answer: |
+      16. a vì pexel không có api
+      17. Oke
+  - asked_at: "2026-10-28 23:40:00"
+    topic_keys: ["dependencies", "manual_user_actions"]
+    agent_questions: |
+      (Pexels có API tại pexels.com/api, hướng dẫn lấy key.)
+      18. (a) Pexels chính (ảnh nét), Pixabay dự phòng (ảnh nhỏ hơn), người dùng lấy key Pexels; (b) chỉ Pixabay. Đề xuất (a); thiếu key nguồn nào thì bỏ qua nguồn đó, nên chạy được chỉ với Pixabay.
+    user_answer: |
+      (người dùng gửi key Pixabay) Key pixabay
+      -> Agent lưu vào .env (gitignored) là PIXABAY_API_KEY; PEXELS_API_KEY để trống. Không ghi giá trị key vào tài liệu.
+  - asked_at: "2026-10-28 23:45:00"
+    topic_keys: ["dependencies", "technical_decisions", "constraints"]
+    agent_questions: |
+      18. (nhắc lại) (a) Pexels chính, Pixabay dự phòng; (b) chỉ Pixabay.
+    user_answer: |
+      18 . chốt pixabay làm chính. pexels không có api
+  - asked_at: "2026-10-28 23:50:00"
+    topic_keys: ["dependencies", "technical_decisions", "constraints", "risks"]
+    agent_questions: |
+      (Người dùng hỏi: còn cách nào lấy ảnh đẹp mà thật không. Agent liệt kê: Pexels (có API ở pexels.com/api), Unsplash (bắt buộc ghi tác giả, 50 lượt/giờ), Pixabay full access (phải xin duyệt), kho ảnh riêng của người dùng (để spec sau), kho trả phí (không đáng).)
+      19. Pixabay làm nguồn chính như đã chốt; Pexels là tùy chọn: code hỗ trợ sẵn, khi có PEXELS_API_KEY thì Pexels được thử trước (ảnh nét hơn), Pixabay dự phòng; chưa có key thì bỏ qua Pexels. Kho ảnh riêng để spec sau. Đồng ý giữ Pexels làm tùy chọn?
+    user_answer: |
+      Đồng ý
+  - asked_at: "2026-10-28 23:58:00"
+    topic_keys: ["error_scenarios", "edge_cases", "data_requirements", "technical_decisions", "constraints"]
+    agent_questions: |
+      20. Không có key nào hoặc không có mạng: dừng ngay, báo lỗi rõ, không hỏi từng cảnh. Một lần tìm bị lỗi (quá giới hạn, hết thời gian chờ 15 giây, lỗi máy chủ): thử từ khóa/nguồn tiếp theo; nếu lỗi mạng làm hỏng toàn bộ thì dừng và báo lỗi. Ảnh tải về hỏng: lấy ảnh khác trong danh sách. Chỉ khi tìm bình thường mà không ra kết quả nào mới hỏi người dùng đưa ảnh.
+      21. Tìm cho tất cả cảnh trước, rồi hỏi lần lượt từng cảnh còn thiếu. Đường dẫn sai/không phải ảnh/để trống: báo lỗi và hỏi lại cảnh đó. Ctrl+C: dừng, không render; ảnh đã nhập cho các cảnh trước vẫn giữ trong JSON.
+      22. Ảnh nhập được lưu vào thư mục con mang tên kịch bản (vd `samples/xuong-khop/03-ca-kho-to.jpg`: số thứ tự cảnh + chữ trên cảnh không dấu); trùng tên thì thêm -2, -3, không ghi đè. JSON được định dạng lại khi ghi (thụt lề đều), nội dung và tiếng Việt giữ nguyên.
+      23. Ưu tiên ảnh dọc; không có ảnh dọc thì chấp nhận ảnh ngang (cắt phần giữa). Không loại ảnh vì nhỏ. Hai cảnh trùng từ khóa mà không đủ ảnh khác nhau thì cảnh sau thử từ khóa tiếp theo.
+      24. Thứ tự nguồn cố định (Pexels nếu có key, rồi Pixabay), không cấu hình; từ khóa ở trường `keywords` riêng; không lưu nguồn ảnh. Sẽ cập nhật tài liệu dự án cho khớp.
+    user_answer: |
+      20 Oke
+      21 Ok
+      22 Oke
+      24 oke
+  - asked_at: "2026-10-29 00:02:00"
+    topic_keys: ["edge_cases", "technical_decisions"]
+    agent_questions: |
+      23. Ưu tiên ảnh dọc; không có ảnh dọc thì chấp nhận ảnh ngang (cắt phần giữa); không loại ảnh vì nhỏ; hai cảnh trùng từ khóa mà không đủ ảnh khác nhau thì cảnh sau thử từ khóa tiếp theo. Đồng ý?
+    user_answer: |
+      Đồng ý
+  - asked_at: "2026-10-29 00:20:00"
+    topic_keys: ["error_scenarios", "edge_cases", "dependencies", "technical_decisions"]
+    agent_questions: |
+      25. Pixabay lỗi giữa chừng (vd quá 100 lượt/phút): cảnh bị lỗi đợi vài giây thử lại 1 lần; vẫn lỗi thì dừng render, báo "Pixabay đang giới hạn lượt tìm, thử lại sau 1 phút", không hỏi người dùng đưa ảnh (vì ảnh đưa vào sẽ ghi cố định vào JSON). Key sai/bị thu hồi: dừng ngay, báo "Key Pixabay không hợp lệ, kiểm tra file .env".
+      26. Không đủ ảnh khác nhau sau khi thử hết từ khóa: cho phép dùng lại ảnh trùng cho cảnh sau, không hỏi. (Hoặc tuyệt đối không trùng thì hỏi người dùng.)
+      27. Có key Pexels: với mỗi từ khóa thử Pexels trước rồi Pixabay, rồi mới sang từ khóa tiếp (từ khóa cụ thể ưu tiên hơn ảnh nét); ảnh Pexels tải bản cỡ lớn ~1900px, không tải bản gốc.
+      (Agent tự chốt: mỗi từ khóa tìm một lần, không lọc hướng ảnh, tự xếp ảnh dọc lên trước; ảnh ngang vẫn dùng được.)
+    user_answer: |
+      25. ok tôi bổ sung thêm ảnh
+      26. dùng lại cũng được 
+      27. ok
+  - asked_at: "2026-10-29 00:35:00"
+    topic_keys: ["error_scenarios", "technical_constraints", "dependencies"]
+    agent_questions: |
+      28. Pexels lỗi (giới hạn lượt, lỗi máy chủ, key sai) khi đã có key: bỏ qua Pexels, tìm tiếp bằng Pixabay, in cảnh báo, không dừng render.
+      29. Tìm ra ảnh nhưng tải về lỗi (bị chặn, hết thời gian): thử ảnh khác trong danh sách; tất cả ảnh đều tải lỗi thì coi như lỗi mạng: dừng và báo lỗi, không hỏi.
+      30. Ảnh tải về tối đa 15 MB và phải là file ảnh; không đạt thì bỏ ảnh đó, lấy ảnh khác.
+    user_answer: |
+      đồng ý hết
+  - asked_at: "2026-10-29 00:50:00"
+    topic_keys: ["error_scenarios", "data_requirements", "technical_constraints", "constraints"]
+    agent_questions: |
+      31. Tìm ra ảnh nhưng toàn ảnh không dùng được (quá nặng, không phải ảnh, hỏng): coi như từ khóa đó không có kết quả, sang từ khóa tiếp; hết từ khóa thì hỏi người dùng. Chỉ khi mọi thất bại đều do lỗi mạng (bị chặn, hết thời gian chờ) mới dừng và báo lỗi.
+      32. Từ khóa dài quá 100 ký tự: báo lỗi ngay khi đọc kịch bản, nêu cảnh. Pixabay từ chối một từ khóa vì lý do khác: bỏ qua từ khóa đó, in cảnh báo. "Key không hợp lệ" chỉ khi Pixabay thật sự báo lỗi key.
+      33. Pexels lỗi một lần: tắt Pexels cho cả lần render đó, cảnh báo 1 lần.
+      34. Quy định render không quá 2 lần độ dài video chỉ tính phần dựng video, không tính thời gian tìm/tải ảnh; tool in riêng hai con số (vd "Tìm ảnh: 8.2s · Render: 15.1s").
+    user_answer: |
+      đồng ý
+  - asked_at: "2026-10-29 01:00:00"
+    topic_keys: ["error_scenarios", "edge_cases"]
+    agent_questions: |
+      35. Mọi cảnh đã có ảnh của người dùng thì không tìm ảnh, không kiểm tra key hay mạng; render được khi không có mạng như hiện nay. Đồng ý?
+      36. Không có key Pixabay, chỉ có key Pexels, Pexels lỗi giữa chừng: dừng và báo lỗi (như câu 25), không hỏi người dùng đưa ảnh. Đồng ý?
+    user_answer: |
+      ok hết
+  - asked_at: "2026-10-29 01:10:00"
+    topic_keys: ["success_criteria", "verification_strategy", "edge_cases", "error_scenarios"]
+    agent_questions: |
+      37. Bốc ngẫu nhiên và không nhớ lần trước; phần lớn ảnh khác mỗi lần render nhưng đôi khi một cảnh ra lại ảnh cũ (nhất là món chỉ có 1-3 kết quả). Không lưu lịch sử. Đồng ý?
+      38. Cảnh không có `keywords` và không có ảnh: hỏi người dùng đưa ảnh ngay, kể cả khi không có key/mạng; kiểm tra key/mạng chỉ áp dụng cho cảnh có `keywords`. Đồng ý?
+    user_answer: |
+      đồng ý
+
+general_understanding:
+  feature_name:
+    score: 95
+    value: |
+      stock-image-search: tự động tìm ảnh stock theo từ khóa kịch bản
+    gaps: []
+    required: true
+  feature_description:
+    score: 90
+    value: |
+      Khi render, cảnh không có ảnh của người dùng (trường `image` trống/thiếu, hoặc trỏ tới file không tồn tại) được tự tìm ảnh chụp thật theo danh sách từ khóa tiếng Anh `keywords` (cụ thể -> chung) trên Pixabay (nguồn chính, đã có key) và Pexels (tùy chọn: chỉ khi có PEXELS_API_KEY, khi đó được thử trước vì ảnh nét hơn), tải về, dùng cho lần render đó. Mỗi lần render chọn ảnh mới (ngẫu nhiên trong ~10 kết quả đầu) để đa dạng; ảnh tự động không ghi vào JSON. Thử hết từ khóa vẫn không ra thì CLI hỏi ngay trong terminal để người dùng kéo thả ảnh, ảnh được chép cạnh JSON, ghi vào `image`, và render tiếp.
+    gaps: []
+    required: true
+  work_type:
+    score: 100
+    value: |
+      feature
+    gaps: []
+    required: true
+  user_problem:
+    score: 85
+    value: |
+      Người dùng phải tự tìm, tải, đặt tên và ghi ảnh cho từng cảnh trước khi render; muốn tool làm thay để render được ngay từ kịch bản, và video có ảnh đa dạng.
+    gaps: []
+    required: true
+  target_users:
+    score: 80
+    value: |
+      Chủ kênh (một người) chạy CLI trên máy Windows; sau này worker gọi cùng lõi (không có terminal).
+    gaps: []
+    required: false
+  success_criteria:
+    score: 85
+    value: |
+      Kịch bản chỉ có text/seconds/keywords (không có image) render ra video có ảnh thật đúng chủ đề; render lại thường cho bộ ảnh khác (ngẫu nhiên, không nhớ lần trước; một cảnh có thể trùng ảnh cũ); cảnh không tìm được ảnh thì tool hỏi trong terminal và render tiếp sau khi người dùng đưa ảnh.
+    gaps: []
+    required: true
+  constraints:
+    score: 90
+    value: |
+      Chỉ stdlib (urllib) cho HTTP; key từ biến môi trường hoặc `.env` ở gốc repo (gitignored), biến môi trường thật ưu tiên; tuân thủ Pixabay (tải về, không hotlink; cache 24 giờ); không Google Images; tìm ảnh xong trước khi gọi FFmpeg; timeout 15 giây mỗi yêu cầu; thêm 5-15s mỗi lần render chấp nhận được; ngân sách render 2× độ dài video chỉ tính phần dựng video, thời gian tìm/tải ảnh in riêng ("Tìm ảnh: Xs · Render: Ys"); thứ tự nguồn cố định, không cấu hình (lệch patterns.md, sẽ cập nhật tài liệu); không lưu nguồn ảnh (lệch architecture.md, sẽ cập nhật).
+    gaps: []
+    required: true
+  testing_strategy:
+    score: 90
+    value: |
+      Unit (pytest, HTTP giả lập, không mạng): parse `keywords` và lỗi kiểu dữ liệu; `image` trống/thiếu/không tồn tại; thứ tự Pexels (khi có key) -> Pixabay, bỏ qua nguồn thiếu key; thử từ khóa lần lượt; chọn ngẫu nhiên với random tiêm được; không trùng ảnh trong video; chấp nhận ảnh ngang; cache 24 giờ (lần 2 không gọi mạng, quá hạn thì gọi lại); lỗi tạm (429/timeout/5xx) -> đợi, thử lại 1 lần, vẫn lỗi -> dừng với lỗi có kiểu, không hỏi; key không hợp lệ -> dừng ngay; Pexels lỗi lần đầu -> không gọi Pexels nữa trong lần render, đúng 1 cảnh báo, chuyển Pixabay; ứng viên quá 15 MB/không phải ảnh/hỏng -> ảnh khác, hết ứng viên -> từ khóa tiếp, hết từ khóa -> hỏi (CLI) / lỗi có kiểu (không terminal); tải ảnh lỗi mạng ở mọi ứng viên -> dừng với lỗi có kiểu, không hỏi; từ khóa > 100 ký tự -> lỗi khi đọc kịch bản nêu cảnh; Pixabay 4xx thường (không phải 429/lỗi key) -> bỏ từ khóa + cảnh báo, không báo "key không hợp lệ"; CLI in riêng "Tìm ảnh: Xs · Render: Ys"; mất mạng toàn bộ/không có key -> lỗi có kiểu; hết từ khóa mà chỉ còn ảnh đã dùng -> dùng lại ảnh trùng, không hỏi; ảnh tải hỏng -> ảnh khác; key không xuất hiện trong thông báo lỗi; đọc `.env` (BOM, nháy, biến môi trường thật ưu tiên).
+      Prompt/CLI: gọi main() trong process với HTTP và stdin giả: kéo thả có dấu nháy / `& '...'`, sai rồi đúng, rỗng, EOF/Ctrl+C; ảnh được chép, đặt tên, không ghi đè, JSON giữ tiếng Việt; render tiếp; không terminal -> lỗi có kiểu liệt kê cảnh và FFmpeg không chạy; cảnh báo khi file ảnh không tồn tại.
+      Cập nhật test cũ coi thiếu ảnh là lỗi (test_script, test_cli).
+      Smoke thật: một lần tìm + tải bằng key Pixabay (skip nếu không có key/mạng); render samples không có ảnh bằng FFmpeg.
+    gaps: []
+    required: true
+
+user_experience:
+  user_stories:
+    score: 85
+    value: |
+      Là chủ kênh, tôi viết kịch bản với từ khóa tiếng Anh cho mỗi cảnh, chạy lệnh render như cũ và nhận video có ảnh; cảnh nào không có ảnh thì tool hỏi tôi đưa ảnh rồi chạy tiếp.
+    gaps: []
+    required: true
+  acceptance_criteria:
+    score: 80
+    value: |
+      Xem feature_description + edge_cases; được viết thành AC trong spec.
+    gaps: []
+    required: true
+  edge_cases:
+    score: 90
+    value: |
+      Hỏi sau khi đã tìm xong mọi cảnh, lần lượt từng cảnh thiếu.
+      Hai cảnh trùng từ khóa -> hai ảnh khác nhau; không đủ ảnh khác nhau thì cảnh sau thử từ khóa tiếp theo; thử hết vẫn không có ảnh mới thì dùng lại ảnh trùng (không hỏi).
+      Ưu tiên ảnh dọc; không có thì chấp nhận ảnh ngang (cắt giữa); không loại ảnh vì nhỏ.
+      `image` trỏ file không tồn tại -> in cảnh báo và tìm ảnh thay; ảnh người dùng luôn ưu tiên.
+      Ảnh nhập qua prompt được giữ (ghi vào JSON), ảnh tự động đổi mỗi lần render.
+      Cảnh tiêu đề cũng có `keywords`; cảnh không có `keywords` và không có ảnh -> coi như không tìm được (CLI hỏi / lỗi có kiểu).
+    gaps: []
+    required: true
+  error_scenarios:
+    score: 90
+    value: |
+      Không có key nào hoặc không có mạng: dừng ngay với lỗi có kiểu, thông báo rõ, không hỏi từng cảnh.
+            Lỗi tạm (429, timeout, HTTP 5xx) ở một cảnh: đợi vài giây thử lại 1 lần; vẫn lỗi thì dừng render với lỗi có kiểu ("Pixabay đang giới hạn lượt tìm, thử lại sau 1 phút"), không hỏi người dùng (người dùng tự bổ sung ảnh vào JSON nếu muốn). Key sai/bị thu hồi (HTTP 4xx xác thực): dừng ngay, "Key ... không hợp lệ, kiểm tra file .env".
+      Các quy tắc lỗi tạm / key sai ở trên áp dụng cho Pixabay (nguồn chính). Pexels (tùy chọn) lỗi bất kỳ (429, 5xx, timeout, key sai): tắt Pexels cho cả lần render, tìm bằng Pixabay, cảnh báo 1 lần, không dừng render.
+      Ứng viên ảnh không dùng được (hỏng, quá 15 MB, không phải ảnh): bỏ, thử ảnh khác; hết ảnh của từ khóa thì coi như từ khóa không có kết quả -> sang từ khóa/nguồn tiếp; hết mọi từ khóa -> hỏi người dùng (CLI) / lỗi có kiểu (không terminal).
+      Tải ảnh lỗi mạng (403, timeout, mất kết nối): thử ảnh khác; nếu mọi thất bại của cảnh đều là lỗi mạng -> dừng với lỗi có kiểu, không hỏi.
+      Pixabay từ chối một từ khóa (4xx khác 429, không phải lỗi key): bỏ qua từ khóa, in cảnh báo. "Key không hợp lệ" chỉ khi phản hồi Pixabay nói rõ lỗi key.
+      Pexels lỗi lần đầu: tắt Pexels cho cả lần render, cảnh báo 1 lần. Nếu Pexels là nguồn duy nhất (không có key Pixabay) thì Pexels lỗi = dừng với lỗi có kiểu, không hỏi.
+      Kiểm tra key/mạng chỉ khi có ít nhất một cảnh thiếu ảnh và có `keywords`; cảnh thiếu ảnh không có `keywords` được hỏi người dùng (không cần key/mạng) khi kịch bản không có cảnh nào cần tìm. Thứ tự luôn là: tìm ảnh cho mọi cảnh cần tìm trước (Q21), rồi mới hỏi; vì vậy kịch bản trộn mà thiếu key/mất mạng thì dừng ở bước tìm, trước mọi lời hỏi, JSON không bị sửa (suy ra từ Q20 + Q21); kịch bản đủ ảnh render được không cần key, không cần mạng.
+      Chỉ khi tìm bình thường mà không có kết quả dùng được: CLI hỏi người dùng (không terminal: lỗi có kiểu liệt kê các cảnh).
+      Prompt: đường dẫn sai/không phải ảnh/để trống -> báo lỗi, hỏi lại cảnh đó; Ctrl+C/EOF -> dừng, không render, ảnh đã nhập trước đó vẫn giữ trong JSON.
+      Không để lộ key trong thông báo lỗi.
+    gaps: []
+    required: true
+  verification_strategy:
+    score: 80
+    value: |
+      pytest toàn bộ (HTTP giả lập) + smoke thật với key Pixabay; render samples với kịch bản không có ảnh, kiểm tra ảnh thật hiện ra; render hai lần (kịch bản nhiều kết quả) thì ít nhất một cảnh có ảnh khác; unit test với random tiêm được cho kết quả xác định; người dùng xem video.
+    gaps: []
+    required: true
+  ui_ux_requirements:
+    score: 70
+    value: |
+      CLI: thông báo tiếng Việt; prompt kiểu "Cảnh 3 (CÁ KHO TỘ) chưa có ảnh, kéo thả ảnh vào đây rồi Enter:"; cảnh báo khi file ảnh không tồn tại.
+    gaps: []
+    required: false
+  risks:
+    score: 75
+    value: |
+      Kho ảnh nước ngoài thiếu món đặc trưng VN; Pixabay ảnh nhỏ (~720px rộng); giới hạn tần suất Pixabay 100/60s; User-Agent mặc định của urllib có thể bị chặn; key Pixabay nằm trong URL có thể lộ qua lỗi; không lưu nguồn ảnh (giới hạn đã chấp nhận).
+    gaps: []
+    required: false
+  technical_decisions:
+    score: 80
+    value: |
+      Từ khóa tiếng Anh do người dùng viết (không gọi Claude); tìm tích hợp trong render, không lệnh riêng; Pixabay là nguồn chính; Pexels tùy chọn, thử trước khi có key, nguồn thiếu key bị bỏ qua; kho ảnh riêng của người dùng để spec sau; ảnh tự động chọn ngẫu nhiên trong ~10 kết quả đầu, ưu tiên dọc, dùng ảnh lớn nhất API miễn phí cho (largeImageURL, cạnh dài tối đa 1280px, ảnh dọc rộng ~720px - chấp nhận hơi mờ); không lưu nguồn ảnh; cache kết quả tìm 24 giờ trong thư mục tạm của máy.
+    gaps: []
+    required: false
+  deploy_approach:
+    score: 70
+    value: |
+      Chạy native trên Windows như hiện tại; không đổi deploy.
+    gaps: []
+    required: false
+  manual_user_actions:
+    score: 85
+    value: |
+      Người dùng đã đưa key Pixabay (lưu vào .env, đã gọi thử thành công); viết `keywords` tiếng Anh cho các cảnh; xem video kết quả.
+    gaps: []
+    required: false
+
+integration:
+  integration_points:
+    score: 80
+    value: |
+      script.py (`keywords`, `image` thành tùy chọn), render.py (tìm ảnh trước FFmpeg, trong thư mục tạm), cli.py (prompt + ghi JSON), errors.py (lỗi có kiểu liệt kê cảnh thiếu ảnh), samples/xuong-khop.json (thêm keywords).
+    gaps: []
+    required: true
+  dependencies:
+    score: 85
+    value: |
+      Pixabay API (key trong query, image_type=photo, không lọc hướng, largeImageURL); Pexels API tùy chọn (header Authorization, không lọc hướng, tải src.large2x ~1900px, không tải original); mỗi từ khóa: Pexels (nếu có key) rồi Pixabay, rồi mới sang từ khóa tiếp; mỗi từ khóa/nguồn tìm một lần, tự xếp ảnh dọc lên trước; chỉ stdlib Python.
+    gaps: []
+    required: false
+  technical_constraints:
+    score: 80
+    value: |
+      Validation trước FFmpeg; FFmpeg không đổi; Windows + Linux; key không vào git hay log. Ảnh tải về giới hạn 15 MB, phải là ảnh hợp lệ (Pillow mở được); tên file tải về do tool đặt, không dùng tên từ mạng; gửi User-Agent riêng.
+    gaps: []
+    required: false
+  data_requirements:
+    score: 90
+    value: |
+      Trường mới `keywords` (danh sách chuỗi tiếng Anh, cụ thể -> chung), mỗi từ khóa không rỗng và tối đa 100 ký tự (vượt -> lỗi khi đọc kịch bản, nêu cảnh) cho cảnh tiêu đề và cảnh nội dung; `image` thành tùy chọn.
+      Ảnh nhập qua prompt chép vào thư mục con mang tên kịch bản (vd `samples/xuong-khop/03-ca-kho-to.jpg`: số thứ tự cảnh + chữ trên cảnh không dấu), trùng tên thêm -2, -3, không ghi đè; ghi vào `image`.
+      JSON ghi lại UTF-8, giữ tiếng Việt, được định dạng lại (thụt lề đều), ghi nguyên tử.
+      Kết quả tìm kiếm cache 24 giờ trong thư mục tạm của máy (không trong repo).
+    gaps: []
+    required: false
+  migration_needs:
+    score: 70
+    value: |
+      Cập nhật samples/xuong-khop.json thêm keywords; tài liệu architecture.md (thiếu ảnh không còn là lỗi, không lưu nguồn), deployment.md, .env.example, patterns.md (thứ tự nguồn cố định), content.md (từ khóa tìm ảnh là trường `keywords` tiếng Anh riêng, thay cho câu "image prompt doubles as the stock-search keywords").
+    gaps: []
+    required: false
+
+notes: "Suy ra từ Q20+Q21 (không hỏi lại người dùng): kịch bản trộn cảnh có/không có keywords mà thiếu key/mất mạng thì dừng ở bước tìm trước mọi lời hỏi."
