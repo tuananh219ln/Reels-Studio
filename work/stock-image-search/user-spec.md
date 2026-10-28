@@ -19,9 +19,10 @@ type: feature
 ## What We Are Building
 
 Bổ sung cho lõi render `reels_render` (thư mục `worker/`) khả năng tự tìm ảnh stock. Mỗi cảnh
-trong kịch bản JSON (cả cảnh tiêu đề) có thêm trường `keywords`: danh sách từ khóa tiếng Anh, sắp
-từ cụ thể đến chung. Khi render, cảnh nào chưa có ảnh của người dùng sẽ được tự tìm ảnh chụp thật
-trên Pixabay, rồi tải về và dùng cho lần render đó.
+trong kịch bản JSON (cả cảnh tiêu đề) có thể có trường `keywords`: danh sách từ khóa tiếng Việt,
+sắp từ cụ thể đến chung. Cảnh nội dung không có `keywords` thì dùng dòng chữ đầu tiên của cảnh
+(thường là tên món) làm từ khóa. Khi render, cảnh nào chưa có ảnh của người dùng sẽ được tự tìm
+ảnh chụp thật trên Pixabay bằng tiếng Việt (`lang=vi`), rồi tải về và dùng cho lần render đó.
 
 Ảnh tìm tự động được chọn ngẫu nhiên mỗi lần render để video đa dạng, và không ghi vào JSON. Nếu
 một cảnh không tìm được ảnh dùng được, CLI hỏi ngay trong terminal để người dùng kéo thả ảnh vào.
@@ -42,10 +43,12 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
    ```json
    {
      "title":  { "text": "5 MÓN GIÚP\n*XƯƠNG CHẮC KHỎE*\nSAU TUỔI 50", "seconds": 3,
-                 "keywords": ["healthy food for strong bones", "calcium rich food"] },
+                 "keywords": ["cá nhỏ chiên giòn", "sữa chua", "món ăn giàu canxi"] },
      "scenes": [
        { "text": "Cá nhỏ ăn cả xương\nGiàu *canxi*", "seconds": 4,
-         "keywords": ["small fried fish", "fried fish", "fish dish"] },
+         "keywords": ["cá kho tộ", "cá kho", "món cá"] },
+       { "text": "Đậu phụ
+Canxi và *đạm thực vật*", "seconds": 4 },
        { "text": "Sữa chua\nBổ sung *canxi*", "seconds": 4, "image": "xuong-khop/02-sua-chua.jpg" }
      ]
    }
@@ -55,15 +58,17 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
    `python -m reels_render script.json -o out/video.mp4`.
 3. Với từng cảnh, tool quyết định nguồn ảnh như sau:
    - Có `image` trỏ tới file tồn tại: luôn dùng ảnh đó, không tìm.
-   - `image` trống hoặc không có: tìm theo `keywords`.
+   - `image` trống hoặc không có: tìm theo `keywords`. Cảnh nội dung không có `keywords` thì tìm
+     theo dòng chữ đầu tiên của cảnh (ví dụ "Đậu phụ"). Cảnh tiêu đề không có `keywords` thì không
+     tìm (dòng đầu như "5 MÓN GIÚP" không phải tên món) mà chuyển sang hỏi người dùng.
    - `image` trỏ tới file không tồn tại: in cảnh báo (ví dụ
-     `Cảnh 2: không thấy file anh-ca.jpg, sẽ tìm ảnh thay thế`) rồi tìm theo `keywords`.
+     `Cảnh 2: không thấy file anh-ca.jpg, sẽ tìm ảnh thay thế`) rồi tìm như trường hợp trên.
 4. Tool tìm cho mọi cảnh cần tìm. Tool thử từng từ khóa theo thứ tự trên Pixabay, và chỉ sang
-   từ khóa tiếp theo khi từ khóa hiện tại không cho ảnh dùng được. Trong 10 kết quả đầu, tool chọn ngẫu nhiên một ảnh dọc chưa dùng cho cảnh khác trong cùng video. Chỉ
-   khi không còn ảnh dọc chưa dùng nào thì mới chọn ngẫu nhiên trong các ảnh ngang hoặc vuông
-   chưa dùng. Ảnh được tải về thư mục
-   tạm.
-5. Cảnh không có ảnh dùng được sau khi thử hết từ khóa (hoặc không có `keywords`):
+   từ khóa tiếp theo khi từ khóa hiện tại không cho ảnh dùng được. Trong 10 kết quả đầu, tool chọn ngẫu
+   nhiên một ảnh dọc chưa dùng cho cảnh khác trong cùng video. Chỉ khi không còn ảnh dọc chưa
+   dùng nào thì mới chọn ngẫu nhiên trong các ảnh ngang hoặc vuông chưa dùng. Ảnh được tải về thư
+   mục tạm.
+5. Cảnh không có ảnh dùng được sau khi thử hết từ khóa (hoặc cảnh tiêu đề không có `keywords`):
    - Chạy trong terminal (stdin của CLI là terminal, `sys.stdin.isatty()`): sau khi đã tìm xong
      mọi cảnh, CLI hỏi lần lượt từng cảnh, ví dụ
      `Cảnh 3 (CÁ KHO TỘ) chưa có ảnh. Kéo thả ảnh vào đây rồi nhấn Enter:`.
@@ -81,19 +86,22 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 
 **Kịch bản**
 - [ ] Cảnh tiêu đề và cảnh nội dung nhận trường tùy chọn `keywords`: danh sách chuỗi, mỗi chuỗi
-      không rỗng (sau khi bỏ khoảng trắng hai đầu) và tối đa 100 ký tự. Tool không kiểm tra ngôn
-      ngữ, nhưng người viết nên dùng tiếng Anh vì Pixabay tìm tiếng Việt cho kết quả kém.
+      không rỗng (sau khi bỏ khoảng trắng hai đầu) và tối đa 100 ký tự. Từ khóa viết tiếng Việt,
+      và mọi lần tìm gửi `lang=vi` cho Pixabay. Tool không kiểm tra ngôn ngữ của từ khóa.
       `keywords: []` được coi như không có `keywords`.
+- [ ] Cảnh nội dung không có `keywords` dùng một từ khóa duy nhất: dòng chữ đầu tiên của cảnh, bỏ
+      dấu `*`, giữ nguyên dấu tiếng Việt, cắt còn tối đa 100 ký tự. Cảnh tiêu đề không có
+      `keywords` thì không tìm, mà được coi là không có ảnh dùng được (CLI hỏi người dùng).
 - [ ] `keywords` sai kiểu (không phải danh sách, phần tử không phải chuỗi, chuỗi rỗng, dài quá 100
       ký tự) báo lỗi tiếng Việt nêu đúng cảnh ngay khi đọc kịch bản, trước khi tìm ảnh.
 - [ ] `image` trở thành tùy chọn. `image` rỗng hoặc vắng mặt không còn là lỗi.
-- [ ] `samples/xuong-khop.json` được bổ sung `keywords` cho cả 6 cảnh. Các ảnh mẫu hiện có vẫn
+- [ ] `samples/xuong-khop.json` được bổ sung `keywords` tiếng Việt cho cả 6 cảnh. Các ảnh mẫu hiện có vẫn
       được dùng.
 
 **Chọn và tìm ảnh**
 - [ ] Cảnh có `image` trỏ tới file tồn tại luôn dùng ảnh đó và không gửi yêu cầu tìm kiếm nào.
 - [ ] Cảnh có `image` trỏ tới file không tồn tại thì in cảnh báo nêu cảnh và tên file, rồi tìm ảnh
-      thay thế theo `keywords`.
+      thay thế (theo `keywords`, hoặc dòng chữ đầu với cảnh nội dung không có `keywords`).
 - [ ] Từ khóa được thử theo đúng thứ tự trong danh sách. Mỗi từ khóa chỉ có một lần tìm trên
       Pixabay (không tính 1 lần thử lại khi lỗi tạm, và không gọi API nếu từ khóa đã có trong
       cache). Pixabay là nguồn ảnh duy nhất.
@@ -140,9 +148,11 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
       chạy.
 
 **Lỗi**
-- [ ] `PIXABAY_API_KEY` trống hoặc vắng mà có cảnh cần tìm: dừng ngay với lỗi có kiểu, hướng dẫn đặt key vào `.env`, không hỏi người dùng.
+- [ ] `PIXABAY_API_KEY` trống hoặc vắng mà có cảnh cần tìm: dừng ngay với lỗi có kiểu, hướng dẫn
+      đặt key vào `.env`, không hỏi người dùng.
 - [ ] Không có mạng khi cần tìm: dừng với lỗi có kiểu, không hỏi người dùng.
-- [ ] Việc kiểm tra key và mạng chỉ áp dụng khi có ít nhất một cảnh thiếu ảnh và có `keywords`.
+- [ ] Việc kiểm tra key và mạng chỉ áp dụng khi có ít nhất một cảnh cần tìm (cảnh nội dung thiếu
+      ảnh, hoặc cảnh tiêu đề thiếu ảnh có `keywords`).
       Tìm ảnh luôn chạy xong trước mọi lời hỏi, nên kịch bản trộn mà thiếu key hoặc mất mạng sẽ
       dừng trước khi hỏi và JSON không bị sửa.
 - [ ] Pixabay trả 429, lỗi 5xx hoặc hết thời gian chờ (15 giây mỗi yêu cầu): đợi 5 giây, thử lại
@@ -185,7 +195,8 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 - [ ] Project Knowledge được cập nhật cho khớp hành vi mới:
   - `architecture.md`: thiếu ảnh không còn là lỗi; có `keywords`; không lưu nguồn ảnh; Pixabay là
     nguồn ảnh stock duy nhất (bỏ Pexels khỏi bảng tích hợp).
-  - `content.md`: từ khóa tìm ảnh là trường `keywords` riêng.
+  - `content.md`: từ khóa tìm ảnh là trường `keywords` tiếng Việt riêng (mặc định là dòng chữ đầu
+    của cảnh).
   - `patterns.md`: nguồn ảnh stock cố định là Pixabay, không cấu hình được.
   - `deployment.md`: `PIXABAY_API_KEY` là biến đang dùng, đọc từ `.env`; bỏ `PEXELS_API_KEY`.
 
@@ -224,10 +235,18 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 
 ## Accepted Decisions
 
-- Từ khóa là trường `keywords` tiếng Anh do người dùng viết, thay vì gọi Claude để dịch chữ trên
-  cảnh. Pixabay tìm bằng tiếng Việt cho kết quả rất kém. Sau này spec viết kịch bản bằng
-  Claude sẽ tự điền trường này. Như vậy câu "image prompt doubles as the stock-search keywords"
-  trong content.md được thay bằng trường `keywords` riêng.
+- Tìm bằng tiếng Việt (`lang=vi`) với từ khóa người dùng viết hoặc dòng chữ đầu của cảnh. Thử
+  thật trên Pixabay: tên món cụ thể cho kết quả tốt ("cá kho tộ", "sữa chua", "vừng đen"), còn
+  cụm từ chung chung hoặc từ nhiều nghĩa dễ lạc ("thực phẩm tốt cho xương" ra cây xương rồng,
+  "đậu phụ" có kết quả đầu là con cú). Người dùng chấp nhận, và viết `keywords` cụ thể khi cần.
+- Cảnh tiêu đề chỉ tìm khi có `keywords`, vì dòng đầu của tiêu đề không phải tên món.
+- Phương án "AI hiểu món ăn": Claude chuyển từ khóa tiếng Việt thành từ khóa tiếng Anh chuyên
+  ngành, tìm thêm nguồn Openverse (ảnh CC0/public domain), và Claude xem ảnh để chọn ảnh đúng món,
+  ngon mắt, có chỗ cho hộp chữ. Phương án này được tách thành spec sau ("AI chọn ảnh") cắm vào
+  bước tìm ảnh của spec này, để có bản dùng được sớm. Spec đó cần `ANTHROPIC_API_KEY` và có chi
+  phí mỗi video.
+- Câu "image prompt doubles as the stock-search keywords" trong content.md được thay bằng trường
+  `keywords` riêng.
 - Việc tìm ảnh nằm trong lệnh render, không phải một lệnh `fetch-images` riêng.
 - Tool tự chọn ảnh, không tải nhiều ứng viên để người dùng chọn.
 - Ảnh tự động đổi mỗi lần render để video đa dạng, và không ghi vào JSON. Lựa chọn là ngẫu nhiên
@@ -267,12 +286,14 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 **Unit tests:** cần thiết, vì phần thứ tự từ khóa, chọn ảnh, cache và phân loại lỗi là logic thuần,
 nhiều nhánh và dễ sai. Chạy bằng pytest, HTTP được giả lập, không gọi mạng thật. Random và hàm
 `sleep` được tiêm vào để kết quả xác định và test chạy nhanh. Các phần cần cover:
-- Parse `keywords`: hợp lệ; sai kiểu; chuỗi rỗng; dài quá 100 ký tự (lỗi nêu đúng cảnh). `image`
+- Parse `keywords`: hợp lệ; sai kiểu; chuỗi rỗng; dài quá 100 ký tự (lỗi nêu đúng cảnh). Từ khóa
+  mặc định của cảnh nội dung là dòng đầu (bỏ `*`, giữ dấu, tối đa 100 ký tự); cảnh tiêu đề không
+  có `keywords` thì không tìm. `image`
   trống, vắng mặt hoặc trỏ tới file không tồn tại (có cảnh báo).
 - Đọc `.env`: BOM, dấu nháy, `#`, `export`; biến môi trường thật được ưu tiên.
 - Thứ tự từ khóa: thử lần lượt, mỗi từ khóa một lần gọi. Cảnh có ảnh hợp lệ không gửi yêu cầu
   nào. Kịch bản đủ ảnh chạy được khi không có key.
-- Gửi đúng tham số: Pixabay `image_type=photo`, tải `largeImageURL`; mọi yêu cầu có User-Agent
+- Gửi đúng tham số: Pixabay `lang=vi`, `image_type=photo`, tải `largeImageURL`; mọi yêu cầu có User-Agent
   riêng.
 - Chọn ảnh:
   - có ảnh dọc chưa dùng thì chỉ chọn trong ảnh dọc; không còn ảnh dọc mới dùng ảnh ngang;
@@ -302,7 +323,8 @@ nhiều nhánh và dễ sai. Chạy bằng pytest, HTTP được giả lập, kh
 nhiều module, và thứ tự giữa tìm, hỏi và dừng chỉ kiểm chứng được ở ranh giới CLI.
 - **CLI và lời hỏi:** gọi `main()` trong cùng tiến trình, HTTP giả lập, stdin giả lập và được
   đánh dấu là terminal (patch `isatty`).
-  - Cảnh không có `keywords` và không có ảnh được hỏi ngay khi không có key.
+  - Cảnh tiêu đề không có `keywords` và không có ảnh được hỏi ngay khi không có key (khi không
+    còn cảnh nào khác cần tìm).
   - Kịch bản trộn mà không có key hoặc mất mạng: dừng trước mọi lời hỏi, JSON không đổi.
   - stdin không phải terminal: lỗi có kiểu, không hỏi.
   - Đường dẫn kéo thả có `"..."`, `'...'` hoặc `& '...'`.
@@ -335,6 +357,6 @@ nhiều module, và thứ tự giữa tìm, hỏi và dừng chỉ kiểm chứn
 ### User Verification
 - Xem video ở bước 2 và các khung trong `out/frames-stock/`: ảnh có đúng món ăn và đủ đẹp để đăng
   không. Phần này cần người xem vì agent không đánh giá được ảnh có hợp chủ đề hay không.
-- Thử luồng hỏi ảnh trên terminal thật: viết một cảnh có `keywords` vô nghĩa, kéo thả một ảnh từ
+- Thử luồng hỏi ảnh trên terminal thật: viết một cảnh có `keywords` vô nghĩa (ví dụ `["xyzqwv"]`), kéo thả một ảnh từ
   máy vào khi được hỏi, rồi kiểm tra ảnh được chép vào thư mục kịch bản và video render tiếp.
   Phần này cần người dùng vì thao tác kéo thả không giả lập được hoàn toàn.

@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-28 22:40:00"
-  last_updated: "2026-10-29 02:00:00"
+  last_updated: "2026-10-29 02:40:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -224,6 +224,24 @@ conversation_history:
       41. Mỗi ảnh tải tối đa 15 giây; mỗi cảnh tối đa 2 lần tải lỗi mạng; quá thì dừng, báo "Mạng chậm hoặc bị chặn khi tải ảnh, thử lại sau".
     user_answer: |
       đồng ý
+  - asked_at: "2026-10-29 02:30:00"
+    topic_keys: ["feature_description", "data_requirements", "technical_decisions"]
+    agent_questions: |
+      (Spec đã gửi duyệt.) Người dùng: "vậy tìm kiếm theo tiếng việt đi, bao giờ làm tiếng anh thì tìm sau".
+      Agent thử thật Pixabay lang=vi: tên món cụ thể tốt (cá kho tộ, sữa chua, vừng đen); cụm chung chung/từ nhiều nghĩa lạc (thực phẩm tốt cho xương -> xương rồng; đậu phụ -> con cú ở kết quả đầu).
+      42. `keywords` tiếng Việt, gửi lang=vi; cảnh nội dung không có `keywords` thì dùng dòng chữ đầu làm từ khóa; cảnh tiêu đề chỉ tìm khi có `keywords`, không có thì hỏi người dùng.
+    user_answer: |
+      Điểm khác biệt nên là: nhập từ khóa tiếng Việt → AI hiểu món ăn hoặc thực phẩm → tạo từ khóa tiếng Anh chuyên ngành → tìm nhiều nguồn → lọc ảnh theo chất lượng và mục đích sử dụng. làm được không
+  - asked_at: "2026-10-29 02:40:00"
+    topic_keys: ["feature_description", "dependencies", "technical_decisions"]
+    agent_questions: |
+      Làm được: (1) Claude hiểu món, tạo 3-5 từ khóa tiếng Anh; (2) Pixabay + Openverse (CC0/public domain, không cần ghi nguồn); (3) lọc kỹ thuật; (4) Claude xem ảnh thu nhỏ chọn ảnh đúng món, ngon mắt, có chỗ cho hộp chữ.
+      43. Đồng ý dùng API key Anthropic và trả phí mỗi video?
+      44. Nguồn: (a) Pixabay + Openverse không ghi nguồn (đề xuất); (b) thêm Pexels/Unsplash và ghi nguồn trong caption.
+      45. (a) Duyệt và làm spec hiện tại trước (Pixabay, từ khóa tiếng Việt), sau đó spec "AI chọn ảnh" cắm thêm (đề xuất); (b) gộp tất cả vào một spec.
+    user_answer: |
+      Oke duyệt
+      -> Agent hiểu là đồng ý câu 42 và 45a (spec hiện tại tìm bằng tiếng Việt; AI chọn ảnh là spec sau, câu 43-44 sẽ chốt trong spec đó). Spec được sửa và kiểm định lại trước khi chốt.
 
 general_understanding:
   feature_name:
