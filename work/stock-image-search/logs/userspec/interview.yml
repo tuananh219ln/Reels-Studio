@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-28 22:40:00"
-  last_updated: "2026-10-29 01:40:00"
+  last_updated: "2026-10-29 02:00:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -217,6 +217,13 @@ conversation_history:
       39. (Sau kiểm định) Pexels large2x chỉ cao tối đa 1300px nên ảnh dọc gần như không nét hơn Pixabay; điều khoản API Pexels bắt buộc hiển thị link "Photos provided by Pexels". (a) Bỏ Pexels, chỉ dùng Pixabay (đề xuất); (b) giữ Pexels tùy chọn và thêm "Ảnh từ Pexels" vào caption.
     user_answer: |
       a
+  - asked_at: "2026-10-29 02:00:00"
+    topic_keys: ["error_scenarios", "technical_constraints"]
+    agent_questions: |
+      40. Cảnh vừa không có kết quả vừa bị lỗi mạng: chỉ cần có lỗi mạng ở cảnh đó là dừng và báo lỗi, không hỏi (Pixabay thực ra vẫn có ảnh). Chỉ hỏi khi cảnh thật sự không có ảnh và không gặp lỗi mạng nào.
+      41. Mỗi ảnh tải tối đa 15 giây; mỗi cảnh tối đa 2 lần tải lỗi mạng; quá thì dừng, báo "Mạng chậm hoặc bị chặn khi tải ảnh, thử lại sau".
+    user_answer: |
+      đồng ý
 
 general_understanding:
   feature_name:

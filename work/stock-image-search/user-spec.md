@@ -60,7 +60,8 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
      `Cảnh 2: không thấy file anh-ca.jpg, sẽ tìm ảnh thay thế`) rồi tìm theo `keywords`.
 4. Tool tìm cho mọi cảnh cần tìm. Tool thử từng từ khóa theo thứ tự trên Pixabay, và chỉ sang
    từ khóa tiếp theo khi từ khóa hiện tại không cho ảnh dùng được. Trong 10 kết quả đầu, tool chọn ngẫu nhiên một ảnh dọc chưa dùng cho cảnh khác trong cùng video. Chỉ
-   khi không còn ảnh dọc nào thì mới chọn ngẫu nhiên trong các ảnh ngang. Ảnh được tải về thư mục
+   khi không còn ảnh dọc chưa dùng nào thì mới chọn ngẫu nhiên trong các ảnh ngang hoặc vuông
+   chưa dùng. Ảnh được tải về thư mục
    tạm.
 5. Cảnh không có ảnh dùng được sau khi thử hết từ khóa (hoặc không có `keywords`):
    - Chạy trong terminal (stdin của CLI là terminal, `sys.stdin.isatty()`): sau khi đã tìm xong
@@ -93,8 +94,9 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 - [ ] Cảnh có `image` trỏ tới file tồn tại luôn dùng ảnh đó và không gửi yêu cầu tìm kiếm nào.
 - [ ] Cảnh có `image` trỏ tới file không tồn tại thì in cảnh báo nêu cảnh và tên file, rồi tìm ảnh
       thay thế theo `keywords`.
-- [ ] Từ khóa được thử theo đúng thứ tự trong danh sách, mỗi từ khóa gọi Pixabay đúng một lần.
-      Pixabay là nguồn ảnh duy nhất.
+- [ ] Từ khóa được thử theo đúng thứ tự trong danh sách. Mỗi từ khóa chỉ có một lần tìm trên
+      Pixabay (không tính 1 lần thử lại khi lỗi tạm, và không gọi API nếu từ khóa đã có trong
+      cache). Pixabay là nguồn ảnh duy nhất.
 - [ ] Chỉ lấy ảnh chụp (Pixabay `image_type=photo`). Ứng viên là 10 kết quả đầu của mỗi lần
       tìm. Tool chọn ngẫu nhiên trong các ảnh dọc (cao > rộng) chưa dùng. Chỉ khi không còn ảnh
       dọc nào mới chọn ngẫu nhiên trong ảnh ngang hoặc vuông chưa dùng (lõi render cắt phần giữa
@@ -147,14 +149,20 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
       1 lần. Vẫn lỗi thì dừng với lỗi có kiểu (ví dụ "Pixabay đang giới hạn lượt tìm, thử lại sau
       1 phút"), không hỏi người dùng.
 - [ ] Pixabay báo key sai hoặc bị thu hồi: dừng ngay với thông báo "Key Pixabay không hợp lệ, kiểm
-      tra file .env". Dấu hiệu nhận biết (đã gọi thử ngày 2026-10-29): HTTP 400 với nội dung chứa
+      tra file .env". Dấu hiệu nhận biết (đã gọi thử trong lúc lập spec): HTTP 400 với nội dung chứa
       `API key`, ví dụ `[ERROR 400] Invalid API key...` hoặc
       `[ERROR 400] Invalid or missing API key...`. Phản hồi 400 khác (ví dụ
       `[ERROR 400] "per_page" is out of valid range.`) không được báo là lỗi key.
 - [ ] Pixabay từ chối một từ khóa vì lý do khác (lỗi 4xx khác 429, không phải lỗi key): bỏ qua từ
       khóa đó, in cảnh báo, tiếp tục.
-- [ ] Tải ảnh lỗi mạng (403, timeout, mất kết nối): thử ứng viên khác. Nếu mọi thất bại của một
-      cảnh đều là lỗi mạng thì dừng với lỗi có kiểu, không hỏi.
+- [ ] Tải ảnh lỗi mạng (403, timeout, mất kết nối): thử ứng viên khác. Mỗi lần tải ảnh tối đa
+      15 giây (tính cả thời gian nhận dữ liệu, không chỉ thời gian chờ kết nối). Mỗi cảnh tối đa
+      2 lần tải lỗi mạng; đến lần thứ 2 thì dừng với lỗi có kiểu ("Mạng chậm hoặc bị chặn khi tải
+      ảnh, thử lại sau"), không hỏi.
+- [ ] Cảnh đã gặp bất kỳ lỗi mạng nào (khi tìm hoặc khi tải) thì không bao giờ chuyển sang hỏi
+      người dùng, kể cả khi các từ khóa khác không có kết quả: hoặc lấy được ảnh từ ứng viên khác,
+      hoặc dừng với lỗi có kiểu. Chỉ cảnh không có ảnh dùng được và không gặp lỗi mạng nào mới
+      được hỏi.
 - [ ] Không thông báo lỗi hay cảnh báo nào chứa giá trị API key (kể cả URL Pixabay có `key=`).
 - [ ] Mọi lỗi tìm ảnh là lỗi có kiểu với thông báo tiếng Việt. CLI in thông báo và thoát mã khác
       0, không in traceback Python.
@@ -166,7 +174,8 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
       `.env`).
 - [ ] `.env.example` liệt kê `PIXABAY_API_KEY=` với giá trị trống.
 - [ ] Mọi yêu cầu HTTP gửi User-Agent riêng của tool.
-- [ ] CLI in riêng thời gian tìm ảnh (kèm số lượt gọi API tìm kiếm) và thời gian render. Ngân
+- [ ] CLI in riêng thời gian tìm ảnh (kèm số lượt gọi API tìm kiếm thực sự gửi đi, tính cả lần
+      thử lại, không tính tải ảnh và cache) và thời gian render. Ngân
       sách render (≤ 2× thời lượng video) chỉ áp dụng cho phần render.
 
 **Tài liệu dự án**
@@ -228,8 +237,11 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 - Không dùng Google Images (bản quyền, không có cách tải tự động hợp lệ). Unsplash bị loại vì bắt
   buộc ghi tác giả. Kho ảnh riêng của người dùng để spec sau.
 - Không lưu thông tin nguồn ảnh (tác giả, link, giấy phép), theo ý người dùng. Điều này khác với
-  quy định "Store source and license info on the asset" trong architecture.md. Giấy phép Pixabay
-  không bắt buộc ghi nguồn. Đây là giới hạn đã chấp nhận.
+  quy định "Store source and license info on the asset" trong architecture.md. Đây là giới hạn đã
+  chấp nhận. Giấy phép nội dung Pixabay không bắt buộc ghi nguồn trên video. Riêng điều khoản API
+  của Pixabay yêu cầu cho người dùng biết ảnh từ đâu mỗi khi hiển thị kết quả tìm kiếm. CLI không
+  hiển thị kết quả tìm kiếm nên chưa áp dụng, nhưng giao diện web sau này nếu hiện danh sách ảnh
+  Pixabay thì phải ghi "Ảnh từ Pixabay".
 - Ảnh người dùng luôn được ưu tiên. File ảnh không tồn tại thì tìm ảnh thay thế và in cảnh báo,
   không báo lỗi.
 - Không tìm được ảnh thì hỏi ngay trong terminal để người dùng bổ sung, rồi render tiếp. Ảnh nhập
@@ -273,7 +285,9 @@ nhiều nhánh và dễ sai. Chạy bằng pytest, HTTP được giả lập, kh
   - Pixabay 429/5xx/timeout: thử lại đúng 1 lần, vẫn lỗi thì dừng với lỗi có kiểu, không hỏi;
   - Pixabay lỗi key (HTTP 400, nội dung chứa `API key`) thì dừng ngay; 400 khác thì bỏ từ khóa
     kèm cảnh báo, không báo "key không hợp lệ";
-  - tải ảnh lỗi mạng ở mọi ứng viên thì dừng;
+  - tải ảnh lỗi mạng: thử ứng viên khác; lần lỗi mạng thứ 2 của cảnh thì dừng; tải quá 15 giây
+    (kể cả nhận dữ liệu nhỏ giọt) tính là lỗi mạng;
+  - cảnh vừa có từ khóa không kết quả vừa có lỗi mạng thì dừng, không hỏi;
   - mọi thông báo đều không chứa key;
   - FFmpeg không chạy khi tìm ảnh thất bại.
 - Ảnh tự động không được ghi vào JSON, và thư mục tạm không còn ảnh sau khi render.
@@ -311,7 +325,7 @@ nhiều module, và thứ tự giữa tìm, hỏi và dừng chỉ kiểm chứn
 |------|-----------------|
 | 1. Chạy `pytest` trong `worker/` với FFmpeg và key Pixabay | Toàn bộ test pass. Smoke test thật không bị skip |
 | 2. Tạo bản sao `samples/xuong-khop.json` trong `out/` với `image` của mọi cảnh để trống, rồi render bằng CLI | Mã thoát 0. In đường dẫn và dòng "Tìm ảnh: …s (N lượt gọi API) · Render: …s" với N > 0. Video 1080×1920 có ảnh ở mọi cảnh. JSON bản sao không đổi |
-| 3. Render lại bản sao đó lần nữa trong vòng 24 giờ | Dòng in ra có "0 lượt gọi API" (dùng cache). Trích khung giữa mỗi cảnh của hai video và ghi lại cảnh nào đổi ảnh (thông tin để người dùng xem, không phải điều kiện đạt vì lựa chọn là ngẫu nhiên) |
+| 3. Render lại bản sao đó lần nữa trong vòng 24 giờ | Số lượt gọi API nhỏ hơn bước 2 (thường là 0, vì các từ khóa đã có trong cache). Trích khung giữa mỗi cảnh của hai video và ghi lại cảnh nào đổi ảnh (thông tin để người dùng xem, không phải điều kiện đạt vì lựa chọn là ngẫu nhiên) |
 | 4. Render `samples/xuong-khop.json` (đủ ảnh) với biến môi trường `PIXABAY_API_KEY=` (rỗng) | Render thành công, dòng in ra có "0 lượt gọi API" |
 | 5. Trích một khung giữa mỗi cảnh của video ở bước 2 ra `out/frames-stock/` | Có file PNG để người dùng xem |
 
