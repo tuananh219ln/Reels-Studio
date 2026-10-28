@@ -3,8 +3,8 @@
 
 interview_metadata:
   started: "2026-10-28 23:45:00"
-  last_updated: "2026-10-29 01:40:00"
-  status: "in_progress"  # in_progress | completed
+  last_updated: "2026-10-29 03:00:00"
+  status: "completed"  # in_progress | completed
   can_resume: true
 
 # Only written/read when the calling context carries the literal signal ONLINE_PIPELINE_AUTOMATED
@@ -200,6 +200,22 @@ conversation_history:
       - Giữ và chạy thử: docker compose up cả web, api, postgres và đăng nhập được qua container. Nhiều việc hơn.
     user_answer: |
       Bỏ, để spec VPS (Recommended)
+
+  - asked_at: "2026-10-29 02:55:00"
+    topic_keys: ["edge_cases", "acceptance_criteria"]
+    agent_questions: |
+      (Validation round 3, userspec-quality-validator finding; agent also fixed locally: menu password rules, Origin 403
+      origin_not_allowed incl. missing Origin, "reload table" only for user-management rows, Asia/Ho_Chi_Minh display; and
+      the adequacy finding: lock all active users, session renewal in its own short transaction, deadlock → 409 never 500.)
+      1. Nếu ai đó gọi thẳng API 'Đặt mật khẩu tạm' hoặc 'Đăng xuất khỏi mọi thiết bị' cho chính mình (giao diện đã ẩn nút), API xử lý thế nào?
+         - Từ chối (Recommended): API trả 409 'Không thể thực hiện thao tác này trên tài khoản của bạn', giống tự vô hiệu hoá. Tự đổi mật khẩu và đăng xuất đã có trong menu tài khoản.
+         - Cho phép: API làm bình thường trên chính mình (tự gắn cờ phải đổi mật khẩu, tự đăng xuất cả phiên đang dùng).
+      2. Spec web-app-auth đã qua 3 vòng validation (bản cuối: work/web-app-auth/user-spec.md). Bạn duyệt để chuyển sang code chưa?
+         - Duyệt, bắt đầu code: Đặt trạng thái approved, commit, rồi triển khai theo spec.
+         - Để tôi đọc spec trước: Bạn mở file xem và góp ý; nếu đổi nội dung thì spec phải qua validation lại.
+    user_answer: |
+      1. Từ chối (Recommended)
+      2. Duyệt, bắt đầu code
 
 
 general_understanding:

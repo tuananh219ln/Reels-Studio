@@ -3,7 +3,7 @@
 created: 2026-10-29
 
 # Status: draft | approved
-status: draft
+status: approved
 
 # Work type: feature | bug | refactoring
 type: feature
@@ -194,6 +194,7 @@ Thành viên tự quản lý tài khoản cho nhau mà không cần đụng vào
       | Tên rỗng hoặc quá 60 ký tự | 422 | "Tên phải từ 1 đến 60 ký tự" |
       | Mật khẩu dưới 8 ký tự | 422 | "Mật khẩu phải có ít nhất 8 ký tự" |
       | Tự vô hiệu hoá | 409 | "Không thể vô hiệu hoá chính mình" |
+      | Đặt mật khẩu tạm hoặc đăng xuất khỏi mọi thiết bị cho chính mình (gọi thẳng API) | 409 | "Không thể thực hiện thao tác này trên tài khoản của bạn" |
       | Vô hiệu hoá người hoạt động cuối | 409 | "Phải còn ít nhất một người dùng đang hoạt động" |
       | Đặt mật khẩu tạm cho người bị vô hiệu hoá | 409 | "Hãy kích hoạt lại người dùng trước" |
       | Sai mật khẩu hiện tại khi đổi từ menu | 400 | "Mật khẩu hiện tại không đúng" |
