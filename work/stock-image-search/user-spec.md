@@ -121,7 +121,8 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
       tự động vào JSON hay vào repo.
 - [ ] Kết quả tìm kiếm (danh sách ảnh của mỗi từ khóa) được lưu 24 giờ trong thư mục
       `<thư mục tạm của máy>/reels_render_cache/`. Trong 24 giờ đó, cùng từ khóa không gọi lại
-      API mà chọn ngẫu nhiên từ danh sách đã lưu. Quá 24 giờ thì gọi lại.
+      API mà chọn từ danh sách đã lưu theo đúng quy tắc chọn ảnh ở trên (3 ứng viên đầu chưa
+      dùng). Quá 24 giờ thì gọi lại.
 - [ ] File cache được ghi nguyên tử. File cache hỏng hoặc đọc không được thì coi như chưa có cache
       (gọi API lại). Không ghi được cache thì bỏ qua và render vẫn tiếp tục. Lỗi cache không bao
       giờ làm dừng render hay in traceback.
@@ -230,11 +231,16 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 - **Tìm tiếng Việt ra ảnh lạc chủ đề:** cụm từ chung chung hoặc từ nhiều nghĩa cho ảnh sai (đã
   thử: "thực phẩm tốt cho xương" ra cây xương rồng, "đậu phụ" có kết quả đầu là con cú). Rủi ro cao
   nhất ở cảnh không có `keywords` (dùng dòng chữ đầu), vì ảnh được chọn ngẫu nhiên và không lọc
-  theo nội dung. **Mitigation:** người dùng chấp nhận ở bản này; viết `keywords` cụ thể (tên món)
+  theo nội dung. Kể cả với tên món cụ thể, các kết quả sau kết quả đầu vẫn có thể lạc: với "cá kho
+  tộ", kết quả 2-4 là mì ống, con mèo, xe, nên chọn ngẫu nhiên trong 3 kết quả đầu sẽ ra ảnh lạc
+  khoảng 2/3 số lần cho từ khóa này. Đây là đánh đổi giữa đổi ảnh mỗi lần render và độ đúng chủ
+  đề. **Mitigation:** người dùng chấp nhận ở bản này; viết `keywords` cụ thể (tên món)
   cho cảnh dễ lạc; xem video trước khi đăng; spec "AI chọn ảnh" sau này sẽ dịch sang từ khóa tiếng
   Anh chuyên ngành và cho AI lọc ảnh theo nội dung.
-- **Ảnh Pixabay nhỏ:** API miễn phí chỉ cho cạnh dài tối đa 1280px, nên ảnh dọc rộng khoảng 720px
-  và hơi mờ trên khung 1080px. **Mitigation:** người dùng chấp nhận. Muốn ảnh nét hơn thì làm kho
+- **Ảnh Pixabay nhỏ:** API miễn phí chỉ cho cạnh dài tối đa 1280px. Ảnh dọc rộng khoảng 720-850px
+  và hơi mờ trên khung 1080px. Ảnh ngang (thường gặp, vì không còn ưu tiên ảnh dọc) chỉ cao
+  khoảng 850px; sau khi cắt phần giữa cho khung dọc, chỉ còn vùng khoảng 480×850px của ảnh gốc
+  được phóng lên 1080×1920, nên mờ rõ hơn và mất hai bên ảnh. **Mitigation:** người dùng chấp nhận. Muốn ảnh nét hơn thì làm kho
   ảnh riêng (spec sau) hoặc xin Pixabay cấp quyền tải ảnh lớn.
 - **Giới hạn lượt gọi** (Pixabay 100 lượt mỗi 60 giây). **Mitigation:**
   cache kết quả 24 giờ, thử lại 1 lần, và dừng với thông báo rõ ràng.
@@ -291,8 +297,8 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
   duy nhất trong 10 kết quả đầu là ảnh con mèo, còn ảnh món đúng là ảnh ngang, nên ưu tiên ảnh dọc
   sẽ luôn chọn ảnh lạc. Chọn ngẫu nhiên trong 3 kết quả liên quan nhất còn lại để vừa sát chủ đề
   vừa có đổi ảnh giữa các lần render.
-- Kết quả tìm kiếm được lưu 24 giờ để tuân thủ quy định của Pixabay. Tool vẫn chọn ngẫu nhiên từ
-  danh sách đã lưu nên ảnh vẫn đa dạng.
+- Kết quả tìm kiếm được lưu 24 giờ để tuân thủ quy định của Pixabay. Tool vẫn chọn ngẫu nhiên
+  (theo quy tắc 3 ứng viên đầu) từ danh sách đã lưu nên ảnh vẫn thay đổi giữa các lần render.
 - JSON được định dạng lại khi ghi (thụt lề đều). Nội dung và tiếng Việt giữ nguyên.
 - Ngân sách 2× thời lượng video chỉ tính phần render, vì thời gian tìm ảnh phụ thuộc vào mạng.
 - Key Pixabay của người dùng đã được lưu vào `.env` trên máy dev và đã gọi thử thành công.
@@ -322,7 +328,8 @@ nhiều nhánh và dễ sai. Chạy bằng pytest, HTTP được giả lập, kh
 - Ứng viên quá 15 MB, không phải ảnh hoặc ảnh hỏng thì sang ứng viên khác. Hết ứng viên thì sang
   từ khóa tiếp. Hết từ khóa thì ra lỗi có kiểu liệt kê cảnh (khi không có ai để hỏi).
 - Lỗi:
-  - không có key; không có mạng;
+  - không có key; không có mạng (lỗi kết nối: đợi, thử lại đúng 1 lần, vẫn lỗi thì dừng; thử lại
+    thành công thì tiếp tục và không tính là lỗi mạng);
   - Pixabay 429/5xx/timeout: thử lại đúng 1 lần, vẫn lỗi thì dừng với lỗi có kiểu, không hỏi;
   - Pixabay lỗi key (HTTP 400, nội dung chứa `API key`) thì dừng ngay; 400 khác thì bỏ từ khóa
     kèm cảnh báo, không báo "key không hợp lệ";
