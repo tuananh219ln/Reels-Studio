@@ -205,6 +205,15 @@ conversation_history:
          - Ghi đè .new, không được thì giữ file tạm: Ghi đè video.new.mp4 nếu được; nếu nó cũng bị khóa thì để nguyên file tạm và báo đường dẫn file tạm.
     user_answer: |
       1. Đánh số tiếp (Recommended)
+  - asked_at: "2026-10-28"
+    topic_keys: ["error_scenarios"]
+    agent_questions: |
+      (Validation round 2, adequacy finding.)
+      1. Vòng thử tên .new-N nên dừng khi nào?
+         - Tối đa .new-9, rồi giữ file tạm (Recommended): Thử .new, .new-2 … .new-9. Nếu tất cả thất bại (vd. chính file tạm bị antivirus khóa) thì để nguyên file tạm, báo đường dẫn file tạm kèm lỗi thật của hệ điều hành, thoát mã ≠ 0. Vẫn không mất bản render.
+         - Tối đa .new-9, rồi xóa bản mới: Thử như trên; hết lượt thì xóa file tạm và báo lỗi. Gọn hơn nhưng mất bản render.
+    user_answer: |
+      1. Tối đa .new-9, rồi giữ file tạm (Recommended)
 # Entry format:
 # - asked_at: "YYYY-MM-DD HH:MM:SS"
 #   topic_keys: ["user_problem", "success_criteria"]

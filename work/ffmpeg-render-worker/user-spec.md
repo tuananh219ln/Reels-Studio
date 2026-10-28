@@ -85,7 +85,8 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 **Ảnh và chuyển động**
 - [ ] Ảnh không đúng 9:16 được phóng phủ kín khung rồi cắt lấy phần giữa, không có viền đen.
 - [ ] Ảnh có EXIF xoay (ảnh điện thoại) hiển thị đúng chiều.
-- [ ] Mọi cảnh có Ken Burns zoom vào chậm quanh tâm, từ 100% đến khoảng 112%.
+- [ ] Mọi cảnh có Ken Burns zoom vào tuyến tính quanh tâm, từ 1.00 ở khung đầu tới 1.12 (±0.01)
+      ở khung cuối của cảnh.
 
 **Hộp chữ**
 - [ ] Hộp nền vàng (`#FFD60A`), chữ đen (`#111111`) in hoa đậm, font Be Vietnam Pro Black. Phần
@@ -113,6 +114,8 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 **Lỗi đầu vào** (báo lỗi tiếng Việt, nêu cảnh hoặc file, thoát mã khác 0, không đụng tới file output)
 - [ ] Lỗi file và cấu trúc:
   - JSON hỏng cú pháp, thiếu trường, hoặc không có cảnh nội dung;
+  - trường sai kiểu: `seconds` không phải số (ví dụ `"4"`, `true`, `null`) hoặc không hữu hạn
+    (`NaN`, `Infinity`); `text`/`image` không phải chuỗi; `scenes` không phải danh sách;
   - thiếu ảnh, file ảnh không tồn tại, hoặc ảnh hỏng;
   - file nhạc không tồn tại;
   - `--music-volume` nằm ngoài khoảng 0–1.
@@ -129,8 +132,11 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
       tên, nếu có, giữ nguyên.
 - [ ] Render xong nhưng không thay được file đích (ví dụ file đang mở trong trình phát trên
       Windows): giữ bản mới với tên `<tên>.new.mp4` cạnh file đích, báo đường dẫn bản mới, thoát
-      mã khác 0. Nếu tên đó cũng đã có và bị khóa thì thử lần lượt `<tên>.new-2.mp4`,
-      `<tên>.new-3.mp4`… và lấy tên đầu tiên ghi được. Bản render không bao giờ bị mất.
+      mã khác 0. Nếu tên đó cũng đã có và bị khóa thì thử lần lượt `<tên>.new-2.mp4` …
+      `<tên>.new-9.mp4` và lấy tên đầu tiên ghi được. Nếu cả 9 tên đều thất bại (ví dụ chính file
+      tạm bị antivirus khóa) thì giữ nguyên file tạm, báo đường dẫn của nó kèm lỗi thật của hệ điều
+      hành, thoát mã khác 0. Bản render không bao giờ bị mất. Thông báo chỉ nói "file đích đang bị
+      mở" khi lỗi thật sự nằm ở file đích.
 - [ ] Render thành công thì CLI in ra đường dẫn video và thời gian render, thoát mã 0.
 - [ ] Sau một lần render thành công, không còn sót file tạm hay file trung gian nào.
 
@@ -212,6 +218,8 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 - Hình học hộp chữ theo bộ số đề xuất: rộng 960px; tiêu đề 96 → 64px, tối đa 5 dòng; nội dung
   84 → 60px, tối đa 3 dòng. Phương án chữ to hơn, ít dòng hơn bị loại vì kịch bản dài sẽ bị báo
   lỗi nhiều.
+- Nhạc thử tự sinh (tone `sine`) chỉ dùng để kiểm chứng kỹ thuật, không dùng để đánh giá cảm
+  nhận âm thanh.
 - Chữ dài thì tự xuống dòng và thu nhỏ, chỉ báo lỗi khi vẫn không vừa. Phương án báo lỗi ngay khi
   vượt số chữ bị loại.
 - Crossfade 0.4s đặt giữa ranh giới hai cảnh, tổng thời lượng bằng tổng `seconds`. Cảnh ở giữa
@@ -227,7 +235,8 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 - Font Be Vietnam Pro Black được đóng gói trong repo (giấy phép OFL), không cài trên từng máy.
 - Ghi output an toàn: render ra file tạm rồi mới thay file đích, tự tạo thư mục, luôn dọn file
   trung gian. Nếu file đích đang bị khóa thì giữ bản mới `<tên>.new.mp4` và báo lỗi. Nếu tên đó
-  cũng bị khóa thì đánh số tiếp (`.new-2`, `.new-3`…) thay vì ghi đè hoặc để lại file tạm.
+  cũng bị khóa thì đánh số tiếp, tối đa `.new-9`, thay vì ghi đè. Hết lượt thì giữ file tạm và
+  báo đường dẫn, không xóa bản render.
 - Commit 6 ảnh mẫu vào repo thay vì chỉ để JSON, để ai clone về cũng render thử được ngay.
 - Thông báo lỗi viết bằng tiếng Việt và đánh số cảnh từ 1, đúng quy ước giao diện chỉ tiếng Việt
   và sẵn sàng hiển thị ở Job log sau này.
@@ -240,8 +249,13 @@ bọc hàm này. Worker ở spec sau sẽ gọi cùng hàm này.
 **Unit tests:** cần thiết, chạy bằng pytest và không cần FFmpeg. Các phần cần cover:
 
 - Validation và thông báo lỗi tiếng Việt cho từng lỗi đầu vào ở Acceptance Criteria, kiểm tra đúng
-  "Cảnh tiêu đề", "Cảnh N" hoặc đường dẫn được nêu. Trường hợp không tìm thấy ffmpeg/ffprobe được
-  giả lập.
+  "Cảnh tiêu đề", "Cảnh N" hoặc đường dẫn được nêu. Bao gồm cả trường sai kiểu (`"4"`, `true`,
+  `null`, `NaN`, `Infinity`, `scenes` là object). Trường hợp không tìm thấy ffmpeg/ffprobe được
+  giả lập. Mọi lỗi đầu vào phải ra lỗi có kiểu, không bao giờ là traceback Python.
+- Bố cục hộp chữ (hàm tính tọa độ, không cần FFmpeg): đáy hộp cảnh nội dung tại y = 1440; tâm hộp
+  tiêu đề trùng tâm dọc của khung (±2px); hộp căn giữa theo chiều ngang.
+- Biểu thức zoom của Ken Burns: giá trị zoom tính ra ở khung đầu là 1.00 và ở khung cuối của cảnh
+  là 1.12 (±0.01).
 - Parser `*đỏ*`, bao gồm dấu `*` lẻ và `**` rỗng.
 - In hoa tiếng Việt và chuẩn hóa NFC.
 - Ngắt dòng và thu nhỏ chữ, với các ngưỡng:
@@ -261,11 +275,20 @@ Lý do: đây là phần logic thuần, dễ sai, và test chạy nhanh.
 
 **Integration tests:** cần thiết, gồm hai tầng.
 
-- **Tầng Pillow:** PNG hộp chữ phải là RGBA, trong suốt ở ngoài hộp, có pixel vàng trong hộp, có
-  pixel đỏ khi có markup, và không vượt 960px.
+- **Tầng Pillow:**
+  - PNG hộp chữ phải là RGBA, trong suốt ở ngoài hộp, có pixel vàng trong hộp, có pixel đỏ khi có
+    markup, và không vượt 960px.
+  - Dấu chồng: vẽ hai dòng "ỔẶỖ" / "ỔẶỖ". Hàng pixel chữ cao nhất của dòng 1 phải nằm dưới mép
+    trên của hộp (không bị cắt). Giữa đáy chữ dòng 1 và đỉnh dấu dòng 2 phải còn ít nhất một hàng
+    pixel nền vàng (không dính nhau).
 - **Tầng smoke render bằng FFmpeg** (skip kèm lý do nếu máy không có ffmpeg). Dùng ảnh do Pillow
   sinh ra, có cả ảnh ngang lẫn ảnh vuông, 2–3 cảnh ngắn, rồi kiểm tra bằng `ffprobe`:
   - Thông số: 1080×1920, 30fps, h264/yuv420p, thời lượng ±1 khung hình, luôn có audio stream.
+  - Hình (trích khung bằng FFmpeg, đọc pixel bằng Pillow; ảnh nguồn là ảnh một màu sáng, ngang và
+    vuông):
+    - bốn góc và bốn mép của khung giữa cảnh không có pixel đen, tức là không có viền;
+    - ở khung giữa của một cảnh nội dung, cột giữa khung có pixel vàng ngay trên y = 1440 và không
+      có pixel vàng ở dưới y = 1440 + 4px.
   - Nhạc (tone sinh bằng FFmpeg `sine`, đo mức bằng `volumedetect`/`astats` trên từng đoạn):
     - nhạc 1s trong video 3s thì đoạn sau mốc hết nhạc gốc vẫn có tín hiệu (phân biệt được lặp
       với đệm im lặng);
@@ -296,21 +319,24 @@ Lý do: đây là tầng duy nhất bắt được lỗi ghép graph và lỗi �
 |------|-----------------|
 | 1. Cài Python 3.12 và FFmpeg qua winget (người dùng duyệt lệnh), tạo `.venv`, cài package | `python --version` báo 3.12. `ffmpeg -filters` có `zoompan`, `xfade`, `overlay`, `afade` |
 | 2. Chạy `pytest` trong `worker/` | Toàn bộ unit, Pillow và smoke test pass, không có test nào bị skip vì thiếu ffmpeg |
-| 3. Render `samples/xuong-khop.json` bằng CLI ra `out/xuong-khop.mp4`, một lần không có `--music` và một lần có `--music`. File nhạc là file người dùng cung cấp, hoặc nếu không có thì là tone thử do agent sinh bằng FFmpeg `sine` vào `out/` (không commit) | Mã thoát 0, in đường dẫn và thời gian render, file tồn tại, không sót file tạm |
-| 4. Chạy `ffprobe` trên file vừa render | 1080×1920, 30fps, h264/yuv420p, có audio, thời lượng bằng tổng `seconds` ±1 khung hình |
+| 3. Render `samples/xuong-khop.json` bằng CLI hai lần: không có `--music` ra `out/xuong-khop.mp4`, và có `--music` ra `out/xuong-khop-nhac.mp4`. File nhạc là file người dùng cung cấp, hoặc nếu không có thì là tone thử do agent sinh bằng FFmpeg `sine` vào `out/` (không commit) | Cả hai lần mã thoát 0, in đường dẫn và thời gian render, hai file tồn tại, không sót file tạm |
+| 4. Chạy `ffprobe` trên cả hai file | 1080×1920, 30fps, h264/yuv420p, có audio, thời lượng bằng tổng `seconds` ±1 khung hình |
 | 5. Đo thời gian render ở bước 3 | Thời gian render ≤ 2 × thời lượng video |
-| 6. Trích khung đầu và một khung giữa mỗi cảnh ra PNG để người dùng xem | Có file PNG tương ứng (agent không tự đánh giá thẩm mỹ) |
+| 6. Trích từ `out/xuong-khop.mp4` khung đầu và một khung giữa mỗi cảnh ra `out/frames/*.png` để người dùng xem | Có file PNG tương ứng (agent không tự đánh giá thẩm mỹ) |
 
 ### User Verification
-- Xem `out/xuong-khop.mp4` (bản có nhạc nếu bạn cung cấp file nhạc) so với Video Template:
+- Xem `out/xuong-khop.mp4` (bản không nhạc) và các PNG trong `out/frames/`, so với Video Template:
   - khung đầu là thumbnail rõ chữ;
   - hộp vàng chữ đen in hoa, từ khóa đỏ;
   - dấu tiếng Việt đủ và không bị cắt;
+  - ảnh phủ kín khung, không có viền đen;
   - chữ cảnh nội dung ở 1/3 dưới, không bị caption/nút che;
   - Ken Burns mượt, không rung;
-  - crossfade mềm;
-  - nhạc nhỏ và tắt dần ở cuối.
+  - crossfade mềm.
 
   Phần này cần người xem vì agent không đánh giá được chất lượng hình ảnh (patterns.md).
+- Chỉ khi bạn đã cung cấp file nhạc thật: nghe `out/xuong-khop-nhac.mp4`, kiểm tra nhạc nhỏ vừa
+  phải và tắt dần ở cuối. Nếu agent dùng tone thử thì bỏ qua bước này, vì lặp, âm lượng và fade đã
+  có test tự động.
 - Cung cấp 6 ảnh món ăn (~300–500 KB/ảnh) có quyền sử dụng rõ ràng vào `samples/xuong-khop/` trước
   bước render mẫu.
