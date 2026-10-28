@@ -1,0 +1,64 @@
+# Environment variables and secrets (CRITICAL - MUST ignore)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+secrets/
+.secrets/
+# Credential data files only; source files such as client_secret.go stay tracked
+*api-key*.json
+*api-key*.txt
+*apikey*.json
+*apikey*.txt
+*secret*.json
+*secret*.txt
+*.secret
+
+# Local settings (not shared)
+.claude/settings.local.json
+.codex/settings.local.json
+**/.codex/.sync/
+
+# Portable public MCP templates (root personal MCP configs remain ignored)
+!.mcp.json
+!.mcp.bot.json
+
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+# Root runtime logs only; work/*/logs/ holds interview logs that must be committed
+/logs/
+
+# Test coverage
+coverage/
+.coverage
+htmlcov/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
