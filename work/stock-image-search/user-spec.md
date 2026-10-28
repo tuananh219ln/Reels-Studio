@@ -63,10 +63,9 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
    - `image` trỏ tới file không tồn tại: in cảnh báo (ví dụ
      `Cảnh 2: không thấy file anh-ca.jpg, sẽ tìm ảnh thay thế`) rồi tìm như trường hợp trên.
 4. Tool tìm cho mọi cảnh cần tìm. Tool thử từng từ khóa theo thứ tự trên Pixabay, và chỉ sang
-   từ khóa tiếp theo khi từ khóa hiện tại không cho ảnh dùng được. Trong 10 kết quả đầu, tool chọn ngẫu
-   nhiên một ảnh dọc chưa dùng cho cảnh khác trong cùng video. Chỉ khi không còn ảnh dọc chưa
-   dùng nào thì mới chọn ngẫu nhiên trong các ảnh ngang hoặc vuông chưa dùng. Ảnh được tải về thư
-   mục tạm.
+   từ khóa tiếp theo khi từ khóa hiện tại không cho ảnh dùng được. Kết quả giữ đúng thứ tự liên quan
+   Pixabay trả về. Tool chọn ngẫu nhiên trong 3 ảnh đầu chưa dùng cho cảnh khác trong cùng video
+   (ảnh dọc, ngang hay vuông đều được). Ảnh được tải về thư mục tạm.
 5. Cảnh không có ảnh dùng được sau khi thử hết từ khóa (hoặc cảnh tiêu đề không có `keywords`):
    - Chạy trong terminal (stdin của CLI là terminal, `sys.stdin.isatty()`): sau khi đã tìm xong
      mọi cảnh, CLI hỏi lần lượt từng cảnh, ví dụ
@@ -108,9 +107,11 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
       cache). Pixabay là nguồn ảnh duy nhất.
 - [ ] Chỉ lấy ảnh chụp và luôn bật lọc ảnh nhạy cảm (Pixabay `image_type=photo`,
       `safesearch=true`). Ứng viên là 10 kết quả đầu của mỗi lần
-      tìm. Tool chọn ngẫu nhiên trong các ảnh dọc (cao > rộng) chưa dùng. Chỉ khi không còn ảnh
-      dọc nào mới chọn ngẫu nhiên trong ảnh ngang hoặc vuông chưa dùng (lõi render cắt phần giữa
-      như hiện nay). Không loại ảnh vì kích thước nhỏ.
+      tìm, giữ thứ tự liên quan của Pixabay. Tool bỏ các ứng viên đã dùng cho cảnh khác trong cùng
+      video, rồi chọn ngẫu nhiên trong 3 ứng viên đầu còn lại. Không ưu tiên hay loại ảnh theo
+      hướng: ảnh ngang và vuông được lõi render cắt phần giữa như hiện nay. Không loại ảnh vì kích
+      thước nhỏ. Ứng viên được chọn mà không dùng được (hỏng, quá cỡ, tải lỗi) thì bỏ và chọn lại
+      theo cùng quy tắc trong các ứng viên còn lại.
 - [ ] Ảnh tải bản `largeImageURL` của Pixabay.
 - [ ] Không lưu lịch sử lựa chọn giữa các lần render.
 - [ ] Hai cảnh trong cùng video không dùng chung một ảnh tự động. Nếu không còn ảnh mới, cảnh sau
@@ -285,8 +286,11 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
   vào JSON nếu muốn.
 - Ảnh ngang và ảnh nhỏ vẫn được chấp nhận. Thà có ảnh hơi mờ hoặc phải cắt còn hơn dừng lại hỏi.
 - Khi không đủ ảnh khác nhau thì dùng lại ảnh trùng, không hỏi người dùng.
-- Mỗi từ khóa chỉ gọi Pixabay một lần, không lọc hướng ảnh, để tiết kiệm lượt gọi. Ảnh dọc được
-  xếp lên trước ở phía tool.
+- Mỗi từ khóa chỉ gọi Pixabay một lần, không lọc hướng ảnh, để tiết kiệm lượt gọi.
+- Không ưu tiên ảnh dọc (thay cho quyết định cũ ở câu 14 và 23): thử thật với "cá kho tộ", ảnh dọc
+  duy nhất trong 10 kết quả đầu là ảnh con mèo, còn ảnh món đúng là ảnh ngang, nên ưu tiên ảnh dọc
+  sẽ luôn chọn ảnh lạc. Chọn ngẫu nhiên trong 3 kết quả liên quan nhất còn lại để vừa sát chủ đề
+  vừa có đổi ảnh giữa các lần render.
 - Kết quả tìm kiếm được lưu 24 giờ để tuân thủ quy định của Pixabay. Tool vẫn chọn ngẫu nhiên từ
   danh sách đã lưu nên ảnh vẫn đa dạng.
 - JSON được định dạng lại khi ghi (thụt lề đều). Nội dung và tiếng Việt giữ nguyên.
@@ -308,8 +312,9 @@ nhiều nhánh và dễ sai. Chạy bằng pytest, HTTP được giả lập, kh
 - Gửi đúng tham số: Pixabay `lang=vi`, `image_type=photo`, `safesearch=true`, tải `largeImageURL`; mọi yêu cầu có User-Agent
   riêng.
 - Chọn ảnh:
-  - có ảnh dọc chưa dùng thì chỉ chọn trong ảnh dọc; không còn ảnh dọc mới dùng ảnh ngang;
-  - chỉ chọn trong 10 kết quả đầu;
+  - chỉ chọn ngẫu nhiên trong 3 ứng viên đầu chưa dùng, theo thứ tự Pixabay; ảnh ngang ở vị trí
+    đầu được chọn được dù có ảnh dọc ở vị trí sau;
+  - ứng viên hỏng hoặc đã dùng bị bỏ, kết quả thứ 4, 5… được lên thay; chỉ xét 10 kết quả đầu;
   - không trùng ảnh trong một video; hết ảnh mới thì sang từ khóa tiếp, hết từ khóa thì dùng lại
     ảnh trùng.
 - Cache 24 giờ: lần thứ hai không gọi API; quá hạn thì gọi lại; file cache hỏng thì gọi API lại;

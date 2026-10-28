@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-28 22:40:00"
-  last_updated: "2026-10-29 02:40:00"
+  last_updated: "2026-10-29 03:10:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -242,6 +242,13 @@ conversation_history:
     user_answer: |
       Oke duyệt
       -> Agent hiểu là đồng ý câu 42 và 45a (spec hiện tại tìm bằng tiếng Việt; AI chọn ảnh là spec sau, câu 43-44 sẽ chốt trong spec đó). Spec được sửa và kiểm định lại trước khi chốt.
+  - asked_at: "2026-10-29 03:10:00"
+    topic_keys: ["technical_decisions", "edge_cases"]
+    agent_questions: |
+      (Sau kiểm định) "Ưu tiên ảnh dọc" chọn nhầm: với "cá kho tộ", ảnh dọc duy nhất trong 10 kết quả đầu là con mèo, ảnh món đúng là ảnh ngang.
+      46. (a) Bỏ ưu tiên ảnh dọc, chọn ngẫu nhiên trong 3 kết quả đầu chưa dùng (theo thứ tự liên quan của Pixabay), hết thì lấy kết quả 4, 5...; (b) giữ ưu tiên ảnh dọc trong 10 kết quả.
+    user_answer: |
+      a
 
 general_understanding:
   feature_name:
