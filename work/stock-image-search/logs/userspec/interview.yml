@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-28 22:40:00"
-  last_updated: "2026-10-29 01:10:00"
+  last_updated: "2026-10-29 01:40:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -211,6 +211,12 @@ conversation_history:
       38. Cảnh không có `keywords` và không có ảnh: hỏi người dùng đưa ảnh ngay, kể cả khi không có key/mạng; kiểm tra key/mạng chỉ áp dụng cho cảnh có `keywords`. Đồng ý?
     user_answer: |
       đồng ý
+  - asked_at: "2026-10-29 01:40:00"
+    topic_keys: ["dependencies", "technical_decisions", "risks"]
+    agent_questions: |
+      39. (Sau kiểm định) Pexels large2x chỉ cao tối đa 1300px nên ảnh dọc gần như không nét hơn Pixabay; điều khoản API Pexels bắt buộc hiển thị link "Photos provided by Pexels". (a) Bỏ Pexels, chỉ dùng Pixabay (đề xuất); (b) giữ Pexels tùy chọn và thêm "Ảnh từ Pexels" vào caption.
+    user_answer: |
+      a
 
 general_understanding:
   feature_name:
