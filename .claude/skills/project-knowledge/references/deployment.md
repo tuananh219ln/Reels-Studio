@@ -5,13 +5,16 @@
 The project runs locally only. There is no production server, domain, or CI/CD deployment yet.
 The owner will deploy later.
 
-**Development host:** the owner's Linux machine (Intel i5-10400F, 6 cores / 12 threads, 15 GiB
-RAM). Docker Engine + Compose must be installed first; as of 2026-10-28 neither Docker nor FFmpeg
-was present on the host (FFmpeg is not needed there, see
-[architecture.md](architecture.md#external-integrations)).
+**Development host:** a Windows 10 Pro machine (Intel i7-8700). The render core runs natively,
+without Docker: Python 3.12 and FFmpeg are installed with winget (`Python.Python.3.12`,
+`Gyan.FFmpeg`), and the package is installed into `worker/.venv`. If `python` opens the Microsoft
+Store, disable the alias under "App execution aliases" or call the installed interpreter
+directly. Docker Compose is planned for when the queue and database land.
 
-**Runtime:** Docker Compose runs `web`, `api`, `worker`, `postgres`, and `redis`, plus the storage
-volume (see [architecture.md](architecture.md#components)). The same compose setup is the planned
+**Render budget:** rendering must take no longer than 2× the video length on this host.
+
+**Planned runtime:** Docker Compose will run `web`, `api`, `worker`, `postgres`, and `redis`,
+plus the storage volume (see [architecture.md](architecture.md#components)). The same compose setup is the planned
 production setup on a single VPS.
 
 ## Environment Variables

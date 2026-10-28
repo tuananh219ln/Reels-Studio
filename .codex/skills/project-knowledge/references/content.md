@@ -19,9 +19,9 @@ Source: the owner's plan "Plan Project Knowledge – Kênh Reels Dưỡng sinh &
 
 ## Video Formula
 
-Each reel is a numbered list. A close-up food image carries large yellow text and soft instrumental
-music. There are no faces. The caption repeats the title and the full list so viewers save it. The
-visual specification is in [ux-guidelines.md](ux-guidelines.md#video-template).
+Each reel is a numbered list. A close-up food image carries large black text in a yellow box, with
+soft instrumental music. There are no faces. The caption repeats the title and the full list so
+viewers save it. The visual specification is in [ux-guidelines.md](ux-guidelines.md#video-template).
 
 Recurring title formulas:
 
