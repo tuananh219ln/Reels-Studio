@@ -28,6 +28,9 @@ secrets/
 # Dependencies
 node_modules/
 venv/
+.venv/
+.pytest_cache/
+*.egg-info/
 __pycache__/
 *.pyc
 

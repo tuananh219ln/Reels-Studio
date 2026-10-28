@@ -1,19 +1,10 @@
 {
-  "hook": {
-    "lines": ["5 MÓN GIÚP", "**XƯƠNG CHẮC KHỎE**", "SAU TUỔI 50"],
-    "seconds": 3,
-    "emoji": "🦴"
-  },
+  "title": { "text": "5 MÓN GIÚP\n*XƯƠNG CHẮC KHỎE*\nSAU TUỔI 50", "seconds": 3, "image": "xuong-khop/00-tieu-de.jpg" },
   "scenes": [
-    { "title": "Cá nhỏ ăn cả xương", "benefit": "Giàu canxi, rẻ, dễ tìm", "seconds": 4, "emoji": "🐟" },
-    { "title": "Sữa chua", "benefit": "Bổ sung canxi và đạm", "seconds": 4, "emoji": "🥛" },
-    { "title": "Đậu phụ", "benefit": "Canxi và đạm thực vật", "seconds": 4, "emoji": "🍲" },
-    { "title": "Rau cải xanh", "benefit": "Có canxi và vitamin K", "seconds": 4, "emoji": "🥬" },
-    { "title": "Vừng đen", "benefit": "Rắc vào cháo, sữa hạt mỗi sáng", "seconds": 4, "emoji": "🥣" }
-  ],
-  "outro": {
-    "text": "Lưu lại & **gửi cho bố mẹ** nhé!",
-    "seconds": 3
-  },
-  "disclaimer": "Thông tin tham khảo, không thay thế tư vấn bác sĩ"
+    { "text": "Cá nhỏ ăn cả xương\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4, "image": "xuong-khop/01-ca-nho.jpg" },
+    { "text": "Sữa chua\nBổ sung *canxi* và đạm", "seconds": 4, "image": "xuong-khop/02-sua-chua.jpg" },
+    { "text": "Đậu phụ\nCanxi và *đạm thực vật*", "seconds": 4, "image": "xuong-khop/03-dau-phu.jpg" },
+    { "text": "Rau cải xanh\nCó canxi và *vitamin K*", "seconds": 4, "image": "xuong-khop/04-rau-cai.jpg" },
+    { "text": "Vừng đen\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4, "image": "xuong-khop/05-vung-den.jpg" }
+  ]
 }
