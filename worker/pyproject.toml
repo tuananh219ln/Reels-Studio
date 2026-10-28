@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reels-render"
+version = "0.1.0"
+description = "Render a 9:16 short video from a scene script, scene images and optional music with FFmpeg."
+requires-python = ">=3.12"
+dependencies = ["Pillow>=10"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+reels_render = ["fonts/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
