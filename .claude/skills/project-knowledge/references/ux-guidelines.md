@@ -34,18 +34,28 @@ bản", "Render", "Tải MP4", "Chạy lại".
 There is one fixed template in the MVP, derived from the reference channel (see
 [content.md](content.md#video-formula)).
 
-- **Frame:** 9:16 vertical.
+- **Frame:** 9:16 vertical, 1080×1920 at 30 fps. Photos are cover-cropped from the centre, with
+  no black bars.
 - **First frame = thumbnail:**
   - a close-up food photo filling the frame, with vivid color;
-  - the chosen title in a centered text box, 3–5 lines.
+  - the chosen title in a text box centred in the frame, 3–5 lines, with no fade-in.
 - **Text box:**
-  - yellow background with black text, or yellow text with a black outline;
-  - bold, uppercase, centered;
-  - keywords marked `*...*` are drawn in red.
+  - yellow background (`#FFD60A`) with black text (`#111111`). The "yellow text with a black
+    outline" style was rejected because it is hard to read on bright photos;
+  - bold, uppercase, centered, at most 960 px wide;
+  - keywords marked `*...*` are drawn in red (`#E10600`);
+  - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts
+    at 96 px and shrinks to 64 px (at most 5 lines); body text starts at 84 px and shrinks to
+    60 px (at most 3 lines).
 - **Body scenes:**
-  - one item per scene, 3–5 seconds each;
-  - the item name plus one benefit line;
-  - Ken Burns motion on the photo.
-- **Audio:** soft instrumental music from the team library, plus TTS when enabled.
+  - one item per scene, 3–5 seconds each (the renderer accepts any length of 1 s or more);
+  - the item name plus one benefit line, separated by a manual line break;
+  - text box in the lower third, with its bottom edge at y = 1440, clear of the food and of the
+    platforms' caption and button area.
+- **Motion:** every scene zooms in linearly around the centre, from 1.00 to 1.12. Scenes are
+  joined by a 0.4 s crossfade centred on the boundary, so the total length equals the summed
+  scene seconds.
+- **Audio:** soft instrumental music from the team library at volume 0.25 by default, looped or
+  cut to the video length, with a 1.5 s fade-out; plus TTS when enabled.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
 - **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 20–40 seconds.

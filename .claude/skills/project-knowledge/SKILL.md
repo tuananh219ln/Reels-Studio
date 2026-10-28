@@ -10,8 +10,9 @@ description: |
 
 # Project Knowledge: Reels Studio
 
-Reels Studio is a greenfield project. The documentation describes the agreed design; no
-application code exists yet.
+Reels Studio is an early-stage project. Only the render core and its CLI exist
+([worker/](../../../worker/)); everything else in this documentation is agreed design not yet
+built.
 
 ## References
 
@@ -21,7 +22,7 @@ application code exists yet.
   pipeline, integrations, data flow, data model, sensitive data.
 - **[patterns.md](references/patterns.md)**: code patterns, Git workflow, testing and
   verification, business rules.
-- **[deployment.md](references/deployment.md)**: local Docker Compose setup, dev host,
+- **[deployment.md](references/deployment.md)**: dev host, planned Docker Compose setup,
   environment variables, operations.
 - **[ux-guidelines.md](references/ux-guidelines.md)**: UI language, screens, video visual
   template.
