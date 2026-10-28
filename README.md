@@ -5,7 +5,7 @@
 
 ## Giới thiệu
 
-[Mô tả ngắn: dự án làm gì và vì sao tồn tại]
+Web app nội bộ tạo video ngắn dọc 9:16 (20–40 giây) cho Reels, TikTok và Shorts: nhập chủ đề → Claude viết kịch bản chia cảnh → gán ảnh → render bằng FFmpeg ra MP4. Mục tiêu: giảm thời gian lên ý tưởng và dựng video cho team khoảng 5 người.
 
 ## Cấu trúc dự án
 
@@ -35,8 +35,8 @@ Dự án dùng cách làm **spec-driven** với AI agent:
 ## Bắt đầu
 
 1. Bật git hook (một lần sau khi clone): `git config core.hooksPath .githooks`
-2. Điền tài liệu dự án: mở Claude Code và yêu cầu "điền tài liệu dự án" (skill
-   `documentation-writing`) — sẽ có buổi phỏng vấn để viết Project Knowledge, CLAUDE.md và README.
+2. Tài liệu dự án đã có trong `.claude/skills/project-knowledge/`. Muốn cập nhật thì yêu cầu
+   "cập nhật tài liệu" (skill `documentation-writing`).
 3. Lên spec cho tính năng đầu tiên bằng skill `user-spec-planning`.
 
 ## Online Pipeline (tùy chọn)

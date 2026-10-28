@@ -1,6 +1,6 @@
 # Project: Reels Studio
 
-> **[ONE SENTENCE - WHAT THIS PROJECT IS ABOUT]**
+> Internal web app that turns a topic into a ready-to-post 9:16 short video (Claude script, scene images, FFmpeg render) for Reels, TikTok, and Shorts.
 
 ---
 
