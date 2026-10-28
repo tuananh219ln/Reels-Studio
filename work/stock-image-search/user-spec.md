@@ -152,7 +152,9 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 **Lỗi**
 - [ ] `PIXABAY_API_KEY` trống hoặc vắng mà có cảnh cần tìm: dừng ngay với lỗi có kiểu, hướng dẫn
       đặt key vào `.env`, không hỏi người dùng.
-- [ ] Không có mạng khi cần tìm: dừng với lỗi có kiểu, không hỏi người dùng.
+- [ ] Không có mạng khi cần tìm: dừng với lỗi có kiểu, không hỏi người dùng. Không có bước dò
+      mạng riêng; "không có mạng" là yêu cầu tìm đầu tiên lỗi ở mức kết nối (DNS, từ chối kết nối,
+      lỗi SSL). Lỗi kết nối được xử lý như hết thời gian chờ: đợi 5 giây, thử lại 1 lần, rồi dừng.
 - [ ] Việc kiểm tra key và mạng chỉ áp dụng khi có ít nhất một cảnh cần tìm (cảnh nội dung thiếu
       ảnh, hoặc cảnh tiêu đề thiếu ảnh có `keywords`).
       Tìm ảnh luôn chạy xong trước mọi lời hỏi, nên kịch bản trộn mà thiếu key hoặc mất mạng sẽ
@@ -190,7 +192,8 @@ ngay trong lúc chạy, không phải sửa file rồi chạy lại.
 - [ ] `.env.example` liệt kê `PIXABAY_API_KEY=` với giá trị trống.
 - [ ] Mọi yêu cầu HTTP gửi User-Agent riêng của tool.
 - [ ] CLI in riêng thời gian tìm ảnh (kèm số lượt gọi API tìm kiếm thực sự gửi đi, tính cả lần
-      thử lại, không tính tải ảnh và cache) và thời gian render. Ngân
+      thử lại, không tính tải ảnh và cache) và thời gian render. Thời gian chờ người dùng
+      nhập ảnh ở lời hỏi không tính vào số nào trong hai số này. Ngân
       sách render (≤ 2× thời lượng video) chỉ áp dụng cho phần render.
 
 **Tài liệu dự án**
