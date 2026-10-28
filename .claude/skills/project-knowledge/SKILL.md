@@ -1,51 +1,40 @@
 ---
 name: project-knowledge
 description: |
-  Use when you need information about this project's architecture, tech stack,
-  coding patterns, data model, deployment setup, git workflow, or UX guidelines.
-  Contains comprehensive project documentation including design decisions,
-  technical specifications, and development standards.
+  Use when you need information about Reels Studio — the internal web app that turns a topic into
+  a 9:16 short video (Claude script, scene images, FFmpeg render) for Reels/TikTok/Shorts: its
+  scope and MVP, architecture (Next.js + FastAPI + render worker + Postgres + Redis), data model,
+  coding patterns, git workflow, testing, deployment, UI and video template, or the content domain
+  (Vietnamese health/nutrition channel formula, script prompt contract, knowledge base, safety rules).
 ---
 
-# Project Knowledge
+# Project Knowledge: Reels Studio
 
-This skill provides access to project documentation that defines how this project works, how code should be written, and how features should be developed.
+Reels Studio is a greenfield project. The documentation describes the agreed design; no
+application code exists yet.
 
-## When to use
+## References
 
-Activate this skill when you need to:
-- Understand project architecture, tech stack, and data model
-- Learn coding patterns, git workflow, and testing approach
-- Check deployment setup, monitoring, and operational procedures
-- Apply UX guidelines and design system
-- Make technical decisions aligned with project standards
+- **[project.md](references/project.md)**: purpose, users, problem, MVP features, development
+  phases, out of scope.
+- **[architecture.md](references/architecture.md)**: stack and rationale, components, render
+  pipeline, integrations, data flow, data model, sensitive data.
+- **[patterns.md](references/patterns.md)**: code patterns, Git workflow, testing and
+  verification, business rules.
+- **[deployment.md](references/deployment.md)**: local Docker Compose setup, dev host,
+  environment variables, operations.
+- **[ux-guidelines.md](references/ux-guidelines.md)**: UI language, screens, video visual
+  template.
+- **[content.md](references/content.md)**: channel audience, video formula, script generation
+  contract, Knowledge Base, safety rules, monetization context.
 
-## Core references
+## What to Read for a Task
 
-All documentation is in the `references/` folder:
-
-- **[project.md](references/project.md)** - Project overview, purpose, target audience, core features, scope boundaries
-- **[architecture.md](references/architecture.md)** - Tech stack, project structure, dependencies, external integrations, data flow, data model (schema, migrations, sensitive data)
-- **[patterns.md](references/patterns.md)** - Project-specific coding conventions, git workflow (branching, testing, security gates), testing & verification methods, business rules
-- **[deployment.md](references/deployment.md)** - Runtime platform, routine delivery, direct-operation boundary, agent/operations host, environments, rollback, monitoring, and recovery
-
-## Optional references
-
-- **[ux-guidelines.md](references/ux-guidelines.md)** - Interface language, tone of voice, domain glossary, text patterns, design system (only for projects with significant UI)
-- **{custom}.md** - Domain-specific files added per project (e.g., vault.md, bot.md, mcp.md)
-
-## How to use
-
-Read specific guides as needed for your task:
-
-- Starting feature development - read [project.md](references/project.md), [architecture.md](references/architecture.md), [patterns.md](references/patterns.md)
-- Implementing database changes - read [architecture.md](references/architecture.md) (Data Model section)
-- Working on UI/UX - read [ux-guidelines.md](references/ux-guidelines.md)
-- Setting up deployment - read [deployment.md](references/deployment.md)
-- Creating branches or PRs - read [patterns.md](references/patterns.md) (Git Workflow section)
-- Investigating logs or errors - read [deployment.md](references/deployment.md) (Monitoring section)
-- Working with domain logic - read [patterns.md](references/patterns.md) (Business Rules section)
-
-All guides are maintained as single source of truth for project knowledge. This template starts
-with the standard core; initial documentation may compact it into this SKILL.md or add independent
-domain references while keeping this router aligned with the files that actually exist.
+- Starting any feature: project.md, architecture.md, patterns.md.
+- Database or API changes: architecture.md (Data Model).
+- Render pipeline or template work: architecture.md (Components), ux-guidelines.md (Video
+  Template).
+- Prompt, script generation, knowledge base, or safety checks: content.md.
+- UI screens: ux-guidelines.md.
+- Environment, Docker, or deployment: deployment.md.
+- Branches, PRs, tests: patterns.md.
