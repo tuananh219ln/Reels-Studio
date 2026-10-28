@@ -19,14 +19,15 @@ production setup on a single VPS.
 
 ## Environment Variables
 
-**See:** [.env.example](../../../../.env.example). It is still empty and must be filled in by the
-scaffold.
+**See:** [.env.example](../../../../.env.example). It lists only the variables in use so far; the
+scaffold adds the rest. The render core reads `.env` at the repo root; a real environment variable
+wins, even when set to an empty string.
 
 | Variable | Purpose |
 |---|---|
 | `ANTHROPIC_API_KEY` | Claude API |
 | `CLAUDE_MODEL` | Model override; the default is `claude-sonnet-5-5` |
-| `PEXELS_API_KEY`, `PIXABAY_API_KEY` | Stock image search |
+| `PIXABAY_API_KEY` | Stock image search in the render core (in use) |
 | `TTS_PROVIDER` | `edge` or `azure` |
 | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | Needed only when `TTS_PROVIDER=azure` |
 | `DATABASE_URL`, `REDIS_URL` | Service connections |
@@ -34,7 +35,7 @@ scaffold.
 | `RENDER_CONCURRENCY` | Maximum parallel render jobs; the default is 1 |
 | `SESSION_SECRET` | Auth session signing |
 
-These names are planned and will be finalized at scaffold time. After that, keep this table in
+Except `PIXABAY_API_KEY`, these names are planned and will be finalized at scaffold time. After that, keep this table in
 sync with `.env.example`.
 
 ## Operations

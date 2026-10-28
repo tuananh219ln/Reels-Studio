@@ -39,8 +39,10 @@ One Claude call per topic returns:
 2. A scene table with these columns: scene number, seconds, on-screen text (≤ 10 words), image
    needed.
 3. A caption of 80–120 words plus 5 hashtags.
-4. A 9:16 image prompt per scene: realistic photo, natural light, wooden table. In the MVP this
-   doubles as the stock-search keywords.
+4. A 9:16 image prompt per scene: realistic photo, natural light, wooden table. Stock search
+   does not use it; it uses the scene's separate `keywords` field: Vietnamese terms, most specific
+   first (the dish name). Without `keywords`, a content scene is searched by its first text
+   line.
 5. 2 affiliate product suggestions plus the pinned-comment text.
 6. A safety self-review that lists the sentences it changed.
 

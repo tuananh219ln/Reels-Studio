@@ -1,10 +1,16 @@
 {
-  "title": { "text": "5 MÓN GIÚP\n*XƯƠNG CHẮC KHỎE*\nSAU TUỔI 50", "seconds": 3, "image": "xuong-khop/00-tieu-de.jpg" },
+  "title": { "text": "5 MÓN GIÚP\n*XƯƠNG CHẮC KHỎE*\nSAU TUỔI 50", "seconds": 3, "image": "xuong-khop/00-tieu-de.jpg",
+             "keywords": ["cá nhỏ chiên giòn", "sữa chua", "món ăn giàu canxi"] },
   "scenes": [
-    { "text": "Cá nhỏ ăn cả xương\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4, "image": "xuong-khop/01-ca-nho.jpg" },
-    { "text": "Sữa chua\nBổ sung *canxi* và đạm", "seconds": 4, "image": "xuong-khop/02-sua-chua.jpg" },
-    { "text": "Đậu phụ\nCanxi và *đạm thực vật*", "seconds": 4, "image": "xuong-khop/03-dau-phu.jpg" },
-    { "text": "Rau cải xanh\nCó canxi và *vitamin K*", "seconds": 4, "image": "xuong-khop/04-rau-cai.jpg" },
-    { "text": "Vừng đen\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4, "image": "xuong-khop/05-vung-den.jpg" }
+    { "text": "Cá nhỏ ăn cả xương\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4, "image": "xuong-khop/01-ca-nho.jpg",
+      "keywords": ["cá cơm chiên", "cá nhỏ", "món cá"] },
+    { "text": "Sữa chua\nBổ sung *canxi* và đạm", "seconds": 4, "image": "xuong-khop/02-sua-chua.jpg",
+      "keywords": ["sữa chua", "sữa chua trái cây"] },
+    { "text": "Đậu phụ\nCanxi và *đạm thực vật*", "seconds": 4, "image": "xuong-khop/03-dau-phu.jpg",
+      "keywords": ["đậu phụ rán", "đậu phụ", "đậu hũ"] },
+    { "text": "Rau cải xanh\nCó canxi và *vitamin K*", "seconds": 4, "image": "xuong-khop/04-rau-cai.jpg",
+      "keywords": ["rau cải xanh", "rau cải", "rau xanh"] },
+    { "text": "Vừng đen\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4, "image": "xuong-khop/05-vung-den.jpg",
+      "keywords": ["vừng đen", "hạt vừng", "mè đen"] }
   ]
 }

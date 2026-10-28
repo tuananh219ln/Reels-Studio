@@ -4,7 +4,7 @@ import pytest
 
 from conftest import make_image, scene, write_script
 from reels_render.errors import InputError
-from reels_render.script import load_script
+from reels_render.script import load_script, write_scene_image
 
 
 @pytest.fixture
@@ -66,8 +66,10 @@ def test_structure_errors(folder, data, message):
         ({"seconds": 0.5}, "từ 1 trở lên"),
         ({"text": 5}, "\"text\" phải là chuỗi"),
         ({"image": 3}, "\"image\" phải là chuỗi"),
-        ({"image": ""}, "thiếu ảnh"),
-        ({"image": "khong-co.jpg"}, "không tìm thấy file ảnh"),
+        ({"keywords": "cá kho"}, "\"keywords\" phải là danh sách"),
+        ({"keywords": ["cá kho", 3]}, "từ khóa thứ 2 .* phải là chuỗi"),
+        ({"keywords": ["  "]}, "từ khóa thứ 1 .* đang trống"),
+        ({"keywords": ["a" * 101]}, "dài quá 100 ký tự"),
         ({"text": "   "}, "chữ trống"),
         ({"text": "a\n\nb"}, "dòng trống"),
         ({"text": "a *b"}, "không đóng cặp"),
@@ -82,8 +84,67 @@ def test_scene_errors_name_the_scene(folder, override, message):
 
 
 def test_title_errors_name_title(folder):
-    with pytest.raises(InputError, match="^Cảnh tiêu đề: thiếu trường \"image\""):
-        load(folder, {"title": {"text": "a", "seconds": 3}, "scenes": [scene()]})
+    with pytest.raises(InputError, match="^Cảnh tiêu đề: thiếu trường \"seconds\""):
+        load(folder, {"title": {"text": "a"}, "scenes": [scene()]})
+
+
+def test_keywords_are_kept_in_order_and_trimmed(folder):
+    longest = "a" * 100
+    data = {"title": scene(keywords=[" sữa chua ", "món ăn giàu canxi"]), "scenes": [scene(keywords=["cá kho tộ", longest])]}
+    script = load(folder, data)
+    assert script.title.keywords == ("sữa chua", "món ăn giàu canxi")
+    assert script.scenes[0].keywords == ("cá kho tộ", longest)
+
+
+@pytest.mark.parametrize("keywords", [None, []])
+def test_content_scene_without_keywords_searches_its_first_line(folder, keywords):
+    extra = {} if keywords is None else {"keywords": keywords}
+    data = {"title": scene(**extra), "scenes": [scene("*Vừng* đen\nRắc vào *cháo*", **extra)]}
+    script = load(folder, data)
+    assert script.scenes[0].keywords == ("Vừng đen",)
+    assert script.title.keywords == ()
+
+
+def test_default_keyword_is_cut_to_100_characters(folder):
+    script = load(folder, {"title": scene(), "scenes": [scene("ă" * 120 + "\nb")]})
+    assert script.scenes[0].keywords == ("ă" * 100,)
+
+
+@pytest.mark.parametrize("image", [None, "", "   "])
+def test_empty_or_absent_image_is_not_an_error(folder, image):
+    item = scene() if image is None else scene(image=image)
+    if image is None:
+        del item["image"]
+    script = load(folder, {"title": scene(), "scenes": [item]})
+    assert script.scenes[0].image is None
+    assert script.scenes[0].missing_image is None
+
+
+def test_image_that_does_not_exist_is_remembered_for_the_warning(folder):
+    script = load(folder, {"title": scene(image="anh-ca.jpg"), "scenes": [scene()]})
+    assert script.title.image is None
+    assert script.title.missing_image == "anh-ca.jpg"
+    assert script.scenes[0].image == folder / "a.jpg"
+
+
+def test_write_scene_image_changes_only_that_scene(folder):
+    data = {
+        "title": scene("Tiêu đề", image="", keywords=["sữa chua"]),
+        "scenes": [scene("Cá kho tộ\nGiàu *canxi*", image=""), scene(seconds=3.5)],
+        "extra": {"ghi chú": "giữ nguyên"},
+    }
+    path = write_script(folder, data)
+
+    write_scene_image(path, 1, "script/01-ca-kho-to.jpg")
+    write_scene_image(path, 0, "script/00-tieu-de.png")
+
+    raw = path.read_text(encoding="utf-8")
+    assert "Cá kho tộ" in raw and "\\u" not in raw
+    assert raw.startswith('{\n  "title"')
+    data["title"]["image"] = "script/00-tieu-de.png"
+    data["scenes"][0]["image"] = "script/01-ca-kho-to.jpg"
+    assert json.loads(raw) == data
+    assert sorted(p.name for p in folder.iterdir()) == ["a.jpg", "script.json"]
 
 
 @pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", "1" + "0" * 400, "1e308"])
