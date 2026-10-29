@@ -9,7 +9,9 @@ from .errors import ApiError
 
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 IMAGE_FORMATS = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}
-MAX_IMAGE_PIXELS = Image.MAX_IMAGE_PIXELS  # about 89 megapixels, far above any phone photo under 15 MB
+# The video frame is only 1080×1920 (about 2 MP). 24 MP still takes a 6000×4000 camera photo, and keeps
+# each preview decode to a few hundred MB, so a small crafted file cannot exhaust the api's memory.
+MAX_IMAGE_PIXELS = 24_000_000
 _READ_ERRORS = (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError)
 
 

@@ -44,17 +44,14 @@ def test_photo_types_are_read_from_the_bytes(kind, extension):
     assert image_extension(image_bytes(kind)) == extension
 
 
-def test_a_small_file_with_huge_dimensions_is_refused_before_decoding(monkeypatch):
-    from reels_api import uploads
-
-    monkeypatch.setattr(uploads, "MAX_IMAGE_PIXELS", 40 * 30 - 1)
-    with pytest.raises(UploadRejected, match="Ảnh quá lớn"):
-        image_extension(image_bytes("PNG", size=(40, 30)))
-    monkeypatch.setattr(uploads, "MAX_IMAGE_PIXELS", 40 * 30)
-    assert image_extension(image_bytes("PNG", size=(40, 30))) == "png"
+def test_a_24_mp_camera_photo_passes_and_a_small_file_with_more_pixels_is_refused():
+    assert image_extension(image_bytes("PNG", size=(6000, 4000))) == "png"
+    # A one-colour PNG is a few kB but would decode to hundreds of MB.
+    with pytest.raises(UploadRejected, match="Ảnh quá lớn: tối đa 24 megapixel"):
+        image_extension(image_bytes("PNG", size=(6000, 4001)))
 
 
-@pytest.mark.parametrize("data", [image_bytes("GIF"),image_bytes("BMP"), b"not an image", image_bytes("JPEG")[:200]])
+@pytest.mark.parametrize("data", [image_bytes("GIF"), image_bytes("BMP"), b"not an image", image_bytes("JPEG")[:200]])
 def test_other_or_broken_files_are_refused(data):
     with pytest.raises(UploadRejected, match="JPG, PNG hoặc WebP"):
         image_extension(data)
