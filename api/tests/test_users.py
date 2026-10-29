@@ -1,9 +1,12 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from psycopg.errors import DeadlockDetected, SerializationFailure
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 
 from conftest import PASSWORD, client_for, expire_all_sessions, login, make_user
+from reels_api import routes_users
 from reels_api.models import Session, User
 
 
@@ -101,6 +104,20 @@ def test_cannot_disable_yourself(client, db, me):
     assert response.json() == {"code": "cannot_disable_self", "message": "Không thể vô hiệu hoá chính mình"}
     db.refresh(me)
     assert me.is_active
+
+
+@pytest.mark.parametrize("orig", [DeadlockDetected("deadlock detected"), SerializationFailure("could not serialize")])
+def test_lock_conflicts_while_disabling_answer_409_not_500(client, db, me, monkeypatch, orig):
+    user_id = add(client).json()["id"]
+
+    def conflict(*args, **kwargs):
+        raise OperationalError("DELETE FROM sessions", {}, orig)
+
+    monkeypatch.setattr(routes_users, "revoke_sessions", conflict)
+    response = client.post(f"/api/users/{user_id}/disable")
+    assert response.status_code == 409
+    assert response.json() == {
+        "code": "last_active_user", "message": "Phải còn ít nhất một người dùng đang hoạt động"}
 
 
 def test_enable_keeps_password_and_forced_change_flag(app, client, db, me):

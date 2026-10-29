@@ -12,6 +12,7 @@ from .sessions import (
     clear_session_cookie,
     current_member,
     current_session,
+    not_authenticated,
     now,
     revoke_sessions,
     set_session_cookie,
@@ -103,7 +104,14 @@ def rename(body: NameBody, session: Session = Depends(current_member), db: DbSes
 def change_password(
     body: PasswordBody, session: Session = Depends(current_session), db: DbSession = Depends(get_db)
 ) -> dict:
-    user = session.user
+    # Lock the row and re-check this session before trusting the cached user: a temp password or CLI
+    # reset that committed after the session lookup has already revoked this session, and this request
+    # must not overwrite the password it just set.
+    user = db.scalar(
+        select(User).where(User.id == session.user_id).with_for_update().execution_options(populate_existing=True)
+    )
+    if not user.is_active or db.scalar(select(Session.id).where(Session.id == session.id)) is None:
+        raise not_authenticated()
     # The forced change after a temp password does not ask for the old one; the menu change does.
     if not user.must_change_password and not verify_password(body.current_password or "", user.password_hash):
         raise ApiError(400, "wrong_current_password", "Mật khẩu hiện tại không đúng")

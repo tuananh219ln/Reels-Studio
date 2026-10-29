@@ -7,7 +7,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import sessionmaker
 
 from conftest import PASSWORD, WEB_ORIGIN, client_for, login
-from reels_api import routes_auth, sessions
+from reels_api import routes_auth, routes_users, sessions
 from reels_api.db import get_db
 from reels_api.main import create_app
 from reels_api.models import Session, User
@@ -63,6 +63,66 @@ def test_login_racing_a_reset_never_creates_a_session(committed_app, monkeypatch
     assert response.status_code == status
     with factory() as db:
         assert db.scalars(select(Session)).all() == []
+
+
+def test_password_change_racing_a_reset_does_not_overwrite_it(committed_app, monkeypatch):
+    """A teammate sets a temp password after this request's session check but before it writes."""
+    app, factory = committed_app
+    with factory() as db:
+        victim = User(email="an@doi.vn", name="An", password_hash=hash_password(PASSWORD), is_active=True,
+                      must_change_password=False)
+        db.add(victim)
+        db.commit()
+    client = client_for(app)
+    login(client, email="an@doi.vn")
+    temp_hash = hash_password("tam-moi-1234")
+    real_set_cookie = sessions.set_session_cookie
+
+    def reset_then_set_cookie(response, token):
+        with factory() as other:
+            other.execute(update(User).where(User.id == victim.id).values(
+                password_hash=temp_hash, must_change_password=True))
+            other.execute(delete(Session).where(Session.user_id == victim.id))
+            other.commit()
+        real_set_cookie(response, token)
+
+    monkeypatch.setattr(sessions, "set_session_cookie", reset_then_set_cookie)
+    response = client.post("/api/me/password", json={"current_password": PASSWORD, "new_password": "ke-gian-12345"})
+
+    assert response.status_code == 401
+    with factory() as db:
+        user = db.get(User, victim.id)
+        assert (user.password_hash, user.must_change_password) == (temp_hash, True)
+
+
+def test_temp_password_racing_a_disable_is_refused(committed_app, monkeypatch):
+    """Another teammate disables the user after this request loaded the row but before it writes."""
+    app, factory = committed_app
+    with factory() as db:
+        me = User(email="an@doi.vn", name="An", password_hash=hash_password(PASSWORD), is_active=True,
+                  must_change_password=False)
+        target = User(email="binh@doi.vn", name="Bình", password_hash=hash_password(PASSWORD), is_active=True,
+                      must_change_password=False)
+        db.add_all([me, target])
+        db.commit()
+    client = client_for(app)
+    login(client, email="an@doi.vn")
+    real_check = routes_users._cannot_target_self
+
+    def check_then_disable(db, user_id, me_session):
+        user = real_check(db, user_id, me_session)
+        with factory() as other:
+            other.execute(update(User).where(User.id == target.id).values(is_active=False))
+            other.commit()
+        return user
+
+    monkeypatch.setattr(routes_users, "_cannot_target_self", check_then_disable)
+    response = client.post(f"/api/users/{target.id}/temp-password", json={"password": "tam-moi-1234"})
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "user_disabled"
+    with factory() as db:
+        assert db.get(User, target.id).must_change_password is False
 
 
 def test_session_revoked_after_it_was_read_gives_401_not_500(committed_app, monkeypatch):
@@ -123,6 +183,7 @@ def test_mutual_disable_always_leaves_one_active_user(committed_app):
         assert statuses in ([200, 401], [200, 409]), [r.text for r in results.values()]
         loser = next(r for r in results.values() if r.status_code != 200)
         if loser.status_code == 409:
-            assert loser.json()["code"] == "last_active_user"
+            assert loser.json() == {
+                "code": "last_active_user", "message": "Phải còn ít nhất một người dùng đang hoạt động"}
         with factory() as db:
             assert len(db.scalars(select(User).where(User.is_active)).all()) == 1

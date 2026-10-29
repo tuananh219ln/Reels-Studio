@@ -8,11 +8,58 @@ async function newPage(browser: Browser) {
   return context.newPage();
 }
 
-test("app pages redirect to login before rendering when there is no session", async ({ page }) => {
-  const response = await page.goto("/users");
-  expect(response?.request().redirectedFrom()?.url()).toMatch(/\/users$/);
-  await expect(page).toHaveURL(/\/login$/);
-  await expect(page.getByText("Quản lý người dùng")).toHaveCount(0);
+for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/jobs", "/change-password"]) {
+  test(`${path} redirects to login on the server when there is no session`, async ({ page }) => {
+    const response = await page.goto(path);
+    // A server redirect means the first request answered 307; the app page never rendered.
+    expect(response?.request().redirectedFrom()?.url()).toBe(`http://localhost:3100${path}`);
+    await expect(page).toHaveURL(/\/login$/);
+  });
+}
+
+test("last login is shown as dd/mm/yyyy hh:mm in Vietnam time whatever the browser time zone", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: "http://localhost:3100", timezoneId: "America/New_York" });
+  const page = await context.newPage();
+  await loginAsSeed(page);
+  await page.goto("/users");
+  const shown = (await row(page, SEED.email).getByRole("cell").nth(4).innerText()).trim();
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(new Date()).map((p) => [p.type, p.value]),
+  );
+  expect(shown).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
+  expect(shown.slice(0, 13)).toBe(`${parts.day}/${parts.month}/${parts.year} ${parts.hour}`);
+});
+
+test("search box filters by email or name", async ({ page }) => {
+  await loginAsSeed(page);
+  await addUser(page, "binh@doi.vn", "Trần Thị Bình", "tam-thoi-123");
+  await page.getByLabel("Tìm theo email hoặc tên").fill("BÌNH");
+  await expect(row(page, "binh@doi.vn")).toBeVisible();
+  await expect(row(page, SEED.email)).toHaveCount(0);
+  await page.getByLabel("Tìm theo email hoặc tên").fill("");
+  await expect(row(page, SEED.email)).toBeVisible();
+});
+
+test("a refused row action shows the API message and refreshes the stale row", async ({ page, browser }) => {
+  await loginAsSeed(page);
+  await addUser(page, "binh@doi.vn", "Trần Thị Bình", "tam-thoi-123");
+  const teammate = await newPage(browser);
+  await loginAsSeed(teammate);
+  await teammate.goto("/users");
+  await row(teammate, "binh@doi.vn").getByRole("button", { name: "Vô hiệu hoá" }).click();
+  await teammate.getByRole("dialog").getByRole("button", { name: "Vô hiệu hoá" }).click();
+  await expect(row(teammate, "binh@doi.vn")).toContainText("Kích hoạt lại");
+
+  // This tab still shows Bình as active.
+  await row(page, "binh@doi.vn").getByRole("button", { name: "Đặt mật khẩu tạm" }).click();
+  const dialog = page.getByRole("dialog", { name: "Đặt mật khẩu tạm" });
+  await dialog.getByLabel("Mật khẩu tạm").fill("tam-moi-5678");
+  await dialog.getByRole("button", { name: "Lưu" }).click();
+  await expect(page.getByText("Hãy kích hoạt lại người dùng trước")).toBeVisible();
+  await expect(row(page, "binh@doi.vn").getByRole("button")).toHaveText(["Kích hoạt lại"]);
 });
 
 test("login, empty video list, header and logout", async ({ page }) => {

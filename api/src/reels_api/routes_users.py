@@ -154,7 +154,11 @@ def enable_user(user_id: int, me: Session = Depends(current_member), db: DbSessi
 def set_temp_password(
     user_id: int, body: TempPasswordBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    user = _cannot_target_self(db, user_id, me)
+    _cannot_target_self(db, user_id, me)
+    # Lock before checking is_active, so a disable committing meanwhile is seen rather than overwritten.
+    user = db.scalar(
+        select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True)
+    )
     if not user.is_active:
         raise ApiError(409, "user_disabled", "Hãy kích hoạt lại người dùng trước")
     try:

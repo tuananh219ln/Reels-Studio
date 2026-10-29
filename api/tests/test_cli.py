@@ -4,10 +4,12 @@ import sys
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import create_engine, func, select
 
 from conftest import PASSWORD, make_user
+from reels_api import cli
 from reels_api.cli import create_or_reset_user
+from reels_api.config import ConfigError
 from reels_api.models import Session, User
 from reels_api.security import verify_password
 from reels_api.sessions import start_session
@@ -63,6 +65,41 @@ def test_declining_the_reset_changes_nothing(db):
     db.refresh(user)
     assert user.is_active is False
     assert verify_password(PASSWORD, user.password_hash)
+
+
+class Terminal:
+    def isatty(self):
+        return True
+
+
+@pytest.mark.parametrize(
+    ("failure", "message"),
+    [
+        (ConfigError("Chưa cấu hình DATABASE_URL"), "Lỗi: Chưa cấu hình DATABASE_URL"),
+        (None, "Lỗi: không kết nối được cơ sở dữ liệu"),
+        (EOFError(), "Đã huỷ, không thay đổi gì."),
+    ],
+    ids=["no-config", "database-down", "eof"],
+)
+def test_main_reports_setup_problems_in_vietnamese(monkeypatch, capsys, failure, message):
+    monkeypatch.setattr(sys, "stdin", Terminal())
+    dead = create_engine("postgresql+psycopg://x:y@127.0.0.1:1/none", connect_args={"connect_timeout": 2})
+
+    def engine():
+        if isinstance(failure, ConfigError):
+            raise failure
+        return dead
+
+    def ask(prompt):
+        if isinstance(failure, EOFError):
+            raise failure
+        return "an@doi.vn"
+
+    monkeypatch.setattr(cli, "get_engine", engine)
+    assert cli.main(["create-user"], ask=ask, ask_secret=ask) == 1
+    err = capsys.readouterr().err
+    assert message in err
+    assert "Traceback" not in err
 
 
 def run_cli(*args):

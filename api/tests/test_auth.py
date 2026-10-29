@@ -117,6 +117,19 @@ def test_state_changing_requests_need_an_allowed_origin(app, db, origin):
     assert db.scalar(select(User.last_login_at)) is None
 
 
+@pytest.mark.parametrize("origin", [None, "http://evil.example"])
+def test_patch_needs_an_allowed_origin_too(app, db, origin):
+    make_user(db)
+    client = client_for(app)
+    login(client)
+    client.headers.pop("Origin")
+    headers = {"Origin": origin} if origin else {}
+    response = client.patch("/api/me", json={"name": "Tên lạ"}, headers=headers)
+    assert response.status_code == 403
+    assert response.json()["code"] == "origin_not_allowed"
+    assert db.scalar(select(User.name)) == "Nguyễn Văn An"
+
+
 def test_reads_do_not_need_an_origin(app, db):
     make_user(db)
     client = client_for(app)

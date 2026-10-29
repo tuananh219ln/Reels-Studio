@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import func, select
 
 from conftest import PASSWORD, client_for, login, make_user
@@ -24,6 +25,17 @@ class TestForcedChange:
             assert response.status_code == 403
             assert response.json() == FORCED
         assert client.post("/api/auth/logout").status_code == 200
+
+    @pytest.mark.parametrize("action", ["disable", "enable", "temp-password", "sign-out-all"])
+    def test_flagged_session_cannot_act_on_other_users(self, client, db, action):
+        other = make_user(db, email="binh@doi.vn", name="Bình")
+        make_user(db, must_change=True)
+        login(client)
+        response = client.post(f"/api/users/{other.id}/{action}", json={"password": "tam-moi-1234"})
+        assert response.status_code == 403
+        assert response.json() == FORCED
+        db.refresh(other)
+        assert (other.is_active, other.must_change_password) == (True, False)
 
     def test_forced_change_needs_no_current_password_and_clears_the_flag(self, client, db):
         make_user(db, must_change=True)

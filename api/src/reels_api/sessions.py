@@ -47,7 +47,7 @@ def revoke_sessions(db: DbSession, user_id: int, keep_session_id: int | None = N
     db.execute(query)
 
 
-def _not_authenticated() -> ApiError:
+def not_authenticated() -> ApiError:
     return ApiError(401, "not_authenticated", "Phiên đăng nhập đã hết hạn, hãy đăng nhập lại")
 
 
@@ -55,13 +55,13 @@ def current_session(request: Request, response: Response, db: DbSession = Depend
     """Any valid session, including one that still has to change its password."""
     token = request.cookies.get(COOKIE_NAME)
     if not token:
-        raise _not_authenticated()
+        raise not_authenticated()
     session = db.scalar(
         select(Session).where(Session.token_hash == hash_session_token(token)).options(joinedload(Session.user))
     )
     moment = now()
     if session is None or session.expires_at <= moment or not session.user.is_active:
-        raise _not_authenticated()
+        raise not_authenticated()
     # A plain UPDATE (not the ORM flush) so a session revoked by a concurrent request after the SELECT
     # simply matches no row and becomes a 401 instead of a stale-data error.
     renewed = db.execute(
@@ -71,7 +71,7 @@ def current_session(request: Request, response: Response, db: DbSession = Depend
     # an endpoint waits for user-row locks (two people disabling each other would otherwise deadlock).
     db.commit()
     if not renewed:
-        raise _not_authenticated()
+        raise not_authenticated()
     set_session_cookie(response, token)
     return session
 
