@@ -1,0 +1,246 @@
+# User-spec planning interview
+# Questions and answers are preserved verbatim. Topic fields track what is known and still open.
+
+interview_metadata:
+  started: "2026-10-29 19:20:00"
+  last_updated: "2026-10-29 20:40:00"
+  status: "in_progress"  # in_progress | completed
+  can_resume: true
+
+# Only written/read when the calling context carries the literal signal ONLINE_PIPELINE_AUTOMATED
+# (see user-spec-planning/SKILL.md Step 5). Ignored otherwise; stays null for interactive use.
+automated_validate_state: null
+# automated_validate_state:
+#   round: 2
+#   pending_finding: |
+#     Full finding text from the reviewer that returned user_decision_required.
+#   user_answer: ""  # filled in once the user replies; triggers a re-run of round 2 (not round 1)
+
+conversation_history:
+  - asked_at: "2026-10-29 19:30:00"
+    topic_keys: ["feature_description", "work_type", "constraints", "data_requirements", "dependencies"]
+    agent_questions: |
+      1. "Dựa trên kịch bản đã làm trên local" nghĩa là gì? Trên máy, bạn tự viết file JSON (như samples/xuong-khop.json: tiêu đề + các cảnh, mỗi cảnh có chữ, số giây, ảnh, từ khóa) rồi chạy lệnh render.
+         Lựa chọn: Web nhập kịch bản như JSON (Recommended) / Claude viết theo mẫu đó / Upload file JSON có sẵn
+      2. Để spec vừa sức, mình đề xuất chia: (1) spec này = soạn kịch bản trên web + render trên server + tải MP4 + danh sách video/job; (2) spec sau = Claude viết kịch bản + Knowledge Base; (3) TTS, thư viện nhạc để sau nữa. Bạn đồng ý không?
+      3. Ảnh cho từng cảnh trên web lấy thế nào? (chọn nhiều) Upload ảnh của mình / Tự tìm Pixabay khi trống / Xem trước & chọn ảnh Pixabay
+      4. Nhạc nền khi render trên server? Upload file nhạc theo từng video / Chưa cần nhạc / Thư viện nhạc chung của team
+    user_answer: |
+      1. Claude viết theo mẫu đó
+      2. Đồng ý chia như vậy (Recommended)
+      3. Upload ảnh của mình, Tự tìm Pixabay khi trống, Xem trước & chọn ảnh Pixabay
+      4. Chủ yếu nhạc tiktok theo chủ đề, ví dụ dinh dưỡng sức khỏe, đồng quê có thể windy hill
+      (Kèm theo: người dùng gửi PDF "Plan Project Knowledge – Kênh Reels Dưỡng sinh & Dinh dưỡng" làm tài liệu tham khảo video — cùng nguồn với content.md.)
+  - asked_at: "2026-10-29 19:40:00"
+    topic_keys: ["feature_description", "user_stories", "ui_ux_requirements", "constraints", "risks"]
+    agent_questions: |
+      1. Bạn chọn "Claude viết kịch bản theo mẫu" nhưng cũng đồng ý để Claude sang spec sau. Vậy spec này có gồm phần Claude viết kịch bản không?
+         Lựa chọn: Có, Claude bản gọn (Recommended) — nhập chủ đề → Claude trả đủ 6 phần theo prompt trong PDF, prompt là ô văn bản sửa được, Knowledge Base đầy đủ để spec sau / Không, tự nhập trước / Có, kèm Knowledge Base đầy đủ
+      2. Nhạc TikTok (kể cả "Windy Hill") có bản quyền: app không tải được từ thư viện TikTok, và gắn sẵn vào MP4 rồi đăng dễ bị tắt tiếng / mất kiếm tiền. Cách thường làm: xuất video không nhạc rồi chọn nhạc ngay trong app TikTok/Facebook khi đăng. Bạn muốn thế nào?
+         Lựa chọn: Xuất không nhạc + gợi ý nhạc (Recommended) / Có tùy chọn upload mp3 / Cả hai
+      3. Sau khi có kịch bản, bạn cần sửa những gì trước khi render? (chọn nhiều) Sửa chữ, số giây, từ khóa / Thêm / xóa / đổi thứ tự cảnh / Xem trước khung hình / Chọn 1 trong 5 tiêu đề
+      4. Khi render xong, bạn cần gì ở trang video? (chọn nhiều) Tải MP4 + xem ngay trên web / Copy caption + hashtag / Render lại / Nhân bản video
+    user_answer: |
+      1. Có, Claude bản gọn (Recommended)
+      2. Cả hai
+      3. Sửa chữ, số giây, từ khóa, Thêm / xóa / đổi thứ tự cảnh, Xem trước khung hình, Chọn 1 trong 5 tiêu đề
+      4. Tải MP4 + xem ngay trên web, Nhân bản video, Copy caption + hashtag
+  - asked_at: "2026-10-29 19:50:00"
+    topic_keys: ["success_criteria", "user_stories", "ui_ux_requirements", "target_users"]
+    agent_questions: |
+      1. Khi nào bạn coi tính năng này là "xong"? Chọn mục tiêu đo được. (chọn nhiều) Từ chủ đề → MP4 dưới 10 phút / Video giống hệt bản render trên máy / Render ≤ 2× độ dài video / Cả team 5 người dùng chung
+      2. "Nhân bản video" cụ thể là gì? Sao chép nguyên để sửa tay (Recommended) / Claude viết lại biến thể
+      3. Sửa video đã render xong thì sao? (Bạn không chọn "Render lại" ở câu trước.) Sửa rồi render lại, giữ bản mới nhất (Recommended) / Giữ tất cả các bản MP4 / Không sửa, phải nhân bản
+      4. Trang danh sách video cần gì? (chọn nhiều) Trạng thái + người tạo + ngày / Ảnh thu nhỏ / Tìm theo tiêu đề/chủ đề / Xóa video
+    user_answer: |
+      1. Từ chủ đề → MP4 dưới 10 phút, Video giống hệt bản render trên máy, Render ≤ 2× độ dài video, Cả team 5 người dùng chung
+      2. Claude viết lại biến thể
+      3. Sửa rồi render lại, giữ bản mới nhất (Recommended)
+      4. Trạng thái + người tạo + ngày, Ảnh thu nhỏ, Tìm theo tiêu đề/chủ đề, Xóa video
+  - asked_at: "2026-10-29 20:10:00"
+    topic_keys: ["technical_decisions", "constraints", "integration_points", "data_requirements", "edge_cases", "risks"]
+    agent_questions: |
+      1. Ảnh upload, nhạc và MP4 cần một chỗ lưu mà cả api lẫn worker render đều đọc/ghi được. Hiện trên Coolify chưa có gì. Chọn cách nào? Thư mục chung trên VPS (Recommended) / Cloudflare R2
+      2. Hàng đợi job (Claude viết, render): tài liệu dự án ghi dùng Redis. Với 1–3 video/ngày, dùng luôn bảng job trong Postgres là đủ và bớt một dịch vụ phải chạy. Chọn? Bảng job trong Postgres (Recommended) / Redis như thiết kế
+      3. Ảnh Pixabay tự động hiện được chọn ngẫu nhiên mỗi lần render, nên ảnh xem trước có thể khác ảnh trong MP4. Muốn thế nào? Chốt ảnh khi xem trước (Recommended) / Để ngẫu nhiên khi render
+      4. Giới hạn và cảnh báo nào cần có ngay trong spec này? (chọn nhiều) Cảnh báo từ cấm / Giới hạn dung lượng file / Giới hạn số lần gọi Claude / Render 1 video một lúc
+    user_answer: |
+      1. chọn VPS folder ngay bây giờ, nhưng dặn code viết một lớp storage trung gian (ví dụ storage.save() và storage.get()). Khi cần chuyển sang R2 thì chỉ đổi cấu hình, không phải sửa logic. Trên Coolify, chỉ cần mount cùng một volume, ví dụ /data/storage, vào cả container api và worker.
+      2. Bảng job trong Postgres (Recommended)
+      3. Chốt ảnh khi xem trước (Recommended)
+      4. Cảnh báo từ cấm, Giới hạn dung lượng file, Render 1 video một lúc
+  - asked_at: "2026-10-29 20:22:00"
+    topic_keys: ["error_scenarios", "edge_cases", "user_stories", "deploy_approach", "manual_user_actions"]
+    agent_questions: |
+      1. Khi có lỗi thì xử lý thế nào? (Claude lỗi/hết hạn mức, Pixabay không tìm thấy ảnh, render lỗi, worker bị tắt giữa chừng) Báo lỗi tiếng Việt + nút Thử lại (Recommended) — job chuyển "Lỗi" với lý do dễ hiểu, kịch bản/ảnh đã sửa vẫn giữ; job kẹt quá 15 phút tự chuyển Lỗi; cảnh không tìm được ảnh đánh dấu đỏ, bắt upload hoặc đổi từ khóa trước khi render / Tự thử lại vài lần rồi mới báo
+      2. Hai người cùng sửa một video, hoặc xóa/sửa khi video đang render thì sao? Khóa khi render, người lưu sau thắng (Recommended) / Báo xung đột khi lưu
+      3. Nhân bản bằng Claude: bạn nhập gì? Ô ghi yêu cầu đổi (Recommended) — Claude giữ công thức video gốc, viết kịch bản mới thành 1 video nháp mới (ảnh chưa gán); đề xuất 10 biến thể để sau / Claude đề xuất 10 biến thể
+      4. Triển khai: những việc tay bạn sẽ làm trên Coolify. Bạn đã có sẵn gì? (chọn nhiều) ANTHROPIC_API_KEY / PIXABAY_API_KEY / Quyền tạo thêm ứng dụng trên Coolify / Chưa có gì
+    user_answer: |
+      1. Báo lỗi tiếng Việt + nút Thử lại (Recommended)
+      2. Khóa khi render, người lưu sau thắng (Recommended)
+      3. Ô ghi yêu cầu đổi (Recommended)
+      4. ANTHROPIC_API_KEY, PIXABAY_API_KEY, Sẽ bổ sung thêm
+  - asked_at: "2026-10-29 20:35:00"
+    topic_keys: ["testing_strategy", "verification_strategy", "data_requirements"]
+    agent_questions: |
+      1. Cách kiểm thử mình đề xuất: test tự động giả lập Claude và Pixabay (không tốn tiền, không phụ thuộc mạng); worker có test render thật bằng FFmpeg trong CI; E2E web chạy luồng tạo → sửa → render với Claude giả. Sau deploy, bạn tự làm 1 video thật trên reels.quangdang.xyz và bấm giờ (≤ 10 phút), so với xuong-khop.mp4. Đồng ý? Đồng ý (Recommended) / Thêm 1 test gọi Claude thật
+      2. Prompt Claude bản gọn: dùng nội dung nào làm mặc định? Theo PDF + mẫu xương khớp (Recommended) — Custom Instructions + "Prompt viết kịch bản" trong PDF, kèm samples/xuong-khop.json làm ví dụ đầu ra; ai trong team cũng sửa được trên web / Tôi sẽ dán prompt riêng
+    user_answer: |
+      1. Đồng ý (Recommended)
+      2. Theo PDF + mẫu xương khớp (Recommended)
+# Entry format:
+# - asked_at: "YYYY-MM-DD HH:MM:SS"
+#   topic_keys: ["user_problem", "success_criteria"]
+#   agent_questions: |
+#     Full question batch, verbatim.
+#   user_answer: |
+#     Full user answer, verbatim.
+
+general_understanding:
+  feature_name:
+    score: 90
+    value: "web-video-render — tạo video 9:16 từ web và render trên server"
+    gaps: ["Confirm the feature name"]
+    required: true
+
+  feature_description:
+    score: 90
+    value: "Thành viên nhập chủ đề trên web → worker gọi Claude (một system prompt mặc định theo PDF + mẫu xương khớp, sửa được trên web) trả 5 tiêu đề, 5–7 cảnh + từ khóa, prompt ảnh, caption + 5 hashtag, 2 affiliate + bình luận ghim, tự rà soát → sửa cảnh, chọn tiêu đề, xem trước khung hình, gán ảnh (upload / Pixabay tự gán và chốt / chọn từ lưới Pixabay), tùy chọn upload mp3 + gợi ý tên nhạc → render trên server (worker Coolify, FFmpeg) → xem, tải MP4, copy caption+hashtag, render lại, nhân bản bằng Claude, danh sách video có tìm và xóa."
+    gaps: []
+    required: true
+
+  work_type:
+    score: 95
+    value: "feature"
+    gaps: []
+    required: true
+
+  user_problem:
+    score: 85
+    value: "Quy trình tay ~30 phút/video (viết kịch bản trong Claude Project, tìm ảnh, dựng CapCut); bộ render hiện chỉ chạy bằng dòng lệnh trên máy chủ dự án, team không dùng được trên web. Cần cả team làm video từ chủ đề đến MP4 trên reels.quangdang.xyz trong ≤10 phút."
+    gaps: []
+    required: true
+
+  target_users:
+    score: 90
+    value: "Team nội bộ ~5 người, quyền ngang nhau, thư viện video chung."
+    gaps: []
+    required: false
+
+  success_criteria:
+    score: 85
+    value: "Một thành viên đi từ chủ đề đến MP4 trong ≤10 phút; MP4 trên server giống bản render trên máy với cùng kịch bản+ảnh; render ≤2× độ dài video trên server; cả team 5 người dùng chung một thư viện video."
+    gaps: []
+    required: true
+
+  constraints:
+    score: 85
+    value: "Ảnh JPG/PNG/WebP ≤15 MB, MP3 ≤20 MB; render 1 job một lúc; job kẹt >15 phút thành Lỗi; cảnh báo từ cấm không chặn; upload/tải qua Cloudflare Worker proxy; worker cần FFmpeg ≥4.3; API key chỉ ở biến môi trường; không giới hạn số lần gọi Claude (giới hạn chấp nhận); không TTS, không Knowledge Base đầy đủ trong spec này."
+    gaps: []
+    required: true
+
+  testing_strategy:
+    score: 85
+    value: "Unit/integration: api (pytest, Claude và Pixabay giả lập) cho model, job, upload, storage; worker test render thật bằng FFmpeg trong CI và test xử lý job với Claude giả; E2E Playwright: tạo → sửa → render với Claude giả (worker giả hoặc chạy cùng). Không gọi Claude/Pixabay thật trong CI."
+    gaps: []
+    required: true
+
+user_experience:
+  user_stories:
+    score: 90
+    value: "Nhập chủ đề → Claude → sửa cảnh/chọn tiêu đề/xem trước khung hình → gán ảnh → render → xem/tải MP4, copy caption+hashtag. Sửa sau render thì render lại, giữ MP4 mới nhất. Nhân bản = nhập yêu cầu đổi (VD 'đổi sang mốc 45 tuổi, tim mạch'), Claude giữ công thức video gốc và tạo video nháp mới (chưa gán ảnh). Danh sách: trạng thái, người tạo, ngày, thumbnail, tìm kiếm, xóa."
+    gaps: []
+    required: true
+
+  acceptance_criteria:
+    score: 80
+    value: "Suy ra từ success criteria, user stories, lỗi, giới hạn đã chốt."
+    gaps: []
+    required: true
+
+  edge_cases:
+    score: 85
+    value: "Đang render thì khóa sửa/xóa video; hai người sửa cùng lúc thì bản lưu sau thắng; file sai định dạng/quá cỡ bị từ chối; kịch bản Claude không vừa hộp chữ thì báo trước khi render."
+    gaps: []
+    required: true
+
+  error_scenarios:
+    score: 85
+    value: "Claude/Pixabay/render lỗi → job 'Lỗi' với lý do tiếng Việt, dữ liệu đã sửa giữ nguyên, nút Thử lại; job kẹt >15 phút (worker chết) tự chuyển Lỗi; cảnh không tìm được ảnh Pixabay đánh dấu đỏ, phải upload hoặc đổi từ khóa trước khi render."
+    gaps: []
+    required: true
+
+  verification_strategy:
+    score: 85
+    value: "Agent: chạy test api/worker/web, E2E, build OpenNext; thử local toàn luồng với Claude thật nếu có key. Người dùng sau deploy: làm 1 video thật trên reels.quangdang.xyz, bấm giờ ≤10 phút, so hình với xuong-khop.mp4, đo thời gian render ≤2× độ dài."
+    gaps: []
+    required: true
+
+  ui_ux_requirements:
+    score: 75
+    value: "Xem trước khung hình từng cảnh; trình phát video; copy caption+hashtag; nhân bản; lưới ảnh Pixabay ghi 'Ảnh từ Pixabay'; danh sách có thumbnail, trạng thái, người tạo, ngày, tìm kiếm, xóa."
+    gaps: ["Hiển thị tiến độ render"]
+    required: false
+
+  risks:
+    score: 80
+    value: "Upload/MP4 qua Cloudflare Worker proxy (giới hạn body 100 MB, bộ nhớ 128 MB, Range 206 chưa thử); Claude trả JSON sai/chữ quá dài hộp; chi phí Claude không giới hạn; đầy ổ VPS; worker chết giữa job; ảnh Pixabay bản quyền/hotlink; nhạc có bản quyền do người dùng tự upload."
+    gaps: []
+    required: true
+
+  technical_decisions:
+    score: 85
+    value: "Lưu file: thư mục chung trên VPS (/data/storage mount vào cả api và worker) qua lớp storage trung gian (save/get) để sau đổi sang R2 chỉ bằng cấu hình. Hàng đợi: bảng job trong Postgres thay Redis. Ảnh Pixabay chốt khi soạn (lưu thành asset) để render khớp xem trước. Render tuần tự 1 job một lúc. Claude bản gọn: một system prompt sửa được; Knowledge Base đầy đủ để spec sau. Không giới hạn số lần gọi Claude (người dùng không chọn)."
+    gaps: []
+    required: false
+
+  deploy_approach:
+    score: 75
+    value: "Merge vào main → CI chạy test; api deploy qua webhook Coolify như hiện tại; thêm worker (Dockerfile có FFmpeg) là ứng dụng Coolify riêng có webhook riêng; volume /data/storage mount vào api và worker; web vẫn trên Cloudflare."
+    gaps: []
+    required: false
+
+  manual_user_actions:
+    score: 75
+    value: "Người dùng đã có ANTHROPIC_API_KEY và PIXABAY_API_KEY; sẽ tự tạo ứng dụng worker, volume /data/storage, biến môi trường và secret webhook theo hướng dẫn từng bước trong README."
+    gaps: []
+    required: false
+
+integration:
+  integration_points:
+    score: 85
+    value: "web /videos (thay EmptyPage, sửa E2E placeholder) gọi api qua /api/*; api thêm bảng + endpoint video/cảnh/upload/Pixabay/job/tải file; worker service mới poll bảng job (Postgres), gọi Claude và render_video, ghi file qua lớp storage. Xem trước khung hình và tìm Pixabay chạy đồng bộ ở api (cần dùng chung code textbox/stock của reels_render — cách đóng gói do người code chọn, đã ghi trong code-research)."
+    gaps: []
+    required: true
+
+  dependencies:
+    score: 85
+    value: "worker/reels_render (render_video, parse_script, Pixabay, textbox), api auth (current_member, Origin check), web antd + lib/api.ts, Anthropic SDK (mới), Coolify, Cloudflare Workers/OpenNext."
+    gaps: []
+    required: false
+
+  technical_constraints:
+    score: 80
+    value: "Không chạy việc dài trong request api; FFmpeg ≥4.3; api không import worker (image /api không có FFmpeg) — preview/Pixabay cần phương án; tên file do server sinh; không hotlink Pixabay, hiện 'Ảnh từ Pixabay'."
+    gaps: []
+    required: false
+
+  data_requirements:
+    score: 85
+    value: "Bảng mới: videos, scenes, assets (upload/stock/music), jobs (loại: script/variant/render, trạng thái, thời gian, lỗi), settings cho system prompt và danh sách từ cấm. File trong storage: ảnh, mp3, MP4, thumbnail."
+    gaps: []
+    required: false
+
+  migration_needs:
+    score: 85
+    value: "Migration Alembic 0002 thêm bảng mới; không đổi users/sessions; e2e_reset.py thêm bảng mới."
+    gaps: []
+    required: false
+
+notes: |
+  Batch 1: chia spec đã đồng ý (spec này = soạn kịch bản + render server + tải MP4 + danh sách video/job;
+  sau: Claude + Knowledge Base; sau nữa: TTS, thư viện nhạc). Nhưng câu 1 chọn "Claude viết theo mẫu đó" —
+  mâu thuẫn với cách chia, cần hỏi lại. Ảnh: upload + Pixabay tự động + xem trước & chọn Pixabay.
+  Nhạc: muốn nhạc TikTok theo chủ đề (Windy Hill) — cần làm rõ bản quyền/nguồn file.
+  Tài liệu tham khảo: PDF plan của chủ dự án (trùng nguồn content.md).
