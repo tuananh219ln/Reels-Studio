@@ -6,8 +6,9 @@
 - **Long-running work goes through the queue.** API handlers enqueue and return immediately; see
   [architecture.md](architecture.md#tech-stack) for which work runs in the worker and how
   rendering is composited.
-- **Provider choice is configuration.** TTS (edge-tts or Azure), the stock image source, and the
-  Claude model are selected by config, not hard-coded, because edge-tts may stop working.
+- **Provider choice is configuration.** TTS (edge-tts or Azure) and the Claude model are selected
+  by config, not hard-coded, because edge-tts may stop working. The exception is the stock image
+  source: it is fixed to Pixabay and not configurable.
 - **Attribute adapted code.** Code adapted from MoneyPrinterTurbo keeps its MIT attribution in the
   file header.
 - **The prompt is assembled from the Knowledge Base.** Prompt text and channel rules are app data
@@ -27,7 +28,9 @@ inactive until secrets are configured. See the README.
 
 ### Quality Gates
 
-GitHub Actions runs lint and tests on every PR. This is planned and not yet configured.
+[ci-cd.yml](../../../../.github/workflows/ci-cd.yml) runs the api, worker, and web tests (with
+E2E and the Cloudflare build) on every PR; a push to `main` deploys only after all of them pass.
+There is no linter yet.
 
 ## Testing & Verification
 

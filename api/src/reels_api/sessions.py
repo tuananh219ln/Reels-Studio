@@ -4,6 +4,7 @@ from fastapi import Depends, Request, Response
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session as DbSession, joinedload
 
+from . import config
 from .db import get_db
 from .errors import ApiError
 from .models import Session, User
@@ -18,20 +19,19 @@ def now() -> datetime:
 
 
 def set_session_cookie(response: Response, token: str) -> None:
-    # Secure stays off: the app only runs over http on localhost until the HTTPS deploy spec.
     response.set_cookie(
         COOKIE_NAME,
         token,
         max_age=int(SESSION_LIFETIME.total_seconds()),
         httponly=True,
         samesite="lax",
-        secure=False,
+        secure=config.cookie_secure(),
         path="/",
     )
 
 
 def clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(COOKIE_NAME, path="/", httponly=True, samesite="lax")
+    response.delete_cookie(COOKIE_NAME, path="/", httponly=True, samesite="lax", secure=config.cookie_secure())
 
 
 def start_session(db: DbSession, user: User) -> str:

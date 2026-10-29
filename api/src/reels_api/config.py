@@ -50,3 +50,8 @@ def database_url() -> str:
 def allowed_origins() -> frozenset[str]:
     raw = read_env("ALLOWED_ORIGINS") or DEFAULT_ALLOWED_ORIGINS
     return frozenset(origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip())
+
+
+def cookie_secure() -> bool:
+    """Production serves the app over HTTPS only, so the session cookie gets the Secure flag there."""
+    return read_env("COOKIE_SECURE").lower() in {"1", "true", "yes"}

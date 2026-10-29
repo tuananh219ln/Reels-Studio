@@ -36,9 +36,9 @@ Claude script generation, and Knowledge Base drafting all run in the worker.
 
 ## Components
 
-All components will run under Docker Compose. Today `docker-compose.yml` runs only `postgres`
-for local development; `web` and `api` run natively, and their Dockerfiles come with the VPS deploy
-spec.
+In development `docker-compose.yml` runs only `postgres`; `web` and `api` run natively. In
+production `api` and `postgres` run on Coolify and `web` on Cloudflare Workers (see
+[deployment.md](deployment.md#production)).
 
 | Component | Responsibility |
 |---|---|
@@ -145,11 +145,12 @@ flag, active flag, creator, created at, last login) and `sessions`. Migrations u
   the session cookie is first-party and the API needs no CORS. `web/src/proxy.ts` redirects app
   pages to `/login` before rendering when there is no session cookie; the API validates the session
   on every request.
-- **Login:** email + password only. There is no self-signup. Google login is deferred until the app
-  has an HTTPS domain. The CLI `python -m reels_api create-user` creates the first user and is the
+- **Login:** email + password only. There is no self-signup. Google login is deferred. The CLI
+  `python -m reels_api create-user` creates the first user and is the
   recovery path: for an existing email it resets the password, re-enables the account, and signs out
   all its sessions.
-- **Sessions:** an opaque random token in an `httpOnly`, `SameSite=Lax` cookie. Postgres stores only
+- **Sessions:** an opaque random token in an `httpOnly`, `SameSite=Lax` cookie, `Secure` when
+  `COOKIE_SECURE` is set (production). Postgres stores only
   its SHA-256 hash. Sessions last 30 days and slide on every request. They live in the database,
   not in a JWT, so disabling a user, setting a temporary password, changing a password, and "sign
   out of all devices" take effect immediately.

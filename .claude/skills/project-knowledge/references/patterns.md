@@ -27,7 +27,9 @@ inactive until secrets are configured. See the README.
 
 ### Quality Gates
 
-GitHub Actions runs lint and tests on every PR. This is planned and not yet configured.
+[ci-cd.yml](../../../../.github/workflows/ci-cd.yml) runs the api, worker, and web tests (with
+E2E and the Cloudflare build) on every PR; a push to `main` deploys only after all of them pass.
+There is no linter yet.
 
 ## Testing & Verification
 

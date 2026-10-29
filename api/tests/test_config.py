@@ -31,3 +31,11 @@ def test_allowed_origins_default_and_list(tmp_path, monkeypatch):
 
 def test_dotenv_path_is_the_repo_root():
     assert config.DOTENV_PATH == config.Path(__file__).resolve().parents[2] / ".env"
+
+
+def test_cookie_secure_is_off_unless_enabled(tmp_path, monkeypatch):
+    use_dotenv(tmp_path, monkeypatch, "")
+    monkeypatch.delenv("COOKIE_SECURE", raising=False)
+    assert config.cookie_secure() is False
+    monkeypatch.setenv("COOKIE_SECURE", "true")
+    assert config.cookie_secure() is True
