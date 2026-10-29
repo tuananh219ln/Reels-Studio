@@ -77,3 +77,6 @@ web/playwright-report/
 *.tsbuildinfo
 web/.open-next/
 web/.wrangler/
+
+# E2E storage and temp files (web/playwright.config.ts)
+web/.e2e-data/

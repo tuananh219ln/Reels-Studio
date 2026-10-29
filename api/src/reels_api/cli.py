@@ -20,7 +20,7 @@ Ask = Callable[[str], str]
 class _VietnameseParser(argparse.ArgumentParser):
     def error(self, message: str):
         # argparse's own usage errors are English; keep every CLI error Vietnamese.
-        print("Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user", file=sys.stderr)
+        print("Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user | worker", file=sys.stderr)
         sys.exit(2)
 
 
@@ -35,7 +35,18 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         "create-user",
         help="tạo người dùng; với email đã có thì đặt lại mật khẩu, kích hoạt lại và đăng xuất mọi phiên",
     )
-    parser.parse_args(argv)
+    commands.add_parser("worker", help="chạy worker nhận job (viết kịch bản, render)")
+    # Started by the worker for each job, in its own process group; not meant to be run by hand.
+    run_job = commands.add_parser("run-job")
+    run_job.add_argument("job_id", type=int)
+    args = parser.parse_args(argv)
+
+    if args.command == "worker":
+        from .worker import main as worker_main
+        return worker_main()
+    if args.command == "run-job":
+        from .worker import run_job_command
+        return run_job_command(args.job_id)
 
     if sys.stdin is None or not sys.stdin.isatty():
         print("Lỗi: lệnh này cần chạy trong terminal để nhập mật khẩu ẩn", file=sys.stderr)

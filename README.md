@@ -47,34 +47,38 @@ Dự án dùng cách làm **spec-driven** với AI agent:
 ## Chạy web app trên máy (localhost)
 
 Cần: Docker Desktop (Windows cần WSL2: `wsl --install` bằng quyền admin rồi khởi động lại máy),
-Python 3.12, Node 20.9 trở lên. Mọi lệnh chạy từ thư mục gốc repo, trong PowerShell.
+Python 3.12, Node 20.9 trở lên, FFmpeg (`winget install Gyan.FFmpeg`, cho worker render). Mọi lệnh
+chạy từ thư mục gốc repo, trong PowerShell.
 
 1. **Cấu hình:** chép `.env.example` thành `.env` (nếu đã có `.env` thì thêm các dòng còn thiếu).
+   Muốn viết kịch bản và tìm ảnh thật thì điền `ANTHROPIC_API_KEY` và `PIXABAY_API_KEY`.
 2. **Postgres:** `docker compose up -d postgres`. Lần đầu (volume trống) container tạo sẵn ba
    database: `reels` (dev), `reels_test` (pytest), `reels_e2e` (Playwright).
 3. **api** (một lần):
    ```powershell
    cd api
    py -3.12 -m venv .venv
-   .venv\Scripts\python -m pip install -e ".[dev]"
+   .venv\Scripts\python -m pip install -e ..\worker -e ".[dev]"   # api dùng cả bộ render reels_render
    .venv\Scripts\alembic upgrade head
    .venv\Scripts\python -m reels_api create-user   # tạo người dùng đầu tiên (mật khẩu nhập ẩn)
    ```
 4. **web** (một lần): `cd web` rồi `npm install` và `npx playwright install chromium`.
-5. **Chạy** (hai cửa sổ terminal):
+5. **Chạy** (ba cửa sổ terminal):
    ```powershell
    cd api; .venv\Scripts\python -m uvicorn reels_api.main:create_app --factory --port 8000
+   cd api; .venv\Scripts\python -m reels_api worker   # nhận job viết kịch bản và render
    cd web; npm run dev
    ```
-   Mở http://localhost:3000 và đăng nhập.
+   Mở http://localhost:3000 và đăng nhập. File (ảnh, MP4) nằm trong `data/storage/` ở gốc repo,
+   hoặc thư mục `STORAGE_DIR` nếu có đặt.
 
 **Khôi phục khi bị khóa ngoài** (quên mật khẩu, bị vô hiệu hoá): chạy lại
 `.venv\Scripts\python -m reels_api create-user` trong `api/` với email đã có. Lệnh hỏi xác nhận rồi
 đặt mật khẩu mới, kích hoạt lại và đăng xuất mọi phiên cũ.
 
-**Kiểm thử:** `cd api; .venv\Scripts\python -m pytest` (cần Postgres đang chạy) và
-`cd web; npm run e2e` (tự bật api và web riêng ở cổng 8100/3100 trên `reels_e2e`; chạy được cả khi
-server dev đang bật).
+**Kiểm thử:** `cd api; .venv\Scripts\python -m pytest` (cần Postgres đang chạy; các test worker và
+so khớp render cần FFmpeg trên PATH) và `cd web; npm run e2e` (tự bật api, worker, Claude/Pixabay giả
+ở cổng 8199 và web riêng ở cổng 8100/3100 trên `reels_e2e`; chạy được cả khi server dev đang bật).
 
 ## Triển khai (CI/CD)
 
@@ -84,7 +88,12 @@ trên mọi PR. Khi merge vào `main` và mọi kiểm thử đều qua, workflo
 1. **api → Coolify:** gọi deploy webhook, Coolify tự build `api/Dockerfile` từ git, container
    chạy migration khi khởi động. Workflow chờ Coolify báo `finished`. Postgres là một database
    riêng trên Coolify, không bị deploy lại.
-2. **web → Cloudflare:** build bằng OpenNext rồi `wrangler deploy` (Cloudflare Workers — Cloudflare
+2. **worker → Coolify:** sau khi api xong (đã có migration), gọi webhook của app worker
+   (`api/Dockerfile.worker`, có FFmpeg) và chờ tương tự. Khi deploy, Coolify có thể chạy worker cũ
+   và mới cùng lúc một lát: worker mới chờ khóa trong Postgres tới khi worker cũ tắt hẳn, rồi mới
+   nhận job. Job đang chạy dở lúc worker cũ tắt thành Lỗi "Worker khởi động lại giữa chừng"; bấm
+   Thử lại trên trang video.
+3. **web → Cloudflare:** build bằng OpenNext rồi `wrangler deploy` (Cloudflare Workers — Cloudflare
    khuyên dùng cho Next.js thay cho Pages). `/api/*` được chuyển tiếp tới domain api trên Coolify,
    nên cookie phiên vẫn thuộc domain web.
 
@@ -93,26 +102,50 @@ trên mọi PR. Khi merge vào `main` và mọi kiểm thử đều qua, workflo
 1. **Coolify — Postgres:** + New → Database → **PostgreSQL** (bản 17), Initial Database `reels`,
    không bật Make it publicly available. Start, rồi bật **Scheduled Backups**. Copy
    **Postgres URL (internal)**.
-2. **Coolify — api:** + New → Application từ repo này (GitHub App hoặc deploy key), nhánh `main`,
-   build pack **Dockerfile**, Base Directory `/api`, cổng `8000`, cùng server và cùng project với
-   Postgres.
+2. **Thư mục file dùng chung** (ảnh, MP4, ảnh thu nhỏ; api ghi, worker đọc và ghi): trên server
+   Coolify chạy một lần `sudo mkdir -p /data/reels-storage && sudo chown 10001:10001 /data/reels-storage`
+   (10001 là user `app` trong cả hai image). Mỗi video khoảng 10–30 MB; xóa video là xóa hẳn file.
+3. **Coolify — api:** + New → Application từ repo này (GitHub App hoặc deploy key), nhánh `main`,
+   build pack **Dockerfile**, **Base Directory `/`**, **Dockerfile Location `/api/Dockerfile`**
+   (image cần cả `worker/`), cổng `8000`, cùng server và cùng project với Postgres. App api đã có từ
+   trước thì sửa Base Directory từ `/api` thành `/` và Dockerfile Location như trên.
    - Domain: ví dụ `https://api.example.com`.
    - Biến môi trường: `DATABASE_URL` = Postgres URL (internal) vừa copy (dán nguyên, app tự đổi
      `postgres://` thành driver psycopg), `ALLOWED_ORIGINS=https://app.example.com` (domain web),
-     `COOKIE_SECURE=true`.
+     `COOKIE_SECURE=true`, `PIXABAY_API_KEY` (cho "Tìm lại ảnh"), `STORAGE_DIR=/data/storage`.
+   - Persistent Storage → **Directory Mount**: Source `/data/reels-storage`, Destination
+     `/data/storage`.
    - Advanced → Auto deploy: chọn **Manual deployments only**, để chỉ GitHub Actions triển khai
      sau khi kiểm thử qua.
    - Keys & Tokens → tạo API token quyền `deploy`. Webhook nằm ở tab Webhooks của application.
-3. **Cloudflare:** tạo API token theo mẫu "Edit Cloudflare Workers"; ghi lại Account ID. Sau lần
+4. **Coolify — worker:** + New → Application từ cùng repo, nhánh `main`, build pack **Dockerfile**,
+   Base Directory `/`, Dockerfile Location `/api/Dockerfile.worker`, cùng server và project. Không cần
+   domain hay cổng (worker không nhận request; nếu Coolify bắt buộc cổng thì để mặc định và tắt
+   health check).
+   - Biến môi trường: `DATABASE_URL` (giống api), `ANTHROPIC_API_KEY`, `PIXABAY_API_KEY`,
+     `STORAGE_DIR=/data/storage`; tùy chọn `CLAUDE_MODEL` (mặc định `claude-sonnet-5-5`).
+   - Persistent Storage → Directory Mount: Source `/data/reels-storage`, Destination `/data/storage`
+     (đúng thư mục như api).
+   - Auto deploy: **Manual deployments only**. Webhook ở tab Webhooks.
+5. **Cloudflare:** tạo API token theo mẫu "Edit Cloudflare Workers"; ghi lại Account ID. Sau lần
    deploy đầu, vào Workers → `reels-studio-web` → Settings → Domains & Routes để gắn domain web
    (`app.example.com`).
-4. **GitHub** (Settings → Environments → tạo environment `production`):
-   - Secrets: `COOLIFY_WEBHOOK`, `COOLIFY_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+6. **GitHub** (Settings → Environments → tạo environment `production`):
+   - Secrets: `COOLIFY_WEBHOOK` (api), `COOLIFY_WORKER_WEBHOOK` (worker), `COOLIFY_TOKEN`,
+     `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
    - Variable: `API_URL=https://api.example.com` (domain api trên Coolify, không có `/` cuối).
-5. **Người dùng đầu tiên:** trong Coolify mở Terminal của container `api` và chạy
+7. **Người dùng đầu tiên:** trong Coolify mở Terminal của container `api` và chạy
    `python -m reels_api create-user`.
 
 Nếu domain api cũng đi qua Cloudflare (đám mây cam), đặt SSL/TLS là **Full (strict)**.
+
+**Kiểm tra sau khi deploy** (chỉ thấy được trên hạ tầng thật):
+
+- Làm một video từ chủ đề tới MP4 và bấm giờ (mục tiêu ≤ 10 phút); xem "render mất … giây" trên
+  trang video (mục tiêu ≤ 2× độ dài video).
+- Tải một ảnh lên một cảnh rồi render: MP4 có ảnh đó nghĩa là api và worker thấy cùng thư mục file.
+- Phát và **tua** MP4 trong trình duyệt trên domain web: tua được nghĩa là yêu cầu Range (206) đi
+  qua được Cloudflare/OpenNext.
 
 ## Online Pipeline (tùy chọn)
 

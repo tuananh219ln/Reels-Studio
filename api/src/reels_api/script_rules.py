@@ -1,0 +1,124 @@
+"""Pre-render checks: blocking errors and yellow warnings, the same for Claude's script and a member's edits.
+
+Text markup and box fit use reels_render's own code, so "passes here" means "renders there".
+"""
+
+import re
+import unicodedata
+from dataclasses import dataclass, field
+
+from reels_render.markup import MarkupError, parse_scene_text
+from reels_render.textbox import SCENE_STYLE, TITLE_STYLE, TextFitError, layout_text
+
+MIN_SECONDS = 1
+MAX_SECONDS = 10
+MAX_TOTAL_SECONDS = 90
+SCENE_COUNT_RANGE = (5, 7)
+# "30–45 giây" in the default prompt plus the 3-second title scene.
+TOTAL_SECONDS_RANGE = (20, 48)
+MAX_SCENE_WORDS = 10
+MAX_TITLE_WORDS = 12
+
+DEFAULT_BANNED_WORDS = ["chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc trị", "khắc tinh"]
+
+
+@dataclass(frozen=True)
+class SceneInput:
+    id: int
+    is_title: bool
+    text: str
+    seconds: float
+    has_image: bool
+
+
+@dataclass(frozen=True)
+class Issue:
+    message: str
+    scene_id: int | None = None  # None: the whole video, or a post field named by `field`
+    field: str = "text"
+
+
+@dataclass
+class Checks:
+    blocking: list[Issue] = field(default_factory=list)
+    warnings: list[Issue] = field(default_factory=list)
+
+
+def count_words(text: str) -> int:
+    return len(text.replace("*", "").replace("\n", " ").split())
+
+
+def text_problem(text: str, is_title: bool) -> str | None:
+    """Why reels_render would refuse this text, or None. Also the reason shown instead of a preview."""
+    if not text.strip():
+        return "Chữ đang trống"
+    try:
+        lines = parse_scene_text(text)
+    except MarkupError as err:
+        return f"Chữ sai cách đánh dấu: {err}"
+    try:
+        layout_text(lines, TITLE_STYLE if is_title else SCENE_STYLE)
+    except TextFitError as err:
+        return f"Chữ tràn hộp: {err}"
+    return None
+
+
+def _comparable(text: str) -> str:
+    text = unicodedata.normalize("NFC", text).replace("*", "").casefold()
+    return " ".join(text.split())
+
+
+def banned_hits(text: str, banned_words: list[str]) -> list[str]:
+    """Banned words found in the text, ignoring case, Unicode form (NFC vs NFD) and `*` markup."""
+    haystack = _comparable(text)
+    return [word for word in banned_words if _comparable(word) and _comparable(word) in haystack]
+
+
+def check_script(
+    title: SceneInput | None,
+    scenes: list[SceneInput],
+    post_fields: dict[str, str],
+    banned_words: list[str],
+) -> Checks:
+    checks = Checks()
+    block, warn = checks.blocking.append, checks.warnings.append
+    if not scenes:
+        block(Issue("Chưa có cảnh nội dung nào", field="scenes"))
+
+    for scene in ([title] if title else []) + scenes:
+        problem = text_problem(scene.text, scene.is_title)
+        if problem:
+            block(Issue(problem, scene.id))
+        if not scene.has_image:
+            block(Issue("Cảnh chưa có ảnh", scene.id, "image"))
+        if not MIN_SECONDS <= scene.seconds <= MAX_SECONDS:
+            block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
+        words, limit = count_words(scene.text), MAX_TITLE_WORDS if scene.is_title else MAX_SCENE_WORDS
+        if words > limit:
+            warn(Issue(f"Chữ có {words} từ, nên tối đa {limit} từ", scene.id))
+        for word in banned_hits(scene.text, banned_words):
+            warn(Issue(f"Có từ cấm: “{word}”", scene.id))
+
+    # Rounded so float sums such as 0.1 + 0.2 never push an exact 90 over the limit.
+    total = round(sum(scene.seconds for scene in ([title] if title else []) + scenes), 3)
+    if total > MAX_TOTAL_SECONDS:
+        block(Issue(f"Tổng độ dài {total:g} giây, tối đa {MAX_TOTAL_SECONDS} giây", field="total"))
+    elif not TOTAL_SECONDS_RANGE[0] <= total <= TOTAL_SECONDS_RANGE[1]:
+        low, high = TOTAL_SECONDS_RANGE
+        warn(Issue(f"Tổng độ dài {total:g} giây, nên trong khoảng {low}–{high} giây", field="total"))
+    low, high = SCENE_COUNT_RANGE
+    if scenes and not low <= len(scenes) <= high:
+        warn(Issue(f"Có {len(scenes)} cảnh nội dung, công thức kênh là {low}–{high} cảnh", field="scenes"))
+
+    for name, text in post_fields.items():
+        for word in banned_hits(text, banned_words):
+            warn(Issue(f"Có từ cấm: “{word}”", field=name))
+    return checks
+
+
+_SPACES = re.compile(r"\s+")
+
+
+def plain_title(text: str) -> str:
+    """The title scene text as one plain line, for lists and file names."""
+    return _SPACES.sub(" ", text.replace("*", "")).strip()

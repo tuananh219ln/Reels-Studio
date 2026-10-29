@@ -81,7 +81,7 @@ test("login, empty video list, header and logout", async ({ page }) => {
 
 test("coming-soon pages from the menu", async ({ page }) => {
   await loginAsSeed(page);
-  for (const [label, path] of [["Kho kiến thức", "/knowledge"], ["Thư viện nhạc", "/music"], ["Job logs", "/jobs"]]) {
+  for (const [label, path] of [["Thư viện nhạc", "/music"], ["Job logs", "/jobs"]]) {
     await page.getByRole("menuitem", { name: label }).click();
     await expect(page).toHaveURL(new RegExp(`${path}$`));
     await expect(page.getByText("Sắp có: chưa có dữ liệu")).toBeVisible();

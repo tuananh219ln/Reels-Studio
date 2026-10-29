@@ -29,18 +29,98 @@ export type UserRow = {
   is_me: boolean;
 };
 
-type Method = "GET" | "POST" | "PATCH";
+export type VideoStatus = "draft" | "queued" | "writing" | "rendering" | "done" | "failed";
+
+export type VideoRow = {
+  id: number;
+  topic: string;
+  title: string;
+  created_by: string;
+  created_at: string;
+  status: VideoStatus;
+  status_label: string;
+  mp4_outdated: boolean;
+  rerender_failed: boolean;
+  thumbnail_url: string | null;
+};
+
+export type JobInfo = {
+  id: number;
+  kind: "script" | "render";
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  error: string | null;
+  error_detail: string | null;
+  created_by: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+};
+
+export type SceneData = {
+  id: number;
+  is_title: boolean;
+  text: string;
+  seconds: number;
+  keywords: string[];
+  image_prompt: string;
+  has_image: boolean;
+  image_error: string | null;
+  image_url: string | null;
+  preview_url: string | null;
+  text_problem: string | null;
+  blocking: string[];
+  warnings: string[];
+};
+
+export type VideoDetail = VideoRow & {
+  has_script: boolean;
+  title_options: string[];
+  caption: string;
+  hashtags: string[];
+  affiliates: string[];
+  pinned_comment: string;
+  self_review: string[];
+  music_suggestions: string[];
+  locked: boolean;
+  active_job: JobInfo | null;
+  failed_job: JobInfo | null;
+  mp4: { url: string; download_url: string; seconds: number; render_seconds: number; rendered_at: string } | null;
+  title_scene: SceneData | null;
+  scenes: SceneData[];
+  video_blocking: string[];
+  video_warnings: { field: string; message: string }[];
+  can_render: boolean;
+};
+
+export type Knowledge = {
+  script_prompt: string;
+  banned_words: string[];
+  default_script_prompt: string;
+  default_banned_words: string[];
+};
+
+type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
 
 /** Calls the API through the same-origin /api rewrite and turns every failure into an ApiError. */
 export async function api<T>(path: string, method: Method = "GET", body?: unknown): Promise<T> {
+  return send<T>(path, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+/** One file per request: the Cloudflare proxy buffers the whole body, so files never go in batches. */
+export async function upload<T>(path: string, file: File): Promise<T> {
+  const form = new FormData();
+  form.append("file", file);
+  // No Content-Type header: the browser sets the multipart boundary itself.
+  return send<T>(path, { method: "POST", body: form });
+}
+
+async function send<T>(path: string, init: RequestInit): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, {
-      method,
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-      cache: "no-store",
-    });
+    response = await fetch(`/api${path}`, { ...init, cache: "no-store" });
   } catch {
     throw new ApiError(0, "connection", CONNECTION_MESSAGE);
   }
@@ -71,10 +151,15 @@ const dateParts = new Intl.DateTimeFormat("en-GB", {
 });
 
 /** dd/mm/yyyy hh:mm in Vietnam time; the API stores and sends UTC. */
-export function formatLastLogin(iso: string | null): string {
-  if (!iso) {
-    return "Chưa đăng nhập";
-  }
+export function formatDateTime(iso: string): string {
   const part = Object.fromEntries(dateParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
   return `${part.day}/${part.month}/${part.year} ${part.hour}:${part.minute}`;
+}
+
+export function formatLastLogin(iso: string | null): string {
+  return iso ? formatDateTime(iso) : "Chưa đăng nhập";
+}
+
+export function errorMessage(err: unknown): string {
+  return err instanceof ApiError ? err.message : String(err);
 }

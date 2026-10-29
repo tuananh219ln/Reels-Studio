@@ -90,3 +90,73 @@ def login(client, email="an@doi.vn", password=PASSWORD):
 def expire_all_sessions(db, user_id: int) -> None:
     db.execute(text("UPDATE sessions SET expires_at = now() - interval '1 second' WHERE user_id = :id"), {"id": user_id})
     db.commit()
+
+
+# --- Videos ---
+
+import io as _io
+import sys as _sys
+
+from PIL import Image as _Image
+
+from reels_render import stock as _stock
+
+from reels_api.models import Scene, Video
+from reels_api.storage import DirectoryStorage
+
+_sys.path.insert(0, str(API_DIR / "scripts"))
+from fake_services import FakeServices  # noqa: E402
+
+SCENE_TEXT = "Cá nhỏ\nGiàu *canxi*"
+TITLE_TEXT = "5 MÓN GIÚP\n*XƯƠNG CHẮC KHỎE*"
+
+
+@pytest.fixture(autouse=True)
+def isolated_files(tmp_path, monkeypatch):
+    """Every test gets its own storage folder and Pixabay search cache."""
+    monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "storage"))
+    monkeypatch.setattr(_stock, "default_cache_dir", lambda: tmp_path / "search-cache")
+    for name in ("PIXABAY_API_KEY", "PIXABAY_API_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"):
+        monkeypatch.setenv(name, "")
+
+
+@pytest.fixture
+def storage(tmp_path) -> DirectoryStorage:
+    return DirectoryStorage(tmp_path / "storage")
+
+
+@pytest.fixture
+def fakes(monkeypatch):
+    services = FakeServices().start()
+    for name, value in services.env().items():
+        monkeypatch.setenv(name, value)
+    yield services
+    services.stop()
+
+
+def photo_bytes(color=(190, 120, 60), size=(720, 1280), kind="JPEG") -> bytes:
+    buffer = _io.BytesIO()
+    _Image.new("RGB", size, color).save(buffer, kind)
+    return buffer.getvalue()
+
+
+def make_video(db, storage, user, scene_count=5, seconds=4.0, images=True, topic="xương khớp",
+               title_text=TITLE_TEXT, scene_text=SCENE_TEXT) -> Video:
+    """A video whose script is saved, like after a finished script job."""
+    video = Video(topic=topic, has_script=True, created_by_id=user.id, title_options=[title_text, "TIÊU ĐỀ 2"],
+                  caption="caption", hashtags=["#a"], affiliates=["sữa"], pinned_comment="ghim",
+                  self_review=["x"], music_suggestions=["Windy Hill"])
+    db.add(video)
+    db.flush()
+    rows = [Scene(video_id=video.id, is_title=True, position=0, text=title_text, seconds=3, keywords=["canxi"])]
+    rows += [Scene(video_id=video.id, is_title=False, position=n, text=scene_text, seconds=seconds,
+                   keywords=[f"món {n}"]) for n in range(1, scene_count + 1)]
+    db.add_all(rows)
+    db.flush()
+    if images:
+        for index, scene in enumerate(rows):
+            key = f"videos/{video.id}/scene-{scene.id}-seed.jpg"
+            storage.save_bytes(key, photo_bytes((40 * index % 255, 120, 200 - 20 * index)))
+            scene.image_key, scene.image_source = key, f"https://cdn.pixabay.com/seed-{scene.id}.jpg"
+    db.commit()
+    return video

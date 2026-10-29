@@ -1,16 +1,20 @@
-# Production image for the API, built by Coolify (Dockerfile build pack, base directory /api).
-# Coolify sets DATABASE_URL, ALLOWED_ORIGINS and COOKIE_SECURE.
+# Production image for the API, built by Coolify from the repo root (base directory /, Dockerfile
+# /api/Dockerfile): the api uses reels_render for previews and text checks, so it installs ../worker too.
+# Coolify sets DATABASE_URL, ALLOWED_ORIGINS, COOKIE_SECURE, PIXABAY_API_KEY and STORAGE_DIR.
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
-COPY pyproject.toml ./
-COPY src ./src
-RUN pip install . && useradd --system --uid 10001 app
+COPY worker/pyproject.toml worker/
+COPY worker/src worker/src
+COPY api/pyproject.toml api/
+COPY api/src api/src
+# /data/storage is the shared volume; owned by the app user so a fresh volume is writable.
+RUN pip install ./worker ./api && useradd --system --uid 10001 app && mkdir -p /data/storage && chown app /data/storage
 
-COPY alembic.ini ./
-COPY migrations ./migrations
+COPY api/alembic.ini ./
+COPY api/migrations ./migrations
 
 USER app
 EXPOSE 8000

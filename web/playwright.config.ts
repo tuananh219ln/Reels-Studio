@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 
@@ -12,6 +13,24 @@ export const API_PYTHON = path.join(
   process.platform === "win32" ? "Scripts/python.exe" : "bin/python",
 );
 
+// Fake Claude and Pixabay (api/scripts/fake_services.py), reached only through the base-URL variables.
+const FAKES_URL = "http://127.0.0.1:8199";
+const BACKEND_ENV = {
+  DATABASE_URL: E2E_DATABASE_URL,
+  STORAGE_DIR: path.resolve(__dirname, ".e2e-data/storage"),
+  // Own temp folder: the Pixabay search cache never mixes fake results into the developer's real cache.
+  TMP: path.resolve(__dirname, ".e2e-data/tmp"),
+  TEMP: path.resolve(__dirname, ".e2e-data/tmp"),
+  TMPDIR: path.resolve(__dirname, ".e2e-data/tmp"),
+  ANTHROPIC_API_KEY: "fake-claude-key",
+  ANTHROPIC_BASE_URL: FAKES_URL,
+  PIXABAY_API_KEY: "fake-pixabay-key",
+  PIXABAY_API_URL: `${FAKES_URL}/api/`,
+  PYTHONUNBUFFERED: "1",
+  PYTHONIOENCODING: "utf-8",
+};
+fs.mkdirSync(BACKEND_ENV.TMP, { recursive: true });
+
 export default defineConfig({
   testDir: "./e2e",
   workers: 1,
@@ -22,10 +41,27 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
+      // Short scenes (1 s each) keep the E2E render quick.
+      command: `"${API_PYTHON}" scripts/fake_services.py 8199 1`,
+      cwd: API_DIR,
+      url: `${FAKES_URL}/health`,
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+    {
       command: `"${API_PYTHON}" -m uvicorn reels_api.main:create_app --factory --host 127.0.0.1 --port 8100`,
       cwd: API_DIR,
       url: "http://127.0.0.1:8100/api/me",
-      env: { DATABASE_URL: E2E_DATABASE_URL, ALLOWED_ORIGINS: "http://localhost:3100" },
+      env: { ...BACKEND_ENV, ALLOWED_ORIGINS: "http://localhost:3100" },
+      reuseExistingServer: false,
+      timeout: 60_000,
+    },
+    {
+      // The real worker with FFmpeg; reels_e2e is migrated by the first test's reset, so it may still be waiting.
+      command: `"${API_PYTHON}" -m reels_api worker`,
+      cwd: API_DIR,
+      env: BACKEND_ENV,
+      wait: { stdout: /Worker lock acquired|Table jobs does not exist yet/ },
       reuseExistingServer: false,
       timeout: 60_000,
     },
