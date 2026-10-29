@@ -7,7 +7,18 @@ JSON cố định trong code và không nằm ở đây.
 
 Các tên file `02_thu-vien-tieu-de.md`, `03_ngan-hang-thuc-pham.csv` và `07_quy-tac-an-toan.md` là
 tên tài liệu Knowledge Base dự kiến. Trong spec này, Knowledge Base đầy đủ chưa có: danh sách từ cấm
-trên `/knowledge` đóng vai trò quy tắc an toàn, và ví dụ đầu ra là `samples/xuong-khop.json`.
+trên `/knowledge` đóng vai trò quy tắc an toàn. Ví dụ đầu ra JSON đầy đủ nằm trong phần định dạng
+cố định trong code, dựng từ nội dung của `samples/xuong-khop.json`.
+
+## Cách dùng trên /knowledge
+
+- **Ô 1 — "Prompt viết kịch bản"** (phần 1): mặc định là các mục "Custom Instructions", "Prompt
+  viết kịch bản", "Công thức tiêu đề" và "Lưu ý an toàn" dưới đây, nối theo thứ tự đó. Worker thay
+  `[VD: thực phẩm tốt cho xương khớp người sau 50 tuổi]` bằng chủ đề thành viên nhập.
+- **Ô 2 — "Prompt nhân bản"** (phần 2): mặc định là mục "Prompt nhân bản (một biến thể)" dưới
+  đây. Worker điền tiêu đề, chủ đề và kịch bản đã sửa của video gốc, cùng yêu cầu đổi.
+- Mục "Prompt nhân bản video thắng" (bản gốc 10 biến thể) chỉ để tham khảo, không phải văn bản mặc
+  định.
 
 ## Custom Instructions
 
@@ -34,7 +45,7 @@ bàn gỗ)
 6. Tự rà soát theo 07_quy-tac-an-toan.md, liệt kê câu đã sửa
 ```
 
-## Prompt nhân bản video thắng
+## Prompt nhân bản video thắng (bản gốc, chỉ tham khảo)
 
 ```
 Video "[tiêu đề]" đạt [X] view (gấp [Y] lần trung vị).
@@ -42,9 +53,19 @@ Phân tích yếu tố thắng, rồi đề xuất 10 biến thể: giữ công 
 đổi thực phẩm / mốc tuổi / nhóm bệnh. Xếp theo khả năng viral.
 ```
 
-Trong spec này, nhân bản chỉ tạo **một** biến thể theo yêu cầu đổi của thành viên (đề xuất 10 biến
-thể có xếp hạng để giai đoạn sau). Người code chuyển prompt trên thành dạng một biến thể, giữ câu
-"giữ công thức, đổi thực phẩm / mốc tuổi / nhóm bệnh".
+## Prompt nhân bản (một biến thể)
+
+Văn bản mặc định của ô 2, chuyển từ bản gốc ở trên sang dạng một biến thể theo yêu cầu đổi:
+
+```
+Video gốc: "[tiêu đề]" — chủ đề: [chủ đề].
+Kịch bản gốc:
+[kịch bản đã sửa của video gốc]
+
+Phân tích yếu tố làm video này hấp dẫn, rồi viết 1 biến thể: giữ công thức,
+đổi thực phẩm / mốc tuổi / nhóm bệnh theo yêu cầu sau:
+[yêu cầu đổi]
+```
 
 ## Công thức tiêu đề (từ mục 1 của plan, dùng làm gợi ý trong prompt)
 
@@ -54,6 +75,8 @@ thể có xếp hạng để giai đoạn sau). Người code chuyển prompt tr
 - Món trên mâm cơm + bệnh đáng sợ — "4 món quen thuộc trên mâm cơm là khắc tinh của tế bào K"
 - Nhóm người nên ăn / thời điểm vàng — "4 nhóm người nên ăn chuối xanh luộc"
 - Mốc tuổi + điều nên tránh — "Sau 45 tuổi đừng để bữa cơm thiếu 5 món này"
+
+## Lưu ý an toàn
 
 Lưu ý an toàn từ plan: dùng bản nhẹ hơn ("hỗ trợ", "tốt cho") thay cho "khắc tinh tế bào K", "máu
 lên não ào ào".

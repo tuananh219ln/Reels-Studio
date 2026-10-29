@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-29 19:20:00"
-  last_updated: "2026-10-29 23:00:00"
+  last_updated: "2026-10-29 23:40:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -154,6 +154,19 @@ conversation_history:
     user_answer: |
       1. Giữ một spec, làm theo thứ tự (Recommended)
       2. "Xong" + dấu lỗi lần cuối (Recommended)
+  - asked_at: "2026-10-29 23:35:00"
+    topic_keys: ["data_requirements", "edge_cases", "error_scenarios", "ui_ux_requirements"]
+    agent_questions: |
+      (Vòng thẩm định 2)
+      1. Trên /knowledge có những prompt nào để sửa? Hai ô: viết kịch bản + nhân bản (Recommended) — ô 1 "Prompt viết kịch bản" (phần 1) = Custom Instructions + Prompt viết kịch bản + công thức tiêu đề + lưu ý an toàn trong PDF, chủ đề tự điền vào chỗ [Chủ đề]; ô 2 "Prompt nhân bản" (phần 2) = bản 1 biến thể của prompt nhân bản trong PDF; mỗi ô có nút Khôi phục mặc định riêng / Một ô chung
+      2. Sửa gì sau khi render thì bật nhãn "MP4 chưa cập nhật theo bản sửa"? Chỉ thứ làm đổi MP4 (Recommended) — chữ, giây, ảnh, thứ tự, thêm/xóa cảnh, tiêu đề, MP3, âm lượng; sửa caption, hashtag, affiliate, bình luận ghim, gợi ý nhạc, từ khóa, prompt ảnh thì không / Mọi thay đổi
+      3. Worker bị khởi động lại giữa chừng (deploy mới, hết RAM, VPS khởi động lại) khi đang chạy job thì sao? Chuyển job đó sang Lỗi (Recommended) — khi khởi động, worker đánh mọi job đang chạy dở thành Lỗi "Worker khởi động lại giữa chừng", mở khóa video; không tự chạy lại / Tự chạy lại 1 lần
+      4. Hai trường hợp nhỏ — đồng ý cả gói không? (1) B đang gõ một ô thì A bấm Render: lần lưu của B bị từ chối, ô hiện "Video đang render, chưa lưu" và giữ nguyên chữ B đã gõ để B lưu lại sau khi render xong. (2) Hủy job nhân bản rồi bấm "Viết kịch bản" trên bản nháp đó: chạy lại đúng job nhân bản với dữ liệu đã chụp và yêu cầu đổi cũ; MP3 đã chép vẫn giữ. Đồng ý cả gói (Recommended) / Muốn đổi
+    user_answer: |
+      1. Hai ô: viết kịch bản + nhân bản (Recommended)
+      2. Chỉ thứ làm đổi MP4 (Recommended)
+      3. Chuyển job đó sang Lỗi (Recommended)
+      4. Đồng ý cả gói (Recommended)
 # Entry format:
 # - asked_at: "YYYY-MM-DD HH:MM:SS"
 #   topic_keys: ["user_problem", "success_criteria"]

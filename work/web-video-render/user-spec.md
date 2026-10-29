@@ -48,14 +48,15 @@ phút, và dùng chung một thư viện video. Thành viên nào cũng thấy v
    - viết kịch bản bằng Claude và tự gán ảnh Pixabay;
    - trình soạn có tự lưu, xem trước khung hình và "Tìm lại ảnh";
    - kiểm tra trước khi render, render, phát và tải MP4;
+   - nội dung đăng (caption, hashtag, affiliate, bình luận ghim, gợi ý nhạc) sửa và copy được;
    - danh sách video, xóa video, Hủy, Thử lại, job kẹt;
-   - `/knowledge` với prompt và từ cấm.
+   - `/knowledge` với prompt viết kịch bản và từ cấm.
 
    Phần 1 được deploy và kiểm tra trên server trước.
 2. **Phần 2 — phần mở rộng (PR 2).** Gồm:
    - lưới "Chọn từ Pixabay";
-   - nhạc MP3, âm lượng và gợi ý nhạc;
-   - nhân bản bằng Claude;
+   - nhạc MP3 và âm lượng;
+   - nhân bản bằng Claude và prompt nhân bản trên `/knowledge`;
    - trang `/jobs`.
 
 Tiêu chí nghiệm thu bên dưới ghi rõ thuộc phần nào.
@@ -66,9 +67,10 @@ Tiêu chí nghiệm thu bên dưới ghi rõ thuộc phần nào.
 2. App tạo một video nháp và một job "viết kịch bản" trong hàng đợi. Trang video hiện trạng thái
    (Chờ thứ N / Đang viết) và tự cập nhật, không cần tải lại trang.
 3. Worker gọi Claude. Prompt gồm ba phần:
-   - phần nội dung sửa được trên `/knowledge`;
+   - "Prompt viết kịch bản" sửa được trên `/knowledge`, với chủ đề tự điền vào chỗ `[Chủ đề]`;
    - danh sách từ cấm;
-   - phần định dạng đầu ra cố định trong code.
+   - phần định dạng đầu ra cố định trong code. Phần này có một ví dụ JSON đầy đủ mọi trường, dựng
+     từ nội dung của `samples/xuong-khop.json` (chữ, giây, từ khóa) và không có đường dẫn ảnh.
 
    Claude trả về JSON gồm:
    - 5 tiêu đề viết hoa, mỗi tiêu đề ≤ 12 từ;
@@ -106,14 +108,15 @@ Tiêu chí nghiệm thu bên dưới ghi rõ thuộc phần nào.
 - **Nhạc** (phần 2):
   - Upload một file MP3 (≤ 20 MB). Có thể thay hoặc gỡ bất cứ lúc nào.
   - Thanh âm lượng 0–100%, mặc định 25%, lưu theo từng video. Không có MP3 thì video im lặng.
-  - Các gợi ý tên nhạc hiện ở trang video, sửa được và copy được, để thành viên chọn nhạc trong
-    TikTok hoặc Facebook khi đăng.
-- **Nội dung đăng:** caption, hashtag, affiliate, bình luận ghim và gợi ý nhạc đều sửa được. Phần
-  tự rà soát chỉ để xem. Có nút copy "caption + hashtag" (caption, dòng trống, rồi các hashtag cách
-  nhau bằng dấu cách) và nút copy bình luận ghim.
+- **Nội dung đăng:** caption, hashtag, affiliate, bình luận ghim và gợi ý nhạc đều sửa được. Gợi ý
+  nhạc dùng để chọn nhạc trong TikTok hoặc Facebook khi đăng. Phần tự rà soát chỉ để xem. Có nút
+  copy "caption + hashtag" (caption, dòng trống, rồi các hashtag cách nhau bằng dấu cách), nút copy
+  bình luận ghim và nút copy gợi ý nhạc.
 - **Tự lưu:** mỗi ô tự lưu khi rời ô và hiện "Đã lưu". Upload ảnh, chọn ảnh, thêm, xóa và đổi thứ
   tự cảnh được lưu ngay. Khi hai người sửa cùng một ô, bản lưu sau thắng. Sửa các ô khác nhau thì
   không đè lên nhau.
+- **Lưu khi video vừa bị khóa:** B đang gõ một ô thì A bấm Render. Lần lưu của B bị từ chối, ô hiện
+  "Video đang render, chưa lưu" và giữ nguyên chữ B đã gõ, để B lưu lại sau khi render xong.
 - **Cảnh báo từ cấm:** quét tiêu đề, chữ cảnh, caption và bình luận ghim. So khớp không phân biệt
   hoa thường, chuẩn hóa Unicode NFC và bỏ qua dấu `*`. Ô trúng từ cấm hiện cảnh báo vàng. Cảnh báo
   này không chặn render.
@@ -150,8 +153,11 @@ Cách đếm:
 3. Trong lúc video có job chờ hoặc đang chạy, video bị khóa: không sửa và không xóa được. Bấm Render
    hay Viết kịch bản lần hai bị từ chối. Job còn chờ có nút "Hủy".
 4. Xong thì trang video có trình phát MP4 (tua được), nút tải MP4 và thời lượng của lần render đó.
-5. Sửa kịch bản sau khi đã render thì trang và danh sách hiện nhãn vàng "MP4 chưa cập nhật theo bản
-   sửa". MP4 cũ vẫn xem và tải được. Render lại thì MP4 cũ được giữ tới khi bản mới xong.
+5. Sau khi đã render, nếu sửa một thứ làm MP4 khác đi thì trang và danh sách hiện nhãn vàng "MP4
+   chưa cập nhật theo bản sửa". Các thứ đó là: chữ, số giây, ảnh, thứ tự, thêm hoặc xóa cảnh, tiêu
+   đề, MP3, âm lượng. Sửa caption, hashtag, affiliate, bình luận ghim, gợi ý nhạc, từ khóa hay prompt
+   ảnh thì không bật nhãn. MP4 cũ vẫn xem và tải được. Render lại thì MP4 cũ được giữ tới khi bản
+   mới xong.
 6. Video đã có MP4 mà render lại bị lỗi hoặc bị hủy thì vẫn ở trạng thái "Xong", MP4 cũ vẫn dùng
    được. Lỗi thì có thêm nhãn nhỏ "Render lại lỗi" kèm lý do và nút Thử lại.
 
@@ -163,8 +169,10 @@ Cách đếm:
   nháp mới với job "nhân bản". Video gốc không bị khóa. Xóa hay sửa video gốc sau đó không ảnh hưởng
   bản nháp.
 - Claude giữ công thức của video gốc và viết kịch bản mới với đủ các phần như bước 3 ở trên. Worker
-  tự gán Pixabay như video mới. Prompt nhân bản dựa trên "Prompt nhân bản video thắng" trong
-  [default-prompt.md](default-prompt.md), chuyển thành dạng chỉ tạo một biến thể.
+  tự gán Pixabay như video mới. Prompt dùng ô "Prompt nhân bản" trên `/knowledge`, cộng danh sách
+  từ cấm và phần định dạng đầu ra cố định.
+- Hủy job nhân bản rồi bấm "Viết kịch bản" trên bản nháp đó thì chạy lại đúng job nhân bản, với dữ
+  liệu đã chụp và yêu cầu đổi cũ. MP3 đã chép vẫn giữ.
 
 ### Lỗi, hủy và job kẹt
 - **Claude trả JSON hỏng, thiếu tiêu đề, hoặc không có cảnh nội dung nào:** worker tự gọi lại
@@ -176,10 +184,18 @@ Cách đếm:
   - Ít hơn 5 tiêu đề thì lưu số đang có.
 - **Mọi job lỗi:** hiện lý do bằng tiếng Việt dễ hiểu và có nút "Thử lại". Dữ liệu đã sửa được giữ
   nguyên. Ví dụ: Claude hết hạn mức, FFmpeg lỗi, "File nhạc không đọc được".
-- **Job kẹt:** job chạy quá 15 phút, tính từ lúc bắt đầu chạy (không tính lúc chờ), bị worker dừng
-  hẳn: dừng tiến trình FFmpeg hoặc lời gọi Claude, rồi chuyển job sang Lỗi. Sau đó worker nhận job
-  tiếp theo mà không cần ai khởi động lại. Mọi lời gọi ngoài đều có timeout riêng: Claude, Pixabay
-  và FFmpeg. Nếu kết quả của job đã bị đánh Lỗi vẫn đến muộn thì bị bỏ.
+- **Chi tiết lỗi để chẩn đoán:** job lưu thêm chi tiết kỹ thuật, gồm đoạn cuối stderr của FFmpeg,
+  câu trả lời thô của Claude khi parse lỗi và loại lỗi Pixabay. Trang video có mục "Chi tiết lỗi"
+  thu gọn. Worker cũng ghi các chi tiết này ra log, kèm số token của mỗi lời gọi Claude.
+- **Job kẹt:** mỗi job chạy trong một tiến trình con riêng. Job chạy quá 15 phút, tính từ lúc bắt
+  đầu chạy (không tính lúc chờ), bị worker dừng hẳn: worker giết cả tiến trình con lẫn FFmpeg do nó
+  mở, rồi chuyển job sang Lỗi. Job bị dừng không ghi thêm gì vào database hay storage. Chỉ sau khi
+  tiến trình cũ đã dừng hẳn, worker mới nhận job tiếp theo, không cần ai khởi động lại. Mọi lời gọi
+  ngoài (Claude, Pixabay) đều có timeout riêng.
+- **Worker khởi động lại giữa chừng** (deploy mới, hết RAM, VPS khởi động lại): khi khởi động,
+  worker chuyển mọi job đang chạy dở thành Lỗi "Worker khởi động lại giữa chừng" và mở khóa video.
+  Worker không tự chạy lại job đó, để tránh gọi Claude tốn tiền ngoài ý muốn. Thành viên bấm Thử
+  lại.
 - **Hủy job còn chờ:** job thành "Đã hủy".
   - Hủy job viết kịch bản hoặc nhân bản: video nháp rỗng vẫn nằm trong danh sách, có nút "Viết
     kịch bản" và nút "Xóa".
@@ -192,12 +208,15 @@ Cách đếm:
 - **Xóa video:** hỏi xác nhận, rồi xóa hẳn video, cảnh, job và mọi file (ảnh, MP3, MP4, ảnh thu
   nhỏ). Không khôi phục được. Không xóa được khi video có job chờ hoặc đang chạy.
 - **`/jobs`** (phần 2): bảng mọi job gồm video, loại (Viết kịch bản / Nhân bản / Render), trạng
-  thái (gồm "Đã hủy"), người bấm, lúc bắt đầu, thời lượng và lỗi. Bấm vào một dòng để mở video.
-- **`/knowledge`:** sửa phần nội dung của prompt và danh sách từ cấm.
-  - Prompt trống thì không cho lưu.
-  - Có nút "Khôi phục mặc định".
-  - Prompt mặc định là nội dung trong [default-prompt.md](default-prompt.md), chép nguyên văn từ
-    bản plan của chủ dự án, kèm `samples/xuong-khop.json` làm ví dụ đầu ra.
+  thái (gồm "Đã hủy"), người bấm, lúc bắt đầu, thời lượng, số lần gọi Claude và lỗi. Bấm vào một
+  dòng để mở video.
+- **`/knowledge`:** có hai ô prompt và danh sách từ cấm.
+  - Ô "Prompt viết kịch bản" (phần 1). Mặc định là mục "Ô 1" trong
+    [default-prompt.md](default-prompt.md): Custom Instructions, Prompt viết kịch bản, công thức
+    tiêu đề và lưu ý an toàn, chép nguyên văn từ bản plan của chủ dự án.
+  - Ô "Prompt nhân bản" (phần 2). Mặc định là mục "Ô 2" trong [default-prompt.md](default-prompt.md),
+    tức bản một biến thể của prompt nhân bản trong plan.
+  - Ô trống thì không cho lưu. Mỗi ô có nút "Khôi phục mặc định" riêng.
   - Từ cấm mặc định: "chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc trị", "khắc tinh".
 
 ## Acceptance Criteria
@@ -221,6 +240,9 @@ Cách đếm:
       chữ tiêu đề đổi.
 - [ ] Upload ảnh JPG/PNG/WebP ≤ 15 MB thành công. File sai loại hoặc quá cỡ bị từ chối với thông
       báo tiếng Việt.
+- [ ] Render bị chặn và lý do hiện tại cảnh trong từng trường hợp: xóa hết cảnh nội dung; để trống
+      tiêu đề hoặc chữ một cảnh; chữ tràn hộp; có cảnh thiếu ảnh. Gỡ nguyên nhân thì Render bấm
+      được lại.
 - [ ] Biên của các quy tắc chặn Render:
   - giây mỗi cảnh: 0,9 bị chặn; 1 và 10 qua; 10,1 bị chặn (áp cả cho cảnh tiêu đề);
   - tổng độ dài (tính cả cảnh tiêu đề): 90 giây qua, 91 giây bị chặn.
@@ -234,7 +256,7 @@ Cách đếm:
 - [ ] Render xong thì MP4 phát được và tua được trên reels.quangdang.xyz, và tải về được.
 - [ ] Render qua đường server (dữ liệu video và cảnh trong database, ảnh trong storage) với nội dung
       của `samples/xuong-khop.json` và ảnh của nó cho MP4 giống MP4 do CLI
-      `python -m reels_render samples/xuong-khop.json` tạo ra: cùng độ dài, cùng kích thước
+      `python -m reels_render samples/xuong-khop.json -o <file>.mp4` tạo ra: cùng độ dài, cùng kích thước
       1080×1920, khung hình ở giữa mỗi cảnh chênh lệch trung bình ≤ 3/255.
 - [ ] Trên server, video khoảng 25 giây render xong trong không quá 2× độ dài, theo thời lượng
       render hiện ở trang video.
@@ -243,17 +265,24 @@ Cách đếm:
 - [ ] Hủy job viết kịch bản để lại video nháp rỗng có nút "Viết kịch bản" và "Xóa". Hủy job render
       giữ MP4 cũ. Cả hai job đều có trạng thái "Đã hủy".
 - [ ] Render lại lỗi thì video vẫn "Xong" kèm nhãn "Render lại lỗi", MP4 cũ vẫn xem và tải được.
-      Sửa sau khi render thì hiện nhãn "MP4 chưa cập nhật theo bản sửa".
-- [ ] Job chạy quá 15 phút bị dừng và chuyển thành Lỗi, rồi job kế tiếp trong hàng chạy được mà
-      không cần khởi động lại container. Kết quả đến muộn bị bỏ. Job Lỗi có lý do tiếng Việt và nút
-      "Thử lại".
+      Sau khi render, sửa chữ cảnh thì hiện nhãn "MP4 chưa cập nhật theo bản sửa", còn sửa caption
+      thì không.
+- [ ] B đang gõ thì A bấm Render: lần lưu của B bị từ chối với thông báo "Video đang render, chưa
+      lưu", và chữ B đã gõ vẫn còn trong ô.
+- [ ] Job chạy quá 15 phút bị dừng hẳn (không còn tiến trình FFmpeg nào của nó) và chuyển thành
+      Lỗi. Job đó không ghi thêm gì. Job kế tiếp trong hàng chạy được mà không cần khởi động lại
+      container. Job Lỗi có lý do tiếng Việt, mục "Chi tiết lỗi" và nút "Thử lại".
+- [ ] Khởi động lại worker khi đang có job chạy: job đó thành Lỗi "Worker khởi động lại giữa
+      chừng", video được mở khóa, và job không tự chạy lại.
 - [ ] Claude trả JSON hỏng, thiếu tiêu đề hoặc không có cảnh thì worker gọi lại một lần, vẫn hỏng
       thì job Lỗi. Đầu ra có giây 0,5 được lưu thành 4. Từ khóa 150 ký tự được cắt còn 100.
 - [ ] Danh sách video có ảnh thu nhỏ, trạng thái, nhãn phụ, người tạo, ngày, và tìm được theo tiêu
       đề hoặc chủ đề. Xóa video thì mọi file của nó biến mất khỏi storage.
-- [ ] `/knowledge` sửa và lưu được prompt cùng từ cấm, và job sau dùng bản mới. Prompt trống không
-      lưu được. "Khôi phục mặc định" đưa về nội dung của `default-prompt.md`.
-- [ ] Nút copy "caption + hashtag" và nút copy bình luận ghim chép đúng nội dung đang lưu.
+- [ ] `/knowledge` sửa và lưu được "Prompt viết kịch bản" cùng từ cấm, và job sau dùng bản mới.
+      Prompt trống không lưu được. "Khôi phục mặc định" đưa ô về đúng mục "Ô 1" của
+      `default-prompt.md`.
+- [ ] Gợi ý nhạc hiện ở trang video và sửa được. Nút copy "caption + hashtag", nút copy bình luận
+      ghim và nút copy gợi ý nhạc chép đúng nội dung đang lưu.
 - [ ] Mọi endpoint trả file (MP4, ảnh, ảnh thu nhỏ, MP3) trả 401 khi chưa đăng nhập.
 - [ ] Một thành viên đi từ chủ đề đến MP4 trên reels.quangdang.xyz trong không quá 10 phút.
 
@@ -264,10 +293,14 @@ Cách đếm:
       ID3 hay MPEG frame) bị từ chối.
 - [ ] Thay MP3, gỡ MP3 (render ra bản im lặng) và đổi âm lượng (mặc định 25%, lưu theo video) đều
       phản ánh đúng trong MP4. MP3 hỏng lúc render cho job Lỗi "File nhạc không đọc được".
-- [ ] Gợi ý nhạc hiện ở trang video, sửa được và copy được.
+- [ ] Sau khi render, đổi MP3 hoặc âm lượng thì bật nhãn "MP4 chưa cập nhật theo bản sửa".
 - [ ] Nhân bản với yêu cầu đổi tạo ra một video nháp mới có kịch bản mới và ảnh Pixabay mới, kèm
       bản chép của MP3, âm lượng và gợi ý nhạc. Yêu cầu trống bị từ chối. Video gốc không đổi,
       không bị khóa. Xóa video gốc sau khi bấm không làm mất nhạc của bản nháp.
+- [ ] Hủy job nhân bản còn chờ rồi bấm "Viết kịch bản" trên bản nháp đó thì chạy lại job nhân bản
+      với yêu cầu đổi cũ, và MP3 đã chép vẫn còn.
+- [ ] Ô "Prompt nhân bản" trên `/knowledge` sửa và lưu được, và job nhân bản sau dùng bản mới. "Khôi
+      phục mặc định" đưa ô về mục "Ô 2" của `default-prompt.md`.
 - [ ] `/jobs` liệt kê mọi job kèm loại, trạng thái (gồm "Đã hủy"), người bấm, thời lượng và lỗi.
       Bấm một dòng thì mở video.
 
@@ -313,15 +346,19 @@ Cách đếm:
   worker kiểm tra JSON, gọi lại một lần, tự sửa các lệch nhẹ, còn lại đưa qua quy tắc chặn/cảnh
   báo.
 - **Risk 4:** chi phí Claude tăng không kiểm soát (không giới hạn số lần gọi). **Mitigation:** người
-  dùng chấp nhận rủi ro này. Nhật ký `/jobs` cho thấy số lần gọi.
+  dùng chấp nhận rủi ro này. Worker ghi log mỗi lời gọi Claude kèm số token, và trang Anthropic
+  Console cho thấy tổng chi phí ngay từ phần 1. Ở phần 2, `/jobs` có thêm cột số lần gọi Claude của
+  mỗi job (gồm cả lần gọi lại).
 - **Risk 5:** ổ VPS đầy (khoảng 10–30 MB mỗi video). **Mitigation:** xóa video là xóa cứng mọi
   file. Lớp storage cho phép thêm backend R2 sau.
 - **Risk 6:** MP3 có bản quyền do thành viên tự upload có thể bị tắt tiếng hoặc mất kiếm tiền.
   **Mitigation:** mặc định không có nhạc, và app gợi ý tên nhạc để chọn trong app TikTok hoặc
   Facebook khi đăng.
-- **Risk 7:** FFmpeg hoặc Claude treo làm job kẹt và chặn cả hàng đợi. **Mitigation:** mọi lời gọi
-  ngoài có timeout. Worker tự dừng job quá 15 phút rồi chạy job tiếp. Coolify tự khởi động lại
-  container nếu tiến trình worker chết.
+- **Risk 7:** FFmpeg hoặc Claude treo, hoặc worker chết giữa chừng, làm job kẹt và chặn cả hàng
+  đợi. **Mitigation:** mỗi job chạy trong một tiến trình con riêng, giết được khi quá 15 phút, và
+  mọi lời gọi ngoài có timeout. Khi khởi động, worker chuyển job chạy dở thành Lỗi. Coolify tự khởi
+  động lại container nếu tiến trình worker chết. Không cần sửa `reels_render`: hàm `render_video`
+  chạy bên trong tiến trình con.
 - **Risk 8:** spec lớn, một lỗi ở phần phụ chặn luồng chính. **Mitigation:** làm hai phần, mỗi phần
   một PR. Phần 1 deploy và kiểm tra trước.
 
@@ -355,6 +392,11 @@ Cách đếm:
   code.
 - Code worker nằm trong gói `reels_api` (một lệnh riêng). Lý do: chỉ có một bản model và
   migration.
+- Mỗi job chạy trong một tiến trình con riêng để dừng hẳn được khi quá 15 phút, không phải sửa
+  `reels_render`. Worker khởi động lại thì job chạy dở chuyển Lỗi, không tự chạy lại, để tránh gọi
+  Claude ngoài ý muốn.
+- `/knowledge` có hai ô prompt (viết kịch bản, nhân bản), mỗi ô có nút khôi phục mặc định riêng.
+- Nhãn "MP4 chưa cập nhật" chỉ bật khi sửa thứ làm MP4 khác đi.
 - Không giới hạn số lần gọi Claude. Người dùng không chọn tính năng này.
 
 ## Testing
@@ -380,17 +422,24 @@ thật và tiến trình thật. Render cần FFmpeg thật để chứng minh M
   - ảnh xem trước khung hình và ảnh thu nhỏ (tạo khi có ảnh tiêu đề, tạo lại khi ảnh hoặc chữ tiêu
     đề đổi);
   - lưới Pixabay và "Tìm lại ảnh": thành công, quá thời gian, sai key;
-  - cờ "MP4 chưa cập nhật" và nhãn "Render lại lỗi";
-  - nhân bản: yêu cầu trống bị từ chối; MP3 được chép thành asset riêng.
+  - cờ "MP4 chưa cập nhật" (bật với chữ, giây, ảnh, thứ tự, tiêu đề, MP3, âm lượng; không bật với
+    caption, hashtag, affiliate, bình luận ghim, gợi ý nhạc, từ khóa, prompt ảnh) và nhãn "Render
+    lại lỗi";
+  - lưu một ô khi video vừa bị khóa bị từ chối với thông báo rõ;
+  - nhân bản: yêu cầu trống bị từ chối; MP3 được chép thành asset riêng; hủy rồi "Viết kịch bản"
+    chạy lại job nhân bản với dữ liệu đã chụp.
 - Vòng lặp worker (pytest với Postgres thật, test commit thật chứ không bọc trong transaction, và
   FFmpeg trong job CI chạy các test này):
   - nhận job tuần tự; Hủy tranh chấp với nhận job (SKIP LOCKED);
   - job quá 15 phút bị dừng thật (dùng một FFmpeg hoặc Claude giả bị treo, hạ ngưỡng thời gian
-    trong test), chuyển Lỗi, và job kế tiếp chạy được; kết quả muộn bị bỏ;
+    trong test): tiến trình con và FFmpeg đều chết, job chuyển Lỗi, không ghi thêm gì, và job kế
+    tiếp chạy được;
+  - worker khởi động khi có job đang chạy dở: job thành Lỗi, video mở khóa, job không tự chạy lại;
+  - chi tiết lỗi (stderr FFmpeg, câu trả lời thô của Claude) được lưu vào job;
   - job viết kịch bản và nhân bản với Claude giả: hợp lệ; hỏng → gọi lại → Lỗi; lệch nhẹ → lưu;
   - tự gán Pixabay giả, và Pixabay lỗi vẫn lưu kịch bản;
   - render thật bằng FFmpeg từ dữ liệu `samples/xuong-khop.json` đã nạp vào database, so với MP4
-    do CLI tạo trong cùng test (độ dài, kích thước, khung giữa mỗi cảnh ≤ 3/255); so khung đầu với
+    do CLI (`python -m reels_render samples/xuong-khop.json -o <file>.mp4`) tạo trong cùng test (độ dài, kích thước, khung giữa mỗi cảnh ≤ 3/255); so khung đầu với
     ảnh xem trước cảnh tiêu đề;
   - render lỗi giữ MP4 cũ; MP3 hỏng → "File nhạc không đọc được";
   - worker chờ khi bảng `jobs` chưa có.
@@ -419,7 +468,7 @@ cả việc tự cập nhật trạng thái và phát MP4 trong trình duyệt.
 |------|-----------------|
 | 1. Chạy pytest của api (gồm các test vòng lặp worker, với Postgres và FFmpeg) và của `worker/` | Tất cả qua |
 | 2. Chạy `npm run typecheck`, `npm run e2e` và build OpenNext trong `web/` | Tất cả qua |
-| 3. Chạy test so khớp render: nạp `samples/xuong-khop.json` cùng ảnh vào database và storage, chạy job render, rồi so với MP4 của `python -m reels_render samples/xuong-khop.json` | Cùng độ dài và kích thước, khung giữa mỗi cảnh chênh ≤ 3/255, khung đầu khớp ảnh xem trước tiêu đề |
+| 3. Chạy test so khớp render: nạp `samples/xuong-khop.json` cùng ảnh vào database và storage, chạy job render, rồi so với MP4 của `python -m reels_render samples/xuong-khop.json -o <file>.mp4` | Cùng độ dài và kích thước, khung giữa mỗi cảnh chênh ≤ 3/255, khung đầu khớp ảnh xem trước tiêu đề |
 | 4. Chạy local api, worker và web với Claude và Pixabay thật (nếu `.env` có key), tạo video "thực phẩm tốt cho xương khớp người sau 50 tuổi", rồi render | Kịch bản đủ các phần, MP4 9:16 tạo được, thời lượng job render ≤ 2× độ dài trên máy dev |
 | 5. Build image api và image worker bằng Docker từ gốc repo | Cả hai build được. Image worker có `ffmpeg -version` ≥ 4.3 và `ffprobe` |
 | 6. Đọc README phần triển khai | Có đủ các bước thủ công trên Coolify, GitHub và Cloudflare (xem User Verification) |
