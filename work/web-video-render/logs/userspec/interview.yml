@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-29 19:20:00"
-  last_updated: "2026-10-29 22:20:00"
+  last_updated: "2026-10-29 23:00:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -145,6 +145,15 @@ conversation_history:
       1. Tự lưu từng ô/từng cảnh (Recommended)
       2. Trạng thái "Đã hủy" + làm lại được (Recommended)
       3. Thay / gỡ + chỉnh âm lượng (Recommended)
+  - asked_at: "2026-10-29 22:55:00"
+    topic_keys: ["constraints", "deploy_approach", "edge_cases", "ui_ux_requirements"]
+    agent_questions: |
+      (Vòng thẩm định 1)
+      1. Agent thẩm định cảnh báo spec đang rất lớn: cả hạ tầng mới (worker, hàng đợi, storage, upload) lẫn nhiều phần phụ trong một lần làm, nên một lỗi ở phần phụ có thể chặn cả luồng chính. Bạn muốn thế nào? Giữ một spec, làm theo thứ tự (Recommended) — (1) luồng chính chủ đề → Claude → ảnh tự gán → sửa → render → tải, deploy và kiểm tra trên server trước; (2) sau đó mới thêm nhân bản, /jobs, lưới Pixabay, nhạc MP3; mỗi phần một PR / Tách thành 2 spec / Giữ nguyên
+      2. Video đã có MP4 mà render lại bị lỗi (hoặc bị hủy) thì danh sách hiện trạng thái gì? "Xong" + dấu lỗi lần cuối (Recommended) / "Lỗi"
+    user_answer: |
+      1. Giữ một spec, làm theo thứ tự (Recommended)
+      2. "Xong" + dấu lỗi lần cuối (Recommended)
 # Entry format:
 # - asked_at: "YYYY-MM-DD HH:MM:SS"
 #   topic_keys: ["user_problem", "success_criteria"]
