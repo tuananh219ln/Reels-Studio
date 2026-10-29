@@ -1,8 +1,9 @@
 # Architecture
 
-Status: only the render core, including its Pixabay stock search, is built (see
-[Render Core](#render-core)). The `web`, `api`, queue, database, and TTS are agreed design and
-not yet built.
+Status: built so far are the render core with its Pixabay stock search (see
+[Render Core](#render-core)) and the web app skeleton with login and user management (see
+[Web App and Auth](#web-app-and-auth)). Videos, scenes, the knowledge base, the queue, the worker
+service, and TTS are agreed design and not yet built.
 
 ## Tech Stack
 
@@ -35,7 +36,9 @@ Claude script generation, and Knowledge Base drafting all run in the worker.
 
 ## Components
 
-All components will run under Docker Compose (planned; not set up yet).
+All components will run under Docker Compose. Today `docker-compose.yml` runs only `postgres`
+for local development; `web` and `api` run natively, and their Dockerfiles come with the VPS deploy
+spec.
 
 | Component | Responsibility |
 |---|---|
@@ -129,7 +132,36 @@ Later phases add the Meta (Instagram/Facebook) and TikTok publishing APIs.
 | KnowledgeDoc | one per knowledge document type; editable content (no approval state) |
 | FoodItem | food, main nutrients, benefits, who should avoid it, source URLs, `draft` / `approved` status |
 
-The migration tool will be chosen at scaffold time.
+Built so far: `users` (email unique and lowercase, name, Argon2 password hash, must-change-password
+flag, active flag, creator, created at, last login) and `sessions`. Migrations use Alembic
+(`api/migrations/`).
+
+## Web App and Auth
+
+- **Layout:** `web/` is Next.js 16 (App Router, TypeScript) with Ant Design (primary color
+  `#0F3B4C`); `api/` is FastAPI with SQLAlchemy 2, psycopg 3, and Alembic. Each manages its own
+  dependencies, like `worker/`.
+- **One origin:** the web app calls the API through the Next.js rewrite `/api/*` → `API_URL`, so
+  the session cookie is first-party and the API needs no CORS. `web/src/proxy.ts` redirects app
+  pages to `/login` before rendering when there is no session cookie; the API validates the session
+  on every request.
+- **Login:** email + password only. There is no self-signup. Google login is deferred until the app
+  has an HTTPS domain. The CLI `python -m reels_api create-user` creates the first user and is the
+  recovery path: for an existing email it resets the password, re-enables the account, and signs out
+  all its sessions.
+- **Sessions:** an opaque random token in an `httpOnly`, `SameSite=Lax` cookie. Postgres stores only
+  its SHA-256 hash. Sessions last 30 days and slide on every request. They live in the database,
+  not in a JWT, so disabling a user, setting a temporary password, changing a password, and "sign
+  out of all devices" take effect immediately.
+- **Users are disabled, never deleted,** and can be re-enabled. Nobody can disable themselves, and at
+  least one active user always remains. Disabling locks all active user rows, so two people disabling
+  each other at once cannot both succeed.
+- **Temporary passwords** (set when adding a user or by a teammate) force a password change. The
+  API itself blocks everything except `GET /api/me`, the password change, and logout until then.
+- **CSRF:** POST/PUT/PATCH/DELETE must carry an `Origin` listed in `ALLOWED_ORIGINS`.
+- **Errors:** refusals return `{code, message}` with a Vietnamese message. A database outage returns
+  503 `database_unavailable`. Login failures use one generic message, and "account disabled" is
+  shown only after a correct password.
 
 ### Sensitive Data
 

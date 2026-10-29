@@ -17,6 +17,11 @@ Web app nội bộ tạo video ngắn dọc 9:16 (20–40 giây) cho Reels, TikT
 .codex/                     # Bản sinh tự động cho Codex — không sửa tay
 .githooks/pre-commit        # Đồng bộ .claude/** sang .codex/** + AGENTS.md
 
+worker/           # Lõi render video (Python, CLI reels_render)
+api/              # FastAPI: đăng nhập, phiên, quản lý người dùng (Postgres + Alembic)
+web/              # Next.js + Ant Design: giao diện web
+docker-compose.yml  # Postgres cho máy dev
+
 backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
 work/             # Tính năng và lỗi đang làm
 └── [feature]/    # Mỗi tính năng có một user-spec.md
@@ -38,6 +43,38 @@ Dự án dùng cách làm **spec-driven** với AI agent:
 2. Tài liệu dự án đã có trong `.claude/skills/project-knowledge/`. Muốn cập nhật thì yêu cầu
    "cập nhật tài liệu" (skill `documentation-writing`).
 3. Lên spec cho tính năng đầu tiên bằng skill `user-spec-planning`.
+
+## Chạy web app trên máy (localhost)
+
+Cần: Docker Desktop (Windows cần WSL2: `wsl --install` bằng quyền admin rồi khởi động lại máy),
+Python 3.12, Node 20.9 trở lên. Mọi lệnh chạy từ thư mục gốc repo, trong PowerShell.
+
+1. **Cấu hình:** chép `.env.example` thành `.env` (nếu đã có `.env` thì thêm các dòng còn thiếu).
+2. **Postgres:** `docker compose up -d postgres`. Lần đầu (volume trống) container tạo sẵn ba
+   database: `reels` (dev), `reels_test` (pytest), `reels_e2e` (Playwright).
+3. **api** (một lần):
+   ```powershell
+   cd api
+   py -3.12 -m venv .venv
+   .venv\Scripts\python -m pip install -e ".[dev]"
+   .venv\Scripts\alembic upgrade head
+   .venv\Scripts\python -m reels_api create-user   # tạo người dùng đầu tiên (mật khẩu nhập ẩn)
+   ```
+4. **web** (một lần): `cd web` rồi `npm install` và `npx playwright install chromium`.
+5. **Chạy** (hai cửa sổ terminal):
+   ```powershell
+   cd api; .venv\Scripts\python -m uvicorn reels_api.main:create_app --factory --port 8000
+   cd web; npm run dev
+   ```
+   Mở http://localhost:3000 và đăng nhập.
+
+**Khôi phục khi bị khóa ngoài** (quên mật khẩu, bị vô hiệu hoá): chạy lại
+`.venv\Scripts\python -m reels_api create-user` trong `api/` với email đã có. Lệnh hỏi xác nhận rồi
+đặt mật khẩu mới, kích hoạt lại và đăng xuất mọi phiên cũ.
+
+**Kiểm thử:** `cd api; .venv\Scripts\python -m pytest` (cần Postgres đang chạy) và
+`cd web; npm run e2e` (tự bật api và web riêng ở cổng 8100/3100 trên `reels_e2e`; chạy được cả khi
+server dev đang bật).
 
 ## Online Pipeline (tùy chọn)
 
