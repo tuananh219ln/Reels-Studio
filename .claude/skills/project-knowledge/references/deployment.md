@@ -23,7 +23,8 @@ first and adds a 5-second delay. The setup commands are in the README.
 
 | Part | Where | How it is built |
 |---|---|---|
-| `api` + `postgres` | Coolify server, [docker-compose.coolify.yml](../../../../docker-compose.coolify.yml) | Coolify builds `api/Dockerfile` from git |
+| `api` | Coolify application, Dockerfile build pack, base directory `/api` | Coolify builds [api/Dockerfile](../../../../api/Dockerfile) from git |
+| `postgres` | Coolify standalone PostgreSQL 17, database `reels`, not public | Not redeployed by CI; Coolify Scheduled Backups |
 | `web` | Cloudflare Workers, worker `reels-studio-web` ([web/wrangler.jsonc](../../../../web/wrangler.jsonc)) | `@opennextjs/cloudflare` in GitHub Actions |
 
 - **Why Workers, not Pages:** the web app needs a server runtime for `proxy.ts` and the `/api/*`
@@ -38,6 +39,9 @@ first and adds a 5-second delay. The setup commands are in the README.
   Cloudflare build. A push to `main` that passes all of them deploys: Coolify deploy webhook first,
   waiting for Coolify to report `finished`, then `npm run deploy` in `web/`. Coolify auto-deploy
   must stay off, or a push deploys before the tests pass.
+- **Database URL:** the api's `DATABASE_URL` is the Postgres internal URL Coolify shows
+  (`postgres://…`); `config.database_url()` rewrites a driverless `postgres://`/`postgresql://`
+  scheme to `postgresql+psycopg://`.
 - **Migrations** run in the api container on every start (`alembic upgrade head`), before uvicorn.
   Write migrations so the previous api version keeps working until the web deploy finishes.
 - **GitHub environment `production`:** secrets `COOLIFY_WEBHOOK`, `COOLIFY_TOKEN`,
@@ -45,9 +49,8 @@ first and adds a 5-second delay. The setup commands are in the README.
 - **Rollback:** api — redeploy an earlier deployment in Coolify; web — `npx wrangler rollback` in
   `web/` or the Workers dashboard. A rollback does not revert migrations.
 
-**Planned runtime:** the `worker` and `redis` services and the storage volume (see
-[architecture.md](architecture.md#components)) join `docker-compose.coolify.yml` when they are
-built.
+**Planned runtime:** `worker` and `redis` become further Coolify resources next to the api, plus
+the storage volume (see [architecture.md](architecture.md#components)), when they are built.
 
 ## Environment Variables
 
@@ -62,10 +65,10 @@ wins, even when set to an empty string.
 | `PIXABAY_API_KEY` | Stock image search in the render core (in use) |
 | `TTS_PROVIDER` | `edge` or `azure` |
 | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | Needed only when `TTS_PROVIDER=azure` |
-| `DATABASE_URL` | api: dev database (in use) |
+| `DATABASE_URL` | api: dev database; in production the Coolify Postgres internal URL (in use) |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` (in use) |
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain (in use) |
-| `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set in `docker-compose.coolify.yml`, empty on localhost (in use) |
+| `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost (in use) |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable (in use) |
 | `REDIS_URL` | Queue connection |
 | `STORAGE_DIR` | Root of the media storage volume |
@@ -85,5 +88,5 @@ sync with `.env.example`.
 - **Storage growth:** each video is about 10–30 MB, which is about 1–3 GB/month at 3 videos/day.
   There is no cleanup in the MVP.
 
-Not yet defined: monitoring and Postgres backups (Coolify can schedule database backups once the
-stack runs).
+Not yet defined: monitoring. Postgres backups use Coolify Scheduled Backups on the database
+resource.

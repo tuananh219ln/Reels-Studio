@@ -21,7 +21,6 @@ worker/           # Lõi render video (Python, CLI reels_render)
 api/              # FastAPI: đăng nhập, phiên, quản lý người dùng (Postgres + Alembic)
 web/              # Next.js + Ant Design: giao diện web
 docker-compose.yml  # Postgres cho máy dev
-docker-compose.coolify.yml  # Stack production trên Coolify (api + postgres)
 
 backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
 work/             # Tính năng và lỗi đang làm
@@ -82,29 +81,35 @@ server dev đang bật).
 Workflow `.github/workflows/ci-cd.yml` chạy kiểm thử (api, worker, web + E2E, build Cloudflare)
 trên mọi PR. Khi merge vào `main` và mọi kiểm thử đều qua, workflow mới triển khai:
 
-1. **api + postgres → Coolify:** gọi deploy webhook, Coolify tự build từ git theo
-   `docker-compose.coolify.yml`, chạy migration khi khởi động. Workflow chờ Coolify báo `finished`.
+1. **api → Coolify:** gọi deploy webhook, Coolify tự build `api/Dockerfile` từ git, container
+   chạy migration khi khởi động. Workflow chờ Coolify báo `finished`. Postgres là một database
+   riêng trên Coolify, không bị deploy lại.
 2. **web → Cloudflare:** build bằng OpenNext rồi `wrangler deploy` (Cloudflare Workers — Cloudflare
    khuyên dùng cho Next.js thay cho Pages). `/api/*` được chuyển tiếp tới domain api trên Coolify,
    nên cookie phiên vẫn thuộc domain web.
 
 **Cài đặt một lần:**
 
-1. **Coolify:** tạo resource mới → chọn repo này (GitHub App hoặc deploy key), nhánh `main`,
-   build pack **Docker Compose**, Docker Compose Location `/docker-compose.coolify.yml`.
-   - Gán domain cho service `api`, ví dụ `https://api.example.com` (cổng 8000).
-   - Biến môi trường: `ALLOWED_ORIGINS=https://app.example.com` (domain web).
-     `SERVICE_PASSWORD_POSTGRES` do Coolify tự sinh.
+1. **Coolify — Postgres:** + New → Database → **PostgreSQL** (bản 17), Initial Database `reels`,
+   không bật Make it publicly available. Start, rồi bật **Scheduled Backups**. Copy
+   **Postgres URL (internal)**.
+2. **Coolify — api:** + New → Application từ repo này (GitHub App hoặc deploy key), nhánh `main`,
+   build pack **Dockerfile**, Base Directory `/api`, cổng `8000`, cùng server và cùng project với
+   Postgres.
+   - Domain: ví dụ `https://api.example.com`.
+   - Biến môi trường: `DATABASE_URL` = Postgres URL (internal) vừa copy (dán nguyên, app tự đổi
+     `postgres://` thành driver psycopg), `ALLOWED_ORIGINS=https://app.example.com` (domain web),
+     `COOKIE_SECURE=true`.
    - Advanced → Auto deploy: chọn **Manual deployments only**, để chỉ GitHub Actions triển khai
      sau khi kiểm thử qua.
-   - Keys & Tokens → tạo API token quyền `deploy`. Webhook nằm ở tab Webhooks của resource.
-2. **Cloudflare:** tạo API token theo mẫu "Edit Cloudflare Workers"; ghi lại Account ID. Sau lần
+   - Keys & Tokens → tạo API token quyền `deploy`. Webhook nằm ở tab Webhooks của application.
+3. **Cloudflare:** tạo API token theo mẫu "Edit Cloudflare Workers"; ghi lại Account ID. Sau lần
    deploy đầu, vào Workers → `reels-studio-web` → Settings → Domains & Routes để gắn domain web
    (`app.example.com`).
-3. **GitHub** (Settings → Environments → tạo environment `production`):
+4. **GitHub** (Settings → Environments → tạo environment `production`):
    - Secrets: `COOLIFY_WEBHOOK`, `COOLIFY_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
    - Variable: `API_URL=https://api.example.com` (domain api trên Coolify, không có `/` cuối).
-4. **Người dùng đầu tiên:** trong Coolify mở Terminal của container `api` và chạy
+5. **Người dùng đầu tiên:** trong Coolify mở Terminal của container `api` và chạy
    `python -m reels_api create-user`.
 
 Nếu domain api cũng đi qua Cloudflare (đám mây cam), đặt SSL/TLS là **Full (strict)**.

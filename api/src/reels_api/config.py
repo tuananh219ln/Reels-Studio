@@ -44,6 +44,10 @@ def database_url() -> str:
     url = read_env("DATABASE_URL")
     if not url:
         raise ConfigError("Chưa cấu hình DATABASE_URL: chép .env.example thành .env ở thư mục gốc repo")
+    # Coolify shows Postgres URLs without a driver; the app always talks to Postgres through psycopg 3.
+    for scheme in ("postgres://", "postgresql://"):
+        if url.startswith(scheme):
+            return "postgresql+psycopg://" + url.removeprefix(scheme)
     return url
 
 

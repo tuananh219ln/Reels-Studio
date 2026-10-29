@@ -1,7 +1,7 @@
 name: CI/CD
 
 # Every PR and push to main runs the checks. A push to main then deploys, only after every check
-# passes: the api + postgres stack on Coolify first (it runs the migrations), then the web app on
+# passes: the api on Coolify first (it runs the migrations), then the web app on
 # Cloudflare, so the new web never talks to an old API. Setup steps are in the README.
 
 on:
