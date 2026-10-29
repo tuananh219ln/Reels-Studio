@@ -1,0 +1,464 @@
+# User-spec planning interview
+# Questions and answers are preserved verbatim. Topic fields track what is known and still open.
+
+interview_metadata:
+  started: "2026-10-28 23:45:00"
+  last_updated: "2026-10-29 03:00:00"
+  status: "completed"  # in_progress | completed
+  can_resume: true
+
+# Only written/read when the calling context carries the literal signal ONLINE_PIPELINE_AUTOMATED
+# (see user-spec-planning/SKILL.md Step 5). Ignored otherwise; stays null for interactive use.
+automated_validate_state: null
+
+conversation_history:
+  - asked_at: "2026-10-28 23:45:00"
+    topic_keys: ["feature_description", "ui_ux_requirements"]
+    agent_questions: |
+      (Context before the interview) User: "Thiết kế giao diện vào màn hình đăng nhập luôn và thêm các feature luôn".
+      Agent asked which part to start with: Bản thiết kế giao diện / Khung app + đăng nhập thật / Lát cắt đầu tiên chạy được / Cả MVP một lần.
+    user_answer: |
+      "Bản thiết kế giao diện (Recommended)". Then, mid-design, the user sent a screenshot of their MKT-Tools admin app: "theo phong cách này".
+      After the 7-screen prototype (https://claude.ai/artifact/9rHaJJFHQMgVcnEXLvQXcB) was shown, the user answered "Chốt",
+      and the agent proposed the next spec: "khung app + đăng nhập thật (Next.js + FastAPI + Postgres)".
+  - asked_at: "2026-10-28 23:50:00"
+    topic_keys: ["constraints", "deploy_approach", "ui_ux_requirements", "user_stories", "technical_decisions", "target_users"]
+    agent_questions: |
+      1. Máy dev chưa có Docker. Chạy Postgres + api + web thế nào ở giai đoạn này?
+         - Postgres trong Docker (Recommended): Cài Docker Desktop; Postgres chạy bằng docker compose, còn api (Python) và web (Node) chạy trực tiếp trên máy để sửa code thấy ngay. File compose đầy đủ (cả api, web) vẫn có sẵn cho VPS sau này.
+         - Tất cả trong Docker Compose
+         - Không dùng Docker
+      2. Các mục menu chưa làm ở phần này (Kho kiến thức, Thư viện nhạc, Job logs) hiển thị thế nào?
+         - Hiện, trang "Sắp có" (Recommended) / Ẩn cho tới khi làm
+      3. Thành viên mới nhận mật khẩu tạm. Sau lần đăng nhập đầu thì sao?
+         - Bắt buộc đổi (Recommended): đăng nhập bằng mật khẩu tạm thì phải đặt mật khẩu mới trước khi vào app; màn "Đổi mật khẩu" dùng được cả lúc sau từ menu tài khoản.
+         - Không bắt buộc, có màn đổi / Không có đổi mật khẩu
+      4. Đăng nhập giữ bao lâu, và đội có khoảng bao nhiêu người?
+         - 30 ngày, 2–5 người (Recommended): cookie phiên httpOnly, gia hạn khi dùng; đội nhỏ nên không cần phân trang hay phân quyền.
+         - 7 ngày / Hết khi đóng trình duyệt
+    user_answer: |
+      1. Postgres trong Docker (Recommended)
+      2. Hiện, trang "Sắp có" (Recommended)
+      3. Bắt buộc đổi (Recommended)
+      4. 30 ngày, 2–5 người (Recommended)
+  - asked_at: "2026-10-29 00:05:00"
+    topic_keys: ["user_stories", "edge_cases", "feature_description", "success_criteria", "ui_ux_requirements", "technical_constraints"]
+    agent_questions: |
+      1. Mật khẩu tạm (khi thêm thành viên hoặc đặt lại) được tạo và giao thế nào?
+         - Tự sinh, hiện 1 lần (Recommended): App sinh mật khẩu ngẫu nhiên, hiện đúng một lần trong hộp thoại kèm nút Sao chép để bạn gửi qua Zalo/chat. Đóng hộp là không xem lại được (chỉ lưu bản hash). Không gửi email.
+         - Người tạo tự gõ: Người thêm thành viên tự nhập mật khẩu tạm.
+         - Gửi email: Gửi mật khẩu tạm qua email. Cần cấu hình dịch vụ gửi mail (SMTP), thêm việc và chi phí.
+      2. Quy tắc gỡ thành viên và đặt lại mật khẩu?
+         - Không tự gỡ mình (Recommended): Không gỡ được chính mình, nên luôn còn ít nhất 1 người. Gỡ ai thì người đó bị đăng xuất ngay. Đặt lại mật khẩu của ai cũng đăng xuất họ khỏi mọi máy. Có hộp xác nhận trước khi gỡ.
+         - Gỡ được cả mình: Chỉ chặn gỡ người cuối cùng.
+      3. Màn Danh sách video trong phần này có gì?
+         - Chỉ trạng thái trống (Recommended): Tiêu đề Video + khung 'Chưa có video nào'. Nút 'Tạo video mới' để spec sau (cần bảng Video và Claude).
+         - Có nút Tạo video (chưa chạy): Hiện nút nhưng bấm ra thông báo 'Sắp có'.
+      4. Làm xong phần này, bạn muốn làm được gì ngay để coi là thành công? (chọn nhiều)
+         - Một lệnh chạy cả app local: Có hướng dẫn/lệnh rõ ràng để bật Postgres, api, web và mở localhost.
+         - Tạo tài khoản đầu bằng CLI: Một lệnh tạo tài khoản đầu tiên, rồi đăng nhập được.
+         - Đội đăng nhập trên mạng LAN: Người khác trong cùng mạng mở được app trên máy dev. Thêm cấu hình mạng/cookie.
+         - Dùng được trên điện thoại: Giao diện co giãn tốt ở màn hình điện thoại (menu xếp gọn).
+    user_answer: |
+      1. Người tạo tự gõ
+      2. Không tự gỡ mình (Recommended)
+      3. Chỉ trạng thái trống (Recommended)
+      4. Một lệnh chạy cả app local, Tạo tài khoản đầu bằng CLI, Dùng được trên điện thoại, Đội đăng nhập trên mạng LAN
+  - asked_at: "2026-10-29 00:10:00"
+    topic_keys: ["technical_decisions", "constraints", "success_criteria", "user_stories", "risks"]
+    agent_questions: |
+      (User, mid-turn, unprompted: "Có thể làm đanwg nhập bằng gmail là được")
+      Agent explained: Google login removes passwords (temp password / forced change / reset), Members becomes an allow-list of
+      Gmail addresses, needs a Google Cloud OAuth Client (Client ID/Secret in .env), and Google does not accept private-IP redirect
+      URIs (e.g. http://192.168.1.10:3000) — only localhost or a real HTTPS domain — so LAN/phone login would have to wait.
+      1. Chốt cách đăng nhập nào?
+         - Chỉ Google + danh sách Gmail được phép: Không có mật khẩu. Gmail đầu tiên thêm bằng lệnh CLI; sau đó thành viên thêm/gỡ Gmail trong màn Thành viên. Gọn nhất, ít việc nhất, nhưng LAN/điện thoại phải chờ HTTPS.
+         - Google + mật khẩu dự phòng: Có cả hai: Google cho tiện, email/mật khẩu để đăng nhập trên LAN/điện thoại ngay. Nhiều việc và nhiều chỗ dễ sai nhất.
+         - Giữ mật khẩu, Google để sau: Làm đúng như đã chốt (mật khẩu tạm, bắt buộc đổi), LAN/điện thoại dùng được ngay. Thêm Google khi lên VPS có tên miền.
+      2. Nếu chọn Google: xử lý yêu cầu dùng trên LAN/điện thoại thế nào?
+         - Chỉ localhost lúc này (Recommended): Giai đoạn này chỉ đăng nhập trên máy dev. Giao diện vẫn làm co giãn cho điện thoại (thử bằng chế độ thiết bị của trình duyệt). Đội dùng thật khi có VPS + tên miền.
+         - Dựng HTTPS tạm cho máy dev: đường hầm có tên miền HTTPS (ví dụ Cloudflare Tunnel). Thêm cài đặt, và app ra Internet công khai.
+         - Không áp dụng: Tôi chọn giữ mật khẩu ở câu trên.
+    user_answer: |
+      1. Google + mật khẩu dự phòng
+      2. Chỉ localhost lúc này (Recommended)
+  - asked_at: "2026-10-29 00:15:00"
+    topic_keys: ["ui_ux_requirements", "user_stories", "data_requirements"]
+    agent_questions: |
+      (User, mid-turn, unprompted, with a screenshot of their MKT-Tools "Quản lý người dùng" page: "Phần quản lý người dùng như này")
+      Screenshot content: title "Quản lý người dùng"; search "Tìm theo email hoặc tên"; button "+ Thêm người dùng"; table columns
+      Ảnh (avatar), Email, Tên, Vai trò (chip "Thành viên" / "Quản trị viên"), Trạng thái (chip "Hoạt động"), Đăng nhập gần nhất
+      (dd/mm/yyyy hh:mm), Phiên hoạt động (count), Thao tác (role select Thành viên/Quản trị viên, red-outline "Vô hiệu hoá",
+      "Đăng xuất khỏi mọi thiết bị"); the signed-in user's own row shows "Tài khoản của bạn" instead of actions.
+    user_answer: |
+      Phần quản lý người dùng như này [screenshot]
+
+  - asked_at: "2026-10-29 00:18:00"
+    topic_keys: ["technical_decisions", "user_stories", "data_requirements", "ui_ux_requirements", "constraints"]
+    agent_questions: |
+      Agent noted: the screenshot has roles (Quản trị viên / Thành viên) but project.md says MVP has no roles or permissions.
+      1. Ảnh có vai trò Quản trị viên / Thành viên, nhưng tài liệu dự án ghi MVP không có phân quyền. Chốt thế nào?
+         - Có 2 vai trò, chỉ khác ở quản lý người dùng (Recommended): Quản trị viên thấy màn Quản lý người dùng và làm mọi thao tác; Thành viên không thấy màn này, còn lại dùng app như nhau. Tài khoản tạo bằng CLI là Quản trị viên; luôn phải còn ít nhất 1 Quản trị viên hoạt động. Cập nhật project.md cho khớp.
+         - Không phân quyền: Bỏ cột Vai trò; ai cũng quản lý người dùng được, đúng như tài liệu hiện tại.
+      2. Vô hiệu hoá thay cho Gỡ — có kích hoạt lại được không?
+         - Có, không xóa hẳn (Recommended): Vô hiệu hoá: không đăng nhập được, mọi phiên bị đăng xuất ngay; nút đổi thành 'Kích hoạt lại'. Không xóa tài khoản, để sau này video vẫn biết ai tạo. Không tự vô hiệu hoá hay tự đổi vai trò của mình.
+         - Có cả Vô hiệu hoá và Xóa: Thêm nút Xóa hẳn tài khoản.
+      3. Với Google + mật khẩu dự phòng: 'Thêm người dùng' nhập gì, và mật khẩu hoạt động ra sao?
+         - Email + vai trò + mật khẩu tạm (Recommended): Quản trị viên nhập email, chọn vai trò và gõ mật khẩu tạm (tối thiểu 8 ký tự). Người đó vào bằng Google (nếu là Gmail) hoặc bằng mật khẩu tạm rồi bắt buộc đổi. Tên và ảnh lấy từ Google khi họ đăng nhập Google; chưa có thì hiện chữ cái đầu. Có thêm thao tác 'Đặt mật khẩu tạm'.
+         - Email + vai trò, mật khẩu tùy chọn: Mật khẩu tạm không bắt buộc; người không có mật khẩu chỉ vào bằng Google.
+         - Email + tên + vai trò + mật khẩu: Nhập cả tên khi thêm; tên Google không ghi đè.
+      4. 'Phiên hoạt động' và 'Đăng xuất khỏi mọi thiết bị' — bạn có cần thấy danh sách từng thiết bị không?
+         - Chỉ số phiên + nút (Recommended): Đúng như ảnh: cột số phiên còn hạn, nút đăng xuất hết. Không liệt kê từng thiết bị/trình duyệt.
+         - Có danh sách thiết bị: Bấm vào số phiên xem từng thiết bị, thời gian, đăng xuất từng cái.
+    user_answer: |
+      1. Không phân quyền
+      2. Có, không xóa hẳn (Recommended)
+      3. Email + vai trò + mật khẩu tạm (Recommended)
+      4. Chỉ số phiên + nút (Recommended)
+      Agent's resolution of the 1 vs 3 conflict (told to the user, open to correction): no roles at all, so "Thêm người dùng"
+      takes email + temp password only; everyone sees the user-management screen; no Vai trò column.
+  - asked_at: "2026-10-29 00:22:00"
+    topic_keys: ["technical_decisions", "error_scenarios", "risks", "testing_strategy", "verification_strategy"]
+    agent_questions: |
+      1. Giao diện trong ảnh của bạn là kiểu Ant Design. Dùng thư viện giao diện nào?
+         - Ant Design (Recommended): Dùng thư viện antd: bảng, nút, select, hộp thoại, menu giống hệt ảnh MKT-Tools, chỉnh màu teal #0F3B4C. Ít code tự viết nhất, sẵn tiếng Việt.
+         - Tự làm bằng Tailwind: Tự viết component theo bản thiết kế. Nhẹ hơn nhưng nhiều code hơn.
+      2. Đăng nhập sai mật khẩu nhiều lần thì sao?
+         - Khóa tạm 15 phút sau 5 lần (Recommended): Sai 5 lần liên tiếp cho một email thì email đó không đăng nhập bằng mật khẩu được trong 15 phút (Google vẫn được). Thông báo chung 'Email hoặc mật khẩu không đúng', không lộ email nào có trong hệ thống.
+         - Không giới hạn: Đơn giản hơn; chỉ chạy local nên rủi ro thấp, thêm giới hạn khi lên VPS.
+      3. Kiểm thử tới đâu?
+         - API test trên Postgres thật + E2E đăng nhập (Recommended): pytest cho api chạy trên Postgres (Docker), giả lập Google; Playwright chạy trình duyệt thật cho đăng nhập mật khẩu, bắt buộc đổi mật khẩu, quản lý người dùng, đăng xuất, và cỡ màn điện thoại. Đăng nhập Google thật do bạn thử tay.
+         - Chỉ API test: Bỏ E2E trình duyệt; giao diện bạn tự bấm thử.
+    user_answer: |
+      1. Ant Design (Recommended)
+      2. Không giới hạn
+      3. API test trên Postgres thật + E2E đăng nhập (Recommended)
+      Agent noted: no login rate limit is an accepted limitation while local-only (add on VPS); the login error message stays
+      generic ("Email hoặc mật khẩu không đúng").
+  - asked_at: "2026-10-29 00:35:00"
+    topic_keys: ["success_criteria", "constraints", "technical_decisions", "user_stories", "edge_cases", "error_scenarios"]
+    agent_questions: |
+      (After the interview-completeness-checker; agent also told the user it decided locally: separate test database
+      reels_test; drop SESSION_SECRET because sessions are opaque DB tokens; hide the Google button when Google is not configured.)
+      1. Bạn chọn mật khẩu dự phòng để dùng được trên LAN/điện thoại. Đăng nhập bằng mật khẩu qua LAN có nằm trong phần này không?
+         - Có, mật khẩu chạy trên LAN (Recommended): App mở được từ máy khác/điện thoại cùng mạng qua http://<IP máy dev>:3000, đăng nhập bằng mật khẩu. Nút Google chỉ hiện khi mở bằng localhost. Phải mở cổng 3000 trên tường lửa Windows; mật khẩu đi qua http không mã hóa trong mạng nội bộ.
+         - Không, chỉ localhost: Mọi thứ chỉ dùng trên máy dev; LAN/điện thoại đợi VPS.
+      2. Cách làm đăng nhập Google (kỹ thuật) — đồng ý phương án này?
+         - Đồng ý (Recommended): api nhận callback tại http://localhost:3000/api/auth/google/callback (qua Next.js, nên cookie cùng trang). Có state + PKCE chống giả mạo. Khớp người dùng theo email Google đã xác minh; lần đầu ghi lại mã tài khoản Google, các lần sau phải trùng mã đó. Google lỗi/chậm quá 15 giây → về trang đăng nhập kèm thông báo. Bạn thêm đúng URI trên vào Google Cloud.
+         - Chỉ khớp theo email: Như trên nhưng không ghi mã tài khoản Google; chỉ so email mỗi lần.
+      3. Nếu cả đội bị khóa ngoài (quên mật khẩu, hoặc vô hiệu hoá lẫn nhau), gỡ bằng gì? Lệnh CLI gặp email đã có thì sao?
+         - CLI đặt lại + kích hoạt (Recommended): Lệnh CLI với email đã có: đặt mật khẩu mới, kích hoạt lại, đăng xuất các phiên cũ (hỏi xác nhận trước). Mật khẩu nhập ẩn 2 lần trong terminal, không truyền qua tham số; không có terminal thì báo lỗi. Người tạo bằng CLI không bị bắt đổi mật khẩu. App chặn vô hiệu hoá người hoạt động cuối cùng.
+         - CLI chỉ tạo mới: Email đã có thì báo lỗi; khôi phục phải sửa database tay.
+      4. Đổi mật khẩu và thông báo tài khoản bị vô hiệu hoá — đồng ý quy tắc này?
+         - Đồng ý (Recommended): Màn bắt buộc đổi (sau mật khẩu tạm) không hỏi mật khẩu cũ; đổi từ menu thì hỏi. Người chỉ dùng Google muốn có mật khẩu riêng: nhờ đồng đội 'Đặt mật khẩu tạm'. Đổi xong thì các phiên khác bị đăng xuất, phiên hiện tại giữ. Đăng nhập Google không bị bắt đổi mật khẩu. 'Tài khoản đã bị vô hiệu hoá' chỉ hiện khi mật khẩu đúng hoặc qua Google, sai mật khẩu thì vẫn thông báo chung.
+         - Màn đổi từ menu không hỏi MK cũ: Để người dùng Google tự đặt mật khẩu được; kém an toàn hơn khi quên đăng xuất trên máy chung. Các quy tắc khác như bên cạnh.
+    user_answer: |
+      1. Không, chỉ localhost
+      2. "Tạm thời mail và pass đã" (free text)
+      3. CLI đặt lại + kích hoạt (Recommended)
+      4. Đồng ý (Recommended)
+      Agent's reading (told to the user): drop Google login from this spec entirely; email + password only; Google goes to a
+      later spec (backlog). App runs on localhost only.
+  - asked_at: "2026-10-29 00:40:00"
+    topic_keys: ["user_stories", "data_requirements", "ui_ux_requirements"]
+    agent_questions: |
+      Không có Google thì tên và ảnh đại diện lấy từ đâu?
+      - Nhập tên khi thêm, ảnh là chữ cái đầu (Recommended): 'Thêm người dùng' = email + tên + mật khẩu tạm. Mỗi người tự sửa tên của mình trong menu tài khoản. Ảnh đại diện là vòng tròn chữ cái đầu của tên, không tải ảnh lên.
+      - Bỏ cột Tên và Ảnh: Bảng chỉ có email; header hiện email.
+      - Có tên và cho tải ảnh đại diện: Thêm chức năng tải ảnh lên; nhiều việc hơn (lưu file, kiểm tra ảnh).
+    user_answer: |
+      Nhập tên khi thêm, ảnh là chữ cái đầu (Recommended)
+
+  - asked_at: "2026-10-29 00:55:00"
+    topic_keys: ["user_stories", "edge_cases", "testing_strategy", "ui_ux_requirements", "technical_decisions"]
+    agent_questions: |
+      (After the second completeness check; agent told the user it decided locally: E2E runs on its own database reels_e2e with
+      its own api/web on ports 8100/3100; while a must-change-password flag is on, the API itself only allows changing the
+      password and logging out; email must be a valid format and name 1–60 characters, same rules in the app and the CLI.)
+      1. Người đang bị vô hiệu hoá thì dòng của họ có những thao tác nào?
+         - Chỉ 'Kích hoạt lại' (Recommended): Ẩn 'Đặt mật khẩu tạm' và 'Đăng xuất khỏi mọi thiết bị' (đã bị đăng xuất rồi). Muốn cho họ vào lại: Kích hoạt lại (có xác nhận), rồi đặt mật khẩu tạm nếu cần.
+         - Đặt MK tạm cũng kích hoạt: Giống CLI: đặt mật khẩu tạm cho người bị vô hiệu hoá thì kích hoạt luôn.
+      2. Khôi phục bằng CLI với email đã có: xử lý tên và cờ bắt đổi mật khẩu thế nào?
+         - Giữ tên, bỏ cờ bắt đổi (Recommended): Email đã có thì CLI không hỏi tên, giữ tên cũ. Mật khẩu nhập ở CLI là mật khẩu thật nên không bắt đổi. Trả lời 'không' ở bước xác nhận thì không đổi gì và thoát mã khác 0.
+         - Hỏi lại tên: Cho nhập tên mới (Enter để giữ). Các điểm khác như bên cạnh.
+      3. Ảnh đại diện chữ cái — tên người Việt họ đứng trước (Nguyễn Văn An). Lấy chữ nào?
+         - Chữ đầu của từ cuối (Recommended): 'Nguyễn Văn An' → A. Phân biệt người tốt hơn vì nhiều người cùng họ Nguyễn.
+         - Hai chữ: họ + tên: 'Nguyễn Văn An' → NA.
+         - Chữ đầu của từ đầu: 'Nguyễn Văn An' → N.
+    user_answer: |
+      1. Chỉ 'Kích hoạt lại' (Recommended)
+      2. Giữ tên, bỏ cờ bắt đổi (Recommended)
+      3. Chữ đầu của từ cuối (Recommended)
+
+  - asked_at: "2026-10-29 01:35:00"
+    topic_keys: ["deploy_approach", "constraints", "technical_decisions"]
+    agent_questions: |
+      (Validation round 1, userspec-adequacy-validator finding.)
+      Image web/api trong compose đầy đủ chỉ được build, không chạy hay kiểm chứng ở phần này, và spec VPS sau có thể phải làm lại. Giữ hay bỏ?
+      - Bỏ, để spec VPS (Recommended): Phần này chỉ có compose cho Postgres. Dockerfile web/api và compose đầy đủ làm khi deploy VPS, lúc đó chạy và kiểm chứng thật. Ít việc hơn, không tạo cảm giác 'sẵn sàng VPS' giả.
+      - Giữ, chỉ build: Như spec hiện tại: có Dockerfile và kiểm tra docker compose build.
+      - Giữ và chạy thử: docker compose up cả web, api, postgres và đăng nhập được qua container. Nhiều việc hơn.
+    user_answer: |
+      Bỏ, để spec VPS (Recommended)
+
+  - asked_at: "2026-10-29 02:55:00"
+    topic_keys: ["edge_cases", "acceptance_criteria"]
+    agent_questions: |
+      (Validation round 3, userspec-quality-validator finding; agent also fixed locally: menu password rules, Origin 403
+      origin_not_allowed incl. missing Origin, "reload table" only for user-management rows, Asia/Ho_Chi_Minh display; and
+      the adequacy finding: lock all active users, session renewal in its own short transaction, deadlock → 409 never 500.)
+      1. Nếu ai đó gọi thẳng API 'Đặt mật khẩu tạm' hoặc 'Đăng xuất khỏi mọi thiết bị' cho chính mình (giao diện đã ẩn nút), API xử lý thế nào?
+         - Từ chối (Recommended): API trả 409 'Không thể thực hiện thao tác này trên tài khoản của bạn', giống tự vô hiệu hoá. Tự đổi mật khẩu và đăng xuất đã có trong menu tài khoản.
+         - Cho phép: API làm bình thường trên chính mình (tự gắn cờ phải đổi mật khẩu, tự đăng xuất cả phiên đang dùng).
+      2. Spec web-app-auth đã qua 3 vòng validation (bản cuối: work/web-app-auth/user-spec.md). Bạn duyệt để chuyển sang code chưa?
+         - Duyệt, bắt đầu code: Đặt trạng thái approved, commit, rồi triển khai theo spec.
+         - Để tôi đọc spec trước: Bạn mở file xem và góp ý; nếu đổi nội dung thì spec phải qua validation lại.
+    user_answer: |
+      1. Từ chối (Recommended)
+      2. Duyệt, bắt đầu code
+
+
+general_understanding:
+  feature_name:
+    score: 90
+    value: "web-app-auth: khung web app + đăng nhập email/mật khẩu + quản lý người dùng"
+    gaps: []
+    required: true
+
+  feature_description:
+    score: 90
+    value: |
+      Web app đầu tiên của Reels Studio: Next.js 16 (web, App Router, TypeScript, Ant Design) + FastAPI (api) + Postgres
+      (SQLAlchemy 2 + Alembic). Đăng nhập email + mật khẩu; không tự đăng ký; người dùng đầu tạo bằng lệnh CLI (CLI cũng là
+      đường khôi phục). App shell theo bản thiết kế đã chốt (https://claude.ai/artifact/9rHaJJFHQMgVcnEXLvQXcB, phong cách
+      MKT-Tools: menu trái trắng, mục chọn teal #0F3B4C, logo nhãn RS xanh lá, nền #F7F7F7, header avatar chữ cái + tên +
+      "Đăng xuất"). Màn: Đăng nhập, Đổi mật khẩu (bắt buộc sau mật khẩu tạm; cũng mở từ menu tài khoản), Sửa tên (menu tài
+      khoản), Video (chỉ trạng thái trống), Quản lý người dùng (theo ảnh MKT-Tools, không vai trò), trang "Sắp có" cho Kho kiến
+      thức, Thư viện nhạc, Job logs. Chỉ chạy trên localhost. Đăng nhập Google để spec sau.
+    gaps: []
+    required: true
+
+  work_type:
+    score: 95
+    value: "feature"
+    gaps: []
+    required: true
+
+  user_problem:
+    score: 80
+    value: |
+      Hiện chỉ có CLI render. Đội cần một web app có đăng nhập và quản lý người dùng làm nền cho các màn MVP tiếp theo
+      (soạn kịch bản, render, kho kiến thức).
+    gaps: []
+    required: true
+
+  target_users:
+    score: 85
+    value: "Đội nội bộ 2–5 người, quyền như nhau (không phân quyền)."
+    gaps: []
+    required: false
+
+  success_criteria:
+    score: 85
+    value: |
+      - Có lệnh/hướng dẫn rõ để bật Postgres (docker compose), api, web và mở http://localhost:3000.
+      - Một lệnh CLI tạo người dùng đầu tiên, rồi đăng nhập được.
+      - Thêm người dùng, vô hiệu hoá / kích hoạt lại, đặt mật khẩu tạm, đăng xuất khỏi mọi thiết bị, đổi mật khẩu, sửa tên đều chạy.
+      - Giao diện dùng được ở cỡ màn điện thoại (thử bằng chế độ thiết bị của trình duyệt).
+      - Ngoài phạm vi: truy cập qua LAN/điện thoại thật và Google (đợi VPS/spec sau).
+    gaps: []
+    required: true
+
+  constraints:
+    score: 85
+    value: |
+      Stack cố định: Next.js (TS), FastAPI (Python 3.12), Postgres. Thư mục web/ và api/ ở gốc repo, mỗi phần tự quản lý
+      phụ thuộc (giống worker/). Dev host Windows 10, chưa có Docker và WSL2: cài WSL2 + Docker Desktop; Postgres chạy bằng
+      docker compose; api và web chạy native khi dev. Có compose đầy đủ (web, api, postgres) cho VPS sau này nhưng chưa deploy.
+      Chỉ localhost. UI tiếng Việt, không i18n. Mật khẩu lưu hash (Argon2). Secret chỉ trong env/.env.
+    gaps: []
+    required: true
+
+  testing_strategy:
+    score: 85
+    value: |
+      - api: pytest + TestClient trên Postgres thật (Docker) dùng database riêng reels_test (không đụng dữ liệu dev), mỗi test
+        một transaction rollback. Cover: đăng nhập (đúng, sai, email lạ, bị vô hiệu hoá với mật khẩu đúng/sai), bắt buộc đổi
+        mật khẩu, quy tắc mật khẩu ≥ 8 ký tự, thêm người dùng (email trùng, chuẩn hoá chữ thường), vô hiệu hoá/kích hoạt lại,
+        không tự vô hiệu hoá, không vô hiệu hoá người hoạt động cuối, đặt mật khẩu tạm, đăng xuất mọi thiết bị, đếm phiên,
+        thu hồi phiên khi đổi mật khẩu, phiên hết hạn 30 ngày + gia hạn, kiểm tra Origin cho request thay đổi dữ liệu,
+        lệnh CLI (tạo mới, email đã có → đặt lại + kích hoạt, không có terminal → lỗi).
+        Riêng trường hợp hai người vô hiệu hoá lẫn nhau cùng lúc: một test dùng hai kết nối/transaction thật (dữ liệu commit
+        trong reels_test, dọn sau test) kiểm tra chỉ một thao tác thành công và luôn còn ≥1 người hoạt động.
+      - web: Playwright E2E trên trình duyệt thật, dùng database riêng reels_e2e với api/web riêng ở cổng 8100/3100
+        (không dùng lại server dev; E2E đặt API_URL=http://localhost:8100, ALLOWED_ORIGINS=http://localhost:3100,
+        DATABASE_URL trỏ reels_e2e), seed và dọn mỗi lần chạy: đăng nhập, bắt buộc đổi
+        mật khẩu, quản lý người dùng, đổi mật khẩu/sửa tên, đăng xuất, chuyển hướng khi chưa đăng nhập, cỡ màn điện thoại,
+        thông báo khi api không chạy.
+      - Compose đầy đủ: build được image web và api (kiểm tra bằng docker compose build), không deploy.
+    gaps: []
+    required: true
+
+user_experience:
+  user_stories:
+    score: 85
+    value: |
+      - Đăng nhập: email + mật khẩu. Phiên 30 ngày, cookie httpOnly, gia hạn khi dùng. Chưa đăng nhập mà mở trang trong app →
+        chuyển về Đăng nhập.
+      - Mật khẩu tạm → sau khi đăng nhập bắt buộc đổi (màn này không hỏi mật khẩu cũ) trước khi vào app.
+      - Menu tài khoản (header): Đổi mật khẩu (hỏi mật khẩu hiện tại; đổi xong các phiên khác bị đăng xuất, phiên hiện tại giữ),
+        Sửa tên, Đăng xuất.
+      - Quản lý người dùng (ai cũng vào được): tìm theo email hoặc tên; "Thêm người dùng" = email + tên + mật khẩu tạm (người tạo
+        tự gõ, ≥ 8 ký tự); bảng: Ảnh (vòng tròn chữ cái đầu của tên), Email, Tên, Trạng thái (Hoạt động / Vô hiệu hoá),
+        Đăng nhập gần nhất, Phiên hoạt động (số phiên còn hạn), Thao tác: Vô hiệu hoá / Kích hoạt lại, Đặt mật khẩu tạm,
+        Đăng xuất khỏi mọi thiết bị. Dòng của chính mình hiện "Tài khoản của bạn", không có thao tác. Dòng của người đang
+        bị vô hiệu hoá chỉ có "Kích hoạt lại" (có xác nhận).
+      - Vô hiệu hoá: có hộp xác nhận; người đó không đăng nhập được, mọi phiên bị đăng xuất ngay. Không xóa hẳn.
+      - Đặt mật khẩu tạm: người làm gõ mật khẩu mới; người đó bị đăng xuất khỏi mọi thiết bị và phải đổi khi đăng nhập lại.
+      - Video: chỉ khung trống "Chưa có video nào". Mục chưa làm: trang "Sắp có".
+      - CLI: lệnh tạo người dùng (email, tên, mật khẩu nhập ẩn 2 lần trong terminal, không qua tham số). Người tạo bằng CLI
+        không bị bắt đổi mật khẩu. Email đã có → hỏi xác nhận rồi đặt mật khẩu mới, kích hoạt lại, đăng xuất các phiên cũ
+        (đường khôi phục khi cả đội bị khóa ngoài); khi đó giữ tên cũ (không hỏi tên) và bỏ cờ bắt đổi mật khẩu; trả lời
+        "không" ở bước xác nhận → không đổi gì, thoát mã khác 0. Không có terminal → báo lỗi, không treo.
+      - Khi đang phải đổi mật khẩu, api chỉ cho phép đổi mật khẩu và đăng xuất (chặn ở api, không chỉ ở giao diện).
+    gaps: []
+    required: true
+
+  acceptance_criteria:
+    score: 70
+    value: "Rút ra từ user_stories, edge_cases, error_scenarios và testing_strategy khi soạn spec."
+    gaps: ["Write in draft"]
+    required: true
+
+  edge_cases:
+    score: 85
+    value: |
+      - Email chuẩn hoá chữ thường, bỏ khoảng trắng; email trùng bị từ chối khi thêm trong app.
+      - Không tự vô hiệu hoá chính mình; không vô hiệu hoá được người hoạt động cuối cùng (kể cả khi hai người thao tác cùng lúc).
+      - Phiên hết hạn hoặc bị thu hồi → lần gọi tiếp theo chuyển về trang đăng nhập.
+      - Email sai định dạng hoặc tên rỗng/quá 60 ký tự → báo lỗi, áp dụng giống nhau khi thêm trong app, sửa tên và CLI.
+      - Ảnh đại diện = chữ cái đầu của từ cuối trong tên, viết hoa ("Nguyễn Văn An" → "A").
+    gaps: []
+    required: true
+
+  error_scenarios:
+    score: 85
+    value: |
+      - Sai email/mật khẩu hoặc email không tồn tại: thông báo chung "Email hoặc mật khẩu không đúng".
+      - Tài khoản bị vô hiệu hoá: "Tài khoản đã bị vô hiệu hoá" chỉ hiện khi mật khẩu đúng; sai mật khẩu thì thông báo chung.
+      - Mật khẩu mới < 8 ký tự hoặc hai lần nhập không khớp: báo lỗi ngay trên form.
+      - api hoặc Postgres không chạy → web hiện thông báo lỗi kết nối, không trắng trang.
+      - Không giới hạn số lần đăng nhập sai (giới hạn đã chấp nhận khi chỉ chạy local).
+    gaps: []
+    required: true
+
+  verification_strategy:
+    score: 80
+    value: |
+      Agent: chạy pytest api và Playwright E2E (cần Docker trên máy dev); dựng app local, tạo người dùng đầu bằng CLI, thử
+      các luồng; docker compose build cho compose đầy đủ.
+      User: xem giao diện so với bản thiết kế và ảnh MKT-Tools; bấm thử các luồng; thử cỡ điện thoại trong trình duyệt.
+    gaps: []
+    required: true
+
+  ui_ux_requirements:
+    score: 85
+    value: |
+      Ant Design, màu chính teal #0F3B4C, tiếng Việt. Theo bản thiết kế đã chốt (Đăng nhập, Video trống, shell) và ảnh
+      MKT-Tools "Quản lý người dùng" (không cột Vai trò; ảnh = chữ cái đầu). Không có nút Google. Mục chưa làm hiện trang trống
+      "Sắp có" kiểu "Chưa có dữ liệu". Ở cỡ điện thoại: menu trái thu gọn (nút mở menu), bảng cuộn ngang.
+    gaps: []
+    required: false
+
+  risks:
+    score: 80
+    value: |
+      - WSL2/Docker Desktop chưa cài → cần quyền admin + khởi động lại; trước đó api và test không chạy được.
+      - Thu hồi phiên (vô hiệu hoá, đặt mật khẩu tạm, đổi mật khẩu, đăng xuất mọi thiết bị) → phiên lưu trong Postgres
+        (token ngẫu nhiên, lưu dạng hash), không dùng JWT.
+      - CSRF qua rewrite của Next.js → api kiểm tra Origin cho request thay đổi dữ liệu, cookie SameSite=Lax.
+      - node_modules/ cũ (Remotion) ở gốc repo có thể bị web nạp nhầm → dọn hoặc chặn.
+      - Cookie Secure tắt trên http local, bật khi chạy https sau này.
+      - Không giới hạn số lần đăng nhập sai (chấp nhận khi chỉ chạy local).
+      - Test ghi đè dữ liệu dev → dùng database reels_test riêng.
+    gaps: []
+    required: true
+
+  technical_decisions:
+    score: 85
+    value: |
+      - Chỉ email + mật khẩu ở spec này. Google (người dùng từng chọn "Google + mật khẩu dự phòng") được hoãn: "Tạm thời mail
+        và pass đã"; đưa vào backlog.
+      - Chỉ localhost; LAN/điện thoại thật đợi VPS.
+      - Không phân quyền (giữ đúng project.md), dù ảnh MKT-Tools có vai trò.
+      - Vô hiệu hoá thay cho xóa; kích hoạt lại được; không vô hiệu hoá người hoạt động cuối.
+      - Mật khẩu tạm do người tạo tự gõ (không tự sinh, không gửi email). Tên nhập khi thêm; ảnh = chữ cái đầu.
+      - Phiên lưu trong Postgres (token opaque, hash), cookie httpOnly 30 ngày, gia hạn khi dùng; đếm phiên còn hạn.
+        Không cần SESSION_SECRET (bỏ khỏi deployment.md).
+      - Next.js gọi api qua rewrite /api → cookie cùng site, không cần CORS.
+      - Argon2 (pwdlib), SQLAlchemy 2 + Alembic, psycopg 3, Ant Design, Playwright.
+      - CLI là đường khôi phục: email đã có → đặt lại + kích hoạt.
+      - (Agent, sau kiểm tra lần 3, không cần người dùng quyết) Chặn vô hiệu hoá người hoạt động cuối bằng khóa dòng trong
+        transaction (SELECT ... FOR UPDATE trên các người dùng đang hoạt động).
+      - (Agent) Cấu hình: api đọc DATABASE_URL và ALLOWED_ORIGINS (danh sách, mặc định http://localhost:3000; chỉ "localhost",
+        không gồm 127.0.0.1); web đọc API_URL làm đích rewrite /api (mặc định http://localhost:8000; compose build với
+        http://api:8000). pytest đọc TEST_DATABASE_URL. Database reels_test và reels_e2e được tạo bởi script khởi tạo của
+        container Postgres; test và E2E tự chạy alembic upgrade head trước khi chạy.
+      - (Agent) Phiên đang phải đổi mật khẩu: GET /api/me vẫn được phép và trả must_change_password=true; đổi mật khẩu và đăng
+        xuất được phép; mọi API khác trả 403 với mã "password_change_required" → web chuyển sang màn bắt buộc đổi. Phiên không
+        hợp lệ/hết hạn → 401 → web về trang đăng nhập.
+    gaps: []
+    required: false
+
+  deploy_approach:
+    score: 80
+    value: "Chỉ local. docker compose chỉ cho Postgres. Dockerfile web/api và compose đầy đủ để spec deploy VPS."
+    gaps: []
+    required: false
+
+  manual_user_actions:
+    score: 85
+    value: |
+      - Cài WSL2 (wsl --install, quyền admin, khởi động lại) và Docker Desktop.
+      - Điền .env từ .env.example (DATABASE_URL...).
+      - Chạy lệnh CLI tạo người dùng đầu tiên.
+    gaps: []
+    required: false
+
+integration:
+  integration_points:
+    score: 80
+    value: |
+      Repo hiện chỉ có worker/ (reels_render). Thêm web/ và api/ ở gốc repo; docker-compose.yml ở gốc. .env ở gốc repo
+      (giống worker/env.py), .env.example thêm DATABASE_URL, TEST_DATABASE_URL, ALLOWED_ORIGINS, API_URL. deployment.md: bỏ SESSION_SECRET.
+      project.md/architecture.md: ghi đăng nhập email+mật khẩu, CLI khôi phục, vô hiệu hoá. Chưa nối với worker.
+    gaps: []
+    required: true
+
+  dependencies:
+    score: 80
+    value: "FastAPI, SQLAlchemy 2, Alembic, psycopg 3, pwdlib[argon2]; Next.js 16, antd, Playwright."
+    gaps: []
+    required: false
+
+  technical_constraints:
+    score: 75
+    value: "Đường dẫn repo có dấu cách (C:/Users/Young Sheldon). Next.js 16 cần Node ≥ 20.9 (máy có Node 24)."
+    gaps: []
+    required: false
+
+  data_requirements:
+    score: 85
+    value: |
+      User: email (duy nhất, chữ thường), tên, mật khẩu hash, cờ phải đổi mật khẩu, trạng thái hoạt động, người tạo, ngày tạo,
+      đăng nhập gần nhất. Session: người dùng, token (lưu dạng hash), hạn, lần dùng gần nhất.
+    gaps: []
+    required: false
+
+  migration_needs:
+    score: 80
+    value: "Database mới, chưa có dữ liệu. Alembic tạo bảng."
+    gaps: []
+    required: false
+
+notes: "Backlog: đăng nhập Google (allow-list theo email, callback qua /api, state + PKCE) khi có tên miền HTTPS."
