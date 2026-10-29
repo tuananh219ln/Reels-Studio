@@ -9,26 +9,44 @@
 Do not confuse it with the UI language: the script, TTS voice, and knowledge rules follow the
 content language.
 
-**Tone:** short, plain Vietnamese for an internal team. Use action-verb buttons such as "Tạo kịch
-bản", "Render", "Tải MP4", "Chạy lại".
+**Tone:** short, plain Vietnamese for an internal team. Use action-verb buttons such as "Viết kịch
+bản", "Render", "Tải MP4", "Thử lại", "Nhân bản".
 
-## Screens (MVP)
+**Errors:** every refusal and failed job shows a plain Vietnamese reason where it happened (at the
+field, the scene, or the job banner); technical detail sits in a collapsed "Chi tiết lỗi".
 
-- **Login.**
-- **Video list:** status of each video and its latest render.
-- **Script and scene editor:**
-  - choose 1 of 5 titles;
-  - edit scene text using `*word*` markup to color a keyword red;
-  - assign or upload an image per scene;
-  - edit caption, hashtags, and affiliate suggestions;
-  - toggle TTS and choose music;
-  - see the banned-word warnings and Claude's self-review list.
-- **Knowledge Base:**
-  - edit each document and trigger "AI soạn nháp" (AI draft);
-  - view the food bank table with draft or approved status and source links;
-  - approve rows.
-- **Music library:** upload licensed tracks.
-- **Job log:** status, duration, MP4 download, re-run.
+## Screens
+
+Built:
+
+- **Login** and **user management**.
+- **Video list** (`/videos`): thumbnail (the title-scene preview, or a grey tile with the title or
+  topic), title, status (Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) with the labels "MP4
+  chưa cập nhật theo bản sửa" and "Render lại lỗi", creator, date, search by title or topic,
+  "Tạo video".
+- **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit:
+  - choose 1 of 5 titles; edit the title scene and every content scene (text with `*word*` in
+    red, seconds, keywords, image prompt), add, delete, reorder; each field saves when left and
+    shows "Đã lưu";
+  - per scene a preview of the frame, or the reason there is none, in red; photo by upload, "Tìm
+    lại ảnh", or "Chọn từ Pixabay";
+  - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
+    blocks;
+  - optional MP3 with a volume slider; MP4 player, "Tải MP4", and the render time;
+  - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
+    buttons, and Claude's self-review list;
+  - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
+- **Kho kiến thức** (`/knowledge`): the script prompt, the clone prompt (each with "Khôi phục mặc
+  định"), and the banned words.
+- **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
+  Claude call count, and error; a row opens its video.
+
+Planned:
+
+- **Knowledge Base documents:** edit each document and trigger "AI soạn nháp" (AI draft); the food
+  bank table with draft or approved status and source links; approve rows.
+- **Music library** (`/music`, a placeholder today): upload licensed tracks.
+- **TTS** on/off per video.
 
 ## Video Template
 
@@ -56,7 +74,10 @@ There is one fixed template in the MVP, derived from the reference channel (see
 - **Motion:** every scene zooms in linearly around the centre, from 1.00 to 1.12. Scenes are
   joined by a 0.4 s crossfade centred on the boundary, so the total length equals the summed
   scene seconds.
-- **Audio:** soft instrumental music from the team library at volume 0.25 by default, looped or
-  cut to the video length, with a 1.5 s fade-out; plus TTS when enabled.
+- **Audio:** by default no music: the video has a silent track, and members pick music (from
+  Claude's suggestions) inside TikTok or Facebook when posting, because those libraries cannot be
+  used outside their apps and an uploaded copyrighted MP3 can get the video muted or demonetized.
+  A member may upload one MP3 per video, at 25% volume by default, looped or cut to the video
+  length with a 1.5 s fade-out. The team music library and TTS come later.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
 - **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 20–40 seconds.

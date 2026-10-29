@@ -33,31 +33,52 @@ Recurring title formulas:
 
 ## Script Generation Contract
 
-One Claude call per topic returns:
+One Claude call per topic returns JSON with:
 
 1. 5 title options, each ≤ 12 words and uppercase.
-2. A scene table with these columns: scene number, seconds, on-screen text (≤ 10 words), image
-   needed.
-3. A caption of 80–120 words plus 5 hashtags.
-4. A 9:16 image prompt per scene: realistic photo, natural light, wooden table. Stock search
-   does not use it; it uses the scene's separate `keywords` field: Vietnamese terms, most specific
-   first (the dish name). Without `keywords`, a content scene is searched by its first text
-   line.
+2. Search keywords for the title scene's photo.
+3. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
+   breaks), photo search keywords (Vietnamese, most specific first, such as the dish name), and a
+   9:16 image prompt (realistic photo, natural light, wooden table). Photo search uses the
+   keywords, never the image prompt.
+4. A caption of 80–120 words plus 5 hashtags.
 5. 2 affiliate product suggestions plus the pinned-comment text.
 6. A safety self-review that lists the sentences it changed.
+7. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
+   posting (those libraries cannot be used outside their apps).
 
-Generation rules:
+The title scene starts with the first title option and lasts 3 seconds; choosing another option
+copies its text into the title scene.
+
+How the prompt is built (built, compact version):
+
+- **Editable content:** the "Prompt viết kịch bản" on `/knowledge` (default: the owner's Custom
+  Instructions, script prompt, title formulas, and safety note) with the topic placed at
+  `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
+- **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
+  are code, not editable (see [patterns.md](patterns.md)).
+- **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
+  job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
+  become 4, keywords are cut to 100 characters, missing parts stay empty. Everything then goes
+  through the pre-render checks like a member's edits.
+- **Clone ("Nhân bản", one variant):** the "Prompt nhân bản" on `/knowledge` fills `[tiêu đề]`,
+  `[chủ đề]`, `[kịch bản đã sửa của video gốc]`, and `[yêu cầu đổi]` from the source as edited and
+  the member's change request, appending any placeholder that was removed. It returns the same
+  JSON, with new photos and new music suggestions.
+
+Planned rules, with the full Knowledge Base:
 
 - **Benefits:** only from `approved` food bank rows.
 - **No cure promises:** check against the safety rules before output.
-- **Prompts are editable:** the system prompt and the templates are Knowledge Base data.
-- **Winner clone (later phase):** analyze why the video won, then propose 10 variants that change
-  the food, age milestone, or disease group, ranked by viral potential.
+- **Prompts from the Knowledge Base:** the documents below are injected into the prompt.
+- **Winner variants:** analyze why the video won, then propose 10 variants that change the food,
+  age milestone, or disease group, ranked by viral potential.
 
 ## Knowledge Base
 
-The Knowledge Base lives in the app, is editable by every member, and is injected into prompts. It
-replaces the owner's Claude Project.
+The Knowledge Base will live in the app, be editable by every member, and be injected into
+prompts, replacing the owner's Claude Project. Not built yet: today `/knowledge` holds only the two
+prompts and the banned words.
 
 | Item | Contents |
 |---|---|
@@ -79,8 +100,11 @@ because AI can fabricate sources or overstate benefits.
 
 ## Safety Rules
 
-- **Banned words**, for example: "chữa khỏi", "thay thuốc", "diệt tế bào ung thư". The list is
-  editable. A hit produces a non-blocking warning.
+- **Banned words:** the default list is "chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc
+  trị", "khắc tinh"; members edit it on `/knowledge`. Claude is told to avoid them. A hit in the
+  title scene text, a scene's text, the caption, or the pinned comment shows a yellow warning that
+  does not block the render; matching ignores case, Unicode form, and `*` markup. The 5 title
+  options are only for choosing and are not checked.
 - **Softer wording:** prefer "hỗ trợ" and "tốt cho" over sensational claims such as "khắc tinh tế
   bào K" or "máu lên não ào ào". Meta flags or demonetizes medical wording even when the fact is
   true.

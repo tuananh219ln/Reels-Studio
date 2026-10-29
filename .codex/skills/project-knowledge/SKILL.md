@@ -3,7 +3,8 @@ name: project-knowledge
 description: |
   Use when you need information about Reels Studio — the internal web app that turns a topic into
   a 9:16 short video (Claude script, scene images, FFmpeg render) for Reels/TikTok/Shorts: its
-  scope and MVP, architecture (Next.js + FastAPI + render worker + Postgres + Redis), data model,
+  scope and MVP, architecture (Next.js + FastAPI + job worker + Postgres job queue + shared file
+  storage), data model, video pipeline and job rules,
   coding patterns, git workflow, testing, deployment, UI and video template, or the content domain
   (Vietnamese health/nutrition channel formula, script prompt contract, knowledge base, safety rules).
 ---
@@ -11,20 +12,22 @@ description: |
 
 # Project Knowledge: Reels Studio
 
-Reels Studio is an early-stage project. Only the render core and its CLI exist
-([worker/](../../../worker/)); everything else in this documentation is agreed design not yet
-built.
+Reels Studio runs in production for the team: login and user management, and the video pipeline
+from topic to MP4 (Claude script, stored scene photos, server render through the job worker), with
+cloning and a job log. The full Knowledge Base, the music library, TTS, and publishing are agreed
+design not yet built; each reference marks what is built and what is planned.
 
 ## References
 
 - **[project.md](references/project.md)**: purpose, users, problem, MVP features, development
   phases, out of scope.
 - **[architecture.md](references/architecture.md)**: stack and rationale, components, render
-  pipeline, integrations, data flow, data model, sensitive data.
+  pipeline, integrations, data flow, data model, video pipeline (jobs, worker, locking, checks,
+  previews), web app and auth, sensitive data.
 - **[patterns.md](references/patterns.md)**: code patterns, Git workflow, testing and
   verification, business rules.
-- **[deployment.md](references/deployment.md)**: dev host, planned Docker Compose setup,
-  environment variables, operations.
+- **[deployment.md](references/deployment.md)**: dev host, production (Coolify api, worker,
+  storage, Postgres; Cloudflare web), delivery, environment variables, operations.
 - **[ux-guidelines.md](references/ux-guidelines.md)**: UI language, screens, video visual
   template.
 - **[content.md](references/content.md)**: channel audience, video formula, script generation
@@ -33,9 +36,9 @@ built.
 ## What to Read for a Task
 
 - Starting any feature: project.md, architecture.md, patterns.md.
-- Database or API changes: architecture.md (Data Model).
-- Render pipeline or template work: architecture.md (Components), ux-guidelines.md (Video
-  Template).
+- Database or API changes: architecture.md (Data Model, Video Pipeline).
+- Jobs, the worker, or render pipeline and template work: architecture.md (Components, Render
+  Core, Video Pipeline), ux-guidelines.md (Video Template).
 - Prompt, script generation, knowledge base, or safety checks: content.md.
 - UI screens: ux-guidelines.md.
 - Environment, Docker, or deployment: deployment.md.
