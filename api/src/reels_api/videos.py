@@ -23,6 +23,7 @@ STATUS_LABELS = {
     "failed": "Lỗi",
 }
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
+JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render"}
 
 
 def new_key(video_id: int, name: str, extension: str) -> str:
@@ -82,10 +83,14 @@ def split_scenes(db: DbSession, video: Video) -> tuple[Scene | None, list[Scene]
     return title, [scene for scene in rows if not scene.is_title]
 
 
-def render_signature(title: Scene | None, scenes: list[Scene]) -> str:
-    """Fingerprint of what changes the MP4 (text, seconds, photo, order); captions and keywords are left out."""
+def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
+    """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume); captions and
+    keywords are left out."""
     parts = [[scene.text, scene.seconds, scene.image_key] for scene in ([title] if title else []) + scenes]
-    return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode()).hexdigest()
+    # Without music the fingerprint keeps the format MP4s rendered before music existed were stored with,
+    # so those are not flagged as outdated.
+    data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
+    return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
 def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, title: Scene | None) -> None:
@@ -181,7 +186,7 @@ def scene_payload(scene: Scene, checks: Checks) -> dict:
 
 def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | None, failed: Job | None) -> dict:
     return {
-        "mp4_outdated": bool(video.mp4_key) and video.rendered_signature != render_signature(title, scenes),
+        "mp4_outdated": bool(video.mp4_key) and video.rendered_signature != render_signature(video, title, scenes),
         # A failed re-render keeps the old MP4 and the "Xong" status, with this extra label.
         "rerender_failed": job is None and bool(video.mp4_key) and failed is not None,
     }
@@ -225,6 +230,15 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "thumbnail_url": (
             f"/api/videos/{video.id}/thumbnail.jpg?v={_version(video.thumbnail_key)}" if video.thumbnail_key else None
         ),
+        "music": {
+            "url": f"/api/videos/{video.id}/music.mp3?v={_version(video.music_key)}",
+            "name": video.music_name,
+        } if video.music_key else None,
+        "music_volume": video.music_volume,
+        "clone_of": {
+            "title": video.clone_source["title"],
+            "request": video.clone_source["request"],
+        } if video.clone_source else None,
         "title_scene": scene_payload(title, checks) if title else None,
         "scenes": [scene_payload(scene, checks) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],

@@ -113,10 +113,31 @@ class GeneratedScript:
 
 
 def build_script_prompt(template: str, topic: str, banned_words: list[str]) -> str:
-    if TOPIC_PLACEHOLDER in template:
-        body = template.replace(TOPIC_PLACEHOLDER, topic)
-    else:
-        body = f"{template.rstrip()}\n\nChủ đề: {topic}"
+    return _assemble(_fill(template, [(TOPIC_PLACEHOLDER, "Chủ đề", topic)]), banned_words)
+
+
+def build_clone_prompt(template: str, source: dict, banned_words: list[str]) -> str:
+    """`source` is the snapshot taken when "Nhân bản" was pressed (see routes_videos.clone_snapshot)."""
+    return _assemble(_fill(template, [
+        ("[tiêu đề]", "Tiêu đề video gốc", source["title"]),
+        ("[chủ đề]", "Chủ đề video gốc", source["topic"]),
+        ("[kịch bản đã sửa của video gốc]", "Kịch bản đã sửa của video gốc", source["script"]),
+        ("[yêu cầu đổi]", "Yêu cầu đổi", source["request"]),
+    ]), banned_words)
+
+
+def _fill(template: str, placeholders: list[tuple[str, str, str]]) -> str:
+    """Replace each placeholder; one a member deleted from the prompt is appended at the end instead."""
+    body, missing = template, []
+    for placeholder, label, value in placeholders:
+        if placeholder in body:
+            body = body.replace(placeholder, value)
+        else:
+            missing.append(f"{label}: {value}")
+    return "\n\n".join([body.rstrip(), *missing]) if missing else body
+
+
+def _assemble(body: str, banned_words: list[str]) -> str:
     parts = [body]
     if banned_words:
         quoted = ", ".join(f"\"{word}\"" for word in banned_words)

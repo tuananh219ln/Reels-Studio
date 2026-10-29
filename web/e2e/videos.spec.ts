@@ -1,5 +1,8 @@
-import { expect, test } from "@playwright/test";
-import { loginAsSeed, resetDatabase } from "./helpers";
+import { execFileSync } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
+import { expect, test, type Page } from "@playwright/test";
+import { SEED, loginAsSeed, resetDatabase } from "./helpers";
 
 // The api, a real worker with FFmpeg, and fake Claude/Pixabay (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
@@ -84,26 +87,127 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
 });
 
-test("knowledge page edits the script prompt and banned words, and restores the default", async ({ page }) => {
+test("knowledge page edits both prompts and banned words, and restores each default", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
-  const prompt = page.getByLabel("Prompt viết kịch bản");
+  const scriptCard = page.locator(".ant-card").filter({ hasText: "Prompt viết kịch bản" });
+  const cloneCard = page.locator(".ant-card").filter({ hasText: "Prompt nhân bản" });
+  const prompt = page.getByLabel("Prompt viết kịch bản", { exact: true });
+  const clonePrompt = page.getByLabel("Prompt nhân bản", { exact: true });
   await expect(prompt).toHaveValue(/Chủ đề: \[Chủ đề\]/);
+  await expect(clonePrompt).toHaveValue(/^Video gốc: "\[tiêu đề\]"/);
 
   await prompt.fill("   ");
-  await expect(page.getByRole("button", { name: "Lưu prompt" })).toBeDisabled();
+  await expect(scriptCard.getByRole("button", { name: "Lưu", exact: true })).toBeDisabled();
   await prompt.fill("Prompt mới cho [Chủ đề]");
-  await page.getByRole("button", { name: "Lưu prompt" }).click();
+  // Unsaved text in another box survives this save.
+  await clonePrompt.fill("Biến thể của [tiêu đề] chưa lưu");
+  await scriptCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
+  await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
+  await cloneCard.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(page.getByText("Đã lưu prompt nhân bản")).toBeVisible();
   await page.getByLabel("Từ cấm").fill("thần dược\nđặc trị");
   await page.getByRole("button", { name: "Lưu từ cấm" }).click();
   await expect(page.getByText("Đã lưu danh sách từ cấm")).toBeVisible();
 
   await page.reload();
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
+  await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await expect(page.getByLabel("Từ cấm")).toHaveValue("thần dược\nđặc trị");
 
-  await page.getByRole("button", { name: "Khôi phục mặc định" }).click();
+  await scriptCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
   await expect(prompt).toHaveValue(/^Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40\+\./);
+  await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
+  await cloneCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
+  await expect(clonePrompt).toHaveValue(/^Video gốc: "\[tiêu đề\]" — chủ đề: \[chủ đề\]\./);
+});
+
+async function newVideoWithScript(page: Page, topic: string) {
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề").fill(topic);
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+}
+
+/** Scenes appear when the script is saved; the job then still assigns photos until this banner goes. */
+async function jobFinished(page: Page) {
+  await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 90_000 });
+}
+
+function makeMp3(): string {
+  const file = path.join(os.tmpdir(), `e2e-tone-${process.pid}.mp3`);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-ac", "2",
+    "-c:a", "libmp3lame", "-b:a", "96k", file]);
+  return file;
+}
+
+test("pick a photo from the Pixabay grid, add and remove music", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau củ tốt cho tim");
+
+  const scene = page.getByTestId("scene").first();
+  const before = await scene.getByTestId("scene-preview").getAttribute("src");
+  await scene.getByRole("button", { name: "Chọn từ Pixabay" }).click();
+  const picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
+  await expect(picker.getByText("Ảnh từ Pixabay")).toBeVisible();
+  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(3);
+  const firstResult = picker.getByTestId("pixabay-hit").first().locator("img");
+  const oldThumbnail = await firstResult.getAttribute("src");
+  await picker.getByLabel("Từ khóa Pixabay").fill("bông cải xanh");
+  await picker.getByLabel("Từ khóa Pixabay").press("Enter");
+  // The fake returns different photos per keyword: wait for the new keyword's results before choosing.
+  await expect(firstResult).not.toHaveAttribute("src", oldThumbnail ?? "");
+  await picker.getByTestId("pixabay-hit").nth(2).click();
+  await expect(picker).toBeHidden();
+  await expect(scene.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
+  // The chosen photo is served by the app, not linked from Pixabay.
+  await expect(scene.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
+
+  await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
+  await expect(page.getByTestId("music-name")).toHaveText(/e2e-tone-\d+\.mp3/);
+  await expect(page.getByText("Âm lượng: 25%")).toBeVisible();
+  await page.getByLabel("Tải nhạc MP3 lên").setInputFiles({
+    name: "gia.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("RIFF0000WAVEfmt fake audio"),
+  });
+  await expect(page.getByText("File nhạc phải là MP3 thật", { exact: false })).toBeVisible();
+  await page.getByRole("button", { name: "Gỡ nhạc" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Gỡ nhạc" }).click();
+  await expect(page.getByRole("button", { name: "Tải nhạc MP3 lên" })).toBeVisible();
+});
+
+test("clone a video with a change request, then see every job in the job log", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
+  await expect(page.getByTestId("music-name")).toBeVisible();
+  const sourceUrl = page.url();
+
+  await page.getByRole("button", { name: "Nhân bản" }).click();
+  const dialog = page.getByRole("dialog", { name: "Nhân bản video" });
+  await expect(dialog.getByRole("button", { name: "Tạo bản nhân bản" })).toBeDisabled();
+  await dialog.getByLabel("Yêu cầu đổi").fill("đổi sang mốc 45 tuổi, tim mạch");
+  await dialog.getByRole("button", { name: "Tạo bản nhân bản" }).click();
+
+  await expect(page).not.toHaveURL(sourceUrl);
+  await expect(page.getByTestId("clone-of")).toContainText("đổi sang mốc 45 tuổi, tim mạch");
+  await jobFinished(page);
+  await expect(page.getByTestId("music-name")).toBeVisible();
+
+  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await expect(page).toHaveURL(/\/jobs$/);
+  const rows = page.locator(".ant-table-tbody .ant-table-row");
+  await expect(rows.filter({ hasText: "Nhân bản" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Viết kịch bản" })).toHaveCount(1);
+  await expect(rows.first()).toContainText("Xong");
+  await expect(rows.first()).toContainText(SEED.name);
+  await rows.filter({ hasText: "Viết kịch bản" }).click();
+  await expect(page).toHaveURL(sourceUrl);
 });

@@ -46,7 +46,7 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "render";
+  kind: "script" | "clone" | "render";
   status: "queued" | "running" | "done" | "failed" | "cancelled";
   error: string | null;
   error_detail: string | null;
@@ -84,6 +84,9 @@ export type VideoDetail = VideoRow & {
   active_job: JobInfo | null;
   failed_job: JobInfo | null;
   mp4: { url: string; download_url: string; seconds: number; render_seconds: number; rendered_at: string } | null;
+  music: { url: string; name: string | null } | null;
+  music_volume: number;
+  clone_of: { title: string; request: string } | null;
   title_scene: SceneData | null;
   scenes: SceneData[];
   video_blocking: string[];
@@ -93,9 +96,28 @@ export type VideoDetail = VideoRow & {
 
 export type Knowledge = {
   script_prompt: string;
+  clone_prompt: string;
   banned_words: string[];
   default_script_prompt: string;
+  default_clone_prompt: string;
   default_banned_words: string[];
+};
+
+export type PixabayHit = { url: string; preview: string };
+
+export type JobRow = {
+  id: number;
+  video_id: number;
+  video_title: string;
+  kind: JobInfo["kind"];
+  kind_label: string;
+  status: JobInfo["status"];
+  created_by: string;
+  created_at: string;
+  started_at: string | null;
+  duration_seconds: number | null;
+  claude_calls: number;
+  error: string | null;
 };
 
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";

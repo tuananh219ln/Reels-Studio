@@ -38,6 +38,16 @@ def image_extension(data: bytes) -> str:
     return IMAGE_FORMATS[kind]
 
 
+MAX_MUSIC_BYTES = 20 * 1024 * 1024
+
+
+def check_mp3(data: bytes) -> None:
+    """An MP3 starts with an ID3 tag or an MPEG audio frame sync (11 set bits); the file name proves nothing."""
+    if data[:3] == b"ID3" or (len(data) >= 2 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0):
+        return
+    raise UploadRejected("File nhạc phải là MP3 thật (đổi đuôi file khác thành .mp3 không dùng được)")
+
+
 def read_limited(upload: UploadFile, max_bytes: int, too_large: str) -> bytes:
     # Starlette has already spooled the part to disk; reading one byte past the limit is enough to refuse it.
     data = upload.file.read(max_bytes + 1)

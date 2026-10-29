@@ -69,6 +69,12 @@ class Video(Base):
     # Fingerprint of everything that changes the MP4, taken at render time (see videos.render_signature).
     rendered_signature: Mapped[str | None] = mapped_column(String(64))
     rendered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    music_key: Mapped[str | None] = mapped_column(String(200))
+    music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
+    music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
+    # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
+    # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
+    clone_source: Mapped[dict | None] = mapped_column(JSONB)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -107,7 +113,7 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(16))  # script | render
+    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     retry_of_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))

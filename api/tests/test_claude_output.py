@@ -6,6 +6,7 @@ from reels_api.claude import (
     OUTPUT_FORMAT,
     ClaudeError,
     ScriptOutputError,
+    build_clone_prompt,
     build_script_prompt,
     generate_script,
     parse_output,
@@ -116,3 +117,28 @@ def test_two_broken_answers_fail_with_the_raw_answer_as_detail():
     assert len(calls) == 2
     assert "thiếu tiêu đề" in caught.value.message
     assert '{"titles": []}' in caught.value.detail
+
+
+SOURCE = {"title": "5 MÓN BỔ XƯƠNG", "topic": "xương khớp", "script": "Cảnh 1 (4 giây): Cá nhỏ",
+          "request": "đổi sang mốc 45 tuổi, tim mạch"}
+
+
+def test_clone_prompt_fills_every_placeholder():
+    from reels_api.knowledge import default_clone_prompt
+
+    prompt = build_clone_prompt(default_clone_prompt(), SOURCE, ["đặc trị"])
+    assert prompt.startswith('Video gốc: "5 MÓN BỔ XƯƠNG" — chủ đề: xương khớp.\nKịch bản gốc:\nCảnh 1 (4 giây): Cá nhỏ')
+    assert "theo yêu cầu sau:\nđổi sang mốc 45 tuổi, tim mạch" in prompt
+    assert "[" + "tiêu đề]" not in prompt and "[yêu cầu đổi]" not in prompt
+    assert '"đặc trị"' in prompt and prompt.endswith(OUTPUT_FORMAT)
+
+
+def test_clone_prompt_appends_what_a_member_removed_from_the_template():
+    prompt = build_clone_prompt("Viết một biến thể của [tiêu đề].", SOURCE, [])
+    body = prompt.split("\n\n" + OUTPUT_FORMAT)[0]
+    assert body == (
+        "Viết một biến thể của 5 MÓN BỔ XƯƠNG.\n\n"
+        "Chủ đề video gốc: xương khớp\n\n"
+        "Kịch bản đã sửa của video gốc: Cảnh 1 (4 giây): Cá nhỏ\n\n"
+        "Yêu cầu đổi: đổi sang mốc 45 tuổi, tim mạch"
+    )

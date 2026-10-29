@@ -1,10 +1,18 @@
 "use client";
 
-import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  ArrowDownOutlined,
+  ArrowUpOutlined,
+  DeleteOutlined,
+  PictureOutlined,
+  ReloadOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { App, Alert, Button, Card, Col, Flex, Popconfirm, Row, Space, Tooltip, Typography } from "antd";
 import { useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
+import PixabayPicker from "./PixabayPicker";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -120,6 +128,7 @@ function ScenePicture({ scene }: { scene: SceneData }) {
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<"upload" | "find" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
 
   async function run(kind: "upload" | "find", action: () => Promise<VideoDetail>) {
     setBusy(kind);
@@ -191,7 +200,17 @@ function ScenePicture({ scene }: { scene: SceneData }) {
           Tìm lại ảnh
         </Button>
       </Tooltip>
+      <Button icon={<PictureOutlined />} disabled={editor.locked || busy !== null}
+        onClick={async () => {
+          // The grid starts from the keywords on screen, so their save goes first.
+          await editor.flush();
+          setPicking(true);
+        }}>
+        Chọn từ Pixabay
+      </Button>
       {error && <Typography.Text type="danger" data-testid="image-error">{error}</Typography.Text>}
+      <PixabayPicker sceneId={scene.id} keyword={scene.keywords[0] ?? ""} open={picking}
+        onClose={() => setPicking(false)} />
     </Flex>
   );
 }
