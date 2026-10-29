@@ -44,6 +44,13 @@ def test_search_matches_email_or_name_case_insensitively(client, me):
     assert client.get("/api/users", params={"q": "khong-co"}).json() == []
 
 
+def test_search_treats_underscore_and_percent_literally(client, me):
+    add(client, email="an_b@doi.vn", name="An B")
+    add(client, email="anb@doi.vn", name="An C")
+    assert [r["email"] for r in client.get("/api/users", params={"q": "an_"}).json()] == ["an_b@doi.vn"]
+    assert client.get("/api/users", params={"q": "%"}).json() == []
+
+
 def test_add_user_normalizes_email_flags_forced_change_and_records_creator(client, db, me):
     response = add(client, email="  Binh@Doi.VN ", name="  Trần Thị Bình ")
     assert response.status_code == 201

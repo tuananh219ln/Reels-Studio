@@ -17,12 +17,19 @@ from .sessions import revoke_sessions
 Ask = Callable[[str], str]
 
 
+class _VietnameseParser(argparse.ArgumentParser):
+    def error(self, message: str):
+        # argparse's own usage errors are English; keep every CLI error Vietnamese.
+        print("Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user", file=sys.stderr)
+        sys.exit(2)
+
+
 def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getpass.getpass) -> int:
     # Piped output on Windows defaults to the ANSI code page, which cannot encode Vietnamese.
     for stream in (sys.stdout, sys.stderr):
         stream.reconfigure(encoding="utf-8", errors="replace")
 
-    parser = argparse.ArgumentParser(prog="reels_api", description="Công cụ quản trị Reels Studio.")
+    parser = _VietnameseParser(prog="reels_api", description="Công cụ quản trị Reels Studio.")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser(
         "create-user",

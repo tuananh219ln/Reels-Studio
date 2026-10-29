@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, Request, Response
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session as DbSession, joinedload
 
 from .db import get_db
@@ -62,10 +62,16 @@ def current_session(request: Request, response: Response, db: DbSession = Depend
     moment = now()
     if session is None or session.expires_at <= moment or not session.user.is_active:
         raise _not_authenticated()
-    session.expires_at = moment + SESSION_LIFETIME
+    # A plain UPDATE (not the ORM flush) so a session revoked by a concurrent request after the SELECT
+    # simply matches no row and becomes a 401 instead of a stale-data error.
+    renewed = db.execute(
+        update(Session).where(Session.id == session.id).values(expires_at=moment + SESSION_LIFETIME)
+    ).rowcount
     # Commit the renewal on its own before the endpoint runs, so no session-row lock is held while
     # an endpoint waits for user-row locks (two people disabling each other would otherwise deadlock).
     db.commit()
+    if not renewed:
+        raise _not_authenticated()
     set_session_cookie(response, token)
     return session
 

@@ -77,8 +77,12 @@ def list_users(q: str = "", me: Session = Depends(current_member), db: DbSession
         .order_by(User.created_at, User.id)
     )
     if q.strip():
-        pattern = f"%{q.strip()}%"
-        query = query.where(or_(User.email.ilike(pattern), User.name.ilike(pattern)))
+        # Plain substring search: "_" and "%" typed by the user are literal characters, not wildcards.
+        literal = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{literal}%"
+        query = query.where(
+            or_(User.email.ilike(pattern, escape="\\"), User.name.ilike(pattern, escape="\\"))
+        )
     return [_user_payload(user, count, me) for user, count in db.execute(query).all()]
 
 

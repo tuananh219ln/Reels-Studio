@@ -65,14 +65,25 @@ def test_declining_the_reset_changes_nothing(db):
     assert verify_password(PASSWORD, user.password_hash)
 
 
-@pytest.mark.parametrize("args", [["create-user"]])
-def test_without_a_terminal_it_fails_in_vietnamese_instead_of_hanging(args):
+def run_cli(*args):
     result = subprocess.run(
         [sys.executable, "-m", "reels_api", *args],
         input="", capture_output=True, cwd=API_DIR, timeout=60,
         env={**os.environ, "PYTHONIOENCODING": ""},
     )
-    err = result.stderr.decode("utf-8")
-    assert result.returncode == 2
+    return result.returncode, result.stderr.decode("utf-8")
+
+
+def test_without_a_terminal_it_fails_in_vietnamese_instead_of_hanging():
+    code, err = run_cli("create-user")
+    assert code == 2
     assert "Lỗi: lệnh này cần chạy trong terminal để nhập mật khẩu ẩn" in err
     assert "Traceback" not in err
+
+
+@pytest.mark.parametrize("args", [[], ["create_user"]])
+def test_unknown_or_missing_command_fails_in_vietnamese(args):
+    code, err = run_cli(*args)
+    assert code == 2
+    assert "Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user" in err
+    assert "usage" not in err.lower()

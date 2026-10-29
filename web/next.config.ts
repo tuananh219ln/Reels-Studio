@@ -1,14 +1,33 @@
+import { readFileSync } from "node:fs";
 import path from "node:path";
-import { loadEnvConfig } from "@next/env";
 import type { NextConfig } from "next";
 
 const webDir = process.cwd();
 
-// API_URL may live only in the repo-root .env, which Next.js does not read on its own.
-// Variables already set in the environment (E2E, CI) win over the file.
-loadEnvConfig(path.resolve(webDir, ".."));
+/**
+ * Reads a variable the way the api and worker do: a real environment variable wins, otherwise the
+ * repo-root .env. Next.js only loads .env files from web/ (and caches that), so it cannot do this.
+ */
+function rootEnv(name: string): string | undefined {
+  if (process.env[name] !== undefined) {
+    return process.env[name];
+  }
+  let text: string;
+  try {
+    text = readFileSync(path.resolve(webDir, "..", ".env"), "utf8").replace(/^﻿/, "");
+  } catch {
+    return undefined;
+  }
+  for (const line of text.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:export\s+)?([\w.]+)\s*=\s*(.*?)\s*$/);
+    if (match && match[1] === name) {
+      return match[2].replace(/^(['"])(.*)\1$/, "$2");
+    }
+  }
+  return undefined;
+}
 
-const apiUrl = (process.env.API_URL || "http://127.0.0.1:8000").replace(/\/$/, "");
+const apiUrl = (rootEnv("API_URL") || "http://127.0.0.1:8000").replace(/\/$/, "");
 
 const nextConfig: NextConfig = {
   // A separate build directory lets the E2E server (next build + next start) run beside next dev.

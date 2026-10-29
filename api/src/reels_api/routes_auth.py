@@ -51,9 +51,19 @@ def rule_error(err: RuleError) -> ApiError:
 
 @router.post("/auth/login")
 def login(body: LoginBody, response: Response, db: DbSession = Depends(get_db)) -> dict:
+    invalid = ApiError(401, "invalid_credentials", "Email hoặc mật khẩu không đúng")
     user = db.scalar(select(User).where(User.email == normalize_email(body.email)))
     if not verify_password(body.password, user.password_hash if user else None):
-        raise ApiError(401, "invalid_credentials", "Email hoặc mật khẩu không đúng")
+        raise invalid
+    verified_hash = user.password_hash
+    # Re-read the row under a lock before creating the session: a temp password, password change or
+    # disable that committed while Argon2 ran revoked sessions already, so this login must not slip
+    # a new one in behind it.
+    user = db.scalar(
+        select(User).where(User.id == user.id).with_for_update().execution_options(populate_existing=True)
+    )
+    if user.password_hash != verified_hash:
+        raise invalid
     # Only reveal that an account is disabled to someone who proved they own it.
     if not user.is_active:
         raise ApiError(403, "account_disabled", "Tài khoản đã bị vô hiệu hoá")
