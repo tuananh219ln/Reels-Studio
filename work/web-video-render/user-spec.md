@@ -67,7 +67,9 @@ Tiêu chí nghiệm thu bên dưới ghi rõ thuộc phần nào.
 2. App tạo một video nháp và một job "viết kịch bản" trong hàng đợi. Trang video hiện trạng thái
    (Chờ thứ N / Đang viết) và tự cập nhật, không cần tải lại trang.
 3. Worker gọi Claude. Prompt gồm ba phần:
-   - "Prompt viết kịch bản" sửa được trên `/knowledge`, với chủ đề tự điền vào chỗ `[Chủ đề]`;
+   - "Prompt viết kịch bản" sửa được trên `/knowledge`. Worker thay chỗ điền `[Chủ đề]` bằng chủ
+     đề thành viên nhập. Nếu prompt đã sửa không còn chỗ điền này, worker nối thêm dòng
+     "Chủ đề: …" vào cuối prompt;
    - danh sách từ cấm;
    - phần định dạng đầu ra cố định trong code. Phần này có một ví dụ JSON đầy đủ mọi trường, dựng
      từ nội dung của `samples/xuong-khop.json` (chữ, giây, từ khóa) và không có đường dẫn ảnh.
@@ -89,8 +91,11 @@ Tiêu chí nghiệm thu bên dưới ghi rõ thuộc phần nào.
    giây.
 
 ### Soạn và sửa
-- **Cảnh tiêu đề:** chọn 1 trong 5 tiêu đề, hoặc tự sửa chữ. Cảnh này có ảnh riêng, độ dài riêng
-  (mặc định 3 giây) và từ khóa riêng.
+- **Cảnh tiêu đề:** chọn 1 trong 5 tiêu đề thì chữ của tiêu đề đó được chép vào chữ cảnh tiêu đề.
+  Thành viên có thể sửa tiếp chữ cảnh tiêu đề, và việc sửa này không đổi 5 tiêu đề ứng viên. Cảnh
+  này có ảnh riêng, độ dài riêng (mặc định 3 giây) và từ khóa riêng. Mọi quy tắc về "tiêu đề"
+  (chặn, cảnh báo, từ cấm, nhãn MP4) áp cho chữ cảnh tiêu đề. 5 tiêu đề ứng viên chỉ để chọn, không
+  bị kiểm tra.
 - **Cảnh nội dung:** sửa chữ, số giây, từ khóa và prompt ảnh. Thêm, xóa và đổi thứ tự cảnh.
 - **Xem trước khung hình:** từng cảnh, kể cả cảnh tiêu đề, có ảnh xem trước. Ảnh xem trước gồm ảnh
   đã gán (cắt 9:16) và hộp chữ vàng, ở độ zoom 1.00. Ảnh được dựng bằng chính code dựng hộp chữ và
@@ -101,6 +106,8 @@ Tiêu chí nghiệm thu bên dưới ghi rõ thuộc phần nào.
 - **Ảnh mỗi cảnh:**
   - **Upload ảnh:** JPG/PNG/WebP, tối đa 15 MB.
   - **"Tìm lại ảnh":** tìm Pixabay theo từ khóa hiện tại và gán ngay ảnh khác với ảnh đang dùng.
+    Không có ảnh khác thì lần lượt thử các từ khóa tiếp theo. Vẫn không có thì báo "Không tìm thấy
+    ảnh khác, hãy đổi từ khóa" và giữ ảnh cũ. Từ khóa trống thì nút bị mờ, kèm gợi ý nhập từ khóa.
   - **"Chọn từ Pixabay"** (phần 2): mở lưới ảnh nhỏ có dòng "Ảnh từ Pixabay". Ảnh nhỏ chỉ hiển thị
     tạm lúc xem. Ảnh được chọn mới tải bản lớn về server.
   - Lưới và "Tìm lại ảnh" chạy ngay, không xếp hàng sau render. Quá khoảng 10 giây hoặc lỗi thì
@@ -115,6 +122,9 @@ Tiêu chí nghiệm thu bên dưới ghi rõ thuộc phần nào.
 - **Tự lưu:** mỗi ô tự lưu khi rời ô và hiện "Đã lưu". Upload ảnh, chọn ảnh, thêm, xóa và đổi thứ
   tự cảnh được lưu ngay. Khi hai người sửa cùng một ô, bản lưu sau thắng. Sửa các ô khác nhau thì
   không đè lên nhau.
+- **Nhiều người cùng sửa cấu trúc:** lưu vào một cảnh vừa bị người khác xóa thì bị từ chối với
+  thông báo "Cảnh này đã bị xóa". Hai người đổi thứ tự cùng lúc thì thứ tự lưu sau thắng. Trang tự
+  cập nhật danh sách cảnh khi người khác thêm, xóa hoặc đổi thứ tự.
 - **Lưu khi video vừa bị khóa:** B đang gõ một ô thì A bấm Render. Lần lưu của B bị từ chối, ô hiện
   "Video đang render, chưa lưu" và giữ nguyên chữ B đã gõ, để B lưu lại sau khi render xong.
 - **Cảnh báo từ cấm:** quét tiêu đề, chữ cảnh, caption và bình luận ghim. So khớp không phân biệt
@@ -134,7 +144,9 @@ Cách đếm:
 
 **Chặn nút Render, hiện lý do ngay tại cảnh khi:**
 - không còn cảnh nội dung nào;
-- tiêu đề hoặc chữ của một cảnh trống;
+- chữ cảnh tiêu đề hoặc chữ của một cảnh trống;
+- chữ sai cách đánh dấu: dấu `*` lẻ, cặp `**` rỗng, hoặc dòng trống (hai `\n` liền nhau hay `\n` ở
+  cuối), theo đúng quy tắc của `reels_render`. Ảnh xem trước của cảnh đó hiện lý do thay cho ảnh;
 - chữ tràn hộp (theo đúng quy tắc vừa hộp của `reels_render`);
 - có cảnh thiếu ảnh;
 - số giây của một cảnh < 1 hoặc > 10;
@@ -142,9 +154,9 @@ Cách đếm:
 
 **Chỉ cảnh báo vàng, vẫn render được khi:**
 - số cảnh nội dung < 5 hoặc > 7;
-- tổng độ dài < 20 hoặc > 40 giây;
+- tổng độ dài < 20 hoặc > 48 giây (khớp "30–45 giây" của prompt mặc định cộng 3 giây cảnh tiêu đề);
 - chữ một cảnh > 10 từ;
-- tiêu đề > 12 từ.
+- chữ cảnh tiêu đề > 12 từ.
 
 ### Render
 1. Bấm "Render" tạo một job render. Lúc bấm, app dùng dữ liệu đã lưu và chờ ô đang gõ lưu xong.
@@ -165,12 +177,15 @@ Cách đếm:
 - Trên một video, bấm "Nhân bản" và nhập yêu cầu đổi, VD "đổi sang mốc 45 tuổi, tim mạch". Ô yêu
   cầu là bắt buộc. Để trống thì nút tạo bị vô hiệu và api từ chối.
 - App chụp lại dữ liệu ngay lúc bấm, gồm chủ đề, kịch bản đã sửa và yêu cầu đổi. App cũng chép
-  riêng file MP3 (thành asset mới của bản nháp), âm lượng và gợi ý nhạc. Từ đó app tạo một video
+  riêng file MP3 (thành asset mới của bản nháp) và âm lượng. Gợi ý nhạc không chép: Claude viết gợi
+  ý mới hợp với chủ đề mới. Từ đó app tạo một video
   nháp mới với job "nhân bản". Video gốc không bị khóa. Xóa hay sửa video gốc sau đó không ảnh hưởng
   bản nháp.
 - Claude giữ công thức của video gốc và viết kịch bản mới với đủ các phần như bước 3 ở trên. Worker
   tự gán Pixabay như video mới. Prompt dùng ô "Prompt nhân bản" trên `/knowledge`, cộng danh sách
-  từ cấm và phần định dạng đầu ra cố định.
+  từ cấm và phần định dạng đầu ra cố định. Worker thay các chỗ điền `[tiêu đề]`, `[chủ đề]`,
+  `[kịch bản đã sửa của video gốc]` và `[yêu cầu đổi]`. Chỗ điền nào đã bị xóa khỏi prompt thì
+  worker nối thông tin đó vào cuối prompt.
 - Hủy job nhân bản rồi bấm "Viết kịch bản" trên bản nháp đó thì chạy lại đúng job nhân bản, với dữ
   liệu đã chụp và yêu cầu đổi cũ. MP3 đã chép vẫn giữ.
 
@@ -184,6 +199,12 @@ Cách đếm:
   - Ít hơn 5 tiêu đề thì lưu số đang có.
 - **Mọi job lỗi:** hiện lý do bằng tiếng Việt dễ hiểu và có nút "Thử lại". Dữ liệu đã sửa được giữ
   nguyên. Ví dụ: Claude hết hạn mức, FFmpeg lỗi, "File nhạc không đọc được".
+- **"Thử lại":** tạo một job mới cùng loại. Job này xếp hàng và khóa video như bình thường, và
+  `/jobs` hiện cả job cũ lẫn job mới.
+  - Render: dùng dữ liệu đã lưu tại lúc bấm Thử lại.
+  - Viết kịch bản hoặc nhân bản: nếu kịch bản chưa được lưu thì chạy lại từ đầu. Nếu kịch bản đã
+    lưu (lỗi xảy ra ở bước gán ảnh) thì chỉ gán lại ảnh cho các cảnh còn thiếu, không gọi lại Claude
+    và không đè phần đã sửa.
 - **Chi tiết lỗi để chẩn đoán:** job lưu thêm chi tiết kỹ thuật, gồm đoạn cuối stderr của FFmpeg,
   câu trả lời thô của Claude khi parse lỗi và loại lỗi Pixabay. Trang video có mục "Chi tiết lỗi"
   thu gọn. Worker cũng ghi các chi tiết này ra log, kèm số token của mỗi lời gọi Claude.
@@ -192,8 +213,8 @@ Cách đếm:
   mở, rồi chuyển job sang Lỗi. Job bị dừng không ghi thêm gì vào database hay storage. Chỉ sau khi
   tiến trình cũ đã dừng hẳn, worker mới nhận job tiếp theo, không cần ai khởi động lại. Mọi lời gọi
   ngoài (Claude, Pixabay) đều có timeout riêng.
-- **Worker khởi động lại giữa chừng** (deploy mới, hết RAM, VPS khởi động lại): khi khởi động,
-  worker chuyển mọi job đang chạy dở thành Lỗi "Worker khởi động lại giữa chừng" và mở khóa video.
+- **Worker khởi động lại giữa chừng** (deploy mới, hết RAM, VPS khởi động lại): khi khởi động và
+  đã lấy được khóa worker (xem Constraints), worker chuyển mọi job đang chạy dở thành Lỗi "Worker khởi động lại giữa chừng" và mở khóa video.
   Worker không tự chạy lại job đó, để tránh gọi Claude tốn tiền ngoài ý muốn. Thành viên bấm Thử
   lại.
 - **Hủy job còn chờ:** job thành "Đã hủy".
@@ -229,9 +250,15 @@ Cách đếm:
 - [ ] Khi Pixabay lỗi hoặc không có kết quả, kịch bản vẫn được lưu và cảnh thiếu ảnh hiện màu đỏ
       kèm lý do.
 - [ ] "Tìm lại ảnh" gán một ảnh Pixabay khác với ảnh đang dùng. Khi Pixabay lỗi hoặc chậm quá khoảng
-      10 giây, app báo lỗi tại cảnh và giữ ảnh cũ.
+      10 giây, app báo lỗi tại cảnh và giữ ảnh cũ. Khi không có ảnh khác ở mọi từ khóa, app báo
+      "Không tìm thấy ảnh khác, hãy đổi từ khóa" và giữ ảnh cũ. Từ khóa trống thì nút bị mờ.
 - [ ] Sửa chữ, giây, từ khóa; thêm, xóa và đổi thứ tự cảnh; chọn tiêu đề: tất cả được tự lưu và vẫn
       còn sau khi tải lại trang. Hai người sửa hai cảnh khác nhau cùng lúc thì không mất sửa của ai.
+- [ ] Caption, hashtag, affiliate, bình luận ghim và prompt ảnh sửa được và tự lưu.
+- [ ] Lưu vào một cảnh vừa bị người khác xóa bị từ chối với thông báo "Cảnh này đã bị xóa". Khi
+      người khác thêm, xóa hoặc đổi thứ tự cảnh, trang tự hiện danh sách cảnh mới.
+- [ ] Chọn một tiêu đề ứng viên thì chữ cảnh tiêu đề đổi theo. Sửa chữ cảnh tiêu đề không đổi 5 tiêu
+      đề ứng viên. Cảnh báo "> 12 từ" và từ cấm chỉ xét chữ cảnh tiêu đề.
 - [ ] Thành viên B thấy, sửa và render được video do thành viên A tạo.
 - [ ] Ảnh xem trước của cảnh tiêu đề gần trùng khung đầu (t = 0) của MP4: chênh lệch trung bình mỗi
       kênh màu ≤ 3/255. Ảnh xem trước của cảnh nội dung dùng đúng ảnh đã gán và đúng ảnh hộp chữ mà
@@ -241,16 +268,17 @@ Cách đếm:
 - [ ] Upload ảnh JPG/PNG/WebP ≤ 15 MB thành công. File sai loại hoặc quá cỡ bị từ chối với thông
       báo tiếng Việt.
 - [ ] Render bị chặn và lý do hiện tại cảnh trong từng trường hợp: xóa hết cảnh nội dung; để trống
-      tiêu đề hoặc chữ một cảnh; chữ tràn hộp; có cảnh thiếu ảnh. Gỡ nguyên nhân thì Render bấm
+      chữ cảnh tiêu đề hoặc chữ một cảnh; chữ có dấu `*` lẻ, cặp `**` rỗng hoặc dòng trống; chữ tràn
+      hộp; có cảnh thiếu ảnh. Gỡ nguyên nhân thì Render bấm
       được lại.
 - [ ] Biên của các quy tắc chặn Render:
   - giây mỗi cảnh: 0,9 bị chặn; 1 và 10 qua; 10,1 bị chặn (áp cả cho cảnh tiêu đề);
   - tổng độ dài (tính cả cảnh tiêu đề): 90 giây qua, 91 giây bị chặn.
 - [ ] Biên của các cảnh báo vàng (không chặn Render):
   - số cảnh: 4 và 8 có cảnh báo; 5 và 7 không;
-  - tổng độ dài: 19 và 41 giây có cảnh báo; 20 và 40 không;
+  - tổng độ dài: 19 và 49 giây có cảnh báo; 20 và 48 không;
   - chữ cảnh: 11 từ có cảnh báo, 10 từ không;
-  - tiêu đề: 13 từ có cảnh báo, 12 từ không.
+  - chữ cảnh tiêu đề: 13 từ có cảnh báo, 12 từ không.
 - [ ] Từ cấm (VD "CHỮA KHỎI", "*chữa* khỏi", hoặc chữ ở dạng NFD) hiện cảnh báo vàng ở ô trúng,
       và Render vẫn bấm được.
 - [ ] Render xong thì MP4 phát được và tua được trên reels.quangdang.xyz, và tải về được.
@@ -274,6 +302,13 @@ Cách đếm:
       container. Job Lỗi có lý do tiếng Việt, mục "Chi tiết lỗi" và nút "Thử lại".
 - [ ] Khởi động lại worker khi đang có job chạy: job đó thành Lỗi "Worker khởi động lại giữa
       chừng", video được mở khóa, và job không tự chạy lại.
+- [ ] Khi hai tiến trình worker cùng chạy (như lúc Coolify deploy), chỉ một tiến trình nhận job.
+      Tiến trình thứ hai chỉ dọn job chạy dở và nhận job sau khi tiến trình thứ nhất đã tắt.
+- [ ] "Thử lại" tạo một job mới cùng loại, và job cũ vẫn còn. Thử lại một job viết kịch bản lỗi ở
+      bước gán ảnh chỉ gán ảnh cho cảnh còn thiếu: không gọi Claude, không đổi chữ đã sửa.
+- [ ] Prompt có chỗ điền `[Chủ đề]` thì Claude nhận đúng chủ đề thành viên nhập. Prompt đã bị xóa
+      chỗ điền thì chủ đề được nối vào cuối.
+- [ ] Mỗi lời gọi Claude được ghi vào log của worker kèm số token.
 - [ ] Claude trả JSON hỏng, thiếu tiêu đề hoặc không có cảnh thì worker gọi lại một lần, vẫn hỏng
       thì job Lỗi. Đầu ra có giây 0,5 được lưu thành 4. Từ khóa 150 ký tự được cắt còn 100.
 - [ ] Danh sách video có ảnh thu nhỏ, trạng thái, nhãn phụ, người tạo, ngày, và tìm được theo tiêu
@@ -294,15 +329,16 @@ Cách đếm:
 - [ ] Thay MP3, gỡ MP3 (render ra bản im lặng) và đổi âm lượng (mặc định 25%, lưu theo video) đều
       phản ánh đúng trong MP4. MP3 hỏng lúc render cho job Lỗi "File nhạc không đọc được".
 - [ ] Sau khi render, đổi MP3 hoặc âm lượng thì bật nhãn "MP4 chưa cập nhật theo bản sửa".
-- [ ] Nhân bản với yêu cầu đổi tạo ra một video nháp mới có kịch bản mới và ảnh Pixabay mới, kèm
-      bản chép của MP3, âm lượng và gợi ý nhạc. Yêu cầu trống bị từ chối. Video gốc không đổi,
+- [ ] Nhân bản với yêu cầu đổi tạo ra một video nháp mới có kịch bản mới, ảnh Pixabay mới và gợi
+      ý nhạc mới do Claude viết, kèm bản chép của MP3 và âm lượng. Yêu cầu trống bị từ chối. Video gốc không đổi,
       không bị khóa. Xóa video gốc sau khi bấm không làm mất nhạc của bản nháp.
 - [ ] Hủy job nhân bản còn chờ rồi bấm "Viết kịch bản" trên bản nháp đó thì chạy lại job nhân bản
       với yêu cầu đổi cũ, và MP3 đã chép vẫn còn.
 - [ ] Ô "Prompt nhân bản" trên `/knowledge` sửa và lưu được, và job nhân bản sau dùng bản mới. "Khôi
       phục mặc định" đưa ô về mục "Ô 2" của `default-prompt.md`.
-- [ ] `/jobs` liệt kê mọi job kèm loại, trạng thái (gồm "Đã hủy"), người bấm, thời lượng và lỗi.
-      Bấm một dòng thì mở video.
+- [ ] `/jobs` liệt kê mọi job kèm video, loại, trạng thái (gồm "Đã hủy"), người bấm, lúc bắt đầu,
+      thời lượng, số lần gọi Claude (một job có gọi lại thì hiện 2) và lỗi. Bấm một dòng thì mở
+      video.
 
 ## Constraints
 - **Không chạy việc dài trong request của api.** Gọi Claude, tự gán Pixabay và render đều chạy
@@ -310,6 +346,10 @@ Cách đếm:
   timeout khoảng 10 giây.
 - **Hàng đợi là bảng `jobs` trong Postgres.** Worker lấy job bằng `SELECT … FOR UPDATE SKIP
   LOCKED` và chỉ chạy một job tại một thời điểm. Không dùng Redis.
+- **Chỉ một worker hoạt động.** Khi deploy, Coolify có thể chạy container worker cũ và mới song song
+  một lúc. Worker giữ một khóa toàn cục trong Postgres (advisory lock) suốt đời tiến trình. Worker
+  mới chờ tới khi lấy được khóa, tức là khi worker cũ đã tắt hẳn, rồi mới dọn job chạy dở và nhận
+  job mới.
 - **Code của service worker** (vòng lặp nhận job, job viết kịch bản, nhân bản, render) nằm trong gói
   `reels_api` và chạy bằng một lệnh riêng, VD `python -m reels_api worker`. Nhờ vậy model, migration
   và cấu hình database chỉ có một bản. `reels_render` giữ nguyên là thư viện chỉ cần Pillow.
@@ -395,6 +435,12 @@ Cách đếm:
 - Mỗi job chạy trong một tiến trình con riêng để dừng hẳn được khi quá 15 phút, không phải sửa
   `reels_render`. Worker khởi động lại thì job chạy dở chuyển Lỗi, không tự chạy lại, để tránh gọi
   Claude ngoài ý muốn.
+- Một khóa toàn cục trong Postgres (advisory lock) bảo đảm chỉ một worker hoạt động, kể cả lúc
+  Coolify chạy song song container cũ và mới khi deploy.
+- Cảnh báo tổng độ dài đặt ở 20–48 giây cho khớp "30–45 giây" của prompt mặc định (cộng 3 giây cảnh
+  tiêu đề). Văn bản prompt từ PDF được giữ nguyên, trừ chỗ điền `[Chủ đề]`.
+- "Thử lại" luôn tạo job mới và không bao giờ đè phần đã sửa.
+- Nhân bản chép MP3 và âm lượng, còn gợi ý nhạc do Claude viết mới.
 - `/knowledge` có hai ô prompt (viết kịch bản, nhân bản), mỗi ô có nút khôi phục mặc định riêng.
 - Nhãn "MP4 chưa cập nhật" chỉ bật khi sửa thứ làm MP4 khác đi.
 - Không giới hạn số lần gọi Claude. Người dùng không chọn tính năng này.
@@ -422,7 +468,10 @@ thật và tiến trình thật. Render cần FFmpeg thật để chứng minh M
   - ảnh xem trước khung hình và ảnh thu nhỏ (tạo khi có ảnh tiêu đề, tạo lại khi ảnh hoặc chữ tiêu
     đề đổi);
   - lưới Pixabay và "Tìm lại ảnh": thành công, quá thời gian, sai key;
-  - cờ "MP4 chưa cập nhật" (bật với chữ, giây, ảnh, thứ tự, tiêu đề, MP3, âm lượng; không bật với
+  - lưu vào cảnh đã bị xóa bị từ chối; đổi thứ tự đồng thời thì bản lưu sau thắng;
+  - Thử lại: tạo job mới; Thử lại job viết kịch bản lỗi ở bước gán ảnh không gọi Claude;
+  - cờ "MP4 chưa cập nhật" (bật với chữ, giây, ảnh, thứ tự, thêm hoặc xóa cảnh, chữ cảnh tiêu đề,
+    MP3, âm lượng; không bật với
     caption, hashtag, affiliate, bình luận ghim, gợi ý nhạc, từ khóa, prompt ảnh) và nhãn "Render
     lại lỗi";
   - lưu một ô khi video vừa bị khóa bị từ chối với thông báo rõ;
@@ -435,6 +484,10 @@ thật và tiến trình thật. Render cần FFmpeg thật để chứng minh M
     trong test): tiến trình con và FFmpeg đều chết, job chuyển Lỗi, không ghi thêm gì, và job kế
     tiếp chạy được;
   - worker khởi động khi có job đang chạy dở: job thành Lỗi, video mở khóa, job không tự chạy lại;
+  - hai tiến trình worker cùng chạy: tiến trình thứ hai không nhận job và không dọn job cho tới khi
+    tiến trình thứ nhất tắt (advisory lock);
+  - ghép prompt: thay `[Chủ đề]` và các chỗ điền của prompt nhân bản; nối vào cuối khi chỗ điền bị
+    xóa;
   - chi tiết lỗi (stderr FFmpeg, câu trả lời thô của Claude) được lưu vào job;
   - job viết kịch bản và nhân bản với Claude giả: hợp lệ; hỏng → gọi lại → Lỗi; lệch nhẹ → lưu;
   - tự gán Pixabay giả, và Pixabay lỗi vẫn lưu kịch bản;
@@ -470,7 +523,7 @@ cả việc tự cập nhật trạng thái và phát MP4 trong trình duyệt.
 | 2. Chạy `npm run typecheck`, `npm run e2e` và build OpenNext trong `web/` | Tất cả qua |
 | 3. Chạy test so khớp render: nạp `samples/xuong-khop.json` cùng ảnh vào database và storage, chạy job render, rồi so với MP4 của `python -m reels_render samples/xuong-khop.json -o <file>.mp4` | Cùng độ dài và kích thước, khung giữa mỗi cảnh chênh ≤ 3/255, khung đầu khớp ảnh xem trước tiêu đề |
 | 4. Chạy local api, worker và web với Claude và Pixabay thật (nếu `.env` có key), tạo video "thực phẩm tốt cho xương khớp người sau 50 tuổi", rồi render | Kịch bản đủ các phần, MP4 9:16 tạo được, thời lượng job render ≤ 2× độ dài trên máy dev |
-| 5. Build image api và image worker bằng Docker từ gốc repo | Cả hai build được. Image worker có `ffmpeg -version` ≥ 4.3 và `ffprobe` |
+| 5. Build image api và image worker bằng Docker từ gốc repo, rồi chạy test so khớp render của bước 3 bên trong image worker | Cả hai build được. Image worker có `ffmpeg -version` ≥ 4.3 và `ffprobe`. Test so khớp qua với FFmpeg của chính image sẽ chạy trên server |
 | 6. Đọc README phần triển khai | Có đủ các bước thủ công trên Coolify, GitHub và Cloudflare (xem User Verification) |
 
 ### User Verification

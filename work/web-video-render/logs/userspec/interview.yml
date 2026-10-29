@@ -3,7 +3,7 @@
 
 interview_metadata:
   started: "2026-10-29 19:20:00"
-  last_updated: "2026-10-29 23:40:00"
+  last_updated: "2026-10-30 00:20:00"
   status: "in_progress"  # in_progress | completed
   can_resume: true
 
@@ -166,6 +166,19 @@ conversation_history:
       1. Hai ô: viết kịch bản + nhân bản (Recommended)
       2. Chỉ thứ làm đổi MP4 (Recommended)
       3. Chuyển job đó sang Lỗi (Recommended)
+      4. Đồng ý cả gói (Recommended)
+  - asked_at: "2026-10-30 00:15:00"
+    topic_keys: ["user_stories", "error_scenarios", "constraints", "edge_cases"]
+    agent_questions: |
+      (Vòng thẩm định 3)
+      1. Nhân bản: gợi ý nhạc của bản nháp lấy từ đâu? (MP3 và âm lượng vẫn chép từ video gốc.) Claude viết gợi ý mới (Recommended) / Chép từ video gốc
+      2. Bấm "Thử lại" trên job Lỗi thì làm gì? Tạo job mới, không đè bản sửa (Recommended) — tạo job mới cùng loại, xếp hàng và khóa video như bình thường (/jobs hiện cả job cũ lẫn mới); render dùng dữ liệu đã lưu hiện tại; viết kịch bản/nhân bản: nếu kịch bản chưa được lưu thì chạy lại từ đầu, nếu đã lưu (lỗi ở bước gán ảnh) thì chỉ gán lại ảnh cho cảnh còn thiếu, không gọi lại Claude, không đè bản sửa / Luôn chạy lại từ đầu
+      3. Prompt mặc định trong PDF ghi "30–45 giây", còn cảnh báo vàng đang đặt ngoài 20–40 giây (tính cả 3 giây tiêu đề), nên video đúng prompt hay bị cảnh báo. Chỉnh thế nào? Cảnh báo ngoài 20–48 giây (Recommended) / Giữ 20–40, sửa prompt thành 20–35 giây
+      4. Hai trường hợp nhỏ — đồng ý cả gói không? (1) "Tìm lại ảnh" không ra ảnh nào khác: thử lần lượt các từ khóa tiếp theo; vẫn không có thì báo "Không tìm thấy ảnh khác, hãy đổi từ khóa" và giữ ảnh cũ; từ khóa trống thì nút bị mờ kèm gợi ý. (2) Nhiều người cùng sửa cấu trúc: lưu vào cảnh vừa bị người khác xóa bị từ chối với thông báo "Cảnh này đã bị xóa"; đổi thứ tự cùng lúc thì thứ tự lưu sau thắng; trang tự cập nhật danh sách cảnh khi người khác thêm/xóa/đổi thứ tự. Đồng ý cả gói (Recommended) / Muốn đổi
+    user_answer: |
+      1. Claude viết gợi ý mới (Recommended)
+      2. Tạo job mới, không đè bản sửa (Recommended)
+      3. Cảnh báo ngoài 20–48 giây (Recommended)
       4. Đồng ý cả gói (Recommended)
 # Entry format:
 # - asked_at: "YYYY-MM-DD HH:MM:SS"

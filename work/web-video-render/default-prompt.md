@@ -13,10 +13,15 @@ cố định trong code, dựng từ nội dung của `samples/xuong-khop.json`.
 ## Cách dùng trên /knowledge
 
 - **Ô 1 — "Prompt viết kịch bản"** (phần 1): mặc định là các mục "Custom Instructions", "Prompt
-  viết kịch bản", "Công thức tiêu đề" và "Lưu ý an toàn" dưới đây, nối theo thứ tự đó. Worker thay
-  `[VD: thực phẩm tốt cho xương khớp người sau 50 tuổi]` bằng chủ đề thành viên nhập.
+  viết kịch bản", "Công thức tiêu đề" và "Lưu ý an toàn" dưới đây, nối theo thứ tự đó. Thay đổi
+  duy nhất so với nguyên văn PDF: dòng `Chủ đề: [VD: thực phẩm tốt cho xương khớp người sau 50
+  tuổi]` trở thành `Chủ đề: [Chủ đề]` trong văn bản mặc định. Worker thay `[Chủ đề]` bằng chủ đề
+  thành viên nhập. Nếu prompt đã sửa không còn `[Chủ đề]`, worker nối "Chủ đề: …" vào cuối.
 - **Ô 2 — "Prompt nhân bản"** (phần 2): mặc định là mục "Prompt nhân bản (một biến thể)" dưới
-  đây. Worker điền tiêu đề, chủ đề và kịch bản đã sửa của video gốc, cùng yêu cầu đổi.
+  đây. Worker thay `[tiêu đề]`, `[chủ đề]`, `[kịch bản đã sửa của video gốc]` và `[yêu cầu đổi]`.
+  Chỗ điền nào đã bị xóa khỏi prompt thì worker nối thông tin đó vào cuối.
+- Ví dụ "khắc tinh của tế bào K" trong công thức tiêu đề được giữ nguyên văn để Claude hiểu công
+  thức. Nếu Claude chép từ "khắc tinh", cảnh báo từ cấm sẽ hiện.
 - Mục "Prompt nhân bản video thắng" (bản gốc 10 biến thể) chỉ để tham khảo, không phải văn bản mặc
   định.
 
