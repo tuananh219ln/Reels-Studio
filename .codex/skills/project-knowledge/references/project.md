@@ -35,17 +35,25 @@ app replaces CapCut, so the output is a finished MP4.
 
 ## Key Features (MVP)
 
-1. **Team login:** accounts are created by members. There is no self-signup.
-2. **Knowledge Base:** editable channel documents and a food bank with sourced benefits. Claude
-   drafts the content; food bank rows need a member's approval before use. See [content.md](content.md#knowledge-base).
-3. **Script generation:** one Claude call turns a topic into 5 title options, a 5–7 scene script,
-   a caption with hashtags, per-scene image prompts, affiliate suggestions, and a safety self-review.
-   Every part is editable.
-4. **Scene images:** members upload their own photo per scene. When a scene has no photo, the app
-   searches stock images by keyword.
-5. **Templated render:** a fixed visual template, Ken Burns motion, background music from the team
-   library, and Vietnamese TTS. TTS is on by default and can be turned off per video.
-6. **Job log:** shows status and duration, offers the MP4 download, and can re-run a job.
+1. **Team login (built):** email and password; accounts are created by members (the first one by
+   a CLI command). There is no self-signup and no roles: every member can manage users. Google
+   login is planned (see the backlog).
+2. **Knowledge Base (partly built):** today `/knowledge` holds the editable script and clone
+   prompts and the banned words. Planned: editable channel documents and a food bank with sourced
+   benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
+   [content.md](content.md#knowledge-base).
+3. **Script generation (built):** one Claude call turns a topic into 5 title options, a 5–7 scene
+   script, a caption with hashtags, per-scene image prompts and photo keywords, affiliate
+   suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
+   writes one variant of an existing video from a change request.
+4. **Scene images (built):** a Pixabay photo is stored for every scene right after the script is
+   written; members can upload their own, ask for another Pixabay photo, or pick from a Pixabay
+   grid.
+5. **Templated render (built, without TTS):** a fixed visual template, Ken Burns motion, rendered
+   on the server. Music is optional (one uploaded MP3 per video); the team music library and
+   Vietnamese TTS (on by default, off per video) are planned.
+6. **Job log (built):** every job with status, duration, Claude call count, and error; failed jobs
+   are retried from the video page, where the MP4 plays and downloads.
 
 ---
 

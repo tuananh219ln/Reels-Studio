@@ -11,8 +11,13 @@
   source: it is fixed to Pixabay and not configurable.
 - **Attribute adapted code.** Code adapted from MoneyPrinterTurbo keeps its MIT attribution in the
   file header.
-- **The prompt is assembled from the Knowledge Base.** Prompt text and channel rules are app data
-  that members can edit, not constants in code. See [content.md](content.md).
+- **Prompt content is app data; the output format is code.** Members edit the prompt text and the
+  banned words on `/knowledge`; the JSON output format and its example stay fixed in
+  [claude.py](../../../../api/src/reels_api/claude.py), so an edited prompt can never break the
+  parsing every job depends on. See [content.md](content.md#script-generation-contract).
+- **Claude and Pixabay are reached only through their base URL in tests.** Tests and E2E point
+  `ANTHROPIC_BASE_URL` and `PIXABAY_API_URL` at a local fake server; production code has no test
+  switches.
 
 ## Git Workflow
 
@@ -41,13 +46,22 @@ There is no linter yet.
   need FFmpeg are skipped, with a reason, when `ffmpeg`/`ffprobe` are not on PATH. Run them with
   FFmpeg present before merging render changes.
 - **Sample render:** [samples/xuong-khop.json](../../../../samples/xuong-khop.json) and its
-  committed images render end to end with the CLI.
-- **Frontend:** tests cover the main flows only.
+  committed images render end to end with the CLI. The api's render parity test loads the same
+  sample into the database and storage, renders it through the worker path, and requires the MP4 to
+  match the CLI's (same length and size, mid-scene frames within 3/255) and the first frame to
+  match the title preview.
+- **api** ([api/tests/](../../../../api/tests/)): pytest on real Postgres. Endpoint tests run in a
+  rolled-back transaction; worker tests commit for real and start real `python -m reels_api worker`
+  processes, with fake Claude/Pixabay over HTTP and stand-in `ffmpeg` scripts for hangs and
+  failures. They need `TEST_DATABASE_URL` and FFmpeg; CI fails if any of them is skipped.
+- **Frontend:** Playwright E2E covers the main flows; it starts the api, a real worker, and the fake
+  Claude/Pixabay ([web/playwright.config.ts](../../../../web/playwright.config.ts)), so FFmpeg is
+  needed there too.
 - **Visual template check:** a person watches a rendered MP4 against the template in
   [ux-guidelines.md](ux-guidelines.md#video-template). An agent cannot judge the visual result.
 
 ## Business Rules
 
 Content rules (approved food bank rows only, non-blocking banned-word warning) are owned by
-[content.md](content.md). Render concurrency and retention are owned by
-[deployment.md](deployment.md).
+[content.md](content.md). Pre-render checks, one job at a time, and locking are owned by
+[architecture.md](architecture.md#video-pipeline); retention by [deployment.md](deployment.md).
