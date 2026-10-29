@@ -9,16 +9,30 @@ from .models import Setting
 from .script_rules import DEFAULT_BANNED_WORDS
 
 SCRIPT_PROMPT = "script_prompt"
+CLONE_PROMPT = "clone_prompt"
 BANNED_WORDS = "banned_words"
+
+
+def _prompt_file(name: str) -> str:
+    return (Path(__file__).parent / "prompts" / name).read_text(encoding="utf-8").rstrip("\n")
 
 
 @cache
 def default_script_prompt() -> str:
-    return (Path(__file__).parent / "prompts" / "script_default.txt").read_text(encoding="utf-8").rstrip("\n")
+    return _prompt_file("script_default.txt")
+
+
+@cache
+def default_clone_prompt() -> str:
+    return _prompt_file("clone_default.txt")
 
 
 def defaults() -> dict:
-    return {SCRIPT_PROMPT: default_script_prompt(), BANNED_WORDS: list(DEFAULT_BANNED_WORDS)}
+    return {
+        SCRIPT_PROMPT: default_script_prompt(),
+        CLONE_PROMPT: default_clone_prompt(),
+        BANNED_WORDS: list(DEFAULT_BANNED_WORDS),
+    }
 
 
 def get(db: DbSession, key: str):
@@ -28,6 +42,10 @@ def get(db: DbSession, key: str):
 
 def script_prompt(db: DbSession) -> str:
     return get(db, SCRIPT_PROMPT)
+
+
+def clone_prompt(db: DbSession) -> str:
+    return get(db, CLONE_PROMPT)
 
 
 def banned_words(db: DbSession) -> list[str]:

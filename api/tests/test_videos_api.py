@@ -281,7 +281,7 @@ def test_mp4_outdated_label_follows_only_changes_that_alter_the_mp4(an, db, me, 
 
     video = make_video(db, storage, me)
     title, scenes = split_scenes(db, video)
-    video.mp4_key, video.rendered_signature = f"videos/{video.id}/video-x.mp4", render_signature(title, scenes)
+    video.mp4_key, video.rendered_signature = f"videos/{video.id}/video-x.mp4", render_signature(video, title, scenes)
     db.commit()
     assert an.get(f"/api/videos/{video.id}").json()["mp4_outdated"] is False
     ids = scene_ids(db, video)

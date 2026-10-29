@@ -1,18 +1,44 @@
 "use client";
 
-import { ArrowLeftOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, VideoCameraOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Card, Col, Collapse, Flex, Radio, Result, Row, Space, Spin, Tooltip, Typography } from "antd";
+import {
+  ArrowLeftOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  PlusOutlined,
+  VideoCameraOutlined,
+} from "@ant-design/icons";
+import {
+  App,
+  Alert,
+  Button,
+  Card,
+  Col,
+  Collapse,
+  Flex,
+  Input,
+  Modal,
+  Radio,
+  Result,
+  Row,
+  Space,
+  Spin,
+  Tooltip,
+  Typography,
+} from "antd";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
+import MusicCard from "@/components/video/MusicCard";
 import PostContent from "@/components/video/PostContent";
 import SceneCard from "@/components/video/SceneCard";
 import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
+const JOB_NAMES = { script: "Viết kịch bản", clone: "Nhân bản", render: "Render" } as const;
 
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
@@ -21,6 +47,7 @@ export default function VideoPage() {
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cloning, setCloning] = useState(false);
   const pending = useRef(new Set<Promise<unknown>>());
 
   const load = useCallback(async () => {
@@ -132,6 +159,11 @@ export default function VideoPage() {
           <Typography.Text type="secondary">
             Chủ đề: {video.topic} · {video.created_by}
           </Typography.Text>
+          {video.clone_of && (
+            <Typography.Paragraph type="secondary" style={{ margin: 0 }} data-testid="clone-of">
+              Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
+            </Typography.Paragraph>
+          )}
           <div style={{ marginTop: 6 }}>
             <VideoStatusTags video={video} />
           </div>
@@ -151,6 +183,11 @@ export default function VideoPage() {
               Viết kịch bản
             </Button>
           )}
+          {video.has_script && (
+            <Button icon={<CopyOutlined />} disabled={busy} onClick={() => setCloning(true)}>
+              Nhân bản
+            </Button>
+          )}
           <Button danger icon={<DeleteOutlined />} disabled={video.locked || busy} onClick={remove}>
             Xóa
           </Button>
@@ -166,10 +203,12 @@ export default function VideoPage() {
           data-testid="job-status"
           title={
             job.status === "queued"
-              ? `${video.status_label}: ${job.kind === "render" ? "render" : "viết kịch bản"}`
+              ? `${video.status_label}: ${JOB_NAMES[job.kind]}`
               : job.kind === "render"
                 ? "Đang render video…"
-                : "Đang viết kịch bản…"
+                : job.kind === "clone"
+                  ? "Claude đang viết kịch bản nhân bản…"
+                  : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
@@ -188,7 +227,7 @@ export default function VideoPage() {
           showIcon
           style={{ marginBottom: 16 }}
           data-testid="job-error"
-          title={`${failed.kind === "render" ? (video.mp4 ? "Render lại lỗi" : "Render lỗi") : "Viết kịch bản lỗi"}: ${failed.error ?? ""}`}
+          title={`${failed.kind === "render" && video.mp4 ? "Render lại lỗi" : `${JOB_NAMES[failed.kind]} lỗi`}: ${failed.error ?? ""}`}
           description={
             failed.error_detail && (
               <Collapse ghost size="small" items={[{
@@ -274,11 +313,65 @@ export default function VideoPage() {
                   </Flex>
                 </Card>
               )}
+              <MusicCard video={video} />
               <PostContent video={video} />
             </Flex>
           </Col>
         </Row>
       )}
+      <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
     </EditorContext.Provider>
+  );
+}
+
+/** "Nhân bản": Claude writes a new draft from this video as it is now, changed as the member asks. */
+function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean; onClose: () => void }) {
+  const { message } = App.useApp();
+  const router = useRouter();
+  const [request, setRequest] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    try {
+      const draft = await api<VideoDetail>(`/videos/${videoId}/clone`, "POST", { request });
+      message.success("Đã tạo bản nháp nhân bản");
+      onClose();
+      router.push(`/videos/${draft.id}`);
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Nhân bản video"
+      open={open}
+      onCancel={onClose}
+      onOk={submit}
+      okText="Tạo bản nhân bản"
+      cancelText="Huỷ"
+      okButtonProps={{ disabled: !request.trim() }}
+      confirmLoading={busy}
+      destroyOnHidden
+      afterClose={() => setRequest("")}
+    >
+      <Typography.Paragraph type="secondary">
+        Claude giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là
+        một video nháp riêng, có ảnh Pixabay mới, gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị
+        khóa hay thay đổi.
+      </Typography.Paragraph>
+      <Typography.Text strong>Yêu cầu đổi</Typography.Text>
+      <Input.TextArea
+        aria-label="Yêu cầu đổi"
+        value={request}
+        placeholder="VD: đổi sang mốc 45 tuổi, tim mạch"
+        autoSize={{ minRows: 2, maxRows: 5 }}
+        maxLength={300}
+        onChange={(event) => setRequest(event.target.value)}
+      />
+    </Modal>
   );
 }

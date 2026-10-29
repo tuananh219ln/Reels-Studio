@@ -17,7 +17,14 @@ from reels_render.ffmpeg import find_tools, probe
 from reels_render.script import parse_script
 
 from . import knowledge
-from .claude import ClaudeError, GeneratedScript, build_script_prompt, call_claude, generate_script
+from .claude import (
+    ClaudeError,
+    GeneratedScript,
+    build_clone_prompt,
+    build_script_prompt,
+    call_claude,
+    generate_script,
+)
 from .models import Job, Scene, Video
 from .pixabay import Pixabay, PixabayError
 from .sessions import now
@@ -52,7 +59,7 @@ def run_job(job_id: int, factory: sessionmaker, storage: DirectoryStorage, pixab
             return
         log.info("Job %s (%s) for video %s started", job.id, job.kind, job.video_id)
         try:
-            if job.kind == "script":
+            if job.kind in ("script", "clone"):
                 run_script_job(db, job, storage, pixabay or Pixabay(), call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
@@ -87,7 +94,12 @@ def run_script_job(db: DbSession, job: Job, storage: DirectoryStorage, pixabay: 
     # A retried job whose script was already saved only fills the missing photos: no new Claude call,
     # and nothing the members edited meanwhile is overwritten.
     if not video.has_script:
-        prompt = build_script_prompt(knowledge.script_prompt(db), video.topic, knowledge.banned_words(db))
+        banned = knowledge.banned_words(db)
+        if job.kind == "clone":
+            # The snapshot from the moment "Nhân bản" was pressed: later edits of the source do not count.
+            prompt = build_clone_prompt(knowledge.clone_prompt(db), video.clone_source, banned)
+        else:
+            prompt = build_script_prompt(knowledge.script_prompt(db), video.topic, banned)
 
         def count_call() -> None:
             db.execute(update(Job).where(Job.id == job.id).values(claude_calls=Job.claude_calls + 1))
@@ -160,6 +172,25 @@ def assign_images(db: DbSession, video: Video, storage: DirectoryStorage, pixaba
 
 # --- Render ---
 
+MUSIC_UNREADABLE = "File nhạc không đọc được"
+
+
+def _checked_music(video: Video, storage: DirectoryStorage, folder: Path) -> Path | None:
+    """The MP3 for this render, or None for a silent video; a file FFmpeg cannot read fails the job here,
+    with a clear reason, instead of as an FFmpeg error in the middle of the render."""
+    if not video.music_key:
+        return None
+    if not storage.exists(video.music_key):
+        raise JobFailure(MUSIC_UNREADABLE, "Không thấy file nhạc trong storage, hãy tải nhạc lên lại")
+    music = storage.copy_to(video.music_key, folder / "music.mp3")
+    try:
+        streams = probe(find_tools().ffprobe, music).get("streams", [])
+    except FFmpegError as err:
+        raise JobFailure(MUSIC_UNREADABLE, err.stderr_tail) from None
+    if not any(stream.get("codec_type") == "audio" for stream in streams):
+        raise JobFailure(MUSIC_UNREADABLE, "File không có luồng âm thanh")
+    return music
+
 def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     video = db.get(Video, job.video_id)
     title, scenes = split_scenes(db, video)
@@ -178,11 +209,13 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             return {"text": scene.text, "seconds": scene.seconds, "image": image.name}
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
-        signature = render_signature(title, scenes)
+        signature = render_signature(video, title, scenes)
+        music = _checked_music(video, storage, folder)
         output = folder / "video.mp4"
         started = time.monotonic()
         try:
-            render_video(parse_script(data, base_dir=folder), output)
+            render_video(parse_script(data, base_dir=folder), output, music=music,
+                         music_volume=video.music_volume / 100)
             seconds = float(probe(find_tools().ffprobe, output)["format"]["duration"])
         except FFmpegError as err:
             raise JobFailure("FFmpeg lỗi khi render video", err.stderr_tail) from None

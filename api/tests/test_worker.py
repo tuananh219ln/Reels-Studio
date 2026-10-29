@@ -2,6 +2,9 @@
 
 import json
 import os
+import re
+import shutil
+import subprocess
 import time
 
 import psutil
@@ -11,6 +14,7 @@ from alembic.config import Config
 from sqlalchemy import select
 
 from conftest import API_DIR, make_video
+from fake_services import script_json
 from reels_api import jobs
 from reels_api.models import Job, Scene, Video
 from reels_api.storage import DirectoryStorage
@@ -327,3 +331,116 @@ def test_a_job_being_cancelled_is_skipped_by_the_claim_and_never_runs(committed)
         cancel_db.commit()
     assert claim_next(committed) is None
     assert job_row(committed, job_id).status == "cancelled"
+
+
+# --- Part 2: clone jobs and music ---
+
+def test_clone_job_writes_a_new_script_from_the_snapshot(committed, services, start_worker):
+    user = add_user(committed)
+    snapshot = {"video_id": 1, "title": "5 MÓN BỔ XƯƠNG", "topic": "xương khớp",
+                "script": "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi*", "request": "đổi sang mốc 45 tuổi, tim mạch"}
+    with committed() as db:
+        draft = Video(topic=snapshot["request"], has_script=False, created_by_id=user.id, clone_source=snapshot)
+        db.add(draft)
+        db.commit()
+    services.claude_replies = [{**script_json("tim mạch"),
+                                "music_suggestions": ["River Flows In You"]}]
+    job_id = add_job(committed, draft.id, user.id, kind="clone")
+    start_worker()
+
+    assert wait_for_status(committed, job_id).status == "done"
+    prompt = services.claude_prompts[0]
+    assert prompt.startswith('Video gốc: "5 MÓN BỔ XƯƠNG" — chủ đề: xương khớp.')
+    assert "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi*" in prompt and "đổi sang mốc 45 tuổi, tim mạch" in prompt
+    video, scenes = load(committed, draft.id)
+    assert video.has_script and video.music_suggestions == ["River Flows In You"]
+    assert all(scene.image_key for scene in scenes)
+
+
+def test_clone_job_uses_the_edited_clone_prompt(committed, services, start_worker):
+    from reels_api import knowledge
+
+    user = add_user(committed)
+    with committed() as db:
+        knowledge.put(db, knowledge.CLONE_PROMPT, "Viết biến thể của [tiêu đề] theo: [yêu cầu đổi]", user.id)
+        draft = Video(topic="tim mạch", has_script=False, created_by_id=user.id, clone_source={
+            "video_id": 1, "title": "5 MÓN BỔ XƯƠNG", "topic": "xương khớp", "script": "Cảnh 1 (4 giây): Cá",
+            "request": "tim mạch"})
+        db.add(draft)
+        db.commit()
+    job_id = add_job(committed, draft.id, user.id, kind="clone")
+    start_worker()
+
+    assert wait_for_status(committed, job_id).status == "done"
+    assert services.claude_prompts[0].startswith(
+        "Viết biến thể của 5 MÓN BỔ XƯƠNG theo: tim mạch\n\n"
+        "Chủ đề video gốc: xương khớp\n\n"
+        "Kịch bản đã sửa của video gốc: Cảnh 1 (4 giây): Cá\n\n"
+    )
+
+
+needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg/ffprobe không có trên PATH")
+
+
+def make_mp3(path, seconds=4):
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
+                    "-ac", "2", "-c:a", "libmp3lame", "-b:a", "128k", str(path)], check=True)
+    return path.read_bytes()
+
+
+def mean_volume(media) -> float:
+    result = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(media), "-vn", "-af", "volumedetect",
+                             "-f", "null", "-"], capture_output=True, encoding="utf-8", errors="replace", check=True)
+    value = re.search(r"mean_volume: (-?[\d.]+|-inf) dB", result.stderr).group(1)
+    return float("-inf") if value == "-inf" else float(value)
+
+
+@pytest.fixture
+def short_video(committed, tmp_path):
+    user = add_user(committed)
+    storage = DirectoryStorage(tmp_path / "storage")
+    with committed() as db:
+        video = make_video(db, storage, user, scene_count=1, seconds=2)
+    return user, storage, video.id
+
+
+def set_music(factory, storage, video_id, data, volume):
+    with factory() as db:
+        video = db.get(Video, video_id)
+        video.music_key, video.music_volume = f"videos/{video_id}/music-test.mp3", volume
+        storage.save_bytes(video.music_key, data)
+        db.commit()
+
+
+def rendered_mp4(factory, storage, video_id, user_id):
+    job = run_render(factory, storage, video_id, user_id)
+    assert job.status == "done", (job.error, job.error_detail)
+    with factory() as db:
+        return storage.path(db.get(Video, video_id).mp4_key)
+
+
+@needs_ffmpeg
+def test_music_and_volume_reach_the_mp4_and_removing_it_renders_silence(committed, short_video, tmp_path):
+    user, storage, video_id = short_video
+    tone = make_mp3(tmp_path / "tone.mp3")
+    set_music(committed, storage, video_id, tone, 100)
+    loud = mean_volume(rendered_mp4(committed, storage, video_id, user.id))
+    set_music(committed, storage, video_id, tone, 25)
+    soft = mean_volume(rendered_mp4(committed, storage, video_id, user.id))
+    # 25% of the amplitude is about 12 dB quieter.
+    assert loud - soft == pytest.approx(12, abs=2)
+
+    with committed() as db:
+        db.get(Video, video_id).music_key = None
+        db.commit()
+    assert mean_volume(rendered_mp4(committed, storage, video_id, user.id)) < -80
+
+
+@needs_ffmpeg
+def test_a_broken_mp3_fails_the_render_with_a_clear_reason(committed, short_video):
+    user, storage, video_id = short_video
+    set_music(committed, storage, video_id, b"ID3\x04\x00\x00\x00\x00\x00\x00" + bytes(range(256)) * 40, 25)
+    job = run_render(committed, storage, video_id, user.id)
+    assert (job.status, job.error) == ("failed", "File nhạc không đọc được")
+    with committed() as db:
+        assert db.get(Video, video_id).mp4_key is None
