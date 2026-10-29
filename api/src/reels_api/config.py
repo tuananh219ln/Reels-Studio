@@ -59,3 +59,22 @@ def allowed_origins() -> frozenset[str]:
 def cookie_secure() -> bool:
     """Production serves the app over HTTPS only, so the session cookie gets the Secure flag there."""
     return read_env("COOKIE_SECURE").lower() in {"1", "true", "yes"}
+
+
+def storage_dir() -> Path:
+    """Root of uploaded and generated files; shared by the api and the worker (one volume in production)."""
+    raw = read_env("STORAGE_DIR")
+    return Path(raw) if raw else DOTENV_PATH.parent / "data" / "storage"
+
+
+def pixabay_key() -> str:
+    return read_env("PIXABAY_API_KEY")
+
+
+def pixabay_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return read_env("PIXABAY_API_URL") or "https://pixabay.com/api/"
+
+
+def claude_model() -> str:
+    return read_env("CLAUDE_MODEL") or "claude-sonnet-5-5"

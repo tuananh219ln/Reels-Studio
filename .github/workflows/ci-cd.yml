@@ -1,8 +1,8 @@
 name: CI/CD
 
 # Every PR and push to main runs the checks. A push to main then deploys, only after every check
-# passes: the api on Coolify first (it runs the migrations), then the web app on
-# Cloudflare, so the new web never talks to an old API. Setup steps are in the README.
+# passes: the api on Coolify first (it runs the migrations), then the worker on Coolify, then the web
+# app on Cloudflare, so the new web never talks to an old API. Setup steps are in the README.
 
 on:
   pull_request:
@@ -41,12 +41,30 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: api/pyproject.toml
-      - run: pip install -e ".[dev]"
-      # -rs lists every skipped test: a skip here means Postgres was not reachable.
-      - run: python -m pytest -q -rs
-      - name: Build production image
-        run: docker build -t reels-api:ci .
+          cache-dependency-path: |
+            api/pyproject.toml
+            worker/pyproject.toml
+      # FFmpeg: the worker tests and the render parity test need it instead of being skipped.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - run: pip install -e ../worker -e ".[dev]"
+      # A skip here means Postgres or FFmpeg was not there, so it fails the job instead of hiding the
+      # integration, worker and render parity tests.
+      # pipefail: without it the pipe reports tee's status and failing tests would pass the step.
+      - run: set -o pipefail; python -m pytest -q -rs | tee pytest.log && ! grep -q "SKIPPED" pytest.log
+      # Both images build from the repo root (the api and the worker install ../worker too).
+      - name: Build production images
+        working-directory: .
+        run: |
+          docker build -t reels-api:ci -f api/Dockerfile .
+          docker build -t reels-worker:ci -f api/Dockerfile.worker .
+      - name: Render parity test inside the worker image (its own FFmpeg)
+        working-directory: .
+        run: |
+          docker run --rm --network host --user root -v "$PWD:/src" -w /src/api \
+            -e TEST_DATABASE_URL="$TEST_DATABASE_URL" -e PYTHONDONTWRITEBYTECODE=1 reels-worker:ci \
+            bash -o pipefail -c "ffmpeg -version | head -1 && pip install -q pytest httpx psutil &&
+              python -m pytest -q -rs -p no:cacheprovider tests/test_render_parity.py | tee /tmp/parity.log &&
+              ! grep -q SKIPPED /tmp/parity.log"
 
   worker:
     runs-on: ubuntu-latest
@@ -89,10 +107,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # Playwright starts the api from api/.venv (see web/playwright.config.ts).
+      # E2E runs a real worker, which renders with FFmpeg.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      # Playwright starts the api, the worker and the fake Claude/Pixabay from api/.venv (see web/playwright.config.ts).
       - name: Install api for E2E
         working-directory: api
-        run: python -m venv .venv && .venv/bin/pip install -e .
+        run: python -m venv .venv && .venv/bin/pip install -e ../worker -e .
       - working-directory: web
         run: npm ci
       - working-directory: web
@@ -116,28 +136,34 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     steps:
-      # The webhook only queues a build on the server; follow that deployment until Coolify reports
-      # it finished, so a failed build or migration stops the web deploy.
-      - name: Deploy on Coolify and wait
+      # Each webhook only queues a build on the server; follow that deployment until Coolify reports
+      # it finished, so a failed build or migration stops what comes after. The api goes first: it
+      # runs the migrations the worker needs.
+      - name: Deploy api and worker on Coolify and wait
         env:
           COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+          COOLIFY_WORKER_WEBHOOK: ${{ secrets.COOLIFY_WORKER_WEBHOOK }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
         run: |
           auth="Authorization: Bearer $COOLIFY_TOKEN"
-          response=$(curl --fail-with-body --silent --show-error --request POST "$COOLIFY_WEBHOOK" --header "$auth")
-          echo "$response"
-          deployment=$(echo "$response" | jq -r '.deployments[0].deployment_uuid')
-          api_base="${COOLIFY_WEBHOOK%%/deploy*}"
-          for i in $(seq 1 90); do
-            status=$(curl --fail --silent --show-error "$api_base/deployments/$deployment" --header "$auth" | jq -r '.status')
-            echo "attempt $i: $status"
-            case "$status" in
-              finished) exit 0 ;;
-              failed|cancelled*) echo "Coolify deployment $deployment: $status (see its logs in Coolify)" >&2; exit 1 ;;
-            esac
-            sleep 10
-          done
-          echo "Coolify deployment $deployment did not finish within 15 minutes" >&2; exit 1
+          deploy() {
+            response=$(curl --fail-with-body --silent --show-error --request POST "$1" --header "$auth")
+            echo "$response"
+            deployment=$(echo "$response" | jq -r '.deployments[0].deployment_uuid')
+            api_base="${1%%/deploy*}"
+            for i in $(seq 1 90); do
+              status=$(curl --fail --silent --show-error "$api_base/deployments/$deployment" --header "$auth" | jq -r '.status')
+              echo "$2 attempt $i: $status"
+              case "$status" in
+                finished) return 0 ;;
+                failed|cancelled*) echo "Coolify deployment $deployment ($2): $status (see its logs in Coolify)" >&2; return 1 ;;
+              esac
+              sleep 10
+            done
+            echo "Coolify deployment $deployment ($2) did not finish within 15 minutes" >&2; return 1
+          }
+          deploy "$COOLIFY_WEBHOOK" api
+          deploy "$COOLIFY_WORKER_WEBHOOK" worker
 
   deploy-web:
     needs: deploy-api

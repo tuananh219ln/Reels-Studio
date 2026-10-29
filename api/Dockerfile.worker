@@ -1,0 +1,21 @@
+# Production image for the worker (script and render jobs), built by Coolify from the repo root
+# (base directory /, Dockerfile /api/Dockerfile.worker). Same packages as the api image plus FFmpeg.
+# Coolify sets DATABASE_URL, ANTHROPIC_API_KEY, PIXABAY_API_KEY and STORAGE_DIR.
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
+WORKDIR /app
+
+# The renderer uses only filters available since FFmpeg 4.3; Debian's package is newer.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
+COPY worker/pyproject.toml worker/
+COPY worker/src worker/src
+COPY api/pyproject.toml api/
+COPY api/src api/src
+RUN pip install ./worker ./api && useradd --system --uid 10001 app && mkdir -p /data/storage && chown app /data/storage
+
+USER app
+# Only one worker takes jobs (Postgres advisory lock): during a deploy the new container waits until
+# the old one has stopped. SIGTERM kills the running job; the next worker marks it failed.
+CMD ["python", "-m", "reels_api", "worker"]

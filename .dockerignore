@@ -1,0 +1,10 @@
+# Both images (api/Dockerfile, api/Dockerfile.worker) build from the repo root; send only what they copy.
+*
+!api/pyproject.toml
+!api/src
+!api/alembic.ini
+!api/migrations
+!worker/pyproject.toml
+!worker/src
+**/__pycache__
+**/*.egg-info
