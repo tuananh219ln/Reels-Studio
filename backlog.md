@@ -14,6 +14,6 @@
 - Nội dung tiếng Anh: chọn ngôn ngữ VI/EN cho từng video (kịch bản, giọng TTS, quy tắc an toàn). (2026-10-28)
 - Câu miễn trừ "Tham khảo, không thay thế tư vấn bác sĩ" và câu "không phải là thuốc" cho sản phẩm TPCN. Vì sao: giảm rủi ro chính sách Meta và Luật Quảng cáo. (2026-10-28)
 - Tạo ảnh bằng AI cho cảnh thiếu ảnh. Vì sao: nội dung gốc thay cho ảnh stock. (2026-10-28)
-- Đăng nhập bằng Google (danh sách email được phép, callback qua /api). Vì sao: tiện cho đội, không phải nhớ mật khẩu. Điều kiện: app có tên miền HTTPS, vì Google không nhận địa chỉ quay về là IP nội bộ. (2026-10-29)
+- Đăng nhập bằng Google (danh sách email được phép, callback qua /api). Vì sao: tiện cho đội, không phải nhớ mật khẩu. (2026-10-29)
 
 ## Lỗi
