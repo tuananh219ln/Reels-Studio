@@ -76,6 +76,44 @@ Python 3.12, Node 20.9 trở lên. Mọi lệnh chạy từ thư mục gốc rep
 `cd web; npm run e2e` (tự bật api và web riêng ở cổng 8100/3100 trên `reels_e2e`; chạy được cả khi
 server dev đang bật).
 
+## Triển khai (CI/CD)
+
+Workflow `.github/workflows/ci-cd.yml` chạy kiểm thử (api, worker, web + E2E, build Cloudflare)
+trên mọi PR. Khi merge vào `main` và mọi kiểm thử đều qua, workflow mới triển khai:
+
+1. **api → Coolify:** gọi deploy webhook, Coolify tự build `api/Dockerfile` từ git, container
+   chạy migration khi khởi động. Workflow chờ Coolify báo `finished`. Postgres là một database
+   riêng trên Coolify, không bị deploy lại.
+2. **web → Cloudflare:** build bằng OpenNext rồi `wrangler deploy` (Cloudflare Workers — Cloudflare
+   khuyên dùng cho Next.js thay cho Pages). `/api/*` được chuyển tiếp tới domain api trên Coolify,
+   nên cookie phiên vẫn thuộc domain web.
+
+**Cài đặt một lần:**
+
+1. **Coolify — Postgres:** + New → Database → **PostgreSQL** (bản 17), Initial Database `reels`,
+   không bật Make it publicly available. Start, rồi bật **Scheduled Backups**. Copy
+   **Postgres URL (internal)**.
+2. **Coolify — api:** + New → Application từ repo này (GitHub App hoặc deploy key), nhánh `main`,
+   build pack **Dockerfile**, Base Directory `/api`, cổng `8000`, cùng server và cùng project với
+   Postgres.
+   - Domain: ví dụ `https://api.example.com`.
+   - Biến môi trường: `DATABASE_URL` = Postgres URL (internal) vừa copy (dán nguyên, app tự đổi
+     `postgres://` thành driver psycopg), `ALLOWED_ORIGINS=https://app.example.com` (domain web),
+     `COOKIE_SECURE=true`.
+   - Advanced → Auto deploy: chọn **Manual deployments only**, để chỉ GitHub Actions triển khai
+     sau khi kiểm thử qua.
+   - Keys & Tokens → tạo API token quyền `deploy`. Webhook nằm ở tab Webhooks của application.
+3. **Cloudflare:** tạo API token theo mẫu "Edit Cloudflare Workers"; ghi lại Account ID. Sau lần
+   deploy đầu, vào Workers → `reels-studio-web` → Settings → Domains & Routes để gắn domain web
+   (`app.example.com`).
+4. **GitHub** (Settings → Environments → tạo environment `production`):
+   - Secrets: `COOLIFY_WEBHOOK`, `COOLIFY_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+   - Variable: `API_URL=https://api.example.com` (domain api trên Coolify, không có `/` cuối).
+5. **Người dùng đầu tiên:** trong Coolify mở Terminal của container `api` và chạy
+   `python -m reels_api create-user`.
+
+Nếu domain api cũng đi qua Cloudflare (đám mây cam), đặt SSL/TLS là **Full (strict)**.
+
 ## Online Pipeline (tùy chọn)
 
 Repo đã có sẵn các workflow GitHub Actions để chạy toàn bộ vòng đời tính năng (issue → phỏng vấn →

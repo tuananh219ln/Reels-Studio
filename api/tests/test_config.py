@@ -31,3 +31,19 @@ def test_allowed_origins_default_and_list(tmp_path, monkeypatch):
 
 def test_dotenv_path_is_the_repo_root():
     assert config.DOTENV_PATH == config.Path(__file__).resolve().parents[2] / ".env"
+
+
+def test_cookie_secure_is_off_unless_enabled(tmp_path, monkeypatch):
+    use_dotenv(tmp_path, monkeypatch, "")
+    monkeypatch.delenv("COOKIE_SECURE", raising=False)
+    assert config.cookie_secure() is False
+    monkeypatch.setenv("COOKIE_SECURE", "true")
+    assert config.cookie_secure() is True
+
+
+def test_database_url_without_driver_uses_psycopg(tmp_path, monkeypatch):
+    use_dotenv(tmp_path, monkeypatch, "")
+    monkeypatch.setenv("DATABASE_URL", "postgres://u:p@db-uuid:5432/reels")
+    assert config.database_url() == "postgresql+psycopg://u:p@db-uuid:5432/reels"
+    monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@db-uuid:5432/reels")
+    assert config.database_url() == "postgresql+psycopg://u:p@db-uuid:5432/reels"

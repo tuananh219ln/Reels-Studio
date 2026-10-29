@@ -69,9 +69,11 @@ temp/
 # Local data
 data/
 
-# Web build and test outputs
+# Web build and test outputs (.open-next/.wrangler: Cloudflare build)
 .next-e2e/
 web/next-env.d.ts
 web/test-results/
 web/playwright-report/
 *.tsbuildinfo
+web/.open-next/
+web/.wrangler/

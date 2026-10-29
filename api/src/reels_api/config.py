@@ -44,9 +44,18 @@ def database_url() -> str:
     url = read_env("DATABASE_URL")
     if not url:
         raise ConfigError("Chưa cấu hình DATABASE_URL: chép .env.example thành .env ở thư mục gốc repo")
+    # Coolify shows Postgres URLs without a driver; the app always talks to Postgres through psycopg 3.
+    for scheme in ("postgres://", "postgresql://"):
+        if url.startswith(scheme):
+            return "postgresql+psycopg://" + url.removeprefix(scheme)
     return url
 
 
 def allowed_origins() -> frozenset[str]:
     raw = read_env("ALLOWED_ORIGINS") or DEFAULT_ALLOWED_ORIGINS
     return frozenset(origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip())
+
+
+def cookie_secure() -> bool:
+    """Production serves the app over HTTPS only, so the session cookie gets the Secure flag there."""
+    return read_env("COOKIE_SECURE").lower() in {"1", "true", "yes"}

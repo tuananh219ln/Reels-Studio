@@ -1,0 +1,14 @@
+// Cloudflare Workers config for the web app, built by @opennextjs/cloudflare (npm run deploy).
+// The /api/* rewrite target is baked in at build time from API_URL (see next.config.ts).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "reels-studio-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "observability": { "enabled": true }
+}
