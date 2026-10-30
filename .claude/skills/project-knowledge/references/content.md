@@ -75,7 +75,7 @@ copies its text into the title scene.
 
 How the prompt is built (built, compact version):
 
-- **Editable content:** the "Prompt viết kịch bản" on `/knowledge` (default: the owner's Custom
+- **Editable content:** per topic group, the "Prompt viết kịch bản" on `/knowledge` (default: the owner's Custom
   Instructions, script prompt, title formulas, and safety note) with the topic placed at
   `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
 - **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
@@ -127,8 +127,9 @@ because AI can fabricate sources or overstate benefits.
 
 ## Safety Rules
 
-- **Banned words:** the default list is "chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc
-  trị", "khắc tinh"; members edit it on `/knowledge`. Claude is told to avoid them. A hit in the
+- **Banned words:** each topic group has its own list on `/knowledge`, and a new group starts with
+  none. The "Sức khỏe" group started with "chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc
+  trị", "khắc tinh". Claude is told to avoid them. A hit in the
   title scene text, a scene's text, the caption, or the pinned comment shows a yellow warning that
   does not block the render; matching ignores case, Unicode form, and `*` markup. The 5 title
   options are only for choosing and are not checked.

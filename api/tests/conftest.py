@@ -4,7 +4,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, select, text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session as DbSession
 
@@ -101,7 +101,7 @@ from PIL import Image as _Image
 
 from reels_render import stock as _stock
 
-from reels_api.models import Scene, Video
+from reels_api.models import KnowledgeTopic, Scene, Video
 from reels_api.storage import DirectoryStorage
 
 _sys.path.insert(0, str(API_DIR / "scripts"))
@@ -141,10 +141,16 @@ def photo_bytes(color=(190, 120, 60), size=(720, 1280), kind="JPEG") -> bytes:
     return buffer.getvalue()
 
 
+def first_topic(db) -> KnowledgeTopic:
+    """The "Sức khỏe" topic the migration makes, with the default prompts."""
+    return db.scalar(select(KnowledgeTopic).order_by(KnowledgeTopic.id))
+
+
 def make_video(db, storage, user, scene_count=5, seconds=4.0, images=True, topic="xương khớp",
                title_text=TITLE_TEXT, scene_text=SCENE_TEXT) -> Video:
     """A video whose script is saved, like after a finished script job."""
-    video = Video(topic=topic, has_script=True, created_by_id=user.id, title_options=[title_text, "TIÊU ĐỀ 2"],
+    video = Video(topic=topic, knowledge_topic_id=first_topic(db).id, has_script=True, created_by_id=user.id,
+                  title_options=[title_text, "TIÊU ĐỀ 2"],
                   caption="caption", hashtags=["#a"], affiliates=["sữa"], pinned_comment="ghim",
                   self_review=["x"], music_suggestions=["Windy Hill"])
     db.add(video)

@@ -220,17 +220,6 @@ def test_job_log_lists_every_job_with_its_details(an, db, me, storage):
     assert TestClient(an.app).get("/api/jobs").status_code == 401
 
 
-def test_clone_prompt_is_editable_and_restorable(an):
-    data = an.get("/api/knowledge").json()
-    assert data["clone_prompt"] == default_clone_prompt() == data["default_clone_prompt"]
-    saved = an.put("/api/knowledge/clone-prompt", json={"value": "Biến thể của [tiêu đề]"}).json()
-    assert saved["clone_prompt"] == "Biến thể của [tiêu đề]"
-    assert saved["script_prompt"] == data["script_prompt"]
-    assert an.put("/api/knowledge/clone-prompt", json={"value": ""}).status_code == 422
-    restored = an.put("/api/knowledge/clone-prompt", json={"value": data["default_clone_prompt"]}).json()
-    assert restored["clone_prompt"].startswith('Video gốc: "[tiêu đề]"')
-
-
 def test_music_file_needs_a_login(app, db, me, storage):
     video = make_video(db, storage, me)
     video.music_key = f"videos/{video.id}/music-a.mp3"

@@ -49,11 +49,26 @@ class Session(Base):
 ACTIVE_JOB_STATUSES = ("queued", "running")
 
 
+class KnowledgeTopic(Base):
+    """One line of /knowledge: the prompts and banned words of the videos in this topic. Empty until written."""
+
+    __tablename__ = "knowledge_topics"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True)
+    script_prompt: Mapped[str] = mapped_column(Text, default="")
+    clone_prompt: Mapped[str] = mapped_column(Text, default="")
+    banned_words: Mapped[list] = mapped_column(JSONB, default=list)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Video(Base):
     __tablename__ = "videos"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     topic: Mapped[str] = mapped_column(Text)
+    knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id"))
     has_script: Mapped[bool] = mapped_column(Boolean, default=False)
     title_options: Mapped[list] = mapped_column(JSONB, default=list)
     caption: Mapped[str] = mapped_column(Text, default="")
@@ -157,7 +172,7 @@ class MusicTrack(Base):
 
 
 class Setting(Base):
-    """Editable app data (script prompt, banned words); a missing row means the default from code."""
+    """The prompts and banned words before knowledge_topics; no longer read, kept so a rollback finds them."""
 
     __tablename__ = "settings"
 

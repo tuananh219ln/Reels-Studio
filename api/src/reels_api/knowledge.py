@@ -1,16 +1,12 @@
-"""The editable prompt and banned words on /knowledge; a missing row means the default from code."""
+"""The knowledge topics on /knowledge and the default prompts that can be restored into them."""
 
 from functools import cache
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from .models import Setting
-from .script_rules import DEFAULT_BANNED_WORDS
-
-SCRIPT_PROMPT = "script_prompt"
-CLONE_PROMPT = "clone_prompt"
-BANNED_WORDS = "banned_words"
+from .models import KnowledgeTopic, Video
 
 
 def _prompt_file(name: str) -> str:
@@ -27,35 +23,14 @@ def default_clone_prompt() -> str:
     return _prompt_file("clone_default.txt")
 
 
-def defaults() -> dict:
-    return {
-        SCRIPT_PROMPT: default_script_prompt(),
-        CLONE_PROMPT: default_clone_prompt(),
-        BANNED_WORDS: list(DEFAULT_BANNED_WORDS),
-    }
+def all_topics(db: DbSession) -> list[KnowledgeTopic]:
+    return list(db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.id)))
 
 
-def get(db: DbSession, key: str):
-    row = db.get(Setting, key)
-    return row.value if row is not None else defaults()[key]
+def topic_of(db: DbSession, video: Video) -> KnowledgeTopic | None:
+    return db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
 
 
-def script_prompt(db: DbSession) -> str:
-    return get(db, SCRIPT_PROMPT)
-
-
-def clone_prompt(db: DbSession) -> str:
-    return get(db, CLONE_PROMPT)
-
-
-def banned_words(db: DbSession) -> list[str]:
-    return get(db, BANNED_WORDS)
-
-
-def put(db: DbSession, key: str, value, user_id: int) -> None:
-    row = db.get(Setting, key)
-    if row is None:
-        db.add(Setting(key=key, value=value, updated_by_id=user_id))
-    else:
-        row.value = value
-        row.updated_by_id = user_id
+def banned_words(db: DbSession, video: Video) -> list[str]:
+    topic = topic_of(db, video)
+    return topic.banned_words if topic else []

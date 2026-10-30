@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import delete
 from sqlalchemy.orm import sessionmaker
 
-from reels_api.models import Job, Scene, Session, Setting, User, Video
+from reels_api.models import Job, KnowledgeTopic, Scene, Session, Setting, User, Video
 from reels_api.security import hash_password
 
 
@@ -23,6 +23,7 @@ def committed(engine):
     with factory() as db:
         for model in (Job, Scene, Video, Setting, Session, User):
             db.execute(delete(model))
+        db.execute(delete(KnowledgeTopic).where(KnowledgeTopic.name != "Sức khỏe"))
         db.commit()
 
 

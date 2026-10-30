@@ -158,7 +158,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
 def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> Checks:
     title_input, scene_input = scene_inputs(video, title, scenes)
     posts = {name: getattr(video, name) for name in POST_FIELDS}
-    return check_script(title_input, scene_input, posts, knowledge.banned_words(db))
+    return check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
 
 
 def _last_failed(db: DbSession, video_id: int) -> Job | None:
@@ -258,6 +258,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
     checks = run_checks(db, video, title, scenes) if video.has_script else Checks()
+    topic = knowledge.topic_of(db, video)
     payload = {
         "id": video.id,
         "topic": video.topic,
@@ -293,6 +294,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         } if video.music_key else None,
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
+        "knowledge_topic": topic.name if topic else None,
         "clone_of": {
             "title": video.clone_source["title"],
             "request": video.clone_source["request"],

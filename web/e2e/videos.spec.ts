@@ -12,7 +12,7 @@ test("topic to MP4: script, edits, render, play, seek and download", async ({ pa
   await loginAsSeed(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
-  await dialog.getByLabel("Chủ đề").fill("xương khớp sau 50 tuổi");
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 
@@ -77,7 +77,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   test.setTimeout(240_000);
   await loginAsSeed(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
-  await page.getByRole("dialog", { name: "Tạo video" }).getByLabel("Chủ đề").fill("tim mạch");
+  await page.getByRole("dialog", { name: "Tạo video" }).getByLabel("Chủ đề", { exact: true }).fill("tim mạch");
   await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
   await uploadPhotos(page);
@@ -96,13 +96,15 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
 });
 
-test("knowledge page edits both prompts and banned words, and restores each default", async ({ page }) => {
+test("knowledge topics: each opens from its line, keeps its own texts, and an empty one cannot make a video", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
-  const scriptCard = page.locator(".ant-card").filter({ hasText: "Prompt viết kịch bản" });
-  const cloneCard = page.locator(".ant-card").filter({ hasText: "Prompt nhân bản" });
-  const prompt = page.getByLabel("Prompt viết kịch bản", { exact: true });
-  const clonePrompt = page.getByLabel("Prompt nhân bản", { exact: true });
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  const scriptCard = health.locator(".ant-card").filter({ hasText: "Prompt viết kịch bản" });
+  const cloneCard = health.locator(".ant-card").filter({ hasText: "Prompt nhân bản" });
+  const prompt = health.getByLabel("Prompt viết kịch bản", { exact: true });
+  const clonePrompt = health.getByLabel("Prompt nhân bản", { exact: true });
   await expect(prompt).toHaveValue(/Chủ đề: \[Chủ đề\]/);
   await expect(clonePrompt).toHaveValue(/^Video gốc: "\[tiêu đề\]"/);
 
@@ -116,29 +118,47 @@ test("knowledge page edits both prompts and banned words, and restores each defa
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await cloneCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt nhân bản")).toBeVisible();
-  await page.getByLabel("Từ cấm").fill("thần dược\nđặc trị");
-  await page.getByRole("button", { name: "Lưu từ cấm" }).click();
+  await health.getByLabel("Từ cấm").fill("thần dược\nđặc trị");
+  await health.getByRole("button", { name: "Lưu từ cấm" }).click();
   await expect(page.getByText("Đã lưu danh sách từ cấm")).toBeVisible();
 
-  await page.reload();
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Làm đẹp");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  await page.getByRole("button", { name: /Làm đẹp/ }).click();
+  const beauty = page.locator('[data-topic="Làm đẹp"]');
+  await expect(beauty.getByLabel("Prompt viết kịch bản", { exact: true })).toHaveValue("");
+  await expect(beauty.getByLabel("Từ cấm")).toHaveValue("");
+  await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
+
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Nhóm chủ đề").click();
+  await expect(page.getByTitle("Làm đẹp (chưa có prompt)")).toHaveClass(/disabled/);
+  await page.keyboard.press("Escape");
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
-  await expect(page.getByLabel("Từ cấm")).toHaveValue("thần dược\nđặc trị");
-
+  await expect(health.getByLabel("Từ cấm")).toHaveValue("thần dược\nđặc trị");
   await scriptCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
   await expect(prompt).toHaveValue(/^Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40\+\./);
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
-  await cloneCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
-  await expect(clonePrompt).toHaveValue(/^Video gốc: "\[tiêu đề\]" — chủ đề: \[chủ đề\]\./);
+
+  await page.getByRole("button", { name: /Làm đẹp/ }).click();
+  await beauty.getByRole("button", { name: "Xoá nhóm" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Xoá" }).click();
+  await expect(page.getByRole("button", { name: /Làm đẹp/ })).toHaveCount(0);
 });
 
 async function newVideoWithScript(page: Page, topic: string) {
   await page.goto("/videos");
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
-  await dialog.getByLabel("Chủ đề").fill(topic);
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill(topic);
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await jobFinished(page);
   await uploadPhotos(page);

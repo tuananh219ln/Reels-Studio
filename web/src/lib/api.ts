@@ -95,6 +95,7 @@ export type VideoDetail = VideoRow & {
   music: { url: string; name: string | null } | null;
   music_volume: number;
   voice_enabled: boolean;
+  knowledge_topic: string | null;
   clone_of: { title: string; request: string } | null;
   title_scene: SceneData | null;
   scenes: SceneData[];
@@ -103,13 +104,19 @@ export type VideoDetail = VideoRow & {
   can_render: boolean;
 };
 
-export type Knowledge = {
+export type KnowledgeTopic = {
+  id: number;
+  name: string;
   script_prompt: string;
   clone_prompt: string;
   banned_words: string[];
+  video_count: number;
+};
+
+export type Knowledge = {
+  topics: KnowledgeTopic[];
   default_script_prompt: string;
   default_clone_prompt: string;
-  default_banned_words: string[];
 };
 
 export type MusicTrack = {
