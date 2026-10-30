@@ -62,15 +62,12 @@ forward it as a tip.
 One Claude call per topic returns JSON with:
 
 1. 5 title options, each ≤ 12 words and uppercase.
-2. Search keywords for the title scene's photo.
-3. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
-   breaks), photo search keywords (Vietnamese, most specific first, such as the dish name), and a
-   9:16 image prompt (realistic photo, natural light, wooden table). Photo search uses the
-   keywords, never the image prompt.
-4. A caption of 80–120 words plus 5 hashtags.
-5. 2 affiliate product suggestions plus the pinned-comment text.
-6. A safety self-review that lists the sentences it changed.
-7. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
+2. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
+   breaks), and a 9:16 image prompt (realistic photo, natural light, wooden table).
+3. A caption of 80–120 words plus 5 hashtags.
+4. 2 affiliate product suggestions plus the pinned-comment text.
+5. A safety self-review that lists the sentences it changed.
+6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
    posting (those libraries cannot be used outside their apps).
 
 The title scene starts with the first title option and lasts 3 seconds; choosing another option
@@ -83,8 +80,10 @@ How the prompt is built (built, compact version):
   `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
 - **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
   are code, not editable (see [patterns.md](patterns.md)). It asks for a voice text per scene
-  (about 10–15 words, no `*` markup) and an opening line for the title scene; banned words cover
-  the voice text too.
+  (15–20 words, based on that scene's on-screen text but a little more detailed, no `*` markup)
+  and an opening line for the title scene that fits all 5 titles, since members choose among them
+  after it is written. All voice texts together stay within 120 words, which keeps a narrated video
+  under 48 seconds at about 2.9 words per second; banned words cover the voice text too.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
   become 4, keywords are cut to 100 characters, missing parts stay empty. Everything then goes
@@ -92,7 +91,7 @@ How the prompt is built (built, compact version):
 - **Clone ("Nhân bản", one variant):** the "Prompt nhân bản" on `/knowledge` fills `[tiêu đề]`,
   `[chủ đề]`, `[kịch bản đã sửa của video gốc]`, and `[yêu cầu đổi]` from the source as edited and
   the member's change request, appending any placeholder that was removed. It returns the same
-  JSON, with new photos and new music suggestions.
+  JSON, with new music suggestions; members upload its photos.
 
 Planned rules, with the full Knowledge Base:
 

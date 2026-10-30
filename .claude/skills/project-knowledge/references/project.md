@@ -42,12 +42,11 @@ app replaces CapCut, so the output is a finished MP4.
    benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
    [content.md](content.md#knowledge-base).
 3. **Script generation (built):** one Claude call turns a topic into 5 title options, a 5–7 scene
-   script, a caption with hashtags, per-scene image prompts and photo keywords, affiliate
+   script, a caption with hashtags, per-scene image prompts, affiliate
    suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
    writes one variant of an existing video from a change request.
-4. **Scene images (built):** a Pixabay photo is stored for every scene right after the script is
-   written; members can upload their own, ask for another Pixabay photo, or pick from a Pixabay
-   grid.
+4. **Scene images (built):** members upload their own photo or clip for every scene; a scene
+   without one blocks the render.
 5. **Templated render (built):** a fixed visual template, Ken Burns motion, rendered on the server.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text (on by default, off per
    video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks

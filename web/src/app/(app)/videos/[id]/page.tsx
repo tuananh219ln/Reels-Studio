@@ -365,7 +365,7 @@ function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean
     >
       <Typography.Paragraph type="secondary">
         Claude giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là
-        một video nháp riêng, có ảnh Pixabay mới, gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị
+        một video nháp riêng, chưa có ảnh, có gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị
         khóa hay thay đổi.
       </Typography.Paragraph>
       <Typography.Text strong>Yêu cầu đổi</Typography.Text>

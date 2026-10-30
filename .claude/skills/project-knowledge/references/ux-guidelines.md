@@ -25,10 +25,10 @@ Built:
   "Tạo video".
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit:
   - choose 1 of 5 titles; edit the title scene and every content scene (text with `*word*` in
-    red, voice text, seconds, keywords, image prompt), add, delete, reorder; each field saves when left and
+    red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
-  - per scene a preview of the frame, or the reason there is none, in red; photo by upload, "Tìm
-    lại ảnh", or "Chọn từ Pixabay", or a video clip by "Tải video lên" with its start time;
+  - per scene a preview of the frame, or the reason there is none, in red; photo by upload, or a
+    video clip by "Tải video lên" with its start time;
   - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
@@ -88,7 +88,7 @@ There is one fixed template in the MVP, derived from the reference channel (see
   seconds is lengthened to fit. The "Giọng đọc" card turns it off for the whole video; an empty
   voice text leaves that scene silent.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
-- **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 20–40 seconds.
+- **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 30–48 seconds with narration, which lengthens scenes to fit.
 
 ### Video Scenes
 
@@ -100,7 +100,7 @@ position, narration, music, and the crossfade. Upload limits, storage, and rende
 - **Editor:** the scene card has "Tải video lên" (MP4/MOV/WebM, up to 50 MB). A scene with a clip
   shows a muted looping player, a "Bắt đầu từ giây" field next to "Số giây", and "Xoá video".
   A scene has a photo or a clip, never both. Switching from one to the other ("Tải video lên" on
-  a photo scene; "Tải ảnh lên", "Tìm lại ảnh", or "Chọn từ Pixabay" on a clip scene) asks first.
+  a photo scene; "Tải ảnh lên" on a clip scene) asks first.
 - **Length:** a new clip sets the scene's seconds to the clip's length minus the crossfades around
   it, at most 10 s. Members may
   change both fields. A scene longer than the clip left after its start holds the last frame for

@@ -7,7 +7,7 @@ import { SEED, chooseOption, loginAsSeed, resetDatabase } from "./helpers";
 // The api, a real worker with FFmpeg, and fake Claude/Pixabay (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
 
-test("topic to MP4: script, edits, another photo, render, play, seek and download", async ({ page }) => {
+test("topic to MP4: script, edits, render, play, seek and download", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
@@ -20,6 +20,10 @@ test("topic to MP4: script, edits, another photo, render, play, seek and downloa
   const scenes = page.getByTestId("scene");
   await expect(scenes).toHaveCount(5, { timeout: 90_000 });
   const title = page.getByTestId("title-scene");
+  // No automatic photo: every scene waits for the member's own.
+  await expect(title.getByTestId("scene-no-preview")).toContainText("Chưa có ảnh");
+  await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
+  await uploadPhotos(page);
   await expect(title.getByTestId("scene-preview")).toBeVisible();
   await expect(page.getByTestId("self-review")).toBeVisible();
   await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
@@ -35,9 +39,11 @@ test("topic to MP4: script, edits, another photo, render, play, seek and downloa
   await text.blur();
   await expect(first.getByText("Đã lưu")).toBeVisible();
 
-  const before = await first.getByTestId("scene-preview").getAttribute("src");
-  await first.getByRole("button", { name: "Tìm lại ảnh" }).click();
-  await expect(first.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
+  // Members bring their own photos: the Pixabay search is not offered.
+  await expect(first.getByTestId("scene-preview")).toBeVisible();
+  await expect(first.getByRole("button", { name: "Tìm lại ảnh" })).toHaveCount(0);
+  await expect(first.getByRole("button", { name: "Chọn từ Pixabay" })).toHaveCount(0);
+  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveCount(0);
 
   await page.reload();
   await expect(page.getByTestId("scene").first().getByLabel("Chữ trên màn hình")).toHaveValue(
@@ -74,6 +80,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await page.getByRole("dialog", { name: "Tạo video" }).getByLabel("Chủ đề").fill("tim mạch");
   await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
+  await uploadPhotos(page);
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
 
@@ -134,6 +141,21 @@ async function newVideoWithScript(page: Page, topic: string) {
   await dialog.getByLabel("Chủ đề").fill(topic);
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await jobFinished(page);
+  await uploadPhotos(page);
+}
+
+/** Gives the title and every content scene a photo, as a member does after the script is written. */
+async function uploadPhotos(page: Page) {
+  const file = path.join(os.tmpdir(), `e2e-photo-${process.pid}.jpg`);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1080x1280:rate=1",
+    "-frames:v", "1", file]);
+  await page.getByLabel("Tải ảnh lên cho cảnh tiêu đề").setInputFiles(file);
+  await expect(page.getByTestId("title-scene").getByTestId("scene-preview")).toBeVisible();
+  const scenes = page.getByTestId("scene");
+  for (let index = 0; index < (await scenes.count()); index++) {
+    await scenes.nth(index).getByLabel("Tải ảnh lên cho cảnh", { exact: true }).setInputFiles(file);
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+  }
 }
 
 /** Scenes appear when the script is saved; the job then still assigns photos until this banner goes. */
@@ -149,28 +171,10 @@ function makeMp3(): string {
   return file;
 }
 
-test("pick a photo from the Pixabay grid, add and remove music", async ({ page }) => {
+test("add and remove music", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
   await newVideoWithScript(page, "rau củ tốt cho tim");
-
-  const scene = page.getByTestId("scene").first();
-  const before = await scene.getByTestId("scene-preview").getAttribute("src");
-  await scene.getByRole("button", { name: "Chọn từ Pixabay" }).click();
-  const picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
-  await expect(picker.getByText("Ảnh từ Pixabay")).toBeVisible();
-  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(3);
-  const firstResult = picker.getByTestId("pixabay-hit").first().locator("img");
-  const oldThumbnail = await firstResult.getAttribute("src");
-  await picker.getByLabel("Từ khóa Pixabay").fill("bông cải xanh");
-  await picker.getByLabel("Từ khóa Pixabay").press("Enter");
-  // The fake returns different photos per keyword: wait for the new keyword's results before choosing.
-  await expect(firstResult).not.toHaveAttribute("src", oldThumbnail ?? "");
-  await picker.getByTestId("pixabay-hit").nth(2).click();
-  await expect(picker).toBeHidden();
-  await expect(scene.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
-  // The chosen photo is served by the app, not linked from Pixabay.
-  await expect(scene.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
 
   await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
   await expect(page.getByTestId("music-name")).toHaveText(/e2e-tone-\d+\.mp3/);

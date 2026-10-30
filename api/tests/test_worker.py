@@ -55,7 +55,7 @@ def load(factory, video_id):
 
 # --- Script jobs ---
 
-def test_script_job_writes_the_script_and_assigns_pixabay_photos(committed, services, start_worker, tmp_path):
+def test_script_job_writes_the_script_and_leaves_the_photos_to_members(committed, services, start_worker):
     user = add_user(committed)
     video_id = new_video(committed, user)
     job_id = add_job(committed, video_id, user.id)
@@ -71,8 +71,8 @@ def test_script_job_writes_the_script_and_assigns_pixabay_photos(committed, serv
     assert 5 <= len(content) <= 7 and all(scene.keywords for scene in content)
     assert video.caption and len(video.hashtags) == 5 and len(video.affiliates) == 2 and video.pinned_comment
     assert video.self_review and video.music_suggestions
-    assert all(scene.image_key for scene in scenes) and len({s.image_source for s in scenes}) == len(scenes)
-    assert video.thumbnail_key and DirectoryStorage(tmp_path / "storage").exists(video.thumbnail_key)
+    assert not any(scene.image_key for scene in scenes) and services.pixabay_queries == []
+    assert video.thumbnail_key is None
     assert "Chủ đề: xương khớp sau 50 tuổi" in services.claude_prompts[0]
     assert "chữa khỏi" in services.claude_prompts[0]
     assert "input_tokens=" in worker.output() and "output_tokens=" in worker.output()
@@ -121,49 +121,23 @@ def test_slightly_off_answers_are_repaired_and_saved(committed, services, start_
     assert scenes[0].keywords == [] and scenes[1].seconds == 4 and scenes[1].keywords == ["k" * 100]
 
 
-def test_pixabay_failure_keeps_the_script_and_a_retry_only_fills_photos(committed, services, start_worker):
+def test_a_retry_after_the_script_was_saved_keeps_the_edits_and_calls_claude_once(committed, services, start_worker):
     user = add_user(committed)
-    services.pixabay_mode = "error500"
     video_id = new_video(committed, user)
     job_id = add_job(committed, video_id, user.id)
     worker = start_worker()
-
-    job = wait_for_status(committed, job_id)
-    assert job.status == "failed" and "chưa gán được ảnh Pixabay" in job.error and "server" in job.error_detail
-    video, scenes = load(committed, video_id)
-    assert video.has_script and all(not s.image_key and "Pixabay đang lỗi" in s.image_error for s in scenes)
-
-    # Meanwhile a member edits a text and uploads a photo for scene 2.
+    assert wait_for_status(committed, job_id).status == "done"
+    _, scenes = load(committed, video_id)
     with committed() as db:
-        edited = db.get(Scene, scenes[1].id)
-        edited.text = "Chữ đã sửa tay"
-        uploaded = db.get(Scene, scenes[2].id)
-        uploaded.image_key, uploaded.image_source, uploaded.image_error = "videos/x/uploaded.jpg", "upload", None
-        clip = db.get(Scene, scenes[3].id)
-        clip.video_key, clip.video_seconds, clip.image_error = "videos/x/clip.mp4", 4.0, None
+        db.get(Scene, scenes[1].id).text = "Chữ đã sửa tay"
         db.commit()
-    services.pixabay_mode = "ok"
+
     retry_id = add_job(committed, video_id, user.id, retry_of_id=job_id)
     assert wait_for_status(committed, retry_id).status == "done"
     _, scenes = load(committed, video_id)
-    assert all((s.image_key or s.video_key) and s.image_error is None for s in scenes)
-    assert scenes[3].image_key is None, "a scene with a clip never gets a Pixabay photo"
     assert scenes[1].text == "Chữ đã sửa tay"
-    assert (scenes[2].image_key, scenes[2].image_source) == ("videos/x/uploaded.jpg", "upload")
     assert len(services.claude_prompts) == 1, "the retry must not call Claude again"
-    assert job_row(committed, job_id).status == "failed"
     worker.stop()
-
-
-def test_scenes_without_pixabay_results_are_marked_and_the_job_finishes(committed, services, start_worker):
-    user = add_user(committed)
-    services.pixabay_mode = "empty"
-    video_id = new_video(committed, user)
-    job_id = add_job(committed, video_id, user.id)
-    start_worker()
-    assert wait_for_status(committed, job_id).status == "done"
-    _, scenes = load(committed, video_id)
-    assert all("Không tìm thấy ảnh Pixabay" in scene.image_error for scene in scenes)
 
 
 # --- The loop ---
@@ -358,7 +332,7 @@ def test_clone_job_writes_a_new_script_from_the_snapshot(committed, services, st
     assert "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi*" in prompt and "đổi sang mốc 45 tuổi, tim mạch" in prompt
     video, scenes = load(committed, draft.id)
     assert video.has_script and video.music_suggestions == ["River Flows In You"]
-    assert all(scene.image_key for scene in scenes)
+    assert not any(scene.image_key for scene in scenes)
 
 
 def test_clone_job_uses_the_edited_clone_prompt(committed, services, start_worker):
