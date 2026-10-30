@@ -78,3 +78,25 @@ def pixabay_api_url() -> str:
 
 def claude_model() -> str:
     return read_env("CLAUDE_MODEL") or "claude-sonnet-5-5"
+
+
+# ElevenLabs "Adam", a premade voice every account has.
+DEFAULT_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+
+
+def elevenlabs_key() -> str:
+    return read_env("ELEVENLABS_API_KEY")
+
+
+def elevenlabs_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return (read_env("ELEVENLABS_API_URL") or "https://api.elevenlabs.io").rstrip("/")
+
+
+def voice_id() -> str:
+    return read_env("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID
+
+
+def voice_model() -> str:
+    # eleven_multilingual_v2 does not speak Vietnamese; v3 and the v2.5 models do.
+    return read_env("ELEVENLABS_MODEL") or "eleven_v3"

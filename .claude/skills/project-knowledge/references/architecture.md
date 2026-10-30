@@ -3,8 +3,8 @@
 Status: built are the render core (see [Render Core](#render-core)), the web app with login and
 user management (see [Web App and Auth](#web-app-and-auth)), and the video pipeline: topic →
 Claude script → stored scene photos → server render, with the job queue and the worker service
-(see [Video Pipeline](#video-pipeline)). The full Knowledge Base (documents, food bank), the team
-music library, and TTS are agreed design and not yet built.
+(see [Video Pipeline](#video-pipeline)), with scene narration by ElevenLabs. The full Knowledge Base
+(documents, food bank) and the team music library are agreed design and not yet built.
 
 ## Tech Stack
 
@@ -47,9 +47,9 @@ Workers (see [deployment.md](deployment.md#production)).
 |---|---|
 | `web` | Next.js UI. Calls the API only. |
 | `api` | FastAPI app ([api/](../../../../api/)). Auth, videos, scenes, photo and MP3 uploads, Pixabay search for the photo picker, previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
-| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude, then Pixabay photos) and renders. |
+| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude, then Pixabay photos) and renders (ElevenLabs narration, then FFmpeg). |
 | `postgres` | Relational data and the job queue. |
-| storage | One folder of uploaded photos, chosen Pixabay photos, MP3s, thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
+| storage | One folder of uploaded photos, chosen Pixabay photos, MP3s (music and narration), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
 
 The api and the worker are one Python package so models, migrations, and database configuration
 exist once; `reels_render` stays a library that needs only Pillow. Both images also install
@@ -62,11 +62,12 @@ scene, or job logic.
 the Pixabay picker) and stored, so the render uses exactly the photo the preview showed. The
 worker then:
 
-1. Copies the stored photos and the optional MP3 into a work folder.
-2. Renders the text overlay PNGs.
-3. Composes everything in a single FFmpeg filter graph with the music, producing a 9:16 MP4.
-
-TTS (planned) adds a step between 1 and 2.
+1. Makes the narration each scene still lacks (see [Narration](#narration)), then checks the total
+   length again, because narration lengthens scenes.
+2. Copies the stored photos, narration MP3s, and the optional music MP3 into a work folder.
+3. Renders the text overlay PNGs.
+4. Composes everything in a single FFmpeg filter graph with the music and narration, producing a
+   9:16 MP4.
 
 Code adapted from MoneyPrinterTurbo modules (voice, material search) keeps its MIT
 attribution.
@@ -79,7 +80,7 @@ Steps 2–3 of the render pipeline are the Python package `reels_render` in
 typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the job log.
 
 - **Script input:** a JSON file with a title scene and content scenes, each with `text` and
-  `seconds`, plus optional `image` and `keywords`. Image paths are relative to the JSON file.
+  `seconds`, plus optional `image`, `keywords`, and `voice` (a narration audio file). Image paths are relative to the JSON file.
   `keywords` is a list of Vietnamese search terms, most specific first. See
   [samples/xuong-khop.json](../../../../samples/xuong-khop.json).
 - **Missing image means stock search (CLI path).** A scene whose `image` is empty, absent, or
@@ -102,8 +103,11 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
 - **FFmpeg compatibility:** use only filters and options available since FFmpeg 4.3. The worker
   image uses Debian's FFmpeg package (7.1 at the time of writing), and CI runs the render parity
   test inside that image.
-- **Audio bed:** without music the video still gets a silent track, so TTS can later be mixed onto
-  it.
+- **Audio bed:** without music the video still gets a silent track. Narration is one track as long
+  as the video, built per scene from exact sample counts (narration delayed 0.2 s past the
+  crossfade, padded with silence), and added to the bed with `amerge` + `pan` at full level.
+- **Narration lengthens its scene:** a scene lasts at least 0.2 s + the narration + 0.4 s, rounded
+  up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum.
 - **Font:** Be Vietnam Pro Black (OFL) is bundled in the package, not installed per machine.
 
 ## External Integrations
@@ -111,8 +115,7 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
 | Service | Use | Notes |
 |---|---|---|
 | Claude API | Script generation and cloning (built); drafting Knowledge Base content (planned) | Called only from the worker, through the Anthropic SDK. Model is configurable; the default is `claude-sonnet-5-5`, with the server-side refusal fallback enabled. Every call is logged with its token counts. Knowledge drafting will use web search so it can return source URLs. |
-| edge-tts | Vietnamese TTS in the MVP | Unofficial Microsoft endpoint that may stop working. Must be swappable by config. |
-| Azure Speech | Official TTS fallback | Same neural voices (vi-VN HoaiMy/NamMinh), plus English later. |
+| ElevenLabs | Scene narration in the render job | The premade "Adam" voice by default, model `eleven_v3` with `language_code: vi` (`eleven_multilingual_v2` does not speak Vietnamese). Voice and model are configurable. Paid per character, so each scene's MP3 is stored and reused. |
 | Pixabay | Scene photos: automatic pick after a script is written, "Tìm lại ảnh", the "Chọn từ Pixabay" picker, and the CLI's stock search; the only stock source | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). The picker shows Pixabay's thumbnails only while choosing and labels them "Ảnh từ Pixabay"; the chosen photo is downloaded and stored. Searches inside a request give up after about 10 seconds. |
 | FFmpeg | Rendering | Installed in the worker image from Debian's package ([api/Dockerfile.worker](../../../../api/Dockerfile.worker)); on the dev host installed natively (see [deployment.md](deployment.md#current-state)). |
 
@@ -137,8 +140,8 @@ Built (migrations in [api/migrations/](../../../../api/migrations/), models in
 | Table | Key contents |
 |---|---|
 | `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
-| `videos` | Topic, whether the script exists, title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
-| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing. |
+| `videos` | Topic, whether the script exists, narration on/off, title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
+| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing, the last narration MP3 with its length and the signature it was made from. |
 | `jobs` | Belongs to a video; kind (script, clone, render), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
 | `settings` | Editable app data: the script prompt, the clone prompt, the banned words. A missing row means the default from code. |
 
@@ -152,7 +155,7 @@ Planned:
 | KnowledgeDoc | one per knowledge document type; editable content (no approval state) |
 | FoodItem | food, main nutrients, benefits, who should avoid it, source URLs, `draft` / `approved` status |
 | Music library | licensed tracks shared by the team |
-| Video additions | content language (`vi` now, `en` later), TTS on/off |
+| Video additions | content language (`vi` now, `en` later) |
 
 ## Video Pipeline
 
@@ -185,9 +188,15 @@ Planned:
   MP4's first frame. The video thumbnail is the title-scene preview, redrawn whenever its photo
   or text changes.
 - **"MP4 chưa cập nhật":** each render stores a fingerprint of what changes the MP4 (scene texts,
-  seconds, photos, order, MP3, volume). The label shows when the current data no longer matches;
+  seconds, photos, order, MP3, volume, narration). The label shows when the current data no longer matches;
   captions, hashtags, keywords, and image prompts do not affect it. A failed or cancelled re-render
   keeps the previous MP4.
+- **Narration** ([tts.py](../../../../api/src/reels_api/tts.py)): Claude writes a voice text per
+  scene (the title scene too); members edit it, and one switch per video turns narration off. The
+  render job calls ElevenLabs only for a scene whose stored MP3 was made from a different text,
+  voice, or model, and commits each MP3 at once, so a retry or re-render pays only for what
+  changed. Once made, the scene card plays it and shows the lengthened scene. Narration not made
+  yet cannot be measured, so a total over 90 s is caught by the render job after it is made.
 - **Clone ("Nhân bản"):** stores a snapshot of the source as edited at that moment plus the change
   request on the new draft, and copies the source's MP3 as the draft's own file. The source is not
   locked. Cancelling and writing the draft again reruns the same clone.
@@ -226,7 +235,7 @@ Planned:
 
 ### Sensitive Data
 
-- API keys (Anthropic, Pixabay, Azure) live only in environment variables. They are never
+- API keys (Anthropic, Pixabay, ElevenLabs) live only in environment variables. They are never
   committed or stored in the database.
 - Passwords are stored hashed.
 - The only personal data is team members' emails.

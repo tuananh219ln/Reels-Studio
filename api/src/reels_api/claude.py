@@ -29,10 +29,13 @@ OUTPUT_FORMAT = """\
 Các trường:
 - "titles": 5 tiêu đề viết hoa, mỗi tiêu đề tối đa 12 từ.
 - "title_keywords": từ khóa tiếng Việt để tìm ảnh cho cảnh tiêu đề, cụ thể nhất trước.
+- "title_voice": lời đọc cho cảnh tiêu đề: một câu mở đầu gây tò mò, tối đa 15 từ.
 - "scenes": 5–7 cảnh nội dung theo thứ tự. Mỗi cảnh có:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
   - "seconds": số giây của cảnh (3–5);
+  - "voice": lời đọc của cảnh, câu nói tự nhiên bổ sung cho chữ trên màn hình, khoảng 10–15 từ; không dùng *dấu sao*,
+    viết số và đơn vị thành chữ khi cần đọc rõ;
   - "keywords": từ khóa tiếng Việt để tìm ảnh, cụ thể nhất trước (tên món trước), mỗi từ khóa tối đa 100 ký tự;
   - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ).
 - "caption": caption 80–120 từ.
@@ -52,20 +55,26 @@ Ví dụ đầy đủ:
     "5 THỰC PHẨM GIÀU CANXI DỄ TÌM CHO NGƯỜI 50+"
   ],
   "title_keywords": ["cá nhỏ chiên giòn", "sữa chua", "món ăn giàu canxi"],
+  "title_voice": "Sau tuổi năm mươi, bữa cơm nhà bạn đã đủ năm món này chưa?",
   "scenes": [
     {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
+     "voice": "Món đầu tiên là cá nhỏ ăn cả xương, vừa rẻ vừa giàu canxi.",
      "keywords": ["cá cơm chiên", "cá nhỏ", "món cá"],
      "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
+     "voice": "Một hũ sữa chua mỗi ngày giúp bổ sung thêm canxi và đạm.",
      "keywords": ["sữa chua", "sữa chua trái cây"],
      "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
+     "voice": "Đậu phụ quen thuộc cũng có canxi và nhiều đạm thực vật.",
      "keywords": ["đậu phụ rán", "đậu phụ", "đậu hũ"],
      "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
+     "voice": "Rau cải xanh có canxi và vitamin K, tốt cho xương chắc khỏe.",
      "keywords": ["rau cải xanh", "rau cải", "rau xanh"],
      "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
+     "voice": "Cuối cùng, rắc chút vừng đen vào cháo hay sữa hạt mỗi sáng.",
      "keywords": ["vừng đen", "hạt vừng", "mè đen"],
      "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"}
   ],
@@ -97,6 +106,7 @@ class GeneratedScene:
     seconds: float
     keywords: list[str]
     image_prompt: str
+    voice: str = ""
 
 
 @dataclass(frozen=True)
@@ -104,6 +114,7 @@ class GeneratedScript:
     titles: list[str]
     title_keywords: list[str]
     scenes: list[GeneratedScene]
+    title_voice: str = ""
     caption: str = ""
     hashtags: list[str] = field(default_factory=list)
     affiliates: list[str] = field(default_factory=list)
@@ -141,7 +152,7 @@ def _assemble(body: str, banned_words: list[str]) -> str:
     parts = [body]
     if banned_words:
         quoted = ", ".join(f"\"{word}\"" for word in banned_words)
-        parts.append(f"Từ cấm, không được dùng trong tiêu đề, chữ trên màn hình, caption và bình luận ghim: {quoted}.")
+        parts.append(f"Từ cấm, không được dùng trong tiêu đề, chữ trên màn hình, lời đọc, caption và bình luận ghim: {quoted}.")
     parts.append(OUTPUT_FORMAT)
     return "\n\n".join(parts)
 
@@ -168,6 +179,7 @@ def parse_output(raw: str) -> GeneratedScript:
         titles=titles,
         title_keywords=_keywords(data.get("title_keywords")),
         scenes=scenes,
+        title_voice=_voice(data.get("title_voice")),
         caption=_text(data.get("caption")),
         hashtags=_strings(data.get("hashtags")),
         affiliates=_strings(data.get("affiliates")),
@@ -185,11 +197,17 @@ def _scene(item: dict) -> GeneratedScene:
         seconds=float(seconds) if valid and seconds >= 1 else FALLBACK_SECONDS,
         keywords=_keywords(item.get("keywords")),
         image_prompt=_text(item.get("image_prompt")),
+        voice=_voice(item.get("voice")),
     )
 
 
 def _text(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _voice(value: object) -> str:
+    # A stray *markup* star would be read aloud or skipped unpredictably.
+    return " ".join(_text(value).replace("*", "").split())
 
 
 def _strings(value: object) -> list[str]:

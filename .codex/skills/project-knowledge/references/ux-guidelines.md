@@ -26,13 +26,14 @@ Built:
   "Tạo video".
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit:
   - choose 1 of 5 titles; edit the title scene and every content scene (text with `*word*` in
-    red, seconds, keywords, image prompt), add, delete, reorder; each field saves when left and
+    red, voice text, seconds, keywords, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red; photo by upload, "Tìm
     lại ảnh", or "Chọn từ Pixabay";
   - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
     blocks;
-  - optional MP3 with a volume slider; MP4 player, "Tải MP4", and the render time;
+  - once a render has made a scene's narration, its player, length, and the lengthened scene;
+  - the "Giọng đọc" switch (narration on/off); optional MP3 with a volume slider; MP4 player, "Tải MP4", and the render time;
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list;
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
@@ -46,7 +47,6 @@ Planned:
 - **Knowledge Base documents:** edit each document and trigger "AI soạn nháp" (AI draft); the food
   bank table with draft or approved status and source links; approve rows.
 - **Music library** (`/music`, a placeholder today): upload licensed tracks.
-- **TTS** on/off per video.
 
 ## Video Template
 
@@ -78,6 +78,10 @@ There is one fixed template in the MVP, derived from the reference channel (see
   Claude's suggestions) inside TikTok or Facebook when posting, because those libraries cannot be
   used outside their apps and an uploaded copyrighted MP3 can get the video muted or demonetized.
   A member may upload one MP3 per video, at 25% volume by default, looped or cut to the video
-  length with a 1.5 s fade-out. The team music library and TTS come later.
+  length with a 1.5 s fade-out. The team music library comes later.
+- **Narration:** each scene's voice text read in the ElevenLabs "Adam" voice, mixed at full level
+  over the music, starting 0.2 s into the scene. A scene whose narration is longer than its
+  seconds is lengthened to fit. The "Giọng đọc" card turns it off for the whole video; an empty
+  voice text leaves that scene silent.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
 - **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 20–40 seconds.

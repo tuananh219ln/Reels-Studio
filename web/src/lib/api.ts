@@ -62,6 +62,12 @@ export type SceneData = {
   seconds: number;
   keywords: string[];
   image_prompt: string;
+  voice_text: string;
+  /** Length of the narration made for the current voice text; null until a render has made it. */
+  voice_seconds: number | null;
+  voice_url: string | null;
+  /** The scene's seconds, lengthened to fit its narration when that is longer. */
+  fitted_seconds: number;
   has_image: boolean;
   image_error: string | null;
   image_url: string | null;
@@ -86,6 +92,7 @@ export type VideoDetail = VideoRow & {
   mp4: { url: string; download_url: string; seconds: number; render_seconds: number; rendered_at: string } | null;
   music: { url: string; name: string | null } | null;
   music_volume: number;
+  voice_enabled: boolean;
   clone_of: { title: string; request: string } | null;
   title_scene: SceneData | null;
   scenes: SceneData[];

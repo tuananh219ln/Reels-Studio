@@ -12,6 +12,7 @@ import { App, Alert, Button, Card, Col, Flex, Popconfirm, Row, Space, Tooltip, T
 import { useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
+import VoiceText from "./VoiceText";
 import PixabayPicker from "./PixabayPicker";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -35,16 +36,18 @@ function parseKeywords(text: string): string[] {
 export default function SceneCard({
   scene,
   label,
+  voiceEnabled,
   onMove,
   onDelete,
 }: {
   scene: SceneData;
   label: string;
+  voiceEnabled: boolean;
   onMove?: (step: -1 | 1) => void;
   onDelete?: () => void;
 }) {
   const editor = useEditor();
-  const patch = (body: Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt">>) =>
+  const patch = (body: Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">>) =>
     api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body);
 
   return (
@@ -84,6 +87,7 @@ export default function SceneCard({
               save={(text) => patch({ text })}
               hint="*từ* để tô đỏ, xuống dòng để ngắt dòng"
             />
+            {voiceEnabled && <VoiceText scene={scene} save={(voice_text) => patch({ voice_text })} />}
             <Flex wrap gap={16}>
               <AutoSaveField
                 label="Số giây"

@@ -57,7 +57,9 @@ How the prompt is built (built, compact version):
   Instructions, script prompt, title formulas, and safety note) with the topic placed at
   `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
 - **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
-  are code, not editable (see [patterns.md](patterns.md)).
+  are code, not editable (see [patterns.md](patterns.md)). It asks for a voice text per scene
+  (about 10–15 words, no `*` markup) and an opening line for the title scene; banned words cover
+  the voice text too.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
   become 4, keywords are cut to 100 characters, missing parts stay empty. Everything then goes

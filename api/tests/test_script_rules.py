@@ -130,3 +130,25 @@ def test_banned_word_warnings_do_not_block_and_point_at_the_field():
     assert [(issue.field, issue.message) for issue in checks.warnings if issue.scene_id is None] == [
         ("caption", "Có từ cấm: “chữa khỏi”")
     ]
+
+
+def test_narration_already_made_lengthens_the_total():
+    # 3 s title + 9 scenes of 9 s = 84 s; narration of 9.5 s makes one scene 10.1 s and the total 85.1 s.
+    content = scenes(8, 9.0) + [SceneInput(9, False, SCENE_TEXT, 9.0, True, "Lời đọc", 9.5)]
+    assert run(content=content).blocking == []
+    content = scenes(8, 9.0) + [SceneInput(9, False, SCENE_TEXT, 9.0, True, "Lời đọc", 15.5)]
+    assert [issue.message for issue in run(content=content).blocking] == ["Tổng độ dài 91.1 giây, tối đa 90 giây"]
+
+
+def test_a_lengthened_scene_is_not_blocked_by_the_10_second_limit():
+    content = scenes(4) + [SceneInput(9, False, SCENE_TEXT, 4, True, "Lời đọc dài", 12.0)]
+    assert run(content=content).blocking == []
+
+
+def test_banned_words_in_narration_warn_on_the_voice_field():
+    content = scenes(4) + [SceneInput(9, False, SCENE_TEXT, 4, True, "Món này đặc trị đau lưng")]
+    checks = run(content=content, banned=["đặc trị"])
+    assert checks.blocking == []
+    assert [(issue.field, issue.message) for issue in checks.warnings if issue.scene_id == 9] == [
+        ("voice", "Lời đọc có từ cấm: “đặc trị”")
+    ]

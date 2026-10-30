@@ -13,7 +13,7 @@ description: |
 
 Reels Studio runs in production for the team: login and user management, and the video pipeline
 from topic to MP4 (Claude script, stored scene photos, server render through the job worker), with
-cloning and a job log. The full Knowledge Base, the music library, TTS, and publishing are agreed
+cloning, scene narration (ElevenLabs), and a job log. The full Knowledge Base, the music library, and publishing are agreed
 design not yet built; each reference marks what is built and what is planned.
 
 ## References

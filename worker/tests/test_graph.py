@@ -46,17 +46,40 @@ def test_graph_with_music_sets_volume_trims_and_fades_out():
     assert "anullsrc" not in graph
 
 
+def test_graph_mixes_narration_segments_onto_the_bed():
+    graph = build_filter_graph(POSITIONS, TIMELINE, music_volume=None, voices=[False, True, True])
+    assert "anullsrc=r=48000:cl=stereo,atrim=duration=11.000000[bed]" in graph
+    # The title has no narration: silence for its 3 s (90 frames × 1600 samples).
+    assert "anullsrc=r=48000:cl=stereo,atrim=end_sample=144000[vo0]" in graph
+    assert "[6:a]aresample=48000,aformat=channel_layouts=stereo,adelay=200|200,apad,atrim=end_sample=192000[vo1]" in graph
+    assert "[7:a]" in graph and "[8:a]" not in graph
+    assert "[vo0][vo1][vo2]concat=n=3:v=0:a=1[voice]" in graph
+    assert graph.endswith("[bed][voice]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]")
+
+
+def test_narration_inputs_come_after_the_music():
+    graph = build_filter_graph(POSITIONS, TIMELINE, music_volume=0.25, voices=[True, False, False])
+    assert "[6:a]aresample=48000,aformat=channel_layouts=stereo,volume=0.2500" in graph
+    assert "[7:a]aresample=48000,aformat=channel_layouts=stereo,adelay=200|200" in graph
+
+
+def test_graph_without_narration_keeps_its_old_audio_chain():
+    assert build_filter_graph(POSITIONS, TIMELINE, None, voices=[False] * 3) == \
+        build_filter_graph(POSITIONS, TIMELINE, None)
+
+
 @pytest.mark.parametrize("music", [None, Path("C:/Users/Young Sheldon/nhạc nền/bài 1.mp3")])
 def test_files_are_inputs_and_never_inside_the_graph(music):
     folder = Path("C:/Users/Young Sheldon/tmp dir")
     scenes = [
-        SceneInput(folder / f"scene {i}.jpg", folder / f"text {i}.png", x, y) for i, (x, y) in enumerate(POSITIONS)
+        SceneInput(folder / f"scene {i}.jpg", folder / f"text {i}.png", x, y, folder / f"lời đọc {i}.mp3")
+        for i, (x, y) in enumerate(POSITIONS)
     ]
     output = folder / "out video.mp4"
     argv = build_ffmpeg_args("ffmpeg", scenes, TIMELINE, music, 0.25, output)
 
     graph = argv[argv.index("-filter_complex") + 1]
-    paths = [str(p) for s in scenes for p in (s.image, s.text_box)] + ([str(music)] if music else [])
+    paths = [str(p) for s in scenes for p in (s.image, s.text_box, s.voice)] + ([str(music)] if music else [])
     for path in paths:
         assert argv[argv.index(path) - 1] == "-i"
         assert path not in graph

@@ -116,7 +116,8 @@ def isolated_files(tmp_path, monkeypatch):
     """Every test gets its own storage folder and Pixabay search cache."""
     monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(_stock, "default_cache_dir", lambda: tmp_path / "search-cache")
-    for name in ("PIXABAY_API_KEY", "PIXABAY_API_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"):
+    for name in ("PIXABAY_API_KEY", "PIXABAY_API_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL",
+                 "ELEVENLABS_API_KEY", "ELEVENLABS_API_URL", "ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL"):
         monkeypatch.setenv(name, "")
 
 

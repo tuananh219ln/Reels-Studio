@@ -33,6 +33,7 @@ import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import MusicCard from "@/components/video/MusicCard";
 import PostContent from "@/components/video/PostContent";
+import VoiceCard from "@/components/video/VoiceCard";
 import SceneCard from "@/components/video/SceneCard";
 import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
 
@@ -281,12 +282,15 @@ export default function VideoPage() {
                   />
                 </Card>
               )}
-              {video.title_scene && <SceneCard scene={video.title_scene} label="Cảnh tiêu đề" />}
+              {video.title_scene && (
+                <SceneCard scene={video.title_scene} label="Cảnh tiêu đề" voiceEnabled={video.voice_enabled} />
+              )}
               {scenes.map((scene, index) => (
                 <SceneCard
                   key={scene.id}
                   scene={scene}
                   label={`Cảnh ${index + 1}`}
+                  voiceEnabled={video.voice_enabled}
                   onMove={(step) => move(index, step)}
                   onDelete={() => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))}
                 />
@@ -313,6 +317,7 @@ export default function VideoPage() {
                   </Flex>
                 </Card>
               )}
+              <VoiceCard video={video} />
               <MusicCard video={video} />
               <PostContent video={video} />
             </Flex>
