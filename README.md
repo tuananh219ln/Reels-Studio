@@ -51,7 +51,7 @@ Python 3.12, Node 20.9 trở lên, FFmpeg (`winget install Gyan.FFmpeg`, cho wor
 chạy từ thư mục gốc repo, trong PowerShell.
 
 1. **Cấu hình:** chép `.env.example` thành `.env` (nếu đã có `.env` thì thêm các dòng còn thiếu).
-   Muốn viết kịch bản và tìm ảnh thật thì điền `ANTHROPIC_API_KEY` và `PIXABAY_API_KEY`.
+   Muốn viết kịch bản thật thì điền `ANTHROPIC_API_KEY`.
 2. **Postgres:** `docker compose up -d postgres`. Lần đầu (volume trống) container tạo sẵn ba
    database: `reels` (dev), `reels_test` (pytest), `reels_e2e` (Playwright).
 3. **api** (một lần):
@@ -112,7 +112,7 @@ trên mọi PR. Khi merge vào `main` và mọi kiểm thử đều qua, workflo
    - Domain: ví dụ `https://api.example.com`.
    - Biến môi trường: `DATABASE_URL` = Postgres URL (internal) vừa copy (dán nguyên, app tự đổi
      `postgres://` thành driver psycopg), `ALLOWED_ORIGINS=https://app.example.com` (domain web),
-     `COOKIE_SECURE=true`, `PIXABAY_API_KEY` (cho "Tìm lại ảnh"), `STORAGE_DIR=/data/storage`.
+     `COOKIE_SECURE=true`, `PIXABAY_API_KEY`, `STORAGE_DIR=/data/storage`.
    - Persistent Storage → **Directory Mount**: Source `/data/reels-storage`, Destination
      `/data/storage`.
    - Advanced → Auto deploy: chọn **Manual deployments only**, để chỉ GitHub Actions triển khai

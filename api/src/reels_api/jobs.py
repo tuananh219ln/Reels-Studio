@@ -26,17 +26,15 @@ from .claude import (
     generate_script,
 )
 from .models import Job, Scene, Video
-from .pixabay import Pixabay, PixabayError
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
-from .videos import made_voice_seconds, new_key, refresh_thumbnail, render_signature, run_checks, spoken, split_scenes
+from .videos import made_voice_seconds, new_key, render_signature, run_checks, spoken, split_scenes
 
 log = logging.getLogger(__name__)
 
 TITLE_SECONDS = 3
 # Auto-assign runs in the worker, not in a request, so each scene's search may take longer.
-ASSIGN_SECONDS_PER_SCENE = 30
 
 
 class JobFailure(Exception):
@@ -51,7 +49,7 @@ def work_dir(job_id: int) -> Path:
     return Path(tempfile.gettempdir()) / f"reels-job-{job_id}"
 
 
-def run_job(job_id: int, factory: sessionmaker, storage: DirectoryStorage, pixabay: Pixabay | None = None,
+def run_job(job_id: int, factory: sessionmaker, storage: DirectoryStorage,
             call: Callable[[str, str], str] = call_claude) -> None:
     with factory() as db:
         job = db.get(Job, job_id)
@@ -61,7 +59,7 @@ def run_job(job_id: int, factory: sessionmaker, storage: DirectoryStorage, pixab
         log.info("Job %s (%s) for video %s started", job.id, job.kind, job.video_id)
         try:
             if job.kind in ("script", "clone"):
-                run_script_job(db, job, storage, pixabay or Pixabay(), call)
+                run_script_job(db, job, call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
             else:
@@ -89,10 +87,9 @@ def _finish(db: DbSession, job_id: int, status: str, error: str | None = None, d
 
 # --- Script ---
 
-def run_script_job(db: DbSession, job: Job, storage: DirectoryStorage, pixabay: Pixabay,
-                   call: Callable[[str, str], str]) -> None:
+def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str]) -> None:
     video = db.get(Video, job.video_id)
-    # A retried job whose script was already saved only fills the missing photos: no new Claude call,
+    # A retried job whose script was already saved has nothing to do: no new Claude call,
     # and nothing the members edited meanwhile is overwritten.
     if not video.has_script:
         banned = knowledge.banned_words(db)
@@ -112,7 +109,6 @@ def run_script_job(db: DbSession, job: Job, storage: DirectoryStorage, pixabay: 
             raise JobFailure(err.message, err.detail) from None
         save_script(db, video, script)
         db.commit()
-    assign_images(db, video, storage, pixabay)
 
 
 def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
@@ -129,46 +125,6 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     for position, scene in enumerate(script.scenes, start=1):
         db.add(Scene(video_id=video.id, is_title=False, position=position, text=scene.text, seconds=scene.seconds,
                      keywords=scene.keywords, image_prompt=scene.image_prompt, voice_text=scene.voice))
-
-
-def _search_terms(scene: Scene) -> list[str]:
-    if scene.keywords:
-        return list(scene.keywords)
-    # Same rule as the renderer: a content scene without keywords is searched by its first text line.
-    first_line = scene.text.split("\n")[0].replace("*", "").strip()
-    return [first_line[:100]] if first_line and not scene.is_title else []
-
-
-def assign_images(db: DbSession, video: Video, storage: DirectoryStorage, pixabay: Pixabay) -> None:
-    """Pixabay photo for every scene without one, stored for good so the render uses what was shown."""
-    title, scenes = split_scenes(db, video)
-    pending = [scene for scene in ([title] if title else []) + scenes if not scene.image_key and not scene.video_key]
-    used = {scene.image_source for scene in ([title] if title else []) + scenes if scene.image_source}
-    for index, scene in enumerate(pending):
-        terms = _search_terms(scene)
-        if not terms:
-            scene.image_error = "Chưa có từ khóa tìm ảnh: hãy nhập từ khóa hoặc tải ảnh lên"
-            db.commit()
-            continue
-        try:
-            photo = pixabay.find_photo(terms, time.monotonic() + ASSIGN_SECONDS_PER_SCENE, avoid=used)
-        except PixabayError as err:
-            for rest in pending[index:]:
-                rest.image_error = f"Chưa gán được ảnh: {err.message}"
-            db.commit()
-            raise JobFailure(f"Đã lưu kịch bản nhưng chưa gán được ảnh Pixabay: {err.message}",
-                             f"Lỗi Pixabay loại: {err.kind}\n{err.message}") from None
-        if photo is None:
-            scene.image_error = f"Không tìm thấy ảnh Pixabay cho từ khóa: {', '.join(terms)}"
-            db.commit()
-            continue
-        key = new_key(video.id, f"scene-{scene.id}", photo.extension)
-        storage.save_bytes(key, photo.data)
-        scene.image_key, scene.image_source, scene.image_error = key, photo.url, None
-        used.add(photo.url)
-        if scene.is_title:
-            refresh_thumbnail(db, storage, video, scene)
-        db.commit()
 
 
 # --- Render ---

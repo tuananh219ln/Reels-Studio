@@ -47,10 +47,10 @@ Workers (see [deployment.md](deployment.md#production)).
 | Component | Responsibility |
 |---|---|
 | `web` | Next.js UI. Calls the API only. |
-| `api` | FastAPI app ([api/](../../../../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, Pixabay search for the photo picker, previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
-| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude, then Pixabay photos) and renders (ElevenLabs narration, then FFmpeg). |
+| `api` | FastAPI app ([api/](../../../../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, Pixabay search (no longer offered in the web UI), previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
+| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude) and renders (ElevenLabs narration, then FFmpeg). |
 | `postgres` | Relational data and the job queue. |
-| storage | One folder of uploaded photos, chosen Pixabay photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
+| storage | One folder of uploaded photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
 
 The api and the worker are one Python package so models, migrations, and database configuration
 exist once; `reels_render` stays a library that needs only Pillow. Both images also install
@@ -59,8 +59,7 @@ Files go through a small storage layer ([storage.py](../../../../api/src/reels_a
 only a folder backend exists, chosen so an S3/R2 backend can be added later without touching video,
 scene, or job logic.
 
-**Render pipeline:** every scene photo is chosen while editing (upload, automatic Pixabay pick, or
-the Pixabay picker) and stored, so the render uses exactly the photo the preview showed. The
+**Render pipeline:** every scene photo is uploaded by a member while editing and stored, so the render uses exactly the photo the preview showed. The
 worker then:
 
 1. Makes the narration each scene still lacks (see [Narration](#narration)), then checks the total
@@ -137,8 +136,7 @@ A scene may hold an uploaded video clip instead of a photo
   Uploading a clip clears the photo, uploading or choosing a photo clears the clip, and the
   replaced file is deleted after the commit. A new clip sets the scene's seconds to its length
   minus the 0.2 s it plays into each crossfade (one for the title, two for a content scene), in
-  tenths, between 1 and 10 s. The start time must leave at least 1 s of clip. Script and clone
-  jobs never assign Pixabay photos to a scene with a clip. A clone rewrites every scene, so it
+  tenths, between 1 and 10 s. The start time must leave at least 1 s of clip. A clone rewrites every scene, so it
   starts without the source's clips.
 - **Preview:** the scene preview and, for the title scene, the thumbnail are drawn from the
   clip's frame at the start time, taken with the same input seeking as the render. The editor
@@ -168,7 +166,7 @@ A scene may hold an uploaded video clip instead of a photo
 |---|---|---|
 | Claude API | Script generation and cloning (built); drafting Knowledge Base content (planned) | Called only from the worker, through the Anthropic SDK. Model is configurable; the default is `claude-sonnet-5-5`, with the server-side refusal fallback enabled. Every call is logged with its token counts. Knowledge drafting will use web search so it can return source URLs. |
 | ElevenLabs | Scene narration in the render job | The premade "Adam" voice by default, model `eleven_v3` with `language_code: vi` (`eleven_multilingual_v2` does not speak Vietnamese). Voice and model are configurable. Paid per character, so each scene's MP3 is stored and reused. |
-| Pixabay | Scene photos: automatic pick after a script is written, "Tìm lại ảnh", the "Chọn từ Pixabay" picker, and the CLI's stock search; the only stock source | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). The picker shows Pixabay's thumbnails only while choosing and labels them "Ảnh từ Pixabay"; the chosen photo is downloaded and stored. Searches inside a request give up after about 10 seconds. |
+| Pixabay | The CLI's stock search; the only stock source. The api's search and picker endpoints remain, but the web UI no longer offers them and jobs no longer pick photos | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). Searches inside a request give up after about 10 seconds. |
 | FFmpeg | Rendering | Installed in the worker image from Debian's package ([api/Dockerfile.worker](../../../../api/Dockerfile.worker)); on the dev host installed natively (see [deployment.md](deployment.md#current-state)). |
 
 Later phases add the Meta (Instagram/Facebook) and TikTok publishing APIs.
@@ -177,9 +175,8 @@ Later phases add the Meta (Instagram/Facebook) and TikTok publishing APIs.
 
 1. A member enters a topic; the API creates a draft video and a script job.
 2. The worker calls Claude with the editable script prompt and the banned words (see
-   [content.md](content.md#script-generation-contract)), saves the script, and stores a Pixabay
-   photo for every scene that has none.
-3. Members edit the script, photos, music, and post texts; each field saves on its own.
+   [content.md](content.md#script-generation-contract)), and saves the script.
+3. Members upload a photo or clip for every scene and edit the script, music, and post texts; each field saves on its own.
 4. "Render" enqueues a render job after the pre-render checks pass.
 5. The worker renders the MP4 from the saved data into storage and records it on the video.
 6. The video page plays and downloads the MP4; `/jobs` lists every job.
@@ -223,8 +220,8 @@ Planned:
   - A job still marked running when a worker starts belonged to a worker that died: it becomes
     failed ("Worker khởi động lại giữa chừng") and is never re-run automatically, to avoid
     unplanned Claude spending. Members press "Thử lại", which always creates a new job.
-  - A script or clone job saves the script first, then picks photos. Retrying one whose script
-    was saved only fills missing photos: no new Claude call, no overwritten edits.
+  - Retrying a script or clone job whose script was saved does nothing: no new Claude call, no
+    overwritten edits.
   - The worker waits instead of crashing while the `jobs` table does not exist yet.
 - **Locking and saving:** a video with a queued or running job cannot be edited or deleted; the
   database allows only one such job per video. Every change locks the video row, so edits and new

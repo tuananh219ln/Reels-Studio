@@ -126,7 +126,6 @@ export type MusicTrack = {
 /** The api's fixed lists that tag every track. */
 export type MusicOptions = { topics: string[]; moods: string[] };
 
-export type PixabayHit = { url: string; preview: string };
 
 export type JobRow = {
   id: number;

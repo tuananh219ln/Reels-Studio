@@ -111,9 +111,9 @@ def test_default_prompt_has_the_topic_placeholder():
 
 def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
     example = json.loads(OUTPUT_FORMAT[OUTPUT_FORMAT.index("{"):])
-    assert set(example) == {"titles", "title_keywords", "title_voice", "scenes", "caption", "hashtags", "affiliates",
+    assert set(example) == {"titles", "title_voice", "scenes", "caption", "hashtags", "affiliates",
                             "pinned_comment", "self_review", "music_suggestions"}
-    assert all(set(scene) == {"text", "seconds", "voice", "keywords", "image_prompt"} for scene in example["scenes"])
+    assert all(set(scene) == {"text", "seconds", "voice", "image_prompt"} for scene in example["scenes"])
     assert parse_output(OUTPUT_FORMAT).titles[0] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE SAU TUỔI 50"
 
 

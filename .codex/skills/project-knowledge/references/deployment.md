@@ -73,7 +73,7 @@ when set to an empty string. Containers use real environment variables only.
 |---|---|
 | `ANTHROPIC_API_KEY` | worker: Claude API |
 | `CLAUDE_MODEL` | worker: model override; the default is `claude-sonnet-5-5` |
-| `PIXABAY_API_KEY` | api ("Tìm lại ảnh", the picker) and worker (automatic photos); also the render core CLI |
+| `PIXABAY_API_KEY` | optional: only the api's unused Pixabay endpoints and the render core CLI |
 | `STORAGE_DIR` | api and worker: the shared files folder; `/data/storage` in production, `data/storage` at the repo root when empty |
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |

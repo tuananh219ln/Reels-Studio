@@ -28,15 +28,17 @@ OUTPUT_FORMAT = """\
 ĐỊNH DẠNG ĐẦU RA (bắt buộc): chỉ trả về đúng một object JSON, không kèm chữ nào khác, không bọc trong ```.
 Các trường:
 - "titles": 5 tiêu đề viết hoa, mỗi tiêu đề tối đa 12 từ.
-- "title_keywords": từ khóa tiếng Việt để tìm ảnh cho cảnh tiêu đề, cụ thể nhất trước.
-- "title_voice": lời đọc cho cảnh tiêu đề: một câu mở đầu gây tò mò, tối đa 15 từ.
+- "title_voice": lời đọc cho cảnh tiêu đề: một câu mở đầu gây tò mò về chủ đề chung, hợp với cả 5 tiêu đề (không đọc lại
+  nguyên văn tiêu đề nào), 15–20 từ.
+  Tổng số từ của "title_voice" và mọi "voice" không quá 120 từ: nhiều cảnh thì viết mỗi lời gần 15 từ, ít cảnh mới viết
+  gần 20 từ.
 - "scenes": 5–7 cảnh nội dung theo thứ tự. Mỗi cảnh có:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
   - "seconds": số giây của cảnh (3–5);
-  - "voice": lời đọc của cảnh, câu nói tự nhiên bổ sung cho chữ trên màn hình, khoảng 10–15 từ; không dùng *dấu sao*,
-    viết số và đơn vị thành chữ khi cần đọc rõ;
-  - "keywords": từ khóa tiếng Việt để tìm ảnh, cụ thể nhất trước (tên món trước), mỗi từ khóa tối đa 100 ký tự;
+  - "voice": lời đọc của cảnh, câu nói tự nhiên dựa trên đúng nội dung chữ trên màn hình của cảnh đó nhưng chi tiết hơn
+    một chút (thêm lý do, cách ăn hoặc mẹo nhỏ), 15–20 từ; không dùng *dấu sao*, viết số và đơn vị
+    thành chữ khi cần đọc rõ;
   - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ).
 - "caption": caption 80–120 từ.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
@@ -54,28 +56,22 @@ Ví dụ đầy đủ:
     "ĂN GÌ ĐỂ XƯƠNG CHẮC KHỎE SAU TUỔI 50?",
     "5 THỰC PHẨM GIÀU CANXI DỄ TÌM CHO NGƯỜI 50+"
   ],
-  "title_keywords": ["cá nhỏ chiên giòn", "sữa chua", "món ăn giàu canxi"],
-  "title_voice": "Sau tuổi năm mươi, bữa cơm nhà bạn đã đủ năm món này chưa?",
+  "title_voice": "Sau tuổi năm mươi, xương yếu dần theo năm tháng, bữa cơm nhà bạn đã đủ năm món này chưa?",
   "scenes": [
     {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
-     "voice": "Món đầu tiên là cá nhỏ ăn cả xương, vừa rẻ vừa giàu canxi.",
-     "keywords": ["cá cơm chiên", "cá nhỏ", "món cá"],
+     "voice": "Món đầu tiên là cá nhỏ ăn cả xương, vừa rẻ vừa dễ tìm lại giàu canxi cho xương.",
      "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
-     "voice": "Một hũ sữa chua mỗi ngày giúp bổ sung thêm canxi và đạm.",
-     "keywords": ["sữa chua", "sữa chua trái cây"],
+     "voice": "Một hũ sữa chua mỗi ngày giúp bổ sung thêm canxi và đạm, lại dễ ăn cho người lớn tuổi.",
      "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
-     "voice": "Đậu phụ quen thuộc cũng có canxi và nhiều đạm thực vật.",
-     "keywords": ["đậu phụ rán", "đậu phụ", "đậu hũ"],
+     "voice": "Đậu phụ quen thuộc cũng có canxi và nhiều đạm thực vật, rán hay nấu canh đều ngon.",
      "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
-     "voice": "Rau cải xanh có canxi và vitamin K, tốt cho xương chắc khỏe.",
-     "keywords": ["rau cải xanh", "rau cải", "rau xanh"],
+     "voice": "Rau cải xanh có canxi và vitamin K, nên có mặt trong bữa cơm để xương chắc khỏe hơn.",
      "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
-     "voice": "Cuối cùng, rắc chút vừng đen vào cháo hay sữa hạt mỗi sáng.",
-     "keywords": ["vừng đen", "hạt vừng", "mè đen"],
+     "voice": "Cuối cùng, rắc chút vừng đen vào cháo hay sữa hạt mỗi sáng, vừa thơm vừa bổ sung canxi.",
      "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"}
   ],
   "caption": "Sau tuổi 50, xương dễ yếu đi ... (80–120 từ, nhắc lại tiêu đề và đủ danh sách món)",
