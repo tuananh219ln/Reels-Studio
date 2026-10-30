@@ -51,7 +51,8 @@ app replaces CapCut, so the output is a finished MP4.
    grid.
 5. **Templated render (built):** a fixed visual template, Ken Burns motion, rendered on the server.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text (on by default, off per
-   video). Music is optional (one uploaded MP3 per video); the team music library is planned.
+   video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
+   tagged by fixed topics and a mood).
 6. **Job log (built):** every job with status, duration, Claude call count, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
 

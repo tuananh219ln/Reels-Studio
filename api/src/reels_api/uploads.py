@@ -1,6 +1,7 @@
 """Checks for files members upload: the type is read from the bytes, never from the name."""
 
 import io
+import unicodedata
 
 from fastapi import UploadFile
 from PIL import Image, UnidentifiedImageError
@@ -46,6 +47,12 @@ def check_mp3(data: bytes) -> None:
     if data[:3] == b"ID3" or (len(data) >= 2 and data[0] == 0xFF and data[1] & 0xE0 == 0xE0):
         return
     raise UploadRejected("File nhạc phải là MP3 thật (đổi đuôi file khác thành .mp3 không dùng được)")
+
+
+def file_label(filename: str | None, default: str) -> str:
+    """The uploaded file's own name without any folder, for display only; stored names come from the server."""
+    name = unicodedata.normalize("NFC", (filename or default).replace("\\", "/").rsplit("/", 1)[-1]).strip()
+    return name[:200] or default
 
 
 def read_limited(upload: UploadFile, max_bytes: int, too_large: str) -> bytes:

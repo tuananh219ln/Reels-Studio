@@ -1,6 +1,6 @@
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { API_PYTHON, E2E_DATABASE_URL } from "../playwright.config";
 
 export const SEED = { email: "an@doi.vn", name: "Nguyễn Văn An", password: "mat-khau-dung-1" };
@@ -42,4 +42,15 @@ export function row(page: Page, email: string) {
 
 export async function openAccountMenu(page: Page) {
   await page.getByTestId("header-name").click();
+}
+
+/** Picks an option of an antd Select. The option is clicked only once its dropdown has finished opening:
+ * a click during the opening animation can be lost on a slow machine. */
+export async function chooseOption(page: Page, select: Locator, option: string) {
+  await select.click();
+  const item = page.getByTitle(option, { exact: true });
+  const dropdown = page.locator(".ant-select-dropdown:visible", { has: item });
+  await expect(dropdown).toBeVisible();
+  await expect(dropdown).not.toHaveClass(/-(appear|enter|leave)/);
+  await dropdown.getByTitle(option, { exact: true }).click();
 }

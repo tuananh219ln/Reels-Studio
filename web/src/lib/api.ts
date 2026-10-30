@@ -110,6 +110,20 @@ export type Knowledge = {
   default_banned_words: string[];
 };
 
+export type MusicTrack = {
+  id: number;
+  name: string;
+  topics: string[];
+  mood: string;
+  license_note: string;
+  url: string;
+  created_by: string;
+  created_at: string;
+};
+
+/** The api's fixed lists that tag every track. */
+export type MusicOptions = { topics: string[]; moods: string[] };
+
 export type PixabayHit = { url: string; preview: string };
 
 export type JobRow = {
@@ -139,9 +153,14 @@ export async function api<T>(path: string, method: Method = "GET", body?: unknow
 }
 
 /** One file per request: the Cloudflare proxy buffers the whole body, so files never go in batches. */
-export async function upload<T>(path: string, file: File): Promise<T> {
+export async function upload<T>(path: string, file: File, fields: Record<string, string | string[]> = {}): Promise<T> {
   const form = new FormData();
   form.append("file", file);
+  for (const [name, value] of Object.entries(fields)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      form.append(name, item);
+    }
+  }
   // No Content-Type header: the browser sets the multipart boundary itself.
   return send<T>(path, { method: "POST", body: form });
 }

@@ -1,19 +1,24 @@
 "use client";
 
-import { DeleteOutlined, UploadOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Popconfirm, Slider, Typography } from "antd";
+import { CustomerServiceOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
+import { App, Button, Card, Checkbox, Flex, Popconfirm, Slider, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
-import { api, errorMessage, upload, type VideoDetail } from "@/lib/api";
+import LibraryPicker from "@/components/music/LibraryPicker";
+import TrackModal, { MAX_MUSIC_BYTES, type TrackTarget } from "@/components/music/TrackModal";
+import { api, errorMessage, upload, type MusicTrack, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 
-const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
-
-/** Optional background music: one MP3 per video and its volume; without it the video is silent. */
+/** Optional background music: one MP3 per video, uploaded or copied from the team library, and its volume;
+ * without it the video is silent. */
 export default function MusicCard({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const editor = useEditor();
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [saveToLibrary, setSaveToLibrary] = useState(false);
+  // Kept as state so it keeps its identity across polls: a new object would reset the modal's form.
+  const [newTrack, setNewTrack] = useState<TrackTarget | null>(null);
   const [volume, setVolume] = useState(video.music_volume);
   const [volumeError, setVolumeError] = useState<string | null>(null);
   // The slider shows what the member chose until every volume save has finished; only then does it follow
@@ -55,13 +60,16 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
     editor.track(queue.current);
   }
 
-  async function run(action: () => Promise<VideoDetail>, success: string) {
+  /** True when the change was saved. */
+  async function run(action: () => Promise<VideoDetail>, success: string): Promise<boolean> {
     setBusy(true);
     try {
       editor.onSaved(await action());
       message.success(success);
+      return true;
     } catch (err) {
       message.error(errorMessage(err));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -78,8 +86,38 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
       message.error("File nhạc quá 20 MB, hãy chọn file nhỏ hơn");
       return;
     }
-    void run(() => upload<VideoDetail>(`/videos/${video.id}/music`, file), "Đã lưu nhạc");
+    if (saveToLibrary) {
+      setNewTrack({ file });
+    } else {
+      void run(() => upload<VideoDetail>(`/videos/${video.id}/music`, file), "Đã lưu nhạc");
+    }
   }
+
+  async function applyTrack(track: MusicTrack) {
+    const saved = await run(
+      () => api<VideoDetail>(`/videos/${video.id}/music/from-library`, "POST", { track_id: track.id }),
+      `Đã dùng "${track.name}"`,
+    );
+    if (saved) {
+      setPicking(false);
+    }
+  }
+
+  const sources = (
+    <>
+      <Flex wrap gap={8}>
+        <Button icon={<CustomerServiceOutlined />} disabled={editor.locked || busy} onClick={() => setPicking(true)}>
+          Chọn từ thư viện
+        </Button>
+        <Button icon={<UploadOutlined />} disabled={editor.locked || busy} onClick={() => input.current?.click()}>
+          {video.music ? "Thay nhạc" : "Tải nhạc MP3 lên"}
+        </Button>
+      </Flex>
+      <Checkbox checked={saveToLibrary} onChange={(event) => setSaveToLibrary(event.target.checked)}>
+        Lưu file tải lên vào thư viện nhạc
+      </Checkbox>
+    </>
+  );
 
   return (
     <Card title="Nhạc nền" size="small">
@@ -89,10 +127,8 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
         <Flex vertical gap={8}>
           <Typography.Text data-testid="music-name">{video.music.name}</Typography.Text>
           <audio key={video.music.url} src={video.music.url} controls preload="none" style={{ width: "100%" }} />
+          {sources}
           <Flex wrap gap={8}>
-            <Button icon={<UploadOutlined />} disabled={editor.locked || busy} onClick={() => input.current?.click()}>
-              Thay nhạc
-            </Button>
             <Popconfirm title="Gỡ nhạc? Video render sau sẽ im lặng." okText="Gỡ nhạc" cancelText="Huỷ"
               onConfirm={() => run(() => api<VideoDetail>(`/videos/${video.id}/music`, "DELETE"), "Đã gỡ nhạc")}>
               <Button danger icon={<DeleteOutlined />} disabled={editor.locked || busy}>
@@ -119,13 +155,20 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
         <Flex vertical gap={8}>
           <Typography.Text type="secondary">
             Chưa có nhạc: video render ra im lặng. Có thể chọn nhạc trong TikTok hoặc Facebook khi đăng (xem gợi ý
-            nhạc), hoặc tải lên một file MP3 (tối đa 20 MB).
+            nhạc), chọn một bài trong thư viện nhạc, hoặc tải lên một file MP3 (tối đa 20 MB).
           </Typography.Text>
-          <Button icon={<UploadOutlined />} disabled={editor.locked || busy} onClick={() => input.current?.click()}>
-            Tải nhạc MP3 lên
-          </Button>
+          {sources}
         </Flex>
       )}
+      <LibraryPicker open={picking} busy={busy} onClose={() => setPicking(false)} onPick={applyTrack} />
+      <TrackModal
+        target={newTrack}
+        onClose={() => setNewTrack(null)}
+        onDone={async (track) => {
+          setNewTrack(null);
+          await applyTrack(track);
+        }}
+      />
     </Card>
   );
 }

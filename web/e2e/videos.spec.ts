@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { SEED, loginAsSeed, resetDatabase } from "./helpers";
+import { SEED, chooseOption, loginAsSeed, resetDatabase } from "./helpers";
 
 // The api, a real worker with FFmpeg, and fake Claude/Pixabay (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
@@ -182,6 +182,65 @@ test("pick a photo from the Pixabay grid, add and remove music", async ({ page }
   await page.getByRole("button", { name: "Gỡ nhạc" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Gỡ nhạc" }).click();
   await expect(page.getByRole("button", { name: "Tải nhạc MP3 lên" })).toBeVisible();
+});
+
+test("add a track to the music library, then choose it for a video", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.goto("/music");
+  await page.getByLabel("Chọn file MP3 cho thư viện").setInputFiles(makeMp3());
+  const add = page.getByRole("dialog", { name: "Thêm vào thư viện nhạc" });
+  await add.getByLabel("Tên bài").fill("Piano xương khớp");
+  await chooseOption(page, add.getByLabel("Chủ đề"), "xương khớp");
+  // A multiple select stays open after a pick and would cover the Mood field: click away to close it.
+  await add.getByText("File:").click();
+  await chooseOption(page, add.getByLabel("Mood"), "piano");
+  await add.getByRole("button", { name: "Thêm" }).click();
+  await expect(add).toBeHidden();
+  const rows = page.locator(".ant-table-tbody .ant-table-row");
+  await expect(rows.filter({ hasText: "Piano xương khớp" })).toHaveCount(1);
+
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await page.getByRole("button", { name: "Chọn từ thư viện" }).click();
+  const picker = page.getByRole("dialog", { name: "Chọn nhạc từ thư viện" });
+  // The unfiltered list arrives first, so the empty result below really comes from the filter.
+  await expect(picker.getByTestId("library-track")).toHaveCount(1);
+  await chooseOption(page, picker.getByLabel("Lọc theo mood"), "vui tươi");
+  await expect(picker.getByTestId("library-track")).toHaveCount(0);
+  await chooseOption(page, picker.getByLabel("Lọc theo mood"), "piano");
+  await expect(picker.getByTestId("library-track")).toHaveCount(1);
+  await picker.getByRole("button", { name: "Dùng bài này" }).click();
+  await expect(picker).toBeHidden();
+  await expect(page.getByTestId("music-name")).toHaveText("Piano xương khớp");
+  await expect(page.getByText("Âm lượng: 25%")).toBeVisible();
+
+  // An upload can go to the library too, then plays on the video.
+  await page.getByRole("checkbox", { name: "Lưu file tải lên vào thư viện nhạc" }).check();
+  await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
+  const save = page.getByRole("dialog", { name: "Thêm vào thư viện nhạc" });
+  await save.getByLabel("Tên bài").fill("Tim nhẹ nhàng");
+  await chooseOption(page, save.getByLabel("Chủ đề"), "tim mạch");
+  await save.getByText("File:").click();
+  await chooseOption(page, save.getByLabel("Mood"), "nhẹ nhàng");
+  await save.getByRole("button", { name: "Thêm" }).click();
+  await expect(save).toBeHidden();
+  await expect(page.getByTestId("music-name")).toHaveText("Tim nhẹ nhàng");
+  await page.goto("/music");
+  await expect(rows.filter({ hasText: "Tim nhẹ nhàng" })).toHaveCount(1);
+
+  // Edit and delete in the library; the video keeps its own copy.
+  await rows.filter({ hasText: "Tim nhẹ nhàng" }).getByRole("button", { name: "Sửa" }).click();
+  const edit = page.getByRole("dialog", { name: "Sửa bài nhạc" });
+  await expect(edit.getByLabel("Tên bài")).toHaveValue("Tim nhẹ nhàng");
+  await edit.getByLabel("Tên bài").fill("Tim buổi sáng");
+  await edit.getByRole("button", { name: "Lưu" }).click();
+  await expect(edit).toBeHidden();
+  await expect(rows.filter({ hasText: "Tim buổi sáng" })).toHaveCount(1);
+  await rows.filter({ hasText: "Tim buổi sáng" }).getByRole("button", { name: "Xoá" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Xoá" }).click();
+  await expect(rows.filter({ hasText: "Tim buổi sáng" })).toHaveCount(0);
+  await page.goBack();
+  await expect(page.getByTestId("music-name")).toHaveText("Tim nhẹ nhàng");
 });
 
 test("clone a video with a change request, then see every job in the job log", async ({ page }) => {
