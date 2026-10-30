@@ -272,3 +272,50 @@ test("clone a video with a change request, then see every job in the job log", a
   await rows.filter({ hasText: "Viết kịch bản" }).click();
   await expect(page).toHaveURL(sourceUrl);
 });
+
+function makeClip(): string {
+  const file = path.join(os.tmpdir(), `e2e-clip-${process.pid}.mp4`);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=25:duration=3",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", file]);
+  return file;
+}
+
+test("a title clip with a start time renders, and removing it asks for a photo again", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau dền nấu theo cách này");
+
+  const title = page.getByTestId("title-scene");
+  const before = await title.getByTestId("scene-preview").getAttribute("src");
+  // The title has a photo: the clip replaces it only after a confirmation, which then opens the file chooser.
+  await title.getByRole("button", { name: "Tải video lên" }).click();
+  const chooser = page.waitForEvent("filechooser");
+  await page.getByRole("tooltip").filter({ hasText: "Video sẽ thay ảnh của cảnh này?" })
+    .getByRole("button", { name: "Đổi" }).click();
+  await (await chooser).setFiles(makeClip());
+  await expect(title.getByTestId("scene-video")).toBeVisible();
+  await expect(title.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
+  // 3 s of clip minus the 0.2 s the title plays into its crossfade.
+  await expect(title.getByLabel("Số giây")).toHaveValue("2.8");
+
+  // Switching back to a photo asks first; cancelling keeps the clip.
+  await title.getByRole("button", { name: "Tải ảnh lên" }).click();
+  const confirm = page.getByRole("tooltip").filter({ hasText: "Ảnh sẽ thay video của cảnh này?" });
+  await confirm.getByRole("button", { name: "Huỷ" }).click();
+  await expect(title.getByTestId("scene-video")).toBeVisible();
+
+  const start = title.getByLabel("Bắt đầu từ giây");
+  await expect(start).toHaveValue("0");
+  await start.fill("1,5");
+  await start.blur();
+  await expect(title.getByText("Video ngắn hơn cảnh, khung cuối sẽ đứng yên")).toBeVisible();
+
+  await page.getByRole("button", { name: "Render" }).click();
+  await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+
+  await title.getByRole("button", { name: "Xoá video" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Xoá" }).click();
+  await expect(title.getByTestId("scene-video")).toHaveCount(0);
+  await expect(title.getByTestId("scene-no-preview")).toHaveText("Chưa có ảnh");
+  await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
+});

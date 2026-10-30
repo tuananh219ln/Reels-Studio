@@ -3,8 +3,9 @@ import tempfile
 from fractions import Fraction
 
 import pytest
+from PIL import ImageChops, ImageStat
 
-from conftest import extract_frame, make_image, make_tone, mean_volume, needs_ffmpeg, script_data, urls, write_script
+from conftest import extract_frame, make_clip, make_image, make_tone, mean_volume, needs_ffmpeg, script_data, urls, write_script
 from reels_render import render as render_module
 from reels_render.errors import (
     FFmpegError,
@@ -39,6 +40,11 @@ def short_script(folder, seconds=(1, 1)):
     for item, value in zip(data["scenes"], seconds[1:]):
         item.update(image="vuong.jpg", seconds=value)
     return load_script(write_script(folder, data))
+
+
+def difference(first, second) -> float:
+    """Mean absolute difference per channel, 0–255."""
+    return sum(ImageStat.Stat(ImageChops.difference(first, second)).mean) / 3
 
 
 def streams(info, kind):
@@ -169,6 +175,32 @@ class TestVoice:
         with pytest.raises(RenderError, match="Cảnh 1: file lời đọc không đọc được"):
             render_video(script, tmp_path / "video.mp4")
         assert not (tmp_path / "video.mp4").exists()
+
+
+@needs_ffmpeg
+class TestVideoScene:
+    def test_clip_is_cropped_to_30_fps_held_on_its_last_frame_and_muted(self, tmp_path):
+        make_clip(tmp_path / "vuon.mp4", 2, rate=25)
+        short_script(tmp_path)  # writes the images
+        data = script_data(scene_count=2, image="", video="vuon.mp4", video_start=0.5, seconds=2)
+        data["scenes"][0].update(image="vuong.jpg", seconds=1)
+        # The default start: still the moving clip, never a zoomed still.
+        data["scenes"][1].update(image="", video="vuon.mp4", seconds=1)
+        output = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+        info = probe("ffprobe", output)
+        (video,) = streams(info, "video")
+        assert (video["width"], video["height"]) == (1080, 1920)
+        assert Fraction(video["avg_frame_rate"]) == 30
+        # The clip has 1.5 s left after its start; the 2 s title holds its last frame for the rest.
+        assert float(info["format"]["duration"]) == pytest.approx(4.0, abs=0.05)
+        assert mean_volume(output, 0.1, 1.5) < -60, "tiếng gốc của video không được lọt vào MP4"
+        # testsrc2 changes every frame, so only a held frame stays this close to the next one.
+        held = [extract_frame(output, seconds, tmp_path / f"held-{seconds}.png") for seconds in (1.6, 1.75)]
+        moving = [extract_frame(output, seconds, tmp_path / f"moving-{seconds}.png") for seconds in (0.3, 0.5)]
+        assert difference(*held) < 1 < difference(*moving)
+        last = [extract_frame(output, seconds, tmp_path / f"last-{seconds}.png") for seconds in (3.4, 3.6)]
+        assert difference(*last) > 1, "a clip starting at 0 moves like footage"
 
 
 @needs_ffmpeg

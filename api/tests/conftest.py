@@ -161,3 +161,22 @@ def make_video(db, storage, user, scene_count=5, seconds=4.0, images=True, topic
             scene.image_key, scene.image_source = key, f"https://cdn.pixabay.com/seed-{scene.id}.jpg"
     db.commit()
     return video
+
+
+import shutil as _shutil  # noqa: E402
+import subprocess as _subprocess  # noqa: E402
+
+needs_ffmpeg = pytest.mark.skipif(_shutil.which("ffmpeg") is None or _shutil.which("ffprobe") is None,
+                                  reason="ffmpeg/ffprobe không có trên PATH")
+
+
+def clip_bytes(tmp_path, seconds=2.0, size="1280x720", codec="libx264", extension="mp4", rate=25) -> bytes:
+    """A test-pattern clip with a tone, as a member's phone clip would have its own sound."""
+    path = tmp_path / f"clip-{size}-{seconds}-{codec}.{extension}"
+    _subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={size}:rate={rate}:duration={seconds}",
+         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}", "-c:v", codec, "-pix_fmt", "yuv420p",
+         "-shortest", str(path)],
+        check=True,
+    )
+    return path.read_bytes()

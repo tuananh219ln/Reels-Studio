@@ -136,3 +136,14 @@ def make_tone(path: Path, seconds: float) -> Path:
         check=True,
     )
     return path
+
+
+def make_clip(path: Path, seconds: float, size: str = "1280x720", rate: int = 25) -> Path:
+    """A test-pattern clip with a loud tone, so a test can tell whether the clip's own sound leaks into the MP4."""
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={size}:rate={rate}:duration={seconds}",
+         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+         "-c:a", "aac", "-shortest", str(path)],
+        check=True,
+    )
+    return path

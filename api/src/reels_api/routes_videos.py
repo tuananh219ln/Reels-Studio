@@ -1,6 +1,8 @@
 import math
+import tempfile
 import time
 import unicodedata
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -9,12 +11,12 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import frames, knowledge
+from . import clips, frames, knowledge
 from .db import get_db
 from .errors import ApiError
 from .models import Job, MusicTrack, Scene, Session, Video
 from .pixabay import Pixabay, PixabayError
-from .script_rules import MAX_SECONDS
+from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS
 from .sessions import current_member, now
 from .storage import DirectoryStorage, get_storage
 from .uploads import (
@@ -35,6 +37,7 @@ from .videos import (
     new_key,
     refresh_thumbnail,
     run_checks,
+    scene_still,
     split_scenes,
     title_of,
     video_not_found,
@@ -54,6 +57,9 @@ NEW_SCENE_SECONDS = 4
 # "Tìm lại ảnh" runs inside the request, so Pixabay gets about 10 seconds in total.
 FIND_IMAGE_SECONDS = 10
 IMAGE_TYPES = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
+CLIP_TYPES = {"mp4": "video/mp4", "webm": "video/webm"}
+# Scene length a new clip sets, so the whole clip plays without being longer than a scene may be.
+MAX_CLIP_SCENE_SECONDS = 10
 
 
 class NewVideoBody(BaseModel):
@@ -76,6 +82,7 @@ class ScenePatchBody(BaseModel):
     keywords: list[str] | None = None
     image_prompt: str | None = None
     voice_text: str | None = None
+    video_start: float | None = None
 
 
 class SceneOrderBody(BaseModel):
@@ -406,7 +413,18 @@ def patch_scene(
         scene.image_prompt = _clean_text(body.image_prompt, MAX_LONG_TEXT_LENGTH, "Prompt ảnh").strip()
     if "voice_text" in fields and body.voice_text is not None:
         scene.voice_text = _clean_text(body.voice_text, MAX_VOICE_LENGTH, "Lời đọc").strip()
-    if scene.is_title and text_changed:
+    start_changed = False
+    if "video_start" in fields and body.video_start is not None:
+        if not scene.video_key:
+            raise invalid("Cảnh này chưa có video")
+        # At least the shortest scene's worth of clip is left after the start.
+        latest = max(0.0, (scene.video_seconds or 0) - MIN_SECONDS)
+        if not math.isfinite(body.video_start) or not 0 <= body.video_start <= latest:
+            raise invalid(f"Giây bắt đầu phải từ 0 đến {latest:g}")
+        start = round(body.video_start, 2)
+        start_changed = start != scene.video_start
+        scene.video_start = start
+    if scene.is_title and (text_changed or start_changed):
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
     return _saved(db, video)
@@ -419,7 +437,7 @@ def delete_scene(scene_id: int, me: Session = Depends(current_member), db: DbSes
     ensure_unlocked(db, video)
     if scene.is_title:
         raise ApiError(409, "title_scene", "Không xóa được cảnh tiêu đề")
-    files = [scene.image_key, scene.voice_key]
+    files = [scene.image_key, scene.voice_key, scene.video_key]
     db.delete(scene)
     payload = _saved(db, video)
     for key in files:
@@ -431,15 +449,18 @@ def _store_photo(db: DbSession, storage: DirectoryStorage, scene_id: int, data: 
                  source: str) -> dict:
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
-    old = scene.image_key
+    old = [scene.image_key, scene.video_key]
     key = new_key(video.id, f"scene-{scene.id}", extension)
     storage.save_bytes(key, data)
     scene.image_key, scene.image_source, scene.image_error = key, source, None
+    # A photo replaces the scene's clip: a scene shows one or the other.
+    scene.video_key, scene.video_seconds, scene.video_start = None, None, 0
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
     payload = _saved(db, video)
-    storage.delete(old)
+    for key in old:
+        storage.delete(key)
     return payload
 
 
@@ -457,6 +478,67 @@ def upload_scene_image(
     except UploadRejected as err:
         raise ApiError(415, "invalid_image", str(err)) from None
     return _store_photo(db, storage, scene_id, data, extension, "upload")
+
+
+def _spool_clip(upload: UploadFile, target: Path) -> None:
+    """Copy the upload to a file of its own, refusing it once it passes the limit: clips are too big for memory."""
+    with open(target, "wb") as file:
+        copied = 0
+        while chunk := upload.file.read(1024 * 1024):
+            copied += len(chunk)
+            if copied > clips.MAX_CLIP_BYTES:
+                raise ApiError(413, "file_too_large", "Video quá 50 MB, hãy chọn video ngắn hơn hoặc nén nhỏ lại")
+            file.write(chunk)
+
+
+@router.post("/scenes/{scene_id}/video")
+def upload_scene_video(
+    scene_id: int,
+    file: UploadFile = File(...),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    with tempfile.TemporaryDirectory(prefix="reels_clip_") as folder:
+        upload = Path(folder) / "clip"
+        _spool_clip(file, upload)
+        # ffprobe runs before any row is locked; the save below locks and re-checks everything.
+        try:
+            clip = clips.check_clip(upload)
+        except UploadRejected as err:
+            raise ApiError(415, "invalid_video", str(err)) from None
+        video, scene = lock_scene(db, scene_id)
+        ensure_unlocked(db, video)
+        old = [scene.image_key, scene.video_key]
+        key = new_key(video.id, f"clip-{scene.id}", clip.extension)
+        storage.save_file(key, upload)
+    scene.video_key, scene.video_seconds, scene.video_start = key, round(clip.seconds, 3), 0
+    # A clip replaces the scene's photo, and the scene lasts as long as the clip minus the crossfades around it
+    # (one for the title, at most two for a content scene), in tenths, so the clip never ends on a held frame.
+    scene.image_key, scene.image_source, scene.image_error = None, None, None
+    playable = clip.seconds - (1 if scene.is_title else 2) * CROSSFADE_SIDE_SECONDS
+    scene.seconds = max(MIN_SECONDS, min(MAX_CLIP_SCENE_SECONDS, math.floor(round(playable * 10, 6)) / 10))
+    if scene.is_title:
+        title, _ = split_scenes(db, video)
+        refresh_thumbnail(db, storage, video, title)
+    payload = _saved(db, video)
+    for old_key in old:
+        storage.delete(old_key)
+    return payload
+
+
+@router.delete("/scenes/{scene_id}/video")
+def remove_scene_video(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
+                       storage: DirectoryStorage = Depends(get_storage)) -> dict:
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    old, scene.video_key, scene.video_seconds, scene.video_start = scene.video_key, None, None, 0
+    if scene.is_title:
+        title, _ = split_scenes(db, video)
+        refresh_thumbnail(db, storage, video, title)
+    payload = _saved(db, video)
+    storage.delete(old)
+    return payload
 
 
 @router.post("/scenes/{scene_id}/find-image")
@@ -645,11 +727,20 @@ def scene_image(scene_id: int, me: Session = Depends(current_member), db: DbSess
 def scene_preview(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
                   storage: DirectoryStorage = Depends(get_storage)) -> Response:
     scene = _scene(db, scene_id)
-    if not scene.image_key or not storage.exists(scene.image_key):
-        raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh")
-    frame = frames.compose_frame(storage.path(scene.image_key), scene.text, scene.is_title)
+    still = scene_still(storage, scene)
+    if still is None:
+        raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
+    frame = frames.compose_frame(still, scene.text, scene.is_title)
     return Response(frames.jpeg_bytes(frame), media_type="image/jpeg",
                     headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.get("/scenes/{scene_id}/video")
+def scene_video(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
+                storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+    scene = _scene(db, scene_id)
+    extension = (scene.video_key or "").rsplit(".", 1)[-1]
+    return _inline(storage, scene.video_key, CLIP_TYPES.get(extension, "application/octet-stream"))
 
 
 @router.get("/scenes/{scene_id}/voice.mp3")

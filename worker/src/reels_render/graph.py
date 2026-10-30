@@ -14,16 +14,19 @@ ZOOM_END = 1.12
 # Pre-scaling above the frame size keeps zoompan's integer crop steps sub-pixel in the output.
 PRESCALE = 2
 AUDIO_RATE = 48000
+# A clip's headers can lie about its size (H.264 may switch mid-stream); the decoder refuses larger frames.
+MAX_CLIP_PIXELS = 4096 * 2304
 MUSIC_FADE_SECONDS = 1.5
 
 
 @dataclass(frozen=True)
 class SceneInput:
-    image: Path
+    image: Path  # the photo, or the clip when video_start is set
     text_box: Path
     box_x: int
     box_y: int
     voice: Path | None = None
+    video_start: float | None = None
 
 
 def zoom_expression(clip_frames: int) -> str:
@@ -35,25 +38,46 @@ def _seconds(frames: int) -> str:
     return f"{frames / FPS:.6f}"
 
 
+def _photo_chain(source: int, frames: int, label: str) -> str:
+    scale_w, scale_h = FRAME_WIDTH * PRESCALE, FRAME_HEIGHT * PRESCALE
+    return (
+        f"[{source}:v]scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase:out_range=tv,"
+        f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
+        f"zoompan=z='{zoom_expression(frames)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+        f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
+        f"format=yuv420p[{label}]"
+    )
+
+
+def _clip_chain(source: int, frames: int, label: str) -> str:
+    """A clip already moves, so it gets no zoom. `fps` first turns phone footage with a variable frame rate into
+    constant 30 fps; `tpad` holds the last frame when the clip ends before the scene, and `trim` cuts it to the
+    timeline's exact frame count so the crossfade offsets stay frame-exact."""
+    return (
+        f"[{source}:v]setpts=PTS-STARTPTS,fps={FPS},"
+        f"scale={FRAME_WIDTH}:{FRAME_HEIGHT}:force_original_aspect_ratio=increase:out_range=tv,"
+        f"crop={FRAME_WIDTH}:{FRAME_HEIGHT},format=yuv420p,setsar=1,"
+        f"tpad=stop_mode=clone:stop_duration={_seconds(frames)},trim=end_frame={frames},setpts=PTS-STARTPTS"
+        f"[{label}]"
+    )
+
+
 def build_filter_graph(
     box_positions: list[tuple[int, int]],
     timeline: Timeline,
     music_volume: float | None,
     voices: list[bool] | None = None,
+    clips: list[bool] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
-    narration of each scene that has one (`voices` says which do)."""
-    scale_w, scale_h = FRAME_WIDTH * PRESCALE, FRAME_HEIGHT * PRESCALE
+    narration of each scene that has one (`voices` says which do). A scene that `clips` marks has a video clip
+    in its image's place; the clip's own sound is never used."""
+    clips = clips or [False] * len(box_positions)
     chains: list[str] = []
     for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, timeline.clip_frames)):
         image, box = 2 * index, 2 * index + 1
-        chains.append(
-            f"[{image}:v]scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase:out_range=tv,"
-            f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
-            f"zoompan=z='{zoom_expression(frames)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
-            f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
-            f"format=yuv420p[bg{index}]"
-        )
+        chain = _clip_chain if clips[index] else _photo_chain
+        chains.append(chain(image, frames, f"bg{index}"))
         chains.append(f"[bg{index}][{box}:v]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
 
     previous = "v0"
@@ -117,6 +141,9 @@ def build_ffmpeg_args(
 ) -> list[str]:
     argv = [ffmpeg, "-hide_banner", "-nostdin", "-v", "error", "-y"]
     for scene in scenes:
+        if scene.video_start is not None:
+            # Input seeking: the clip's first decoded frame is the one at the start time, as in the preview.
+            argv += ["-ss", f"{scene.video_start:.3f}", "-max_pixels", str(MAX_CLIP_PIXELS)]
         argv += ["-i", str(scene.image), "-i", str(scene.text_box)]
     if music is not None:
         argv += ["-stream_loop", "-1", "-i", str(music)]
@@ -128,6 +155,7 @@ def build_ffmpeg_args(
         timeline,
         music_volume if music is not None else None,
         [scene.voice is not None for scene in scenes],
+        [scene.video_start is not None for scene in scenes],
     )
     argv += [
         "-filter_complex", graph,

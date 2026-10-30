@@ -88,3 +88,41 @@ def test_files_are_inputs_and_never_inside_the_graph(music):
     assert argv[-1] == str(output)
     if music:
         assert argv[argv.index(str(music)) - 3 : argv.index(str(music))] == ["-stream_loop", "-1", "-i"]
+
+
+def test_clip_scene_has_no_zoom_and_is_cut_to_its_exact_frames():
+    graph = build_filter_graph(POSITIONS, TIMELINE, music_volume=None, clips=[True, False, False])
+    clip = graph.split(";")[0]
+    # The title is 3 s plus half a crossfade: 96 frames.
+    assert clip == (
+        "[0:v]setpts=PTS-STARTPTS,fps=30,scale=1080:1920:force_original_aspect_ratio=increase:out_range=tv,"
+        "crop=1080:1920,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=3.200000,"
+        "trim=end_frame=96,setpts=PTS-STARTPTS[bg0]"
+    )
+    assert graph.count("zoompan") == 2
+    assert "[0:a]" not in graph, "tiếng gốc của video không bao giờ được dùng"
+
+
+def test_graph_without_clips_is_unchanged():
+    assert build_filter_graph(POSITIONS, TIMELINE, None, clips=[False] * 3) == \
+        build_filter_graph(POSITIONS, TIMELINE, None)
+
+
+def test_clip_is_seeked_to_its_start_before_its_input():
+    scenes = [SceneInput(Path(f"scene{i}.jpg"), Path(f"text{i}.png"), x, y) for i, (x, y) in enumerate(POSITIONS)]
+    scenes[1] = SceneInput(Path("vuon.mp4"), Path("text1.png"), 60, 1100, video_start=1.5)
+    argv = build_ffmpeg_args("ffmpeg", scenes, TIMELINE, None, 0.25, Path("out.mp4"))
+    at = argv.index("vuon.mp4")
+    assert argv[at - 5 : at] == ["-ss", "1.500", "-max_pixels", "9437184", "-i"]
+    assert argv.count("-ss") == 1
+    assert "[2:v]setpts=PTS-STARTPTS,fps=30" in argv[argv.index("-filter_complex") + 1]
+
+
+def test_a_clip_starting_at_zero_is_still_a_clip():
+    """0 is every new clip's start: it must not read as "no clip"."""
+    scenes = [SceneInput(Path(f"scene{i}.jpg"), Path(f"text{i}.png"), x, y) for i, (x, y) in enumerate(POSITIONS)]
+    scenes[0] = SceneInput(Path("vuon.mp4"), Path("text0.png"), 100, 700, video_start=0.0)
+    argv = build_ffmpeg_args("ffmpeg", scenes, TIMELINE, None, 0.25, Path("out.mp4"))
+    assert argv[argv.index("vuon.mp4") - 5 : argv.index("vuon.mp4")][:2] == ["-ss", "0.000"]
+    graph = argv[argv.index("-filter_complex") + 1]
+    assert graph.startswith("[0:v]setpts=PTS-STARTPTS,fps=30") and graph.count("zoompan") == 2

@@ -23,6 +23,8 @@ class Scene:
     keywords: tuple[str, ...]
     missing_image: str | None = None  # the "image" value whose file does not exist
     voice: Path | None = None  # narration audio, read over the scene
+    video: Path | None = None  # a clip shown instead of a photo
+    video_start: float = 0.0  # seconds into the clip where the scene starts
 
 
 @dataclass(frozen=True)
@@ -97,6 +99,9 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f"{label}: \"voice\" phải là chuỗi đường dẫn file lời đọc")
     if voice.strip() and not (base_dir / voice).is_file():
         raise InputError(f"{label}: không tìm thấy file lời đọc {voice}")
+    video, video_start = _parse_video(item, label, base_dir)
+    if video is not None and image.strip():
+        raise InputError(f"{label}: chỉ dùng một trong \"image\" hoặc \"video\"")
     keywords = _parse_keywords(item.get("keywords"), label)
 
     try:
@@ -125,7 +130,22 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         keywords=keywords,
         missing_image=missing_image,
         voice=base_dir / voice if voice.strip() else None,
+        video=video,
+        video_start=video_start,
     )
+
+
+def _parse_video(item: dict, label: str, base_dir: Path) -> tuple[Path | None, float]:
+    video, start = item.get("video", ""), item.get("video_start", 0)
+    if not isinstance(video, str):
+        raise InputError(f"{label}: \"video\" phải là chuỗi đường dẫn video")
+    if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start) or start < 0:
+        raise InputError(f"{label}: \"video_start\" phải là số giây từ 0 trở lên")
+    if not video.strip():
+        return None, 0.0
+    if not (base_dir / video).is_file():
+        raise InputError(f"{label}: không tìm thấy file video {video}")
+    return base_dir / video, float(start)
 
 
 def _parse_keywords(value: object, label: str) -> tuple[str, ...]:

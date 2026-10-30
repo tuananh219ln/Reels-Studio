@@ -172,3 +172,25 @@ def test_voice_resolves_relative_to_json_and_is_optional(folder):
 def test_bad_voice_is_named(folder, voice, message):
     with pytest.raises(InputError, match=message):
         load(folder, {"title": scene(), "scenes": [scene(voice=voice)]})
+
+
+def test_video_resolves_relative_to_json_with_its_start(folder):
+    (folder / "vuon.mp4").write_bytes(b"clip")
+    script = load(folder, {"title": scene(image="", video="vuon.mp4", video_start=1.5), "scenes": [scene()]})
+    assert script.title.video == folder / "vuon.mp4"
+    assert script.title.video_start == 1.5
+    assert script.title.image is None
+    assert script.scenes[0].video is None
+
+
+@pytest.mark.parametrize(("override", "message"), [
+    ({"image": "a.jpg", "video": "vuon.mp4"}, "Cảnh 1: chỉ dùng một trong \"image\" hoặc \"video\""),
+    ({"image": "", "video": "khong-co.mp4"}, "Cảnh 1: không tìm thấy file video khong-co.mp4"),
+    ({"image": "", "video": 3}, "Cảnh 1: \"video\" phải là chuỗi"),
+    ({"image": "", "video": "vuon.mp4", "video_start": -1}, "Cảnh 1: \"video_start\" phải là số giây từ 0"),
+    ({"image": "", "video": "vuon.mp4", "video_start": True}, "Cảnh 1: \"video_start\" phải là số giây từ 0"),
+])
+def test_bad_video_is_named(folder, override, message):
+    (folder / "vuon.mp4").write_bytes(b"clip")
+    with pytest.raises(InputError, match=message):
+        load(folder, {"title": scene(), "scenes": [scene(**override)]})

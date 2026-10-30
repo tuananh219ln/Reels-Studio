@@ -25,7 +25,7 @@ first and adds a 5-second delay. The setup commands are in the README.
 
 | Part | Where | How it is built |
 |---|---|---|
-| `api` | Coolify application, Dockerfile build pack, base directory `/`, Dockerfile `/api/Dockerfile` | Coolify builds [api/Dockerfile](../../../../api/Dockerfile) from git |
+| `api` | Coolify application, Dockerfile build pack, base directory `/`, Dockerfile `/api/Dockerfile` | Coolify builds [api/Dockerfile](../../../../api/Dockerfile) from git; it installs FFmpeg to check scene clips |
 | worker | Coolify application, base directory `/`, Dockerfile `/api/Dockerfile.worker`; no domain | Coolify builds [api/Dockerfile.worker](../../../../api/Dockerfile.worker) (the api image plus FFmpeg) |
 | storage | Host folder `/data/reels-storage`, owned by uid 10001, mounted at `/data/storage` in both the api and the worker | Created once by hand on the server |
 | `postgres` | Coolify standalone PostgreSQL 17, database `reels`, not public | Not redeployed by CI; Coolify Scheduled Backups |

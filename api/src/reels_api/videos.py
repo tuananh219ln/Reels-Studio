@@ -3,13 +3,16 @@
 import hashlib
 import json
 import secrets
+from pathlib import Path
 
+from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
 from . import knowledge
+from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
 from .models import ACTIVE_JOB_STATUSES, Job, Scene, Video
@@ -103,7 +106,9 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume, narration); captions and
     keywords are left out."""
     every = ([title] if title else []) + scenes
-    parts = [[scene.text, scene.seconds, scene.image_key] for scene in every]
+    # A clip joins its scene's part only when there is one, so MP4s rendered before clips existed stay current.
+    parts = [[scene.text, scene.seconds, scene.image_key,
+              *([scene.video_key, scene.video_start] if scene.video_key else [])] for scene in every]
     # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
     # stored with, so they are not flagged as outdated.
     data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
@@ -113,14 +118,29 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
+def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image | None:
+    """What the scene's first frame is drawn from: the clip's frame at its start time, or the photo."""
+    if scene.video_key:
+        if not storage.exists(scene.video_key):
+            return None
+        try:
+            return frame_at(storage.path(scene.video_key), scene.video_start)
+        except ClipError:
+            return None
+    if scene.image_key and storage.exists(scene.image_key):
+        return storage.path(scene.image_key)
+    return None
+
+
 def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, title: Scene | None) -> None:
-    """The thumbnail is the title scene's preview; it follows every change of that photo or text."""
+    """The thumbnail is the title scene's preview; it follows every change of that photo, clip or text."""
     old = video.thumbnail_key
-    if title is None or not title.image_key or not storage.exists(title.image_key):
+    still = scene_still(storage, title) if title is not None else None
+    if still is None:
         video.thumbnail_key = None
     else:
         key = new_key(video.id, "thumb", "jpg")
-        storage.save_bytes(key, thumbnail_bytes(storage.path(title.image_key), title.text))
+        storage.save_bytes(key, thumbnail_bytes(still, title.text))
         video.thumbnail_key = key
     if old and old != video.thumbnail_key:
         storage.delete(old)
@@ -128,8 +148,10 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
 
 def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tuple[SceneInput | None, list[SceneInput]]:
     def to_input(scene: Scene) -> SceneInput:
-        return SceneInput(scene.id, scene.is_title, scene.text, scene.seconds, bool(scene.image_key),
-                          spoken(video, scene), made_voice_seconds(video, scene))
+        clip_seconds = scene.video_seconds - scene.video_start if scene.video_key and scene.video_seconds else None
+        return SceneInput(scene.id, scene.is_title, scene.text, scene.seconds,
+                          bool(scene.image_key or scene.video_key), spoken(video, scene),
+                          made_voice_seconds(video, scene), clip_seconds)
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
 
 
@@ -204,7 +226,15 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "has_image": bool(scene.image_key),
         "image_error": scene.image_error,
         "image_url": f"{image}/image?v={_version(scene.image_key)}" if scene.image_key else None,
-        "preview_url": f"{image}/preview.jpg?v={_version(scene.image_key, scene.text)}" if scene.image_key else None,
+        "video": {
+            "url": f"{image}/video?v={_version(scene.video_key)}",
+            "seconds": scene.video_seconds,
+            "start": scene.video_start,
+        } if scene.video_key else None,
+        "preview_url": (
+            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text)}" if scene.video_key
+            else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text)}" if scene.image_key else None
+        ),
         "text_problem": text_problem(scene.text, scene.is_title),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],

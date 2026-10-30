@@ -7,10 +7,12 @@ from sqlalchemy import select
 
 from conftest import (
     SCENE_TEXT,
+    clip_bytes,
     client_for,
     login,
     make_user,
     make_video,
+    needs_ffmpeg,
     photo_bytes,
 )
 from reels_api.models import Job, Scene, Video
@@ -461,3 +463,120 @@ def test_a_slow_pixabay_is_given_up_after_about_ten_seconds(an, db, me, storage,
     response = an.post(f"/api/scenes/{target}/find-image")
     assert response.status_code == 502 and "không phản hồi kịp" in response.json()["message"]
     assert time.monotonic() - started < 5
+
+
+# --- Scene video clips ---
+
+def test_a_file_that_is_not_a_video_container_is_refused(an, db, me, storage):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    refused = an.post(f"/api/scenes/{target}/video", files={"file": ("a.mp4", b"#EXTM3U\nfile:///etc/passwd\n")})
+    assert (refused.status_code, refused.json()["code"]) == (415, "invalid_video")
+    assert an.get(f"/api/videos/{video.id}").json()["scenes"][0]["has_image"] is True, "the photo is kept"
+
+
+def test_a_clip_larger_than_the_limit_is_refused(an, db, me, storage, monkeypatch):
+    from reels_api import clips
+    monkeypatch.setattr(clips, "MAX_CLIP_BYTES", 1000)
+    video = make_video(db, storage, me)
+    big = an.post(f"/api/scenes/{scene_ids(db, video)[0]}/video", files={"file": ("a.mp4", bytes(5000))})
+    assert (big.status_code, big.json()["message"]) == (413, "Video quá 50 MB, hãy chọn video ngắn hơn hoặc nén nhỏ lại")
+
+
+def test_video_start_needs_a_clip(an, db, me, storage):
+    video = make_video(db, storage, me)
+    response = an.patch(f"/api/scenes/{scene_ids(db, video)[0]}", json={"video_start": 1})
+    assert (response.status_code, response.json()["message"]) == (422, "Cảnh này chưa có video")
+
+
+@needs_ffmpeg
+def test_a_clip_replaces_the_photo_sets_the_length_and_a_photo_replaces_it_back(an, db, me, storage, tmp_path):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    photo_key = db.scalar(select(Scene.image_key).where(Scene.id == target))
+
+    saved = an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mov", clip_bytes(tmp_path, seconds=2.5))})
+    assert saved.status_code == 200, saved.json()
+    scene = saved.json()["scenes"][0]
+    assert (scene["has_image"], scene["video"]["start"]) == (False, 0)
+    assert scene["video"]["seconds"] == pytest.approx(2.5, abs=0.1)
+    # The clip's length minus 0.2 s for each crossfade around a content scene, rounded down to tenths.
+    assert scene["video"]["seconds"] - 0.5 < scene["seconds"] <= scene["video"]["seconds"] - 0.4
+    assert scene["warnings"] == []
+    assert not storage.exists(photo_key), "the replaced photo is deleted"
+    assert an.get(scene["video"]["url"]).headers["content-type"] == "video/mp4"
+    preview = Image.open(io.BytesIO(an.get(scene["preview_url"]).content))
+    assert preview.size == (1080, 1920)
+
+    clip_key = db.scalar(select(Scene.video_key).where(Scene.id == target))
+    back = an.post(f"/api/scenes/{target}/image", files={"file": ("a.jpg", photo_bytes())}).json()["scenes"][0]
+    assert back["has_image"] is True and back["video"] is None
+    assert not storage.exists(clip_key), "the replaced clip is deleted"
+
+
+@needs_ffmpeg
+def test_start_time_is_checked_and_a_short_clip_only_warns(an, db, me, storage, tmp_path):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip_bytes(tmp_path, seconds=3))})
+
+    too_late = an.patch(f"/api/scenes/{target}", json={"video_start": 2.5})
+    assert too_late.status_code == 422 and too_late.json()["message"].startswith("Giây bắt đầu phải từ 0 đến 2")
+    saved = an.patch(f"/api/scenes/{target}", json={"video_start": 1.5}).json()
+    scene = saved["scenes"][0]
+    assert scene["video"]["start"] == 1.5
+    # 3 s of scene, 1.5 s of clip left: the last frame holds, which is allowed.
+    assert "Video ngắn hơn cảnh, khung cuối sẽ đứng yên" in scene["warnings"]
+    assert scene["blocking"] == [] and saved["can_render"] is True
+
+
+@needs_ffmpeg
+def test_title_clip_draws_the_thumbnail_from_its_start_frame(an, db, me, storage, tmp_path):
+    video = make_video(db, storage, me)
+    title = title_id(db, video)
+    first = an.post(f"/api/scenes/{title}/video", files={"file": ("t.mp4", clip_bytes(tmp_path, seconds=3))}).json()
+    moved = an.patch(f"/api/scenes/{title}", json={"video_start": 1.5}).json()
+    assert first["thumbnail_url"] and moved["thumbnail_url"] != first["thumbnail_url"]
+    assert moved["title_scene"]["preview_url"] != first["title_scene"]["preview_url"]
+
+    clip_key = db.scalar(select(Scene.video_key).where(Scene.id == title))
+    removed = an.delete(f"/api/scenes/{title}/video").json()
+    assert removed["thumbnail_url"] is None and removed["title_scene"]["video"] is None
+    assert not storage.exists(clip_key), "the removed clip is deleted"
+    assert "Cảnh chưa có ảnh" in removed["title_scene"]["blocking"]
+
+
+@needs_ffmpeg
+def test_changing_the_clip_or_its_start_marks_the_mp4_outdated(an, db, me, storage, tmp_path):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip_bytes(tmp_path, seconds=3))})
+    from reels_api.videos import render_signature, split_scenes
+    row = db.get(Video, video.id)
+    row.mp4_key, row.rendered_signature = "videos/x/video.mp4", render_signature(row, *split_scenes(db, row))
+    db.commit()
+    assert an.get(f"/api/videos/{video.id}").json()["mp4_outdated"] is False
+    assert an.patch(f"/api/scenes/{target}", json={"video_start": 1}).json()["mp4_outdated"] is True
+
+
+def test_replacing_a_clip_with_another_of_the_same_length_changes_the_fingerprint():
+    from reels_api.videos import render_signature
+    video = Video(music_key=None, music_volume=25, voice_enabled=False)
+    scene = Scene(is_title=False, text="Rau dền", seconds=10, image_key=None, video_key="videos/1/clip-a.mp4",
+                  video_start=0.0, voice_text="")
+    before = render_signature(video, None, [scene])
+    scene.video_key = "videos/1/clip-b.mp4"
+    assert render_signature(video, None, [scene]) != before
+
+
+@needs_ffmpeg
+def test_a_long_clip_sets_at_most_10_seconds_and_deleting_the_scene_deletes_it(an, db, me, storage, tmp_path):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    long_clip = clip_bytes(tmp_path, seconds=15, rate=2)
+    scene = an.post(f"/api/scenes/{target}/video", files={"file": ("dai.mp4", long_clip)}).json()["scenes"][0]
+    assert scene["seconds"] == 10 and scene["blocking"] == []
+
+    clip_key = db.scalar(select(Scene.video_key).where(Scene.id == target))
+    assert an.delete(f"/api/scenes/{target}").status_code == 200
+    assert not storage.exists(clip_key)

@@ -71,6 +71,8 @@ export type SceneData = {
   has_image: boolean;
   image_error: string | null;
   image_url: string | null;
+  /** A clip shown instead of the photo; the scene has one or the other. */
+  video: { url: string; seconds: number; start: number } | null;
   preview_url: string | null;
   text_problem: string | null;
   blocking: string[];

@@ -29,7 +29,7 @@ Built:
     red, voice text, seconds, keywords, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red; photo by upload, "Tìm
-    lại ảnh", or "Chọn từ Pixabay";
+    lại ảnh", or "Chọn từ Pixabay", or a video clip by "Tải video lên" with its start time;
   - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
@@ -90,3 +90,104 @@ There is one fixed template in the MVP, derived from the reference channel (see
   voice text leaves that scene silent.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
 - **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 20–40 seconds.
+
+### Video Scenes
+
+Any scene, the title scene included, can use a short video clip instead of a photo. The clip
+takes the photo's place in the frame. Everything else stays the same: the text box, its
+position, narration, music, and the crossfade. Upload limits, storage, and render details are in
+[architecture.md](architecture.md#scene-video-clips).
+
+- **Editor:** the scene card has "Tải video lên" (MP4/MOV/WebM, up to 50 MB). A scene with a clip
+  shows a muted looping player, a "Bắt đầu từ giây" field next to "Số giây", and "Xoá video".
+  A scene has a photo or a clip, never both. Switching from one to the other ("Tải video lên" on
+  a photo scene; "Tải ảnh lên", "Tìm lại ảnh", or "Chọn từ Pixabay" on a clip scene) asks first.
+- **Length:** a new clip sets the scene's seconds to the clip's length minus the crossfades around
+  it, at most 10 s. Members may
+  change both fields. A scene longer than the clip left after its start holds the last frame for
+  the rest of the scene and shows a yellow warning, "Video ngắn hơn cảnh, khung cuối sẽ đứng yên".
+- **Title scene as a clip:** the hook box appears on the very first frame with no fade-in. The
+  thumbnail and the title-scene preview are the clip's frame at the start time, so the first
+  frame of the MP4 still matches the thumbnail. Members choose the start time so that this frame
+  is a good still.
+- **Motion:** a clip gets no Ken Burns zoom, because it already moves. Adding a zoom on top of
+  camera motion looks shaky. Photo scenes keep their zoom, so a video can mix photo and clip
+  scenes.
+- **Sound:** a clip's own audio is always dropped. The soundtrack is only the music and narration,
+  so nobody's camera noise or copyrighted sound ends up in the MP4.
+- **Source footage:** vertical 1080×1920 at 30 fps renders best. Other sizes are cover-cropped
+  from the centre, and other frame rates are converted to 30 fps (24/25 fps material may judder
+  in slow pans, see [Smooth Motion Rules](#smooth-motion-rules)). Clips should be steady, without
+  fast pans, and contain no text or watermarks.
+
+### Food Pairing Template (planned)
+
+This is a second template, for the [food pairing formula](content.md#food-pairing-formula-planned).
+The reference was 720×1280. Here it is scaled to the 1080×1920, 30 fps frame.
+
+| Segment | Layout | Default length |
+|---|---|---|
+| Hook | Full frame: B-roll of the main food (e.g. a vegetable garden) with the hook box; an uploaded clip renders as a [video scene](#video-scenes) | 2.3 s |
+| Pairing 1…N | Split frame: B-roll strip on top, pair plate below | 3.5 s each |
+| Bridge (between pairings) | Full frame B-roll | 0.8 s |
+
+With 4 pairings, the total is 2.3 + 4 × 3.5 + 3 × 0.8 = 18.7 s. It ends on the last pairing,
+with no bridge and no CTA.
+
+- **Split:** the top strip takes the upper third (y 0–640) and the plate photo takes the rest
+  (y 640–1920). The two meet at a straight cut with no border.
+- **Plate photo:** shot top-down with a white plate on a wooden table, cover-cropped so that the
+  food sits between y ≈ 760 and y ≈ 1400. The bottom ~25% (y > 1440) is hidden under the Facebook
+  caption and buttons.
+  - The panel is 1080×1280 (27:32), a portrait rectangle, not a square. Source photos should be
+    4:5 (e.g. 1080×1350), which loses only about 70 px of height to the crop. A 1:1 photo must
+    be scaled up to 1280 px high and then loses about 100 px on each side, which can cut off X
+    (left) or Y (right) at the plate's edges.
+  - The plate is not centred in the panel. The panel's centre (y = 1280) would push the lower
+    half of the plate under the caption area. The plate sits in the upper half of the photo, with
+    empty table below it.
+  - The pair's image prompt therefore becomes "top-down, white ceramic plate on wooden table, [X]
+    on left, [Y] on right, plate in the upper half of the frame, empty wooden table below, soft
+    natural light, photorealistic, 4:5". Uploaded or stock photos follow the same framing.
+- **Hook box:** the same yellow box with black, bold uppercase text in 3 lines, centred, in the
+  upper third of the frame. Pairings and bridges carry no text.
+- **Audio:** soft instrumental piano and no narration. The narration switch is off by default for
+  this template.
+
+### Smooth Motion Rules
+
+The rules below keep motion and cuts smooth. The ones marked (built) describe the current
+renderer ([graph.py](../../../../worker/src/reels_render/graph.py),
+[timeline.py](../../../../worker/src/reels_render/timeline.py)). The rest are rules for the
+pairing template and for later tuning.
+
+- **Constant frame rate (built):** the output is 30 fps CFR. Scene lengths are rounded to whole
+  frames cumulatively, so durations never drift. B-roll footage must be converted to 30 fps
+  (`fps=30`) before use. Material at 25 or 24 fps should be avoided: converting it repeats
+  frames, which shows up as judder in slow pans.
+- **No zoom jitter (built):** photos are scaled to 2× the frame before `zoompan`, so its
+  integer crop steps fall below one output pixel. Fine textures such as wood grain or a plate rim
+  can still shimmer. The fix is a slower zoom or `PRESCALE = 3–4`, at the cost of render time.
+- **Slow, steady zoom:** zoom by 6–12% over the whole clip, at a steady rate (linear today).
+  Short clips need a smaller range: a pairing of 3.5 s should zoom from 1.00 to 1.06 at most,
+  because a range that suits 5 s looks rushed at 3.5 s. The zoom must not restart within one
+  continuous shot.
+- **A continuous top strip:** across all pairings and bridges, the B-roll is one unbroken clip:
+  a single input that is trimmed and overlaid, never restarted per segment. Only the plate below
+  cuts. The eye then reads the cut as "the plate changed" rather than as a jump.
+- **Match cuts:** every plate shares the plate, table, camera angle, light, and the plate's
+  position in the frame (upper half, 4:5). Only the food changes, so a hard cut looks like a swap,
+  not a jump. The AI image prompt stays fixed apart from `[X]` and `[Y]`. Stock photos with different angles are
+  rejected for this template.
+- **Cuts on the beat:** the pairing template uses hard cuts with no crossfade, as the reference
+  does. When a track is chosen, each boundary snaps to the nearest beat within ±0.15 s, at whole
+  frames. The total length may change by a few frames. A crossfade (built: 0.4 s in the default
+  template) suits slow, full-frame photos. On a split frame it blurs the two plates together.
+- **Loop-friendly ending:** the last pairing ends with a hard cut and no music fade-out. The
+  built 1.5 s fade is turned off for this template, and the track is cut at a beat. When the
+  platform loops the video, it then jumps straight back to the hook with no silent gap.
+- **Hook on the first frame (built):** the text box appears with no fade-in, so the thumbnail and
+  the first frame are the same.
+- **Encoding (built):** libx264, `-preset medium -crf 20`, yuv420p, `+faststart`. For the
+  platforms' second compression pass, CRF 18 and a 2 s keyframe interval (`-g 60`) keep motion
+  cleaner after Facebook re-encodes the video. This should be measured before adoption.
