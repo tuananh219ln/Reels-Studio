@@ -158,7 +158,7 @@ export default function VideoPage() {
             {video.title || video.topic}
           </Typography.Title>
           <Typography.Text type="secondary">
-            Chủ đề: {video.topic} · {video.created_by}
+            Chủ đề: {video.topic}{video.knowledge_topic ? ` · Nhóm: ${video.knowledge_topic}` : ""} · {video.created_by}
           </Typography.Text>
           {video.clone_of && (
             <Typography.Paragraph type="secondary" style={{ margin: 0 }} data-testid="clone-of">

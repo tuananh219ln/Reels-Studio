@@ -9,6 +9,7 @@ from conftest import (
     SCENE_TEXT,
     clip_bytes,
     client_for,
+    first_topic,
     login,
     make_user,
     make_video,
@@ -56,14 +57,17 @@ def add_job(db, video, user, kind="render", status="queued", **fields):
 # --- Creating and listing ---
 
 def test_new_video_queues_a_script_job_and_is_locked(an, db):
-    response = an.post("/api/videos", json={"topic": "  thực phẩm tốt cho  xương khớp "})
+    group = first_topic(db).id
+    response = an.post("/api/videos", json={"topic": "  thực phẩm tốt cho  xương khớp ", "knowledge_topic_id": group})
     assert response.status_code == 201
     video = response.json()
     assert video["topic"] == "thực phẩm tốt cho xương khớp"
     assert (video["status"], video["status_label"], video["locked"]) == ("queued", "Chờ thứ 1", True)
     assert video["active_job"]["kind"] == "script"
     assert video["created_by"] == "Nguyễn Văn An"
+    assert video["knowledge_topic"] == "Sức khỏe"
     assert an.post("/api/videos", json={"topic": "   "}).json()["message"] == "Hãy nhập chủ đề"
+    assert an.post("/api/videos", json={"topic": "tim"}).json()["message"] == "Hãy chọn nhóm chủ đề"
 
 
 def test_queue_position_counts_jobs_ahead(an, db, me, storage):
@@ -213,7 +217,7 @@ def test_render_is_refused_while_a_blocking_problem_remains(an, db, me, storage)
 
 
 def test_cancelling_a_script_job_leaves_an_empty_draft_that_can_be_written_again(an, db):
-    video = an.post("/api/videos", json={"topic": "tim mạch"}).json()
+    video = an.post("/api/videos", json={"topic": "tim mạch", "knowledge_topic_id": first_topic(db).id}).json()
     cancelled = an.post(f"/api/jobs/{video['active_job']['id']}/cancel").json()
     assert (cancelled["status"], cancelled["locked"], cancelled["has_script"]) == ("draft", False, False)
     assert db.get(Job, video["active_job"]["id"]).status == "cancelled"

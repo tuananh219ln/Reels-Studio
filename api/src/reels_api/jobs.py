@@ -92,12 +92,14 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str]) -> 
     # A retried job whose script was already saved has nothing to do: no new Claude call,
     # and nothing the members edited meanwhile is overwritten.
     if not video.has_script:
-        banned = knowledge.banned_words(db)
+        topic = knowledge.topic_of(db, video)
+        if topic is None:
+            raise JobFailure("Video chưa thuộc nhóm chủ đề nào trong Kho kiến thức")
         if job.kind == "clone":
             # The snapshot from the moment "Nhân bản" was pressed: later edits of the source do not count.
-            prompt = build_clone_prompt(knowledge.clone_prompt(db), video.clone_source, banned)
+            prompt = build_clone_prompt(topic.clone_prompt, video.clone_source, topic.banned_words)
         else:
-            prompt = build_script_prompt(knowledge.script_prompt(db), video.topic, banned)
+            prompt = build_script_prompt(topic.script_prompt, video.topic, topic.banned_words)
 
         def count_call() -> None:
             db.execute(update(Job).where(Job.id == job.id).values(claude_calls=Job.claude_calls + 1))

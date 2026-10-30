@@ -13,10 +13,10 @@ from alembic import command
 from alembic.config import Config
 from sqlalchemy import select
 
-from conftest import API_DIR, make_video
+from conftest import API_DIR, first_topic, make_video
 from fake_services import script_json
 from reels_api import jobs
-from reels_api.models import Job, Scene, Video
+from reels_api.models import Job, KnowledgeTopic, Scene, Video
 from reels_api.storage import DirectoryStorage
 from reels_api.videos import active_job
 from worker_helpers import (  # noqa: F401  (fixtures)
@@ -40,7 +40,7 @@ def services(fakes, worker_env):
 
 def new_video(factory, user, topic="xương khớp sau 50 tuổi") -> int:
     with factory() as db:
-        video = Video(topic=topic, has_script=False, created_by_id=user.id)
+        video = Video(topic=topic, knowledge_topic_id=first_topic(db).id, has_script=False, created_by_id=user.id)
         db.add(video)
         db.commit()
         return video.id
@@ -79,16 +79,21 @@ def test_script_job_writes_the_script_and_leaves_the_photos_to_members(committed
 
 
 def test_edited_prompt_without_placeholder_gets_the_topic_appended(committed, services, start_worker):
-    from reels_api import knowledge
-
     user = add_user(committed)
     with committed() as db:
-        knowledge.put(db, knowledge.SCRIPT_PROMPT, "Viết 5 món dễ tìm.", user.id)
+        topic = KnowledgeTopic(name="Tim mạch", script_prompt="Viết 5 món dễ tìm.", banned_words=["thần dược"])
+        db.add(topic)
+        db.flush()
+        video = Video(topic="tim mạch", knowledge_topic_id=topic.id, has_script=False, created_by_id=user.id)
+        db.add(video)
         db.commit()
-    job_id = add_job(committed, new_video(committed, user, topic="tim mạch"), user.id)
+        video_id = video.id
+    job_id = add_job(committed, video_id, user.id)
     start_worker()
     assert wait_for_status(committed, job_id).status == "done"
-    assert services.claude_prompts[0].startswith("Viết 5 món dễ tìm.\n\nChủ đề: tim mạch\n\n")
+    prompt = services.claude_prompts[0]
+    assert prompt.startswith("Viết 5 món dễ tìm.\n\nChủ đề: tim mạch\n\n")
+    assert "thần dược" in prompt and "khắc tinh" not in prompt, "only this topic's banned words"
 
 
 def test_a_broken_answer_is_retried_once_then_the_job_fails(committed, services, start_worker):
@@ -318,7 +323,8 @@ def test_clone_job_writes_a_new_script_from_the_snapshot(committed, services, st
     snapshot = {"video_id": 1, "title": "5 MÓN BỔ XƯƠNG", "topic": "xương khớp",
                 "script": "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi*", "request": "đổi sang mốc 45 tuổi, tim mạch"}
     with committed() as db:
-        draft = Video(topic=snapshot["request"], has_script=False, created_by_id=user.id, clone_source=snapshot)
+        draft = Video(topic=snapshot["request"], knowledge_topic_id=first_topic(db).id, has_script=False,
+                      created_by_id=user.id, clone_source=snapshot)
         db.add(draft)
         db.commit()
     services.claude_replies = [{**script_json("tim mạch"),
@@ -336,12 +342,12 @@ def test_clone_job_writes_a_new_script_from_the_snapshot(committed, services, st
 
 
 def test_clone_job_uses_the_edited_clone_prompt(committed, services, start_worker):
-    from reels_api import knowledge
-
     user = add_user(committed)
     with committed() as db:
-        knowledge.put(db, knowledge.CLONE_PROMPT, "Viết biến thể của [tiêu đề] theo: [yêu cầu đổi]", user.id)
-        draft = Video(topic="tim mạch", has_script=False, created_by_id=user.id, clone_source={
+        topic = KnowledgeTopic(name="Tim mạch", clone_prompt="Viết biến thể của [tiêu đề] theo: [yêu cầu đổi]")
+        db.add(topic)
+        db.flush()
+        draft = Video(topic="tim mạch", knowledge_topic_id=topic.id, has_script=False, created_by_id=user.id, clone_source={
             "video_id": 1, "title": "5 MÓN BỔ XƯƠNG", "topic": "xương khớp", "script": "Cảnh 1 (4 giây): Cá",
             "request": "tim mạch"})
         db.add(draft)

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import clips, frames, knowledge
 from .db import get_db
 from .errors import ApiError
-from .models import Job, MusicTrack, Scene, Session, Video
+from .models import Job, KnowledgeTopic, MusicTrack, Scene, Session, Video
 from .pixabay import Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS
 from .sessions import current_member, now
@@ -60,10 +60,12 @@ IMAGE_TYPES = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
 CLIP_TYPES = {"mp4": "video/mp4", "webm": "video/webm"}
 # Scene length a new clip sets, so the whole clip plays without being longer than a scene may be.
 MAX_CLIP_SCENE_SECONDS = 10
+MAX_TOPIC_NAME_LENGTH = 100
 
 
 class NewVideoBody(BaseModel):
     topic: str
+    knowledge_topic_id: int | None = None
 
 
 class VideoPatchBody(BaseModel):
@@ -155,7 +157,12 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         raise invalid("Hãy nhập chủ đề")
     if len(topic) > MAX_TOPIC_LENGTH:
         raise invalid(f"Chủ đề dài quá {MAX_TOPIC_LENGTH} ký tự")
-    video = Video(topic=topic, has_script=False, created_by_id=me.user_id)
+    group = db.get(KnowledgeTopic, body.knowledge_topic_id) if body.knowledge_topic_id else None
+    if group is None:
+        raise invalid("Hãy chọn nhóm chủ đề")
+    if not group.script_prompt:
+        raise invalid(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
+    video = Video(topic=topic, knowledge_topic_id=group.id, has_script=False, created_by_id=me.user_id)
     db.add(video)
     db.flush()
     _enqueue(db, video, "script", me)
@@ -342,8 +349,11 @@ def clone_video(
         raise video_not_found()
     if not source.has_script:
         raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
-    draft = Video(topic=request, has_script=False, created_by_id=me.user_id, music_volume=source.music_volume,
-                  clone_source=clone_snapshot(db, source, request))
+    group = knowledge.topic_of(db, source)
+    if group is None or not group.clone_prompt:
+        raise invalid(f"Nhóm chủ đề “{group.name if group else ''}” chưa có prompt nhân bản")
+    draft = Video(topic=request, knowledge_topic_id=group.id, has_script=False, created_by_id=me.user_id,
+                  music_volume=source.music_volume, clone_source=clone_snapshot(db, source, request))
     db.add(draft)
     db.flush()
     if source.music_key and storage.exists(source.music_key):
@@ -780,24 +790,58 @@ def video_file(video_id: int, download: bool = False, me: Session = Depends(curr
 
 # --- Knowledge ---
 
-class PromptBody(BaseModel):
-    value: str
+class NewTopicBody(BaseModel):
+    name: str
 
 
-class BannedWordsBody(BaseModel):
-    words: list[str]
+class TopicPatchBody(BaseModel):
+    name: str | None = None
+    script_prompt: str | None = None
+    clone_prompt: str | None = None
+    banned_words: list[str] | None = None
 
 
 def _knowledge_payload(db: DbSession) -> dict:
-    defaults = knowledge.defaults()
+    counts = dict(db.execute(select(Video.knowledge_topic_id, func.count()).group_by(Video.knowledge_topic_id)).all())
     return {
-        "script_prompt": knowledge.script_prompt(db),
-        "clone_prompt": knowledge.clone_prompt(db),
-        "banned_words": knowledge.banned_words(db),
-        "default_script_prompt": defaults[knowledge.SCRIPT_PROMPT],
-        "default_clone_prompt": defaults[knowledge.CLONE_PROMPT],
-        "default_banned_words": defaults[knowledge.BANNED_WORDS],
+        "topics": [{
+            "id": topic.id,
+            "name": topic.name,
+            "script_prompt": topic.script_prompt,
+            "clone_prompt": topic.clone_prompt,
+            "banned_words": topic.banned_words,
+            "video_count": counts.get(topic.id, 0),
+        } for topic in knowledge.all_topics(db)],
+        "default_script_prompt": knowledge.default_script_prompt(),
+        "default_clone_prompt": knowledge.default_clone_prompt(),
     }
+
+
+def _topic_name(db: DbSession, raw: str, own_id: int | None = None) -> str:
+    name = " ".join(unicodedata.normalize("NFC", raw).split())
+    if not name:
+        raise invalid("Hãy nhập tên nhóm chủ đề")
+    if len(name) > MAX_TOPIC_NAME_LENGTH:
+        raise invalid(f"Tên nhóm chủ đề dài quá {MAX_TOPIC_NAME_LENGTH} ký tự")
+    if any(topic.id != own_id and topic.name.casefold() == name.casefold() for topic in knowledge.all_topics(db)):
+        raise invalid(f"Đã có nhóm chủ đề “{name}”")
+    return name
+
+
+def _prompt(raw: str) -> str:
+    value = unicodedata.normalize("NFC", raw.replace("\r\n", "\n")).strip()
+    if not value:
+        raise invalid("Prompt không được để trống")
+    if len(value) > 20000:
+        raise invalid("Prompt dài quá 20000 ký tự")
+    return value
+
+
+def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
+    topic = db.get(KnowledgeTopic, topic_id)
+    if topic is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    return topic
 
 
 @router.get("/knowledge")
@@ -805,31 +849,37 @@ def get_knowledge(me: Session = Depends(current_member), db: DbSession = Depends
     return _knowledge_payload(db)
 
 
-def _save_prompt(db: DbSession, key: str, raw: str, me: Session) -> dict:
-    value = unicodedata.normalize("NFC", raw.replace("\r\n", "\n")).strip()
-    if not value:
-        raise invalid("Prompt không được để trống")
-    if len(value) > 20000:
-        raise invalid("Prompt dài quá 20000 ký tự")
-    knowledge.put(db, key, value, me.user_id)
+@router.post("/knowledge/topics", status_code=201)
+def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    db.add(KnowledgeTopic(name=_topic_name(db, body.name), updated_by_id=me.user_id))
     db.commit()
     return _knowledge_payload(db)
 
 
-@router.put("/knowledge/script-prompt")
-def put_script_prompt(body: PromptBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    return _save_prompt(db, knowledge.SCRIPT_PROMPT, body.value, me)
+@router.patch("/knowledge/topics/{topic_id}")
+def patch_topic(topic_id: int, body: TopicPatchBody, me: Session = Depends(current_member),
+                db: DbSession = Depends(get_db)) -> dict:
+    topic = _topic(db, topic_id)
+    if body.name is not None:
+        topic.name = _topic_name(db, body.name, topic.id)
+    if body.script_prompt is not None:
+        topic.script_prompt = _prompt(body.script_prompt)
+    if body.clone_prompt is not None:
+        topic.clone_prompt = _prompt(body.clone_prompt)
+    if body.banned_words is not None:
+        topic.banned_words = list(dict.fromkeys(
+            _clean_list(body.banned_words, MAX_KEYWORD_LENGTH, "Từ cấm", max_items=500)))
+    topic.updated_by_id = me.user_id
+    db.commit()
+    return _knowledge_payload(db)
 
 
-@router.put("/knowledge/clone-prompt")
-def put_clone_prompt(body: PromptBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    return _save_prompt(db, knowledge.CLONE_PROMPT, body.value, me)
-
-
-@router.put("/knowledge/banned-words")
-def put_banned_words(body: BannedWordsBody, me: Session = Depends(current_member),
-                     db: DbSession = Depends(get_db)) -> dict:
-    words = list(dict.fromkeys(_clean_list(body.words, MAX_KEYWORD_LENGTH, "Từ cấm", max_items=500)))
-    knowledge.put(db, knowledge.BANNED_WORDS, words, me.user_id)
+@router.delete("/knowledge/topics/{topic_id}")
+def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    topic = _topic(db, topic_id)
+    videos = db.scalar(select(func.count()).select_from(Video).where(Video.knowledge_topic_id == topic.id))
+    if videos:
+        raise ApiError(409, "topic_in_use", f"Nhóm chủ đề còn {videos} video nên chưa xoá được")
+    db.delete(topic)
     db.commit()
     return _knowledge_payload(db)

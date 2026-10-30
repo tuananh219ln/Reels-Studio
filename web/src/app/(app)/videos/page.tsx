@@ -1,12 +1,12 @@
 "use client";
 
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Col, Empty, Flex, Form, Input, Modal, Row, Spin, Typography } from "antd";
+import { App, Button, Card, Col, Empty, Flex, Form, Input, Modal, Row, Select, Spin, Typography } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import VideoStatusTags from "@/components/VideoStatusTags";
-import { api, errorMessage, formatDateTime, type VideoDetail, type VideoRow } from "@/lib/api";
+import { api, errorMessage, formatDateTime, type Knowledge, type KnowledgeTopic, type VideoDetail, type VideoRow } from "@/lib/api";
 
 const REFRESH_MS = 5000;
 
@@ -113,16 +113,27 @@ function VideoCard({ row }: { row: VideoRow }) {
   );
 }
 
+type NewVideo = { topic: string; knowledge_topic_id: number };
+
 function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { message } = App.useApp();
   const router = useRouter();
-  const [form] = Form.useForm<{ topic: string }>();
+  const [form] = Form.useForm<NewVideo>();
   const [busy, setBusy] = useState(false);
+  const [topics, setTopics] = useState<KnowledgeTopic[] | null>(null);
 
-  async function submit({ topic }: { topic: string }) {
+  useEffect(() => {
+    if (open) {
+      api<Knowledge>("/knowledge")
+        .then((data) => setTopics(data.topics))
+        .catch((err) => message.error(errorMessage(err)));
+    }
+  }, [open, message]);
+
+  async function submit(values: NewVideo) {
     setBusy(true);
     try {
-      const video = await api<VideoDetail>("/videos", "POST", { topic });
+      const video = await api<VideoDetail>("/videos", "POST", values);
       router.push(`/videos/${video.id}`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -141,7 +152,25 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
       confirmLoading={busy}
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>
+      {topics === null ? (
+        <Flex justify="center" style={{ padding: 24 }}>
+          <Spin />
+        </Flex>
+      ) : (
+      <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}
+        initialValues={{ knowledge_topic_id: topics.find((topic) => topic.script_prompt)?.id }}>
+        <Form.Item
+          label="Nhóm chủ đề"
+          name="knowledge_topic_id"
+          rules={[{ required: true, message: "Hãy chọn nhóm chủ đề" }]}
+          extra="Quyết định prompt và từ cấm dùng cho video, sửa trong Kho kiến thức"
+        >
+          <Select options={topics.map((topic) => ({
+            value: topic.id,
+            label: topic.script_prompt ? topic.name : `${topic.name} (chưa có prompt)`,
+            disabled: !topic.script_prompt,
+          }))} />
+        </Form.Item>
         <Form.Item
           label="Chủ đề"
           name="topic"
@@ -151,6 +180,7 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
           <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
         </Form.Item>
       </Form>
+      )}
     </Modal>
   );
 }

@@ -38,8 +38,11 @@ Built:
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list;
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
-- **Kho kiến thức** (`/knowledge`): the script prompt, the clone prompt (each with "Khôi phục mặc
-  định"), and the banned words.
+- **Kho kiến thức** (`/knowledge`): one collapsible line per topic group ("Nhóm chủ đề"), added,
+  renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
+  prompt, the clone prompt (each with "Khôi phục mặc định"), and the banned words. A new group starts
+  empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
+  video"; a clone keeps its source's group.
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that

@@ -1,8 +1,9 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
-from conftest import login, make_user, make_video
-from reels_api.knowledge import default_script_prompt
+from conftest import first_topic, login, make_user, make_video
+from reels_api.knowledge import default_clone_prompt, default_script_prompt
 from reels_api.models import Job
 
 
@@ -17,32 +18,89 @@ def an(client, me):
     return client
 
 
-def test_knowledge_starts_with_the_defaults(an):
+def test_the_first_topic_starts_with_the_defaults(an):
     data = an.get("/api/knowledge").json()
-    assert data["script_prompt"] == default_script_prompt() == data["default_script_prompt"]
-    assert data["banned_words"] == ["chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc trị", "khắc tinh"]
+    topic = data["topics"][0]
+    assert topic["name"] == "Sức khỏe" and topic["video_count"] == 0
+    assert topic["script_prompt"] == default_script_prompt() == data["default_script_prompt"]
+    assert topic["clone_prompt"] == default_clone_prompt() == data["default_clone_prompt"]
+    assert topic["banned_words"] == ["chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc trị", "khắc tinh"]
 
 
-def test_prompt_and_banned_words_are_saved_and_an_empty_prompt_is_refused(an):
-    saved = an.put("/api/knowledge/script-prompt", json={"value": "  Prompt mới [Chủ đề]  "}).json()
-    assert saved["script_prompt"] == "Prompt mới [Chủ đề]"
-    refused = an.put("/api/knowledge/script-prompt", json={"value": " \n "})
+def test_a_video_from_the_previous_api_version_still_gets_the_first_topic(db, me):
+    # That version does not know the column, so its inserts leave it out.
+    topic_id = db.execute(text(
+        "INSERT INTO videos (topic, has_script, created_by_id) VALUES ('x', false, :user) RETURNING knowledge_topic_id"
+    ), {"user": me.id}).scalar_one()
+    assert topic_id == first_topic(db).id
+
+
+def test_a_new_topic_starts_empty_and_is_saved_on_its_own(an):
+    data = an.post("/api/knowledge/topics", json={"name": "  Làm   đẹp "}).json()
+    first, topic = data["topics"]
+    assert topic["name"] == "Làm đẹp"
+    assert (topic["script_prompt"], topic["clone_prompt"], topic["banned_words"]) == ("", "", [])
+
+    path = f"/api/knowledge/topics/{topic['id']}"
+    saved = an.patch(path, json={"script_prompt": "  Prompt mới [Chủ đề]  "}).json()["topics"]
+    assert saved[1]["script_prompt"] == "Prompt mới [Chủ đề]" and saved[0] == first
+    refused = an.patch(path, json={"script_prompt": " \n "})
     assert (refused.status_code, refused.json()["message"]) == (422, "Prompt không được để trống")
-    assert an.get("/api/knowledge").json()["script_prompt"] == "Prompt mới [Chủ đề]"
-
-    words = an.put("/api/knowledge/banned-words", json={"words": [" thần dược ", "", "thần dược", "đặc trị"]})
-    assert words.json()["banned_words"] == ["thần dược", "đặc trị"]
-
-    restored = an.put("/api/knowledge/script-prompt", json={"value": saved["default_script_prompt"]}).json()
-    assert restored["script_prompt"] == default_script_prompt()
+    assert an.patch(path, json={"clone_prompt": ""}).status_code == 422
+    words = an.patch(path, json={"banned_words": [" thần dược ", "", "thần dược", "đặc trị"]}).json()["topics"]
+    assert words[1]["banned_words"] == ["thần dược", "đặc trị"] and words[0]["banned_words"] == first["banned_words"]
+    assert an.patch(path, json={"name": "Da đẹp"}).json()["topics"][1]["name"] == "Da đẹp"
 
 
-def test_saved_banned_words_drive_the_warnings(an, db, me, storage):
+def test_topic_names_are_required_and_unique(an):
+    assert an.post("/api/knowledge/topics", json={"name": "  "}).json()["message"] == "Hãy nhập tên nhóm chủ đề"
+    assert an.post("/api/knowledge/topics", json={"name": "sức KHỎE"}).json()["message"] == "Đã có nhóm chủ đề “sức KHỎE”"
+    topic = an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"][1]
+    assert an.patch(f"/api/knowledge/topics/{topic['id']}", json={"name": "Sức khỏe"}).status_code == 422
+    assert an.patch(f"/api/knowledge/topics/{topic['id']}", json={"name": "GAN"}).status_code == 200
+    assert an.patch("/api/knowledge/topics/999999", json={"name": "x"}).status_code == 404
+
+
+def test_a_topic_with_videos_cannot_be_deleted(an, db, me, storage):
+    make_video(db, storage, me)
+    data = an.get("/api/knowledge").json()
+    assert data["topics"][0]["video_count"] == 1
+    refused = an.delete(f"/api/knowledge/topics/{data['topics'][0]['id']}")
+    assert (refused.status_code, refused.json()["message"]) == (409, "Nhóm chủ đề còn 1 video nên chưa xoá được")
+    empty = an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"][1]
+    assert len(an.delete(f"/api/knowledge/topics/{empty['id']}").json()["topics"]) == 1
+
+
+def test_a_topic_without_a_prompt_cannot_write_or_clone(an, db, me, storage):
+    empty = an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"][1]
+    refused = an.post("/api/videos", json={"topic": "gan", "knowledge_topic_id": empty["id"]})
+    assert (refused.status_code, refused.json()["message"]) == (422, "Nhóm chủ đề “Gan” chưa có prompt viết kịch bản")
+    video = make_video(db, storage, me)
+    video.knowledge_topic_id = empty["id"]
+    db.commit()
+    clone = an.post(f"/api/videos/{video.id}/clone", json={"request": "đổi"})
+    assert (clone.status_code, clone.json()["message"]) == (422, "Nhóm chủ đề “Gan” chưa có prompt nhân bản")
+
+
+def test_a_clone_stays_in_the_topic_of_its_source(an, db, me, storage):
+    topic = an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"][1]
+    an.patch(f"/api/knowledge/topics/{topic['id']}", json={"clone_prompt": "Biến thể"})
+    video = make_video(db, storage, me)
+    video.knowledge_topic_id = topic["id"]
+    db.commit()
+    assert an.post(f"/api/videos/{video.id}/clone", json={"request": "đổi"}).json()["knowledge_topic"] == "Gan"
+
+
+def test_only_the_banned_words_of_the_video_topic_warn(an, db, me, storage):
     video = make_video(db, storage, me, scene_text="Thần dược\nGiàu *canxi*")
     # Candidate titles are only for choosing: neither banned words nor length are checked there.
     video.title_options = ["THẦN DƯỢC " + "RẤT " * 15, "TIÊU ĐỀ 2"]
     db.commit()
-    an.put("/api/knowledge/banned-words", json={"words": ["thần dược"]})
+    data = an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"]
+    an.patch(f"/api/knowledge/topics/{data[1]['id']}", json={"banned_words": ["thần dược"]})
+    assert an.get(f"/api/videos/{video.id}").json()["scenes"][0]["warnings"] == []
+
+    an.patch(f"/api/knowledge/topics/{data[0]['id']}", json={"banned_words": ["thần dược"]})
     payload = an.get(f"/api/videos/{video.id}").json()
     assert payload["scenes"][0]["warnings"] == ["Có từ cấm: “thần dược”"]
     assert payload["title_scene"]["warnings"] == []
@@ -71,7 +129,7 @@ def test_changes_need_the_web_origin(app, db, me, storage):
     assert login_response.status_code == 403
     for method, path in (("post", "/api/videos"), ("patch", f"/api/videos/{video.id}"),
                          ("delete", f"/api/videos/{video.id}"), ("post", f"/api/videos/{video.id}/render"),
-                         ("put", "/api/knowledge/script-prompt")):
+                         ("patch", "/api/knowledge/topics/1")):
         assert getattr(foreign, method)(path).status_code == 403, path
 
 
