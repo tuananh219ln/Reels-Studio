@@ -146,6 +146,12 @@ class TestChoosingImages:
         assert labels(result.missing) == ["Cảnh tiêu đề"]
         assert result.api_calls == 0
 
+    def test_video_scene_is_never_searched_or_missing(self, folder):
+        (folder / "vuon.mp4").write_bytes(b"clip")
+        result = find(folder, script_with(scene(), title=scene(image="", video="vuon.mp4", keywords=["rau dền"])))
+        assert result.missing == []
+        assert result.api_calls == 0
+
     def test_title_with_keywords_is_searched(self, folder, pixabay):
         pixabay.results["món ăn giàu canxi"] = urls("canxi", 2)
         result = find(folder, script_with(scene(), title=stock_scene("5 MÓN\nCHẮC XƯƠNG", keywords=["món ăn giàu canxi"])))

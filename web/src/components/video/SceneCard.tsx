@@ -7,9 +7,10 @@ import {
   PictureOutlined,
   ReloadOutlined,
   UploadOutlined,
+  VideoCameraOutlined,
 } from "@ant-design/icons";
 import { App, Alert, Button, Card, Col, Flex, Popconfirm, Row, Space, Tooltip, Typography } from "antd";
-import { useRef, useState } from "react";
+import { cloneElement, useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import VoiceText from "./VoiceText";
@@ -17,6 +18,8 @@ import PixabayPicker from "./PixabayPicker";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 
 function parseSeconds(text: string): number {
   const seconds = Number(text.trim().replace(",", "."));
@@ -47,8 +50,11 @@ export default function SceneCard({
   onDelete?: () => void;
 }) {
   const editor = useEditor();
-  const patch = (body: Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">>) =>
-    api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body);
+  const patch = (
+    body: Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">> & {
+      video_start?: number;
+    },
+  ) => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body);
 
   return (
     <Card
@@ -96,6 +102,15 @@ export default function SceneCard({
                 width={110}
                 save={async (text) => patch({ seconds: parseSeconds(text) })}
               />
+              {scene.video && (
+                <AutoSaveField
+                  label="Bắt đầu từ giây"
+                  value={String(scene.video.start)}
+                  inputMode="decimal"
+                  width={130}
+                  save={async (text) => patch({ video_start: parseSeconds(text) })}
+                />
+              )}
               <div style={{ flex: 1, minWidth: 220 }}>
                 <AutoSaveField
                   label="Từ khóa tìm ảnh"
@@ -130,11 +145,12 @@ function ScenePicture({ scene }: { scene: SceneData }) {
   const { message } = App.useApp();
   const editor = useEditor();
   const input = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<"upload" | "find" | null>(null);
+  const video = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<"upload" | "video" | "find" | "remove" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
 
-  async function run(kind: "upload" | "find", action: () => Promise<VideoDetail>) {
+  async function run(kind: "upload" | "video" | "find" | "remove", action: () => Promise<VideoDetail>) {
     setBusy(kind);
     setError(null);
     try {
@@ -164,9 +180,30 @@ function ScenePicture({ scene }: { scene: SceneData }) {
     void run("upload", () => upload<VideoDetail>(`/scenes/${scene.id}/image`, file));
   }
 
+  function chosenVideo(file: File | undefined) {
+    if (video.current) {
+      video.current.value = "";
+    }
+    if (!file) {
+      return;
+    }
+    if (!VIDEO_TYPES.includes(file.type)) {
+      message.error("Video phải là MP4, MOV hoặc WebM");
+      return;
+    }
+    if (file.size > MAX_VIDEO_BYTES) {
+      message.error("Video quá 50 MB, hãy chọn video ngắn hơn hoặc nén nhỏ lại");
+      return;
+    }
+    void run("video", () => upload<VideoDetail>(`/scenes/${scene.id}/video`, file));
+  }
+
   const frame = { width: "100%", aspectRatio: "9 / 16", borderRadius: 6 } as const;
-  const reason = scene.text_problem && scene.has_image ? scene.text_problem : null;
+  const hasPicture = scene.has_image || scene.video !== null;
+  const reason = scene.text_problem && hasPicture ? scene.text_problem : null;
   const noKeywords = scene.keywords.length === 0;
+  const off = editor.locked || busy !== null;
+  const which = scene.is_title ? "cảnh tiêu đề" : "cảnh";
 
   return (
     <Flex vertical gap={8}>
@@ -177,44 +214,100 @@ function ScenePicture({ scene }: { scene: SceneData }) {
       ) : (
         <Flex align="center" justify="center" data-testid="scene-no-preview"
           style={{ ...frame, padding: 12, textAlign: "center", boxSizing: "border-box",
-            background: scene.has_image ? "#FFF7E6" : "#FFF1F0",
-            border: `1px solid ${scene.has_image ? "#FFD591" : "#FFA39E"}` }}>
+            background: hasPicture ? "#FFF7E6" : "#FFF1F0",
+            border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}` }}>
           <Typography.Text type="danger">
             {reason ?? scene.image_error ?? "Chưa có ảnh"}
           </Typography.Text>
         </Flex>
       )}
+      {scene.video && (
+        // The clip as uploaded, without sound: the render never uses its sound either.
+        <video src={scene.video.url} muted loop playsInline controls preload="metadata"
+          aria-label={`Video của ${which}`} data-testid="scene-video"
+          style={{ width: "100%", maxHeight: 200, borderRadius: 6, background: "#000" }} />
+      )}
       <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden
-        aria-label={`Tải ảnh lên cho ${scene.is_title ? "cảnh tiêu đề" : "cảnh"}`}
+        aria-label={`Tải ảnh lên cho ${which}`}
         onChange={(event) => chosen(event.target.files?.[0])} />
-      <Button icon={<UploadOutlined />} loading={busy === "upload"} disabled={editor.locked || busy !== null}
-        onClick={() => input.current?.click()}>
-        Tải ảnh lên
-      </Button>
-      <Tooltip title={noKeywords ? "Nhập từ khóa để tìm ảnh" : undefined}>
-        <Button icon={<ReloadOutlined />} loading={busy === "find"}
-          disabled={editor.locked || busy !== null || noKeywords}
-          onClick={() =>
-            run("find", async () => {
-              // Search with the keywords on screen: their save (started by leaving the field) goes first.
-              await editor.flush();
-              return api<VideoDetail>(`/scenes/${scene.id}/find-image`, "POST");
-            })
-          }>
-          Tìm lại ảnh
+      <input ref={video} type="file" accept="video/mp4,video/quicktime,video/webm" hidden
+        aria-label={`Tải video lên cho ${which}`}
+        onChange={(event) => chosenVideo(event.target.files?.[0])} />
+      <Switching show={scene.has_image} title="Video sẽ thay ảnh của cảnh này?" disabled={off}
+        onConfirm={() => video.current?.click()}>
+        <Button icon={<VideoCameraOutlined />} loading={busy === "video"} disabled={off}>
+          Tải video lên
         </Button>
+      </Switching>
+      {scene.video && (
+        <Popconfirm title="Xoá video của cảnh này?" okText="Xoá" cancelText="Huỷ" okButtonProps={{ danger: true }}
+          disabled={off}
+          onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}>
+          <Button danger icon={<DeleteOutlined />} loading={busy === "remove"} disabled={off}>
+            Xoá video
+          </Button>
+        </Popconfirm>
+      )}
+      <Switching show={scene.video !== null} title="Ảnh sẽ thay video của cảnh này?" disabled={off}
+        onConfirm={() => input.current?.click()}>
+        <Button icon={<UploadOutlined />} loading={busy === "upload"} disabled={off}>
+          Tải ảnh lên
+        </Button>
+      </Switching>
+      <Tooltip title={noKeywords ? "Nhập từ khóa để tìm ảnh" : undefined}>
+        <span>
+          <Switching show={scene.video !== null} title="Ảnh tìm được sẽ thay video của cảnh này?"
+            disabled={off || noKeywords}
+            onConfirm={() =>
+              run("find", async () => {
+                // Search with the keywords on screen: their save (started by leaving the field) goes first.
+                await editor.flush();
+                return api<VideoDetail>(`/scenes/${scene.id}/find-image`, "POST");
+              })
+            }>
+            <Button icon={<ReloadOutlined />} loading={busy === "find"} disabled={off || noKeywords} block>
+              Tìm lại ảnh
+            </Button>
+          </Switching>
+        </span>
       </Tooltip>
-      <Button icon={<PictureOutlined />} disabled={editor.locked || busy !== null}
-        onClick={async () => {
+      <Switching show={scene.video !== null} title="Ảnh chọn được sẽ thay video của cảnh này?" disabled={off}
+        onConfirm={async () => {
           // The grid starts from the keywords on screen, so their save goes first.
           await editor.flush();
           setPicking(true);
         }}>
-        Chọn từ Pixabay
-      </Button>
+        <Button icon={<PictureOutlined />} disabled={off}>
+          Chọn từ Pixabay
+        </Button>
+      </Switching>
       {error && <Typography.Text type="danger" data-testid="image-error">{error}</Typography.Text>}
       <PixabayPicker sceneId={scene.id} keyword={scene.keywords[0] ?? ""} open={picking}
         onClose={() => setPicking(false)} />
     </Flex>
+  );
+}
+
+/** A photo and a clip replace each other, so switching from one to the other asks first; otherwise a plain click. */
+function Switching({
+  show,
+  title,
+  disabled,
+  onConfirm,
+  children,
+}: {
+  show: boolean;
+  title: string;
+  disabled: boolean;
+  onConfirm: () => void;
+  children: React.ReactElement<{ onClick?: () => void }>;
+}) {
+  if (!show) {
+    return cloneElement(children, { onClick: disabled ? undefined : onConfirm });
+  }
+  return (
+    <Popconfirm title={title} okText="Đổi" cancelText="Huỷ" disabled={disabled} onConfirm={onConfirm}>
+      {children}
+    </Popconfirm>
   );
 }

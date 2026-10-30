@@ -111,6 +111,57 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum.
 - **Font:** Be Vietnam Pro Black (OFL) is bundled in the package, not installed per machine.
 
+### Scene Video Clips
+
+A scene may hold an uploaded video clip instead of a photo
+([clips.py](../../../../api/src/reels_api/clips.py)). The UX rules are in
+[ux-guidelines.md](ux-guidelines.md#video-scenes).
+
+- **Upload:** one file per request to the scene. MP4/MOV and WebM, with H.264, HEVC, or VP9 video,
+  1–60 s long, at least 720 px on the short side and at most 4096 px on the long side, up to
+  50 MB. The web worker on Cloudflare holds the whole request in memory (128 MB) and Cloudflare
+  refuses requests over 100 MB, so the limit stays well below both. The upload is spooled to a
+  temp file, never held in memory, and checked before any row is locked.
+- **Container from the bytes:** `ftyp` at byte 4 means MP4/MOV and is forced with `-f mov`. The
+  EBML header means WebM and is forced with `-f matroska`. Anything else is refused before
+  FFmpeg runs, so a playlist or concat file can never make FFmpeg open other files. `ffprobe`
+  and frame extraction run with an argument list and a 30 s timeout, which is why the api image
+  installs Debian's FFmpeg, as the worker image does. Every video stream in the file must pass the
+  codec and size checks, and the preview frame is taken from the first one (`-map 0:v:0`), as the
+  render does. A huge extra stream therefore can never be decoded in the api. Headers can still
+  lie (an H.264 stream may switch to a huge size partway through), so both the preview frame grab and
+  the render pass `-max_pixels` (4096×2304) before the clip's `-i`. The decoder then refuses larger
+  frames instead of allocating gigabytes.
+- **Stored data:** the scene's `video_key`, `video_seconds` (the video stream's own length,
+  because the container's is the longest stream, often a longer audio track), and `video_start`.
+  Uploading a clip clears the photo, uploading or choosing a photo clears the clip, and the
+  replaced file is deleted after the commit. A new clip sets the scene's seconds to its length
+  minus the 0.2 s it plays into each crossfade (one for the title, two for a content scene), in
+  tenths, between 1 and 10 s. The start time must leave at least 1 s of clip. Script and clone
+  jobs never assign Pixabay photos to a scene with a clip. A clone rewrites every scene, so it
+  starts without the source's clips.
+- **Preview:** the scene preview and, for the title scene, the thumbnail are drawn from the
+  clip's frame at the start time, taken with the same input seeking as the render. The editor
+  plays the stored clip through the login-protected `/api/scenes/{id}/video` endpoint.
+- **Script input:** a scene has `video` (path relative to the JSON) and `video_start` instead of
+  `image`. A scene with both is a validation error, and stock search never runs for a clip scene.
+- **Filter graph:** the clip is passed with `-ss <start>` before its `-i`. Its chain replaces the
+  photo chain: `setpts=PTS-STARTPTS,fps=30,scale=1080:1920:force_original_aspect_ratio=increase:out_range=tv,
+  crop=1080:1920,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=<clip seconds>,
+  trim=end_frame=<clip frames>,setpts=PTS-STARTPTS`.
+  - It has no `zoompan` and no prescale.
+  - `fps` comes first, so variable-frame-rate phone footage becomes constant 30 fps.
+  - `tpad` holds the last frame when the clip ends early, and `trim` cuts the clip to the
+    timeline's exact frame count, so crossfade offsets stay frame-exact.
+  - The clip's audio stream is never referenced.
+- **Checks:** a missing clip blocks the render, as a missing photo does. A scene that needs more
+  than the clip left after its start only warns. The scene's length counts its narration plus
+  0.2 s for each crossfade next to it.
+- **Fingerprint:** the clip's key and start time join the MP4 fingerprint only for a scene with a
+  clip, so MP4s rendered before clips existed stay current.
+- **Not handled:** HDR footage (iPhone HEVC HLG) is converted without tone mapping, so it looks
+  washed out. Members should film in SDR.
+
 ## External Integrations
 
 | Service | Use | Notes |
@@ -142,7 +193,7 @@ Built (migrations in [api/migrations/](../../../../api/migrations/), models in
 |---|---|
 | `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
 | `videos` | Topic, whether the script exists, narration on/off, title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
-| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing, the last narration MP3 with its length and the signature it was made from. |
+| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from. |
 | `jobs` | Belongs to a video; kind (script, clone, render), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
 | `settings` | Editable app data: the script prompt, the clone prompt, the banned words. A missing row means the default from code. |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../../../../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
@@ -203,7 +254,8 @@ Planned:
   locked. Cancelling and writing the draft again reruns the same clone.
 - **Files:** every file endpoint (photos, previews, thumbnail, MP3, MP4) requires login; the MP4
   supports Range requests for seeking. Uploads are one file per request with api-side limits
-  (photos JPG/PNG/WebP up to 15 MB and 24 megapixels; MP3 up to 20 MB, checked by its first bytes).
+  (photos JPG/PNG/WebP up to 15 MB and 24 megapixels; MP3 up to 20 MB, checked by its first bytes;
+  scene clips up to 50 MB, see [Scene Video Clips](#scene-video-clips)).
   No path from a client ever reaches the renderer.
 
 ## Web App and Auth

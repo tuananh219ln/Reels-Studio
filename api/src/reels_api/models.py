@@ -106,6 +106,10 @@ class Scene(Base):
     voice_key: Mapped[str | None] = mapped_column(String(200))
     voice_signature: Mapped[str | None] = mapped_column(String(64))
     voice_seconds: Mapped[float | None] = mapped_column(Float)
+    # A clip shown instead of the photo: a scene has one or the other, never both.
+    video_key: Mapped[str | None] = mapped_column(String(200))
+    video_seconds: Mapped[float | None] = mapped_column(Float)  # the clip's probed length
+    video_start: Mapped[float] = mapped_column(Float, default=0)
 
     video: Mapped[Video] = relationship(back_populates="scenes")
 

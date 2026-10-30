@@ -6,6 +6,9 @@ FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1
 WORKDIR /app
 
+# ffprobe checks uploaded scene clips and ffmpeg takes their preview frame; Debian's package, as in the worker.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+
 COPY worker/pyproject.toml worker/
 COPY worker/src worker/src
 COPY api/pyproject.toml api/

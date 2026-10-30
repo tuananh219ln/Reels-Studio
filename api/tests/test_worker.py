@@ -139,12 +139,15 @@ def test_pixabay_failure_keeps_the_script_and_a_retry_only_fills_photos(committe
         edited.text = "Chữ đã sửa tay"
         uploaded = db.get(Scene, scenes[2].id)
         uploaded.image_key, uploaded.image_source, uploaded.image_error = "videos/x/uploaded.jpg", "upload", None
+        clip = db.get(Scene, scenes[3].id)
+        clip.video_key, clip.video_seconds, clip.image_error = "videos/x/clip.mp4", 4.0, None
         db.commit()
     services.pixabay_mode = "ok"
     retry_id = add_job(committed, video_id, user.id, retry_of_id=job_id)
     assert wait_for_status(committed, retry_id).status == "done"
     _, scenes = load(committed, video_id)
-    assert all(s.image_key and s.image_error is None for s in scenes)
+    assert all((s.image_key or s.video_key) and s.image_error is None for s in scenes)
+    assert scenes[3].image_key is None, "a scene with a clip never gets a Pixabay photo"
     assert scenes[1].text == "Chữ đã sửa tay"
     assert (scenes[2].image_key, scenes[2].image_source) == ("videos/x/uploaded.jpg", "upload")
     assert len(services.claude_prompts) == 1, "the retry must not call Claude again"
@@ -445,3 +448,29 @@ def test_a_broken_mp3_fails_the_render_with_a_clear_reason(committed, short_vide
     assert (job.status, job.error) == ("failed", "File nhạc không đọc được")
     with committed() as db:
         assert db.get(Video, video_id).mp4_key is None
+
+
+@needs_ffmpeg
+def test_a_title_clip_renders_from_its_start_and_matches_the_thumbnail(committed, short_video, tmp_path):
+    from conftest import clip_bytes
+    from PIL import Image, ImageChops, ImageStat
+    from reels_api.videos import refresh_thumbnail, split_scenes
+
+    user, storage, video_id = short_video
+    with committed() as db:
+        video = db.get(Video, video_id)
+        title, _ = split_scenes(db, video)
+        title.video_key, title.video_seconds, title.video_start = f"videos/{video_id}/clip-t.mp4", 3.0, 1.0
+        title.image_key = None
+        storage.save_bytes(title.video_key, clip_bytes(tmp_path, seconds=3))
+        refresh_thumbnail(db, storage, video, title)
+        db.commit()
+        thumbnail = Image.open(storage.path(video.thumbnail_key)).convert("RGB")
+
+    mp4 = rendered_mp4(committed, storage, video_id, user.id)
+    first = tmp_path / "first.png"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(mp4), "-frames:v", "1", "-s", "540x960", str(first)],
+                   check=True)
+    difference = ImageStat.Stat(ImageChops.difference(Image.open(first).convert("RGB"), thumbnail)).mean
+    assert sum(difference) / 3 <= 4, "the MP4 opens on the clip frame the thumbnail shows"
+    assert mean_volume(mp4) < -80, "the clip's own sound never reaches the MP4"

@@ -13,6 +13,7 @@
 - Hỗ trợ YouTube Shorts. (2026-10-28)
 - Nội dung tiếng Anh: chọn ngôn ngữ VI/EN cho từng video (kịch bản, giọng TTS, quy tắc an toàn). (2026-10-28)
 - Câu miễn trừ "Tham khảo, không thay thế tư vấn bác sĩ" và câu "không phải là thuốc" cho sản phẩm TPCN. Vì sao: giảm rủi ro chính sách Meta và Luật Quảng cáo. (2026-10-28)
+- Template "Thực phẩm X + Y": hook 2,3s + N cặp kết hợp chia màn hình 1/3 B-roll liền mạch trên, đĩa đồ ăn dưới (3,5s/cặp, cảnh nối 0,8s), cắt thẳng theo nhịp nhạc, không chữ trên cặp, kết thúc đột ngột để xem lại; hook có bản an toàn. Cảnh dùng video đã có; còn thiếu bố cục chia màn hình và cắt theo nhịp. Chi tiết: ux-guidelines.md (Food Pairing Template, Smooth Motion Rules). Vì sao: video tham khảo rau dền có tỷ lệ chia sẻ cao. (2026-10-30)
 - Tạo ảnh bằng AI cho cảnh thiếu ảnh. Vì sao: nội dung gốc thay cho ảnh stock. (2026-10-28)
 - Đăng nhập bằng Google (danh sách email được phép, callback qua /api). Vì sao: tiện cho đội, không phải nhớ mật khẩu. (2026-10-29)
 

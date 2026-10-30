@@ -237,7 +237,7 @@ def find_stock_images(
             hint = ", sẽ tìm ảnh thay thế" if scene.keywords else ""
             warn(f"{scene.label}: không thấy file {scene.missing_image}{hint}")
 
-    to_search = [scene for scene in script.all_scenes if scene.image is None and scene.keywords]
+    to_search = [scene for scene in script.all_scenes if scene.image is None and scene.video is None and scene.keywords]
     if to_search and client is None:
         key = read_env("PIXABAY_API_KEY")
         if not key:
@@ -255,7 +255,7 @@ def find_stock_images(
         return replace(scene, image=image) if image is not None else scene
 
     resolved = Script(title=resolve(script.title), scenes=[resolve(scene) for scene in script.scenes])
-    missing = [scene for scene in resolved.all_scenes if scene.image is None]
+    missing = [scene for scene in resolved.all_scenes if scene.image is None and scene.video is None]
     return StockResult(resolved, missing, client.api_calls if client is not None else 0)
 
 

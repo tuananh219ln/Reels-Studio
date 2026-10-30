@@ -31,6 +31,32 @@ Recurring title formulas:
 - who should eat it / golden time to eat it
 - age milestone + what not to miss
 
+### Food Pairing Formula (planned)
+
+Source: analysis of a reference reel (2026-10-30). The channel ("Linh Đoàn", 19K followers,
+health and nutrition for women) posted an 18.25 s reel, "Rau dền nấu theo cách này", with 18.7K
+likes, 225 comments, and 2.3K shares. The high share-to-comment ratio means viewers save and
+forward it as a tip.
+
+- **Structure:** 1 hook plus N pairings (N = 4 in the reference, at most about 5). The video has
+  no voice and no CTA. It ends abruptly on the last pairing, so viewers tend to watch it again
+  from the start.
+- **Pairings carry no on-screen text.** Viewers recognise each dish from the picture and read the
+  caption or comments to learn the names. Keeping the frame free of text makes them curious.
+- **Hook pattern:** `[FOOD] / [ACTION] THEO CÁCH NÀY / [BODY RESULT] [INTENSIFIER]`, for example
+  "RAU DỀN / NẤU THEO CÁCH NÀY / MÁU LÊN NÃO ÀO ÀO". The tool must also offer a safe version of
+  the last line, such as "TỐT CHO MÁU HUYẾT", because exaggerated claims hit the
+  [safety rules](#safety-rules).
+- **Caption pattern:** nutrients (iron, calcium, fibre, vitamins A, B6, E) → benefits (blood,
+  bones, digestion, cooling, eyesight) → the lead-in "Đặc biệt, khi kết hợp với 1 số thực phẩm…",
+  plus 5 hashtags. The pairing names belong in the caption, because the frames do not show them.
+- **Inputs for the generator:** the main food, up to 5 partner foods, and a hook. Claude writes
+  the hook (in a safe version and a strong version), the caption, and an image prompt for each pair.
+- **Image prompt for a pair:** "top-down, white ceramic plate on wooden table, [X] on left, [Y] on
+  right, plate in the upper half of the frame, empty wooden table below, soft natural light,
+  photorealistic, 4:5". Every pair uses the same plate, table, angle, and light, and the same
+  4:5 framing (see [ux-guidelines.md](ux-guidelines.md#food-pairing-template-planned)).
+
 ## Script Generation Contract
 
 One Claude call per topic returns JSON with:

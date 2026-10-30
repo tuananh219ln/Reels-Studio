@@ -1,7 +1,8 @@
 """Scene previews and the video thumbnail, drawn with reels_render's own text box code.
 
-The renderer's first frame of a scene is the photo cover-cropped to 1080×1920 at zoom 1.00 with the
-text box on top, so this is exactly that frame for the title scene (which has no fade-in).
+The renderer's first frame of a scene is the photo cover-cropped to 1080×1920 at zoom 1.00 (or the clip's
+frame at its start time) with the text box on top, so this is exactly that frame for the title scene (which
+has no fade-in).
 """
 
 import io
@@ -33,11 +34,14 @@ def text_box(text: str, is_title: bool) -> tuple[Image.Image, tuple[int, int]]:
     return render_box(layout), place(layout.width, layout.height)
 
 
-def compose_frame(image: Path, text: str, is_title: bool) -> Image.Image:
-    """Cover-cropped photo plus the text box; the box is left out while the text cannot render."""
-    with Image.open(image) as source:
-        source.load()
-        upright = ImageOps.exif_transpose(source).convert("RGB")
+def compose_frame(image: Path | Image.Image, text: str, is_title: bool) -> Image.Image:
+    """Cover-cropped photo (or clip frame) plus the text box; the box is left out while the text cannot render."""
+    if isinstance(image, Image.Image):
+        upright = image.convert("RGB")
+    else:
+        with Image.open(image) as source:
+            source.load()
+            upright = ImageOps.exif_transpose(source).convert("RGB")
     frame = ImageOps.fit(upright, (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC, centering=(0.5, 0.5))
     if text_problem(text, is_title) is None:
         box, position = text_box(text, is_title)
@@ -60,6 +64,6 @@ def jpeg_bytes(image: Image.Image, quality: int = 90) -> bytes:
     return buffer.getvalue()
 
 
-def thumbnail_bytes(image: Path, title_text: str) -> bytes:
+def thumbnail_bytes(image: Path | Image.Image, title_text: str) -> bytes:
     frame = compose_frame(image, title_text, is_title=True)
     return jpeg_bytes(frame.resize(THUMBNAIL_SIZE, Image.Resampling.LANCZOS), quality=85)

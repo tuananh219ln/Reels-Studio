@@ -67,14 +67,18 @@ def render_video(
         script = found.script
         inputs = []
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
-            image = work_dir / f"scene-{index:02d}.jpg"
-            normalize_image(scene.image, image, scene.label)
+            if scene.video is not None:
+                image, video_start = scene.video.resolve(), scene.video_start
+            else:
+                image, video_start = work_dir / f"scene-{index:02d}.jpg", None
+                normalize_image(scene.image, image, scene.label)
             box = work_dir / f"text-{index:02d}.png"
             render_box(layout).save(box)
             place = title_box_position if index == 0 else scene_box_position
             box_x, box_y = place(layout.width, layout.height)
             voice = scene.voice.resolve() if scene.voice is not None else None
-            inputs.append(SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice))
+            inputs.append(SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice,
+                                     video_start=video_start))
 
         try:
             output.parent.mkdir(parents=True, exist_ok=True)

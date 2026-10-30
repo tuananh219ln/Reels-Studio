@@ -142,7 +142,7 @@ def _search_terms(scene: Scene) -> list[str]:
 def assign_images(db: DbSession, video: Video, storage: DirectoryStorage, pixabay: Pixabay) -> None:
     """Pixabay photo for every scene without one, stored for good so the render uses what was shown."""
     title, scenes = split_scenes(db, video)
-    pending = [scene for scene in ([title] if title else []) + scenes if not scene.image_key]
+    pending = [scene for scene in ([title] if title else []) + scenes if not scene.image_key and not scene.video_key]
     used = {scene.image_source for scene in ([title] if title else []) + scenes if scene.image_source}
     for index, scene in enumerate(pending):
         terms = _search_terms(scene)
@@ -243,11 +243,20 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
 
         def entry(scene: Scene, index: int) -> dict:
             label = _scene_label(scene, index)
-            if not scene.image_key or not storage.exists(scene.image_key):
-                raise JobFailure(f"{label} chưa có ảnh trong storage, hãy gán lại ảnh rồi render")
-            image = storage.copy_to(scene.image_key, folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}")
-            # No "keywords": every photo is already chosen, the renderer must never search stock itself.
-            data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
+            # No "keywords": every photo or clip is already chosen, the renderer must never search stock itself.
+            if scene.video_key:
+                if not storage.exists(scene.video_key):
+                    raise JobFailure(f"{label} chưa có video trong storage, hãy tải video lên lại rồi render")
+                extension = scene.video_key.rsplit(".", 1)[-1]
+                clip = storage.copy_to(scene.video_key, folder / f"clip-{index:02d}.{extension}")
+                data = {"text": scene.text, "seconds": scene.seconds, "video": clip.name,
+                        "video_start": scene.video_start}
+            else:
+                if not scene.image_key or not storage.exists(scene.image_key):
+                    raise JobFailure(f"{label} chưa có ảnh trong storage, hãy gán lại ảnh rồi render")
+                image = storage.copy_to(scene.image_key,
+                                        folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}")
+                data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
             return data

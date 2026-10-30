@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from reels_render.markup import MarkupError, parse_scene_text
 from reels_render.textbox import SCENE_STYLE, TITLE_STYLE, TextFitError, layout_text
-from reels_render.timeline import fit_seconds
+from reels_render.timeline import FPS, HALF_XFADE, fit_seconds
 
 MIN_SECONDS = 1
 MAX_SECONDS = 10
@@ -20,6 +20,9 @@ TOTAL_SECONDS_RANGE = (20, 48)
 MAX_SCENE_WORDS = 10
 MAX_TITLE_WORDS = 12
 
+# A crossfade straddles each scene boundary, so a clip plays this much longer on every side with a neighbour.
+CROSSFADE_SIDE_SECONDS = HALF_XFADE / FPS
+
 DEFAULT_BANNED_WORDS = ["chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc trị", "khắc tinh"]
 
 
@@ -29,9 +32,10 @@ class SceneInput:
     is_title: bool
     text: str
     seconds: float
-    has_image: bool
+    has_image: bool  # a photo or a clip
     voice_text: str = ""  # empty when the video's narration is off
     voice_seconds: float | None = None  # length of the narration already made for the current voice text
+    clip_seconds: float | None = None  # what is left of the scene's clip after its start time
 
 
 @dataclass(frozen=True)
@@ -88,7 +92,8 @@ def check_script(
     if not scenes:
         block(Issue("Chưa có cảnh nội dung nào", field="scenes"))
 
-    for scene in ([title] if title else []) + scenes:
+    every = ([title] if title else []) + scenes
+    for index, scene in enumerate(every):
         problem = text_problem(scene.text, scene.is_title)
         if problem:
             block(Issue(problem, scene.id))
@@ -96,6 +101,10 @@ def check_script(
             block(Issue("Cảnh chưa có ảnh", scene.id, "image"))
         if not MIN_SECONDS <= scene.seconds <= MAX_SECONDS:
             block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
+        neighbours = (index > 0) + (index < len(every) - 1)
+        needed = fit_seconds(scene.seconds, scene.voice_seconds) + neighbours * CROSSFADE_SIDE_SECONDS
+        if scene.clip_seconds is not None and needed > scene.clip_seconds + 0.01:
+            warn(Issue("Video ngắn hơn cảnh, khung cuối sẽ đứng yên", scene.id, "video"))
         words, limit = count_words(scene.text), MAX_TITLE_WORDS if scene.is_title else MAX_SCENE_WORDS
         if words > limit:
             warn(Issue(f"Chữ có {words} từ, nên tối đa {limit} từ", scene.id))
