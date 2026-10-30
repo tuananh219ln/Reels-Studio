@@ -1,6 +1,6 @@
 # Production image for the worker (script and render jobs), built by Coolify from the repo root
 # (base directory /, Dockerfile /api/Dockerfile.worker). Same packages as the api image plus FFmpeg.
-# Coolify sets DATABASE_URL, ANTHROPIC_API_KEY, PIXABAY_API_KEY and STORAGE_DIR.
+# Coolify sets DATABASE_URL, ANTHROPIC_API_KEY, PIXABAY_API_KEY, ELEVENLABS_API_KEY and STORAGE_DIR.
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1

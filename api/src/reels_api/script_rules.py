@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 
 from reels_render.markup import MarkupError, parse_scene_text
 from reels_render.textbox import SCENE_STYLE, TITLE_STYLE, TextFitError, layout_text
+from reels_render.timeline import fit_seconds
 
 MIN_SECONDS = 1
 MAX_SECONDS = 10
@@ -29,6 +30,8 @@ class SceneInput:
     text: str
     seconds: float
     has_image: bool
+    voice_text: str = ""  # empty when the video's narration is off
+    voice_seconds: float | None = None  # length of the narration already made for the current voice text
 
 
 @dataclass(frozen=True)
@@ -98,9 +101,13 @@ def check_script(
             warn(Issue(f"Chữ có {words} từ, nên tối đa {limit} từ", scene.id))
         for word in banned_hits(scene.text, banned_words):
             warn(Issue(f"Có từ cấm: “{word}”", scene.id))
+        for word in banned_hits(scene.voice_text, banned_words):
+            warn(Issue(f"Lời đọc có từ cấm: “{word}”", scene.id, "voice"))
 
+    # Scenes count as lengthened to fit narration made earlier; narration not made yet is measured by the render job.
     # Rounded so float sums such as 0.1 + 0.2 never push an exact 90 over the limit.
-    total = round(sum(scene.seconds for scene in ([title] if title else []) + scenes), 3)
+    total = round(sum(fit_seconds(scene.seconds, scene.voice_seconds)
+                      for scene in ([title] if title else []) + scenes), 3)
     if total > MAX_TOTAL_SECONDS:
         block(Issue(f"Tổng độ dài {total:g} giây, tối đa {MAX_TOTAL_SECONDS} giây", field="total"))
     elif not TOTAL_SECONDS_RANGE[0] <= total <= TOTAL_SECONDS_RANGE[1]:

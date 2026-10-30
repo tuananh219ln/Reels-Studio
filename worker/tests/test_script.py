@@ -155,3 +155,20 @@ def test_non_finite_seconds(folder, value):
     path.write_text(raw, encoding="utf-8")
     with pytest.raises(InputError, match="^Cảnh 1: \"seconds\" phải là số hữu hạn"):
         load_script(path)
+
+
+def test_voice_resolves_relative_to_json_and_is_optional(folder):
+    (folder / "doc.mp3").write_bytes(b"audio")
+    script = load(folder, {"title": scene(voice=""), "scenes": [scene(voice="doc.mp3"), scene()]})
+    assert script.title.voice is None
+    assert script.scenes[0].voice == folder / "doc.mp3"
+    assert script.scenes[1].voice is None
+
+
+@pytest.mark.parametrize(("voice", "message"), [
+    ("khong-co.mp3", "Cảnh 1: không tìm thấy file lời đọc khong-co.mp3"),
+    (3, "Cảnh 1: \"voice\" phải là chuỗi"),
+])
+def test_bad_voice_is_named(folder, voice, message):
+    with pytest.raises(InputError, match=message):
+        load(folder, {"title": scene(), "scenes": [scene(voice=voice)]})

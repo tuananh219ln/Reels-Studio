@@ -48,3 +48,14 @@ def probe(ffprobe: str, path: Path) -> dict:
         f"ffprobe không đọc được {path}",
     )
     return json.loads(result.stdout)
+
+
+def audio_seconds(ffprobe: str, path: Path) -> float | None:
+    """Length of the file's audio in seconds, or None when it has no audio stream with a known length."""
+    data = probe(ffprobe, path)
+    if not any(stream.get("codec_type") == "audio" for stream in data.get("streams", [])):
+        return None
+    try:
+        return float(data["format"]["duration"])
+    except (KeyError, TypeError, ValueError):
+        return None

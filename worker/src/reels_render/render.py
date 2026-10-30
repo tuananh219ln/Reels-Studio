@@ -4,10 +4,10 @@ from collections.abc import Callable
 from pathlib import Path
 
 from . import ffmpeg
-from .errors import InputError, MissingImagesError, OutputNotReplacedError
+from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
 from .graph import SceneInput, build_ffmpeg_args
 from .images import normalize_image
-from .script import Script
+from .script import Scene, Script
 from .stock import find_stock_images
 from .textbox import (
     SCENE_STYLE,
@@ -18,7 +18,7 @@ from .textbox import (
     scene_box_position,
     title_box_position,
 )
-from .timeline import build_timeline
+from .timeline import build_timeline, fit_seconds
 
 DEFAULT_MUSIC_VOLUME = 0.25
 NEW_NAME_ATTEMPTS = 9
@@ -54,7 +54,10 @@ def render_video(
             layouts.append(layout_text(scene.lines, TITLE_STYLE if index == 0 else SCENE_STYLE))
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
-    timeline = build_timeline([scene.seconds for scene in script.all_scenes])
+    # A scene with narration is lengthened to fit it; its seconds are the minimum.
+    timeline = build_timeline([
+        fit_seconds(scene.seconds, voice_seconds(tools.ffprobe, scene)) for scene in script.all_scenes
+    ])
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
@@ -70,7 +73,8 @@ def render_video(
             render_box(layout).save(box)
             place = title_box_position if index == 0 else scene_box_position
             box_x, box_y = place(layout.width, layout.height)
-            inputs.append(SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y))
+            voice = scene.voice.resolve() if scene.voice is not None else None
+            inputs.append(SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice))
 
         try:
             output.parent.mkdir(parents=True, exist_ok=True)
@@ -93,6 +97,18 @@ def render_video(
             temp.unlink(missing_ok=True)
             raise
     return _publish(temp, output)
+
+
+def voice_seconds(ffprobe: str, scene: Scene) -> float | None:
+    if scene.voice is None:
+        return None
+    try:
+        seconds = ffmpeg.audio_seconds(ffprobe, scene.voice)
+    except FFmpegError:
+        seconds = None
+    if seconds is None:
+        raise InputError(f"{scene.label}: file lời đọc không đọc được: {scene.voice.name}")
+    return seconds
 
 
 def _publish(temp: Path, output: Path) -> Path:

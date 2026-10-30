@@ -7,12 +7,15 @@ import secrets
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.timeline import fit_seconds
+
 from . import knowledge
 from .errors import ApiError
 from .frames import thumbnail_bytes
 from .models import ACTIVE_JOB_STATUSES, Job, Scene, Video
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
 from .storage import DirectoryStorage
+from .tts import voice_signature
 
 STATUS_LABELS = {
     "draft": "Nháp",
@@ -83,13 +86,30 @@ def split_scenes(db: DbSession, video: Video) -> tuple[Scene | None, list[Scene]
     return title, [scene for scene in rows if not scene.is_title]
 
 
+def spoken(video: Video, scene: Scene) -> str:
+    """The narration this scene gets in the next render: empty when it has none or the video's narration is off."""
+    return scene.voice_text if video.voice_enabled and scene.voice_text.strip() else ""
+
+
+def made_voice_seconds(video: Video, scene: Scene) -> float | None:
+    """Length of the stored narration when it was made from the current voice text, voice and model."""
+    text = spoken(video, scene)
+    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text):
+        return None
+    return scene.voice_seconds
+
+
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
-    """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume); captions and
+    """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume, narration); captions and
     keywords are left out."""
-    parts = [[scene.text, scene.seconds, scene.image_key] for scene in ([title] if title else []) + scenes]
-    # Without music the fingerprint keeps the format MP4s rendered before music existed were stored with,
-    # so those are not flagged as outdated.
+    every = ([title] if title else []) + scenes
+    parts = [[scene.text, scene.seconds, scene.image_key] for scene in every]
+    # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
+    # stored with, so they are not flagged as outdated.
     data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
+    voices = [voice_signature(spoken(video, scene)) if spoken(video, scene) else None for scene in every]
+    if any(voices):
+        data = [data, voices]
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -106,14 +126,15 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
         storage.delete(old)
 
 
-def scene_inputs(title: Scene | None, scenes: list[Scene]) -> tuple[SceneInput | None, list[SceneInput]]:
+def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tuple[SceneInput | None, list[SceneInput]]:
     def to_input(scene: Scene) -> SceneInput:
-        return SceneInput(scene.id, scene.is_title, scene.text, scene.seconds, bool(scene.image_key))
+        return SceneInput(scene.id, scene.is_title, scene.text, scene.seconds, bool(scene.image_key),
+                          spoken(video, scene), made_voice_seconds(video, scene))
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
 
 
 def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> Checks:
-    title_input, scene_input = scene_inputs(title, scenes)
+    title_input, scene_input = scene_inputs(video, title, scenes)
     posts = {name: getattr(video, name) for name in POST_FIELDS}
     return check_script(title_input, scene_input, posts, knowledge.banned_words(db))
 
@@ -165,8 +186,9 @@ def _version(*parts: object) -> str:
     return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode()).hexdigest()[:12]
 
 
-def scene_payload(scene: Scene, checks: Checks) -> dict:
+def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
+    voice_seconds = made_voice_seconds(video, scene)
     return {
         "id": scene.id,
         "is_title": scene.is_title,
@@ -174,6 +196,11 @@ def scene_payload(scene: Scene, checks: Checks) -> dict:
         "seconds": scene.seconds,
         "keywords": scene.keywords,
         "image_prompt": scene.image_prompt,
+        "voice_text": scene.voice_text,
+        # Known once a render has made the narration for the current text; None until then.
+        "voice_seconds": voice_seconds,
+        "voice_url": f"{image}/voice.mp3?v={_version(scene.voice_key)}" if voice_seconds is not None else None,
+        "fitted_seconds": fit_seconds(scene.seconds, voice_seconds),
         "has_image": bool(scene.image_key),
         "image_error": scene.image_error,
         "image_url": f"{image}/image?v={_version(scene.image_key)}" if scene.image_key else None,
@@ -235,12 +262,13 @@ def video_payload(db: DbSession, video: Video) -> dict:
             "name": video.music_name,
         } if video.music_key else None,
         "music_volume": video.music_volume,
+        "voice_enabled": video.voice_enabled,
         "clone_of": {
             "title": video.clone_source["title"],
             "request": video.clone_source["request"],
         } if video.clone_source else None,
-        "title_scene": scene_payload(title, checks) if title else None,
-        "scenes": [scene_payload(scene, checks) for scene in scenes],
+        "title_scene": scene_payload(video, title, checks) if title else None,
+        "scenes": [scene_payload(video, scene, checks) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],
         "video_warnings": [
             {"field": issue.field, "message": issue.message} for issue in checks.warnings if issue.scene_id is None

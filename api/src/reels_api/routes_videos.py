@@ -37,6 +37,7 @@ router = APIRouter(prefix="/api")
 
 MAX_TOPIC_LENGTH = 300
 MAX_TEXT_LENGTH = 500
+MAX_VOICE_LENGTH = 1000
 MAX_LONG_TEXT_LENGTH = 5000
 MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
@@ -58,6 +59,7 @@ class VideoPatchBody(BaseModel):
     pinned_comment: str | None = None
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
+    voice_enabled: bool | None = None
 
 
 class ScenePatchBody(BaseModel):
@@ -65,6 +67,7 @@ class ScenePatchBody(BaseModel):
     seconds: float | None = None
     keywords: list[str] | None = None
     image_prompt: str | None = None
+    voice_text: str | None = None
 
 
 class SceneOrderBody(BaseModel):
@@ -173,6 +176,8 @@ def patch_video(
         if not 0 <= body.music_volume <= 100:
             raise invalid("Âm lượng phải từ 0 đến 100%")
         video.music_volume = body.music_volume
+    if "voice_enabled" in fields and body.voice_enabled is not None:
+        video.voice_enabled = body.voice_enabled
     return _saved(db, video)
 
 
@@ -260,11 +265,14 @@ def clone_snapshot(db: DbSession, video: Video, request: str) -> dict:
     """What the clone prompt sees: the source exactly as edited at the moment "Nhân bản" was pressed."""
     title, scenes = split_scenes(db, video)
     lines = []
+    def voice(scene: Scene) -> str:
+        return f" — lời đọc: {_one_line(scene.voice_text)}" if scene.voice_text.strip() else ""
+
     if title is not None:
-        lines.append(f"Cảnh tiêu đề ({title.seconds:g} giây): {_one_line(title.text)}")
+        lines.append(f"Cảnh tiêu đề ({title.seconds:g} giây): {_one_line(title.text)}{voice(title)}")
     for number, scene in enumerate(scenes, start=1):
         keywords = f" — từ khóa ảnh: {', '.join(scene.keywords)}" if scene.keywords else ""
-        lines.append(f"Cảnh {number} ({scene.seconds:g} giây): {_one_line(scene.text)}{keywords}")
+        lines.append(f"Cảnh {number} ({scene.seconds:g} giây): {_one_line(scene.text)}{voice(scene)}{keywords}")
     if video.caption:
         lines.append(f"Caption: {video.caption}")
     if video.hashtags:
@@ -370,6 +378,8 @@ def patch_scene(
         scene.keywords = keywords
     if "image_prompt" in fields and body.image_prompt is not None:
         scene.image_prompt = _clean_text(body.image_prompt, MAX_LONG_TEXT_LENGTH, "Prompt ảnh").strip()
+    if "voice_text" in fields and body.voice_text is not None:
+        scene.voice_text = _clean_text(body.voice_text, MAX_VOICE_LENGTH, "Lời đọc").strip()
     if scene.is_title and text_changed:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
@@ -383,10 +393,11 @@ def delete_scene(scene_id: int, me: Session = Depends(current_member), db: DbSes
     ensure_unlocked(db, video)
     if scene.is_title:
         raise ApiError(409, "title_scene", "Không xóa được cảnh tiêu đề")
-    image = scene.image_key
+    files = [scene.image_key, scene.voice_key]
     db.delete(scene)
     payload = _saved(db, video)
-    storage.delete(image)
+    for key in files:
+        storage.delete(key)
     return payload
 
 
@@ -613,6 +624,12 @@ def scene_preview(scene_id: int, me: Session = Depends(current_member), db: DbSe
     frame = frames.compose_frame(storage.path(scene.image_key), scene.text, scene.is_title)
     return Response(frames.jpeg_bytes(frame), media_type="image/jpeg",
                     headers={"Cache-Control": "private, max-age=3600"})
+
+
+@router.get("/scenes/{scene_id}/voice.mp3")
+def scene_voice(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
+                storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+    return _inline(storage, _scene(db, scene_id).voice_key, "audio/mpeg")
 
 
 @router.get("/videos/{video_id}/thumbnail.jpg")

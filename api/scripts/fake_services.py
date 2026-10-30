@@ -1,12 +1,13 @@
-"""Local stand-ins for the Claude Messages API and the Pixabay API, for pytest and E2E.
+"""Local stand-ins for the Claude Messages API, the Pixabay API and ElevenLabs TTS, for pytest and E2E.
 
-The app reaches them only through ANTHROPIC_BASE_URL and PIXABAY_API_URL, so production code has no
-test switches. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
+The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL and ELEVENLABS_API_URL, so production
+code has no test switches. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
 
 import hashlib
 import io
 import json
+import subprocess
 import sys
 import threading
 import time
@@ -16,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from PIL import Image
 
 PIXABAY_KEY = "fake-pixabay-key"
+ELEVENLABS_KEY = "fake-elevenlabs-key"
 
 
 def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
@@ -23,8 +25,10 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
     return {
         "titles": [f"{n} MÓN TỐT CHO {topic.upper()}"[:60] for n in (5, 6, 7, 4, 3)],
         "title_keywords": ["món ăn giàu canxi"],
+        "title_voice": "Mời bạn xem đến cuối nhé",
         "scenes": [
-            {"text": f"{food}\nGiàu *canxi*", "seconds": seconds, "keywords": [food.lower(), "món ăn"],
+            {"text": f"{food}\nGiàu *canxi*", "seconds": seconds, "voice": f"{food} giàu canxi",
+             "keywords": [food.lower(), "món ăn"],
              "image_prompt": f"{food} trên bàn gỗ, ánh sáng tự nhiên"}
             for food in foods[:scene_count]
         ],
@@ -48,6 +52,9 @@ class FakeServices:
         self.pixabay_queries: list[str] = []
         self.image_downloads: list[str] = []
         self.default_seconds = 4.0
+        self.tts_mode = "ok"  # ok | quota | error500
+        self.tts_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
+        self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code"}
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -67,6 +74,8 @@ class FakeServices:
             "ANTHROPIC_BASE_URL": self.url,
             "PIXABAY_API_KEY": PIXABAY_KEY,
             "PIXABAY_API_URL": f"{self.url}/api/",
+            "ELEVENLABS_API_KEY": ELEVENLABS_KEY,
+            "ELEVENLABS_API_URL": self.url,
         }
 
     def image_url(self, name: str) -> str:
@@ -111,6 +120,25 @@ class FakeServices:
                 for n, name in enumerate(names)]
         return 200, {"total": len(hits), "totalHits": len(hits), "hits": hits}
 
+    def _tts(self, voice_id: str, key: str, body: dict) -> tuple[int, object]:
+        with self.lock:
+            self.tts_requests.append({"voice_id": voice_id, "text": body.get("text"), "model_id": body.get("model_id"),
+                                      "language_code": body.get("language_code")})
+        if key != ELEVENLABS_KEY:
+            return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
+        if self.tts_mode == "quota" or (self.tts_ok_count is not None and len(self.tts_requests) > self.tts_ok_count):
+            return 401, {"detail": {"status": "quota_exceeded", "message": "This request exceeds your quota"}}
+        if self.tts_mode == "error500":
+            return 500, {"detail": "server error"}
+        # A tone instead of speech, 0.3 s per word, so tests can tell how long each narration is.
+        seconds = 0.3 * max(1, len(str(body.get("text", "")).split()))
+        audio = subprocess.run(
+            ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"sine=frequency=330:duration={seconds}",
+             "-ac", "1", "-c:a", "libmp3lame", "-b:a", "64k", "-f", "mp3", "-"],
+            capture_output=True, check=True,
+        ).stdout
+        return 200, audio
+
     def _image(self, name: str) -> bytes:
         with self.lock:
             self.image_downloads.append(name)
@@ -140,8 +168,13 @@ class FakeServices:
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
                 body = json.loads(self.rfile.read(length) or b"{}")
-                if urllib.parse.urlsplit(self.path).path == "/v1/messages":
+                path = urllib.parse.urlsplit(self.path).path
+                if path == "/v1/messages":
                     self._send(*fake._claude(body))
+                elif path.startswith("/v1/text-to-speech/"):
+                    status, reply = fake._tts(path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"),
+                                              body)
+                    self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
                 else:
                     self._send(404, {"error": "not found"})
 
@@ -163,5 +196,5 @@ if __name__ == "__main__":
     services = FakeServices(int(sys.argv[1]))
     # E2E videos stay short so the render finishes quickly.
     services.default_seconds = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0
-    print(f"Fake Claude/Pixabay on {services.url}", flush=True)
+    print(f"Fake Claude/Pixabay/ElevenLabs on {services.url}", flush=True)
     services.server.serve_forever()

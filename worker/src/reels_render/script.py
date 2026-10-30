@@ -22,6 +22,7 @@ class Scene:
     image: Path | None
     keywords: tuple[str, ...]
     missing_image: str | None = None  # the "image" value whose file does not exist
+    voice: Path | None = None  # narration audio, read over the scene
 
 
 @dataclass(frozen=True)
@@ -79,7 +80,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         if field not in item:
             raise InputError(f"{label}: thiếu trường \"{field}\"")
 
-    text, seconds, image = item["text"], item["seconds"], item.get("image", "")
+    text, seconds, image, voice = item["text"], item["seconds"], item.get("image", ""), item.get("voice", "")
     if not isinstance(text, str):
         raise InputError(f"{label}: \"text\" phải là chuỗi")
     # bool is a subclass of int, so it has to be excluded explicitly.
@@ -92,6 +93,10 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f"{label}: \"seconds\" phải từ {MIN_SCENE_SECONDS} trở lên (đang là {seconds})")
     if not isinstance(image, str):
         raise InputError(f"{label}: \"image\" phải là chuỗi đường dẫn ảnh")
+    if not isinstance(voice, str):
+        raise InputError(f"{label}: \"voice\" phải là chuỗi đường dẫn file lời đọc")
+    if voice.strip() and not (base_dir / voice).is_file():
+        raise InputError(f"{label}: không tìm thấy file lời đọc {voice}")
     keywords = _parse_keywords(item.get("keywords"), label)
 
     try:
@@ -119,6 +124,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         image=image_path,
         keywords=keywords,
         missing_image=missing_image,
+        voice=base_dir / voice if voice.strip() else None,
     )
 
 

@@ -67,6 +67,7 @@ def test_script_job_writes_the_script_and_assigns_pixabay_photos(committed, serv
     title, content = scenes[0], scenes[1:]
     assert video.has_script and len(video.title_options) == 5
     assert title.is_title and title.text == video.title_options[0] and title.seconds == 3
+    assert title.voice_text == "Mời bạn xem đến cuối nhé" and content[0].voice_text == "Cá nhỏ giàu canxi"
     assert 5 <= len(content) <= 7 and all(scene.keywords for scene in content)
     assert video.caption and len(video.hashtags) == 5 and len(video.affiliates) == 2 and video.pinned_comment
     assert video.self_review and video.music_suggestions

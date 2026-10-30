@@ -72,6 +72,7 @@ class Video(Base):
     music_key: Mapped[str | None] = mapped_column(String(200))
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
+    voice_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
@@ -99,6 +100,12 @@ class Scene(Base):
     # "upload" or the Pixabay URL the image came from: "Tìm lại ảnh" must pick a different one.
     image_source: Mapped[str | None] = mapped_column(Text)
     image_error: Mapped[str | None] = mapped_column(Text)
+    voice_text: Mapped[str] = mapped_column(Text, default="")
+    # The last narration MP3 made for this scene and the tts.voice_signature it was made from: it is reused
+    # while the signature still matches, so a re-render does not pay ElevenLabs again.
+    voice_key: Mapped[str | None] = mapped_column(String(200))
+    voice_signature: Mapped[str | None] = mapped_column(String(64))
+    voice_seconds: Mapped[float | None] = mapped_column(Float)
 
     video: Mapped[Video] = relationship(back_populates="scenes")
 

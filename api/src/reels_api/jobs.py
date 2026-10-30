@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session as DbSession, sessionmaker
 
 from reels_render import RenderError, render_video
 from reels_render.errors import FFmpegError
-from reels_render.ffmpeg import find_tools, probe
+from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
 from . import knowledge
@@ -29,7 +29,8 @@ from .models import Job, Scene, Video
 from .pixabay import Pixabay, PixabayError
 from .sessions import now
 from .storage import DirectoryStorage
-from .videos import new_key, refresh_thumbnail, render_signature, split_scenes
+from .tts import TtsError, synthesize, voice_signature
+from .videos import made_voice_seconds, new_key, refresh_thumbnail, render_signature, run_checks, spoken, split_scenes
 
 log = logging.getLogger(__name__)
 
@@ -124,10 +125,10 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     video.self_review = script.self_review
     video.music_suggestions = script.music_suggestions
     db.add(Scene(video_id=video.id, is_title=True, position=0, text=script.titles[0], seconds=TITLE_SECONDS,
-                 keywords=script.title_keywords, image_prompt=""))
+                 keywords=script.title_keywords, image_prompt="", voice_text=script.title_voice))
     for position, scene in enumerate(script.scenes, start=1):
         db.add(Scene(video_id=video.id, is_title=False, position=position, text=scene.text, seconds=scene.seconds,
-                     keywords=scene.keywords, image_prompt=scene.image_prompt))
+                     keywords=scene.keywords, image_prompt=scene.image_prompt, voice_text=scene.voice))
 
 
 def _search_terms(scene: Scene) -> list[str]:
@@ -191,6 +192,39 @@ def _checked_music(video: Video, storage: DirectoryStorage, folder: Path) -> Pat
         raise JobFailure(MUSIC_UNREADABLE, "File không có luồng âm thanh")
     return music
 
+def _scene_label(scene: Scene, index: int) -> str:
+    return "Cảnh tiêu đề" if scene.is_title else f"Cảnh {index}"
+
+
+def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
+    """Narration for every scene that has voice text but no MP3 made from it yet. Each MP3 is committed at once,
+    so a retry after a failure pays ElevenLabs only for the scenes still missing."""
+    for index, scene in enumerate(scenes):
+        text = spoken(video, scene)
+        if not text or (made_voice_seconds(video, scene) is not None and storage.exists(scene.voice_key)):
+            continue
+        label = _scene_label(scene, index)
+        try:
+            data = synthesize(text)
+        except TtsError as err:
+            raise JobFailure(f"{label}: {err.message}", err.detail) from None
+        key = new_key(video.id, f"voice-{scene.id}", "mp3")
+        storage.save_bytes(key, data)
+        try:
+            seconds = audio_seconds(find_tools().ffprobe, storage.path(key))
+        except FFmpegError:
+            seconds = None
+        if seconds is None:
+            storage.delete(key)
+            raise JobFailure(f"{label}: ElevenLabs trả file lời đọc không đọc được, thử lại sau")
+        old = scene.voice_key
+        scene.voice_key, scene.voice_signature, scene.voice_seconds = key, voice_signature(text), seconds
+        db.commit()
+        if old and old != key:
+            storage.delete(old)
+        log.info("Narration for video %s %s: %.1fs", video.id, label, seconds)
+
+
 def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     video = db.get(Video, job.video_id)
     title, scenes = split_scenes(db, video)
@@ -200,13 +234,23 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     shutil.rmtree(folder, ignore_errors=True)
     folder.mkdir(parents=True)
     try:
+        make_voices(db, video, [title, *scenes], storage)
+        # Narration lengthens its scene, so the total is only known now.
+        blocking = run_checks(db, video, title, scenes).blocking
+        if blocking:
+            raise JobFailure(f"Chưa render được: {blocking[0].message}",
+                             "Lời đọc làm cảnh dài thêm: hãy rút gọn lời đọc hoặc bớt cảnh")
+
         def entry(scene: Scene, index: int) -> dict:
-            label = "Cảnh tiêu đề" if scene.is_title else f"Cảnh {index}"
+            label = _scene_label(scene, index)
             if not scene.image_key or not storage.exists(scene.image_key):
                 raise JobFailure(f"{label} chưa có ảnh trong storage, hãy gán lại ảnh rồi render")
             image = storage.copy_to(scene.image_key, folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}")
             # No "keywords": every photo is already chosen, the renderer must never search stock itself.
-            return {"text": scene.text, "seconds": scene.seconds, "image": image.name}
+            data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
+            if spoken(video, scene):
+                data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
+            return data
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
         signature = render_signature(video, title, scenes)

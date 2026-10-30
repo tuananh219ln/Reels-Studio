@@ -126,6 +126,52 @@ class TestMusic:
 
 
 @needs_ffmpeg
+class TestVoice:
+    def test_scene_is_lengthened_and_narration_plays_on_it(self, tmp_path):
+        make_tone(tmp_path / "loi-doc.wav", 2.5)
+        short_script(tmp_path)  # writes the images
+        data = script_data(scene_count=2, image="ngang.jpg", seconds=1)
+        for item in data["scenes"]:
+            item.update(image="vuong.jpg", seconds=1)
+        data["scenes"][0]["voice"] = "loi-doc.wav"
+        script = load_script(write_script(tmp_path, data))
+        output = render_video(script, tmp_path / "video.mp4")
+
+        info = probe("ffprobe", output)
+        # Title 1 s + scene 1 lengthened to 0.2 + 2.5 + 0.4 = 3.1 s + scene 2 1 s.
+        assert float(info["format"]["duration"]) == pytest.approx(5.1, abs=0.05)
+        assert mean_volume(output, 0.1, 0.8) < -60, "cảnh tiêu đề không có lời đọc"
+        assert mean_volume(output, 1.4, 2.0) > -30
+        assert mean_volume(output, 4.3, 0.7) < -60, "lời đọc không được tràn sang cảnh sau"
+
+    def test_narration_is_mixed_at_full_level_over_the_music(self, tmp_path):
+        make_tone(tmp_path / "loi-doc.wav", 1.0)
+        tone = make_tone(tmp_path / "nhac.wav", 5)
+        short_script(tmp_path)  # writes the images
+        data = script_data(scene_count=1, image="ngang.jpg", seconds=1)
+        data["scenes"][0].update(image="vuong.jpg", seconds=2, voice="loi-doc.wav")
+        script = load_script(write_script(tmp_path, data))
+        output = render_video(script, tmp_path / "video.mp4", music=tone, music_volume=0.25)
+
+        assert float(probe("ffprobe", output)["format"]["duration"]) == pytest.approx(3.0, abs=0.05)
+        tone_level = mean_volume(tone, 0, 1)
+        music_only = mean_volume(output, 0.2, 0.6)
+        assert music_only == pytest.approx(tone_level - 12, abs=1.5)
+        # Narration (same tone, full level) plus the music at 25%: louder than the narration alone.
+        assert mean_volume(output, 1.4, 0.6) > tone_level - 1
+
+    def test_unreadable_voice_file_is_named_before_ffmpeg(self, tmp_path):
+        short_script(tmp_path)
+        (tmp_path / "hong.mp3").write_bytes(b"not audio at all")
+        data = script_data(scene_count=1, image="ngang.jpg", seconds=1)
+        data["scenes"][0].update(image="vuong.jpg", voice="hong.mp3")
+        script = load_script(write_script(tmp_path, data))
+        with pytest.raises(RenderError, match="Cảnh 1: file lời đọc không đọc được"):
+            render_video(script, tmp_path / "video.mp4")
+        assert not (tmp_path / "video.mp4").exists()
+
+
+@needs_ffmpeg
 class TestOutputFile:
     def test_success_leaves_no_temp_or_intermediate_files(self, tmp_path, isolated_tmp):
         script = short_script(tmp_path)

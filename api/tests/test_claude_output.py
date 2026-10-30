@@ -77,6 +77,20 @@ def test_missing_music_and_title_keywords_stay_empty_and_fewer_titles_are_kept()
     assert script.music_suggestions == [] and script.title_keywords == []
 
 
+def test_voice_text_drops_markup_stars_and_extra_spaces_and_may_be_missing():
+    script = parse_output(json.dumps(valid(
+        title_voice="  Bạn đã ăn\n đủ *5 món* này chưa? ",
+        scenes=[{"text": "x", "seconds": 4, "voice": "Giàu *canxi*  lắm"}, {"text": "y", "seconds": 4, "voice": 3}],
+    )))
+    assert script.title_voice == "Bạn đã ăn đủ 5 món này chưa?"
+    assert [scene.voice for scene in script.scenes] == ["Giàu canxi lắm", ""]
+    assert parse_output(json.dumps(valid())).title_voice == ""
+
+
+def test_banned_words_cover_the_voice_text():
+    assert "chữ trên màn hình, lời đọc, caption" in build_script_prompt("[Chủ đề]", "x", ["đặc trị"])
+
+
 def test_topic_replaces_the_placeholder_and_banned_words_and_format_follow():
     prompt = build_script_prompt("Viết về: [Chủ đề] cho người 50+", "xương khớp", ["chữa khỏi", "đặc trị"])
     assert prompt.startswith("Viết về: xương khớp cho người 50+")
@@ -97,9 +111,9 @@ def test_default_prompt_has_the_topic_placeholder():
 
 def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
     example = json.loads(OUTPUT_FORMAT[OUTPUT_FORMAT.index("{"):])
-    assert set(example) == {"titles", "title_keywords", "scenes", "caption", "hashtags", "affiliates",
+    assert set(example) == {"titles", "title_keywords", "title_voice", "scenes", "caption", "hashtags", "affiliates",
                             "pinned_comment", "self_review", "music_suggestions"}
-    assert all(set(scene) == {"text", "seconds", "keywords", "image_prompt"} for scene in example["scenes"])
+    assert all(set(scene) == {"text", "seconds", "voice", "keywords", "image_prompt"} for scene in example["scenes"])
     assert parse_output(OUTPUT_FORMAT).titles[0] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE SAU TUỔI 50"
 
 

@@ -1,0 +1,36 @@
+"use client";
+
+import { Flex, Typography } from "antd";
+import type { SceneData, VideoDetail } from "@/lib/api";
+import AutoSaveField from "./AutoSaveField";
+
+function seconds(value: number): string {
+  return value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+}
+
+/** A scene's voice text, and once a render has made it, the narration with its length. */
+export default function VoiceText({ scene, save }: { scene: SceneData; save: (text: string) => Promise<VideoDetail> }) {
+  const lengthened = scene.fitted_seconds > scene.seconds;
+  return (
+    <Flex vertical gap={4}>
+      <AutoSaveField
+        label="Lời đọc"
+        value={scene.voice_text}
+        multiline
+        placeholder="để trống nếu cảnh không cần đọc"
+        save={save}
+        hint={scene.voice_text.trim() && !scene.voice_url ? "Giọng đọc được tạo khi render" : undefined}
+      />
+      {scene.voice_url && scene.voice_seconds !== null && (
+        <Flex vertical gap={4} style={{ marginBottom: 8 }}>
+          <audio key={scene.voice_url} src={scene.voice_url} controls preload="none" data-testid="voice-player"
+            style={{ width: "100%", maxWidth: 360 }} />
+          <Typography.Text type="secondary" data-testid="voice-length">
+            Lời đọc dài {seconds(scene.voice_seconds)} giây
+            {lengthened && ` · cảnh kéo dài thành ${seconds(scene.fitted_seconds)} giây`}
+          </Typography.Text>
+        </Flex>
+      )}
+    </Flex>
+  );
+}

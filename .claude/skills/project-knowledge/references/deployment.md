@@ -78,13 +78,13 @@ when set to an empty string. Containers use real environment variables only.
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
+| `ELEVENLABS_API_KEY` | worker: scene narration; without it a render with voice text fails with a clear reason |
+| `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL` | api and worker, optional, same values on both (the api recognizes made narration and the MP4 fingerprint by them): the voice (default "Adam", `pNInz6obpgDQGcFmaJgB`) and model (default `eleven_v3`); changing either re-makes every narration on the next render |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable |
 
-Only tests and E2E set these, to reach the local fake Claude and Pixabay
+Only tests and E2E set these, to reach the local fake Claude, Pixabay, and ElevenLabs
 ([api/scripts/fake_services.py](../../../../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
-`PIXABAY_API_URL`. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
-
-Planned with TTS: `TTS_PROVIDER` (`edge` or `azure`), `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`.
+`PIXABAY_API_URL`, `ELEVENLABS_API_URL`. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
 
 ## Operations
 

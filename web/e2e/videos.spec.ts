@@ -46,7 +46,9 @@ test("topic to MP4: script, edits, another photo, render, play, seek and downloa
 
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
-  await expect(page.getByTestId("render-time")).toContainText("Dài 8.0 giây");
+  // 3 s title + 5 scenes of 1 s, each lengthened to fit its fake narration of 4 words (0.2 + 1.2 + 0.4 s).
+  await expect(page.getByTestId("render-time")).toContainText("Dài 12.5 giây");
+  await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // Seeking needs Range answers (206) through the web app's /api proxy.
   const src = await page.getByTestId("mp4-player").getAttribute("src");
