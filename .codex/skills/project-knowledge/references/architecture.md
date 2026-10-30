@@ -4,8 +4,8 @@
 Status: built are the render core (see [Render Core](#render-core)), the web app with login and
 user management (see [Web App and Auth](#web-app-and-auth)), and the video pipeline: topic →
 Claude script → stored scene photos → server render, with the job queue and the worker service
-(see [Video Pipeline](#video-pipeline)), with scene narration by ElevenLabs. The full Knowledge Base
-(documents, food bank) and the team music library are agreed design and not yet built.
+(see [Video Pipeline](#video-pipeline)), with scene narration by ElevenLabs, and the team music
+library. The full Knowledge Base (documents, food bank) is agreed design and not yet built.
 
 ## Tech Stack
 
@@ -47,10 +47,10 @@ Workers (see [deployment.md](deployment.md#production)).
 | Component | Responsibility |
 |---|---|
 | `web` | Next.js UI. Calls the API only. |
-| `api` | FastAPI app ([api/](../../../../api/)). Auth, videos, scenes, photo and MP3 uploads, Pixabay search for the photo picker, previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
+| `api` | FastAPI app ([api/](../../../../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, Pixabay search for the photo picker, previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
 | worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude, then Pixabay photos) and renders (ElevenLabs narration, then FFmpeg). |
 | `postgres` | Relational data and the job queue. |
-| storage | One folder of uploaded photos, chosen Pixabay photos, MP3s (music and narration), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
+| storage | One folder of uploaded photos, chosen Pixabay photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
 
 The api and the worker are one Python package so models, migrations, and database configuration
 exist once; `reels_render` stays a library that needs only Pillow. Both images also install
@@ -145,6 +145,7 @@ Built (migrations in [api/migrations/](../../../../api/migrations/), models in
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing, the last narration MP3 with its length and the signature it was made from. |
 | `jobs` | Belongs to a video; kind (script, clone, render), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
 | `settings` | Editable app data: the script prompt, the clone prompt, the banned words. A missing row means the default from code. |
+| `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../../../../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
 
 Files are not table rows: a video's files live under one storage folder per video, with
 server-generated names (retention: [deployment.md](deployment.md#operations)).
@@ -155,7 +156,6 @@ Planned:
 |---|---|
 | KnowledgeDoc | one per knowledge document type; editable content (no approval state) |
 | FoodItem | food, main nutrients, benefits, who should avoid it, source URLs, `draft` / `approved` status |
-| Music library | licensed tracks shared by the team |
 | Video additions | content language (`vi` now, `en` later) |
 
 ## Video Pipeline

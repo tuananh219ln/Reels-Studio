@@ -79,11 +79,11 @@ test("login, empty video list, header and logout", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
-test("coming-soon page from the menu", async ({ page }) => {
+test("music library page from the menu", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Thư viện nhạc" }).click();
   await expect(page).toHaveURL(/\/music$/);
-  await expect(page.getByText("Sắp có: chưa có dữ liệu")).toBeVisible();
+  await expect(page.getByText("Chưa có bài nhạc nào")).toBeVisible();
 });
 
 test("a new user logs in with the temporary password and must change it", async ({ page, browser }) => {

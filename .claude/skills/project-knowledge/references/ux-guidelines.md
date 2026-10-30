@@ -32,12 +32,18 @@ Built:
   - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
-  - the "Giọng đọc" switch (narration on/off); optional MP3 with a volume slider; MP4 player, "Tải MP4", and the render time;
+  - the "Giọng đọc" switch (narration on/off); optional music, chosen from the library ("Chọn từ
+    thư viện", filtered by topic, mood, and name) or uploaded as an MP3 (optionally saved to the
+    library with its topics and mood), with a volume slider; MP4 player, "Tải MP4", and the render time;
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list;
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): the script prompt, the clone prompt (each with "Khôi phục mặc
   định"), and the banned words.
+- **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
+  note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
+  "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
+  used the track keep their copy).
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
   Claude call count, and error; a row opens its video.
 
@@ -45,7 +51,6 @@ Planned:
 
 - **Knowledge Base documents:** edit each document and trigger "AI soạn nháp" (AI draft); the food
   bank table with draft or approved status and source links; approve rows.
-- **Music library** (`/music`, a placeholder today): upload licensed tracks.
 
 ## Video Template
 
@@ -76,8 +81,8 @@ There is one fixed template in the MVP, derived from the reference channel (see
 - **Audio:** by default no music: the video has a silent track, and members pick music (from
   Claude's suggestions) inside TikTok or Facebook when posting, because those libraries cannot be
   used outside their apps and an uploaded copyrighted MP3 can get the video muted or demonetized.
-  A member may upload one MP3 per video, at 25% volume by default, looped or cut to the video
-  length with a 1.5 s fade-out. The team music library comes later.
+  A member may add one MP3 per video, uploaded or picked from the team music library, at 25%
+  volume by default, looped or cut to the video length with a 1.5 s fade-out.
 - **Narration:** each scene's voice text read in the ElevenLabs "Adam" voice, mixed at full level
   over the music, starting 0.2 s into the scene. A scene whose narration is longer than its
   seconds is lengthened to fit. The "Giọng đọc" card turns it off for the whole video; an empty

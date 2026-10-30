@@ -134,6 +134,24 @@ class Job(Base):
     created_by: Mapped[User] = relationship()
 
 
+class MusicTrack(Base):
+    """A track in the team library. Choosing it for a video copies the file into the video's folder, so editing
+    or deleting the track never changes a video."""
+
+    __tablename__ = "music_tracks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(200))
+    topics: Mapped[list] = mapped_column(JSONB, default=list)  # values from music.TOPICS
+    mood: Mapped[str] = mapped_column(String(40))  # a value from music.MOODS
+    license_note: Mapped[str] = mapped_column(Text, default="")
+    storage_key: Mapped[str] = mapped_column(String(200))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    created_by: Mapped[User] = relationship()
+
+
 class Setting(Base):
     """Editable app data (script prompt, banned words); a missing row means the default from code."""
 

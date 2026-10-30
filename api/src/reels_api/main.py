@@ -6,6 +6,7 @@ from sqlalchemy.exc import OperationalError
 from . import config
 from .errors import ApiError, api_error_handler, database_error_handler, error_body, validation_error_handler
 from .routes_auth import router as auth_router
+from .routes_music import router as music_router
 from .routes_users import router as users_router
 from .routes_videos import router as videos_router
 
@@ -33,4 +34,5 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(videos_router)
+    app.include_router(music_router)
     return app
