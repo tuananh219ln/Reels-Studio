@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import facebook, knowledge, page_settings
+from . import facebook, fanpages, knowledge
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -224,6 +224,7 @@ def _publication_payload(post: Publication | None) -> dict | None:
     published = is_published(post)
     return {
         "status": "published" if published else post.status,
+        "fanpage": post.fanpage.name if post.fanpage else None,
         "scheduled_at": post.scheduled_at.isoformat() if post.scheduled_at else None,
         "url": facebook.reel_url(post.remote_id) if published and post.remote_id else None,
     }
@@ -320,7 +321,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
         "publication": _publication_payload(publication_of(db, video.id)),
-        "facebook_ready": bool(page_settings.page_id(db)) and page_settings.has_token(db),
+        "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,
         "clone_of": {
             "title": video.clone_source["title"],

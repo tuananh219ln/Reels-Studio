@@ -166,6 +166,24 @@ class Job(Base):
     created_by: Mapped[User] = relationship()
 
 
+class Fanpage(Base):
+    """A Facebook Page connected on /fanpages. `token_encrypted` is the Page's own token (see fanpages.py)."""
+
+    __tablename__ = "fanpages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    page_id: Mapped[str] = mapped_column(String(32), unique=True)
+    name: Mapped[str] = mapped_column(String(200))
+    token_encrypted: Mapped[str] = mapped_column(Text)
+    token_tail: Mapped[str] = mapped_column(String(8))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
+                                                 onupdate=func.now())
+
+    updated_by: Mapped[User | None] = relationship()
+
+
 class Publication(Base):
     """A video posted to a platform, once per platform. The publish job reads what to do from here."""
 
@@ -175,6 +193,7 @@ class Publication(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
     platform: Mapped[str] = mapped_column(String(16))  # facebook
+    fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id"))
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | scheduled | published
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The platform's id, saved before the upload, so "Thử lại" continues this reel instead of posting a second one.
@@ -185,6 +204,8 @@ class Publication(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    fanpage: Mapped[Fanpage | None] = relationship()
 
 
 class MusicTrack(Base):
@@ -206,8 +227,7 @@ class MusicTrack(Base):
 
 
 class Setting(Base):
-    """Values entered in the app: the Facebook Page (page_settings.py). The rows of the prompts and banned words
-    from before knowledge_topics are no longer read, and stay so a rollback finds them."""
+    """The prompts and banned words before knowledge_topics; no longer read, kept so a rollback finds them."""
 
     __tablename__ = "settings"
 

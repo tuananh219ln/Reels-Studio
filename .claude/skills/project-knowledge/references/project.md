@@ -63,10 +63,10 @@ app replaces CapCut, so the output is a finished MP4.
    [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
    comment manually.
 3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking, winner variants, API
-   auto-posting beyond the Facebook Page (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
+   auto-posting beyond Facebook Pages (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
    AI image generation. Concrete items live in [backlog.md](../../../../backlog.md).
 
-Posting to one Facebook Page is built. The rest of API auto-posting is deferred for these reasons:
+Posting to connected Facebook Pages is built. The rest of API auto-posting is deferred for these reasons:
 
 - Instagram publishing needs a Business/Creator account linked to a Facebook Page.
 - Until the TikTok Content Posting API app passes audit, it can only post privately, and TikTok's

@@ -19,7 +19,8 @@ from PIL import Image
 PIXABAY_KEY = "fake-pixabay-key"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
 FACEBOOK_PAGE = "1234567"
-FACEBOOK_TOKEN = "fake-facebook-token"
+FACEBOOK_TOKEN = "fake-facebook-token"  # the Page's own token, the only one that can post
+FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
 
 
 def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
@@ -64,6 +65,8 @@ class FakeServices:
         self.facebook_empty_status = False  # status reads answer 200 without a status
         self.facebook_finish_replies_lost = 0  # that many finish calls publish, then answer 500
         self.facebook_finish_draft = False  # a finished reel stays in draft, as while Facebook still processes it
+        # What the user token manages; each Page's access_token is FACEBOOK_TOKEN.
+        self.facebook_pages = [{"id": FACEBOOK_PAGE, "name": "Trang Dưỡng Sinh", "tasks": ["CREATE_CONTENT", "MANAGE"]}]
         self.facebook_processing = "ok"  # ok | error | rejected (the doc's shape: only the phase says so) | busy
         self.facebook_status_fails = 0  # that many status reads answer 400, as a rate limit may
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
@@ -179,6 +182,17 @@ class FakeServices:
                 return 500, {"error": {"message": "Service unavailable", "code": 2}}
         return 200, {"success": True}
 
+    def _me(self, path: str, query: dict) -> tuple[int, dict]:
+        token = query.get("access_token")
+        if token not in (FACEBOOK_TOKEN, FACEBOOK_USER_TOKEN):
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if path == "me":
+            return 200, {"id": FACEBOOK_PAGE, "name": "Trang Dưỡng Sinh"} if token == FACEBOOK_TOKEN else {
+                "id": "999", "name": "Người dùng hệ thống"}
+        if token == FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "(#100) Tried accessing nonexisting field (accounts)", "code": 100}}
+        return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
+
     def _reel_status(self, video_id: str, query: dict) -> tuple[int, dict]:
         if query.get("access_token") != FACEBOOK_TOKEN:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
@@ -268,8 +282,8 @@ class FakeServices:
                 elif parts.path.startswith("/facebook/"):
                     query = dict(urllib.parse.parse_qsl(parts.query))
                     target = parts.path.removeprefix("/facebook/")
-                    if target == FACEBOOK_PAGE and query.get("access_token") == FACEBOOK_TOKEN:
-                        self._send(200, {"id": target, "name": "Trang Dưỡng Sinh"})
+                    if target in ("me", "me/accounts"):
+                        self._send(*fake._me(target, query))
                     else:
                         self._send(*fake._reel_status(target, query))
                 elif parts.path == "/api/":

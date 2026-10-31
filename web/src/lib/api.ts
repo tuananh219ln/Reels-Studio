@@ -95,10 +95,15 @@ export type VideoDetail = VideoRow & {
   music: { url: string; name: string | null } | null;
   music_volume: number;
   voice_enabled: boolean;
-  /** The Page id and token are entered on /settings. */
-  facebook_ready: boolean;
+  /** The Pages in use, connected on /fanpages. */
+  fanpages: { id: number; name: string }[];
   /** The post to the Facebook Page; `pending` until the publish job has finished. */
-  publication: { status: "pending" | "scheduled" | "published"; scheduled_at: string | null; url: string | null } | null;
+  publication: {
+    status: "pending" | "scheduled" | "published";
+    fanpage: string | null;
+    scheduled_at: string | null;
+    url: string | null;
+  } | null;
   knowledge_topic: string | null;
   clone_of: { title: string; request: string } | null;
   title_scene: SceneData | null;
@@ -117,7 +122,18 @@ export type KnowledgeTopic = {
   video_count: number;
 };
 
-export type FacebookSettings = { page_id: string; has_token: boolean };
+export type Fanpage = {
+  id: number;
+  page_id: string;
+  name: string;
+  token_tail: string;
+  active: boolean;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+/** A Page a pasted token manages. */
+export type FanpageChoice = { page_id: string; name: string; can_post: boolean };
 
 export type Knowledge = {
   topics: KnowledgeTopic[];

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import clips, frames, knowledge
 from .db import get_db
 from .errors import ApiError
-from .models import Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
+from .models import Fanpage, Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
 from .pixabay import Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS
 from .sessions import current_member, now
@@ -94,6 +94,7 @@ class ScenePatchBody(BaseModel):
 
 
 class PublishBody(BaseModel):
+    fanpage_id: int
     scheduled_at: datetime | None = None
 
 
@@ -268,10 +269,16 @@ def publish(
             raise invalid("Giờ đăng phải kèm múi giờ")
         if not now() + MIN_SCHEDULE_DELAY <= when <= now() + MAX_SCHEDULE_DELAY:
             raise invalid("Giờ hẹn phải sau ít nhất 15 phút và trong vòng 29 ngày tới")
+    fanpage = db.get(Fanpage, body.fanpage_id)
+    if fanpage is None or not fanpage.active:
+        raise invalid("Hãy chọn một Fanpage đang dùng")
     if post is None:
         post = Publication(video_id=video.id, platform="facebook", created_by_id=me.user_id)
         db.add(post)
-    post.scheduled_at = when
+    # A reel belongs to its Page: moving the post would leave the first reel to go live by itself.
+    elif post.remote_id and post.fanpage_id != fanpage.id:
+        raise ApiError(409, "other_fanpage", "Video đã tải lên Fanpage khác, hãy đăng lại trên Fanpage đó")
+    post.fanpage_id, post.scheduled_at = fanpage.id, when
     _enqueue(db, video, "publish", me)
     return _saved(db, video)
 

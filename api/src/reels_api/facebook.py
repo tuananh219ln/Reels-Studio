@@ -57,11 +57,14 @@ def _send(request: urllib.request.Request, timeout: float) -> dict:
 def _http_error(status: int, body: str) -> FacebookError:
     detail = f"HTTP {status}: {body}"
     try:
-        code = json.loads(body)["error"]["code"]
-    except (ValueError, KeyError, TypeError):
-        code = None
-    if code in TOKEN_ERRORS:
-        message = "Token Facebook hết hạn hoặc không hợp lệ, hãy nhập lại trong Cài đặt"
+        error = json.loads(body)["error"]
+        code, subcode = error["code"], error.get("error_subcode")
+    except (ValueError, KeyError, TypeError, AttributeError):
+        code, subcode = None, None
+    if code == 100 and subcode == 33:
+        message = "Facebook không cho token này truy cập Page, hãy dán token mới trong Kết nối Fanpage"
+    elif code in TOKEN_ERRORS:
+        message = "Token Facebook hết hạn hoặc không hợp lệ, hãy dán token mới trong Kết nối Fanpage"
     elif code in PERMISSION_ERRORS:
         message = "Token Facebook chưa có quyền đăng lên Page này"
     elif code in RATE_LIMIT_ERRORS or status == 429:
@@ -79,10 +82,26 @@ def _publish_call(page: Page, fields: dict[str, str]) -> dict:
     return _send(urllib.request.Request(url, data=body, method="POST"), REQUEST_TIMEOUT)
 
 
-def page_name(page: Page) -> str:
-    query = urllib.parse.urlencode({"fields": "name", "access_token": page.token})
-    url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}?{query}"
-    return str(_send(urllib.request.Request(url), REQUEST_TIMEOUT).get("name", ""))
+def _read(page: Page, path: str, **fields: str) -> dict:
+    query = urllib.parse.urlencode({**fields, "access_token": page.token})
+    return _send(urllib.request.Request(f"{config.facebook_api_url()}/{path}?{query}"), REQUEST_TIMEOUT)
+
+
+def managed_pages(token: str) -> list[dict]:
+    """The Pages a pasted token reaches, each with the Page's own token, the only kind that can post. Facebook gives
+    those to whoever manages a Page; a Page's token reaches only that Page."""
+    page = Page("", token)
+    me = _read(page, "me", fields="id,name")
+    try:
+        accounts = _read(page, "me/accounts", fields="id,name,access_token,tasks", limit="100").get("data", [])
+    except FacebookError:
+        return [{"id": str(me.get("id")), "name": str(me.get("name", "")), "token": token, "can_post": True}]
+    return [{
+        "id": str(account.get("id")),
+        "name": str(account.get("name", "")),
+        "token": account.get("access_token", ""),
+        "can_post": "CREATE_CONTENT" in account.get("tasks", []) and bool(account.get("access_token")),
+    } for account in accounts]
 
 
 def start_upload(page: Page) -> tuple[str, str]:
