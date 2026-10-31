@@ -157,7 +157,8 @@ export default function VideoPage() {
         <ArrowLeftOutlined /> Danh sách video
       </Link>
       <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ margin: "12px 0 16px" }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
+        {/* Grows beside the actions, but never below 320 px: on a phone the actions wrap under the title. */}
+        <div style={{ minWidth: 0, flex: "1 1 320px" }}>
           <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }} data-testid="video-title">
             {video.title || video.topic}
           </Typography.Title>

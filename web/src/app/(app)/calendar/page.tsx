@@ -1,7 +1,7 @@
 "use client";
 
 import dayjsGenerateConfig from "@rc-component/picker/generate/dayjs";
-import { App, Calendar, Card, Flex, Tag, Typography } from "antd";
+import { App, Badge, Calendar, Card, Empty, Flex, Grid, Tag, Typography } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/vi";
 import Link from "next/link";
@@ -42,6 +42,18 @@ export default function CalendarPage() {
   }, [message]);
 
   const days = useMemo(() => byDay(posts), [posts]);
+  // Seven full-size day columns need about 760 px; a phone gets the compact month and the chosen day's list.
+  const wide = Grid.useBreakpoint().md ?? true;
+  const [chosen, setChosen] = useState<Dayjs>(vietnamToday);
+  const chosenPosts = days.get(chosen.format("DD/MM/YYYY")) ?? [];
+
+  const postTag = ({ post, clock }: { post: PostRow; clock: string }) => (
+    <Link key={post.video_id} href={`/videos/${post.video_id}`}>
+      <Tag color={POST_STATUS[post.status].color} style={{ whiteSpace: "normal", margin: 0 }}>
+        {clock} {post.title}
+      </Tag>
+    </Link>
+  );
 
   return (
     <>
@@ -55,25 +67,50 @@ export default function CalendarPage() {
           </Tag>
         ))}
       </Flex>
-      <Card styles={{ body: { overflowX: "auto" } }}>
-        <div style={{ minWidth: 760 }}>
-          <VietnamCalendar
-            cellRender={(date, info) =>
-              info.type !== "date" ? null : (
-                <Flex vertical gap={2}>
-                  {(days.get(date.format("DD/MM/YYYY")) ?? []).map(({ post, clock }) => (
-                    <Link key={post.video_id} href={`/videos/${post.video_id}`}>
-                      <Tag color={POST_STATUS[post.status].color} style={{ whiteSpace: "normal", margin: 0 }}>
-                        {clock} {post.title}
-                      </Tag>
-                    </Link>
-                  ))}
-                </Flex>
-              )
-            }
-          />
-        </div>
-      </Card>
+      {wide ? (
+        <Card styles={{ body: { overflowX: "auto" } }}>
+          <div style={{ minWidth: 760 }}>
+            <VietnamCalendar
+              cellRender={(date, info) =>
+                info.type !== "date" ? null : (
+                  <Flex vertical gap={2}>
+                    {(days.get(date.format("DD/MM/YYYY")) ?? []).map(postTag)}
+                  </Flex>
+                )
+              }
+            />
+          </div>
+        </Card>
+      ) : (
+        <Flex vertical gap={12}>
+          <Card styles={{ body: { padding: 8 } }}>
+            <VietnamCalendar
+              fullscreen={false}
+              value={chosen}
+              onSelect={setChosen}
+              cellRender={(date, info) => {
+                const day = info.type === "date" ? (days.get(date.format("DD/MM/YYYY")) ?? []) : [];
+                return day.length === 0 ? null : (
+                  <Flex justify="center" gap={2} data-testid="calendar-dot">
+                    {day.slice(0, 3).map(({ post }) => (
+                      <Badge key={post.video_id} status={post.status === "published" ? "success" : "processing"} />
+                    ))}
+                  </Flex>
+                );
+              }}
+            />
+          </Card>
+          <Card size="small" title={`Ngày ${chosen.format("DD/MM/YYYY")}`}>
+            {chosenPosts.length === 0 ? (
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có bài đăng nào" />
+            ) : (
+              <Flex vertical gap={6}>
+                {chosenPosts.map(postTag)}
+              </Flex>
+            )}
+          </Card>
+        </Flex>
+      )}
     </>
   );
 }

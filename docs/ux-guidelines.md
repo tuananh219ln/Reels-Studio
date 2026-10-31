@@ -72,8 +72,19 @@ Built:
   - **Lịch đăng bài** (`/calendar`): the same videos in a month view, coloured by status. A video
     opens its page. Everything is in Vietnam time whatever the browser's time zone: the day a video
     sits under, the month it opens on, and the "today" mark.
+    On a phone the month is compact, with a dot on each day that has a video, and the chosen day's
+    videos are listed under it.
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
   Claude call count, and error; a row opens its video.
+
+Phones (below 992 px wide; built):
+
+- The menu collapses into a drawer opened from the header, which shows the logo and the avatar
+  only. On a wider screen the sidebar and the header stay in place while the page scrolls.
+- In the video editor the actions ("Render", "Nhân bản", "Xóa") wrap under the title, and each
+  scene's preview is a centred thumbnail at most 220 px wide.
+- Tables keep their columns and scroll sideways inside their card; the page itself never scrolls
+  sideways.
 
 Planned:
 

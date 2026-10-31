@@ -281,6 +281,17 @@ test("phone width: collapsed menu and no horizontal page scroll", async ({ page 
   expect(overflow).toBeLessThanOrEqual(0);
 });
 
+test("phone width: the calendar's month picker is on screen and the month fits without scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsSeed(page);
+  await page.goto("/calendar");
+  const month = page.locator(".ant-picker-calendar-month-select");
+  await expect(month).toBeVisible();
+  expect((await month.boundingBox())!.x + (await month.boundingBox())!.width).toBeLessThanOrEqual(390);
+  const sunday = await page.getByRole("columnheader", { name: "CN" }).boundingBox();
+  expect(sunday!.x + sunday!.width).toBeLessThanOrEqual(390);
+});
+
 test.describe("connection problems", () => {
   test.beforeEach(async ({ context }) => {
     await context.addCookies([{ name: "reels_session", value: "bat-ky", url: "http://localhost:3100" }]);
