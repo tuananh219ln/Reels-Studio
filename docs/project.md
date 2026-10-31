@@ -56,13 +56,16 @@ app replaces CapCut, so the output is a finished MP4.
    ready pinned comment. There is no Shopee API call yet, and members still pin the comment.
 7. **Job log (built):** every job with status, duration, Claude call count, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
+8. **Facebook posting (built):** members connect Fanpages by pasting a Page token, then post a
+   rendered video as a Reel now or at a set time. "Bài đăng" lists posted and scheduled videos and
+   "Lịch đăng bài" shows them in a month view, both in Vietnam time.
 
 ---
 
 ## Development Phases
 
 1. **MVP:** the features above.
-2. **Assisted publishing for Reels and TikTok:** a schedule, a reminder at the posting windows (see
+2. **Assisted publishing for Reels and TikTok** (Facebook Reels posting and its calendar are built): a schedule, a reminder at the posting windows (see
    [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
    comment manually.
 3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking, winner variants, API

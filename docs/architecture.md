@@ -3,13 +3,15 @@
 Status: built are the render core (see [Render Core](#render-core)), the web app with login and
 user management (see [Web App and Auth](#web-app-and-auth)), and the video pipeline: topic →
 Claude script → stored scene photos → server render, with the job queue and the worker service
-(see [Video Pipeline](#video-pipeline)), with scene narration by ElevenLabs, and the team music
-library. The full Knowledge Base (documents, food bank) is agreed design and not yet built.
+(see [Video Pipeline](#video-pipeline)), with scene narration by ElevenLabs, the team music
+library, prompts per topic group on `/knowledge`, posting to connected Facebook Pages (now or
+scheduled) with the view-only post list and calendar, and the manual Affiliate Shopee product list.
+The full Knowledge Base (documents, food bank) is agreed design and not yet built.
 
 ## Tech Stack
 
 **Frontend:** Next.js (React, TypeScript). The UI needs a scene editor, image assignment, a job
-log, and later a scheduling calendar. A Streamlit UI cannot support these for multiple users.
+log, and a post calendar. A Streamlit UI cannot support these for multiple users.
 
 **Backend:** Python with a FastAPI API and a separate worker for long-running jobs.
 
