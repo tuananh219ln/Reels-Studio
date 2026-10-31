@@ -32,6 +32,11 @@ class TrackPatchBody(BaseModel):
     license_note: str | None = None
 
 
+def like_pattern(value: str) -> str:
+    """The search text with LIKE wildcards made plain, for use with escape="\\\\"."""
+    return unicodedata.normalize("NFC", value.strip()).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 def track_not_found() -> ApiError:
     return ApiError(404, "track_not_found", "Không tìm thấy bài nhạc (có thể đã bị xóa)")
 
@@ -101,8 +106,7 @@ def list_tracks(topic: str | None = None, mood: str | None = None, q: str | None
     if mood:
         query = query.where(MusicTrack.mood == mood)
     if q and q.strip():
-        pattern = unicodedata.normalize("NFC", q.strip()).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        query = query.where(MusicTrack.name.ilike(f"%{pattern}%", escape="\\"))
+        query = query.where(MusicTrack.name.ilike(f"%{like_pattern(q)}%", escape="\\"))
     return [track_payload(track) for track in db.scalars(query)]
 
 

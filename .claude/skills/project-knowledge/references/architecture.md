@@ -199,6 +199,8 @@ Built (migrations in [api/migrations/](../../../../api/migrations/), models in
 | `jobs` | Belongs to a video; kind (script, clone, render, publish), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
 | `settings` | The prompts and banned words before `knowledge_topics`; no longer read. |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../../../../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
+| `affiliate_products` | The team's Shopee products, typed in from the affiliate dashboard: topic group, name, link, shop, shop type, rating, sales, price, commission rate, draft or approved, who approved it and when, creator. Approval needs a trusted shop type, at least 4.7 stars, 100 sales, and no banned word in the name ([routes_affiliate.py](../../../../api/src/reels_api/routes_affiliate.py)); changing an approved row sends it back to draft. A topic group with products cannot be deleted. |
+| `video_affiliate_products` | The products attached to a posted reel; deleted with either side. Only an approved product that meets the rules can be added; one that later stops qualifying stays, flagged, and is left out of the copied comment. |
 
 Files are not table rows: a video's files live under one storage folder per video, with
 server-generated names (retention: [deployment.md](deployment.md#operations)).

@@ -227,6 +227,42 @@ class MusicTrack(Base):
     created_by: Mapped[User] = relationship()
 
 
+class AffiliateProduct(Base):
+    """A Shopee product the team may promote, with the figures a member copied from the affiliate dashboard.
+    Rows start as drafts; only a member's approval makes one usable, and changing an approved row undoes that."""
+
+    __tablename__ = "affiliate_products"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    knowledge_topic_id: Mapped[int] = mapped_column(ForeignKey("knowledge_topics.id"))
+    name: Mapped[str] = mapped_column(String(300))
+    url: Mapped[str] = mapped_column(Text)  # the affiliate link
+    shop_name: Mapped[str] = mapped_column(String(200))
+    shop_type: Mapped[str] = mapped_column(String(16))  # a key of routes_affiliate.SHOP_TYPES
+    rating: Mapped[float] = mapped_column(Float)
+    sold: Mapped[int] = mapped_column(Integer)
+    price: Mapped[int] = mapped_column(Integer)  # VND
+    commission_rate: Mapped[float] = mapped_column(Float)  # percent
+    status: Mapped[str] = mapped_column(String(16), default="draft")  # draft | approved
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    checked_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    topic: Mapped[KnowledgeTopic] = relationship()
+    checked_by: Mapped[User | None] = relationship(foreign_keys=[checked_by_id])
+    created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
+
+
+class VideoAffiliateProduct(Base):
+    """A product whose link goes in the pinned comment of a posted reel."""
+
+    __tablename__ = "video_affiliate_products"
+
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
+
+
 class Setting(Base):
     """The prompts and banned words before knowledge_topics; no longer read, kept so a rollback finds them."""
 

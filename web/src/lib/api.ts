@@ -155,6 +155,43 @@ export type MusicTrack = {
 /** The api's fixed lists that tag every track. */
 export type MusicOptions = { topics: string[]; moods: string[] };
 
+export type AffiliateProduct = {
+  id: number;
+  knowledge_topic_id: number;
+  topic: string;
+  name: string;
+  url: string;
+  shop_name: string;
+  shop_type: string;
+  shop_type_label: string;
+  rating: number;
+  sold: number;
+  price: number;
+  commission_rate: number;
+  expected_commission: number;
+  status: "draft" | "approved";
+  checked_at: string | null;
+  checked_by: string | null;
+  /** Why it cannot be approved; empty when it can. */
+  problems: string[];
+};
+
+export type AffiliateOptions = {
+  shop_types: { value: string; label: string }[];
+  topics: { id: number; name: string }[];
+};
+
+/** A posted reel and the products whose links go in its pinned comment. */
+export type AffiliateVideo = {
+  id: number;
+  title: string;
+  reel_url: string | null;
+  published_at: string;
+  suggestions: string[];
+  pinned_comment: string;
+  products: Pick<AffiliateProduct, "id" | "name" | "url" | "status" | "problems">[];
+};
+
 /** A reel on Facebook, or waiting there for its time. */
 export type PostRow = {
   video_id: number;

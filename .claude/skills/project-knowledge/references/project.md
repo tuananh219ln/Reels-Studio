@@ -51,7 +51,10 @@ app replaces CapCut, so the output is a finished MP4.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text (on by default, off per
    video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
    tagged by fixed topics and a mood).
-6. **Job log (built):** every job with status, duration, Claude call count, and error; failed jobs
+6. **Affiliate Shopee (built, manual):** a product list entered by hand, ranked by expected
+   commission and approved by a member, with products attached to each posted reel and a
+   ready pinned comment. There is no Shopee API call yet, and members still pin the comment.
+7. **Job log (built):** every job with status, duration, Claude call count, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
 
 ---

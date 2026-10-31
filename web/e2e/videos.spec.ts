@@ -237,6 +237,61 @@ test("a scheduled video appears in Bài đăng and Lịch đăng bài without a 
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
+test("a posted reel takes an approved product and its link goes in the pinned comment", async ({ page, context }) => {
+  test.setTimeout(240_000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await renderedVideo(page);
+  await confirmPost(page);
+  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+
+  // Through the browser's fetch, so the request carries the Origin the CSRF guard wants.
+  await page.evaluate(async () => {
+    const send = (path: string, method = "GET", body?: unknown) =>
+      fetch(`/api/affiliate-products${path}`, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      }).then((response) => response.json());
+    const { topics } = await send("/options");
+    const fields = {
+      knowledge_topic_id: topics[0].id, shop_name: "Nhà Vừng", shop_type: "mall", rating: 4.8, sold: 500,
+      price: 100000, commission_rate: 10,
+    };
+    const sesame = await send("", "POST", { ...fields, name: "Vừng đen rang", url: "https://s.shopee.vn/vung" });
+    const tea = await send("", "POST", { ...fields, name: "Trà sen", url: "https://s.shopee.vn/tra", price: 50000 });
+    await send(`/${sesame.id}/approve`, "POST");
+    await send(`/${tea.id}/approve`, "POST");
+  });
+
+  await page.getByRole("menuitem", { name: "Affiliate Shopee" }).click();
+  const picker = page.getByLabel(/^Sản phẩm của video/);
+  await chooseOption(page, picker, "Vừng đen rang (~10.000đ)");
+  await expect(page.getByRole("button", { name: "Sao chép" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await chooseOption(page, picker, "Trà sen (~5.000đ)");
+  await page.keyboard.press("Escape");
+  await page.reload();
+
+  const copied = async () => {
+    await page.getByRole("button", { name: "Sao chép" }).click();
+    return page.evaluate(() => navigator.clipboard.readText());
+  };
+  // The script's sentence first, then one line per product. The Windows clipboard turns \n into \r\n.
+  const both = (await copied()).split(/\r?\n/);
+  expect(both[0]).toBe("Link sản phẩm ở đây nhé");
+  expect(both.slice(1).sort()).toEqual(["Trà sen: https://s.shopee.vn/tra", "Vừng đen rang: https://s.shopee.vn/vung"]);
+
+  // A product that lost its approval stays on the reel with a warning, but its link is not copied.
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await page.getByRole("row", { name: /Trà sen/ }).getByRole("button", { name: "Bỏ duyệt" }).click();
+  await expect(page.getByRole("row", { name: /Trà sen/ }).getByRole("button", { name: "Duyệt" })).toBeVisible();
+  await page.getByRole("tab", { name: "Video đã đăng" }).click();
+  await expect(page.getByText("Đã bỏ duyệt: Trà sen")).toBeVisible();
+  const rest = await copied();
+  expect(rest).toContain("Vừng đen rang: https://s.shopee.vn/vung");
+  expect(rest).not.toContain("https://s.shopee.vn/tra");
+});
+
 /** Gives the title and every content scene a photo, as a member does after the script is written. */
 async function uploadPhotos(page: Page) {
   const file = path.join(os.tmpdir(), `e2e-photo-${process.pid}.jpg`);

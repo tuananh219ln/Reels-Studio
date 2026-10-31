@@ -56,6 +56,14 @@ Built:
   "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is
   greyed out), and "Lưu" keeps the chosen ones. Each row has "Dán token mới", which must reach that
   Page, and "Ngừng dùng" or "Dùng lại". A stopped Page cannot be posted to.
+- **Affiliate Shopee** (`/affiliate`), two tabs:
+  - "Video đã đăng": reels on the Facebook Page, newest first, with the script's suggestions, a
+    picker of approved products (labelled with the expected commission per order), and a copy button
+    for the pinned comment with one link per product. A product that lost its approval or no longer
+    meets the rules stays attached with a yellow tag, and its link is left out of the copied text;
+  - "Sản phẩm": products ranked by expected commission per order, with shop, type, rating, sales,
+    price, and status; filters by name or shop, topic group, and status; "Thêm sản phẩm", "Sửa",
+    "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows why, in yellow.
 - **Đăng bài**, a menu group of two view-only screens. Nothing is posted or approved here: a member
   reviews and posts a video from the "Đăng Facebook" card on its page.
   - **Bài đăng** (`/posts`): videos posted or scheduled, latest time first, with the Fanpage,

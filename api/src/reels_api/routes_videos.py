@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import clips, frames, knowledge
 from .db import get_db
 from .errors import ApiError
-from .models import Fanpage, Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
+from .models import AffiliateProduct, Fanpage, Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
 from .pixabay import Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS
 from .sessions import current_member, now
@@ -925,6 +925,10 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     videos = db.scalar(select(func.count()).select_from(Video).where(Video.knowledge_topic_id == topic.id))
     if videos:
         raise ApiError(409, "topic_in_use", f"Nhóm chủ đề còn {videos} video nên chưa xoá được")
+    products = db.scalar(select(func.count()).select_from(AffiliateProduct)
+                         .where(AffiliateProduct.knowledge_topic_id == topic.id))
+    if products:
+        raise ApiError(409, "topic_in_use", f"Nhóm chủ đề còn {products} sản phẩm affiliate nên chưa xoá được")
     db.delete(topic)
     db.commit()
     return _knowledge_payload(db)
