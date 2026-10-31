@@ -19,8 +19,8 @@ Source: the owner's plan "Plan Project Knowledge – Kênh Reels Dưỡng sinh &
 ## Video Formula
 
 Each reel is a numbered list. A close-up food image carries large black text in a yellow box, with
-soft instrumental music. There are no faces. The caption repeats the title and the full list so
-viewers save it. The visual specification is in [ux-guidelines.md](ux-guidelines.md#video-template).
+soft instrumental music. There are no faces. What the caption says follows the topic group's
+prompt on `/knowledge`. The visual specification is in [ux-guidelines.md](ux-guidelines.md#video-template).
 
 Recurring title formulas:
 
@@ -64,7 +64,7 @@ One Claude call per topic returns JSON with:
 1. 5 title options, each ≤ 12 words and uppercase.
 2. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
    breaks), and a 9:16 image prompt (realistic photo, natural light, wooden table).
-3. A caption of 80–120 words plus 5 hashtags.
+3. A caption as the prompt asks, short when it does not say, plus 5 hashtags.
 4. 2 affiliate product suggestions plus the pinned-comment text.
 5. A safety self-review that lists the sentences it changed.
 6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
@@ -80,10 +80,12 @@ How the prompt is built (built, compact version):
   `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
 - **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
   are code, not editable (see [patterns.md](patterns.md)). It asks for a voice text per scene
-  (15–20 words, based on that scene's on-screen text but a little more detailed, no `*` markup)
-  and an opening line for the title scene that fits all 5 titles, since members choose among them
-  after it is written. All voice texts together stay within 120 words, which keeps a narrated video
-  under 48 seconds at about 2.9 words per second; banned words cover the voice text too.
+  (6–12 words, continuing that scene's on-screen text without repeating it, no `*` markup) and an
+  opening line for the title scene (8–12 words) that fits all 5 titles, since members choose among
+  them after it is written. Narration reads each scene's on-screen text, then its voice text, so
+  the longest title, every on-screen text, and every voice text together stay within 120 words,
+  which keeps a narrated video under 48 seconds at about 2.9 words per second; banned words cover
+  the voice text too.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
   become 4, keywords are cut to 100 characters, missing parts stay empty. Everything then goes

@@ -89,6 +89,19 @@ stays: a Pixabay photo is downloaded by the api and stored with the scene like a
 member sees and can replace it; the render uses only stored photos and still blocks a scene
 without one; jobs never pick photos; no source or license info beyond the stored Pixabay URL.
 
+## 2026-10-31 — Caption length comes from the editable prompt
+
+The fixed output format no longer sets 80–120 words or a repeated full list, so a topic group can
+ask for a short caption on `/knowledge` without a code change. With no request in the prompt, the
+caption is short. The output format still fixes the JSON field and the 5 hashtags.
+
+## 2026-10-31 — Narration reads the on-screen text, then the voice text
+
+The spoken text is joined when the render runs rather than copied into the voice text, so choosing
+another title or editing a scene's text is always what gets read. An empty voice text still means a
+silent scene. Claude's voice texts got shorter and no longer repeat the screen, and the 120-word
+budget now counts both, to keep a video under 48 seconds.
+
 ## 2026-10-31 — Decisions are logged in the repo
 
 Settled decisions are recorded in this file, in the repo, because agents and team members can
