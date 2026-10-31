@@ -58,6 +58,10 @@ macOS/Linux use `.venv/bin/...`).
 | E2E (starts api, worker and fake services itself) | `cd web && npm run e2e` |
 | New migration | `cd api && .venv/bin/alembic revision -m "..."`, then edit it |
 
+Claude Code formats and lints every file it writes through
+[.claude/hooks/format-lint.sh](.claude/hooks/format-lint.sh); other agents run the commands above
+before finishing.
+
 CI ([.github/workflows/ci-cd.yml](.github/workflows/ci-cd.yml)) runs all of the above on every PR;
 a push to `main` deploys only after everything passes.
 
