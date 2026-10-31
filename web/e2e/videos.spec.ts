@@ -26,6 +26,9 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
   await uploadPhotos(page);
   await expect(title.getByTestId("scene-preview")).toBeVisible();
+  // Before an MP4 the side panel opens on "Thiết lập"; the post texts have their own tab.
+  await expect(page.getByRole("tab", { name: "Thiết lập" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
   await expect(page.getByTestId("self-review")).toBeVisible();
   await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
 
@@ -58,6 +61,8 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByTestId("render-time")).toContainText("Dài 21.0 giây");
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
+  // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
+  await page.getByRole("tab", { name: "Xuất bản" }).click();
   // Seeking needs Range answers (206) through the web app's /api proxy.
   const src = await page.getByTestId("mp4-player").getAttribute("src");
   const range = await page.request.get(src ?? "", { headers: { Range: "bytes=100-199" } });
@@ -103,6 +108,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
+  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
   const caption = page.getByLabel("Caption");
   await caption.fill("Caption mới");
   await caption.blur();
@@ -197,6 +203,28 @@ test("phone width: the editor title keeps the full width and the actions sit bel
   // A scene photo stays a thumbnail, not a full-screen-tall frame.
   const preview = await page.getByTestId("title-scene").getByTestId("scene-preview").boundingBox();
   expect(preview!.height).toBeLessThan(420);
+  // "Render" stays on screen at the bottom, at the top of the page and deep among the scenes alike.
+  await expect(page.getByRole("button", { name: "Render" })).toBeInViewport();
+  await page.getByTestId("scene").nth(3).scrollIntoViewIfNeeded();
+  await expect(page.getByRole("button", { name: "Render" })).toBeInViewport();
+});
+
+test("the render bar counts what blocks the render and jumps to it", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  // No scene has a photo yet: each of the title and the five scenes is blocked.
+  const bar = page.getByTestId("render-bar");
+  await expect(bar.getByRole("button", { name: /^Còn 6 lỗi cần sửa/ })).toBeVisible();
+  await bar.getByRole("button", { name: /^Còn 6 lỗi cần sửa/ }).click();
+  await expect(page.getByTestId("title-scene").getByTestId("scene-blocking")).toBeInViewport();
+  await uploadPhotos(page);
+  await expect(bar).toContainText("Sẵn sàng render.");
+  await expect(bar.getByRole("button", { name: "Render" })).toBeEnabled();
 });
 
 /** A rendered video with its Page connected, open on its own page. */

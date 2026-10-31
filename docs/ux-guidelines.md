@@ -23,7 +23,14 @@ Built:
   topic), title, status (Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) with the labels "MP4
   chưa cập nhật theo bản sửa" and "Render lại lỗi", creator, date, search by title or topic,
   "Tạo video".
-- **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit:
+- **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
+  The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
+  and "Đăng Facebook"), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
+  đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
+  and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
+  "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
+  counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
+  one when clicked. The editor has:
   - choose 1 of 5 titles; edit the title scene and every content scene (text with `*word*` in
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
@@ -92,8 +99,9 @@ Phones (below 992 px wide; built):
 
 - The menu collapses into a drawer opened from the header, which shows the logo and the avatar
   only. On a wider screen the sidebar and the header stay in place while the page scrolls.
-- In the video editor the actions ("Render", "Nhân bản", "Xóa") wrap under the title, and each
-  scene's preview is a centred thumbnail at most 220 px wide.
+- In the video editor the actions ("Nhân bản", "Xóa") wrap under the title, the tab panel sits
+  under the scenes, the render bar stays at the bottom of the screen, and each scene's preview is
+  a centred thumbnail at most 220 px wide.
 - Tables keep their columns and scroll sideways inside their card; the page itself never scrolls
   sideways.
 

@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  ArrowLeftOutlined,
-  CopyOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  PlusOutlined,
-  RobotOutlined,
-  VideoCameraOutlined,
-} from "@ant-design/icons";
+import { ArrowLeftOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   App,
   Alert,
@@ -17,6 +9,7 @@ import {
   Col,
   Collapse,
   Flex,
+  Grid,
   Input,
   Modal,
   Radio,
@@ -24,7 +17,7 @@ import {
   Row,
   Space,
   Spin,
-  Tooltip,
+  Tabs,
   Typography,
 } from "antd";
 import Link from "next/link";
@@ -35,6 +28,7 @@ import { EditorContext } from "@/components/video/AutoSaveField";
 import MusicCard from "@/components/video/MusicCard";
 import PostContent from "@/components/video/PostContent";
 import PublishCard from "@/components/video/PublishCard";
+import RenderBar from "@/components/video/RenderBar";
 import VoiceCard from "@/components/video/VoiceCard";
 import SceneCard from "@/components/video/SceneCard";
 import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
@@ -49,6 +43,18 @@ const JOB_NAMES = {
   image: "Tạo ảnh AI",
 } as const;
 
+/** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
+type SideTab = "publish" | "setup" | "post";
+
+// Below the sticky header (72 px) and above the render bar, so neither covers the panel.
+const SIDE_PANEL_STYLE = {
+  position: "sticky",
+  top: 88,
+  maxHeight: "calc(100vh - 88px - 96px)",
+  overflowY: "auto",
+  paddingRight: 4,
+} as const;
+
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -57,6 +63,10 @@ export default function VideoPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cloning, setCloning] = useState(false);
+  // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Xuất bản".
+  const [sideTab, setSideTab] = useState<SideTab | null>(null);
+  // The two columns sit side by side from xl up; only then does the side panel stick.
+  const sideBySide = Grid.useBreakpoint().xl ?? false;
   const pending = useRef(new Set<Promise<unknown>>());
 
   const load = useCallback(async () => {
@@ -189,24 +199,6 @@ export default function VideoPage() {
           </div>
         </div>
         <Space wrap>
-          {video.has_script &&
-            [video.title_scene, ...video.scenes].some((scene) => scene && !scene.has_image && !scene.video) && (
-              <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={generateImages}>
-                Tạo ảnh AI cho cảnh thiếu
-              </Button>
-            )}
-          {video.has_script && (
-            <Tooltip title={video.can_render || job ? undefined : "Còn lỗi cần sửa ở các cảnh (xem ô đỏ)"}>
-              <Button
-                type="primary"
-                icon={<VideoCameraOutlined />}
-                disabled={!video.can_render || busy}
-                onClick={render}
-              >
-                Render
-              </Button>
-            </Tooltip>
-          )}
           {!video.has_script && !job && (
             <Button
               type="primary"
@@ -310,7 +302,7 @@ export default function VideoPage() {
           <Col xs={24} xl={15}>
             <Flex vertical gap={16}>
               {video.video_blocking.map((reason) => (
-                <Alert key={reason} type="error" showIcon title={reason} />
+                <Alert key={reason} type="error" showIcon title={reason} data-testid="video-blocking" />
               ))}
               {video.video_warnings
                 .filter((warning) => warning.field === "total" || warning.field === "scenes")
@@ -355,35 +347,75 @@ export default function VideoPage() {
             </Flex>
           </Col>
           <Col xs={24} xl={9}>
-            <Flex vertical gap={16}>
-              {video.mp4 && (
-                <Card title="MP4" size="small">
-                  <video
-                    key={video.mp4.url}
-                    src={video.mp4.url}
-                    controls
-                    preload="metadata"
-                    data-testid="mp4-player"
-                    style={{ width: "100%", maxWidth: 320, aspectRatio: "9 / 16", background: "#000", borderRadius: 6 }}
-                  />
-                  <Flex wrap gap={8} align="center" style={{ marginTop: 8 }}>
-                    <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
-                      Tải MP4
-                    </Button>
-                    <Typography.Text type="secondary" data-testid="render-time">
-                      Dài {video.mp4.seconds.toFixed(1)} giây · render mất {video.mp4.render_seconds.toFixed(1)} giây
-                    </Typography.Text>
-                  </Flex>
-                </Card>
-              )}
-              {video.mp4 && <PublishCard video={video} />}
-              <VoiceCard video={video} />
-              <MusicCard video={video} />
-              <PostContent video={video} />
-            </Flex>
+            {/* On a wide screen the side panel stays in view while the scenes scroll past it. */}
+            <div style={sideBySide ? SIDE_PANEL_STYLE : undefined}>
+              <Tabs
+                activeKey={sideTab ?? (video.mp4 ? "publish" : "setup")}
+                onChange={(key) => setSideTab(key as SideTab)}
+                items={[
+                  {
+                    key: "publish",
+                    label: "Xuất bản",
+                    children: (
+                      <Flex vertical gap={16}>
+                        {video.mp4 ? (
+                          <>
+                            <Card title="MP4" size="small">
+                              <video
+                                key={video.mp4.url}
+                                src={video.mp4.url}
+                                controls
+                                preload="metadata"
+                                data-testid="mp4-player"
+                                style={{
+                                  width: "100%",
+                                  maxWidth: 320,
+                                  aspectRatio: "9 / 16",
+                                  background: "#000",
+                                  borderRadius: 6,
+                                }}
+                              />
+                              <Flex wrap gap={8} align="center" style={{ marginTop: 8 }}>
+                                <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
+                                  Tải MP4
+                                </Button>
+                                <Typography.Text type="secondary" data-testid="render-time">
+                                  Dài {video.mp4.seconds.toFixed(1)} giây · render mất{" "}
+                                  {video.mp4.render_seconds.toFixed(1)} giây
+                                </Typography.Text>
+                              </Flex>
+                            </Card>
+                            <PublishCard video={video} />
+                          </>
+                        ) : (
+                          <Card size="small">
+                            <Typography.Text type="secondary">
+                              Chưa có MP4. Bấm “Render” ở thanh dưới cùng khi các cảnh đã đủ ảnh; MP4 và phần đăng
+                              Facebook sẽ hiện ở đây.
+                            </Typography.Text>
+                          </Card>
+                        )}
+                      </Flex>
+                    ),
+                  },
+                  {
+                    key: "setup",
+                    label: "Thiết lập",
+                    children: (
+                      <Flex vertical gap={16}>
+                        <VoiceCard video={video} />
+                        <MusicCard video={video} />
+                      </Flex>
+                    ),
+                  },
+                  { key: "post", label: "Nội dung đăng", children: <PostContent video={video} /> },
+                ]}
+              />
+            </div>
           </Col>
         </Row>
       )}
+      {video.has_script && <RenderBar video={video} busy={busy} onRender={render} onGenerateImages={generateImages} />}
       <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
     </EditorContext.Provider>
   );
