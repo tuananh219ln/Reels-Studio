@@ -11,6 +11,14 @@ function seconds(value: number): string {
 /** A scene's voice text, and once a render has made it, the narration with its length. */
 export default function VoiceText({ scene, save }: { scene: SceneData; save: (text: string) => Promise<VideoDetail> }) {
   const lengthened = scene.fitted_seconds > scene.seconds;
+  const hint = scene.voice_text.trim()
+    ? [
+        scene.text.trim() && "Đọc chữ trên màn hình trước, rồi đến lời đọc",
+        !scene.voice_url && "Giọng đọc được tạo khi render",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : undefined;
   return (
     <Flex vertical gap={4}>
       <AutoSaveField
@@ -19,7 +27,7 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
         multiline
         placeholder="để trống nếu cảnh không cần đọc"
         save={save}
-        hint={scene.voice_text.trim() && !scene.voice_url ? "Giọng đọc được tạo khi render" : undefined}
+        hint={hint}
       />
       {scene.voice_url && scene.voice_seconds !== null && (
         <Flex vertical gap={4} style={{ marginBottom: 8 }}>

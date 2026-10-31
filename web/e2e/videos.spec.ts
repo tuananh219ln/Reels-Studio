@@ -51,10 +51,13 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
     "Cá nhỏ chiên\nGiàu *canxi*",
   );
 
+  await expect(first.getByText("Đọc chữ trên màn hình trước, rồi đến lời đọc")).toBeVisible();
+
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
-  // 3 s title + 5 scenes of 1 s, each lengthened to fit its fake narration of 4 words (0.2 + 1.2 + 0.4 s).
-  await expect(page.getByTestId("render-time")).toContainText("Dài 12.5 giây");
+  // Each scene is lengthened to fit its fake narration of 0.3 s per word, on-screen text included, plus 0.6 s and the
+  // MP3 padding: title 15 words 5.2 s, first scene 9 words 3.4 s, the other four 8 words 3.1 s each.
+  await expect(page.getByTestId("render-time")).toContainText("Dài 21.0 giây");
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // Seeking needs Range answers (206) through the web app's /api proxy.

@@ -33,7 +33,7 @@ class SceneInput:
     text: str
     seconds: float
     has_image: bool  # a photo or a clip
-    voice_text: str = ""  # empty when the video's narration is off
+    voice_text: str = ""  # the member's own voice text; empty when the video's narration is off
     voice_seconds: float | None = None  # length of the narration already made for the current voice text
     clip_seconds: float | None = None  # what is left of the scene's clip after its start time
 
@@ -137,5 +137,5 @@ _SPACES = re.compile(r"\s+")
 
 
 def plain_title(text: str) -> str:
-    """The title scene text as one plain line, for lists and file names."""
+    """A scene's on-screen text as one plain line, for lists, file names and narration."""
     return _SPACES.sub(" ", text.replace("*", "")).strip()

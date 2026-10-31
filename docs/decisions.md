@@ -11,6 +11,13 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-10-31 — Narration reads the on-screen text, then the voice text
+
+The spoken text is joined when the render runs rather than copied into the voice text, so choosing
+another title or editing a scene's text is always what gets read. An empty voice text still means a
+silent scene. Claude's voice texts got shorter and no longer repeat the screen, and the 120-word
+budget now counts both, to keep a video under 48 seconds. This is an owner's request.
+
 ## 2026-10-31 — Decisions are logged in the repo
 
 Settled decisions are recorded in this file, in the repo, because agents and team members can
