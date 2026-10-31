@@ -16,7 +16,7 @@ in the MVP and described across `docs/`; this log gathers them in one place.
 The spoken text is joined when the render runs rather than copied into the voice text, so choosing
 another title or editing a scene's text is always what gets read. An empty voice text still means a
 silent scene. Claude's voice texts got shorter and no longer repeat the screen, and the 120-word
-budget now counts both, to keep a video under 48 seconds. This is an owner's request.
+budget now counts both, to keep a video under 48 seconds.
 
 ## 2026-10-31 — Decisions are logged in the repo
 
