@@ -13,15 +13,18 @@ export function resetDatabase() {
   });
 }
 
-/** Connects the fake Facebook Page (api/scripts/fake_services.py) on the settings page. */
+/** Connects the fake Facebook Page (api/scripts/fake_services.py). */
 export async function connectFacebook(page: Page) {
-  await page.getByRole("menuitem", { name: "Cài đặt" }).click();
-  await page.getByLabel("Page ID").fill("1234567");
-  await page.getByLabel("Token của Page").fill("fake-facebook-token");
-  await page.getByRole("button", { name: "Lưu" }).click();
-  await expect(page.getByLabel("Token của Page")).toHaveAttribute("placeholder", /Đã lưu/);
-  await page.getByRole("button", { name: "Kiểm tra kết nối" }).click();
-  await expect(page.getByTestId("facebook-test")).toHaveText("Kết nối được với Page “Trang Dưỡng Sinh”");
+  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  await page.getByRole("button", { name: "Thêm Fanpage" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm Fanpage" });
+  await dialog.getByLabel("Token", { exact: true }).fill("fake-facebook-user-token");
+  await dialog.getByRole("button", { name: "Kiểm tra token" }).click();
+  // The token manages one Page, so it is already ticked.
+  await expect(dialog.getByRole("checkbox", { name: /Trang Dưỡng Sinh/ })).toBeChecked();
+  await dialog.getByRole("button", { name: "Lưu" }).click();
+  await expect(page.getByRole("cell", { name: "Trang Dưỡng Sinh (1234567)" })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "…oken" })).toBeVisible();
   await page.getByRole("menuitem", { name: "Video" }).click();
 }
 

@@ -167,7 +167,7 @@ A scene may hold an uploaded video clip instead of a photo
 |---|---|---|
 | Claude API | Script generation and cloning (built); drafting Knowledge Base content (planned) | Called only from the worker, through the Anthropic SDK. Model is configurable; the default is `claude-sonnet-5-5`, with the server-side refusal fallback enabled. Every call is logged with its token counts. Knowledge drafting will use web search so it can return source URLs. |
 | ElevenLabs | Scene narration in the render job | The premade "Adam" voice by default, model `eleven_v3` with `language_code: vi` (`eleven_multilingual_v2` does not speak Vietnamese). Voice and model are configurable. Paid per character, so each scene's MP3 is stored and reused. |
-| Facebook Reels Publishing API | Posting a video to the team's one Page | Called only from the worker ([facebook.py](../../../../api/src/reels_api/facebook.py)). The Page id and a non-expiring Page token are entered on `/settings`, so there is no OAuth screen. |
+| Facebook Reels Publishing API | Posting a video to the team's one Page | Called only from the worker ([facebook.py](../../../../api/src/reels_api/facebook.py)). Pages are connected on `/fanpages` by pasting a token, so there is no OAuth screen. A user or system user token is swapped for each Page's own token through `/me/accounts`, and that token is what is kept. |
 | Pixabay | The CLI's stock search; the only stock source. The api's search and picker endpoints remain, but the web UI no longer offers them and jobs no longer pick photos | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). Searches inside a request give up after about 10 seconds. |
 | FFmpeg | Rendering | Installed in the worker image from Debian's package ([api/Dockerfile.worker](../../../../api/Dockerfile.worker)); on the dev host installed natively (see [deployment.md](deployment.md#current-state)). |
 
@@ -194,9 +194,10 @@ Built (migrations in [api/migrations/](../../../../api/migrations/), models in
 | `videos` | Topic, whether the script exists, narration on/off, title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from. |
-| `publications` | A video posted to a platform, one row per video and platform (only `facebook` today): pending, scheduled, or published, the scheduled time, the platform's id of the post, who started it. |
+| `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last. |
+| `publications` | A video posted to a platform, one row per video and platform (only `facebook` today): the Fanpage, pending, scheduled, or published, the scheduled time, the platform's id of the post, who started it. |
 | `jobs` | Belongs to a video; kind (script, clone, render, publish), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
-| `settings` | The Facebook Page id and its encrypted token. The rows of the prompts and banned words from before `knowledge_topics` are no longer read. |
+| `settings` | The prompts and banned words before `knowledge_topics`; no longer read. |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../../../../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
 
 Files are not table rows: a video's files live under one storage folder per video, with
@@ -309,10 +310,10 @@ Planned:
 
 - API keys (Anthropic, Pixabay, ElevenLabs) live only in environment variables. They are never
   committed or stored in the database.
-- The Facebook Page token is entered on `/settings`, by the owner's decision, and stored in
-  `settings` encrypted with a key generated in the storage folder
-  ([page_settings.py](../../../../api/src/reels_api/page_settings.py)), so a database dump alone
-  does not reveal it. No response ever carries it. Any member can replace it. Losing the key file
-  only means entering the token again.
+- Facebook Page tokens are pasted on `/fanpages`, by the owner's decision, checked with Facebook,
+  and stored in `fanpages` encrypted with a key generated in the storage folder
+  ([fanpages.py](../../../../api/src/reels_api/fanpages.py)), so a database dump alone does not
+  reveal them. No response ever carries one, only its last four characters. Any member can replace
+  one. Losing the key file only means pasting the tokens again.
 - Passwords are stored hashed.
 - The only personal data is team members' emails.

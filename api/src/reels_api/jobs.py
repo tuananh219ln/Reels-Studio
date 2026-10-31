@@ -17,7 +17,7 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import facebook, knowledge, page_settings
+from . import facebook, fanpages, knowledge
 from .claude import (
     ClaudeError,
     GeneratedScript,
@@ -275,7 +275,7 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         return
     try:
         # An attempt before this one may have reached Facebook whatever it reported, so its reel decides first.
-        page = page_settings.load_page(db)
+        page = fanpages.load_page(db, post.fanpage_id)
         status = facebook.reel_status(page, post.remote_id) if post.remote_id else None
         asked = status is not None and post.finish_sent_at is not None and not facebook.is_failed(status)
         if asked and facebook.is_busy(status):
