@@ -1,7 +1,7 @@
 # Reels Studio
 
 > **README này dành cho chủ dự án**, không dành cho AI agent.
-> Hướng dẫn cho agent nằm trong CLAUDE.md và skill .claude/skills/project-knowledge/.
+> Rules cho mọi AI agent (Claude, Codex, Cursor, ...) nằm trong `AGENTS.md`; tài liệu dự án nằm trong `docs/`.
 
 ## Giới thiệu
 
@@ -10,12 +10,10 @@ Web app nội bộ tạo video ngắn dọc 9:16 (20–40 giây) cho Reels, TikT
 ## Cấu trúc dự án
 
 ```
-.claude/                    # Kho tri thức cho AI agent (Claude Code)
-├── skills/
-│   └── project-knowledge/  # Tài liệu dự án (kiến trúc, pattern, ...)
-└── agents/                 # Agent review / validate
-.codex/                     # Bản sinh tự động cho Codex — không sửa tay
-.githooks/pre-commit        # Đồng bộ .claude/** sang .codex/** + AGENTS.md
+AGENTS.md         # Rules chung cho mọi AI agent (CLAUDE.md chỉ import file này)
+docs/             # Tài liệu dự án: kiến trúc, pattern, triển khai, UX, nội dung
+└── specs/        # Spec của các tính năng đầu tiên (lịch sử)
+ruff.toml         # Cấu hình lint Python cho api/ và worker/
 
 worker/           # Lõi render video (Python, CLI reels_render)
 api/              # FastAPI: đăng nhập, phiên, quản lý người dùng (Postgres + Alembic)
@@ -23,26 +21,26 @@ web/              # Next.js + Ant Design: giao diện web
 docker-compose.yml  # Postgres cho máy dev
 
 backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
-work/             # Tính năng và lỗi đang làm
-└── [feature]/    # Mỗi tính năng có một user-spec.md
 ```
 
-## Phương pháp phát triển
+## Cách làm việc với AI
 
-Dự án dùng cách làm **spec-driven** với AI agent:
+- Mọi AI agent đọc `AGENTS.md`: cách làm (gọn, không subagent), lệnh lint/test, quy tắc dễ sai,
+  quy trình git. Sửa rules thì sửa ở đó, không tạo bản riêng cho từng AI.
+- Tài liệu dự án trong `docs/` được cập nhật cùng PR khi hành vi thay đổi.
+- Tính năng lớn ghi kế hoạch ngắn trong mô tả PR. Ý tưởng và lỗi đã biết ghi trong `backlog.md`.
 
-1. **User Spec** (viết bằng ngôn ngữ của người dùng) → thống nhất kết quả mong muốn
-2. **Triển khai** → một phiên agent mới thực hiện user-spec đó
-3. **Hoàn tất** → cập nhật tài liệu dự án và lưu trữ tính năng vào `work/completed/`
+**Kiểm soát code do AI viết:**
 
-Ý tưởng tính năng và lỗi đã biết ghi trong `backlog.md`. Việc đang làm nằm trong thư mục `work/`.
-
-## Bắt đầu
-
-1. Bật git hook (một lần sau khi clone): `git config core.hooksPath .githooks`
-2. Tài liệu dự án đã có trong `.claude/skills/project-knowledge/`. Muốn cập nhật thì yêu cầu
-   "cập nhật tài liệu" (skill `documentation-writing`).
-3. Lên spec cho tính năng đầu tiên bằng skill `user-spec-planning`.
+- `.github/CODEOWNERS`: PR đụng migration, CI, luật lint, rules cho AI, đăng nhập và token Fanpage
+  sẽ tự yêu cầu người sở hữu duyệt.
+- `.github/pull_request_template.md`: mỗi PR ghi làm gì, kiểm tra thế nào, rủi ro gì.
+- `.claude/settings.json`: Claude Code không được đọc `.env`, force push, `reset --hard`, hạ
+  migration hay push thẳng lên `main`; muốn sửa CI, luật lint, migration hay rules thì phải hỏi.
+- `.github/workflows/claude-review.yml`: AI review một PR **chỉ khi** người có quyền ghi vào repo
+  comment `/ai-review` trên PR đó (mỗi lần chạy tốn phí API); kết quả là comment tiếng Việt. Cần
+  secret `ANTHROPIC_API_KEY` (hoặc `CLAUDE_CODE_OAUTH_TOKEN` từ `claude setup-token`) trong
+  Settings → Secrets and variables → Actions. Workflow kiểu này chỉ chạy khi file đã nằm trên `main`.
 
 ## Chạy web app trên máy (localhost)
 
@@ -146,24 +144,3 @@ Nếu domain api cũng đi qua Cloudflare (đám mây cam), đặt SSL/TLS là *
 - Tải một ảnh lên một cảnh rồi render: MP4 có ảnh đó nghĩa là api và worker thấy cùng thư mục file.
 - Phát và **tua** MP4 trong trình duyệt trên domain web: tua được nghĩa là yêu cầu Range (206) đi
   qua được Cloudflare/OpenNext.
-
-## Online Pipeline (tùy chọn)
-
-Repo đã có sẵn các workflow GitHub Actions để chạy toàn bộ vòng đời tính năng (issue → phỏng vấn →
-PR spec → duyệt → triển khai → PR code → hoàn tất) chỉ qua GitHub, không cần terminal. Kèm theo là
-bản sao (vendored) các skill và agent mà workflow cần, trong `.claude/skills/` và `.claude/agents/`.
-Tất cả chưa hoạt động cho đến khi cài đặt xong:
-
-1. Cài Claude GitHub App cho repo (chạy `claude` và dùng `/install-github-app`, hoặc vào
-   https://github.com/apps/claude).
-2. Tạo credential Claude — `claude setup-token` (OAuth) hoặc API key từ
-   https://console.anthropic.com — và lưu thành secret `CLAUDE_CODE_OAUTH_TOKEN` hoặc
-   `ANTHROPIC_API_KEY` của repo.
-3. Tạo Personal Access Token (quyền `repo`) tại https://github.com/settings/tokens và lưu thành
-   secret `GH_PAT` (chỉ cần để việc duyệt PR spec kích hoạt được job triển khai).
-
-Sau khi đặt secret, mở một issue mới để bắt đầu pipeline.
-
-Các skill/agent vendored là bản chụp và sẽ cũ dần. Chạy lại
-`.claude/skills/online-pipeline/scripts/vendor-skills.sh` để kéo bản mới nhất — không có gì được
-commit tự động, hãy xem diff trước.

@@ -3,9 +3,9 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import PASSWORD, client_for, expire_all_sessions, login, make_user
 from sqlalchemy import select
 
-from conftest import PASSWORD, client_for, expire_all_sessions, login, make_user
 from reels_api.models import Session, User
 from reels_api.sessions import COOKIE_NAME
 
@@ -22,7 +22,11 @@ def test_login_sets_http_only_lax_cookie_for_30_days(client, db):
     assert "Max-Age=2592000" in cookie
     assert "Secure" not in cookie
     assert response.json() == {
-        "id": user.id, "email": "an@doi.vn", "name": "Nguyễn Văn An", "initial": "A", "must_change_password": False,
+        "id": user.id,
+        "email": "an@doi.vn",
+        "name": "Nguyễn Văn An",
+        "initial": "A",
+        "must_change_password": False,
     }
 
 

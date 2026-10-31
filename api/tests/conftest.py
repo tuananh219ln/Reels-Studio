@@ -74,8 +74,13 @@ def client(app):
 
 
 def make_user(db, email="an@doi.vn", name="Nguyễn Văn An", password=PASSWORD, must_change=False, active=True) -> User:
-    user = User(email=email, name=name, password_hash=hash_password(password),
-                must_change_password=must_change, is_active=active)
+    user = User(
+        email=email,
+        name=name,
+        password_hash=hash_password(password),
+        must_change_password=must_change,
+        is_active=active,
+    )
     db.add(user)
     db.commit()
     return user
@@ -88,7 +93,9 @@ def login(client, email="an@doi.vn", password=PASSWORD):
 
 
 def expire_all_sessions(db, user_id: int) -> None:
-    db.execute(text("UPDATE sessions SET expires_at = now() - interval '1 second' WHERE user_id = :id"), {"id": user_id})
+    db.execute(
+        text("UPDATE sessions SET expires_at = now() - interval '1 second' WHERE user_id = :id"), {"id": user_id}
+    )
     db.commit()
 
 
@@ -99,10 +106,9 @@ import sys as _sys
 
 from PIL import Image as _Image
 
-from reels_render import stock as _stock
-
 from reels_api.models import KnowledgeTopic, Scene, Video
 from reels_api.storage import DirectoryStorage
+from reels_render import stock as _stock
 
 _sys.path.insert(0, str(API_DIR / "scripts"))
 from fake_services import FakeServices  # noqa: E402
@@ -116,8 +122,16 @@ def isolated_files(tmp_path, monkeypatch):
     """Every test gets its own storage folder and Pixabay search cache."""
     monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(_stock, "default_cache_dir", lambda: tmp_path / "search-cache")
-    for name in ("PIXABAY_API_KEY", "PIXABAY_API_URL", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL",
-                 "ELEVENLABS_API_KEY", "ELEVENLABS_API_URL", "ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL"):
+    for name in (
+        "PIXABAY_API_KEY",
+        "PIXABAY_API_URL",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "ELEVENLABS_API_KEY",
+        "ELEVENLABS_API_URL",
+        "ELEVENLABS_VOICE_ID",
+        "ELEVENLABS_MODEL",
+    ):
         monkeypatch.setenv(name, "")
 
 
@@ -146,18 +160,38 @@ def first_topic(db) -> KnowledgeTopic:
     return db.scalar(select(KnowledgeTopic).order_by(KnowledgeTopic.id))
 
 
-def make_video(db, storage, user, scene_count=5, seconds=4.0, images=True, topic="xương khớp",
-               title_text=TITLE_TEXT, scene_text=SCENE_TEXT) -> Video:
+def make_video(
+    db,
+    storage,
+    user,
+    scene_count=5,
+    seconds=4.0,
+    images=True,
+    topic="xương khớp",
+    title_text=TITLE_TEXT,
+    scene_text=SCENE_TEXT,
+) -> Video:
     """A video whose script is saved, like after a finished script job."""
-    video = Video(topic=topic, knowledge_topic_id=first_topic(db).id, has_script=True, created_by_id=user.id,
-                  title_options=[title_text, "TIÊU ĐỀ 2"],
-                  caption="caption", hashtags=["#a"], affiliates=["sữa"], pinned_comment="ghim",
-                  self_review=["x"], music_suggestions=["Windy Hill"])
+    video = Video(
+        topic=topic,
+        knowledge_topic_id=first_topic(db).id,
+        has_script=True,
+        created_by_id=user.id,
+        title_options=[title_text, "TIÊU ĐỀ 2"],
+        caption="caption",
+        hashtags=["#a"],
+        affiliates=["sữa"],
+        pinned_comment="ghim",
+        self_review=["x"],
+        music_suggestions=["Windy Hill"],
+    )
     db.add(video)
     db.flush()
     rows = [Scene(video_id=video.id, is_title=True, position=0, text=title_text, seconds=3, keywords=["canxi"])]
-    rows += [Scene(video_id=video.id, is_title=False, position=n, text=scene_text, seconds=seconds,
-                   keywords=[f"món {n}"]) for n in range(1, scene_count + 1)]
+    rows += [
+        Scene(video_id=video.id, is_title=False, position=n, text=scene_text, seconds=seconds, keywords=[f"món {n}"])
+        for n in range(1, scene_count + 1)
+    ]
     db.add_all(rows)
     db.flush()
     if images:
@@ -172,17 +206,35 @@ def make_video(db, storage, user, scene_count=5, seconds=4.0, images=True, topic
 import shutil as _shutil  # noqa: E402
 import subprocess as _subprocess  # noqa: E402
 
-needs_ffmpeg = pytest.mark.skipif(_shutil.which("ffmpeg") is None or _shutil.which("ffprobe") is None,
-                                  reason="ffmpeg/ffprobe không có trên PATH")
+needs_ffmpeg = pytest.mark.skipif(
+    _shutil.which("ffmpeg") is None or _shutil.which("ffprobe") is None, reason="ffmpeg/ffprobe không có trên PATH"
+)
 
 
 def clip_bytes(tmp_path, seconds=2.0, size="1280x720", codec="libx264", extension="mp4", rate=25) -> bytes:
     """A test-pattern clip with a tone, as a member's phone clip would have its own sound."""
     path = tmp_path / f"clip-{size}-{seconds}-{codec}.{extension}"
     _subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={size}:rate={rate}:duration={seconds}",
-         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}", "-c:v", codec, "-pix_fmt", "yuv420p",
-         "-shortest", str(path)],
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc2=size={size}:rate={rate}:duration={seconds}",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-c:v",
+            codec,
+            "-pix_fmt",
+            "yuv420p",
+            "-shortest",
+            str(path),
+        ],
         check=True,
     )
     return path.read_bytes()

@@ -11,6 +11,8 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// Every page except the login screen. New pages are covered without touching this list: only
+// /login, the /api proxy, Next.js assets and files with an extension (favicon, images) are left out.
 export const config = {
-  matcher: ["/", "/videos/:path*", "/users/:path*", "/knowledge/:path*", "/music/:path*", "/posts/:path*", "/calendar/:path*", "/affiliate/:path*", "/jobs/:path*", "/fanpages/:path*", "/change-password"],
+  matcher: ["/((?!login|api/|_next/|.*\\..*).*)"],
 };

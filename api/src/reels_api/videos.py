@@ -87,7 +87,9 @@ def lock_scene(db: DbSession, scene_id: int) -> tuple[Video, Scene]:
 
 def split_scenes(db: DbSession, video: Video) -> tuple[Scene | None, list[Scene]]:
     rows = db.scalars(
-        select(Scene).where(Scene.video_id == video.id).order_by(Scene.position, Scene.id)
+        select(Scene)
+        .where(Scene.video_id == video.id)
+        .order_by(Scene.position, Scene.id)
         .execution_options(populate_existing=True)
     ).all()
     title = next((scene for scene in rows if scene.is_title), None)
@@ -112,8 +114,10 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     keywords are left out."""
     every = ([title] if title else []) + scenes
     # A clip joins its scene's part only when there is one, so MP4s rendered before clips existed stay current.
-    parts = [[scene.text, scene.seconds, scene.image_key,
-              *([scene.video_key, scene.video_start] if scene.video_key else [])] for scene in every]
+    parts = [
+        [scene.text, scene.seconds, scene.image_key, *([scene.video_key, scene.video_start] if scene.video_key else [])]
+        for scene in every
+    ]
     # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
     # stored with, so they are not flagged as outdated.
     data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
@@ -154,9 +158,17 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
 def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tuple[SceneInput | None, list[SceneInput]]:
     def to_input(scene: Scene) -> SceneInput:
         clip_seconds = scene.video_seconds - scene.video_start if scene.video_key and scene.video_seconds else None
-        return SceneInput(scene.id, scene.is_title, scene.text, scene.seconds,
-                          bool(scene.image_key or scene.video_key), spoken(video, scene),
-                          made_voice_seconds(video, scene), clip_seconds)
+        return SceneInput(
+            scene.id,
+            scene.is_title,
+            scene.text,
+            scene.seconds,
+            bool(scene.image_key or scene.video_key),
+            spoken(video, scene),
+            made_voice_seconds(video, scene),
+            clip_seconds,
+        )
+
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
 
 
@@ -169,8 +181,7 @@ def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Sc
 def _last_failed(db: DbSession, video_id: int) -> Job | None:
     """The latest finished job when it failed; cancelled jobs leave the video as it was before them."""
     job = db.scalar(
-        select(Job).where(Job.video_id == video_id, Job.status.in_(("done", "failed")))
-        .order_by(Job.id.desc()).limit(1)
+        select(Job).where(Job.video_id == video_id, Job.status.in_(("done", "failed"))).order_by(Job.id.desc()).limit(1)
     )
     return job if job is not None and job.status == "failed" else None
 
@@ -216,7 +227,8 @@ def publication_of(db: DbSession, video_id: int) -> Publication | None:
 def is_published(post: Publication) -> bool:
     # Facebook publishes a scheduled reel by itself, so nothing here changes when the time comes.
     return post.status == "published" or (
-        post.status == "scheduled" and post.scheduled_at is not None and post.scheduled_at <= now())
+        post.status == "scheduled" and post.scheduled_at is not None and post.scheduled_at <= now()
+    )
 
 
 def live_at(post: Publication) -> datetime:
@@ -262,10 +274,15 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
             "url": f"{image}/video?v={_version(scene.video_key)}",
             "seconds": scene.video_seconds,
             "start": scene.video_start,
-        } if scene.video_key else None,
+        }
+        if scene.video_key
+        else None,
         "preview_url": (
-            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text)}" if scene.video_key
-            else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text)}" if scene.image_key else None
+            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text)}"
+            if scene.video_key
+            else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text)}"
+            if scene.image_key
+            else None
         ),
         "text_problem": text_problem(scene.text, scene.is_title),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
@@ -316,14 +333,18 @@ def video_payload(db: DbSession, video: Video) -> dict:
             "seconds": video.mp4_seconds,
             "render_seconds": video.render_seconds,
             "rendered_at": video.rendered_at.isoformat() if video.rendered_at else None,
-        } if video.mp4_key else None,
+        }
+        if video.mp4_key
+        else None,
         "thumbnail_url": (
             f"/api/videos/{video.id}/thumbnail.jpg?v={_version(video.thumbnail_key)}" if video.thumbnail_key else None
         ),
         "music": {
             "url": f"/api/videos/{video.id}/music.mp3?v={_version(video.music_key)}",
             "name": video.music_name,
-        } if video.music_key else None,
+        }
+        if video.music_key
+        else None,
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
         "publication": publication_payload(publication_of(db, video.id)),
@@ -332,7 +353,9 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "clone_of": {
             "title": video.clone_source["title"],
             "request": video.clone_source["request"],
-        } if video.clone_source else None,
+        }
+        if video.clone_source
+        else None,
         "title_scene": scene_payload(video, title, checks) if title else None,
         "scenes": [scene_payload(video, scene, checks) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],

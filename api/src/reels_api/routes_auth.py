@@ -60,9 +60,7 @@ def login(body: LoginBody, response: Response, db: DbSession = Depends(get_db)) 
     # Re-read the row under a lock before creating the session: a temp password, password change or
     # disable that committed while Argon2 ran revoked sessions already, so this login must not slip
     # a new one in behind it.
-    user = db.scalar(
-        select(User).where(User.id == user.id).with_for_update().execution_options(populate_existing=True)
-    )
+    user = db.scalar(select(User).where(User.id == user.id).with_for_update().execution_options(populate_existing=True))
     if user.password_hash != verified_hash:
         raise invalid
     # Only reveal that an account is disabled to someone who proved they own it.

@@ -1,8 +1,8 @@
 import pytest
+from conftest import first_topic, login, make_user, make_video
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from conftest import first_topic, login, make_user, make_video
 from reels_api.knowledge import default_clone_prompt, default_script_prompt
 from reels_api.models import Job
 
@@ -29,9 +29,12 @@ def test_the_first_topic_starts_with_the_defaults(an):
 
 def test_a_video_from_the_previous_api_version_still_gets_the_first_topic(db, me):
     # That version does not know the column, so its inserts leave it out.
-    topic_id = db.execute(text(
-        "INSERT INTO videos (topic, has_script, created_by_id) VALUES ('x', false, :user) RETURNING knowledge_topic_id"
-    ), {"user": me.id}).scalar_one()
+    topic_id = db.execute(
+        text(
+            "INSERT INTO videos (topic, has_script, created_by_id) VALUES ('x', false, :user) RETURNING knowledge_topic_id"
+        ),
+        {"user": me.id},
+    ).scalar_one()
     assert topic_id == first_topic(db).id
 
 
@@ -54,7 +57,9 @@ def test_a_new_topic_starts_empty_and_is_saved_on_its_own(an):
 
 def test_topic_names_are_required_and_unique(an):
     assert an.post("/api/knowledge/topics", json={"name": "  "}).json()["message"] == "Hãy nhập tên nhóm chủ đề"
-    assert an.post("/api/knowledge/topics", json={"name": "sức KHỎE"}).json()["message"] == "Đã có nhóm chủ đề “sức KHỎE”"
+    assert (
+        an.post("/api/knowledge/topics", json={"name": "sức KHỎE"}).json()["message"] == "Đã có nhóm chủ đề “sức KHỎE”"
+    )
     topic = an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"][1]
     assert an.patch(f"/api/knowledge/topics/{topic['id']}", json={"name": "Sức khỏe"}).status_code == 422
     assert an.patch(f"/api/knowledge/topics/{topic['id']}", json={"name": "GAN"}).status_code == 200
@@ -116,9 +121,16 @@ def test_every_file_endpoint_needs_a_login(app, db, me, storage):
     db.commit()
     scene = video.scenes[1].id
     anonymous = TestClient(app)
-    for path in (f"/api/videos/{video.id}/video.mp4", f"/api/videos/{video.id}/video.mp4?download=1",
-                 f"/api/videos/{video.id}/thumbnail.jpg", f"/api/scenes/{scene}/image",
-                 f"/api/scenes/{scene}/preview.jpg", "/api/videos", f"/api/videos/{video.id}", "/api/knowledge"):
+    for path in (
+        f"/api/videos/{video.id}/video.mp4",
+        f"/api/videos/{video.id}/video.mp4?download=1",
+        f"/api/videos/{video.id}/thumbnail.jpg",
+        f"/api/scenes/{scene}/image",
+        f"/api/scenes/{scene}/preview.jpg",
+        "/api/videos",
+        f"/api/videos/{video.id}",
+        "/api/knowledge",
+    ):
         assert anonymous.get(path).status_code == 401, path
 
 
@@ -127,9 +139,13 @@ def test_changes_need_the_web_origin(app, db, me, storage):
     foreign = TestClient(app, headers={"Origin": "https://evil.example"})
     login_response = foreign.post("/api/auth/login", json={"email": "an@doi.vn", "password": "x"})
     assert login_response.status_code == 403
-    for method, path in (("post", "/api/videos"), ("patch", f"/api/videos/{video.id}"),
-                         ("delete", f"/api/videos/{video.id}"), ("post", f"/api/videos/{video.id}/render"),
-                         ("patch", "/api/knowledge/topics/1")):
+    for method, path in (
+        ("post", "/api/videos"),
+        ("patch", f"/api/videos/{video.id}"),
+        ("delete", f"/api/videos/{video.id}"),
+        ("post", f"/api/videos/{video.id}/render"),
+        ("patch", "/api/knowledge/topics/1"),
+    ):
         assert getattr(foreign, method)(path).status_code == 403, path
 
 

@@ -173,8 +173,12 @@ def _ranked(db: DbSession, topic_id: int | None, status: str | None, q: str | No
         query = query.where(AffiliateProduct.status == status)
     if q and q.strip():
         pattern = f"%{like_pattern(q)}%"
-        query = query.where(or_(AffiliateProduct.name.ilike(pattern, escape="\\"),
-                                AffiliateProduct.shop_name.ilike(pattern, escape="\\")))
+        query = query.where(
+            or_(
+                AffiliateProduct.name.ilike(pattern, escape="\\"),
+                AffiliateProduct.shop_name.ilike(pattern, escape="\\"),
+            )
+        )
     return list(db.scalars(query))
 
 
@@ -190,8 +194,12 @@ def _live_at(post: Publication) -> datetime:
 
 def _video_payload(db: DbSession, video: Video, post: Publication) -> dict:
     title, _ = split_scenes(db, video)
-    products = db.scalars(select(AffiliateProduct).join(VideoAffiliateProduct).where(
-        VideoAffiliateProduct.video_id == video.id).order_by(AffiliateProduct.id))
+    products = db.scalars(
+        select(AffiliateProduct)
+        .join(VideoAffiliateProduct)
+        .where(VideoAffiliateProduct.video_id == video.id)
+        .order_by(AffiliateProduct.id)
+    )
     return {
         "id": video.id,
         "title": title_of(video, title) or video.topic,
@@ -199,8 +207,16 @@ def _video_payload(db: DbSession, video: Video, post: Publication) -> dict:
         "published_at": _live_at(post).isoformat(),
         "suggestions": video.affiliates,
         "pinned_comment": video.pinned_comment,
-        "products": [{"id": product.id, "name": product.name, "url": product.url, "status": product.status,
-                      "problems": _problems(product)} for product in products],
+        "products": [
+            {
+                "id": product.id,
+                "name": product.name,
+                "url": product.url,
+                "status": product.status,
+                "problems": _problems(product),
+            }
+            for product in products
+        ],
     }
 
 
@@ -213,29 +229,40 @@ def list_videos(me: Session = Depends(current_member), db: DbSession = Depends(g
 
 
 @router.put("/videos/{video_id}")
-def set_video_products(video_id: int, body: VideoProductsBody, me: Session = Depends(current_member),
-                       db: DbSession = Depends(get_db)) -> dict:
+def set_video_products(
+    video_id: int, body: VideoProductsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
     post = publication_of(db, video_id)
     if post is None or not is_published(post):
         raise ApiError(404, "video_not_published", "Video này chưa đăng lên Facebook")
     chosen = set(body.product_ids)
-    attached = set(db.scalars(select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == video_id)))
+    attached = set(
+        db.scalars(select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == video_id))
+    )
     products = list(db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(chosen))))
     if len(products) != len(chosen):
         raise ApiError(404, "product_not_found", "Không tìm thấy sản phẩm (có thể đã bị xóa)")
     # A product that stopped qualifying stays until a member removes it, so saving another change is not refused.
     if any((product.status != "approved" or _problems(product)) and product.id not in attached for product in products):
         raise ApiError(409, "product_not_approved", "Chỉ gắn được sản phẩm đã duyệt và còn đạt tiêu chí")
-    db.execute(delete(VideoAffiliateProduct).where(VideoAffiliateProduct.video_id == video_id,
-                                                   VideoAffiliateProduct.product_id.not_in(chosen)))
+    db.execute(
+        delete(VideoAffiliateProduct).where(
+            VideoAffiliateProduct.video_id == video_id, VideoAffiliateProduct.product_id.not_in(chosen)
+        )
+    )
     db.add_all(VideoAffiliateProduct(video_id=video_id, product_id=product_id) for product_id in chosen - attached)
     db.commit()
     return _video_payload(db, db.get(Video, video_id), post)
 
 
 @router.get("")
-def list_products(topic_id: int | None = None, status: str | None = None, q: str | None = None,
-                  me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+def list_products(
+    topic_id: int | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> list[dict]:
     return [_payload(product) for product in _ranked(db, topic_id, status, q)]
 
 
@@ -248,23 +275,57 @@ def options(me: Session = Depends(current_member), db: DbSession = Depends(get_d
 
 
 @router.get("/export.csv")
-def export_products(topic_id: int | None = None, status: str | None = None, q: str | None = None,
-                    me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> Response:
+def export_products(
+    topic_id: int | None = None,
+    status: str | None = None,
+    q: str | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> Response:
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(["Nhóm chủ đề", "Sản phẩm", "Shop", "Loại shop", "Sao", "Đã bán", "Giá (đ)", "Hoa hồng (%)",
-                     "Hoa hồng ước tính (đ)", "Link", "Trạng thái", "Ngày kiểm tra", "Người duyệt"])
+    writer.writerow(
+        [
+            "Nhóm chủ đề",
+            "Sản phẩm",
+            "Shop",
+            "Loại shop",
+            "Sao",
+            "Đã bán",
+            "Giá (đ)",
+            "Hoa hồng (%)",
+            "Hoa hồng ước tính (đ)",
+            "Link",
+            "Trạng thái",
+            "Ngày kiểm tra",
+            "Người duyệt",
+        ]
+    )
     for product in _ranked(db, topic_id, status, q):
         checked = product.checked_at.astimezone(VIETNAM_TIME).strftime("%d/%m/%Y %H:%M") if product.checked_at else ""
-        writer.writerow([
-            _csv_cell(product.topic.name), _csv_cell(product.name), _csv_cell(product.shop_name),
-            SHOP_TYPES[product.shop_type], product.rating, product.sold, product.price, product.commission_rate,
-            _expected_commission(product), product.url, "Đã duyệt" if product.status == "approved" else "Nháp",
-            checked, _csv_cell(product.checked_by.name) if product.checked_by else "",
-        ])
+        writer.writerow(
+            [
+                _csv_cell(product.topic.name),
+                _csv_cell(product.name),
+                _csv_cell(product.shop_name),
+                SHOP_TYPES[product.shop_type],
+                product.rating,
+                product.sold,
+                product.price,
+                product.commission_rate,
+                _expected_commission(product),
+                product.url,
+                "Đã duyệt" if product.status == "approved" else "Nháp",
+                checked,
+                _csv_cell(product.checked_by.name) if product.checked_by else "",
+            ]
+        )
     # The byte order mark tells Excel the file is UTF-8, otherwise Vietnamese comes out garbled.
-    return Response(f"﻿{out.getvalue()}".encode(), media_type="text/csv; charset=utf-8",
-                    headers={"Content-Disposition": 'attachment; filename="san-pham-affiliate.csv"'})
+    return Response(
+        f"﻿{out.getvalue()}".encode(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="san-pham-affiliate.csv"'},
+    )
 
 
 @router.post("", status_code=201)
@@ -276,8 +337,9 @@ def add_product(body: ProductBody, me: Session = Depends(current_member), db: Db
 
 
 @router.put("/{product_id}")
-def update_product(product_id: int, body: ProductBody, me: Session = Depends(current_member),
-                   db: DbSession = Depends(get_db)) -> dict:
+def update_product(
+    product_id: int, body: ProductBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
     product = _get(db, product_id)
     fields = _fields(db, body)
     if any(getattr(product, name) != value for name, value in fields.items()):

@@ -49,8 +49,14 @@ export default function KnowledgePage() {
         video; bản nhân bản dùng nhóm của video gốc.
       </Typography.Paragraph>
       <Flex gap={8} style={{ marginBottom: 16, maxWidth: 480 }}>
-        <Input aria-label="Tên nhóm chủ đề mới" placeholder="Tên nhóm chủ đề mới" maxLength={100} value={name}
-          onChange={(event) => setName(event.target.value)} onPressEnter={() => name.trim() && add()} />
+        <Input
+          aria-label="Tên nhóm chủ đề mới"
+          placeholder="Tên nhóm chủ đề mới"
+          maxLength={100}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onPressEnter={() => name.trim() && add()}
+        />
         <Button icon={<PlusOutlined />} loading={busy} disabled={!name.trim()} onClick={add}>
           Thêm nhóm
         </Button>
@@ -108,8 +114,8 @@ function TopicBody({
         update={update}
         help={
           <>
-            Chỗ điền <Typography.Text code>[Chủ đề]</Typography.Text> được thay bằng chủ đề của video; nếu xóa chỗ
-            điền này, chủ đề được nối vào cuối prompt.
+            Chỗ điền <Typography.Text code>[Chủ đề]</Typography.Text> được thay bằng chủ đề của video; nếu xóa chỗ điền
+            này, chủ đề được nối vào cuối prompt.
           </>
         }
       />
@@ -124,8 +130,8 @@ function TopicBody({
             Dùng khi bấm “Nhân bản”. Các chỗ điền <Typography.Text code>[tiêu đề]</Typography.Text>,{" "}
             <Typography.Text code>[chủ đề]</Typography.Text>,{" "}
             <Typography.Text code>[kịch bản đã sửa của video gốc]</Typography.Text> và{" "}
-            <Typography.Text code>[yêu cầu đổi]</Typography.Text> được thay bằng dữ liệu của video gốc; chỗ điền nào
-            bị xóa thì thông tin đó được nối vào cuối prompt.
+            <Typography.Text code>[yêu cầu đổi]</Typography.Text> được thay bằng dữ liệu của video gốc; chỗ điền nào bị
+            xóa thì thông tin đó được nối vào cuối prompt.
           </>
         }
       />
@@ -133,8 +139,14 @@ function TopicBody({
       <Flex justify="flex-end">
         <Tooltip title={topic.video_count > 0 ? "Nhóm còn video nên chưa xoá được" : undefined}>
           <span>
-            <Popconfirm title="Xoá nhóm chủ đề này?" okText="Xoá" cancelText="Huỷ" okButtonProps={{ danger: true }}
-              disabled={topic.video_count > 0} onConfirm={remove}>
+            <Popconfirm
+              title="Xoá nhóm chủ đề này?"
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              disabled={topic.video_count > 0}
+              onConfirm={remove}
+            >
               <Button danger icon={<DeleteOutlined />} disabled={topic.video_count > 0}>
                 Xoá nhóm
               </Button>
@@ -167,8 +179,12 @@ function NameCard({ name, update }: { name: string; update: Update }) {
 
   return (
     <Flex gap={8} style={{ maxWidth: 480 }}>
-      <Input aria-label="Tên nhóm chủ đề" maxLength={100} value={value}
-        onChange={(event) => setValue(event.target.value)} />
+      <Input
+        aria-label="Tên nhóm chủ đề"
+        maxLength={100}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+      />
       <Button loading={busy} disabled={!value.trim() || value === name} onClick={save}>
         Đổi tên
       </Button>
@@ -212,8 +228,12 @@ function PromptCard({
       <Typography.Paragraph type="secondary">
         {help} Phần định dạng JSON đầu ra cố định trong app và không cần viết ở đây.
       </Typography.Paragraph>
-      <Input.TextArea aria-label={title} value={value} autoSize={{ minRows: 8, maxRows: 30 }}
-        onChange={(event) => setValue(event.target.value)} />
+      <Input.TextArea
+        aria-label={title}
+        value={value}
+        autoSize={{ minRows: 8, maxRows: 30 }}
+        onChange={(event) => setValue(event.target.value)}
+      />
       <Flex wrap gap={8} style={{ marginTop: 12 }}>
         <Button type="primary" loading={busy} disabled={!value.trim()} onClick={() => save(value)}>
           Lưu
@@ -245,7 +265,10 @@ function BannedWordsCard({ initial, update }: { initial: string[]; update: Updat
   async function save() {
     setBusy(true);
     try {
-      const banned_words = text.split("\n").map((word) => word.trim()).filter(Boolean);
+      const banned_words = text
+        .split("\n")
+        .map((word) => word.trim())
+        .filter(Boolean);
       setText((await update({ banned_words })).banned_words.join("\n"));
       message.success("Đã lưu danh sách từ cấm");
     } catch (err) {
@@ -261,8 +284,12 @@ function BannedWordsCard({ initial, update }: { initial: string[]; update: Updat
         Mỗi dòng một từ. Tiêu đề, chữ cảnh, caption và bình luận ghim có từ cấm sẽ hiện cảnh báo vàng (không chặn
         render). Claude cũng được dặn tránh các từ này.
       </Typography.Paragraph>
-      <Input.TextArea aria-label="Từ cấm" value={text} autoSize={{ minRows: 5, maxRows: 20 }}
-        onChange={(event) => setText(event.target.value)} />
+      <Input.TextArea
+        aria-label="Từ cấm"
+        value={text}
+        autoSize={{ minRows: 5, maxRows: 20 }}
+        onChange={(event) => setText(event.target.value)}
+      />
       <Button type="primary" loading={busy} style={{ marginTop: 12 }} onClick={save}>
         Lưu từ cấm
       </Button>

@@ -1,0 +1,74 @@
+name: Claude review
+
+# An AI review of a PR, only when someone with write access to the repo comments `/ai-review` on it.
+# Each run is a paid API call, so it never starts by itself. It only comments; it never blocks a
+# merge or pushes code. Needs the repo secret ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN from
+# `claude setup-token`).
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: claude-review-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # A PR comment starting with /ai-review, from the owner, a member or a collaborator.
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/ai-review') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    env:
+      HAS_CREDENTIAL: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - if: env.HAS_CREDENTIAL != 'true'
+        run: echo "::error::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret, so there is no AI review." && exit 1
+      # issue_comment runs on the default branch; review the PR's own code.
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.issue.number }}
+
+            You review a PR for Reels Studio. The PR branch is checked out. The project rules are in
+            AGENTS.md and the docs in docs/; read what the changed code touches. Much of this code is
+            written by AI agents for people who do not read every line, so your review is what
+            catches problems. Write every comment in Vietnamese.
+
+            Look for, in this order:
+            1. Bugs: wrong logic, unhandled errors, race conditions, broken API contracts between
+               api, worker and web, times not in Vietnam time.
+            2. Security: auth or session bypass, the CSRF origin check, secrets in code or logs,
+               the encrypted Fanpage tokens, injection, files served without a session.
+            3. Data safety: a migration that loses data or edits one already on main, deletes
+               without a guard.
+            4. Weakened checks: tests deleted or assertions loosened, lint/format rules relaxed,
+               CI steps removed or skipped, `noqa` / `eslint-disable` without a reason.
+            5. Rules in AGENTS.md that the change breaks (long work outside the job queue, test
+               switches in production code, docs not updated for changed behaviour).
+            6. Whether the PR description says what changed, why, and how it was verified, and
+               whether a new behaviour has a test.
+
+            Do not comment on style the formatters handle, or on taste. Few, concrete comments beat
+            many vague ones; say how to fix each problem.
+
+            Use `mcp__github_inline_comment__create_inline_comment` (with `confirmed: true`) for a
+            problem on a specific line. Finish with one `gh pr comment`: a short verdict
+            ("Không thấy vấn đề" or the list of problems by severity) and what a person should check
+            by hand. Only post GitHub comments.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Glob,Grep"

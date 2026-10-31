@@ -1,11 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import client_for, expire_all_sessions, login, make_user
 from psycopg.errors import DeadlockDetected, SerializationFailure
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
-from conftest import PASSWORD, client_for, expire_all_sessions, login, make_user
 from reels_api import routes_users
 from reels_api.models import Session, User
 
@@ -27,10 +27,18 @@ def row_for(client, email):
 
 def test_list_shows_every_column_and_marks_me(client, me):
     rows = client.get("/api/users").json()
-    assert rows == [{
-        "id": me.id, "email": "an@doi.vn", "name": "Nguyễn Văn An", "initial": "A", "is_active": True,
-        "last_login_at": rows[0]["last_login_at"], "active_sessions": 1, "is_me": True,
-    }]
+    assert rows == [
+        {
+            "id": me.id,
+            "email": "an@doi.vn",
+            "name": "Nguyễn Văn An",
+            "initial": "A",
+            "is_active": True,
+            "last_login_at": rows[0]["last_login_at"],
+            "active_sessions": 1,
+            "is_me": True,
+        }
+    ]
     assert datetime.fromisoformat(rows[0]["last_login_at"]).tzinfo is not None
 
 
@@ -59,7 +67,11 @@ def test_add_user_normalizes_email_flags_forced_change_and_records_creator(clien
     assert response.status_code == 201
     user = db.scalar(select(User).where(User.email == "binh@doi.vn"))
     assert (user.name, user.must_change_password, user.is_active, user.created_by_id) == (
-        "Trần Thị Bình", True, True, me.id)
+        "Trần Thị Bình",
+        True,
+        True,
+        me.id,
+    )
     assert user.created_at is not None
 
     other = client_for(client.app)
@@ -78,7 +90,9 @@ def test_add_user_normalizes_email_flags_forced_change_and_records_creator(clien
     ],
 )
 def test_add_user_rejections(client, db, me, body, status, code, message):
-    response = client.post("/api/users", json={"email": "binh@doi.vn", "name": "Bình", "password": "tam-thoi-123"} | body)
+    response = client.post(
+        "/api/users", json={"email": "binh@doi.vn", "name": "Bình", "password": "tam-thoi-123"} | body
+    )
     assert response.status_code == status
     assert response.json() == {"code": code, "message": message}
     assert len(db.scalars(select(User)).all()) == 1
@@ -116,8 +130,7 @@ def test_lock_conflicts_while_disabling_answer_409_not_500(client, db, me, monke
     monkeypatch.setattr(routes_users, "revoke_sessions", conflict)
     response = client.post(f"/api/users/{user_id}/disable")
     assert response.status_code == 409
-    assert response.json() == {
-        "code": "last_active_user", "message": "Phải còn ít nhất một người dùng đang hoạt động"}
+    assert response.json() == {"code": "last_active_user", "message": "Phải còn ít nhất một người dùng đang hoạt động"}
 
 
 def test_enable_keeps_password_and_forced_change_flag(app, client, db, me):
@@ -166,7 +179,9 @@ def test_cannot_target_yourself_through_the_api(client, db, me, action):
     response = client.post(f"/api/users/{me.id}/{action}", json={"password": "tam-moi-1234"})
     assert response.status_code == 409
     assert response.json() == {
-        "code": "cannot_target_self", "message": "Không thể thực hiện thao tác này trên tài khoản của bạn"}
+        "code": "cannot_target_self",
+        "message": "Không thể thực hiện thao tác này trên tài khoản của bạn",
+    }
     assert client.get("/api/me").status_code == 200
 
 

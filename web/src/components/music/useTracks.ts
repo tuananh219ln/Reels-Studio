@@ -16,7 +16,11 @@ export function useTracks(filters: TrackFilters, enabled = true) {
   const reload = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams();
-    const values: [string, string | undefined][] = [["topic", topic], ["mood", mood], ["q", q.trim()]];
+    const values: [string, string | undefined][] = [
+      ["topic", topic],
+      ["mood", mood],
+      ["q", q.trim()],
+    ];
     for (const [name, value] of values) {
       if (value) {
         params.set(name, value);

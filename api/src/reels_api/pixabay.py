@@ -96,10 +96,16 @@ class Pixabay:
         cached = self.cache.get(keyword)
         if cached is not None:
             return [hit for hit in cached if self._allowed(hit.url) and self._allowed(hit.preview)]
-        query = urllib.parse.urlencode({
-            "key": self.key, "q": keyword, "lang": "vi", "image_type": "photo", "safesearch": "true",
-            "per_page": RESULTS,
-        })
+        query = urllib.parse.urlencode(
+            {
+                "key": self.key,
+                "q": keyword,
+                "lang": "vi",
+                "image_type": "photo",
+                "safesearch": "true",
+                "per_page": RESULTS,
+            }
+        )
         try:
             body = stock.fetch(f"{self.api_url}?{query}", self._remaining(deadline), MAX_SEARCH_BYTES)
         except stock.HttpStatusError as err:
@@ -116,12 +122,18 @@ class Pixabay:
             raise self._network_error(err) from None
         try:
             items = json.loads(body)["hits"][:RESULTS]
-            hits = [Hit(item["largeImageURL"], item.get("previewURL") or item.get("webformatURL") or "")
-                    for item in items if isinstance(item, dict) and isinstance(item.get("largeImageURL"), str)]
+            hits = [
+                Hit(item["largeImageURL"], item.get("previewURL") or item.get("webformatURL") or "")
+                for item in items
+                if isinstance(item, dict) and isinstance(item.get("largeImageURL"), str)
+            ]
         except (ValueError, KeyError, TypeError):
             raise PixabayError("server", "Pixabay trả kết quả không đọc được, thử lại sau") from None
-        hits = [hit for hit in hits if isinstance(hit.preview, str) and self._allowed(hit.url)
-                and self._allowed(hit.preview)]
+        hits = [
+            hit
+            for hit in hits
+            if isinstance(hit.preview, str) and self._allowed(hit.url) and self._allowed(hit.preview)
+        ]
         self.cache.put(keyword, hits)
         return hits
 
@@ -140,8 +152,9 @@ class Pixabay:
         except UploadRejected:
             return None
 
-    def find_photo(self, keywords: Iterable[str], deadline: float, avoid: Iterable[str] = (),
-                   after: str | None = None) -> Photo | None:
+    def find_photo(
+        self, keywords: Iterable[str], deadline: float, avoid: Iterable[str] = (), after: str | None = None
+    ) -> Photo | None:
         """The first usable photo over the keywords, in order, skipping `avoid`.
 
         With `after` (the photo in use), results that come after it are tried first, so pressing
@@ -152,7 +165,7 @@ class Pixabay:
             urls = self.search(keyword, deadline)
             if after in urls:
                 index = urls.index(after)
-                urls = urls[index + 1:] + urls[:index]
+                urls = urls[index + 1 :] + urls[:index]
             for url in urls:
                 if url in avoid:
                     continue

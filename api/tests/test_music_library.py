@@ -1,8 +1,8 @@
 """The team music library: tracks tagged by topic and mood, and choosing one for a video."""
 
 import pytest
-
 from conftest import client_for, login, make_user, make_video
+
 from reels_api import routes_music
 from reels_api.models import MusicTrack, Video
 
@@ -27,7 +27,9 @@ def add_track(an, data=MP3, filename="Windy Hill.mp3", topics=("xương khớp",
 
 
 def test_upload_lists_and_plays_a_track(an, db, me, storage):
-    added = add_track(an, topics=["xương khớp", "tim mạch", "xương khớp"], license_note="Pixabay Music, miễn phí").json()
+    added = add_track(
+        an, topics=["xương khớp", "tim mạch", "xương khớp"], license_note="Pixabay Music, miễn phí"
+    ).json()
     assert added["name"] == "Windy Hill"
     # Stored in the fixed order of the list, whatever order the form sent.
     assert added["topics"] == ["tim mạch", "xương khớp"] and added["mood"] == "piano"
@@ -60,12 +62,15 @@ def test_list_filters_by_topic_mood_and_name(an):
     assert ids("?q=_") == [underscore["id"]]
 
 
-@pytest.mark.parametrize("topics, mood, message", [
-    ([], "piano", "ít nhất một chủ đề"),
-    (["ẩm thực"], "piano", "Chủ đề không có"),
-    (["gan"], "", "Mood không có"),
-    (["gan"], "rock", "Mood không có"),
-])
+@pytest.mark.parametrize(
+    "topics, mood, message",
+    [
+        ([], "piano", "ít nhất một chủ đề"),
+        (["ẩm thực"], "piano", "Chủ đề không có"),
+        (["gan"], "", "Mood không có"),
+        (["gan"], "rock", "Mood không có"),
+    ],
+)
 def test_topics_and_mood_must_come_from_the_fixed_lists(an, db, storage, topics, mood, message):
     response = add_track(an, topics=topics, mood=mood)
     assert response.status_code == 422 and message in response.json()["message"]
@@ -84,11 +89,21 @@ def test_fake_or_oversized_track_is_refused(an, db, storage, monkeypatch):
 
 def test_edit_name_topics_mood_and_license(an):
     track = add_track(an).json()
-    edited = an.patch(f"/api/music/{track['id']}", json={
-        "name": "Bài mới", "topics": ["gan"], "mood": "trầm lắng", "license_note": "Mua bản quyền 2026",
-    }).json()
+    edited = an.patch(
+        f"/api/music/{track['id']}",
+        json={
+            "name": "Bài mới",
+            "topics": ["gan"],
+            "mood": "trầm lắng",
+            "license_note": "Mua bản quyền 2026",
+        },
+    ).json()
     assert (edited["name"], edited["topics"], edited["mood"], edited["license_note"]) == (
-        "Bài mới", ["gan"], "trầm lắng", "Mua bản quyền 2026")
+        "Bài mới",
+        ["gan"],
+        "trầm lắng",
+        "Mua bản quyền 2026",
+    )
     assert an.patch(f"/api/music/{track['id']}", json={"topics": []}).status_code == 422
     assert an.patch(f"/api/music/{track['id']}", json={"name": " "}).status_code == 422
     assert an.patch(f"/api/music/{track['id']}", json={"topics": ["ẩm thực"]}).status_code == 422
@@ -158,8 +173,9 @@ def test_library_needs_a_login(app, an, db, me, storage):
         anonymous.get("/api/music"),
         anonymous.get("/api/music/options"),
         anonymous.get(f"/api/music/{track['id']}/audio.mp3"),
-        anonymous.post("/api/music", data={"topics": ["gan"], "mood": "piano"},
-                       files={"file": ("a.mp3", MP3, "audio/mpeg")}),
+        anonymous.post(
+            "/api/music", data={"topics": ["gan"], "mood": "piano"}, files={"file": ("a.mp3", MP3, "audio/mpeg")}
+        ),
         anonymous.patch(f"/api/music/{track['id']}", json={"name": "x"}),
         anonymous.delete(f"/api/music/{track['id']}"),
         anonymous.post(f"/api/videos/{video.id}/music/from-library", json={"track_id": track["id"]}),

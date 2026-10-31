@@ -3,19 +3,22 @@ import re
 import subprocess
 
 import pytest
-
 from conftest import clip_bytes, needs_ffmpeg
+
 from reels_api import clips
 from reels_api.uploads import UploadRejected
 
 REFUSED = "Video phải là MP4, MOV hoặc WebM (H.264, HEVC hoặc VP9) và không bị hỏng"
 
 
-@pytest.mark.parametrize("data", [
-    b"#EXTM3U\n#EXTINF:1,\nfile:///etc/passwd\n",  # a playlist that would make FFmpeg open other files
-    b"ffconcat version 1.0\nfile /etc/passwd\n",
-    b"\x89PNG\r\n\x1a\n" + bytes(64),
-])
+@pytest.mark.parametrize(
+    "data",
+    [
+        b"#EXTM3U\n#EXTINF:1,\nfile:///etc/passwd\n",  # a playlist that would make FFmpeg open other files
+        b"ffconcat version 1.0\nfile /etc/passwd\n",
+        b"\x89PNG\r\n\x1a\n" + bytes(64),
+    ],
+)
 def test_anything_but_an_mp4_mov_or_webm_container_is_refused_before_ffprobe_runs(tmp_path, monkeypatch, data):
     monkeypatch.setattr(clips, "_run", lambda argv: pytest.fail("ffprobe must not open this file"))
     path = tmp_path / "clip.mp4"
@@ -52,12 +55,15 @@ def test_an_mp4_with_another_codec_is_refused(tmp_path):
 
 
 @needs_ffmpeg
-@pytest.mark.parametrize(("seconds", "size", "message"), [
-    (0.5, "1280x720", "Video phải dài từ 1 đến 60 giây"),
-    (61, "1280x720", "Video phải dài từ 1 đến 60 giây"),
-    (2, "640x360", "Video phải có cạnh ngắn từ 720 px"),
-    (1, "4112x720", "cạnh dài tối đa 4096 px"),
-])
+@pytest.mark.parametrize(
+    ("seconds", "size", "message"),
+    [
+        (0.5, "1280x720", "Video phải dài từ 1 đến 60 giây"),
+        (61, "1280x720", "Video phải dài từ 1 đến 60 giây"),
+        (2, "640x360", "Video phải có cạnh ngắn từ 720 px"),
+        (1, "4112x720", "cạnh dài tối đa 4096 px"),
+    ],
+)
 def test_clips_outside_the_length_or_size_limits_are_refused(tmp_path, seconds, size, message):
     path = tmp_path / "upload"
     path.write_bytes(clip_bytes(tmp_path, seconds=seconds, size=size, rate=2))
@@ -91,8 +97,25 @@ def test_every_video_stream_is_checked_not_only_the_first(tmp_path, monkeypatch)
 def test_the_length_is_the_video_streams_not_a_longer_audio_tracks(tmp_path):
     path = tmp_path / "upload.mp4"
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=25:duration=2",
-         "-f", "lavfi", "-i", "sine=frequency=440:duration=4", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)],
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "testsrc2=size=1280x720:rate=25:duration=2",
+            "-f",
+            "lavfi",
+            "-i",
+            "sine=frequency=440:duration=4",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            str(path),
+        ],
         check=True,
     )
     assert clips.check_clip(path).seconds == pytest.approx(2, abs=0.1)
@@ -105,14 +128,33 @@ def test_a_frame_that_grows_past_the_limit_mid_stream_is_never_decoded(tmp_path,
     for size, name in (("720x1280", "a"), ("4800x4800", "b")):
         part = tmp_path / f"{name}.h264"
         seconds = 2 if name == "a" else 1
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=size={size}:rate=2:duration={seconds}",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-f", "h264", str(part)], check=True)
+        subprocess.run(
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-y",
+                "-f",
+                "lavfi",
+                "-i",
+                f"color=size={size}:rate=2:duration={seconds}",
+                "-c:v",
+                "libx264",
+                "-pix_fmt",
+                "yuv420p",
+                "-f",
+                "h264",
+                str(part),
+            ],
+            check=True,
+        )
         parts.append(part.read_bytes())
     joined = tmp_path / "ab.h264"
     joined.write_bytes(b"".join(parts))
     path = tmp_path / "upload.mp4"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-r", "2", "-f", "h264", "-i", str(joined), "-c", "copy", str(path)],
-                   check=True)
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-r", "2", "-f", "h264", "-i", str(joined), "-c", "copy", str(path)], check=True
+    )
 
     clips.check_clip(path)  # the headers pass
     assert clips.frame_at(path, 0).size == (720, 1280)

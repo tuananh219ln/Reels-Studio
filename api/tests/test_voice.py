@@ -3,16 +3,16 @@
 import shutil
 
 import pytest
-from sqlalchemy import select
-
 from conftest import login, make_user, make_video
+from sqlalchemy import select
+from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
+
 from reels_api import config
 from reels_api.models import Job, Scene, Video
 from reels_api.storage import DirectoryStorage
 from reels_api.tts import voice_signature
 from reels_api.videos import render_signature, split_scenes
 from reels_render.ffmpeg import probe
-from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg/ffprobe không có trên PATH")
 TEN_WORDS = "một hai ba bốn năm sáu bảy tám chín mười"
@@ -30,11 +30,13 @@ def an(client, me):
 
 
 def first_scene(db, video) -> Scene:
-    return db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False))
-                     .order_by(Scene.position).limit(1))
+    return db.scalar(
+        select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position).limit(1)
+    )
 
 
 # --- Editing ---
+
 
 def test_voice_text_and_switch_are_saved(an, db, me, storage):
     video = make_video(db, storage, me)
@@ -112,8 +114,10 @@ def test_clone_snapshot_carries_the_voice_text(an, db, me, storage):
     video = make_video(db, storage, me)
     an.patch(f"/api/scenes/{first_scene(db, video).id}", json={"voice_text": "Cá nhỏ ăn cả xương"})
     draft = an.post(f"/api/videos/{video.id}/clone", json={"request": "đổi sang tim mạch"}).json()
-    assert "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi* — lời đọc: Cá nhỏ ăn cả xương" in \
-        db.get(Video, draft["id"]).clone_source["script"]
+    assert (
+        "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi* — lời đọc: Cá nhỏ ăn cả xương"
+        in db.get(Video, draft["id"]).clone_source["script"]
+    )
 
 
 def test_voice_signature_follows_voice_and_model_and_ignores_spacing(monkeypatch):
@@ -127,6 +131,7 @@ def test_voice_signature_follows_voice_and_model_and_ignores_spacing(monkeypatch
 
 
 # --- Render jobs, in process ---
+
 
 @pytest.fixture
 def voiced(committed, tmp_path, fakes):
@@ -157,8 +162,9 @@ def test_render_reads_adam_lengthens_the_scene_and_reuses_the_narration(committe
     user, storage, video_id = voiced
     job = render(committed, storage, video_id, user.id)
     assert job.status == "done", (job.error, job.error_detail)
-    assert fakes.tts_requests == [{"voice_id": config.DEFAULT_VOICE_ID, "text": TEN_WORDS, "model_id": "eleven_v3",
-                                   "language_code": "vi"}]
+    assert fakes.tts_requests == [
+        {"voice_id": config.DEFAULT_VOICE_ID, "text": TEN_WORDS, "model_id": "eleven_v3", "language_code": "vi"}
+    ]
     # Title 3 s + the 2 s scene lengthened to fit 3 s of narration: 0.2 + 3.0 (+ MP3 padding) + 0.4 → 3.7 s.
     assert mp4_seconds(committed, storage, video_id) == pytest.approx(6.7, abs=0.05)
     with committed() as db:

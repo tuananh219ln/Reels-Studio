@@ -12,8 +12,9 @@ def test_mp3_starts_with_an_id3_tag_or_an_mpeg_frame(head):
     check_mp3(head + bytes(100))
 
 
-@pytest.mark.parametrize("data", [b"", b"RIFF....WAVEfmt ", b"\x00\x00\x00\x20ftypM4A ", b"\xff\xd8\xff\xe0JFIF",
-                                  b"OggS\x00\x02"])
+@pytest.mark.parametrize(
+    "data", [b"", b"RIFF....WAVEfmt ", b"\x00\x00\x00\x20ftypM4A ", b"\xff\xd8\xff\xe0JFIF", b"OggS\x00\x02"]
+)
 def test_other_files_named_mp3_are_refused(data):
     with pytest.raises(UploadRejected, match="MP3 thật"):
         check_mp3(data)

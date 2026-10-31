@@ -2,7 +2,8 @@ from datetime import UTC, datetime, timedelta
 
 from fastapi import Depends, Request, Response
 from sqlalchemy import delete, select, update
-from sqlalchemy.orm import Session as DbSession, joinedload
+from sqlalchemy.orm import Session as DbSession
+from sqlalchemy.orm import joinedload
 
 from . import config
 from .db import get_db

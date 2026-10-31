@@ -29,8 +29,9 @@ def upgrade() -> None:
         sa.Column("created_by_id", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["created_by_id"], ["users.id"], name="fk_publications_created_by_id_users"),
-        sa.ForeignKeyConstraint(["video_id"], ["videos.id"], name="fk_publications_video_id_videos",
-                                ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["video_id"], ["videos.id"], name="fk_publications_video_id_videos", ondelete="CASCADE"
+        ),
         sa.PrimaryKeyConstraint("id", name="pk_publications"),
         sa.UniqueConstraint("video_id", "platform", name="uq_publications_video_id_platform"),
     )

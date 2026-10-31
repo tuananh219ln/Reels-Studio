@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import PASSWORD, make_user
 from sqlalchemy import create_engine, func, select
 
-from conftest import PASSWORD, make_user
 from reels_api import cli
 from reels_api.cli import create_or_reset_user
 from reels_api.config import ConfigError
@@ -30,7 +30,11 @@ def test_new_user_is_active_without_forced_change(db, capsys):
 
     user = db.scalar(select(User).where(User.email == "chu@doi.vn"))
     assert (user.name, user.is_active, user.must_change_password, user.created_by_id) == (
-        "Nguyễn Văn Chủ", True, False, None)
+        "Nguyễn Văn Chủ",
+        True,
+        False,
+        None,
+    )
     assert verify_password("dung-mat-khau-1", user.password_hash)
     err = capsys.readouterr().err
     assert "Tên phải từ 1 đến 60 ký tự" in err
@@ -105,7 +109,10 @@ def test_main_reports_setup_problems_in_vietnamese(monkeypatch, capsys, failure,
 def run_cli(*args):
     result = subprocess.run(
         [sys.executable, "-m", "reels_api", *args],
-        input="", capture_output=True, cwd=API_DIR, timeout=60,
+        input="",
+        capture_output=True,
+        cwd=API_DIR,
+        timeout=60,
         env={**os.environ, "PYTHONIOENCODING": ""},
     )
     return result.returncode, result.stderr.decode("utf-8")

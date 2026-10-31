@@ -163,7 +163,7 @@ class Pixabay:
             if err.status == 400 and "API key" in err.body:
                 raise StockSearchError("Key Pixabay không hợp lệ, kiểm tra file .env") from None
             detail = self.redact(err.body.strip())[:200]
-            warn(f"{label}: Pixabay từ chối từ khóa \"{keyword}\" (HTTP {err.status}: {detail}), bỏ qua")
+            warn(f'{label}: Pixabay từ chối từ khóa "{keyword}" (HTTP {err.status}: {detail}), bỏ qua')
             return []
         try:
             hits = json.loads(body)["hits"][:CANDIDATES]

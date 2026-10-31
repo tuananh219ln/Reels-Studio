@@ -1,6 +1,13 @@
 "use client";
 
-import { CheckOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, PlusOutlined, SearchOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  PlusOutlined,
+  SearchOutlined,
+} from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -21,7 +28,11 @@ export default function Products() {
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
-    const values: [string, string | undefined][] = [["topic_id", topicId?.toString()], ["status", status], ["q", q.trim()]];
+    const values: [string, string | undefined][] = [
+      ["topic_id", topicId?.toString()],
+      ["status", status],
+      ["q", q.trim()],
+    ];
     for (const [name, value] of values) {
       if (value) {
         params.set(name, value);
@@ -71,7 +82,10 @@ export default function Products() {
             {product.name}
           </a>
           <Typography.Text type="secondary">{product.topic}</Typography.Text>
-          <Typography.Text copyable={{ text: product.url, tooltips: ["Sao chép link", "Đã sao chép"] }} type="secondary">
+          <Typography.Text
+            copyable={{ text: product.url, tooltips: ["Sao chép link", "Đã sao chép"] }}
+            type="secondary"
+          >
             Link
           </Typography.Text>
         </Flex>
@@ -148,11 +162,15 @@ export default function Products() {
       render: (_, product) => (
         <Space wrap>
           {product.status === "approved" ? (
-            <Button onClick={() => act(() => api(`/affiliate-products/${product.id}/unapprove`, "POST"), "Đã bỏ duyệt")}>
+            <Button
+              onClick={() => act(() => api(`/affiliate-products/${product.id}/unapprove`, "POST"), "Đã bỏ duyệt")}
+            >
               Bỏ duyệt
             </Button>
           ) : (
-            <Tooltip title={product.problems.length > 0 ? "Chưa đạt tiêu chí duyệt" : "Xem lại trang sản phẩm trước khi duyệt"}>
+            <Tooltip
+              title={product.problems.length > 0 ? "Chưa đạt tiêu chí duyệt" : "Xem lại trang sản phẩm trước khi duyệt"}
+            >
               <Button
                 icon={<CheckOutlined />}
                 disabled={product.problems.length > 0}
@@ -205,7 +223,10 @@ export default function Products() {
             allowClear
             value={status}
             onChange={(value) => setFilters({ ...filters, status: value })}
-            options={[{ value: "draft", label: "Nháp" }, { value: "approved", label: "Đã duyệt" }]}
+            options={[
+              { value: "draft", label: "Nháp" },
+              { value: "approved", label: "Đã duyệt" },
+            ]}
             style={{ width: 160 }}
           />
         </Flex>

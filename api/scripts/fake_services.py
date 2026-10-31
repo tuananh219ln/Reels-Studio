@@ -30,16 +30,20 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
         "title_keywords": ["món ăn giàu canxi"],
         "title_voice": "Mời bạn xem đến cuối nhé",
         "scenes": [
-            {"text": f"{food}\nGiàu *canxi*", "seconds": seconds, "voice": f"{food} giàu canxi",
-             "keywords": [food.lower(), "món ăn"],
-             "image_prompt": f"{food} trên bàn gỗ, ánh sáng tự nhiên"}
+            {
+                "text": f"{food}\nGiàu *canxi*",
+                "seconds": seconds,
+                "voice": f"{food} giàu canxi",
+                "keywords": [food.lower(), "món ăn"],
+                "image_prompt": f"{food} trên bàn gỗ, ánh sáng tự nhiên",
+            }
             for food in foods[:scene_count]
         ],
         "caption": f"Caption về {topic}. " * 10,
         "hashtags": ["#a", "#b", "#c", "#d", "#e"],
         "affiliates": ["Sữa hạt canxi", "Vừng đen rang"],
         "pinned_comment": "Link sản phẩm ở đây nhé",
-        "self_review": ["\"chữa khỏi\" → \"tốt cho\""],
+        "self_review": ['"chữa khỏi" → "tốt cho"'],
         "music_suggestions": ["Windy Hill", "Morning Coffee"],
     }
 
@@ -110,8 +114,13 @@ class FakeServices:
             reply = script_json(topic, self.default_seconds)
         text = reply if isinstance(reply, str) else json.dumps(reply, ensure_ascii=False)
         return 200, {
-            "id": "msg_fake", "type": "message", "role": "assistant", "model": body.get("model", "fake"),
-            "content": [{"type": "text", "text": text}], "stop_reason": "end_turn", "stop_sequence": None,
+            "id": "msg_fake",
+            "type": "message",
+            "role": "assistant",
+            "model": body.get("model", "fake"),
+            "content": [{"type": "text", "text": text}],
+            "stop_reason": "end_turn",
+            "stop_sequence": None,
             "usage": {"input_tokens": len(prompt) // 4, "output_tokens": len(text) // 4},
         }
 
@@ -131,14 +140,22 @@ class FakeServices:
             names = self.pixabay_results.get(keyword) or [
                 hashlib.sha1(f"{keyword}-{n}".encode()).hexdigest()[:10] for n in range(1, 4)
             ]
-        hits = [{"id": n, "largeImageURL": self.image_url(name), "previewURL": self.image_url(name)}
-                for n, name in enumerate(names)]
+        hits = [
+            {"id": n, "largeImageURL": self.image_url(name), "previewURL": self.image_url(name)}
+            for n, name in enumerate(names)
+        ]
         return 200, {"total": len(hits), "totalHits": len(hits), "hits": hits}
 
     def _tts(self, voice_id: str, key: str, body: dict) -> tuple[int, object]:
         with self.lock:
-            self.tts_requests.append({"voice_id": voice_id, "text": body.get("text"), "model_id": body.get("model_id"),
-                                      "language_code": body.get("language_code")})
+            self.tts_requests.append(
+                {
+                    "voice_id": voice_id,
+                    "text": body.get("text"),
+                    "model_id": body.get("model_id"),
+                    "language_code": body.get("language_code"),
+                }
+            )
         if key != ELEVENLABS_KEY:
             return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
         if self.tts_mode == "quota" or (self.tts_ok_count is not None and len(self.tts_requests) > self.tts_ok_count):
@@ -148,9 +165,26 @@ class FakeServices:
         # A tone instead of speech, 0.3 s per word, so tests can tell how long each narration is.
         seconds = 0.3 * max(1, len(str(body.get("text", "")).split()))
         audio = subprocess.run(
-            ["ffmpeg", "-v", "error", "-f", "lavfi", "-i", f"sine=frequency=330:duration={seconds}",
-             "-ac", "1", "-c:a", "libmp3lame", "-b:a", "64k", "-f", "mp3", "-"],
-            capture_output=True, check=True,
+            [
+                "ffmpeg",
+                "-v",
+                "error",
+                "-f",
+                "lavfi",
+                "-i",
+                f"sine=frequency=330:duration={seconds}",
+                "-ac",
+                "1",
+                "-c:a",
+                "libmp3lame",
+                "-b:a",
+                "64k",
+                "-f",
+                "mp3",
+                "-",
+            ],
+            capture_output=True,
+            check=True,
         ).stdout
         return 200, audio
 
@@ -188,7 +222,9 @@ class FakeServices:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
         if path == "me":
             return 200, {"id": FACEBOOK_PAGE, "name": "Trang Dưỡng Sinh"} if token == FACEBOOK_TOKEN else {
-                "id": "999", "name": "Người dùng hệ thống"}
+                "id": "999",
+                "name": "Người dùng hệ thống",
+            }
         if token == FACEBOOK_TOKEN:
             return 400, {"error": {"message": "(#100) Tried accessing nonexisting field (accounts)", "code": 100}}
         return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
@@ -208,20 +244,25 @@ class FakeServices:
         if reel is None or reel.get("lost"):
             return 404, {"error": {"message": "Unknown video", "code": 100}}
         mode = "rejected" if reel.get("rejected") else "busy" if busy else self.facebook_processing
-        publishing = {"status": "not_started" if mode == "rejected" else "completed",
-                      "publish_status": "draft" if mode == "busy" else reel["state"]}
+        publishing = {
+            "status": "not_started" if mode == "rejected" else "completed",
+            "publish_status": "draft" if mode == "busy" else reel["state"],
+        }
         if reel.get("scheduled_publish_time"):
             publishing["publish_time"] = int(reel["scheduled_publish_time"])
-        return 200, {"id": video_id, "status": {
-            "video_status": {"error": "error", "rejected": "processing", "busy": "processing"}.get(mode, "ready"),
-            "uploading_phase": {"status": "complete" if reel["uploaded"] else "in_progress"},
-            "processing_phase": {
-                "error": {"status": "error"},
-                "rejected": {"status": "not_started", "error": {"message": "Resolution too low"}},
-                "busy": {"status": "in_progress"},
-            }.get(mode, {"status": "completed"}),
-            "publishing_phase": publishing,
-        }}
+        return 200, {
+            "id": video_id,
+            "status": {
+                "video_status": {"error": "error", "rejected": "processing", "busy": "processing"}.get(mode, "ready"),
+                "uploading_phase": {"status": "complete" if reel["uploaded"] else "in_progress"},
+                "processing_phase": {
+                    "error": {"status": "error"},
+                    "rejected": {"status": "not_started", "error": {"message": "Resolution too low"}},
+                    "busy": {"status": "in_progress"},
+                }.get(mode, {"status": "completed"}),
+                "publishing_phase": publishing,
+            },
+        }
 
     def _image(self, name: str) -> bytes:
         with self.lock:
@@ -239,8 +280,11 @@ class FakeServices:
                 pass
 
             def _send(self, status: int, body: object, content_type: str = "application/json") -> None:
-                data = body if isinstance(body, bytes) else (
-                    body.encode() if isinstance(body, str) else json.dumps(body, ensure_ascii=False).encode())
+                data = (
+                    body
+                    if isinstance(body, bytes)
+                    else (body.encode() if isinstance(body, str) else json.dumps(body, ensure_ascii=False).encode())
+                )
                 if isinstance(body, str):
                     content_type = "text/plain; charset=utf-8"
                 self.send_response(status)
@@ -269,8 +313,9 @@ class FakeServices:
                 if path == "/v1/messages":
                     self._send(*fake._claude(body))
                 elif path.startswith("/v1/text-to-speech/"):
-                    status, reply = fake._tts(path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"),
-                                              body)
+                    status, reply = fake._tts(
+                        path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
+                    )
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
                 else:
                     self._send(404, {"error": "not found"})

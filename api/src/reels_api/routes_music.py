@@ -98,8 +98,13 @@ def track_payload(track: MusicTrack) -> dict:
 
 
 @router.get("")
-def list_tracks(topic: str | None = None, mood: str | None = None, q: str | None = None,
-                me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+def list_tracks(
+    topic: str | None = None,
+    mood: str | None = None,
+    q: str | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> list[dict]:
     query = select(MusicTrack).order_by(MusicTrack.id.desc())
     if topic:
         query = query.where(MusicTrack.topics.contains([topic]))
@@ -147,8 +152,9 @@ def add_track(
 
 
 @router.patch("/{track_id}")
-def update_track(track_id: int, body: TrackPatchBody, me: Session = Depends(current_member),
-                 db: DbSession = Depends(get_db)) -> dict:
+def update_track(
+    track_id: int, body: TrackPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
     track = get_track(db, track_id)
     if body.name is not None:
         track.name = _name(body.name)
@@ -163,8 +169,12 @@ def update_track(track_id: int, body: TrackPatchBody, me: Session = Depends(curr
 
 
 @router.delete("/{track_id}")
-def delete_track(track_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                 storage: DirectoryStorage = Depends(get_storage)) -> dict:
+def delete_track(
+    track_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
     # Videos that used the track keep their own copy of the file.
     track = get_track(db, track_id)
     key = track.storage_key
@@ -175,6 +185,10 @@ def delete_track(track_id: int, me: Session = Depends(current_member), db: DbSes
 
 
 @router.get("/{track_id}/audio.mp3")
-def track_audio(track_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+def track_audio(
+    track_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
     return _inline(storage, get_track(db, track_id).storage_key, "audio/mpeg")

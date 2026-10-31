@@ -26,13 +26,18 @@ export default function VoiceCard({ video }: { video: VideoDetail }) {
     <Card title="Giọng đọc" size="small">
       <Flex vertical gap={8}>
         <Flex gap={8} align="center">
-          <Switch aria-label="Đọc lời bằng giọng Adam" checked={video.voice_enabled} loading={busy}
-            disabled={editor.locked} onChange={toggle} />
+          <Switch
+            aria-label="Đọc lời bằng giọng Adam"
+            checked={video.voice_enabled}
+            loading={busy}
+            disabled={editor.locked}
+            onChange={toggle}
+          />
           <Typography.Text>Đọc lời từng cảnh bằng giọng Adam (ElevenLabs)</Typography.Text>
         </Flex>
         <Typography.Text type="secondary">
-          Lời đọc được tạo khi render, chỉ tạo lại khi lời đọc của cảnh thay đổi. Cảnh có lời đọc dài hơn số giây sẽ
-          tự kéo dài cho vừa.
+          Lời đọc được tạo khi render, chỉ tạo lại khi lời đọc của cảnh thay đổi. Cảnh có lời đọc dài hơn số giây sẽ tự
+          kéo dài cho vừa.
         </Typography.Text>
       </Flex>
     </Card>

@@ -40,6 +40,7 @@ export default function PostedVideos() {
   }, [message]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void reload();
   }, [reload]);
 
@@ -91,7 +92,10 @@ export default function PostedVideos() {
           ...video.products.map((product) => ({ value: product.id, label: product.name })),
           ...approved
             .filter((product) => !attached.has(product.id) && product.problems.length === 0)
-            .map((product) => ({ value: product.id, label: `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)` })),
+            .map((product) => ({
+              value: product.id,
+              label: `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)`,
+            })),
         ];
         return (
           <Flex vertical gap={6}>

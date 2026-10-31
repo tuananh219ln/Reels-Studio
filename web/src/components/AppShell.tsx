@@ -57,13 +57,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [modal, setModal] = useState<"password" | "name" | null>(null);
 
   const load = useCallback(() => {
-    setError(null);
     api<Me>("/me")
       .then((loaded) => (loaded.must_change_password ? router.replace("/change-password") : setMe(loaded)))
       .catch((err) => setError(err instanceof ApiError ? err.message : String(err)));
   }, [router]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function logout() {
     await api("/auth/logout", "POST").catch(() => undefined);
@@ -76,7 +77,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         status="warning"
         title={error}
         extra={
-          <Button type="primary" onClick={load}>
+          <Button
+            type="primary"
+            onClick={() => {
+              setError(null);
+              load();
+            }}
+          >
             Thử lại
           </Button>
         }
@@ -96,16 +103,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     icon: item.icon,
     label: <Link href={item.key}>{item.label}</Link>,
   });
-  const selected = NAV.flatMap((item) => item.children ?? [item]).find((item) => pathname.startsWith(item.key))?.key ?? "/videos";
+  const selected =
+    NAV.flatMap((item) => item.children ?? [item]).find((item) => pathname.startsWith(item.key))?.key ?? "/videos";
   const menu = (
     <Menu
       mode="inline"
       selectedKeys={[selected]}
       defaultOpenKeys={[POST_GROUP]}
       style={{ border: "none", padding: "0 6px" }}
-      items={NAV.map((item) =>
-        item.children ? { ...item, children: item.children.map(pageItem) } : pageItem(item),
-      )}
+      items={NAV.map((item) => (item.children ? { ...item, children: item.children.map(pageItem) } : pageItem(item)))}
       onClick={() => setDrawerOpen(false)}
     />
   );
@@ -143,14 +149,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               justifyContent: desktop ? "flex-end" : "space-between",
             }}
           >
-            {!desktop && (
-              <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
-            )}
+            {!desktop && <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />}
             <Dropdown
               trigger={["click"]}
               menu={{
                 items: [
-                  { key: "password", icon: <KeyOutlined />, label: "Đổi mật khẩu", onClick: () => setModal("password") },
+                  {
+                    key: "password",
+                    icon: <KeyOutlined />,
+                    label: "Đổi mật khẩu",
+                    onClick: () => setModal("password"),
+                  },
                   { key: "name", icon: <EditOutlined />, label: "Sửa tên", onClick: () => setModal("name") },
                   { type: "divider" },
                   { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", onClick: logout },

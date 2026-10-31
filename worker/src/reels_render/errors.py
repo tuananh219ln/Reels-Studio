@@ -37,6 +37,6 @@ class MissingImagesError(RenderError):
     def __init__(self, labels: list[str]):
         super().__init__(
             f"Chưa có ảnh cho: {', '.join(labels)}. Không tìm được ảnh phù hợp; "
-            "thêm \"image\" hoặc \"keywords\" cụ thể hơn cho các cảnh này"
+            'thêm "image" hoặc "keywords" cụ thể hơn cho các cảnh này'
         )
         self.labels = labels

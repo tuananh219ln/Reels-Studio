@@ -55,6 +55,8 @@ export default function AutoSaveField({
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const focused = useRef(false);
   const dirty = useRef(false);
+  // The same as dirty, as state, for rendering: refs are read only in handlers and effects.
+  const [unsaved, setUnsaved] = useState(false);
   const latest = useRef(value);
   // Saves of this field run one after another, so an older text can never land after a newer one.
   const queue = useRef<Promise<void>>(Promise.resolve());
@@ -69,6 +71,7 @@ export default function AutoSaveField({
 
   function edit(next: string) {
     dirty.current = true;
+    setUnsaved(true);
     latest.current = next;
     setText(next);
   }
@@ -88,6 +91,7 @@ export default function AutoSaveField({
         // Text typed while this save was on its way is still unsaved: the next blur sends it.
         if (latest.current === sent) {
           dirty.current = false;
+          setUnsaved(false);
           setStatus({ kind: "saved" });
         }
         editor.onSaved(video);
@@ -105,7 +109,7 @@ export default function AutoSaveField({
     placeholder,
     // A field holding unsaved text stays editable while locked: leaving it tries the save, which the api
     // refuses with its reason, and the text stays for a later "Lưu lại".
-    readOnly: editor.locked && !dirty.current,
+    readOnly: editor.locked && !unsaved,
     onFocus: () => {
       focused.current = true;
     },

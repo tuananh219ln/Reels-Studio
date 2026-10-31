@@ -7,7 +7,11 @@ import AutoSaveField from "./AutoSaveField";
 
 type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_comment" | "music_suggestions">;
 
-const lines = (text: string) => text.split("\n").map((line) => line.trim()).filter(Boolean);
+const lines = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 const words = (text: string) => text.split(/\s+/).filter(Boolean);
 
 export default function PostContent({ video }: { video: VideoDetail }) {
@@ -28,7 +32,13 @@ export default function PostContent({ video }: { video: VideoDetail }) {
   return (
     <Card title="Nội dung đăng" size="small">
       <Flex vertical gap={4}>
-        <AutoSaveField label="Caption" value={video.caption} multiline rows={5} save={(caption) => patch({ caption })} />
+        <AutoSaveField
+          label="Caption"
+          value={video.caption}
+          multiline
+          rows={5}
+          save={(caption) => patch({ caption })}
+        />
         <Warnings messages={warningsFor("caption")} />
         <AutoSaveField
           label="Hashtag"
@@ -58,8 +68,10 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           save={(text) => patch({ music_suggestions: lines(text) })}
         />
         <Flex wrap gap={8} style={{ marginBottom: 12 }}>
-          <Button icon={<CopyOutlined />}
-            onClick={() => copy(`${video.caption}\n\n${video.hashtags.join(" ")}`, "caption + hashtag")}>
+          <Button
+            icon={<CopyOutlined />}
+            onClick={() => copy(`${video.caption}\n\n${video.hashtags.join(" ")}`, "caption + hashtag")}
+          >
             Copy caption + hashtag
           </Button>
           <Button icon={<CopyOutlined />} onClick={() => copy(video.pinned_comment, "bình luận ghim")}>

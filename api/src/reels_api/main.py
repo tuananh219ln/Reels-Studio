@@ -1,19 +1,22 @@
-from fastapi import FastAPI, Request
+import importlib
+import pkgutil
+
+from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import OperationalError
 
 from . import config
 from .errors import ApiError, api_error_handler, database_error_handler, error_body, validation_error_handler
-from .routes_affiliate import router as affiliate_router
-from .routes_auth import router as auth_router
-from .routes_fanpages import router as fanpages_router
-from .routes_music import router as music_router
-from .routes_posts import router as posts_router
-from .routes_users import router as users_router
-from .routes_videos import router as videos_router
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def routers() -> list[APIRouter]:
+    """Every `routes_*.py` module's `router`, by file name: a new module is served without editing this file."""
+    package = importlib.import_module(__package__)
+    names = sorted(m.name for m in pkgutil.iter_modules(package.__path__) if m.name.startswith("routes_"))
+    return [importlib.import_module(f"{__package__}.{name}").router for name in names]
 
 
 def create_app() -> FastAPI:
@@ -34,11 +37,6 @@ def create_app() -> FastAPI:
     app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(OperationalError, database_error_handler)
-    app.include_router(auth_router)
-    app.include_router(users_router)
-    app.include_router(videos_router)
-    app.include_router(music_router)
-    app.include_router(fanpages_router)
-    app.include_router(affiliate_router)
-    app.include_router(posts_router)
+    for router in routers():
+        app.include_router(router)
     return app

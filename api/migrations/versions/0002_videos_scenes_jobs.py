@@ -80,7 +80,10 @@ def upgrade() -> None:
     op.create_index("ix_jobs_status_id", "jobs", ["status", "id"])
     # One queued or running job per video: the database itself refuses a duplicate Render.
     op.create_index(
-        "uq_jobs_active_video", "jobs", ["video_id"], unique=True,
+        "uq_jobs_active_video",
+        "jobs",
+        ["video_id"],
+        unique=True,
         postgresql_where=sa.text("status IN ('queued', 'running')"),
     )
     op.create_table(

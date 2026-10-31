@@ -65,11 +65,23 @@ export default function ProductModal({
       forceRender
     >
       {target !== null && target !== "new" && target.status === "approved" && (
-        <Alert type="warning" showIcon title="Đổi thông tin sẽ đưa sản phẩm về nháp, cần duyệt lại." style={{ marginBottom: 16 }} />
+        <Alert
+          type="warning"
+          showIcon
+          title="Đổi thông tin sẽ đưa sản phẩm về nháp, cần duyệt lại."
+          style={{ marginBottom: 16 }}
+        />
       )}
       <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>
-        <Form.Item label="Nhóm chủ đề" name="knowledge_topic_id" rules={[{ required: true, message: "Chọn nhóm chủ đề" }]}>
-          <Select aria-label="Nhóm chủ đề" options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))} />
+        <Form.Item
+          label="Nhóm chủ đề"
+          name="knowledge_topic_id"
+          rules={[{ required: true, message: "Chọn nhóm chủ đề" }]}
+        >
+          <Select
+            aria-label="Nhóm chủ đề"
+            options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
+          />
         </Form.Item>
         <Form.Item
           label="Tên sản phẩm"
@@ -89,7 +101,11 @@ export default function ProductModal({
         >
           <Input />
         </Form.Item>
-        <Form.Item label="Tên shop" name="shop_name" rules={[{ required: true, whitespace: true, message: "Nhập tên shop" }]}>
+        <Form.Item
+          label="Tên shop"
+          name="shop_name"
+          rules={[{ required: true, whitespace: true, message: "Nhập tên shop" }]}
+        >
           <Input />
         </Form.Item>
         <Form.Item label="Loại shop" name="shop_type" rules={[{ required: true, message: "Chọn loại shop" }]}>

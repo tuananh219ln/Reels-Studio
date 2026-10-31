@@ -3,9 +3,19 @@ import tempfile
 from fractions import Fraction
 
 import pytest
+from conftest import (
+    extract_frame,
+    make_clip,
+    make_image,
+    make_tone,
+    mean_volume,
+    needs_ffmpeg,
+    script_data,
+    urls,
+    write_script,
+)
 from PIL import ImageChops, ImageStat
 
-from conftest import extract_frame, make_clip, make_image, make_tone, mean_volume, needs_ffmpeg, script_data, urls, write_script
 from reels_render import render as render_module
 from reels_render.errors import (
     FFmpegError,
@@ -82,7 +92,16 @@ class TestOutput:
         path, folder = video
         frame = extract_frame(path, 1.75, folder / "mid-scene-1.png")  # middle of content scene 1
         w, h = frame.size
-        border = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]
+        border = [
+            (0, 0),
+            (w - 1, 0),
+            (0, h - 1),
+            (w - 1, h - 1),
+            (w // 2, 0),
+            (w // 2, h - 1),
+            (0, h // 2),
+            (w - 1, h // 2),
+        ]
         for point in border:
             assert min(frame.getpixel(point)) > 60, f"viền tối tại {point}"
 

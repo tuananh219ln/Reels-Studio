@@ -55,15 +55,31 @@ export default function SceneCard({
         !scene.is_title && (
           <Space size={4}>
             <Tooltip title="Lên trên">
-              <Button aria-label="Lên trên" size="small" icon={<ArrowUpOutlined />} disabled={editor.locked || !onMove}
-                onClick={() => onMove?.(-1)} />
+              <Button
+                aria-label="Lên trên"
+                size="small"
+                icon={<ArrowUpOutlined />}
+                disabled={editor.locked || !onMove}
+                onClick={() => onMove?.(-1)}
+              />
             </Tooltip>
             <Tooltip title="Xuống dưới">
-              <Button aria-label="Xuống dưới" size="small" icon={<ArrowDownOutlined />}
-                disabled={editor.locked || !onMove} onClick={() => onMove?.(1)} />
+              <Button
+                aria-label="Xuống dưới"
+                size="small"
+                icon={<ArrowDownOutlined />}
+                disabled={editor.locked || !onMove}
+                onClick={() => onMove?.(1)}
+              />
             </Tooltip>
-            <Popconfirm title="Xóa cảnh này?" okText="Xóa" cancelText="Huỷ" okButtonProps={{ danger: true }}
-              onConfirm={onDelete} disabled={editor.locked}>
+            <Popconfirm
+              title="Xóa cảnh này?"
+              okText="Xóa"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              onConfirm={onDelete}
+              disabled={editor.locked}
+            >
               <Button aria-label="Xóa cảnh" size="small" danger icon={<DeleteOutlined />} disabled={editor.locked} />
             </Popconfirm>
           </Space>
@@ -189,52 +205,99 @@ function ScenePicture({ scene }: { scene: SceneData }) {
     <Flex vertical gap={8}>
       {scene.preview_url && !reason ? (
         // A plain <img>: the preview is drawn by the api with the renderer's own code.
-        <img src={scene.preview_url} alt={`Xem trước ${scene.is_title ? "cảnh tiêu đề" : "cảnh"}`}
-          style={{ ...frame, objectFit: "cover", display: "block" }} data-testid="scene-preview" />
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={scene.preview_url}
+          alt={`Xem trước ${scene.is_title ? "cảnh tiêu đề" : "cảnh"}`}
+          style={{ ...frame, objectFit: "cover", display: "block" }}
+          data-testid="scene-preview"
+        />
       ) : (
-        <Flex align="center" justify="center" data-testid="scene-no-preview"
-          style={{ ...frame, padding: 12, textAlign: "center", boxSizing: "border-box",
+        <Flex
+          align="center"
+          justify="center"
+          data-testid="scene-no-preview"
+          style={{
+            ...frame,
+            padding: 12,
+            textAlign: "center",
+            boxSizing: "border-box",
             background: hasPicture ? "#FFF7E6" : "#FFF1F0",
-            border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}` }}>
-          <Typography.Text type="danger">
-            {reason ?? scene.image_error ?? "Chưa có ảnh"}
-          </Typography.Text>
+            border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}`,
+          }}
+        >
+          <Typography.Text type="danger">{reason ?? scene.image_error ?? "Chưa có ảnh"}</Typography.Text>
         </Flex>
       )}
       {scene.video && (
         // The clip as uploaded, without sound: the render never uses its sound either.
-        <video src={scene.video.url} muted loop playsInline controls preload="metadata"
-          aria-label={`Video của ${which}`} data-testid="scene-video"
-          style={{ width: "100%", maxHeight: 200, borderRadius: 6, background: "#000" }} />
+        <video
+          src={scene.video.url}
+          muted
+          loop
+          playsInline
+          controls
+          preload="metadata"
+          aria-label={`Video của ${which}`}
+          data-testid="scene-video"
+          style={{ width: "100%", maxHeight: 200, borderRadius: 6, background: "#000" }}
+        />
       )}
-      <input ref={input} type="file" accept="image/jpeg,image/png,image/webp" hidden
+      <input
+        ref={input}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        hidden
         aria-label={`Tải ảnh lên cho ${which}`}
-        onChange={(event) => chosen(event.target.files?.[0])} />
-      <input ref={video} type="file" accept="video/mp4,video/quicktime,video/webm" hidden
+        onChange={(event) => chosen(event.target.files?.[0])}
+      />
+      <input
+        ref={video}
+        type="file"
+        accept="video/mp4,video/quicktime,video/webm"
+        hidden
         aria-label={`Tải video lên cho ${which}`}
-        onChange={(event) => chosenVideo(event.target.files?.[0])} />
-      <Switching show={scene.has_image} title="Video sẽ thay ảnh của cảnh này?" disabled={off}
-        onConfirm={() => video.current?.click()}>
+        onChange={(event) => chosenVideo(event.target.files?.[0])}
+      />
+      <Switching
+        show={scene.has_image}
+        title="Video sẽ thay ảnh của cảnh này?"
+        disabled={off}
+        onConfirm={() => video.current?.click()}
+      >
         <Button icon={<VideoCameraOutlined />} loading={busy === "video"} disabled={off}>
           Tải video lên
         </Button>
       </Switching>
       {scene.video && (
-        <Popconfirm title="Xoá video của cảnh này?" okText="Xoá" cancelText="Huỷ" okButtonProps={{ danger: true }}
+        <Popconfirm
+          title="Xoá video của cảnh này?"
+          okText="Xoá"
+          cancelText="Huỷ"
+          okButtonProps={{ danger: true }}
           disabled={off}
-          onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}>
+          onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
+        >
           <Button danger icon={<DeleteOutlined />} loading={busy === "remove"} disabled={off}>
             Xoá video
           </Button>
         </Popconfirm>
       )}
-      <Switching show={scene.video !== null} title="Ảnh sẽ thay video của cảnh này?" disabled={off}
-        onConfirm={() => input.current?.click()}>
+      <Switching
+        show={scene.video !== null}
+        title="Ảnh sẽ thay video của cảnh này?"
+        disabled={off}
+        onConfirm={() => input.current?.click()}
+      >
         <Button icon={<UploadOutlined />} loading={busy === "upload"} disabled={off}>
           Tải ảnh lên
         </Button>
       </Switching>
-      {error && <Typography.Text type="danger" data-testid="image-error">{error}</Typography.Text>}
+      {error && (
+        <Typography.Text type="danger" data-testid="image-error">
+          {error}
+        </Typography.Text>
+      )}
     </Flex>
   );
 }

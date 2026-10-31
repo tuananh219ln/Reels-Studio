@@ -121,16 +121,26 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
 
   return (
     <Card title="Nhạc nền" size="small">
-      <input ref={input} type="file" accept="audio/mpeg,.mp3" hidden aria-label="Tải nhạc MP3 lên"
-        onChange={(event) => chosen(event.target.files?.[0])} />
+      <input
+        ref={input}
+        type="file"
+        accept="audio/mpeg,.mp3"
+        hidden
+        aria-label="Tải nhạc MP3 lên"
+        onChange={(event) => chosen(event.target.files?.[0])}
+      />
       {video.music ? (
         <Flex vertical gap={8}>
           <Typography.Text data-testid="music-name">{video.music.name}</Typography.Text>
           <audio key={video.music.url} src={video.music.url} controls preload="none" style={{ width: "100%" }} />
           {sources}
           <Flex wrap gap={8}>
-            <Popconfirm title="Gỡ nhạc? Video render sau sẽ im lặng." okText="Gỡ nhạc" cancelText="Huỷ"
-              onConfirm={() => run(() => api<VideoDetail>(`/videos/${video.id}/music`, "DELETE"), "Đã gỡ nhạc")}>
+            <Popconfirm
+              title="Gỡ nhạc? Video render sau sẽ im lặng."
+              okText="Gỡ nhạc"
+              cancelText="Huỷ"
+              onConfirm={() => run(() => api<VideoDetail>(`/videos/${video.id}/music`, "DELETE"), "Đã gỡ nhạc")}
+            >
               <Button danger icon={<DeleteOutlined />} disabled={editor.locked || busy}>
                 Gỡ nhạc
               </Button>

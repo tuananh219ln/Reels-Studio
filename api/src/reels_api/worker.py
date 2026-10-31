@@ -43,7 +43,9 @@ def job_timeout() -> float:
 
 
 def main() -> int:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s", stream=sys.stdout)
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s", stream=sys.stdout
+    )
 
     def stop(signum, frame):
         raise Stop
@@ -87,8 +89,10 @@ def recover_interrupted(factory: sessionmaker) -> None:
     """A job still `running` belonged to a worker that died; it is never re-run automatically (cost)."""
     with factory() as db:
         ids = db.scalars(
-            update(Job).where(Job.status == "running")
-            .values(status="failed", error=RESTARTED, finished_at=now()).returning(Job.id)
+            update(Job)
+            .where(Job.status == "running")
+            .values(status="failed", error=RESTARTED, finished_at=now())
+            .returning(Job.id)
         ).all()
         db.commit()
     for job_id in ids:
@@ -143,8 +147,12 @@ def run_in_child(factory: sessionmaker, job_id: int) -> None:
     except subprocess.TimeoutExpired:
         kill_tree(process)
         # The child and its FFmpeg are dead now, so nothing can write after this.
-        _fail_if_running(factory, job_id, f"Job chạy quá {timeout / 60:g} phút nên đã bị dừng",
-                         f"Tiến trình job bị dừng sau {timeout:g} giây")
+        _fail_if_running(
+            factory,
+            job_id,
+            f"Job chạy quá {timeout / 60:g} phút nên đã bị dừng",
+            f"Tiến trình job bị dừng sau {timeout:g} giây",
+        )
         log.warning("Job %s exceeded %gs: killed", job_id, timeout)
         return
     except BaseException:
@@ -157,14 +165,19 @@ def run_in_child(factory: sessionmaker, job_id: int) -> None:
 
 def _fail_if_running(factory: sessionmaker, job_id: int, error: str, detail: str) -> None:
     with factory() as db:
-        db.execute(update(Job).where(Job.id == job_id, Job.status == "running")
-                   .values(status="failed", error=error, error_detail=detail, finished_at=now()))
+        db.execute(
+            update(Job)
+            .where(Job.id == job_id, Job.status == "running")
+            .values(status="failed", error=error, error_detail=detail, finished_at=now())
+        )
         db.commit()
 
 
 def run_job_command(job_id: int) -> int:
     """Body of the child process."""
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s", stream=sys.stdout)
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s [%(name)s] %(message)s", stream=sys.stdout
+    )
     from .jobs import run_job
     from .storage import get_storage
 

@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from conftest import login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
+
 from reels_api import fanpages
 from reels_api.models import Publication
 from reels_api.videos import render_signature, split_scenes
@@ -29,7 +29,7 @@ def add_post(db, storage, user, **fields) -> Publication:
 
 
 def in_hours(hours: float) -> datetime:
-    return datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=hours)
+    return datetime.now(UTC).replace(microsecond=0) + timedelta(hours=hours)
 
 
 def test_the_list_needs_a_login(client):
@@ -48,7 +48,11 @@ def test_a_post_shows_its_video_fanpage_and_who_posted_it(an, db, me, storage):
     post = add_post(db, storage, me, status="published", remote_id="1000", published_at=when, fanpage_id=page.id)
     (row,) = an.get("/api/posts").json()
     assert (row["video_id"], row["status"], row["fanpage"], row["created_by"]) == (
-        post.video_id, "published", "Trang Dưỡng Sinh", "Nguyễn Văn An")
+        post.video_id,
+        "published",
+        "Trang Dưỡng Sinh",
+        "Nguyễn Văn An",
+    )
     assert row["url"] == "https://www.facebook.com/reel/1000"
     assert datetime.fromisoformat(row["at"]) == when
 
@@ -86,6 +90,8 @@ def test_the_poster_is_who_sent_it_last_after_a_failed_attempt(an, db, me, stora
 
 def test_the_latest_time_comes_first(an, db, me, storage):
     old = add_post(db, storage, me, status="published", remote_id="1", published_at=in_hours(-5))
-    waiting = add_post(db, storage, me, status="scheduled", remote_id="2", scheduled_at=in_hours(5), published_at=in_hours(-9))
+    waiting = add_post(
+        db, storage, me, status="scheduled", remote_id="2", scheduled_at=in_hours(5), published_at=in_hours(-9)
+    )
     new = add_post(db, storage, me, status="published", remote_id="3", published_at=in_hours(-1))
     assert [row["video_id"] for row in an.get("/api/posts").json()] == [waiting.video_id, new.video_id, old.video_id]

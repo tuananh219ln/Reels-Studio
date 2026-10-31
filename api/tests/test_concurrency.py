@@ -3,10 +3,10 @@
 import threading
 
 import pytest
+from conftest import PASSWORD, WEB_ORIGIN, client_for, login
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import sessionmaker
 
-from conftest import PASSWORD, WEB_ORIGIN, client_for, login
 from reels_api import routes_auth, routes_users, sessions
 from reels_api.db import get_db
 from reels_api.main import create_app
@@ -36,15 +36,23 @@ def committed_app(engine, monkeypatch):
 
 @pytest.mark.parametrize(
     ("change", "status"),
-    [({"password_hash": hash_password("tam-moi-1234"), "must_change_password": True}, 401), ({"is_active": False}, 403)],
+    [
+        ({"password_hash": hash_password("tam-moi-1234"), "must_change_password": True}, 401),
+        ({"is_active": False}, 403),
+    ],
     ids=["temp-password", "disable"],
 )
 def test_login_racing_a_reset_never_creates_a_session(committed_app, monkeypatch, change, status):
     """A teammate resets or disables the account while Argon2 checks the old password."""
     app, factory = committed_app
     with factory() as db:
-        victim = User(email="an@doi.vn", name="An", password_hash=hash_password(PASSWORD), is_active=True,
-                      must_change_password=False)
+        victim = User(
+            email="an@doi.vn",
+            name="An",
+            password_hash=hash_password(PASSWORD),
+            is_active=True,
+            must_change_password=False,
+        )
         db.add(victim)
         db.commit()
     real_verify = routes_auth.verify_password
@@ -69,8 +77,13 @@ def test_password_change_racing_a_reset_does_not_overwrite_it(committed_app, mon
     """A teammate sets a temp password after this request's session check but before it writes."""
     app, factory = committed_app
     with factory() as db:
-        victim = User(email="an@doi.vn", name="An", password_hash=hash_password(PASSWORD), is_active=True,
-                      must_change_password=False)
+        victim = User(
+            email="an@doi.vn",
+            name="An",
+            password_hash=hash_password(PASSWORD),
+            is_active=True,
+            must_change_password=False,
+        )
         db.add(victim)
         db.commit()
     client = client_for(app)
@@ -80,8 +93,9 @@ def test_password_change_racing_a_reset_does_not_overwrite_it(committed_app, mon
 
     def reset_then_set_cookie(response, token):
         with factory() as other:
-            other.execute(update(User).where(User.id == victim.id).values(
-                password_hash=temp_hash, must_change_password=True))
+            other.execute(
+                update(User).where(User.id == victim.id).values(password_hash=temp_hash, must_change_password=True)
+            )
             other.execute(delete(Session).where(Session.user_id == victim.id))
             other.commit()
         real_set_cookie(response, token)
@@ -99,10 +113,20 @@ def test_temp_password_racing_a_disable_is_refused(committed_app, monkeypatch):
     """Another teammate disables the user after this request loaded the row but before it writes."""
     app, factory = committed_app
     with factory() as db:
-        me = User(email="an@doi.vn", name="An", password_hash=hash_password(PASSWORD), is_active=True,
-                  must_change_password=False)
-        target = User(email="binh@doi.vn", name="Bình", password_hash=hash_password(PASSWORD), is_active=True,
-                      must_change_password=False)
+        me = User(
+            email="an@doi.vn",
+            name="An",
+            password_hash=hash_password(PASSWORD),
+            is_active=True,
+            must_change_password=False,
+        )
+        target = User(
+            email="binh@doi.vn",
+            name="Bình",
+            password_hash=hash_password(PASSWORD),
+            is_active=True,
+            must_change_password=False,
+        )
         db.add_all([me, target])
         db.commit()
     client = client_for(app)
@@ -129,8 +153,15 @@ def test_session_revoked_after_it_was_read_gives_401_not_500(committed_app, monk
     """Another request revokes the session between the session lookup and its renewal."""
     app, factory = committed_app
     with factory() as db:
-        db.add(User(email="an@doi.vn", name="An", password_hash=hash_password(PASSWORD), is_active=True,
-                    must_change_password=False))
+        db.add(
+            User(
+                email="an@doi.vn",
+                name="An",
+                password_hash=hash_password(PASSWORD),
+                is_active=True,
+                must_change_password=False,
+            )
+        )
         db.commit()
     client = client_for(app)
     login(client, email="an@doi.vn")
@@ -155,10 +186,20 @@ def test_mutual_disable_always_leaves_one_active_user(committed_app):
         with factory() as db:
             db.execute(delete(Session))
             db.execute(delete(User))
-            a = User(email="a@doi.vn", name="A", password_hash=hash_password(PASSWORD), is_active=True,
-                     must_change_password=False)
-            b = User(email="b@doi.vn", name="B", password_hash=hash_password(PASSWORD), is_active=True,
-                     must_change_password=False)
+            a = User(
+                email="a@doi.vn",
+                name="A",
+                password_hash=hash_password(PASSWORD),
+                is_active=True,
+                must_change_password=False,
+            )
+            b = User(
+                email="b@doi.vn",
+                name="B",
+                password_hash=hash_password(PASSWORD),
+                is_active=True,
+                must_change_password=False,
+            )
             db.add_all([a, b])
             db.commit()
         clients = {"a": client_for(app), "b": client_for(app)}
@@ -169,11 +210,13 @@ def test_mutual_disable_always_leaves_one_active_user(committed_app):
         results = {}
 
         def disable(actor, target_id):
-            barrier.wait()
-            results[actor] = clients[actor].post(f"/api/users/{target_id}/disable")
+            barrier.wait()  # noqa: B023 - the threads are joined inside this loop iteration
+            results[actor] = clients[actor].post(f"/api/users/{target_id}/disable")  # noqa: B023
 
-        threads = [threading.Thread(target=disable, args=("a", b.id)),
-                   threading.Thread(target=disable, args=("b", a.id))]
+        threads = [
+            threading.Thread(target=disable, args=("a", b.id)),
+            threading.Thread(target=disable, args=("b", a.id)),
+        ]
         for thread in threads:
             thread.start()
         for thread in threads:
@@ -184,6 +227,8 @@ def test_mutual_disable_always_leaves_one_active_user(committed_app):
         loser = next(r for r in results.values() if r.status_code != 200)
         if loser.status_code == 409:
             assert loser.json() == {
-                "code": "last_active_user", "message": "Phải còn ít nhất một người dùng đang hoạt động"}
+                "code": "last_active_user",
+                "message": "Phải còn ít nhất một người dùng đang hoạt động",
+            }
         with factory() as db:
             assert len(db.scalars(select(User).where(User.is_active)).all()) == 1

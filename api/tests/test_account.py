@@ -1,7 +1,7 @@
 import pytest
+from conftest import PASSWORD, client_for, login, make_user
 from sqlalchemy import func, select
 
-from conftest import PASSWORD, client_for, login, make_user
 from reels_api.models import Session
 from reels_api.sessions import COOKIE_NAME
 
@@ -20,8 +20,11 @@ class TestForcedChange:
         me = client.get("/api/me")
         assert me.status_code == 200
         assert me.json()["must_change_password"] is True
-        for response in (client.get("/api/users"), client.patch("/api/me", json={"name": "Tên mới"}),
-                         client.post("/api/users", json={"email": "x@doi.vn", "name": "X", "password": "12345678"})):
+        for response in (
+            client.get("/api/users"),
+            client.patch("/api/me", json={"name": "Tên mới"}),
+            client.post("/api/users", json={"email": "x@doi.vn", "name": "X", "password": "12345678"}),
+        ):
             assert response.status_code == 403
             assert response.json() == FORCED
         assert client.post("/api/auth/logout").status_code == 200
@@ -72,7 +75,9 @@ class TestMenuPasswordChange:
     def test_wrong_current_password_is_rejected(self, client, db):
         make_user(db)
         login(client)
-        response = client.post("/api/me/password", json={"current_password": "sai-mat-khau", "new_password": "moi-12345"})
+        response = client.post(
+            "/api/me/password", json={"current_password": "sai-mat-khau", "new_password": "moi-12345"}
+        )
         assert response.status_code == 400
         assert response.json() == {"code": "wrong_current_password", "message": "Mật khẩu hiện tại không đúng"}
         client.post("/api/auth/logout")

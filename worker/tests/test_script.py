@@ -1,8 +1,8 @@
 import json
 
 import pytest
-
 from conftest import make_image, scene, write_script
+
 from reels_render.errors import InputError
 from reels_render.script import load_script, write_scene_image
 
@@ -46,10 +46,10 @@ def test_broken_json_names_file(folder):
     ("data", "message"),
     [
         ([], "object JSON"),
-        ({"scenes": [scene()]}, "thiếu trường \"title\""),
-        ({"title": scene()}, "thiếu trường \"scenes\""),
+        ({"scenes": [scene()]}, 'thiếu trường "title"'),
+        ({"title": scene()}, 'thiếu trường "scenes"'),
         ({"title": scene(), "scenes": []}, "không có cảnh nội dung"),
-        ({"title": scene(), "scenes": {"a": scene()}}, "\"scenes\" phải là một danh sách"),
+        ({"title": scene(), "scenes": {"a": scene()}}, '"scenes" phải là một danh sách'),
     ],
 )
 def test_structure_errors(folder, data, message):
@@ -60,13 +60,13 @@ def test_structure_errors(folder, data, message):
 @pytest.mark.parametrize(
     ("override", "message"),
     [
-        ({"seconds": "4"}, "\"seconds\" phải là số"),
-        ({"seconds": True}, "\"seconds\" phải là số"),
-        ({"seconds": None}, "\"seconds\" phải là số"),
+        ({"seconds": "4"}, '"seconds" phải là số'),
+        ({"seconds": True}, '"seconds" phải là số'),
+        ({"seconds": None}, '"seconds" phải là số'),
         ({"seconds": 0.5}, "từ 1 trở lên"),
-        ({"text": 5}, "\"text\" phải là chuỗi"),
-        ({"image": 3}, "\"image\" phải là chuỗi"),
-        ({"keywords": "cá kho"}, "\"keywords\" phải là danh sách"),
+        ({"text": 5}, '"text" phải là chuỗi'),
+        ({"image": 3}, '"image" phải là chuỗi'),
+        ({"keywords": "cá kho"}, '"keywords" phải là danh sách'),
         ({"keywords": ["cá kho", 3]}, "từ khóa thứ 2 .* phải là chuỗi"),
         ({"keywords": ["  "]}, "từ khóa thứ 1 .* đang trống"),
         ({"keywords": ["a" * 101]}, "dài quá 100 ký tự"),
@@ -83,13 +83,16 @@ def test_scene_errors_name_the_scene(folder, override, message):
 
 
 def test_title_errors_name_title(folder):
-    with pytest.raises(InputError, match="^Cảnh tiêu đề: thiếu trường \"seconds\""):
+    with pytest.raises(InputError, match='^Cảnh tiêu đề: thiếu trường "seconds"'):
         load(folder, {"title": {"text": "a"}, "scenes": [scene()]})
 
 
 def test_keywords_are_kept_in_order_and_trimmed(folder):
     longest = "a" * 100
-    data = {"title": scene(keywords=[" sữa chua ", "món ăn giàu canxi"]), "scenes": [scene(keywords=["cá kho tộ", longest])]}
+    data = {
+        "title": scene(keywords=[" sữa chua ", "món ăn giàu canxi"]),
+        "scenes": [scene(keywords=["cá kho tộ", longest])],
+    }
     script = load(folder, data)
     assert script.title.keywords == ("sữa chua", "món ăn giàu canxi")
     assert script.scenes[0].keywords == ("cá kho tộ", longest)
@@ -160,7 +163,7 @@ def test_non_finite_seconds(folder, value):
     raw = f'{{"title": {title}, "scenes": [{{"text": "a", "seconds": {value}, "image": "a.jpg"}}]}}'
     path = folder / "script.json"
     path.write_text(raw, encoding="utf-8")
-    with pytest.raises(InputError, match="^Cảnh 1: \"seconds\" phải là số hữu hạn"):
+    with pytest.raises(InputError, match='^Cảnh 1: "seconds" phải là số hữu hạn'):
         load_script(path)
 
 
@@ -172,10 +175,13 @@ def test_voice_resolves_relative_to_json_and_is_optional(folder):
     assert script.scenes[1].voice is None
 
 
-@pytest.mark.parametrize(("voice", "message"), [
-    ("khong-co.mp3", "Cảnh 1: không tìm thấy file lời đọc khong-co.mp3"),
-    (3, "Cảnh 1: \"voice\" phải là chuỗi"),
-])
+@pytest.mark.parametrize(
+    ("voice", "message"),
+    [
+        ("khong-co.mp3", "Cảnh 1: không tìm thấy file lời đọc khong-co.mp3"),
+        (3, 'Cảnh 1: "voice" phải là chuỗi'),
+    ],
+)
 def test_bad_voice_is_named(folder, voice, message):
     with pytest.raises(InputError, match=message):
         load(folder, {"title": scene(), "scenes": [scene(voice=voice)]})
@@ -190,13 +196,16 @@ def test_video_resolves_relative_to_json_with_its_start(folder):
     assert script.scenes[0].video is None
 
 
-@pytest.mark.parametrize(("override", "message"), [
-    ({"image": "a.jpg", "video": "vuon.mp4"}, "Cảnh 1: chỉ dùng một trong \"image\" hoặc \"video\""),
-    ({"image": "", "video": "khong-co.mp4"}, "Cảnh 1: không tìm thấy file video khong-co.mp4"),
-    ({"image": "", "video": 3}, "Cảnh 1: \"video\" phải là chuỗi"),
-    ({"image": "", "video": "vuon.mp4", "video_start": -1}, "Cảnh 1: \"video_start\" phải là số giây từ 0"),
-    ({"image": "", "video": "vuon.mp4", "video_start": True}, "Cảnh 1: \"video_start\" phải là số giây từ 0"),
-])
+@pytest.mark.parametrize(
+    ("override", "message"),
+    [
+        ({"image": "a.jpg", "video": "vuon.mp4"}, 'Cảnh 1: chỉ dùng một trong "image" hoặc "video"'),
+        ({"image": "", "video": "khong-co.mp4"}, "Cảnh 1: không tìm thấy file video khong-co.mp4"),
+        ({"image": "", "video": 3}, 'Cảnh 1: "video" phải là chuỗi'),
+        ({"image": "", "video": "vuon.mp4", "video_start": -1}, 'Cảnh 1: "video_start" phải là số giây từ 0'),
+        ({"image": "", "video": "vuon.mp4", "video_start": True}, 'Cảnh 1: "video_start" phải là số giây từ 0'),
+    ],
+)
 def test_bad_video_is_named(folder, override, message):
     (folder / "vuon.mp4").write_bytes(b"clip")
     with pytest.raises(InputError, match=message):

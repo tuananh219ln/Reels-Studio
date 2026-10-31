@@ -57,8 +57,7 @@ export default function MusicPage() {
       title: "Nguồn / giấy phép",
       key: "license",
       width: 220,
-      render: (_, track) =>
-        track.license_note || <Typography.Text type="warning">Chưa ghi nguồn</Typography.Text>,
+      render: (_, track) => track.license_note || <Typography.Text type="warning">Chưa ghi nguồn</Typography.Text>,
     },
     { title: "Người thêm", dataIndex: "created_by", width: 160 },
     { title: "Ngày thêm", key: "created", width: 150, render: (_, track) => formatDateTime(track.created_at) },
@@ -92,8 +91,14 @@ export default function MusicPage() {
       <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
         Thư viện nhạc
       </Typography.Title>
-      <input ref={input} type="file" accept="audio/mpeg,.mp3" hidden aria-label="Chọn file MP3 cho thư viện"
-        onChange={(event) => chosen(event.target.files?.[0])} />
+      <input
+        ref={input}
+        type="file"
+        accept="audio/mpeg,.mp3"
+        hidden
+        aria-label="Chọn file MP3 cho thư viện"
+        onChange={(event) => chosen(event.target.files?.[0])}
+      />
       <Flex wrap gap={12} justify="space-between" style={{ marginBottom: 16 }}>
         <TrackFilters value={filters} onChange={setFilters} />
         <Button type="primary" icon={<UploadOutlined />} onClick={() => input.current?.click()}>

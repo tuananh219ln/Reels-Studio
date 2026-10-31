@@ -32,8 +32,11 @@ def upgrade() -> None:
         sa.Column("checked_by_id", sa.Integer(), nullable=True),
         sa.Column("created_by_id", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["knowledge_topic_id"], ["knowledge_topics.id"],
-                                name="fk_affiliate_products_knowledge_topic_id_knowledge_topics"),
+        sa.ForeignKeyConstraint(
+            ["knowledge_topic_id"],
+            ["knowledge_topics.id"],
+            name="fk_affiliate_products_knowledge_topic_id_knowledge_topics",
+        ),
         sa.ForeignKeyConstraint(["checked_by_id"], ["users.id"], name="fk_affiliate_products_checked_by_id_users"),
         sa.ForeignKeyConstraint(["created_by_id"], ["users.id"], name="fk_affiliate_products_created_by_id_users"),
         sa.PrimaryKeyConstraint("id", name="pk_affiliate_products"),
@@ -42,10 +45,15 @@ def upgrade() -> None:
         "video_affiliate_products",
         sa.Column("video_id", sa.Integer(), nullable=False),
         sa.Column("product_id", sa.Integer(), nullable=False),
-        sa.ForeignKeyConstraint(["video_id"], ["videos.id"], name="fk_video_affiliate_products_video_id_videos",
-                                ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["product_id"], ["affiliate_products.id"],
-                                name="fk_video_affiliate_products_product_id_affiliate_products", ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["video_id"], ["videos.id"], name="fk_video_affiliate_products_video_id_videos", ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["product_id"],
+            ["affiliate_products.id"],
+            name="fk_video_affiliate_products_product_id_affiliate_products",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("video_id", "product_id", name="pk_video_affiliate_products"),
     )
 

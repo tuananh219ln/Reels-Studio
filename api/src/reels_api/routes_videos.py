@@ -129,8 +129,15 @@ def _saved(db: DbSession, video: Video) -> dict:
 def _enqueue(db: DbSession, video: Video, kind: str, me: Session, retry_of: Job | None = None) -> None:
     """Callers hold the video lock; the partial unique index is the last guard against a second job."""
     ensure_unlocked(db, video)
-    db.add(Job(video_id=video.id, kind=kind, status="queued", created_by_id=me.user_id,
-               retry_of_id=retry_of.id if retry_of else None))
+    db.add(
+        Job(
+            video_id=video.id,
+            kind=kind,
+            status="queued",
+            created_by_id=me.user_id,
+            retry_of_id=retry_of.id if retry_of else None,
+        )
+    )
     try:
         db.flush()
     except IntegrityError:
@@ -148,6 +155,7 @@ def _ensure_renderable(db: DbSession, video: Video) -> None:
 
 
 # --- Videos ---
+
 
 @router.get("/videos")
 def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
@@ -311,8 +319,13 @@ class LibraryMusicBody(BaseModel):
 
 
 @router.post("/videos/{video_id}/music/from-library")
-def music_from_library(video_id: int, body: LibraryMusicBody, me: Session = Depends(current_member),
-                       db: DbSession = Depends(get_db), storage: DirectoryStorage = Depends(get_storage)) -> dict:
+def music_from_library(
+    video_id: int,
+    body: LibraryMusicBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
     track = db.get(MusicTrack, body.track_id)
@@ -328,8 +341,12 @@ def music_from_library(video_id: int, body: LibraryMusicBody, me: Session = Depe
 
 
 @router.delete("/videos/{video_id}/music")
-def remove_music(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                 storage: DirectoryStorage = Depends(get_storage)) -> dict:
+def remove_music(
+    video_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
     old, video.music_key, video.music_name = video.music_key, None, None
@@ -350,6 +367,7 @@ def clone_snapshot(db: DbSession, video: Video, request: str) -> dict:
     """What the clone prompt sees: the source exactly as edited at the moment "Nhân bản" was pressed."""
     title, scenes = split_scenes(db, video)
     lines = []
+
     def voice(scene: Scene) -> str:
         return f" — lời đọc: {_one_line(scene.voice_text)}" if scene.voice_text.strip() else ""
 
@@ -397,8 +415,14 @@ def clone_video(
     group = knowledge.topic_of(db, source)
     if group is None or not group.clone_prompt:
         raise invalid(f"Nhóm chủ đề “{group.name if group else ''}” chưa có prompt nhân bản")
-    draft = Video(topic=request, knowledge_topic_id=group.id, has_script=False, created_by_id=me.user_id,
-                  music_volume=source.music_volume, clone_source=clone_snapshot(db, source, request))
+    draft = Video(
+        topic=request,
+        knowledge_topic_id=group.id,
+        has_script=False,
+        created_by_id=me.user_id,
+        music_volume=source.music_volume,
+        clone_source=clone_snapshot(db, source, request),
+    )
     db.add(draft)
     db.flush()
     if source.music_key and storage.exists(source.music_key):
@@ -411,6 +435,7 @@ def clone_video(
 
 # --- Scenes ---
 
+
 @router.post("/videos/{video_id}/scenes", status_code=201)
 def add_scene(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     video = lock_video(db, video_id)
@@ -418,8 +443,17 @@ def add_scene(video_id: int, me: Session = Depends(current_member), db: DbSessio
     if not video.has_script:
         raise ApiError(409, "no_script", "Video chưa có kịch bản")
     last = db.scalar(select(func.max(Scene.position)).where(Scene.video_id == video.id, Scene.is_title.is_(False)))
-    db.add(Scene(video_id=video.id, is_title=False, position=(last or 0) + 1, text="",
-                 seconds=NEW_SCENE_SECONDS, keywords=[], image_prompt=""))
+    db.add(
+        Scene(
+            video_id=video.id,
+            is_title=False,
+            position=(last or 0) + 1,
+            text="",
+            seconds=NEW_SCENE_SECONDS,
+            keywords=[],
+            image_prompt="",
+        )
+    )
     return _saved(db, video)
 
 
@@ -486,8 +520,12 @@ def patch_scene(
 
 
 @router.delete("/scenes/{scene_id}")
-def delete_scene(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                 storage: DirectoryStorage = Depends(get_storage)) -> dict:
+def delete_scene(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     if scene.is_title:
@@ -500,8 +538,9 @@ def delete_scene(scene_id: int, me: Session = Depends(current_member), db: DbSes
     return payload
 
 
-def _store_photo(db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str,
-                 source: str) -> dict:
+def _store_photo(
+    db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str, source: str
+) -> dict:
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     old = [scene.image_key, scene.video_key]
@@ -583,8 +622,12 @@ def upload_scene_video(
 
 
 @router.delete("/scenes/{scene_id}/video")
-def remove_scene_video(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                       storage: DirectoryStorage = Depends(get_storage)) -> dict:
+def remove_scene_video(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     old, scene.video_key, scene.video_seconds, scene.video_start = scene.video_key, None, None, 0
@@ -625,8 +668,9 @@ def _pixabay_failed(err: PixabayError) -> ApiError:
 
 
 @router.get("/scenes/{scene_id}/pixabay")
-def search_pixabay(scene_id: int, q: str = "", me: Session = Depends(current_member),
-                   db: DbSession = Depends(get_db)) -> dict:
+def search_pixabay(
+    scene_id: int, q: str = "", me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
     """Results for the "Chọn từ Pixabay" grid; thumbnails are shown from Pixabay and never stored."""
     if db.get(Scene, scene_id) is None:
         raise ApiError(404, "scene_deleted", "Cảnh này đã bị xóa")
@@ -680,8 +724,9 @@ JOB_LIST_LIMIT = 300
 
 
 @router.get("/jobs")
-def list_jobs(before: int | None = None, me: Session = Depends(current_member),
-              db: DbSession = Depends(get_db)) -> list[dict]:
+def list_jobs(
+    before: int | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
     """The job log: newest first, including cancelled jobs and every retry. One page per call; `before`
     (the oldest job id shown) gives the next, older page."""
     query = select(Job).order_by(Job.id.desc()).limit(JOB_LIST_LIMIT)
@@ -696,21 +741,24 @@ def list_jobs(before: int | None = None, me: Session = Depends(current_member),
             title, _ = split_scenes(db, video)
             titles[job.video_id] = title_of(video, title) or video.topic
         ended = job.finished_at
-        rows.append({
-            "id": job.id,
-            "video_id": job.video_id,
-            "video_title": titles[job.video_id],
-            "kind": job.kind,
-            "kind_label": JOB_KINDS.get(job.kind, job.kind),
-            "status": job.status,
-            "created_by": job.created_by.name,
-            "created_at": job.created_at.isoformat(),
-            "started_at": job.started_at.isoformat() if job.started_at else None,
-            "duration_seconds": round((ended - job.started_at).total_seconds(), 1)
-            if job.started_at and ended else None,
-            "claude_calls": job.claude_calls,
-            "error": job.error,
-        })
+        rows.append(
+            {
+                "id": job.id,
+                "video_id": job.video_id,
+                "video_title": titles[job.video_id],
+                "kind": job.kind,
+                "kind_label": JOB_KINDS.get(job.kind, job.kind),
+                "status": job.status,
+                "created_by": job.created_by.name,
+                "created_at": job.created_at.isoformat(),
+                "started_at": job.started_at.isoformat() if job.started_at else None,
+                "duration_seconds": round((ended - job.started_at).total_seconds(), 1)
+                if job.started_at and ended
+                else None,
+                "claude_calls": job.claude_calls,
+                "error": job.error,
+            }
+        )
     return rows
 
 
@@ -750,11 +798,17 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
 
 # --- Files (all behind login) ---
 
+
 def _file(storage: DirectoryStorage, key: str | None, media_type: str, filename: str | None = None) -> FileResponse:
     if not key or not storage.exists(key):
         raise ApiError(404, "file_not_found", "Không tìm thấy file")
-    return FileResponse(storage.path(key), media_type=media_type, filename=filename,
-                        content_disposition_type="attachment", headers={"Cache-Control": "private, max-age=3600"})
+    return FileResponse(
+        storage.path(key),
+        media_type=media_type,
+        filename=filename,
+        content_disposition_type="attachment",
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
 
 
 def _inline(storage: DirectoryStorage, key: str | None, media_type: str) -> FileResponse:
@@ -771,42 +825,63 @@ def _scene(db: DbSession, scene_id: int) -> Scene:
 
 
 @router.get("/scenes/{scene_id}/image")
-def scene_image(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+def scene_image(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
     scene = _scene(db, scene_id)
     extension = (scene.image_key or "").rsplit(".", 1)[-1]
     return _inline(storage, scene.image_key, IMAGE_TYPES.get(extension, "application/octet-stream"))
 
 
 @router.get("/scenes/{scene_id}/preview.jpg")
-def scene_preview(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                  storage: DirectoryStorage = Depends(get_storage)) -> Response:
+def scene_preview(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> Response:
     scene = _scene(db, scene_id)
     still = scene_still(storage, scene)
     if still is None:
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
     frame = frames.compose_frame(still, scene.text, scene.is_title)
-    return Response(frames.jpeg_bytes(frame), media_type="image/jpeg",
-                    headers={"Cache-Control": "private, max-age=3600"})
+    return Response(
+        frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
+    )
 
 
 @router.get("/scenes/{scene_id}/video")
-def scene_video(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+def scene_video(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
     scene = _scene(db, scene_id)
     extension = (scene.video_key or "").rsplit(".", 1)[-1]
     return _inline(storage, scene.video_key, CLIP_TYPES.get(extension, "application/octet-stream"))
 
 
 @router.get("/scenes/{scene_id}/voice.mp3")
-def scene_voice(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-                storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+def scene_voice(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
     return _inline(storage, _scene(db, scene_id).voice_key, "audio/mpeg")
 
 
 @router.get("/videos/{video_id}/thumbnail.jpg")
-def thumbnail(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-              storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+def thumbnail(
+    video_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
     video = db.get(Video, video_id)
     if video is None:
         raise video_not_found()
@@ -814,8 +889,12 @@ def thumbnail(video_id: int, me: Session = Depends(current_member), db: DbSessio
 
 
 @router.get("/videos/{video_id}/music.mp3")
-def music_file(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db),
-               storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+def music_file(
+    video_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
     video = db.get(Video, video_id)
     if video is None:
         raise video_not_found()
@@ -823,8 +902,13 @@ def music_file(video_id: int, me: Session = Depends(current_member), db: DbSessi
 
 
 @router.get("/videos/{video_id}/video.mp4")
-def video_file(video_id: int, download: bool = False, me: Session = Depends(current_member),
-               db: DbSession = Depends(get_db), storage: DirectoryStorage = Depends(get_storage)) -> FileResponse:
+def video_file(
+    video_id: int,
+    download: bool = False,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
     video = db.get(Video, video_id)
     if video is None:
         raise video_not_found()
@@ -834,6 +918,7 @@ def video_file(video_id: int, download: bool = False, me: Session = Depends(curr
 
 
 # --- Knowledge ---
+
 
 class NewTopicBody(BaseModel):
     name: str
@@ -849,14 +934,17 @@ class TopicPatchBody(BaseModel):
 def _knowledge_payload(db: DbSession) -> dict:
     counts = dict(db.execute(select(Video.knowledge_topic_id, func.count()).group_by(Video.knowledge_topic_id)).all())
     return {
-        "topics": [{
-            "id": topic.id,
-            "name": topic.name,
-            "script_prompt": topic.script_prompt,
-            "clone_prompt": topic.clone_prompt,
-            "banned_words": topic.banned_words,
-            "video_count": counts.get(topic.id, 0),
-        } for topic in knowledge.all_topics(db)],
+        "topics": [
+            {
+                "id": topic.id,
+                "name": topic.name,
+                "script_prompt": topic.script_prompt,
+                "clone_prompt": topic.clone_prompt,
+                "banned_words": topic.banned_words,
+                "video_count": counts.get(topic.id, 0),
+            }
+            for topic in knowledge.all_topics(db)
+        ],
         "default_script_prompt": knowledge.default_script_prompt(),
         "default_clone_prompt": knowledge.default_clone_prompt(),
     }
@@ -902,8 +990,9 @@ def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: 
 
 
 @router.patch("/knowledge/topics/{topic_id}")
-def patch_topic(topic_id: int, body: TopicPatchBody, me: Session = Depends(current_member),
-                db: DbSession = Depends(get_db)) -> dict:
+def patch_topic(
+    topic_id: int, body: TopicPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
     topic = _topic(db, topic_id)
     if body.name is not None:
         topic.name = _topic_name(db, body.name, topic.id)
@@ -912,8 +1001,9 @@ def patch_topic(topic_id: int, body: TopicPatchBody, me: Session = Depends(curre
     if body.clone_prompt is not None:
         topic.clone_prompt = _prompt(body.clone_prompt)
     if body.banned_words is not None:
-        topic.banned_words = list(dict.fromkeys(
-            _clean_list(body.banned_words, MAX_KEYWORD_LENGTH, "Từ cấm", max_items=500)))
+        topic.banned_words = list(
+            dict.fromkeys(_clean_list(body.banned_words, MAX_KEYWORD_LENGTH, "Từ cấm", max_items=500))
+        )
     topic.updated_by_id = me.user_id
     db.commit()
     return _knowledge_payload(db)
@@ -925,8 +1015,9 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     videos = db.scalar(select(func.count()).select_from(Video).where(Video.knowledge_topic_id == topic.id))
     if videos:
         raise ApiError(409, "topic_in_use", f"Nhóm chủ đề còn {videos} video nên chưa xoá được")
-    products = db.scalar(select(func.count()).select_from(AffiliateProduct)
-                         .where(AffiliateProduct.knowledge_topic_id == topic.id))
+    products = db.scalar(
+        select(func.count()).select_from(AffiliateProduct).where(AffiliateProduct.knowledge_topic_id == topic.id)
+    )
     if products:
         raise ApiError(409, "topic_in_use", f"Nhóm chủ đề còn {products} sản phẩm affiliate nên chưa xoá được")
     db.delete(topic)

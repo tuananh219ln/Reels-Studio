@@ -21,8 +21,12 @@ def messages(issues, scene_id=None):
 
 
 def run(title_scene=None, content=None, posts=None, banned=()):
-    return check_script(title_scene if title_scene is not None else title(),
-                        scenes() if content is None else content, posts or {}, list(banned))
+    return check_script(
+        title_scene if title_scene is not None else title(),
+        scenes() if content is None else content,
+        posts or {},
+        list(banned),
+    )
 
 
 def test_a_script_like_the_sample_passes_without_warnings():
@@ -114,16 +118,21 @@ def test_missing_photo_blocks_for_title_and_scene():
     assert "Cảnh chưa có ảnh" in messages(checks.blocking, 9)
 
 
-@pytest.mark.parametrize("text", ["CHỮA KHỎI đau lưng", "*chữa* khỏi", unicodedata.normalize("NFD", "chữa khỏi"),
-                                  "chữa\nkhỏi"])
+@pytest.mark.parametrize(
+    "text", ["CHỮA KHỎI đau lưng", "*chữa* khỏi", unicodedata.normalize("NFD", "chữa khỏi"), "chữa\nkhỏi"]
+)
 def test_banned_words_match_case_markup_and_unicode_forms(text):
     assert banned_hits(text, ["chữa khỏi"]) == ["chữa khỏi"]
 
 
 def test_banned_word_warnings_do_not_block_and_point_at_the_field():
     content = scenes(4) + [SceneInput(9, False, "Đặc trị\n*đau* lưng", 4, True)]
-    checks = run(title(text="KHẮC TINH CỦA BỆNH"), content, {"caption": "giúp chữa khỏi", "pinned_comment": "ok"},
-                 banned=["chữa khỏi", "đặc trị", "khắc tinh"])
+    checks = run(
+        title(text="KHẮC TINH CỦA BỆNH"),
+        content,
+        {"caption": "giúp chữa khỏi", "pinned_comment": "ok"},
+        banned=["chữa khỏi", "đặc trị", "khắc tinh"],
+    )
     assert checks.blocking == []
     assert messages(checks.warnings, 9) == ["Có từ cấm: “đặc trị”"]
     assert messages(checks.warnings, 0) == ["Có từ cấm: “khắc tinh”"]
@@ -154,18 +163,22 @@ def test_banned_words_in_narration_warn_on_the_voice_field():
     ]
 
 
-@pytest.mark.parametrize(("seconds", "voice_seconds", "warned"), [
-    (3.0, None, True),
-    (1.6, None, False),
-    # A middle scene also plays 0.2 s into each crossfade: 1.7 + 0.4 needs more than the 2 s of clip.
-    (1.7, None, True),
-    # Narration lengthens the scene past what is left of the clip.
-    (1.6, 2.0, True),
-])
+@pytest.mark.parametrize(
+    ("seconds", "voice_seconds", "warned"),
+    [
+        (3.0, None, True),
+        (1.6, None, False),
+        # A middle scene also plays 0.2 s into each crossfade: 1.7 + 0.4 needs more than the 2 s of clip.
+        (1.7, None, True),
+        # Narration lengthens the scene past what is left of the clip.
+        (1.6, 2.0, True),
+    ],
+)
 def test_a_scene_longer_than_its_clip_only_warns(seconds, voice_seconds, warned):
     """A middle scene: a crossfade on both sides."""
-    clip = SceneInput(9, False, SCENE_TEXT, seconds, True, "lời đọc" if voice_seconds else "", voice_seconds,
-                      clip_seconds=2.0)
+    clip = SceneInput(
+        9, False, SCENE_TEXT, seconds, True, "lời đọc" if voice_seconds else "", voice_seconds, clip_seconds=2.0
+    )
     checks = run(title(), scenes(2) + [clip] + scenes(2))
     assert ("Video ngắn hơn cảnh, khung cuối sẽ đứng yên" in messages(checks.warnings, 9)) is warned
     assert messages(checks.blocking, 9) == []
@@ -174,8 +187,14 @@ def test_a_scene_longer_than_its_clip_only_warns(seconds, voice_seconds, warned)
 @pytest.mark.parametrize("place", ["title", "last"])
 @pytest.mark.parametrize(("seconds", "warned"), [(1.8, False), (1.9, True)])
 def test_the_title_and_the_last_scene_have_one_crossfade_to_cover(place, seconds, warned):
-    clip = SceneInput(9 if place == "last" else 0, place == "title", TITLE_TEXT if place == "title" else SCENE_TEXT,
-                      seconds, True, clip_seconds=2.0)
+    clip = SceneInput(
+        9 if place == "last" else 0,
+        place == "title",
+        TITLE_TEXT if place == "title" else SCENE_TEXT,
+        seconds,
+        True,
+        clip_seconds=2.0,
+    )
     checks = run(clip, scenes(4) + [clip]) if place == "last" else run(clip, scenes(4))
     assert ("Video ngắn hơn cảnh, khung cuối sẽ đứng yên" in messages(checks.warnings, clip.id)) is warned
 

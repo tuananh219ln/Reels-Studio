@@ -5,8 +5,8 @@ import io
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from conftest import client_for, first_topic, login, make_user, make_video
+
 from reels_api.models import AffiliateProduct, Publication
 
 URL = "/api/affiliate-products"
@@ -24,9 +24,18 @@ def an(client, me):
 
 
 def body(db, **fields) -> dict:
-    return {"knowledge_topic_id": first_topic(db).id, "name": "Vừng đen rang", "url": "https://s.shopee.vn/abc",
-            "shop_name": "Nhà Vừng", "shop_type": "mall", "rating": 4.8, "sold": 500, "price": 100000,
-            "commission_rate": 10, **fields}
+    return {
+        "knowledge_topic_id": first_topic(db).id,
+        "name": "Vừng đen rang",
+        "url": "https://s.shopee.vn/abc",
+        "shop_name": "Nhà Vừng",
+        "shop_type": "mall",
+        "rating": 4.8,
+        "sold": 500,
+        "price": 100000,
+        "commission_rate": 10,
+        **fields,
+    }
 
 
 def add(an, db, **fields) -> dict:
@@ -42,9 +51,17 @@ def add_approved(an, db, **fields) -> dict:
 def posted_video(db, storage, user, status="published", scheduled_at=None, published_at=None, **fields):
     """Like after the publish job, which stamps published_at when the upload ends, even for a scheduled reel."""
     video = make_video(db, storage, user, **fields)
-    db.add(Publication(video_id=video.id, platform="facebook", status=status, remote_id="reel-1",
-                       scheduled_at=scheduled_at, created_by_id=user.id,
-                       published_at=None if status == "pending" else published_at or datetime.now(UTC)))
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="facebook",
+            status=status,
+            remote_id="reel-1",
+            scheduled_at=scheduled_at,
+            created_by_id=user.id,
+            published_at=None if status == "pending" else published_at or datetime.now(UTC),
+        )
+    )
     db.commit()
     return video
 
@@ -100,25 +117,28 @@ def test_list_filters_by_topic_status_and_text(an, db):
     assert ids("?q=%25") == [sesame["id"]]
 
 
-@pytest.mark.parametrize("fields, message", [
-    ({"name": " "}, "Tên sản phẩm"),
-    ({"name": "a" * 301}, "Tên sản phẩm"),
-    ({"shop_name": ""}, "Tên shop"),
-    ({"url": "javascript:alert(1)"}, "Link phải"),
-    ({"url": "s.shopee.vn/abc"}, "Link phải"),
-    ({"url": "https://"}, "Link phải"),
-    ({"url": "https://[bad"}, "Link phải"),
-    ({"url": "https://s.shopee.vn/a b"}, "Link phải"),
-    ({"shop_type": "vip"}, "Loại shop"),
-    ({"rating": 5.1}, "Số sao"),
-    ({"rating": -0.1}, "Số sao"),
-    ({"commission_rate": 101}, "Hoa hồng"),
-    ({"commission_rate": -1}, "Hoa hồng"),
-    ({"price": 0}, "Giá"),
-    ({"price": 3_000_000_000}, "Giá"),
-    ({"sold": -1}, "Lượt bán"),
-    ({"knowledge_topic_id": 999999}, "Nhóm chủ đề"),
-])
+@pytest.mark.parametrize(
+    "fields, message",
+    [
+        ({"name": " "}, "Tên sản phẩm"),
+        ({"name": "a" * 301}, "Tên sản phẩm"),
+        ({"shop_name": ""}, "Tên shop"),
+        ({"url": "javascript:alert(1)"}, "Link phải"),
+        ({"url": "s.shopee.vn/abc"}, "Link phải"),
+        ({"url": "https://"}, "Link phải"),
+        ({"url": "https://[bad"}, "Link phải"),
+        ({"url": "https://s.shopee.vn/a b"}, "Link phải"),
+        ({"shop_type": "vip"}, "Loại shop"),
+        ({"rating": 5.1}, "Số sao"),
+        ({"rating": -0.1}, "Số sao"),
+        ({"commission_rate": 101}, "Hoa hồng"),
+        ({"commission_rate": -1}, "Hoa hồng"),
+        ({"price": 0}, "Giá"),
+        ({"price": 3_000_000_000}, "Giá"),
+        ({"sold": -1}, "Lượt bán"),
+        ({"knowledge_topic_id": 999999}, "Nhóm chủ đề"),
+    ],
+)
 def test_a_wrong_form_is_refused(an, db, fields, message):
     response = an.post(URL, json=body(db, **fields))
     assert response.status_code == 422 and message in response.json()["message"]
@@ -144,12 +164,15 @@ def test_banned_words_come_from_the_products_own_topic_group(an, db):
     assert add(an, db, name="Trà đặc trị", knowledge_topic_id=other["id"])["problems"] == []
 
 
-@pytest.mark.parametrize("fields, reason", [
-    ({"shop_type": "other"}, "Shop phải là"),
-    ({"rating": 4.6}, "dưới 4.7 sao"),
-    ({"sold": 99}, "dưới 100"),
-    ({"name": "Trà đặc trị mất ngủ"}, "đặc trị"),
-])
+@pytest.mark.parametrize(
+    "fields, reason",
+    [
+        ({"shop_type": "other"}, "Shop phải là"),
+        ({"rating": 4.6}, "dưới 4.7 sao"),
+        ({"sold": 99}, "dưới 100"),
+        ({"name": "Trà đặc trị mất ngủ"}, "đặc trị"),
+    ],
+)
 def test_a_product_below_the_bar_cannot_be_approved(an, db, fields, reason):
     product = add(an, db, **fields)
     assert any(reason in problem for problem in product["problems"])
@@ -164,10 +187,19 @@ def test_saving_an_approved_product_unchanged_keeps_its_approval(an, db):
     assert same["status"] == "approved" and same["checked_at"] == product["checked_at"]
 
 
-@pytest.mark.parametrize("change", [
-    {"name": "Tên khác"}, {"url": "https://s.shopee.vn/khac"}, {"shop_name": "Shop khác"}, {"shop_type": "preferred"},
-    {"rating": 4.9}, {"sold": 600}, {"price": 90000}, {"commission_rate": 5},
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"name": "Tên khác"},
+        {"url": "https://s.shopee.vn/khac"},
+        {"shop_name": "Shop khác"},
+        {"shop_type": "preferred"},
+        {"rating": 4.9},
+        {"sold": 600},
+        {"price": 90000},
+        {"commission_rate": 5},
+    ],
+)
 def test_changing_an_approved_product_needs_a_new_approval(an, db, change):
     product = add_approved(an, db)
     changed = an.put(f"{URL}/{product['id']}", json=body(db, **change)).json()
@@ -201,10 +233,19 @@ def test_csv_opens_in_excel_with_every_column(an, db, me):
     header, row = csv_rows(an)
     checked = datetime.fromisoformat(approved["checked_at"])
     assert dict(zip(header, row, strict=True)) == {
-        "Nhóm chủ đề": "Sức khỏe", "Sản phẩm": "Vừng đen rang", "Shop": "Nhà Vừng", "Loại shop": "Shopee Mall",
-        "Sao": "4.8", "Đã bán": "500", "Giá (đ)": "500000", "Hoa hồng (%)": "10.0",
-        "Hoa hồng ước tính (đ)": "50000", "Link": approved["url"], "Trạng thái": "Đã duyệt",
-        "Ngày kiểm tra": (checked + timedelta(hours=7)).strftime("%d/%m/%Y %H:%M"), "Người duyệt": me.name,
+        "Nhóm chủ đề": "Sức khỏe",
+        "Sản phẩm": "Vừng đen rang",
+        "Shop": "Nhà Vừng",
+        "Loại shop": "Shopee Mall",
+        "Sao": "4.8",
+        "Đã bán": "500",
+        "Giá (đ)": "500000",
+        "Hoa hồng (%)": "10.0",
+        "Hoa hồng ước tính (đ)": "50000",
+        "Link": approved["url"],
+        "Trạng thái": "Đã duyệt",
+        "Ngày kiểm tra": (checked + timedelta(hours=7)).strftime("%d/%m/%Y %H:%M"),
+        "Người duyệt": me.name,
     }
 
 
@@ -244,8 +285,9 @@ def test_only_published_reels_are_listed_newest_first(an, db, me, storage):
     now = datetime.now(UTC)
     older = posted_video(db, storage, me, published_at=now - timedelta(days=2))
     newer = posted_video(db, storage, me, published_at=now - timedelta(days=1))
-    went_live = posted_video(db, storage, me, status="scheduled", scheduled_at=now - timedelta(hours=1),
-                             published_at=now - timedelta(days=9))
+    went_live = posted_video(
+        db, storage, me, status="scheduled", scheduled_at=now - timedelta(hours=1), published_at=now - timedelta(days=9)
+    )
     posted_video(db, storage, me, status="scheduled", scheduled_at=now + timedelta(hours=1))
     posted_video(db, storage, me, status="pending")
     make_video(db, storage, me)
@@ -354,8 +396,13 @@ def test_a_video_that_is_not_live_takes_no_products(an, db, me, storage, post):
         video = make_video(db, storage, me)
     else:
         ahead = post.get("ahead")
-        video = posted_video(db, storage, me, status=post["status"],
-                             scheduled_at=datetime.now(UTC) + timedelta(hours=ahead) if ahead else None)
+        video = posted_video(
+            db,
+            storage,
+            me,
+            status=post["status"],
+            scheduled_at=datetime.now(UTC) + timedelta(hours=ahead) if ahead else None,
+        )
     product = add_approved(an, db)
     response = an.put(f"{URL}/videos/{video.id}", json={"product_ids": [product["id"]]})
     assert response.status_code == 404 and response.json()["code"] == "video_not_published"

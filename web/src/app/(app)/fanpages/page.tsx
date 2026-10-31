@@ -5,18 +5,30 @@ import { App, Button, Checkbox, Flex, Input, Modal, Popconfirm, Space, Table, Ta
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type Fanpage, type FanpageChoice } from "@/lib/api";
 
-const time = (value: string) =>
-  new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+const time = (value: string) => new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 
 function TokenInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   return (
-    <Input.Password aria-label="Token" value={value} autoComplete="new-password" placeholder="Dán token vào đây"
-      onChange={(event) => onChange(event.target.value)} />
+    <Input.Password
+      aria-label="Token"
+      value={value}
+      autoComplete="new-password"
+      placeholder="Dán token vào đây"
+      onChange={(event) => onChange(event.target.value)}
+    />
   );
 }
 
 /** Paste a token, see the Pages it manages, choose which to connect. */
-function AddModal({ open, onClose, onSaved }: { open: boolean; onClose: () => void; onSaved: (rows: Fanpage[]) => void }) {
+function AddModal({
+  open,
+  onClose,
+  onSaved,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSaved: (rows: Fanpage[]) => void;
+}) {
   const { message } = App.useApp();
   const [token, setToken] = useState("");
   const [pages, setPages] = useState<FanpageChoice[] | null>(null);
@@ -50,35 +62,52 @@ function AddModal({ open, onClose, onSaved }: { open: boolean; onClose: () => vo
   }
 
   return (
-    <Modal title="Thêm Fanpage" open={open} onCancel={onClose} destroyOnHidden
+    <Modal
+      title="Thêm Fanpage"
+      open={open}
+      onCancel={onClose}
+      destroyOnHidden
       afterClose={() => {
         setToken("");
         setPages(null);
         setChosen([]);
       }}
-      okText={pages ? "Lưu" : "Kiểm tra token"} cancelText="Huỷ" confirmLoading={busy}
+      okText={pages ? "Lưu" : "Kiểm tra token"}
+      cancelText="Huỷ"
+      confirmLoading={busy}
       okButtonProps={{ disabled: pages ? chosen.length === 0 : !token.trim() }}
-      onOk={pages ? save : lookup}>
+      onOk={pages ? save : lookup}
+    >
       <Flex vertical gap={12}>
-        <TokenInput value={token} onChange={(value) => {
-          setToken(value);
-          setPages(null);
-        }} />
+        <TokenInput
+          value={token}
+          onChange={(value) => {
+            setToken(value);
+            setPages(null);
+          }}
+        />
         {pages && (
-          <Checkbox.Group value={chosen} onChange={(values) => setChosen(values as string[])}
+          <Checkbox.Group
+            value={chosen}
+            onChange={(values) => setChosen(values as string[])}
             style={{ display: "flex", flexDirection: "column", gap: 6 }}
             options={pages.map((page) => ({
               value: page.page_id,
               disabled: !page.can_post,
               label: page.can_post ? `${page.name} (${page.page_id})` : `${page.name} (token không có quyền đăng)`,
-            }))} />
+            }))}
+          />
         )}
       </Flex>
     </Modal>
   );
 }
 
-function TokenModal({ row, onClose, onSaved }: {
+function TokenModal({
+  row,
+  onClose,
+  onSaved,
+}: {
   row: Fanpage | null;
   onClose: () => void;
   onSaved: (rows: Fanpage[]) => void;
@@ -100,9 +129,18 @@ function TokenModal({ row, onClose, onSaved }: {
   }
 
   return (
-    <Modal title={`Dán token mới cho ${row?.name ?? ""}`} open={row !== null} onCancel={onClose} destroyOnHidden
-      afterClose={() => setToken("")} okText="Lưu" cancelText="Huỷ" confirmLoading={busy}
-      okButtonProps={{ disabled: !token.trim() }} onOk={save}>
+    <Modal
+      title={`Dán token mới cho ${row?.name ?? ""}`}
+      open={row !== null}
+      onCancel={onClose}
+      destroyOnHidden
+      afterClose={() => setToken("")}
+      okText="Lưu"
+      cancelText="Huỷ"
+      confirmLoading={busy}
+      okButtonProps={{ disabled: !token.trim() }}
+      onOk={save}
+    >
       <TokenInput value={token} onChange={setToken} />
     </Modal>
   );
@@ -123,6 +161,7 @@ export default function FanpagesPage() {
   }, [message]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
   }, [load]);
 
@@ -137,8 +176,12 @@ export default function FanpagesPage() {
   return (
     <>
       <Flex wrap gap={12} justify="space-between" align="center">
-        <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }}>Kết nối Fanpage</Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>Thêm Fanpage</Button>
+        <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }}>
+          Kết nối Fanpage
+        </Typography.Title>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
+          Thêm Fanpage
+        </Button>
       </Flex>
       <Typography.Paragraph type="secondary" style={{ margin: "8px 0 16px" }}>
         Dán token của một System User trong Business Manager, có quyền <code>pages_show_list</code>,{" "}
@@ -169,14 +212,24 @@ export default function FanpagesPage() {
             title: "",
             render: (_, row) => (
               <Space>
-                <Button size="small" onClick={() => setReplacing(row)}>Dán token mới</Button>
+                <Button size="small" onClick={() => setReplacing(row)}>
+                  Dán token mới
+                </Button>
                 {row.active ? (
-                  <Popconfirm title="Ngừng dùng Fanpage này?" okText="Ngừng dùng" cancelText="Huỷ"
-                    onConfirm={() => setActive(row, false)}>
-                    <Button size="small" danger>Ngừng dùng</Button>
+                  <Popconfirm
+                    title="Ngừng dùng Fanpage này?"
+                    okText="Ngừng dùng"
+                    cancelText="Huỷ"
+                    onConfirm={() => setActive(row, false)}
+                  >
+                    <Button size="small" danger>
+                      Ngừng dùng
+                    </Button>
                   </Popconfirm>
                 ) : (
-                  <Button size="small" onClick={() => setActive(row, true)}>Dùng lại</Button>
+                  <Button size="small" onClick={() => setActive(row, true)}>
+                    Dùng lại
+                  </Button>
                 )}
               </Space>
             ),
