@@ -1,5 +1,5 @@
 import { expect, test, type Browser } from "@playwright/test";
-import { SEED, addUser, login, loginAsSeed, openAccountMenu, resetDatabase, row } from "./helpers";
+import { SEED, addUser, chooseOption, login, loginAsSeed, openAccountMenu, resetDatabase, row } from "./helpers";
 
 test.beforeEach(() => resetDatabase());
 
@@ -8,7 +8,7 @@ async function newPage(browser: Browser) {
   return context.newPage();
 }
 
-for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/jobs", "/change-password"]) {
+for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/affiliate", "/jobs", "/change-password"]) {
   test(`${path} redirects to login on the server when there is no session`, async ({ page }) => {
     const response = await page.goto(path);
     // A server redirect means the first request answered 307; the app page never rendered.
@@ -84,6 +84,53 @@ test("music library page from the menu", async ({ page }) => {
   await page.getByRole("menuitem", { name: "Thư viện nhạc" }).click();
   await expect(page).toHaveURL(/\/music$/);
   await expect(page.getByText("Chưa có bài nhạc nào")).toBeVisible();
+});
+
+test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and approve", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Affiliate Shopee" }).click();
+  await expect(page).toHaveURL(/\/affiliate$/);
+  await expect(page.getByText("Chưa có video nào đã đăng")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  await dialog.getByLabel("Tên sản phẩm").fill("Vừng đen rang");
+  await dialog.getByLabel("Link affiliate").fill("https://s.shopee.vn/abc");
+  await dialog.getByLabel("Tên shop").fill("Nhà Vừng");
+  await chooseOption(page, dialog.getByLabel("Loại shop"), "Shopee Mall");
+  await dialog.getByLabel("Số sao").fill("4.8");
+  await dialog.getByLabel("Lượt bán").fill("50");
+  await dialog.getByLabel("Giá (đ)").fill("100000");
+  await dialog.getByLabel("Hoa hồng (%)").fill("10");
+  await dialog.getByRole("button", { name: "Thêm" }).click();
+
+  const product = row(page, "Vừng đen rang");
+  await expect(product).toContainText("10.000đ/đơn");
+  await expect(product).toContainText("Lượt bán dưới 100");
+  await expect(product.getByRole("button", { name: "Duyệt" })).toBeDisabled();
+
+  await product.getByRole("button", { name: "Sửa Vừng đen rang" }).click();
+  const edit = page.getByRole("dialog", { name: "Sửa sản phẩm" });
+  await edit.getByLabel("Lượt bán").fill("500");
+  await edit.getByRole("button", { name: "Lưu" }).click();
+  await product.getByRole("button", { name: "Duyệt" }).click();
+  await expect(product).toContainText("Đã duyệt");
+
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Nháp");
+  await expect(page.getByText("Chưa có sản phẩm nào")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /status=draft/);
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm chủ đề"), "Sức khỏe");
+  await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /topic_id=\d+/);
+  await page.getByLabel("Lọc theo trạng thái").press("Escape");
+  await page.getByRole("tab", { name: "Video đã đăng" }).click();
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await expect(product).toBeVisible();
+
+  const download = page.waitForEvent("download");
+  await page.getByRole("link", { name: "Xuất CSV" }).click();
+  expect((await download).suggestedFilename()).toBe("san-pham-affiliate.csv");
 });
 
 test("a new user logs in with the temporary password and must change it", async ({ page, browser }) => {

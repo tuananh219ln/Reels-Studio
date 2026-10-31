@@ -10,6 +10,7 @@ import {
   EditOutlined,
   FacebookOutlined,
   PlaySquareOutlined,
+  ShoppingOutlined,
   TeamOutlined,
 } from "@ant-design/icons";
 import { Button, Drawer, Dropdown, Flex, Grid, Layout, Menu, Result, Spin } from "antd";
@@ -26,6 +27,7 @@ const NAV = [
   { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
   { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
   { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
+  { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate Shopee" },
   { key: "/users", icon: <TeamOutlined />, label: "Quản lý người dùng" },
   { key: "/jobs", icon: <ClockCircleOutlined />, label: "Job logs" },
   { key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" },
