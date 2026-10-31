@@ -12,8 +12,10 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
 - **Lean.** Do the task directly: read only the docs and code the task needs, change it, verify
   with the commands below, report. No subagents, no multi-agent reviews, no interview or spec
   rituals. Ask the user only when a decision is genuinely theirs.
-- **Talk to the user in Vietnamese.** Code, comments, docs, commit messages and PR text are in
-  English. Everything the app shows (labels, messages, errors) is in Vietnamese.
+- **Talk to the user in Vietnamese.** Code, comments, docs and commit messages are in English; the
+  PR description fills [the PR template](.github/pull_request_template.md) in Vietnamese, so the
+  person approving it can judge it. Everything the app shows (labels, messages, errors) is in
+  Vietnamese.
 - **Bigger features** (new table, or a change across api + worker + web): write a short plan in the
   PR description: what changes, why, and how it was verified. No separate spec file is needed.
 - **Done means:** lint and typecheck pass, tests for the changed behaviour exist and pass, and docs
@@ -74,7 +76,14 @@ a push to `main` deploys only after everything passes.
   only through their base-URL env vars pointing at `api/scripts/fake_services.py`.
 - **Prompt text is app data, the output format is code** ([docs/content.md](docs/content.md)).
 - **Times are shown in Vietnam time** (`Asia/Ho_Chi_Minh`) whatever the browser's time zone.
-- **Secrets stay in `.env`** (never committed; add new names to `.env.example`).
+- **Secrets stay in `.env`** (never committed; add new names to `.env.example`). Agents do not
+  read `.env`.
+- **Never make a check pass by weakening it.** Do not delete tests or loosen their assertions,
+  relax lint/format rules, skip CI steps, or add `noqa` / `eslint-disable` without a reason in the
+  same line. Fix the code; if a check is truly wrong, say so in the PR and let a person decide.
+- **Do not change** `.github/`, `ruff.toml`, `web/eslint.config.mjs`, migrations already on `main`,
+  `AGENTS.md` or `.claude/` unless the task is about them. They are owned in
+  [.github/CODEOWNERS](.github/CODEOWNERS).
 
 ## Adding things (one place each)
 
@@ -89,3 +98,7 @@ a push to `main` deploys only after everything passes.
 - Branch from `main` (`feature/...`, `fix/...`, `chore/...`, `docs/...`); never commit to `main`.
 - Commits follow Conventional Commits: `feat(scope): ...`, `fix(scope): ...`.
 - Keep PRs small. Merge `main` into your branch before opening the PR and again if it conflicts.
+- Never force-push, reset `--hard`, or push to `main` (Claude Code denies these in
+  `.claude/settings.json`).
+- Every PR gets an AI review comment ([claude-review.yml](.github/workflows/claude-review.yml)).
+  Answer or fix each point before asking a person to approve.

@@ -30,6 +30,17 @@ backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
 - Tài liệu dự án trong `docs/` được cập nhật cùng PR khi hành vi thay đổi.
 - Tính năng lớn ghi kế hoạch ngắn trong mô tả PR. Ý tưởng và lỗi đã biết ghi trong `backlog.md`.
 
+**Kiểm soát code do AI viết:**
+
+- `.github/CODEOWNERS`: PR đụng migration, CI, luật lint, rules cho AI, đăng nhập và token Fanpage
+  sẽ tự yêu cầu người sở hữu duyệt.
+- `.github/pull_request_template.md`: mỗi PR ghi làm gì, kiểm tra thế nào, rủi ro gì.
+- `.claude/settings.json`: Claude Code không được đọc `.env`, force push, `reset --hard`, hạ
+  migration hay push thẳng lên `main`; muốn sửa CI, luật lint, migration hay rules thì phải hỏi.
+- `.github/workflows/claude-review.yml`: AI review mọi PR và comment bằng tiếng Việt. Cần thêm
+  secret `ANTHROPIC_API_KEY` (hoặc `CLAUDE_CODE_OAUTH_TOKEN` từ `claude setup-token`) trong
+  Settings → Secrets and variables → Actions của repo; chưa có secret thì job tự bỏ qua.
+
 ## Chạy web app trên máy (localhost)
 
 Cần: Docker Desktop (Windows cần WSL2: `wsl --install` bằng quyền admin rồi khởi động lại máy),

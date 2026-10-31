@@ -1,4 +1,32 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*.local)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * --force*)",
+      "Bash(git push * -f*)",
+      "Bash(git push origin main*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -f*)",
+      "Bash(*alembic downgrade*)",
+      "Bash(*dropdb*)",
+      "Bash(*DROP DATABASE*)",
+      "Bash(*drop database*)"
+    ],
+    "ask": [
+      "Edit(./.github/**)",
+      "Edit(./ruff.toml)",
+      "Edit(./web/eslint.config.mjs)",
+      "Edit(./web/.prettierrc.json)",
+      "Edit(./api/migrations/versions/**)",
+      "Edit(./AGENTS.md)",
+      "Edit(./CLAUDE.md)",
+      "Edit(./.claude/**)"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {
