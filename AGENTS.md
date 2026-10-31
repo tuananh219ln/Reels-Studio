@@ -100,5 +100,6 @@ a push to `main` deploys only after everything passes.
 - Keep PRs small. Merge `main` into your branch before opening the PR and again if it conflicts.
 - Never force-push, reset `--hard`, or push to `main` (Claude Code denies these in
   `.claude/settings.json`).
-- Every PR gets an AI review comment ([claude-review.yml](.github/workflows/claude-review.yml)).
-  Answer or fix each point before asking a person to approve.
+- An AI review runs on a PR only when someone with write access comments `/ai-review`
+  ([claude-review.yml](.github/workflows/claude-review.yml)); each run costs API tokens. Agents
+  never post that comment themselves. Answer or fix each point it raises.

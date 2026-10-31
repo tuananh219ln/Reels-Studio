@@ -37,9 +37,10 @@ backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
 - `.github/pull_request_template.md`: mỗi PR ghi làm gì, kiểm tra thế nào, rủi ro gì.
 - `.claude/settings.json`: Claude Code không được đọc `.env`, force push, `reset --hard`, hạ
   migration hay push thẳng lên `main`; muốn sửa CI, luật lint, migration hay rules thì phải hỏi.
-- `.github/workflows/claude-review.yml`: AI review mọi PR và comment bằng tiếng Việt. Cần thêm
+- `.github/workflows/claude-review.yml`: AI review một PR **chỉ khi** người có quyền ghi vào repo
+  comment `/ai-review` trên PR đó (mỗi lần chạy tốn phí API); kết quả là comment tiếng Việt. Cần
   secret `ANTHROPIC_API_KEY` (hoặc `CLAUDE_CODE_OAUTH_TOKEN` từ `claude setup-token`) trong
-  Settings → Secrets and variables → Actions của repo; chưa có secret thì job tự bỏ qua.
+  Settings → Secrets and variables → Actions. Workflow kiểu này chỉ chạy khi file đã nằm trên `main`.
 
 ## Chạy web app trên máy (localhost)
 

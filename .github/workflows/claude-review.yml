@@ -1,43 +1,48 @@
 name: Claude review
 
-# An AI first pass on every PR, before a person reviews it. It only comments; it never blocks a merge
-# or pushes code. Needs the repo secret ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN from
-# `claude setup-token`); without one the job is skipped, not failed.
+# An AI review of a PR, only when someone with write access to the repo comments `/ai-review` on it.
+# Each run is a paid API call, so it never starts by itself. It only comments; it never blocks a
+# merge or pushes code. Needs the repo secret ANTHROPIC_API_KEY (or CLAUDE_CODE_OAUTH_TOKEN from
+# `claude setup-token`).
 
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
 
 concurrency:
-  group: claude-review-${{ github.event.pull_request.number }}
+  group: claude-review-${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
   review:
-    # Drafts are still moving; forks get no secrets.
-    if: ${{ !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository }}
+    # A PR comment starting with /ai-review, from the owner, a member or a collaborator.
+    if: >-
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/ai-review') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
     runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
+      issues: write
       id-token: write
     env:
       HAS_CREDENTIAL: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - if: env.HAS_CREDENTIAL != 'true'
-        run: echo "::notice::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret; skipping the AI review."
-      - if: env.HAS_CREDENTIAL == 'true'
-        uses: actions/checkout@v4
+        run: echo "::error::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret, so there is no AI review." && exit 1
+      # issue_comment runs on the default branch; review the PR's own code.
+      - uses: actions/checkout@v4
         with:
+          ref: refs/pull/${{ github.event.issue.number }}/head
           fetch-depth: 1
-      - if: env.HAS_CREDENTIAL == 'true'
-        uses: anthropics/claude-code-action@v1
+      - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             REPO: ${{ github.repository }}
-            PR NUMBER: ${{ github.event.pull_request.number }}
+            PR NUMBER: ${{ github.event.issue.number }}
 
             You review a PR for Reels Studio. The PR branch is checked out. The project rules are in
             AGENTS.md and the docs in docs/; read what the changed code touches. Much of this code is
