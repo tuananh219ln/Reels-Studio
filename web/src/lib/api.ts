@@ -97,6 +97,8 @@ export type VideoDetail = VideoRow & {
   music: { url: string; name: string | null } | null;
   music_volume: number;
   voice_enabled: boolean;
+  /** The video's own settings from its "Thiết lập" tab. */
+  options: VideoOptions;
   /** The Pages in use, connected on /fanpages. */
   fanpages: { id: number; name: string }[];
   /** The post to the Facebook Page; `pending` until the publish job has finished. */
@@ -135,6 +137,24 @@ export type Fanpage = {
   updated_at: string;
   updated_by: string | null;
 };
+
+/** A video's settings, each a named preset (api video_options.DEFAULTS). */
+export type VideoOptions = {
+  voice_id: string;
+  voice_speed: "slow" | "normal" | "fast";
+  voice_volume: number;
+  ducking: boolean;
+  transition: "fade" | "cut" | "slide";
+  motion: "zoom_in" | "zoom_out" | "pan" | "static";
+  zoom: "light" | "medium" | "strong";
+  text_style: "yellow" | "white" | "dark" | "red";
+  captions: "off" | "phrase" | "word";
+};
+
+/** What a new video starts with (Cài đặt › Thiết lập mặc định). */
+export type VideoDefaults = VideoOptions & { voice_enabled: boolean; music_volume: number };
+
+export type Voice = { id: string; name: string; description: string; preview_url: string | null };
 
 /** One LLM provider on /settings/ai. Its API key never comes back: only where it comes from and its last characters. */
 export type LlmProvider = {
@@ -188,7 +208,10 @@ export type MusicOptions = { topics: string[]; moods: string[] };
 /** One "Chọn từ Pixabay" result: `preview` is only a thumbnail to show; `url` is the full photo the server stores. */
 export type PixabayHit = { url: string; preview: string };
 
-export type StockSource = { id: string; label: string; available: boolean };
+export type StockSource = { id: string; label: string; available: boolean; clips?: boolean };
+
+/** A stock video clip in the picker's "Video" mode; `preview` is a still shown straight from the source. */
+export type ClipHit = { id: string; preview: string; url: string; seconds: number };
 
 export type AffiliateProduct = {
   id: number;

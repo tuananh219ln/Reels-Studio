@@ -7,8 +7,8 @@
   rendering is composited.
 - **Provider choice is configuration.** The ElevenLabs voice and model are selected by config; the
   LLM provider, its base URL and model are chosen on Cài đặt › Mô hình AI ([llm.py](../api/src/reels_api/llm.py)).
-  Nothing is hard-coded. The exception is the stock image
-  source: it is fixed to Pixabay and not configurable.
+  Nothing is hard-coded. Stock sources are offered when their key is set and the team has not turned
+  them off on Cài đặt › Nguồn tư liệu; the render core's CLI stays Pixabay-only.
 - **Attribute adapted code.** Code adapted from MoneyPrinterTurbo keeps its MIT attribution in the
   file header.
 - **Prompt content is app data; the output format is code.** Members edit the prompt text and the

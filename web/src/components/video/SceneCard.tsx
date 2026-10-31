@@ -338,7 +338,7 @@ function ScenePicture({ scene }: { scene: SceneData }) {
       </Switching>
       <Switching
         show={scene.video !== null}
-        title="Ảnh chọn được sẽ thay video của cảnh này?"
+        title="Ảnh hoặc video chọn được sẽ thay video của cảnh này?"
         disabled={off}
         onConfirm={async () => {
           // The grid starts from the keywords on screen, so their save goes first.
@@ -347,7 +347,7 @@ function ScenePicture({ scene }: { scene: SceneData }) {
         }}
       >
         <Button icon={<PictureOutlined />} disabled={off}>
-          Chọn từ kho ảnh
+          Chọn từ kho ảnh/video
         </Button>
       </Switching>
       <Space.Compact block>

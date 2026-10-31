@@ -21,6 +21,7 @@ from .script_rules import Checks, SceneInput, check_script, plain_title, text_pr
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
+from .video_options import effective, look_signature, voice_id, voice_speed
 
 STATUS_LABELS = {
     "draft": "Nháp",
@@ -118,9 +119,13 @@ def spoken(video: Video, scene: Scene) -> str:
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
     """Length of the stored narration when it was made from the current voice text, voice and model."""
     text = spoken(video, scene)
-    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text):
+    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text, *_voice(video)):
         return None
     return scene.voice_seconds
+
+
+def _voice(video: Video) -> tuple[str, str]:
+    return voice_id(video), voice_speed(video)
 
 
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
@@ -135,9 +140,14 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
     # stored with, so they are not flagged as outdated.
     data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
-    voices = [voice_signature(spoken(video, scene)) if spoken(video, scene) else None for scene in every]
+    voices = [
+        voice_signature(spoken(video, scene), *_voice(video)) if spoken(video, scene) else None for scene in every
+    ]
     if any(voices):
         data = [data, voices]
+    look = look_signature(video)
+    if look is not None:
+        data = [data, look]
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -163,7 +173,7 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
         video.thumbnail_key = None
     else:
         key = new_key(video.id, "thumb", "jpg")
-        storage.save_bytes(key, thumbnail_bytes(still, title.text))
+        storage.save_bytes(key, thumbnail_bytes(still, title.text, effective(video)["text_style"]))
         video.thumbnail_key = key
     if old and old != video.thumbnail_key:
         storage.delete(old)
@@ -270,6 +280,9 @@ def _version(*parts: object) -> str:
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
     voice_seconds = made_voice_seconds(video, scene)
+    # Only a style other than the original changes the preview's address, so cached previews stay valid.
+    text_style = effective(video)["text_style"]
+    style = [text_style] if text_style != "yellow" else []
     return {
         "id": scene.id,
         "is_title": scene.is_title,
@@ -294,9 +307,9 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         if scene.video_key
         else None,
         "preview_url": (
-            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text)}"
+            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text, *style)}"
             if scene.video_key
-            else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text)}"
+            else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text, *style)}"
             if scene.image_key
             else None
         ),
@@ -374,6 +387,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         else None,
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
+        "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id)),
         "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,

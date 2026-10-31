@@ -792,3 +792,63 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
     "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
   );
 });
+
+test("video settings: team defaults reach a new video, which then changes its own", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Thiết lập mặc định" }).click();
+  await expect(page).toHaveURL(/\/settings\/defaults$/);
+  await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
+  await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
+  await page.getByLabel("Tốc độ đọc").getByText("Nhanh").click();
+  await expect(page.getByTestId("audio-settings")).toContainText("Adam (mặc định)");
+
+  await page.getByRole("menuitem", { name: "Video" }).click();
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  const motion = page.getByTestId("motion-settings");
+  await expect(motion.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).toHaveText("Cắt thẳng");
+  await expect(page.getByLabel("Tốc độ đọc").locator(".ant-segmented-item-selected")).toHaveText("Nhanh");
+
+  // The video's own choice: a dark text box redraws the scene previews.
+  const preview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const before = await preview.getAttribute("src");
+  await page.getByRole("radio", { name: "Kiểu Tối" }).click();
+  await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveAttribute("aria-checked", "true");
+  await expect(preview).not.toHaveAttribute("src", before ?? "");
+
+  // Captions need narration.
+  await page.getByRole("switch", { name: "Đọc lời từng cảnh" }).click();
+  await expect(page.getByLabel("Phụ đề theo giọng đọc").locator("input").first()).toBeDisabled();
+  await expect(page.getByText("Cần bật giọng đọc.")).toBeVisible();
+});
+
+test("stock clips: pick a vertical clip for a scene, and a source turned off leaves the picker", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho người lớn tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+
+  const scene = page.getByTestId("scene").first();
+  await scene.getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh/video" });
+  await picker.getByText("Video", { exact: true }).click();
+  // Pixabay offers clips too, Openverse does not.
+  await expect(picker.getByLabel("Nguồn video")).toContainText("Pexels");
+  await expect(picker.getByLabel("Nguồn video")).not.toContainText("Openverse");
+  await expect(picker.getByTestId("clip-hit")).toHaveCount(3);
+  await picker.getByRole("button", { name: "Chọn video 2" }).click();
+  await expect(picker).toBeHidden({ timeout: 30_000 });
+  await expect(scene.getByTestId("scene-video")).toBeVisible();
+
+  await page.getByRole("menuitem", { name: "Nguồn tư liệu" }).click();
+  await expect(page).toHaveURL(/\/settings\/sources$/);
+  await page.getByRole("switch", { name: "Bật Pexels" }).click();
+  await expect(page.getByRole("switch", { name: "Bật Pexels" })).not.toBeChecked();
+  await page.goBack();
+  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
+});

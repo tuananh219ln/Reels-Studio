@@ -92,6 +92,9 @@ class FakeServices:
         self.openverse_token_requests = 0
         self.openverse_authorized: list[bool] = []  # per search: did it carry the fake access token?
         self.image_downloads: list[str] = []
+        self.clip_queries: list[tuple[str, str]] = []  # (source, keyword) of video clip searches
+        self.clip_downloads: list[str] = []
+        self._clip_bytes: bytes | None = None
         self.default_seconds = 4.0
         self.tts_mode = "ok"  # ok | quota | error500
         self.tts_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
@@ -99,7 +102,8 @@ class FakeServices:
         self.image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
         self.image_gen_refused: list[str] = []  # a prompt containing one of these is safety-refused (200, no image)
         self.image_gen_prompts: list[str] = []
-        self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code"}
+        self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code", "speed"}
+        self.voice_list_requests = 0
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
         self.facebook_finish_fails = 0  # that many finish calls fail: 500 without publishing
         self.facebook_finish_refusals = 0  # that many finish calls are refused: 400 without publishing
@@ -190,6 +194,28 @@ class FakeServices:
             "usage": {"prompt_tokens": message["usage"]["input_tokens"], "completion_tokens": len(text) // 4},
         }
 
+    def _voices(self, key: str | None) -> tuple[int, dict]:
+        with self.lock:
+            self.voice_list_requests += 1
+        if key != ELEVENLABS_KEY:
+            return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
+        return 200, {
+            "voices": [
+                {
+                    "voice_id": "pNInz6obpgDQGcFmaJgB",
+                    "name": "Adam",
+                    "labels": {"gender": "male", "age": "middle aged", "accent": "american"},
+                    "preview_url": f"{self.url}/voice-samples/adam.mp3",
+                },
+                {
+                    "voice_id": "fake-voice-mai",
+                    "name": "Mai",
+                    "labels": {"gender": "female", "accent": "vietnamese"},
+                    "preview_url": None,
+                },
+            ]
+        }
+
     def _models(self, authorization: str | None, anthropic_key: str | None) -> tuple[int, dict]:
         if anthropic_key is not None:
             if anthropic_key != "fake-claude-key":
@@ -200,6 +226,78 @@ class FakeServices:
         if authorization != f"Bearer {OPENAI_KEY}":
             return 401, {"error": {"message": "Incorrect API key provided"}}
         return 200, {"object": "list", "data": [{"id": i, "object": "model"} for i in OPENAI_MODELS]}
+
+    def _clip_hits(self, source: str, keyword: str) -> list[str]:
+        with self.lock:
+            self.clip_queries.append((source, keyword))
+        return [hashlib.sha1(f"{source}-{keyword}-{n}".encode()).hexdigest()[:8] for n in range(1, 4)]
+
+    def _pexels_videos(self, query: dict, key: str | None) -> tuple[int, object]:
+        if key != PEXELS_KEY:
+            return 401, {"error": "Unauthorized"}
+        videos = [
+            {
+                "id": int(name, 16),
+                "image": self.image_url(f"clip-{name}"),
+                "duration": 3,
+                "video_files": [
+                    {"file_type": "video/mp4", "width": 1080, "height": 1920, "link": f"{self.url}/clips/{name}.mp4"},
+                    {"file_type": "video/mp4", "width": 360, "height": 640, "link": f"{self.url}/clips/{name}-sd.mp4"},
+                ],
+            }
+            for name in self._clip_hits("pexels", query.get("query", ""))
+        ]
+        return 200, {"videos": videos, "total_results": len(videos)}
+
+    def _pixabay_videos(self, query: dict) -> tuple[int, object]:
+        if query.get("key") != PIXABAY_KEY:
+            return 400, "[ERROR 400] Invalid or missing API key"
+        hits = [
+            {
+                "id": int(name, 16),
+                "duration": 3,
+                "videos": {
+                    "medium": {
+                        "url": f"{self.url}/clips/{name}.mp4",
+                        "width": 1280,
+                        "height": 720,
+                        "thumbnail": self.image_url(f"clip-{name}"),
+                    },
+                    "small": {"url": f"{self.url}/clips/{name}-sd.mp4", "width": 640, "height": 360, "thumbnail": ""},
+                },
+            }
+            for name in self._clip_hits("pixabay", query.get("q", ""))
+        ]
+        return 200, {"total": len(hits), "totalHits": len(hits), "hits": hits}
+
+    def _clip(self, name: str) -> bytes:
+        """A 3 s vertical test clip, made once with FFmpeg."""
+        with self.lock:
+            self.clip_downloads.append(name)
+            if self._clip_bytes is None:
+                self._clip_bytes = subprocess.run(
+                    [
+                        "ffmpeg",
+                        "-v",
+                        "error",
+                        "-f",
+                        "lavfi",
+                        "-i",
+                        "testsrc=size=720x1280:rate=30:duration=3",
+                        "-c:v",
+                        "libx264",
+                        "-pix_fmt",
+                        "yuv420p",
+                        "-movflags",
+                        "+faststart+frag_keyframe+empty_moov",
+                        "-f",
+                        "mp4",
+                        "-",
+                    ],
+                    capture_output=True,
+                    check=True,
+                ).stdout
+            return self._clip_bytes
 
     def _pixabay(self, query: dict) -> tuple[int, object]:
         keyword = query.get("q", "")
@@ -295,6 +393,8 @@ class FakeServices:
                     "model_id": body.get("model_id"),
                     "language_code": body.get("language_code"),
                 }
+                # Only a request that set a speed records one.
+                | ({"speed": body["voice_settings"]["speed"]} if body.get("voice_settings") else {})
             )
         if key != ELEVENLABS_KEY:
             return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
@@ -502,6 +602,8 @@ class FakeServices:
                 parts = urllib.parse.urlsplit(self.path)
                 if parts.path == "/health":
                     self._send(200, {"ok": True})
+                elif parts.path == "/v1/voices":
+                    self._send(*fake._voices(self.headers.get("xi-api-key")))
                 elif parts.path == "/v1/models":
                     # The Anthropic SDK sends the key as a bearer token; older clients use x-api-key.
                     bearer = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
@@ -515,6 +617,13 @@ class FakeServices:
                         self._send(*fake._me(target, query))
                     else:
                         self._send(*fake._reel_status(target, query))
+                elif parts.path == "/api/videos/":
+                    self._send(*fake._pixabay_videos(dict(urllib.parse.parse_qsl(parts.query))))
+                elif parts.path == "/pexels/videos/search":
+                    query = dict(urllib.parse.parse_qsl(parts.query))
+                    self._send(*fake._pexels_videos(query, self.headers.get("Authorization")))
+                elif parts.path.startswith("/clips/"):
+                    self._send(200, fake._clip(parts.path.removeprefix("/clips/")), "video/mp4")
                 elif parts.path == "/api/":
                     self._send(*fake._pixabay(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path == "/pexels/v1/search":

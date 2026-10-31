@@ -33,6 +33,7 @@ from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
+from .video_options import render_options, voice_id, voice_speed
 from .videos import (
     made_voice_seconds,
     new_key,
@@ -218,7 +219,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             continue
         label = _scene_label(scene, index)
         try:
-            data = synthesize(text)
+            data = synthesize(text, voice_id(video), voice_speed(video))
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
         key = new_key(video.id, f"voice-{scene.id}", "mp3")
@@ -231,7 +232,11 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             storage.delete(key)
             raise JobFailure(f"{label}: ElevenLabs trả file lời đọc không đọc được, thử lại sau")
         old = scene.voice_key
-        scene.voice_key, scene.voice_signature, scene.voice_seconds = key, voice_signature(text), seconds
+        scene.voice_key, scene.voice_signature, scene.voice_seconds = (
+            key,
+            voice_signature(text, voice_id(video), voice_speed(video)),
+            seconds,
+        )
         db.commit()
         if old and old != key:
             storage.delete(old)
@@ -279,6 +284,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
+                data["voice_text"] = spoken(video, scene)
             return data
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
@@ -288,7 +294,11 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         started = time.monotonic()
         try:
             render_video(
-                parse_script(data, base_dir=folder), output, music=music, music_volume=video.music_volume / 100
+                parse_script(data, base_dir=folder),
+                output,
+                music=music,
+                music_volume=video.music_volume / 100,
+                options=render_options(video),
             )
             seconds = float(probe(find_tools().ffprobe, output)["format"]["duration"])
         except FFmpegError as err:

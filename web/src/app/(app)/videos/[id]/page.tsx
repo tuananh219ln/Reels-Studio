@@ -25,12 +25,11 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
-import MusicCard from "@/components/video/MusicCard";
 import PostContent from "@/components/video/PostContent";
 import PublishCard from "@/components/video/PublishCard";
 import RenderBar from "@/components/video/RenderBar";
-import VoiceCard from "@/components/video/VoiceCard";
 import SceneCard from "@/components/video/SceneCard";
+import SetupTab from "@/components/video/SetupTab";
 import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
@@ -411,12 +410,7 @@ export default function VideoPage() {
                   {
                     key: "setup",
                     label: "Thiết lập",
-                    children: (
-                      <Flex vertical gap={16}>
-                        <VoiceCard video={video} />
-                        <MusicCard video={video} />
-                      </Flex>
-                    ),
+                    children: <SetupTab video={video} />,
                   },
                   { key: "post", label: "Nội dung đăng", children: <PostContent video={video} /> },
                 ]}

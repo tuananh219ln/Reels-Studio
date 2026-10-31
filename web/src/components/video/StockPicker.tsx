@@ -2,8 +2,8 @@
 
 import { SearchOutlined } from "@ant-design/icons";
 import { Alert, Empty, Flex, Input, Modal, Segmented, Spin, Typography } from "antd";
-import { useEffect, useRef, useState } from "react";
-import { api, errorMessage, type PixabayHit, type StockSource, type VideoDetail } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, errorMessage, type ClipHit, type PixabayHit, type StockSource, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 
 const MAX_KEYWORDS = 10;
@@ -32,7 +32,7 @@ function firstKeyword(sourceId: string, keywords: string[], keywordsEn: string[]
 }
 
 /**
- * "Chọn từ kho ảnh", mounted only while open. Sources (Pixabay, Pexels, Openverse) come from the api,
+ * "Chọn từ kho ảnh/video", mounted only while open; its "Video" mode is ClipPicker below. Sources (Pixabay, Pexels, Openverse) come from the api,
  * which hides one that is not configured; each source opens in the language it indexes (English for
  * Pixabay/Pexels, Vietnamese for Openverse) unless the member typed a keyword of their own. The grid
  * shows each source's small thumbnails (`preview`) straight from the source; choosing sends the
@@ -67,6 +67,7 @@ export default function StockPicker({
   const [loading, setLoading] = useState(first.trim() !== "");
   const [choosing, setChoosing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [kind, setKind] = useState<"photo" | "clip">("photo");
   // Only the latest search may fill the grid, whatever order the answers arrive in.
   const latest = useRef(0);
   // True while the picker is mounted: an answer that arrives after it closed changes nothing.
@@ -180,22 +181,231 @@ export default function StockPicker({
   }
 
   const sourceLabel = sources?.find((item) => item.id === searchedSource)?.label ?? "Pixabay";
+  const clipSources = (sources ?? []).filter((item) => item.clips);
 
   return (
-    <Modal title="Chọn từ kho ảnh" open onCancel={onClose} footer={null} width={880}>
-      {sources !== null && sources.length > 1 && (
+    <Modal title="Chọn từ kho ảnh/video" open onCancel={onClose} footer={null} width={880}>
+      {clipSources.length > 0 && (
         <Segmented
-          aria-label="Nguồn ảnh"
+          aria-label="Loại tư liệu"
+          value={kind}
+          onChange={(value) => setKind(value as "photo" | "clip")}
+          options={[
+            { label: "Ảnh", value: "photo" },
+            { label: "Video", value: "clip" },
+          ]}
+          disabled={choosing !== null}
+          style={{ marginBottom: 12, marginRight: 12 }}
+        />
+      )}
+      {kind === "clip" ? (
+        <ClipPicker
+          sceneId={sceneId}
+          sources={clipSources}
+          opening={firstKeyword("pexels", keywords, keywordsEn)}
+          onClose={onClose}
+        />
+      ) : (
+        <>
+          {sources !== null && sources.length > 1 && (
+            <Segmented
+              aria-label="Nguồn ảnh"
+              value={source}
+              onChange={(value) => switchSource(String(value))}
+              options={sources.map((item) => ({ label: item.label, value: item.id }))}
+              disabled={choosing !== null}
+              style={{ marginBottom: 12 }}
+            />
+          )}
+          <Input.Search
+            aria-label="Từ khóa tìm ảnh"
+            placeholder="Nhập từ khóa rồi bấm Enter, ví dụ: cá cơm chiên"
+            value={query}
+            enterButton={<SearchOutlined aria-label="Tìm" />}
+            onChange={(event) => setQuery(event.target.value)}
+            onSearch={(text) => search(text, source)}
+            loading={loading}
+            disabled={choosing !== null}
+            style={{ marginBottom: 12 }}
+          />
+          {error && (
+            <Alert type="error" showIcon title={error} style={{ marginBottom: 12 }} data-testid="picker-error" />
+          )}
+          {hits === null ? (
+            loading ? (
+              <Flex justify="center" style={{ padding: 32 }}>
+                <Spin />
+              </Flex>
+            ) : (
+              !error && (
+                <Typography.Text type="secondary" data-testid="picker-hint">
+                  Cảnh này chưa có từ khóa: nhập từ khóa ở ô trên để tìm ảnh.
+                </Typography.Text>
+              )
+            )
+          ) : hits.length === 0 ? (
+            <Empty description="Không có ảnh nào cho từ khóa này" />
+          ) : (
+            <>
+              <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
+                {hits.length} ảnh từ {sourceLabel} cho “{searchedFor}”. Bấm một ảnh để dùng cho cảnh này.
+              </Typography.Text>
+              {/* Columns follow the dialog's width: two on a phone, more on a wide screen; never a sideways scroll. */}
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                  gap: 8,
+                  opacity: loading ? 0.5 : 1,
+                }}
+              >
+                {hits.map((hit, index) => (
+                  <button
+                    key={hit.url}
+                    type="button"
+                    aria-label={`Chọn ảnh ${index + 1}`}
+                    data-testid="stock-hit"
+                    disabled={choosing !== null || loading}
+                    onClick={() => choose(hit)}
+                    style={{
+                      padding: 0,
+                      border: "1px solid #EDEDED",
+                      borderRadius: 6,
+                      cursor: choosing !== null || loading ? "default" : "pointer",
+                      background: "#F5F5F5",
+                      position: "relative",
+                      aspectRatio: "1 / 1",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {/* A plain <img>: a source thumbnail, only shown here and never stored. */}
+                    {/* eslint-disable-next-line @next/next/no-img-element -- external thumbnail, next/image would proxy it */}
+                    <img
+                      src={hit.preview}
+                      alt={`Ảnh ${sourceLabel} ${index + 1}`}
+                      loading="lazy"
+                      style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                    />
+                    {choosing === hit.url && (
+                      <Flex
+                        align="center"
+                        justify="center"
+                        style={{ position: "absolute", inset: 0, background: "rgba(255,255,255,0.6)" }}
+                      >
+                        <Spin />
+                      </Flex>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * The picker's "Video" mode: vertical stock clips from Pexels and Pixabay. A still and the length show in the
+ * grid; pointing at one plays it, muted, straight from the source. Choosing sends its id with the keyword and
+ * source it was found with; the api searches again, downloads that file and stores it like an upload, in place
+ * of the scene's photo or clip.
+ */
+function ClipPicker({
+  sceneId,
+  sources,
+  opening,
+  onClose,
+}: {
+  sceneId: number;
+  sources: StockSource[];
+  opening: string;
+  onClose: () => void;
+}) {
+  const editor = useEditor();
+  const [source, setSource] = useState(sources[0].id);
+  const [query, setQuery] = useState(opening);
+  const [hits, setHits] = useState<ClipHit[] | null>(null);
+  const [searched, setSearched] = useState({ keyword: "", source: sources[0].id });
+  const [loading, setLoading] = useState(false);
+  const [choosing, setChoosing] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const latest = useRef(0);
+
+  const search = useCallback(
+    async (text: string, sourceId: string) => {
+      if (!text.trim()) {
+        return;
+      }
+      const request = ++latest.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const result = await api<{ keyword: string; source: string; hits: ClipHit[] }>(
+          `/scenes/${sceneId}/stock-clips?q=${encodeURIComponent(text)}&source=${sourceId}`,
+        );
+        if (request === latest.current) {
+          setHits(result.hits);
+          setSearched({ keyword: result.keyword, source: result.source });
+        }
+      } catch (err) {
+        if (request === latest.current) {
+          setError(errorMessage(err));
+        }
+      } finally {
+        if (request === latest.current) {
+          setLoading(false);
+        }
+      }
+    },
+    [sceneId],
+  );
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- searches the opening keyword once when the Video mode opens
+    void search(opening, sources[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening of the Video mode
+  }, []);
+
+  async function choose(hit: ClipHit) {
+    setChoosing(hit.id);
+    setError(null);
+    try {
+      editor.onSaved(
+        await api<VideoDetail>(`/scenes/${sceneId}/stock-clips`, "POST", {
+          source: searched.source,
+          keyword: searched.keyword,
+          id: hit.id,
+        }),
+      );
+      onClose();
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setChoosing(null);
+    }
+  }
+
+  const label = sources.find((item) => item.id === searched.source)?.label ?? "";
+  return (
+    <>
+      {sources.length > 1 && (
+        <Segmented
+          aria-label="Nguồn video"
           value={source}
-          onChange={(value) => switchSource(String(value))}
+          onChange={(value) => {
+            setSource(String(value));
+            void search(query, String(value));
+          }}
           options={sources.map((item) => ({ label: item.label, value: item.id }))}
           disabled={choosing !== null}
           style={{ marginBottom: 12 }}
         />
       )}
       <Input.Search
-        aria-label="Từ khóa tìm ảnh"
-        placeholder="Nhập từ khóa rồi bấm Enter, ví dụ: cá cơm chiên"
+        aria-label="Từ khóa tìm video"
+        placeholder="Nhập từ khóa tiếng Anh rồi bấm Enter, ví dụ: fried fish"
         value={query}
         enterButton={<SearchOutlined aria-label="Tìm" />}
         onChange={(event) => setQuery(event.target.value)}
@@ -211,56 +421,69 @@ export default function StockPicker({
             <Spin />
           </Flex>
         ) : (
-          !error && (
-            <Typography.Text type="secondary" data-testid="picker-hint">
-              Cảnh này chưa có từ khóa: nhập từ khóa ở ô trên để tìm ảnh.
-            </Typography.Text>
-          )
+          !error && <Typography.Text type="secondary">Nhập từ khóa ở ô trên để tìm video.</Typography.Text>
         )
       ) : hits.length === 0 ? (
-        <Empty description="Không có ảnh nào cho từ khóa này" />
+        <Empty description="Không có video nào cho từ khóa này" />
       ) : (
         <>
           <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
-            {hits.length} ảnh từ {sourceLabel} cho “{searchedFor}”. Bấm một ảnh để dùng cho cảnh này.
+            {hits.length} video từ {label} cho “{searched.keyword}”. Rê chuột để xem, bấm để dùng cho cảnh này (thay ảnh
+            hoặc video hiện có).
           </Typography.Text>
-          {/* Columns follow the dialog's width: two on a phone, more on a wide screen; never a sideways scroll. */}
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))",
               gap: 8,
               opacity: loading ? 0.5 : 1,
             }}
           >
             {hits.map((hit, index) => (
               <button
-                key={hit.url}
+                key={hit.id}
                 type="button"
-                aria-label={`Chọn ảnh ${index + 1}`}
-                data-testid="stock-hit"
+                aria-label={`Chọn video ${index + 1}`}
+                data-testid="clip-hit"
                 disabled={choosing !== null || loading}
                 onClick={() => choose(hit)}
                 style={{
                   padding: 0,
                   border: "1px solid #EDEDED",
                   borderRadius: 6,
-                  cursor: choosing !== null || loading ? "default" : "pointer",
-                  background: "#F5F5F5",
+                  background: "#000",
                   position: "relative",
-                  aspectRatio: "1 / 1",
+                  aspectRatio: "9 / 16",
                   overflow: "hidden",
+                  cursor: choosing !== null || loading ? "default" : "pointer",
                 }}
               >
-                {/* A plain <img>: a source thumbnail, only shown here and never stored. */}
-                {/* eslint-disable-next-line @next/next/no-img-element -- external thumbnail, next/image would proxy it */}
-                <img
-                  src={hit.preview}
-                  alt={`Ảnh ${sourceLabel} ${index + 1}`}
-                  loading="lazy"
-                  style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                <video
+                  src={hit.url}
+                  poster={hit.preview}
+                  muted
+                  loop
+                  playsInline
+                  preload="none"
+                  onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)}
+                  onMouseLeave={(event) => event.currentTarget.pause()}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                 />
-                {choosing === hit.url && (
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 4,
+                    bottom: 4,
+                    background: "rgba(0,0,0,0.65)",
+                    color: "#fff",
+                    fontSize: 11,
+                    padding: "1px 5px",
+                    borderRadius: 4,
+                  }}
+                >
+                  {Math.round(hit.seconds)} giây
+                </span>
+                {choosing === hit.id && (
                   <Flex
                     align="center"
                     justify="center"
@@ -274,6 +497,6 @@ export default function StockPicker({
           </div>
         </>
       )}
-    </Modal>
+    </>
   );
 }

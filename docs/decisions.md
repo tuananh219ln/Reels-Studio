@@ -11,6 +11,26 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — Video presets, narration captions and stock clips
+
+Built on the roadmap entry below. The render core takes per-video presets
+([options.py](../worker/src/reels_render/options.py)): transition (fade, cut, slide), photo motion
+(zoom in/out, pan, static) and its strength, four text box palettes, narration level, music ducking,
+and captions. The defaults build the same FFmpeg filter graph as before, and a video's MP4 is flagged
+outdated only when one of its presets differs from them. Narration voice and speed are per video
+(any voice of the ElevenLabs account; speed 0.9/1.0/1.1), and the speed joins a narration's
+signature only when not normal, so no existing MP3 is made again.
+
+Captions time each word by an estimate spread over the measured narration (Vietnamese words are
+single syllables of similar length) instead of ElevenLabs' `/with-timestamps` endpoint: switching
+the endpoint would change how every narration is bought and stored, and is a later step if the
+estimate drifts visibly. Captions are shown on content scenes only, never on the title scene, so
+the first frame stays the thumbnail.
+
+Stock video clips come from Pexels and Pixabay (the keys already used for photos) in the picker's
+"Video" mode and are stored like uploaded clips: jobs still never pick photos or clips. The team can
+turn any stock source off on Cài đặt › Nguồn tư liệu; keys stay in `.env`.
+
 ## 2026-11-01 — Scripts can be written by any of several LLM providers; their API keys are entered in the app
 
 Owner's request, adapted from MoneyPrinterTurbo's LLM settings. "Cài đặt › Mô hình AI" (`/settings/ai`)
@@ -34,7 +54,7 @@ provider's models, which costs no tokens. The output format stays code and the s
 Owner's decisions for the settings work adapted from MoneyPrinterTurbo (voice, music, transitions,
 motion, text style and captions, stock clips), recorded now so later rounds follow them:
 team defaults on the Cài đặt pages apply only to **videos created afterwards** — each video keeps its
-own copy, changeable on its "Thiết lập" tab, so changing a default never makes an old video render
+own copy, changeable on its "Thiết lập" tab (a clone takes its source's), so changing a default never makes an old video render
 differently; and the MVP's "one fixed template" rule is lifted for named presets (text-box styles,
 transitions, motion), never free colour or size sliders. The video editor's side column became three
 tabs (Xuất bản, Thiết lập, Nội dung đăng) and "Render" moved to a bar stuck to the bottom of the screen

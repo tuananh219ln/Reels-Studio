@@ -4,22 +4,29 @@ from collections.abc import Callable
 from pathlib import Path
 
 from . import ffmpeg
+from .captions import plan_captions
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
-from .graph import SceneInput, build_ffmpeg_args
+from .graph import CaptionInput, SceneInput, build_ffmpeg_args
 from .images import normalize_image
+from .options import DEFAULT_OPTIONS, RenderOptions
 from .script import Scene, Script
 from .stock import find_stock_images
 from .textbox import (
+    CAPTION_GAP,
+    FRAME_WIDTH,
+    PALETTES,
+    SCENE_BOX_BOTTOM,
     SCENE_STYLE,
     TITLE_STYLE,
     TextFitError,
     empty_box,
     layout_text,
     render_box,
+    render_caption,
     scene_box_position,
     title_box_position,
 )
-from .timeline import build_timeline, fit_seconds
+from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
 DEFAULT_MUSIC_VOLUME = 0.25
 NEW_NAME_ATTEMPTS = 9
@@ -31,6 +38,7 @@ def render_video(
     music: Path | None = None,
     music_volume: float = DEFAULT_MUSIC_VOLUME,
     on_warning: Callable[[str], None] | None = None,
+    options: RenderOptions = DEFAULT_OPTIONS,
 ) -> Path:
     """Render the script to an MP4 and return the output path.
 
@@ -57,9 +65,9 @@ def render_video(
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
-    timeline = build_timeline(
-        [fit_seconds(scene.seconds, voice_seconds(tools.ffprobe, scene)) for scene in script.all_scenes]
-    )
+    spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
+    timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
+    palette = PALETTES[options.text_style]
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
@@ -67,7 +75,8 @@ def render_video(
         if found.missing:
             raise MissingImagesError([scene.label for scene in found.missing])
         script = found.script
-        inputs = []
+        inputs, captions = [], []
+        scene_start = 0
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             if scene.video is not None:
                 image, video_start = scene.video.resolve(), scene.video_start
@@ -79,9 +88,27 @@ def render_video(
                 empty_box().save(box)
                 box_x, box_y = 0, 0
             else:
-                render_box(layout).save(box)
+                render_box(layout, palette).save(box)
                 place = title_box_position if index == 0 else scene_box_position
                 box_x, box_y = place(layout.width, layout.height)
+            # Captions sit just above a content scene's text box; the title scene keeps its hook box alone.
+            if index > 0 and spoken[index] is not None and scene.voice_text.strip():
+                bottom = box_y - CAPTION_GAP if layout is not None else SCENE_BOX_BOTTOM
+                start = scene_start / FPS + VOICE_LEAD
+                for number, cue in enumerate(plan_captions(scene.voice_text, start, spoken[index], options.captions)):
+                    path = work_dir / f"caption-{index:02d}-{number:03d}.png"
+                    image_caption = render_caption(cue.lines, cue.lit)
+                    image_caption.save(path)
+                    captions.append(
+                        CaptionInput(
+                            image=path,
+                            x=(FRAME_WIDTH - image_caption.width) // 2,
+                            y=bottom - image_caption.height,
+                            start=cue.start,
+                            end=cue.end,
+                        )
+                    )
+            scene_start += timeline.scene_frames[index]
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(
                 SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice, video_start=video_start)
@@ -101,6 +128,8 @@ def render_video(
             music.resolve() if music is not None else None,
             music_volume,
             temp.resolve(),
+            options,
+            captions,
         )
         try:
             ffmpeg.run(argv, "FFmpeg render lỗi")

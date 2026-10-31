@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import crypto, llm
+from . import config, crypto, llm, routes_videos, tts, video_options
 from .claude import ClaudeError
 from .db import get_db
 from .errors import ApiError
@@ -30,6 +30,14 @@ class ProviderBody(BaseModel):
 
 class ActiveBody(BaseModel):
     provider: str
+
+
+class DefaultsBody(BaseModel):
+    values: dict
+
+
+class SourceBody(BaseModel):
+    enabled: bool
 
 
 def _preset(provider_id: str) -> llm.Preset:
@@ -154,3 +162,79 @@ def list_models(provider_id: str, me: Session = Depends(current_member), db: DbS
 def get_active(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     target = llm.active_target(db)
     return {"provider": target.provider, "name": target.name, "model": target.model, "problem": llm.problem(target)}
+
+
+# --- Cài đặt › Mặc định video ---
+
+
+@router.get("/video-defaults")
+def get_video_defaults(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """What a new video starts with; existing videos keep their own copy."""
+    return video_options.team_defaults(db)
+
+
+@router.put("/video-defaults")
+def put_video_defaults(
+    body: DefaultsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    try:
+        saved = video_options.save_team_defaults(db, body.values, me.user_id)
+    except video_options.OptionError as err:
+        raise invalid(str(err)) from None
+    db.commit()
+    return saved
+
+
+@router.get("/voices")
+def get_voices(me: Session = Depends(current_member)) -> dict:
+    """The ElevenLabs voices to choose from, and the server's default one."""
+    try:
+        voices = tts.list_voices()
+    except tts.TtsError as err:
+        raise ApiError(422, "voices_unavailable", err.message) from None
+    return {"default_id": config.voice_id(), "voices": voices}
+
+
+# --- Cài đặt › Nguồn tư liệu ---
+
+SOURCE_KINDS = {"pixabay": "Ảnh và video", "pexels": "Ảnh và video", "openverse": "Ảnh (chỉ ảnh không cần ghi nguồn)"}
+SOURCE_KEYS = {"pixabay": "PIXABAY_API_KEY", "pexels": "PEXELS_API_KEY", "openverse": None}
+
+
+def _sources(db: DbSession) -> dict:
+    off = routes_videos.stock_turned_off(db)
+    return {
+        "sources": [
+            {
+                "id": source,
+                "label": routes_videos.STOCK_LABELS[source],
+                "kinds": SOURCE_KINDS[source],
+                "key_name": SOURCE_KEYS[source],
+                "configured": routes_videos.stock_configured(source),
+                "enabled": source not in off,
+            }
+            for source in routes_videos.STOCK_SOURCES
+        ],
+        "ai_images": {"configured": bool(config.read_env("IMAGE_GEN_API_KEY")), "model": config.image_gen_model()},
+    }
+
+
+@router.get("/sources")
+def get_sources(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    return _sources(db)
+
+
+@router.put("/sources/{source}")
+def set_source(
+    source: str, body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    if source not in routes_videos.STOCK_SOURCES:
+        raise ApiError(404, "source_not_found", "Không có nguồn này")
+    off = routes_videos.stock_turned_off(db) - {source} | (set() if body.enabled else {source})
+    setting = db.get(AppSetting, routes_videos.STOCK_OFF_KEY)
+    if setting is None:
+        db.add(AppSetting(key=routes_videos.STOCK_OFF_KEY, value=sorted(off), updated_by_id=me.user_id))
+    else:
+        setting.value, setting.updated_by_id = sorted(off), me.user_id
+    db.commit()
+    return _sources(db)

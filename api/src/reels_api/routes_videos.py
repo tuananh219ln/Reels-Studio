@@ -12,10 +12,21 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import clips, config, frames, knowledge, llm
+from . import clips, config, frames, knowledge, llm, stock_clips, video_options
 from .db import get_db
 from .errors import ApiError
-from .models import AffiliateProduct, Fanpage, Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
+from .models import (
+    AffiliateProduct,
+    AppSetting,
+    Fanpage,
+    Job,
+    KnowledgeTopic,
+    MusicTrack,
+    Publication,
+    Scene,
+    Session,
+    Video,
+)
 from .openverse import Openverse, OpenverseError
 from .pexels import Pexels, PexelsError
 from .pixabay import Pixabay, PixabayError
@@ -84,6 +95,8 @@ class VideoPatchBody(BaseModel):
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
     voice_enabled: bool | None = None
+    options: dict | None = None  # some of video_options.DEFAULTS
+    reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
 
 
 class ScenePatchBody(BaseModel):
@@ -185,6 +198,7 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
     if not group.script_prompt:
         raise invalid(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
     video = Video(topic=topic, knowledge_topic_id=group.id, has_script=False, created_by_id=me.user_id)
+    video_options.apply_team_defaults(db, video)
     db.add(video)
     db.flush()
     _enqueue(db, video, "script", me)
@@ -201,7 +215,11 @@ def get_video(video_id: int, me: Session = Depends(current_member), db: DbSessio
 
 @router.patch("/videos/{video_id}")
 def patch_video(
-    video_id: int, body: VideoPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+    video_id: int,
+    body: VideoPatchBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
@@ -222,6 +240,19 @@ def patch_video(
         video.music_volume = body.music_volume
     if "voice_enabled" in fields and body.voice_enabled is not None:
         video.voice_enabled = body.voice_enabled
+    style = video_options.effective(video)["text_style"]
+    if body.reset_options:
+        video_options.apply_team_defaults(db, video)
+    if body.options:
+        try:
+            changes = video_options.clean(body.options)
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
+        video.options = video_options.effective(video) | changes
+    if video_options.effective(video)["text_style"] != style:
+        # The thumbnail is the title scene's first frame, drawn in the text box style.
+        title, _ = split_scenes(db, video)
+        refresh_thumbnail(db, storage, video, title)
     return _saved(db, video)
 
 
@@ -435,6 +466,8 @@ def clone_video(
         has_script=False,
         created_by_id=me.user_id,
         music_volume=source.music_volume,
+        voice_enabled=source.voice_enabled,
+        options=video_options.effective(source),
         clone_source=clone_snapshot(db, source, request),
     )
     db.add(draft)
@@ -616,16 +649,21 @@ def upload_scene_video(
     with tempfile.TemporaryDirectory(prefix="reels_clip_") as folder:
         upload = Path(folder) / "clip"
         _spool_clip(file, upload)
-        # ffprobe runs before any row is locked; the save below locks and re-checks everything.
-        try:
-            clip = clips.check_clip(upload)
-        except UploadRejected as err:
-            raise ApiError(415, "invalid_video", str(err)) from None
-        video, scene = lock_scene(db, scene_id)
-        ensure_unlocked(db, video)
-        old = [scene.image_key, scene.video_key]
-        key = new_key(video.id, f"clip-{scene.id}", clip.extension)
-        storage.save_file(key, upload)
+        return _attach_clip(db, storage, scene_id, upload)
+
+
+def _attach_clip(db: DbSession, storage: DirectoryStorage, scene_id: int, upload: Path) -> dict:
+    """A clip file in place of the scene's photo or clip, whether uploaded or downloaded from a stock source."""
+    # ffprobe runs before any row is locked; the save below locks and re-checks everything.
+    try:
+        clip = clips.check_clip(upload)
+    except UploadRejected as err:
+        raise ApiError(415, "invalid_video", str(err)) from None
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    old = [scene.image_key, scene.video_key]
+    key = new_key(video.id, f"clip-{scene.id}", clip.extension)
+    storage.save_file(key, upload)
     scene.video_key, scene.video_seconds, scene.video_start = key, round(clip.seconds, 3), 0
     # A clip replaces the scene's photo, and the scene lasts as long as the clip minus the crossfades around it
     # (one for the title, at most two for a content scene), in tenths, so the clip never ends on a held frame.
@@ -670,6 +708,8 @@ def find_other_image(
     client, error_type = _stock_client(source)
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
+    if source in stock_turned_off(db):
+        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
     # Each source is searched in the language it indexes: Openverse in Vietnamese, Pixabay and Pexels
     # in English; the other list is the fallback (scenes scripted before English keywords existed).
     vietnamese, english = list(scene.keywords), list(scene.keywords_en)
@@ -748,6 +788,8 @@ def choose_pixabay(
 
 STOCK_SOURCES = ("pixabay", "pexels", "openverse")
 STOCK_LABELS = {"pixabay": "Pixabay", "pexels": "Pexels", "openverse": "Openverse"}
+STOCK_OFF_KEY = "stock_sources_off"
+CLIP_DOWNLOAD_SECONDS = 60
 
 
 def _stock_client(source: str):
@@ -761,7 +803,7 @@ def _stock_client(source: str):
     raise invalid("Nguồn ảnh không hợp lệ")
 
 
-def _stock_available(source: str) -> bool:
+def stock_configured(source: str) -> bool:
     if source == "pixabay":
         return bool(config.pixabay_key())
     if source == "pexels":
@@ -769,11 +811,102 @@ def _stock_available(source: str) -> bool:
     return True  # Openverse answers anonymous calls.
 
 
+def stock_turned_off(db: DbSession) -> set[str]:
+    """The sources the team turned off on Cài đặt › Nguồn tư liệu."""
+    setting = db.get(AppSetting, STOCK_OFF_KEY)
+    return (
+        {item for item in setting.value if item in STOCK_SOURCES}
+        if setting and isinstance(setting.value, list)
+        else set()
+    )
+
+
+def _stock_available(source: str, db: DbSession | None = None) -> bool:
+    return stock_configured(source) and (db is None or source not in stock_turned_off(db))
+
+
 @router.get("/stock/sources")
-def stock_sources(me: Session = Depends(current_member)) -> list[dict]:
+def stock_sources(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+    """The picker's sources; `clips` says which also offer video clips."""
     return [
-        {"id": source, "label": STOCK_LABELS[source], "available": _stock_available(source)} for source in STOCK_SOURCES
+        {
+            "id": source,
+            "label": STOCK_LABELS[source],
+            "available": _stock_available(source, db),
+            "clips": source in stock_clips.SOURCES and _stock_available(source, db),
+        }
+        for source in STOCK_SOURCES
     ]
+
+
+@router.get("/scenes/{scene_id}/stock-clips")
+def search_stock_clips(
+    scene_id: int,
+    q: str = "",
+    source: str = "pexels",
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """Video clips for the picker's "Video" mode: a still and the length of each, shown straight from the source."""
+    if db.get(Scene, scene_id) is None:
+        raise ApiError(404, "scene_deleted", "Cảnh này đã bị xóa")
+    keyword = " ".join(q.split())
+    if not keyword:
+        raise invalid("Hãy nhập từ khóa tìm video")
+    if len(keyword) > MAX_KEYWORD_LENGTH:
+        raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
+    if source in stock_turned_off(db):
+        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+    db.rollback()
+    try:
+        hits = stock_clips.search(source, keyword, FIND_IMAGE_SECONDS)
+    except stock_clips.ClipSearchError as err:
+        raise ApiError(502, "stock_error", f"Không tìm được video: {err.message}") from None
+    return {
+        "keyword": keyword,
+        "source": source,
+        "hits": [{"id": hit.id, "preview": hit.preview, "url": hit.url, "seconds": hit.seconds} for hit in hits],
+    }
+
+
+class StockClipBody(BaseModel):
+    source: str
+    keyword: str
+    id: str
+
+
+@router.post("/scenes/{scene_id}/stock-clips")
+def choose_stock_clip(
+    scene_id: int,
+    body: StockClipBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """Download the chosen clip and store it with the scene like an upload; it must be in the source's results."""
+    video, _ = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    if body.source in stock_turned_off(db):
+        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+    db.rollback()
+    try:
+        hit = next(
+            (
+                hit
+                for hit in stock_clips.search(body.source, " ".join(body.keyword.split()), FIND_IMAGE_SECONDS)
+                if hit.id == body.id
+            ),
+            None,
+        )
+        if hit is None:
+            raise invalid("Video này không có trong kết quả tìm, hãy tìm lại")
+        data = stock_clips.download(hit, CLIP_DOWNLOAD_SECONDS)
+    except stock_clips.ClipSearchError as err:
+        raise ApiError(502, "stock_error", err.message) from None
+    with tempfile.TemporaryDirectory(prefix="reels_clip_") as folder:
+        path = Path(folder) / "clip"
+        path.write_bytes(data)
+        return _attach_clip(db, storage, scene_id, path)
 
 
 @router.get("/scenes/{scene_id}/stock")
@@ -792,6 +925,8 @@ def search_stock(
         raise invalid("Hãy nhập từ khóa tìm ảnh")
     if len(keyword) > MAX_KEYWORD_LENGTH:
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
+    if source in stock_turned_off(db):
+        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
     client, error_type = _stock_client(source)
     db.rollback()
     try:
@@ -818,6 +953,8 @@ def choose_stock(
     """Download the chosen photo from its source; it must be one of that source's results for the keyword."""
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
+    if body.source in stock_turned_off(db):
+        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
     client, error_type = _stock_client(body.source)
     db.rollback()
     deadline = time.monotonic() + FIND_IMAGE_SECONDS
@@ -964,7 +1101,8 @@ def scene_preview(
     still = scene_still(storage, scene)
     if still is None:
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
-    frame = frames.compose_frame(still, scene.text, scene.is_title)
+    video = db.get(Video, scene.video_id)
+    frame = frames.compose_frame(still, scene.text, scene.is_title, video_options.effective(video)["text_style"])
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )

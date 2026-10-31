@@ -101,6 +101,8 @@ class Video(Base):
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
     voice_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # The video's own settings (video_options.DEFAULTS keys); None renders the original template.
+    options: Mapped[dict | None] = mapped_column(JSONB)
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
