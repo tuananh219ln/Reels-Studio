@@ -180,8 +180,8 @@ async function newVideoWithScript(page: Page, topic: string) {
   await uploadPhotos(page);
 }
 
-test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ page }) => {
-  test.setTimeout(240_000);
+/** A rendered video with its Page connected, open on its own page. */
+async function renderedVideo(page: Page) {
   await loginAsSeed(page);
   await connectFacebook(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
@@ -192,18 +192,48 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await uploadPhotos(page);
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+}
+
+async function confirmPost(page: Page) {
   await page.getByRole("button", { name: "Đăng lên Facebook" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
+}
+
+test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  await confirmPost(page);
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await expect(page).toHaveURL(/\/posts$/);
+  await expect(page.getByRole("cell", { name: "Đã đăng", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toBeVisible();
 
   await page.getByRole("menuitem", { name: "Lịch đăng bài" }).click();
   await expect(page).toHaveURL(/\/calendar$/);
   await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
   await page.locator(".ant-picker-cell-in-view a[href^='/videos/']").click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+});
+
+test("a scheduled video appears in Bài đăng and Lịch đăng bài without a link to the reel", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  await page.getByLabel("Hẹn giờ").check();
+  const when = new Date(Date.now() + 60 * 60 * 1000);
+  const local = new Date(when.getTime() - when.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
+  await page.getByLabel("Giờ đăng").fill(local);
+  await confirmPost(page);
+  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
+
+  await page.getByRole("menuitem", { name: "Bài đăng" }).click();
+  await expect(page.getByRole("cell", { name: "Đã hẹn lịch" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
+
+  await page.getByRole("menuitem", { name: "Lịch đăng bài" }).click();
+  // Any cell of the grid: an hour ahead can already be tomorrow, or next month.
+  await page.locator(".ant-picker-cell a[href^='/videos/']").click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
