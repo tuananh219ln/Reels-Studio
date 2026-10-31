@@ -15,7 +15,18 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_api.config import database_url
 from reels_api.knowledge import default_clone_prompt, default_script_prompt
-from reels_api.models import AffiliateProduct, Fanpage, Job, KnowledgeTopic, MusicTrack, Scene, Session, Setting, User, Video
+from reels_api.models import (
+    AffiliateProduct,
+    Fanpage,
+    Job,
+    KnowledgeTopic,
+    MusicTrack,
+    Scene,
+    Session,
+    Setting,
+    User,
+    Video,
+)
 from reels_api.script_rules import DEFAULT_BANNED_WORDS
 from reels_api.security import hash_password
 

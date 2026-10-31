@@ -99,10 +99,9 @@ import sys as _sys
 
 from PIL import Image as _Image
 
-from reels_render import stock as _stock
-
 from reels_api.models import KnowledgeTopic, Scene, Video
 from reels_api.storage import DirectoryStorage
+from reels_render import stock as _stock
 
 _sys.path.insert(0, str(API_DIR / "scripts"))
 from fake_services import FakeServices  # noqa: E402

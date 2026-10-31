@@ -47,6 +47,8 @@ jobs:
       # FFmpeg: the worker tests and the render parity test need it instead of being skipped.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: pip install -e ../worker -e ".[dev]"
+      # Lint rules live in the repo-root ruff.toml, shared with the worker.
+      - run: ruff check .
       # A skip here means Postgres or FFmpeg was not there, so it fails the job instead of hiding the
       # integration, worker and render parity tests.
       # pipefail: without it the pipe reports tee's status and failing tests would pass the step.
@@ -81,6 +83,7 @@ jobs:
       # FFmpeg is required here so the render smoke tests run instead of being skipped.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - run: pip install -e ".[dev]"
+      - run: ruff check .
       - run: python -m pytest -q -rs
 
   web:
@@ -117,6 +120,8 @@ jobs:
         run: npm ci
       - working-directory: web
         run: npm run typecheck
+      - working-directory: web
+        run: npm run lint
       - working-directory: web
         run: npx playwright install --with-deps chromium
       - working-directory: web

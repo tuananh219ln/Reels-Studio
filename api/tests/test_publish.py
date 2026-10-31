@@ -1,15 +1,15 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import delete, select, update
-
 from conftest import login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
+from sqlalchemy import select, update
+from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
+
 from reels_api import facebook, fanpages
 from reels_api.models import Fanpage, Job, Publication, Video
 from reels_api.storage import DirectoryStorage
 from reels_api.videos import render_signature, split_scenes
-from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def fanpage_id(db, user) -> int:
 
 
 def in_minutes(minutes: float) -> str:
-    return (datetime.now(timezone.utc) + timedelta(minutes=minutes)).isoformat()
+    return (datetime.now(UTC) + timedelta(minutes=minutes)).isoformat()
 
 
 # --- The endpoint ---
@@ -102,7 +102,7 @@ def test_scheduled_time_needs_a_time_zone(an, db, me, storage):
 def test_a_video_is_posted_only_once(an, db, me, storage, status):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
-    scheduled_at = datetime.now(timezone.utc) + timedelta(days=1)
+    scheduled_at = datetime.now(UTC) + timedelta(days=1)
     db.add(Publication(video_id=video.id, platform="facebook", status=status, remote_id="1000",
                        scheduled_at=scheduled_at if status == "scheduled" else None, created_by_id=me.id))
     db.commit()
@@ -113,7 +113,7 @@ def test_a_video_is_posted_only_once(an, db, me, storage, status):
 def test_a_scheduled_post_counts_as_published_once_its_time_has_passed(an, db, me, storage):
     video = make_video(db, storage, me)
     db.add(Publication(video_id=video.id, platform="facebook", status="scheduled", remote_id="1000",
-                       scheduled_at=datetime.now(timezone.utc) - timedelta(minutes=1), created_by_id=me.id))
+                       scheduled_at=datetime.now(UTC) - timedelta(minutes=1), created_by_id=me.id))
     db.commit()
     post = an.get(f"/api/videos/{video.id}").json()["publication"]
     assert (post["status"], post["url"]) == ("published", "https://www.facebook.com/reel/1000")
@@ -122,7 +122,7 @@ def test_a_scheduled_post_counts_as_published_once_its_time_has_passed(an, db, m
 def test_a_failed_publish_can_be_sent_again_with_a_new_time(an, db, me, storage):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
-    db.add(Publication(video_id=video.id, platform="facebook", scheduled_at=datetime.now(timezone.utc),
+    db.add(Publication(video_id=video.id, platform="facebook", scheduled_at=datetime.now(UTC),
                        created_by_id=me.id))
     db.commit()
     db.add(Job(video_id=video.id, kind="publish", status="failed", created_by_id=me.id))
@@ -228,7 +228,7 @@ def test_a_page_facebook_refuses_gets_a_reason_a_member_can_act_on():
 
 def test_scheduling_lets_facebook_publish_at_the_time(committed, ready, fakes):
     user, storage, video_id = ready
-    when = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=2)
+    when = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=2)
     with committed() as db:
         db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = when
         db.commit()
@@ -243,7 +243,7 @@ def test_a_time_gone_by_fails_before_anything_is_uploaded(committed, ready, fake
     user, storage, video_id = ready
     with committed() as db:
         post = db.scalar(select(Publication).where(Publication.video_id == video_id))
-        post.scheduled_at = datetime.now(timezone.utc) + timedelta(minutes=2)
+        post.scheduled_at = datetime.now(UTC) + timedelta(minutes=2)
         db.commit()
     job = run_publish(committed, storage, video_id, user.id)
     assert (job.status, job.error) == ("failed", "Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại")
@@ -380,7 +380,7 @@ def test_a_retry_refuses_an_mp4_out_of_date_with_the_edits(committed, ready, fak
 
 def test_facebook_decides_the_state_after_a_lost_answer(committed, ready, fakes):
     user, storage, video_id = ready
-    when = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=2)
+    when = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=2)
     with committed() as db:
         db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = when
         db.commit()
@@ -400,13 +400,13 @@ def test_a_scheduled_time_gone_by_does_not_matter_for_a_reel_already_scheduled(c
     user, storage, video_id = ready
     with committed() as db:
         db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = (
-            datetime.now(timezone.utc) + timedelta(hours=1))
+            datetime.now(UTC) + timedelta(hours=1))
         db.commit()
     fakes.facebook_finish_replies_lost = 1
     assert run_publish(committed, storage, video_id, user.id).status == "failed"
     with committed() as db:
         db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = (
-            datetime.now(timezone.utc) + timedelta(minutes=1))
+            datetime.now(UTC) + timedelta(minutes=1))
         db.commit()
     assert run_publish(committed, storage, video_id, user.id).status == "done"
 
@@ -467,7 +467,7 @@ def test_a_resend_keeps_the_reel_of_the_attempt_before(an, db, me, storage):
 
 def test_facebooks_time_wins_over_the_time_asked_last(committed, ready, fakes):
     user, storage, video_id = ready
-    when = datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=2)
+    when = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=2)
     with committed() as db:
         db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = when
         db.commit()
@@ -486,7 +486,7 @@ def test_a_public_reel_is_recorded_as_public_whatever_time_was_asked_last(commit
     assert run_publish(committed, storage, video_id, user.id).status == "failed"
     with committed() as db:
         db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = (
-            datetime.now(timezone.utc) + timedelta(hours=1))
+            datetime.now(UTC) + timedelta(hours=1))
         db.commit()
     assert run_publish(committed, storage, video_id, user.id).status == "done"
     post = post_of(committed, video_id)

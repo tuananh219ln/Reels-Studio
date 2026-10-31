@@ -11,14 +11,9 @@ import psutil
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import select
-
 from conftest import API_DIR, first_topic, make_video
 from fake_services import script_json
-from reels_api import jobs
-from reels_api.models import Job, KnowledgeTopic, Scene, Video
-from reels_api.storage import DirectoryStorage
-from reels_api.videos import active_job
+from sqlalchemy import select
 from worker_helpers import (  # noqa: F401  (fixtures)
     add_job,
     add_user,
@@ -30,6 +25,11 @@ from worker_helpers import (  # noqa: F401  (fixtures)
     wait_until,
     worker_env,
 )
+
+from reels_api import jobs
+from reels_api.models import Job, KnowledgeTopic, Scene, Video
+from reels_api.storage import DirectoryStorage
+from reels_api.videos import active_job
 
 
 @pytest.fixture
@@ -263,6 +263,7 @@ def test_cancel_waits_for_a_claim_in_progress_and_then_refuses(committed, monkey
     import threading
 
     from conftest import PASSWORD, WEB_ORIGIN, client_for, login
+
     from reels_api.db import get_db
     from reels_api.main import create_app
 
@@ -434,6 +435,7 @@ def test_a_broken_mp3_fails_the_render_with_a_clear_reason(committed, short_vide
 def test_a_title_clip_renders_from_its_start_and_matches_the_thumbnail(committed, short_video, tmp_path):
     from conftest import clip_bytes
     from PIL import Image, ImageChops, ImageStat
+
     from reels_api.videos import refresh_thumbnail, split_scenes
 
     user, storage, video_id = short_video

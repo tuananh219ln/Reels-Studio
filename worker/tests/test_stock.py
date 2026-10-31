@@ -4,8 +4,8 @@ import tempfile
 import urllib.error
 
 import pytest
-
 from conftest import PIXABAY_TEST_KEY, REAL_DEFAULT_CACHE_DIR, REAL_FETCH, jpeg_bytes, make_image, scene, urls
+
 from reels_render import stock
 from reels_render.errors import StockSearchError
 from reels_render.images import is_image

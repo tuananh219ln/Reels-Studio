@@ -1,7 +1,7 @@
 import pytest
+from conftest import REAL_FETCH, REAL_PIXABAY_KEY
 from PIL import Image
 
-from conftest import REAL_FETCH, REAL_PIXABAY_KEY
 from reels_render import stock
 from reels_render.errors import StockSearchError
 from reels_render.stock import Pixabay, SearchCache

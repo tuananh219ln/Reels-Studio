@@ -7,16 +7,15 @@ import sys
 from pathlib import Path
 
 import pytest
-from PIL import Image, ImageChops, ImageStat
-
 from conftest import API_DIR
+from PIL import Image, ImageChops, ImageStat
+from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
+
+from reels_api import jobs
 from reels_api.frames import compose_frame
 from reels_api.models import Scene, Video
 from reels_api.storage import DirectoryStorage
 from reels_render.timeline import FPS, build_timeline
-from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
-
-from reels_api import jobs
 
 SAMPLE = API_DIR.parent / "samples" / "xuong-khop.json"
 HAS_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None

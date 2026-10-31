@@ -18,12 +18,9 @@ secrets/
 
 # Local settings (not shared)
 .claude/settings.local.json
-.codex/settings.local.json
-**/.codex/.sync/
 
 # Portable public MCP templates (root personal MCP configs remain ignored)
 !.mcp.json
-!.mcp.bot.json
 
 # Dependencies
 node_modules/
@@ -53,7 +50,7 @@ Thumbs.db
 
 # Logs
 *.log
-# Root runtime logs only; work/*/logs/ holds interview logs that must be committed
+# Root runtime logs only
 /logs/
 
 # Test coverage

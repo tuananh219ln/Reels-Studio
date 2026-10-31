@@ -1,7 +1,7 @@
 import pytest
+from conftest import PASSWORD, client_for, login, make_user
 from sqlalchemy import func, select
 
-from conftest import PASSWORD, client_for, login, make_user
 from reels_api.models import Session
 from reels_api.sessions import COOKIE_NAME
 

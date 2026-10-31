@@ -1,12 +1,13 @@
 from pathlib import Path
 
 from conftest import REAL_DOTENV_PATH
+
 from reels_render import env
 
 
 def test_dotenv_is_read_from_the_repo_root():
     repo_root = Path(__file__).resolve().parents[2]
-    assert REAL_DOTENV_PATH == repo_root / ".env"
+    assert repo_root / ".env" == REAL_DOTENV_PATH
 
 
 def write_dotenv(tmp_path, monkeypatch, content: bytes):

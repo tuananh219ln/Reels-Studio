@@ -5,8 +5,8 @@ import io
 from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from conftest import client_for, first_topic, login, make_user, make_video
+
 from reels_api.models import AffiliateProduct, Publication
 
 URL = "/api/affiliate-products"

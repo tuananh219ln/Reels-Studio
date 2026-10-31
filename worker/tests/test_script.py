@@ -1,8 +1,8 @@
 import json
 
 import pytest
-
 from conftest import make_image, scene, write_script
+
 from reels_render.errors import InputError
 from reels_render.script import load_script, write_scene_image
 

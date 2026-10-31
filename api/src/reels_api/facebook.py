@@ -6,7 +6,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from . import config
@@ -159,7 +159,7 @@ def is_scheduled(status: dict) -> bool:
 
 def scheduled_time(status: dict) -> datetime | None:
     moment = status.get("publishing_phase", {}).get("publish_time")
-    return datetime.fromtimestamp(moment, timezone.utc) if isinstance(moment, (int, float)) else None
+    return datetime.fromtimestamp(moment, UTC) if isinstance(moment, (int, float)) else None
 
 
 def _phases(status: dict) -> list[dict]:

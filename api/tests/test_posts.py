@@ -1,9 +1,9 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from conftest import login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
+
 from reels_api import fanpages
 from reels_api.models import Publication
 from reels_api.videos import render_signature, split_scenes
@@ -29,7 +29,7 @@ def add_post(db, storage, user, **fields) -> Publication:
 
 
 def in_hours(hours: float) -> datetime:
-    return datetime.now(timezone.utc).replace(microsecond=0) + timedelta(hours=hours)
+    return datetime.now(UTC).replace(microsecond=0) + timedelta(hours=hours)
 
 
 def test_the_list_needs_a_login(client):

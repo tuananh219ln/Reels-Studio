@@ -3,9 +3,9 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import PASSWORD, client_for, expire_all_sessions, login, make_user
 from sqlalchemy import select
 
-from conftest import PASSWORD, client_for, expire_all_sessions, login, make_user
 from reels_api.models import Session, User
 from reels_api.sessions import COOKIE_NAME
 

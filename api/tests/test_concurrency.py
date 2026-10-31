@@ -3,10 +3,10 @@
 import threading
 
 import pytest
+from conftest import PASSWORD, WEB_ORIGIN, client_for, login
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import sessionmaker
 
-from conftest import PASSWORD, WEB_ORIGIN, client_for, login
 from reels_api import routes_auth, routes_users, sessions
 from reels_api.db import get_db
 from reels_api.main import create_app
@@ -169,8 +169,8 @@ def test_mutual_disable_always_leaves_one_active_user(committed_app):
         results = {}
 
         def disable(actor, target_id):
-            barrier.wait()
-            results[actor] = clients[actor].post(f"/api/users/{target_id}/disable")
+            barrier.wait()  # noqa: B023 - the threads are joined inside this loop iteration
+            results[actor] = clients[actor].post(f"/api/users/{target_id}/disable")  # noqa: B023
 
         threads = [threading.Thread(target=disable, args=("a", b.id)),
                    threading.Thread(target=disable, args=("b", a.id))]

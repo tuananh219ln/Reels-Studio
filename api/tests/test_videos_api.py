@@ -2,13 +2,10 @@ import io
 import time
 
 import pytest
-from PIL import Image
-from sqlalchemy import select
-
 from conftest import (
     SCENE_TEXT,
-    clip_bytes,
     client_for,
+    clip_bytes,
     first_topic,
     login,
     make_user,
@@ -16,6 +13,9 @@ from conftest import (
     needs_ffmpeg,
     photo_bytes,
 )
+from PIL import Image
+from sqlalchemy import select
+
 from reels_api.models import Job, Scene, Video
 
 

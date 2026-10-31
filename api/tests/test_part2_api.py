@@ -6,11 +6,10 @@ import time
 from datetime import timedelta
 
 import pytest
+from conftest import login, make_user, make_video
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from conftest import login, make_user, make_video
-from reels_api.knowledge import default_clone_prompt
 from reels_api.models import Job, Scene, Video
 from reels_api.sessions import now
 from reels_api.videos import split_scenes

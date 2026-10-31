@@ -10,7 +10,8 @@ from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import update
-from sqlalchemy.orm import Session as DbSession, sessionmaker
+from sqlalchemy.orm import Session as DbSession
+from sqlalchemy.orm import sessionmaker
 
 from reels_render import RenderError, render_video
 from reels_render.errors import FFmpegError
@@ -37,8 +38,8 @@ from .videos import (
     publication_of,
     render_signature,
     run_checks,
-    spoken,
     split_scenes,
+    spoken,
 )
 
 log = logging.getLogger(__name__)

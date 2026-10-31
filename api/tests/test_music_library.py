@@ -1,8 +1,8 @@
 """The team music library: tracks tagged by topic and mood, and choosing one for a video."""
 
 import pytest
-
 from conftest import client_for, login, make_user, make_video
+
 from reels_api import routes_music
 from reels_api.models import MusicTrack, Video
 

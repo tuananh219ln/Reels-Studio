@@ -4,9 +4,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from conftest import PASSWORD, make_user
 from sqlalchemy import create_engine, func, select
 
-from conftest import PASSWORD, make_user
 from reels_api import cli
 from reels_api.cli import create_or_reset_user
 from reels_api.config import ConfigError

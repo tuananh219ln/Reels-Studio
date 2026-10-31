@@ -4,7 +4,8 @@ Facebook before it is kept."""
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.orm import Session as DbSession, joinedload
+from sqlalchemy.orm import Session as DbSession
+from sqlalchemy.orm import joinedload
 
 from . import facebook, fanpages
 from .db import get_db

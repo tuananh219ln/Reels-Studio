@@ -1,11 +1,11 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from conftest import client_for, expire_all_sessions, login, make_user
 from psycopg.errors import DeadlockDetected, SerializationFailure
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 
-from conftest import PASSWORD, client_for, expire_all_sessions, login, make_user
 from reels_api import routes_users
 from reels_api.models import Session, User
 

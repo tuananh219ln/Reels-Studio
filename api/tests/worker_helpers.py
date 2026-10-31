@@ -67,7 +67,7 @@ def wait_for_status(factory, job_id: int, statuses=("done", "failed", "cancelled
 class WorkerProcess:
     def __init__(self, env: dict[str, str], log: Path):
         self.log = log
-        self.handle = open(log, "wb")
+        self.handle = open(log, "wb")  # noqa: SIM115 - stays open for the process's lifetime
         self.process = subprocess.Popen([sys.executable, "-m", "reels_api", "worker"], env=env,
                                         stdout=self.handle, stderr=subprocess.STDOUT)
 

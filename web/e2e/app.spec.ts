@@ -1,3 +1,5 @@
+import { readdirSync } from "node:fs";
+import path from "node:path";
 import { expect, test, type Browser } from "@playwright/test";
 import { SEED, addUser, chooseOption, login, loginAsSeed, openAccountMenu, resetDatabase, row } from "./helpers";
 
@@ -8,11 +10,16 @@ async function newPage(browser: Browser) {
   return context.newPage();
 }
 
-for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/posts", "/calendar", "/affiliate", "/jobs", "/change-password"]) {
-  test(`${path} redirects to login on the server when there is no session`, async ({ page }) => {
-    const response = await page.goto(path);
+// Every page behind the login: each folder of src/app/(app), so a new page is checked without editing this list.
+const appPages = readdirSync(path.resolve(__dirname, "../src/app/(app)"), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => `/${entry.name}`);
+
+for (const url of ["/", ...appPages, "/change-password"]) {
+  test(`${url} redirects to login on the server when there is no session`, async ({ page }) => {
+    const response = await page.goto(url);
     // A server redirect means the first request answered 307; the app page never rendered.
-    expect(response?.request().redirectedFrom()?.url()).toBe(`http://localhost:3100${path}`);
+    expect(response?.request().redirectedFrom()?.url()).toBe(`http://localhost:3100${url}`);
     await expect(page).toHaveURL(/\/login$/);
   });
 }

@@ -1,8 +1,8 @@
 import pytest
-from sqlalchemy import select
-
 from conftest import login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN, FACEBOOK_USER_TOKEN
+from sqlalchemy import select
+
 from reels_api import config, fanpages
 from reels_api.facebook import FacebookError
 from reels_api.models import Fanpage

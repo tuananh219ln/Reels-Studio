@@ -1,0 +1,89 @@
+# Project Context
+
+## Project Overview
+
+**Name:** Reels Studio
+
+**Description:** Internal web app that turns a topic into a ready-to-post 20–40 second vertical
+(9:16) short video for Facebook/Instagram Reels, TikTok, and YouTube Shorts.
+
+The first channel is a Vietnamese faceless "health leaflet" channel (dưỡng sinh / dinh dưỡng for
+people 40+). The content formula, knowledge base, and safety rules are in [content.md](content.md).
+
+---
+
+## Target Audience
+
+**Primary users:** The owner and an internal team of about 5 people. All members have equal
+permissions and share one video library. The app is never public.
+
+**Use case:** Produce 1–3 short videos per day, either from a topic calendar or by cloning last
+week's winning video with a changed food, age milestone, or number.
+
+---
+
+## Core Problem
+
+The owner has little time for ideation and editing. The manual workflow takes about 30 minutes per
+video: pick a topic, write the script with a Claude Project prompt, check the content, find images,
+edit in CapCut, post and pin the comment, then record metrics after 48 hours. Reels Studio automates
+scripting, image assembly, and rendering. Assisted publishing and tracking come in later phases. The
+app replaces CapCut, so the output is a finished MP4.
+
+---
+
+## Key Features (MVP)
+
+1. **Team login (built):** email and password; accounts are created by members (the first one by
+   a CLI command). There is no self-signup and no roles: every member can manage users. Google
+   login is planned (see the backlog).
+2. **Knowledge Base (partly built):** today `/knowledge` holds the editable script and clone
+   prompts and the banned words. Planned: editable channel documents and a food bank with sourced
+   benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
+   [content.md](content.md#knowledge-base).
+3. **Script generation (built):** one Claude call turns a topic into 5 title options, a 5–7 scene
+   script, a caption with hashtags, per-scene image prompts, affiliate
+   suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
+   writes one variant of an existing video from a change request.
+4. **Scene images (built):** members upload their own photo or clip for every scene; a scene
+   without one blocks the render.
+5. **Templated render (built):** a fixed visual template, Ken Burns motion, rendered on the server.
+   Narration in the ElevenLabs "Adam" voice reads each scene's voice text (on by default, off per
+   video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
+   tagged by fixed topics and a mood).
+6. **Affiliate Shopee (built, manual):** a product list entered by hand, ranked by expected
+   commission and approved by a member, with products attached to each posted reel and a
+   ready pinned comment. There is no Shopee API call yet, and members still pin the comment.
+7. **Job log (built):** every job with status, duration, Claude call count, and error; failed jobs
+   are retried from the video page, where the MP4 plays and downloads.
+
+---
+
+## Development Phases
+
+1. **MVP:** the features above.
+2. **Assisted publishing for Reels and TikTok:** a schedule, a reminder at the posting windows (see
+   [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
+   comment manually.
+3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking, winner variants, API
+   auto-posting beyond Facebook Pages (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
+   AI image generation. Concrete items live in [backlog.md](../backlog.md).
+
+Posting to connected Facebook Pages is built. The rest of API auto-posting is deferred for these reasons:
+
+- Instagram publishing needs a Business/Creator account linked to a Facebook Page.
+- Until the TikTok Content Posting API app passes audit, it can only post privately, and TikTok's
+  guidelines do not accept a tool for a team's own accounts. Sending to the app's inbox, where a
+  member finishes the post, is the likely route.
+- Neither platform's API can pin a comment.
+
+---
+
+## Out of Scope
+
+- Public users, self-signup, roles, or permissions.
+- Multiple channels or niches with separate prompts and templates. MVP serves one niche, and its
+  prompt is stored as editable configuration.
+- Editing videos in CapCut or exporting CapCut projects.
+- Using Facebook/CapCut music libraries. They are not accessible outside those apps.
+- Metrics and analytics in the MVP.

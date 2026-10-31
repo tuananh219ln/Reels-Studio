@@ -1,8 +1,8 @@
 import pytest
+from conftest import first_topic, login, make_user, make_video
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from conftest import first_topic, login, make_user, make_video
 from reels_api.knowledge import default_clone_prompt, default_script_prompt
 from reels_api.models import Job
 
