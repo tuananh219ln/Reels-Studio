@@ -70,7 +70,6 @@ def test_structure_errors(folder, data, message):
         ({"keywords": ["cá kho", 3]}, "từ khóa thứ 2 .* phải là chuỗi"),
         ({"keywords": ["  "]}, "từ khóa thứ 1 .* đang trống"),
         ({"keywords": ["a" * 101]}, "dài quá 100 ký tự"),
-        ({"text": "   "}, "chữ trống"),
         ({"text": "a\n\nb"}, "dòng trống"),
         ({"text": "a *b"}, "không đóng cặp"),
         ({"text": "a ** b"}, "\\*\\* rỗng"),
@@ -103,6 +102,14 @@ def test_content_scene_without_keywords_searches_its_first_line(folder, keywords
     script = load(folder, data)
     assert script.scenes[0].keywords == ("Vừng đen",)
     assert script.title.keywords == ()
+
+
+@pytest.mark.parametrize("text", ["", "   ", "\n"])
+def test_scene_without_text_has_no_box_and_nothing_to_search_for(folder, text):
+    data = {"title": scene(text), "scenes": [scene(text)]}
+    script = load_script(write_script(folder, data))
+    assert script.title.lines == [] and script.scenes[0].lines == []
+    assert script.scenes[0].keywords == ()
 
 
 def test_default_keyword_is_cut_to_100_characters(folder):

@@ -17,7 +17,7 @@ class Scene:
     label: str
     number: int  # 0 for the title scene, 1-based for content scenes
     first_line: str
-    lines: list[list[Run]]
+    lines: list[list[Run]]  # empty: the scene has no text box
     seconds: float
     image: Path | None
     keywords: tuple[str, ...]
@@ -104,14 +104,16 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f"{label}: chỉ dùng một trong \"image\" hoặc \"video\"")
     keywords = _parse_keywords(item.get("keywords"), label)
 
-    try:
-        lines = parse_scene_text(text)
-    except MarkupError as err:
-        raise InputError(f"{label}: {err}") from None
+    lines = []
+    if text.strip():
+        try:
+            lines = parse_scene_text(text)
+        except MarkupError as err:
+            raise InputError(f"{label}: {err}") from None
 
-    first_line = text.splitlines()[0].replace("*", "").strip()
+    first_line = next(iter(text.splitlines()), "").replace("*", "").strip()
     # The title's first line ("5 MÓN GIÚP") is not a food name, so it is never searched for.
-    if not keywords and number > 0:
+    if not keywords and number > 0 and first_line:
         keywords = (first_line[:MAX_KEYWORD_LENGTH],)
 
     image_path, missing_image = None, None

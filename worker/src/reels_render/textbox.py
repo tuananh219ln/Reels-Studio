@@ -148,6 +148,11 @@ def render_box(layout: TextLayout) -> Image.Image:
     return image
 
 
+def empty_box() -> Image.Image:
+    """A transparent pixel for a scene without text, so the filter graph keeps one image and one box per scene."""
+    return Image.new("RGBA", (1, 1), (0, 0, 0, 0))
+
+
 def title_box_position(width: int, height: int) -> tuple[int, int]:
     return (FRAME_WIDTH - width) // 2, (FRAME_HEIGHT - height) // 2
 

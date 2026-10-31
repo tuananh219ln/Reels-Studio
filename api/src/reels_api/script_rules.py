@@ -58,7 +58,7 @@ def count_words(text: str) -> int:
 def text_problem(text: str, is_title: bool) -> str | None:
     """Why reels_render would refuse this text, or None. Also the reason shown instead of a preview."""
     if not text.strip():
-        return "Chữ đang trống"
+        return None  # a scene without text simply has no box
     try:
         lines = parse_scene_text(text)
     except MarkupError as err:

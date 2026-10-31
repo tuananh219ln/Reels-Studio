@@ -65,7 +65,9 @@ There is one fixed template in the MVP, derived from the reference channel (see
 - **First frame = thumbnail:**
   - a close-up food photo filling the frame, with vivid color;
   - the chosen title in a text box centred in the frame, 3–5 lines, with no fade-in.
-- **Text box:**
+- **Text box:** a scene whose text is empty has none, so a video can mix scenes with and without
+  text, or carry no text at all. An empty title scene leaves the thumbnail without a box, and the
+  video is listed under its topic.
   - yellow background (`#FFD60A`) with black text (`#111111`). The "yellow text with a black
     outline" style was rejected because it is hard to read on bright photos;
   - bold, uppercase, centered, at most 960 px wide;
