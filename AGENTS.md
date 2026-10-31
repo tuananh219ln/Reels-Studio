@@ -20,6 +20,15 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
   PR description: what changes, why, and how it was verified. No separate spec file is needed.
 - **Done means:** lint and typecheck pass, tests for the changed behaviour exist and pass, and docs
   in `docs/` that describe the changed behaviour are updated in the same PR.
+- **Bug fixes start with a failing test.** Write a test that reproduces the bug and watch it fail
+  before fixing; the test stays as the regression guard.
+- **Decisions are logged.** Read [docs/decisions.md](docs/decisions.md) before starting a new
+  round of work. Never silently reverse a logged decision: if the work conflicts with one, stop
+  and surface the conflict so the owner can decide. A new decision made during the work is
+  recorded there, dated, in the same PR.
+- **Report in three parts** (in the PR description): what changed; which checks and tests were
+  actually run, with their real results; and what is unfinished or turned up outside the task.
+  Never claim a check passed that was not run.
 - **Library docs:** use the Context7 MCP tools for library/API documentation and setup. Next.js here
   is v16; read [web/AGENTS.md](web/AGENTS.md) before writing web code.
 
@@ -27,6 +36,7 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
 
 | Task | Read |
 | --- | --- |
+| Starting a new round of work | [docs/decisions.md](docs/decisions.md) |
 | Any feature | [docs/project.md](docs/project.md), [docs/architecture.md](docs/architecture.md), [docs/patterns.md](docs/patterns.md) |
 | Database, API, jobs, worker, render | [docs/architecture.md](docs/architecture.md) (Data Model, Video Pipeline, Render Core) |
 | Prompt, script, knowledge base, safety rules | [docs/content.md](docs/content.md) |
@@ -74,10 +84,20 @@ a push to `main` deploys only after everything passes.
 - **Never edit a migration that is on `main`.** Add a new one.
 - **No test switches in production code.** Tests reach Claude, Pixabay, ElevenLabs and Facebook
   only through their base-URL env vars pointing at `api/scripts/fake_services.py`.
+- **Real APIs cost real money.** In development and tests, Claude, ElevenLabs and Facebook are
+  reached only through the fake services; never retry a script or clone job in a loop, and never
+  trigger jobs against production to test something.
+- **Production is off-limits.** Never run commands in a Coolify terminal, connect to the
+  production database, or run `create-user` against production. Production changes only through
+  CI on merge to `main`; account recovery is the owner's job, by hand.
 - **Prompt text is app data, the output format is code** ([docs/content.md](docs/content.md)).
 - **Times are shown in Vietnam time** (`Asia/Ho_Chi_Minh`) whatever the browser's time zone.
 - **Secrets stay in `.env`** (never committed; add new names to `.env.example`). Agents do not
-  read `.env`.
+  read `.env`. A new env var also updates the table in
+  [docs/deployment.md](docs/deployment.md) in the same PR.
+- **A person watches the render.** A change to the render core or the video template is done only
+  when a person has watched a sample MP4 against [docs/ux-guidelines.md](docs/ux-guidelines.md)
+  and said so in the PR; an agent cannot judge the visual result.
 - **Never make a check pass by weakening it.** Do not delete tests or loosen their assertions,
   relax lint/format rules, skip CI steps, or add `noqa` / `eslint-disable` without a reason in the
   same line. Fix the code; if a check is truly wrong, say so in the PR and let a person decide.
@@ -96,8 +116,11 @@ a push to `main` deploys only after everything passes.
 ## Git
 
 - Branch from `main` (`feature/...`, `fix/...`, `chore/...`, `docs/...`); never commit to `main`.
+- **Claim the work first.** Open a draft PR or take the issue before coding: one active branch
+  per feature, and do not edit an area another open branch is already changing.
 - Commits follow Conventional Commits: `feat(scope): ...`, `fix(scope): ...`.
 - Keep PRs small. Merge `main` into your branch before opening the PR and again if it conflicts.
+- **Never merge your own PR.** Merging needs green CI and the code owner's approval.
 - Never force-push, reset `--hard`, or push to `main` (Claude Code denies these in
   `.claude/settings.json`).
 - An AI review runs on a PR only when someone with write access comments `/ai-review`

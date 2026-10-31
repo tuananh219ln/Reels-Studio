@@ -25,3 +25,18 @@
 
 # Environment variable names (never values).
 /.env.example                        @namtc07
+
+# The decision log: reversing a settled decision needs the owner.
+/docs/decisions.md                   @namtc07
+
+# The script prompt and its output format change every script the channel produces, and the
+# content rules gate medical wording and the banned words.
+/api/src/reels_api/claude.py         @namtc07
+/api/src/reels_api/prompts/          @namtc07
+/docs/content.md                     @namtc07
+
+# Facebook posting: a mistake here can post the same reel twice to the real Page.
+/api/src/reels_api/facebook.py       @namtc07
+
+# Affiliate approval rules gate real money and the channel's reputation.
+/api/src/reels_api/routes_affiliate.py @namtc07
