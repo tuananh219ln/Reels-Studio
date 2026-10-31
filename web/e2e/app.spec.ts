@@ -111,6 +111,19 @@ test("music library page from the menu", async ({ page }) => {
   await expect(page.getByText("Chưa có bài nhạc nào")).toBeVisible();
 });
 
+test("Kết nối Fanpage opens from inside the Cài đặt menu group", async ({ page }) => {
+  await loginAsSeed(page);
+  const settings = page.getByRole("menuitem", { name: "Cài đặt" });
+  const fanpages = page.getByRole("menuitem", { name: "Kết nối Fanpage" });
+  await expect(fanpages).toBeVisible();
+  await settings.click();
+  await expect(fanpages).toBeHidden();
+  await settings.click();
+  await fanpages.click();
+  await expect(page).toHaveURL(/\/fanpages$/);
+  await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toBeVisible();
+});
+
 test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and approve", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Affiliate Shopee" }).click();
