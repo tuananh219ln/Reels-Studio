@@ -16,6 +16,7 @@ dependencies = [
     "pwdlib[argon2]>=0.2",
     "python-multipart>=0.0.20",
     "anthropic>=2.3",
+    "cryptography>=44",
     # The render core in ../worker: install it first (pip install ../worker), it is not on PyPI.
     "reels-render",
 ]

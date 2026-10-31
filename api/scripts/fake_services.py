@@ -1,7 +1,7 @@
-"""Local stand-ins for the Claude Messages API, the Pixabay API and ElevenLabs TTS, for pytest and E2E.
+"""Local stand-ins for the Claude Messages API, Pixabay, ElevenLabs TTS and Facebook Reels, for pytest and E2E.
 
-The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL and ELEVENLABS_API_URL, so production
-code has no test switches. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
+The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, ELEVENLABS_API_URL and FACEBOOK_API_URL,
+so production code has no test switches. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
 
 import hashlib
@@ -18,6 +18,8 @@ from PIL import Image
 
 PIXABAY_KEY = "fake-pixabay-key"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
+FACEBOOK_PAGE = "1234567"
+FACEBOOK_TOKEN = "fake-facebook-token"
 
 
 def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
@@ -55,6 +57,15 @@ class FakeServices:
         self.tts_mode = "ok"  # ok | quota | error500
         self.tts_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
         self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code"}
+        self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
+        self.facebook_finish_fails = 0  # that many finish calls fail: 500 without publishing
+        self.facebook_finish_refusals = 0  # that many finish calls are refused: 400 without publishing
+        self.facebook_busy_reads = 0  # that many status reads say "processing" before the real status
+        self.facebook_empty_status = False  # status reads answer 200 without a status
+        self.facebook_finish_replies_lost = 0  # that many finish calls publish, then answer 500
+        self.facebook_finish_draft = False  # a finished reel stays in draft, as while Facebook still processes it
+        self.facebook_processing = "ok"  # ok | error | rejected (the doc's shape: only the phase says so) | busy
+        self.facebook_status_fails = 0  # that many status reads answer 400, as a rate limit may
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -76,6 +87,7 @@ class FakeServices:
             "PIXABAY_API_URL": f"{self.url}/api/",
             "ELEVENLABS_API_KEY": ELEVENLABS_KEY,
             "ELEVENLABS_API_URL": self.url,
+            "FACEBOOK_API_URL": f"{self.url}/facebook",
         }
 
     def image_url(self, name: str) -> str:
@@ -139,6 +151,64 @@ class FakeServices:
         ).stdout
         return 200, audio
 
+    def _reels_call(self, page: str, form: dict) -> tuple[int, dict]:
+        if form.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if page != FACEBOOK_PAGE:
+            return 400, {"error": {"message": "Unknown page", "code": 100}}
+        with self.lock:
+            if form.get("upload_phase") == "start":
+                video_id = str(len(self.reels) + 1000)
+                self.reels[video_id] = {"uploaded": False, "bytes": 0, "finishes": 0, "state": "draft"}
+                return 200, {"video_id": video_id, "upload_url": f"{self.url}/facebook-upload/{video_id}"}
+            reel = self.reels[form["video_id"]]
+            reel["finishes"] += 1
+            if self.facebook_finish_refusals:
+                self.facebook_finish_refusals -= 1
+                return 400, {"error": {"message": "Invalid parameter", "code": 100}}
+            if self.facebook_finish_fails:
+                self.facebook_finish_fails -= 1
+                return 500, {"error": {"message": "Service unavailable", "code": 2}}
+            reel["description"] = form.get("description")
+            reel["video_state"] = form.get("video_state")
+            reel["scheduled_publish_time"] = form.get("scheduled_publish_time")
+            if not self.facebook_finish_draft:
+                reel["state"] = "scheduled" if form.get("video_state") == "SCHEDULED" else "published"
+            if self.facebook_finish_replies_lost:
+                self.facebook_finish_replies_lost -= 1
+                return 500, {"error": {"message": "Service unavailable", "code": 2}}
+        return 200, {"success": True}
+
+    def _reel_status(self, video_id: str, query: dict) -> tuple[int, dict]:
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            if self.facebook_status_fails:
+                self.facebook_status_fails -= 1
+                return 400, {"error": {"message": "Application request limit reached", "code": 4}}
+            if self.facebook_empty_status:
+                return 200, {"id": video_id}
+            busy = self.facebook_busy_reads > 0
+            self.facebook_busy_reads -= busy
+        reel = self.reels.get(video_id)
+        if reel is None or reel.get("lost"):
+            return 404, {"error": {"message": "Unknown video", "code": 100}}
+        mode = "rejected" if reel.get("rejected") else "busy" if busy else self.facebook_processing
+        publishing = {"status": "not_started" if mode == "rejected" else "completed",
+                      "publish_status": "draft" if mode == "busy" else reel["state"]}
+        if reel.get("scheduled_publish_time"):
+            publishing["publish_time"] = int(reel["scheduled_publish_time"])
+        return 200, {"id": video_id, "status": {
+            "video_status": {"error": "error", "rejected": "processing", "busy": "processing"}.get(mode, "ready"),
+            "uploading_phase": {"status": "complete" if reel["uploaded"] else "in_progress"},
+            "processing_phase": {
+                "error": {"status": "error"},
+                "rejected": {"status": "not_started", "error": {"message": "Resolution too low"}},
+                "busy": {"status": "in_progress"},
+            }.get(mode, {"status": "completed"}),
+            "publishing_phase": publishing,
+        }}
+
     def _image(self, name: str) -> bytes:
         with self.lock:
             self.image_downloads.append(name)
@@ -167,8 +237,21 @@ class FakeServices:
 
             def do_POST(self):
                 length = int(self.headers.get("Content-Length") or 0)
-                body = json.loads(self.rfile.read(length) or b"{}")
+                raw = self.rfile.read(length)
                 path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/facebook-upload/"):
+                    reel = fake.reels[path.removeprefix("/facebook-upload/")]
+                    if self.headers.get("Authorization") != f"OAuth {FACEBOOK_TOKEN}":
+                        self._send(401, {"error": {"message": "Invalid OAuth access token", "code": 190}})
+                        return
+                    reel["uploaded"], reel["bytes"] = True, len(raw)
+                    self._send(200, {"success": True})
+                    return
+                if path.startswith("/facebook/"):
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*fake._reels_call(path.split("/")[2], form))
+                    return
+                body = json.loads(raw or b"{}")
                 if path == "/v1/messages":
                     self._send(*fake._claude(body))
                 elif path.startswith("/v1/text-to-speech/"):
@@ -182,6 +265,13 @@ class FakeServices:
                 parts = urllib.parse.urlsplit(self.path)
                 if parts.path == "/health":
                     self._send(200, {"ok": True})
+                elif parts.path.startswith("/facebook/"):
+                    query = dict(urllib.parse.parse_qsl(parts.query))
+                    target = parts.path.removeprefix("/facebook/")
+                    if target == FACEBOOK_PAGE and query.get("access_token") == FACEBOOK_TOKEN:
+                        self._send(200, {"id": target, "name": "Trang Dưỡng Sinh"})
+                    else:
+                        self._send(*fake._reel_status(target, query))
                 elif parts.path == "/api/":
                     self._send(*fake._pixabay(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path.startswith("/img/"):
@@ -196,5 +286,5 @@ if __name__ == "__main__":
     services = FakeServices(int(sys.argv[1]))
     # E2E videos stay short so the render finishes quickly.
     services.default_seconds = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0
-    print(f"Fake Claude/Pixabay/ElevenLabs on {services.url}", flush=True)
+    print(f"Fake Claude/Pixabay/ElevenLabs/Facebook on {services.url}", flush=True)
     services.server.serve_forever()

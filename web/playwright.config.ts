@@ -28,6 +28,7 @@ const BACKEND_ENV = {
   PIXABAY_API_URL: `${FAKES_URL}/api/`,
   ELEVENLABS_API_KEY: "fake-elevenlabs-key",
   ELEVENLABS_API_URL: FAKES_URL,
+  FACEBOOK_API_URL: `${FAKES_URL}/facebook`,
   PYTHONUNBUFFERED: "1",
   PYTHONIOENCODING: "utf-8",
 };

@@ -13,6 +13,18 @@ export function resetDatabase() {
   });
 }
 
+/** Connects the fake Facebook Page (api/scripts/fake_services.py) on the settings page. */
+export async function connectFacebook(page: Page) {
+  await page.getByRole("menuitem", { name: "Cài đặt" }).click();
+  await page.getByLabel("Page ID").fill("1234567");
+  await page.getByLabel("Token của Page").fill("fake-facebook-token");
+  await page.getByRole("button", { name: "Lưu" }).click();
+  await expect(page.getByLabel("Token của Page")).toHaveAttribute("placeholder", /Đã lưu/);
+  await page.getByRole("button", { name: "Kiểm tra kết nối" }).click();
+  await expect(page.getByTestId("facebook-test")).toHaveText("Kết nối được với Page “Trang Dưỡng Sinh”");
+  await page.getByRole("menuitem", { name: "Video" }).click();
+}
+
 export async function login(page: Page, email = SEED.email, password = SEED.password) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);

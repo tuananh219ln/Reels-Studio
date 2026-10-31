@@ -33,13 +33,14 @@ import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import MusicCard from "@/components/video/MusicCard";
 import PostContent from "@/components/video/PostContent";
+import PublishCard from "@/components/video/PublishCard";
 import VoiceCard from "@/components/video/VoiceCard";
 import SceneCard from "@/components/video/SceneCard";
 import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
-const JOB_NAMES = { script: "Viết kịch bản", clone: "Nhân bản", render: "Render" } as const;
+const JOB_NAMES = { script: "Viết kịch bản", clone: "Nhân bản", render: "Render", publish: "Đăng Facebook" } as const;
 
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
@@ -106,7 +107,8 @@ export default function VideoPage() {
   function remove() {
     modal.confirm({
       title: "Xóa video này?",
-      content: "Xóa hẳn video, các cảnh, job và mọi file (ảnh, MP4, ảnh thu nhỏ). Không khôi phục được.",
+      content: "Xóa hẳn video, các cảnh, job và mọi file (ảnh, MP4, ảnh thu nhỏ). Không khôi phục được. "
+        + "Bài đã đăng hoặc đã hẹn giờ trên Facebook vẫn còn.",
       okText: "Xóa",
       cancelText: "Huỷ",
       okButtonProps: { danger: true },
@@ -207,9 +209,11 @@ export default function VideoPage() {
               ? `${video.status_label}: ${JOB_NAMES[job.kind]}`
               : job.kind === "render"
                 ? "Đang render video…"
-                : job.kind === "clone"
-                  ? "Claude đang viết kịch bản nhân bản…"
-                  : "Đang viết kịch bản…"
+                : job.kind === "publish"
+                  ? "Đang đăng lên Facebook…"
+                  : job.kind === "clone"
+                    ? "Claude đang viết kịch bản nhân bản…"
+                    : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
@@ -317,6 +321,7 @@ export default function VideoPage() {
                   </Flex>
                 </Card>
               )}
+              {video.mp4 && <PublishCard video={video} />}
               <VoiceCard video={video} />
               <MusicCard video={video} />
               <PostContent video={video} />

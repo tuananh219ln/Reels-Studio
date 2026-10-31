@@ -37,6 +37,9 @@ Built:
     library with its topics and mood), with a volume slider; MP4 player, "Tải MP4", and the render time;
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list;
+  - the "Đăng Facebook" card once there is an MP4: "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
+    ahead, within 29 days), "Đăng lên Facebook" with a confirmation, then the scheduled time or a
+    "Xem Reel" link. It is disabled while the MP4 is out of date. The pinned comment stays manual;
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): one collapsible line per topic group ("Nhóm chủ đề"), added,
   renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
@@ -47,6 +50,9 @@ Built:
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
   used the track keep their copy).
+- **Cài đặt** (`/settings`): the Facebook Page: "Page ID", "Token của Page" (never shown again; left
+  empty it stays as saved), "Lưu", and "Kiểm tra kết nối", which reads the Page's name and posts
+  nothing. Until both are saved, the "Đăng Facebook" card links here.
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
   Claude call count, and error; a row opens its video.
 

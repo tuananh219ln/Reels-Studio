@@ -6,6 +6,7 @@ import tempfile
 import time
 import traceback
 from collections.abc import Callable
+from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import update
@@ -16,7 +17,7 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import knowledge
+from . import facebook, knowledge, page_settings
 from .claude import (
     ClaudeError,
     GeneratedScript,
@@ -25,11 +26,20 @@ from .claude import (
     call_claude,
     generate_script,
 )
-from .models import Job, Scene, Video
+from .facebook import FacebookError
+from .models import Job, Publication, Scene, Video
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
-from .videos import made_voice_seconds, new_key, render_signature, run_checks, spoken, split_scenes
+from .videos import (
+    made_voice_seconds,
+    new_key,
+    publication_of,
+    render_signature,
+    run_checks,
+    spoken,
+    split_scenes,
+)
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +72,8 @@ def run_job(job_id: int, factory: sessionmaker, storage: DirectoryStorage,
                 run_script_job(db, job, call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
+            elif job.kind == "publish":
+                run_publish_job(db, job, storage)
             else:
                 raise JobFailure(f"Loại job không hỗ trợ: {job.kind}")
         except JobFailure as err:
@@ -246,3 +258,71 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         log.info("Job %s rendered %.1fs of video in %.1fs", job.id, seconds, elapsed)
     finally:
         shutil.rmtree(folder, ignore_errors=True)
+
+
+# --- Publish ---
+
+# Facebook refuses a scheduled time less than 10 minutes away.
+MIN_SCHEDULE_LEAD = timedelta(minutes=10)
+# After this long, a reel Facebook was asked to publish and still has not is taken as dropped.
+SETTLE_TIME = timedelta(minutes=30)
+
+
+def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    video = db.get(Video, job.video_id)
+    post = publication_of(db, video.id)
+    if post is None or post.status != "pending":
+        return
+    try:
+        # An attempt before this one may have reached Facebook whatever it reported, so its reel decides first.
+        page = page_settings.load_page(db)
+        status = facebook.reel_status(page, post.remote_id) if post.remote_id else None
+        asked = status is not None and post.finish_sent_at is not None and not facebook.is_failed(status)
+        if asked and facebook.is_busy(status):
+            status = facebook.wait_until_live(page, post.remote_id)
+        if status is None or not facebook.is_live(status):
+            _check_publishable(db, video, post, storage)
+            # A reel is finished again only if it holds this very MP4; a new render gets a reel of its own.
+            if status is None or not facebook.is_uploaded(status) or post.remote_mp4_key != video.mp4_key:
+                # Facebook may still publish a reel it was asked to, and a new one would then be a second post.
+                if asked and now() - post.finish_sent_at < SETTLE_TIME:
+                    raise JobFailure("Facebook có thể vẫn đang đăng bản trước, hãy xem Page, đợi 30 phút rồi Thử lại")
+                post.remote_id, upload_url = facebook.start_upload(page)
+                post.remote_mp4_key, post.finish_sent_at = video.mp4_key, None
+                db.commit()
+                facebook.upload(page, upload_url, storage.path(video.mp4_key))
+            post.finish_sent_at = now()
+            db.commit()
+            _finish_reel(db, page, video, post)
+            status = facebook.wait_until_live(page, post.remote_id)
+    except FacebookError as err:
+        raise JobFailure(err.message, err.detail) from None
+    # What Facebook says counts: after a lost answer it can differ from what the member asked for last.
+    post.status = "scheduled" if facebook.is_scheduled(status) else "published"
+    post.scheduled_at = (facebook.scheduled_time(status) or post.scheduled_at) if post.status == "scheduled" else None
+    post.published_at = now()
+    db.commit()
+    log.info("Job %s posted video %s to Facebook as %s", job.id, video.id, post.remote_id)
+
+
+def _finish_reel(db: DbSession, page: facebook.Page, video: Video, post: Publication) -> None:
+    description = f"{video.caption}\n\n{' '.join(video.hashtags)}".strip()
+    try:
+        facebook.finish(page, post.remote_id, description, post.scheduled_at)
+    except FacebookError as err:
+        # Only a refusal proves Facebook will not publish it; a lost or 5xx answer proves nothing.
+        if 400 <= err.status < 500:
+            post.finish_sent_at = None
+            db.commit()
+        raise
+
+
+def _check_publishable(db: DbSession, video: Video, post: Publication, storage: DirectoryStorage) -> None:
+    """Also covers "Thử lại", which does not pass through the publish endpoint."""
+    title, scenes = split_scenes(db, video)
+    if video.rendered_signature != render_signature(video, title, scenes):
+        raise JobFailure("MP4 chưa cập nhật theo bản sửa, hãy render lại rồi đăng")
+    if post.scheduled_at is not None and post.scheduled_at < now() + MIN_SCHEDULE_LEAD:
+        raise JobFailure("Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại")
+    if not video.mp4_key or not storage.exists(video.mp4_key):
+        raise JobFailure("Không thấy file MP4 trong storage, hãy render lại rồi đăng")
