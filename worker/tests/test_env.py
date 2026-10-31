@@ -21,7 +21,7 @@ def test_dotenv_with_bom_quotes_comments_and_export(tmp_path, monkeypatch):
         "﻿OTHER=1\n"
         "# khóa tìm ảnh\n"
         "\n"
-        "export PIXABAY_API_KEY = \"abc 123\"\n"
+        'export PIXABAY_API_KEY = "abc 123"\n'
         "SINGLE='x=y'\n"
         "# PIXABAY_API_KEY=commented-out\n"
     )

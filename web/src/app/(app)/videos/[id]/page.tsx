@@ -108,8 +108,9 @@ export default function VideoPage() {
   function remove() {
     modal.confirm({
       title: "Xóa video này?",
-      content: "Xóa hẳn video, các cảnh, job và mọi file (ảnh, MP4, ảnh thu nhỏ). Không khôi phục được. "
-        + "Bài đã đăng hoặc đã hẹn giờ trên Facebook vẫn còn.",
+      content:
+        "Xóa hẳn video, các cảnh, job và mọi file (ảnh, MP4, ảnh thu nhỏ). Không khôi phục được. " +
+        "Bài đã đăng hoặc đã hẹn giờ trên Facebook vẫn còn.",
       okText: "Xóa",
       cancelText: "Huỷ",
       okButtonProps: { danger: true },
@@ -161,7 +162,8 @@ export default function VideoPage() {
             {video.title || video.topic}
           </Typography.Title>
           <Typography.Text type="secondary">
-            Chủ đề: {video.topic}{video.knowledge_topic ? ` · Nhóm: ${video.knowledge_topic}` : ""} · {video.created_by}
+            Chủ đề: {video.topic}
+            {video.knowledge_topic ? ` · Nhóm: ${video.knowledge_topic}` : ""} · {video.created_by}
           </Typography.Text>
           {video.clone_of && (
             <Typography.Paragraph type="secondary" style={{ margin: 0 }} data-testid="clone-of">
@@ -175,15 +177,22 @@ export default function VideoPage() {
         <Space wrap>
           {video.has_script && (
             <Tooltip title={video.can_render || job ? undefined : "Còn lỗi cần sửa ở các cảnh (xem ô đỏ)"}>
-              <Button type="primary" icon={<VideoCameraOutlined />} disabled={!video.can_render || busy}
-                onClick={render}>
+              <Button
+                type="primary"
+                icon={<VideoCameraOutlined />}
+                disabled={!video.can_render || busy}
+                onClick={render}
+              >
                 Render
               </Button>
             </Tooltip>
           )}
           {!video.has_script && !job && (
-            <Button type="primary" disabled={busy}
-              onClick={() => act(() => api<VideoDetail>(`/videos/${id}/script`, "POST"))}>
+            <Button
+              type="primary"
+              disabled={busy}
+              onClick={() => act(() => api<VideoDetail>(`/videos/${id}/script`, "POST"))}
+            >
               Viết kịch bản
             </Button>
           )}
@@ -219,8 +228,11 @@ export default function VideoPage() {
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
             job.status === "queued" && (
-              <Button size="small" disabled={busy}
-                onClick={() => act(() => api<VideoDetail>(`/jobs/${job.id}/cancel`, "POST"))}>
+              <Button
+                size="small"
+                disabled={busy}
+                onClick={() => act(() => api<VideoDetail>(`/jobs/${job.id}/cancel`, "POST"))}
+              >
                 Hủy
               </Button>
             )
@@ -236,16 +248,27 @@ export default function VideoPage() {
           title={`${failed.kind === "render" && video.mp4 ? "Render lại lỗi" : `${JOB_NAMES[failed.kind]} lỗi`}: ${failed.error ?? ""}`}
           description={
             failed.error_detail && (
-              <Collapse ghost size="small" items={[{
-                key: "detail",
-                label: "Chi tiết lỗi",
-                children: <pre style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 12 }}>{failed.error_detail}</pre>,
-              }]} />
+              <Collapse
+                ghost
+                size="small"
+                items={[
+                  {
+                    key: "detail",
+                    label: "Chi tiết lỗi",
+                    children: (
+                      <pre style={{ whiteSpace: "pre-wrap", margin: 0, fontSize: 12 }}>{failed.error_detail}</pre>
+                    ),
+                  },
+                ]}
+              />
             )
           }
           action={
-            <Button size="small" disabled={busy}
-              onClick={() => act(() => api<VideoDetail>(`/jobs/${failed.id}/retry`, "POST"))}>
+            <Button
+              size="small"
+              disabled={busy}
+              onClick={() => act(() => api<VideoDetail>(`/jobs/${failed.id}/retry`, "POST"))}
+            >
               Thử lại
             </Button>
           }
@@ -300,8 +323,11 @@ export default function VideoPage() {
                   onDelete={() => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))}
                 />
               ))}
-              <Button icon={<PlusOutlined />} disabled={video.locked || busy}
-                onClick={() => act(() => api<VideoDetail>(`/videos/${id}/scenes`, "POST"))}>
+              <Button
+                icon={<PlusOutlined />}
+                disabled={video.locked || busy}
+                onClick={() => act(() => api<VideoDetail>(`/videos/${id}/scenes`, "POST"))}
+              >
                 Thêm cảnh
               </Button>
             </Flex>
@@ -310,8 +336,14 @@ export default function VideoPage() {
             <Flex vertical gap={16}>
               {video.mp4 && (
                 <Card title="MP4" size="small">
-                  <video key={video.mp4.url} src={video.mp4.url} controls preload="metadata" data-testid="mp4-player"
-                    style={{ width: "100%", maxWidth: 320, aspectRatio: "9 / 16", background: "#000", borderRadius: 6 }} />
+                  <video
+                    key={video.mp4.url}
+                    src={video.mp4.url}
+                    controls
+                    preload="metadata"
+                    data-testid="mp4-player"
+                    style={{ width: "100%", maxWidth: 320, aspectRatio: "9 / 16", background: "#000", borderRadius: 6 }}
+                  />
                   <Flex wrap gap={8} align="center" style={{ marginTop: 8 }}>
                     <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
                       Tải MP4
@@ -370,9 +402,9 @@ function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean
       afterClose={() => setRequest("")}
     >
       <Typography.Paragraph type="secondary">
-        Claude giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là
-        một video nháp riêng, chưa có ảnh, có gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị
-        khóa hay thay đổi.
+        Claude giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là một
+        video nháp riêng, chưa có ảnh, có gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị khóa hay thay
+        đổi.
       </Typography.Paragraph>
       <Typography.Text strong>Yêu cầu đổi</Typography.Text>
       <Input.TextArea

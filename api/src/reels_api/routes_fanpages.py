@@ -46,22 +46,28 @@ def _pages_of(token: str) -> list[dict]:
     except facebook.FacebookError as err:
         raise ApiError(422, "facebook_refused", err.message) from None
     if not pages:
-        raise ApiError(422, "no_pages", "Token không quản lý Page nào: hãy gán Page cho tài khoản tạo token "
-                                        "và cấp quyền pages_show_list")
+        raise ApiError(
+            422,
+            "no_pages",
+            "Token không quản lý Page nào: hãy gán Page cho tài khoản tạo token và cấp quyền pages_show_list",
+        )
     return pages
 
 
 def _rows(db: DbSession) -> list[dict]:
     rows = db.scalars(select(Fanpage).options(joinedload(Fanpage.updated_by)).order_by(Fanpage.name, Fanpage.id))
-    return [{
-        "id": row.id,
-        "page_id": row.page_id,
-        "name": row.name,
-        "token_tail": row.token_tail,
-        "active": row.active,
-        "updated_at": row.updated_at.isoformat(),
-        "updated_by": row.updated_by.email if row.updated_by else None,
-    } for row in rows]
+    return [
+        {
+            "id": row.id,
+            "page_id": row.page_id,
+            "name": row.name,
+            "token_tail": row.token_tail,
+            "active": row.active,
+            "updated_at": row.updated_at.isoformat(),
+            "updated_by": row.updated_by.email if row.updated_by else None,
+        }
+        for row in rows
+    ]
 
 
 def _fanpage(db: DbSession, fanpage_id: int) -> Fanpage:

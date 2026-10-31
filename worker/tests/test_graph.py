@@ -51,7 +51,9 @@ def test_graph_mixes_narration_segments_onto_the_bed():
     assert "anullsrc=r=48000:cl=stereo,atrim=duration=11.000000[bed]" in graph
     # The title has no narration: silence for its 3 s (90 frames × 1600 samples).
     assert "anullsrc=r=48000:cl=stereo,atrim=end_sample=144000[vo0]" in graph
-    assert "[6:a]aresample=48000,aformat=channel_layouts=stereo,adelay=200|200,apad,atrim=end_sample=192000[vo1]" in graph
+    assert (
+        "[6:a]aresample=48000,aformat=channel_layouts=stereo,adelay=200|200,apad,atrim=end_sample=192000[vo1]" in graph
+    )
     assert "[7:a]" in graph and "[8:a]" not in graph
     assert "[vo0][vo1][vo2]concat=n=3:v=0:a=1[voice]" in graph
     assert graph.endswith("[bed][voice]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]")
@@ -64,8 +66,9 @@ def test_narration_inputs_come_after_the_music():
 
 
 def test_graph_without_narration_keeps_its_old_audio_chain():
-    assert build_filter_graph(POSITIONS, TIMELINE, None, voices=[False] * 3) == \
-        build_filter_graph(POSITIONS, TIMELINE, None)
+    assert build_filter_graph(POSITIONS, TIMELINE, None, voices=[False] * 3) == build_filter_graph(
+        POSITIONS, TIMELINE, None
+    )
 
 
 @pytest.mark.parametrize("music", [None, Path("C:/Users/Young Sheldon/nhạc nền/bài 1.mp3")])
@@ -104,8 +107,9 @@ def test_clip_scene_has_no_zoom_and_is_cut_to_its_exact_frames():
 
 
 def test_graph_without_clips_is_unchanged():
-    assert build_filter_graph(POSITIONS, TIMELINE, None, clips=[False] * 3) == \
-        build_filter_graph(POSITIONS, TIMELINE, None)
+    assert build_filter_graph(POSITIONS, TIMELINE, None, clips=[False] * 3) == build_filter_graph(
+        POSITIONS, TIMELINE, None
+    )
 
 
 def test_clip_is_seeked_to_its_start_before_its_input():

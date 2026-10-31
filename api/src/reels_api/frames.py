@@ -53,8 +53,9 @@ def _yuv420(frame: Image.Image) -> Image.Image:
     """Halve the colour resolution like the MP4's yuv420p does; the red/yellow text edges otherwise differ."""
     luma, *chroma = frame.convert("YCbCr").split()
     half = (frame.width // 2, frame.height // 2)
-    chroma = [plane.resize(half, Image.Resampling.BOX).resize(frame.size, Image.Resampling.BILINEAR)
-              for plane in chroma]
+    chroma = [
+        plane.resize(half, Image.Resampling.BOX).resize(frame.size, Image.Resampling.BILINEAR) for plane in chroma
+    ]
     return Image.merge("YCbCr", (luma, *chroma)).convert("RGB")
 
 

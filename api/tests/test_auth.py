@@ -22,7 +22,11 @@ def test_login_sets_http_only_lax_cookie_for_30_days(client, db):
     assert "Max-Age=2592000" in cookie
     assert "Secure" not in cookie
     assert response.json() == {
-        "id": user.id, "email": "an@doi.vn", "name": "Nguyễn Văn An", "initial": "A", "must_change_password": False,
+        "id": user.id,
+        "email": "an@doi.vn",
+        "name": "Nguyễn Văn An",
+        "initial": "A",
+        "must_change_password": False,
     }
 
 

@@ -36,19 +36,27 @@ def upgrade() -> None:
     )
     # Nullable with a default below, so a video the previous api creates during a deploy still gets a topic.
     op.add_column("videos", sa.Column("knowledge_topic_id", sa.Integer(), nullable=True))
-    op.create_foreign_key("fk_videos_knowledge_topic_id_knowledge_topics", "videos", "knowledge_topics",
-                          ["knowledge_topic_id"], ["id"])
+    op.create_foreign_key(
+        "fk_videos_knowledge_topic_id_knowledge_topics", "videos", "knowledge_topics", ["knowledge_topic_id"], ["id"]
+    )
 
     # Everything so far belongs to the health channel. The settings rows stay, so a rollback still finds them.
     bind = op.get_bind()
-    saved = dict(bind.execute(sa.text(
-        "SELECT key, value FROM settings WHERE key IN ('script_prompt', 'clone_prompt', 'banned_words')")).all())
-    topic_id = bind.execute(sa.insert(topics).returning(topics.c.id).values(
-        name=FIRST_TOPIC,
-        script_prompt=saved.get("script_prompt", default_script_prompt()),
-        clone_prompt=saved.get("clone_prompt", default_clone_prompt()),
-        banned_words=saved.get("banned_words", list(DEFAULT_BANNED_WORDS)),
-    )).scalar_one()
+    saved = dict(
+        bind.execute(
+            sa.text("SELECT key, value FROM settings WHERE key IN ('script_prompt', 'clone_prompt', 'banned_words')")
+        ).all()
+    )
+    topic_id = bind.execute(
+        sa.insert(topics)
+        .returning(topics.c.id)
+        .values(
+            name=FIRST_TOPIC,
+            script_prompt=saved.get("script_prompt", default_script_prompt()),
+            clone_prompt=saved.get("clone_prompt", default_clone_prompt()),
+            banned_words=saved.get("banned_words", list(DEFAULT_BANNED_WORDS)),
+        )
+    ).scalar_one()
     bind.execute(sa.text("UPDATE videos SET knowledge_topic_id = :id"), {"id": topic_id})
     bind.execute(sa.text(f"ALTER TABLE videos ALTER COLUMN knowledge_topic_id SET DEFAULT {int(topic_id)}"))
 

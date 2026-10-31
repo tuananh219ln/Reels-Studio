@@ -32,9 +32,16 @@ test("last login is shown as dd/mm/yyyy hh:mm in Vietnam time whatever the brows
   const shown = (await row(page, SEED.email).getByRole("cell").nth(4).innerText()).trim();
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Asia/Ho_Chi_Minh", day: "2-digit", month: "2-digit", year: "numeric",
-      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
-    }).formatToParts(new Date()).map((p) => [p.type, p.value]),
+      timeZone: "Asia/Ho_Chi_Minh",
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date())
+      .map((p) => [p.type, p.value]),
   );
   expect(shown).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
   expect(shown.slice(0, 13)).toBe(`${parts.day}/${parts.month}/${parts.year} ${parts.hour}`);

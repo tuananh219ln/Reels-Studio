@@ -80,9 +80,7 @@ def list_users(q: str = "", me: Session = Depends(current_member), db: DbSession
         # Plain substring search: "_" and "%" typed by the user are literal characters, not wildcards.
         literal = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{literal}%"
-        query = query.where(
-            or_(User.email.ilike(pattern, escape="\\"), User.name.ilike(pattern, escape="\\"))
-        )
+        query = query.where(or_(User.email.ilike(pattern, escape="\\"), User.name.ilike(pattern, escape="\\")))
     return [_user_payload(user, count, me) for user, count in db.execute(query).all()]
 
 
@@ -119,9 +117,7 @@ def disable_user(user_id: int, me: Session = Depends(current_member), db: DbSess
     try:
         # Lock every active user, not only the target: two people disabling each other at the same
         # moment then serialize, and the second one re-counts after the first has committed.
-        active_ids = db.scalars(
-            select(User.id).where(User.is_active).order_by(User.id).with_for_update()
-        ).all()
+        active_ids = db.scalars(select(User.id).where(User.is_active).order_by(User.id).with_for_update()).all()
         db.refresh(user)
         if user.is_active:
             if len(active_ids) <= 1:
@@ -156,9 +152,7 @@ def set_temp_password(
 ) -> dict:
     _cannot_target_self(db, user_id, me)
     # Lock before checking is_active, so a disable committing meanwhile is seen rather than overwritten.
-    user = db.scalar(
-        select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True)
-    )
+    user = db.scalar(select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True))
     if not user.is_active:
         raise ApiError(409, "user_disabled", "Hãy kích hoạt lại người dùng trước")
     try:

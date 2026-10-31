@@ -44,9 +44,11 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
 
     if args.command == "worker":
         from .worker import main as worker_main
+
         return worker_main()
     if args.command == "run-job":
         from .worker import run_job_command
+
         return run_job_command(args.job_id)
 
     if sys.stdin is None or not sys.stdin.isatty():
@@ -62,8 +64,10 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         print(f"Lỗi: {err}", file=sys.stderr)
         return 1
     except SQLAlchemyError:
-        print("Lỗi: không kết nối được cơ sở dữ liệu. Postgres đã chạy chưa (docker compose up -d postgres)?",
-              file=sys.stderr)
+        print(
+            "Lỗi: không kết nối được cơ sở dữ liệu. Postgres đã chạy chưa (docker compose up -d postgres)?",
+            file=sys.stderr,
+        )
         return 1
 
 
@@ -73,8 +77,15 @@ def create_or_reset_user(db: DbSession, ask: Ask, ask_secret: Ask) -> int:
     if user is None:
         name = _ask_valid(ask, "Tên: ", clean_name)
         password = _ask_password(ask_secret)
-        db.add(User(email=email, name=name, password_hash=hash_password(password), is_active=True,
-                    must_change_password=False))
+        db.add(
+            User(
+                email=email,
+                name=name,
+                password_hash=hash_password(password),
+                is_active=True,
+                must_change_password=False,
+            )
+        )
         db.commit()
         print(f"Đã tạo người dùng {email}.")
         return 0

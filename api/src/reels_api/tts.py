@@ -39,14 +39,23 @@ def synthesize(voice_text: str) -> bytes:
     if not key:
         raise TtsError("Chưa cấu hình ELEVENLABS_API_KEY nên không tạo được lời đọc")
     url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{config.voice_id()}?output_format=mp3_44100_128"
-    body = json.dumps({
-        "text": spoken_text(voice_text),
-        "model_id": config.voice_model(),
-        "language_code": "vi",
-    }).encode()
-    request = urllib.request.Request(url, data=body, method="POST", headers={
-        "xi-api-key": key, "Content-Type": "application/json", "Accept": "audio/mpeg",
-    })
+    body = json.dumps(
+        {
+            "text": spoken_text(voice_text),
+            "model_id": config.voice_model(),
+            "language_code": "vi",
+        }
+    ).encode()
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "xi-api-key": key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        },
+    )
     try:
         with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
             data = response.read(MAX_AUDIO_BYTES + 1)
@@ -67,8 +76,9 @@ def _http_error(status: int, body: str) -> TtsError:
     if status == 401:
         return TtsError("Key ElevenLabs (ELEVENLABS_API_KEY) không hợp lệ", detail)
     if status == 404:
-        return TtsError("ElevenLabs không có giọng hoặc model đã cấu hình (ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL)",
-                        detail)
+        return TtsError(
+            "ElevenLabs không có giọng hoặc model đã cấu hình (ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL)", detail
+        )
     if status == 429:
         return TtsError("ElevenLabs đang giới hạn lượt gọi, thử lại sau", detail)
     if status >= 500:

@@ -46,10 +46,23 @@ def main() -> int:
     with DbSession(create_engine(url)) as db:
         for model in (Job, Scene, Video, Fanpage, AffiliateProduct, KnowledgeTopic, MusicTrack, Setting, Session, User):
             db.execute(delete(model))
-        db.add(User(email=SEED["email"], name=SEED["name"], password_hash=hash_password(SEED["password"]),
-                    is_active=True, must_change_password=False))
-        db.add(KnowledgeTopic(name="Sức khỏe", script_prompt=default_script_prompt(),
-                              clone_prompt=default_clone_prompt(), banned_words=list(DEFAULT_BANNED_WORDS)))
+        db.add(
+            User(
+                email=SEED["email"],
+                name=SEED["name"],
+                password_hash=hash_password(SEED["password"]),
+                is_active=True,
+                must_change_password=False,
+            )
+        )
+        db.add(
+            KnowledgeTopic(
+                name="Sức khỏe",
+                script_prompt=default_script_prompt(),
+                clone_prompt=default_clone_prompt(),
+                banned_words=list(DEFAULT_BANNED_WORDS),
+            )
+        )
         db.commit()
     return 0
 

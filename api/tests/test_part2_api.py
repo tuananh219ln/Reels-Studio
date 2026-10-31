@@ -29,8 +29,9 @@ def an(client, me):
 
 
 def first_scene(db, video) -> int:
-    return db.scalar(select(Scene.id).where(Scene.video_id == video.id, Scene.is_title.is_(False))
-                     .order_by(Scene.position).limit(1))
+    return db.scalar(
+        select(Scene.id).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position).limit(1)
+    )
 
 
 def add_mp3(an, video, data=MP3, name="Windy Hill.mp3"):
@@ -38,6 +39,7 @@ def add_mp3(an, video, data=MP3, name="Windy Hill.mp3"):
 
 
 # --- "Chọn từ Pixabay" ---
+
 
 def test_picker_lists_pixabay_results_with_thumbnails(an, db, me, storage, fakes):
     video = make_video(db, storage, me)
@@ -91,6 +93,7 @@ def test_picker_reports_pixabay_problems_at_the_scene(an, db, me, storage, fakes
 
 
 # --- Music ---
+
 
 def test_mp3_upload_replace_and_remove(an, db, me, storage):
     video = make_video(db, storage, me)
@@ -149,6 +152,7 @@ def test_music_changes_mark_the_mp4_outdated(an, db, me, storage, change):
 
 # --- "Nhân bản" ---
 
+
 def test_clone_needs_a_change_request(an, db, me, storage):
     video = make_video(db, storage, me)
     response = an.post(f"/api/videos/{video.id}/clone", json={"request": "   "})
@@ -198,21 +202,39 @@ def test_a_cancelled_clone_draft_reruns_the_clone_with_its_snapshot(an, db, me, 
 
 # --- Job log and clone prompt ---
 
+
 def test_job_log_lists_every_job_with_its_details(an, db, me, storage):
     video = make_video(db, storage, me)
-    db.add_all([
-        Job(video_id=video.id, kind="script", status="failed", created_by_id=me.id, claude_calls=2,
-            error="Claude trả kịch bản không đúng định dạng"),
-        Job(video_id=video.id, kind="render", status="cancelled", created_by_id=me.id),
-    ])
+    db.add_all(
+        [
+            Job(
+                video_id=video.id,
+                kind="script",
+                status="failed",
+                created_by_id=me.id,
+                claude_calls=2,
+                error="Claude trả kịch bản không đúng định dạng",
+            ),
+            Job(video_id=video.id, kind="render", status="cancelled", created_by_id=me.id),
+        ]
+    )
     db.commit()
-    done = Job(video_id=video.id, kind="render", status="done", created_by_id=me.id,
-               started_at=now() - timedelta(seconds=30), finished_at=now())
+    done = Job(
+        video_id=video.id,
+        kind="render",
+        status="done",
+        created_by_id=me.id,
+        started_at=now() - timedelta(seconds=30),
+        finished_at=now(),
+    )
     db.add(done)
     db.commit()
     rows = an.get("/api/jobs").json()
     assert [(row["kind_label"], row["status"]) for row in rows] == [
-        ("Render", "done"), ("Render", "cancelled"), ("Viết kịch bản", "failed")]
+        ("Render", "done"),
+        ("Render", "cancelled"),
+        ("Viết kịch bản", "failed"),
+    ]
     assert rows[0]["video_title"] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE" and rows[0]["video_id"] == video.id
     assert rows[0]["duration_seconds"] == pytest.approx(30, abs=1) and rows[0]["created_by"] == "Nguyễn Văn An"
     assert (rows[2]["claude_calls"], rows[2]["error"]) == (2, "Claude trả kịch bản không đúng định dạng")
@@ -271,7 +293,8 @@ def test_an_mp3_of_exactly_20_mb_is_accepted_and_one_byte_more_is_refused(an, db
 
 @pytest.mark.parametrize("problem", ["bad_key", "hang", "not_an_image"])
 def test_choosing_a_grid_photo_reports_pixabay_problems_and_keeps_the_old_photo(
-        an, db, me, storage, fakes, monkeypatch, problem):
+    an, db, me, storage, fakes, monkeypatch, problem
+):
     from reels_api import pixabay, routes_videos
 
     video = make_video(db, storage, me)
@@ -291,8 +314,11 @@ def test_choosing_a_grid_photo_reports_pixabay_problems_and_keeps_the_old_photo(
         monkeypatch.setattr(pixabay.Pixabay, "download", lambda self, url, deadline: None)
     started = time.monotonic()
     response = an.post(f"/api/scenes/{scene}/pixabay", json={"keyword": "cá", "url": fakes.image_url("a")})
-    expected = {"bad_key": (502, "Key Pixabay không hợp lệ"), "hang": (502, "không phản hồi kịp"),
-                "not_an_image": (422, "Ảnh này không tải được")}[problem]
+    expected = {
+        "bad_key": (502, "Key Pixabay không hợp lệ"),
+        "hang": (502, "không phản hồi kịp"),
+        "not_an_image": (422, "Ảnh này không tải được"),
+    }[problem]
     assert response.status_code == expected[0] and expected[1] in response.json()["message"]
     assert time.monotonic() - started < 5
     assert db.scalar(select(Scene.image_key).where(Scene.id == scene)) == before

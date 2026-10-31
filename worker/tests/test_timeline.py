@@ -32,12 +32,15 @@ def test_fractional_seconds_do_not_accumulate_drift():
     assert abs(timeline.total_frames - sum(seconds) * FPS) <= 0.5
 
 
-@pytest.mark.parametrize(("seconds", "voice", "fitted"), [
-    (4, None, 4),  # no narration: the scene keeps its seconds
-    (4, 2.5, 4),  # narration fits with lead-in and pause
-    (1, 2.5, 3.1),  # 0.2 lead + 2.5 + 0.4 pause
-    (3, 3.0, 3.6),  # exactly 36 tenths, not rounded up to 3.7 by float noise
-    (3, 3.01, 3.7),  # any part of a tenth rounds up, so the narration is never cut
-])
+@pytest.mark.parametrize(
+    ("seconds", "voice", "fitted"),
+    [
+        (4, None, 4),  # no narration: the scene keeps its seconds
+        (4, 2.5, 4),  # narration fits with lead-in and pause
+        (1, 2.5, 3.1),  # 0.2 lead + 2.5 + 0.4 pause
+        (3, 3.0, 3.6),  # exactly 36 tenths, not rounded up to 3.7 by float noise
+        (3, 3.01, 3.7),  # any part of a tenth rounds up, so the narration is never cut
+    ],
+)
 def test_scene_is_lengthened_to_fit_its_narration(seconds, voice, fitted):
     assert fit_seconds(seconds, voice) == fitted

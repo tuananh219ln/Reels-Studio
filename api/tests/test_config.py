@@ -9,7 +9,7 @@ def use_dotenv(tmp_path, monkeypatch, content: str):
 
 def test_dotenv_is_read_from_repo_root_with_bom_quotes_and_export(tmp_path, monkeypatch):
     monkeypatch.delenv("DATABASE_URL", raising=False)
-    use_dotenv(tmp_path, monkeypatch, "# dev\nexport DATABASE_URL = \"postgresql+psycopg://x@h/db\"\n")
+    use_dotenv(tmp_path, monkeypatch, '# dev\nexport DATABASE_URL = "postgresql+psycopg://x@h/db"\n')
     assert config.database_url() == "postgresql+psycopg://x@h/db"
 
 

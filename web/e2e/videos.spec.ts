@@ -62,7 +62,9 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   const range = await page.request.get(src ?? "", { headers: { Range: "bytes=100-199" } });
   expect(range.status()).toBe(206);
   expect((await range.body()).length).toBe(100);
-  const download = await page.request.get((await page.getByRole("link", { name: "Tải MP4" }).getAttribute("href")) ?? "");
+  const download = await page.request.get(
+    (await page.getByRole("link", { name: "Tải MP4" }).getAttribute("href")) ?? "",
+  );
   expect(download.status()).toBe(200);
   expect(download.headers()["content-type"]).toBe("video/mp4");
   expect(download.headers()["content-disposition"]).toContain("attachment");
@@ -112,7 +114,9 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
 });
 
-test("knowledge topics: each opens from its line, keeps its own texts, and an empty one cannot make a video", async ({ page }) => {
+test("knowledge topics: each opens from its line, keeps its own texts, and an empty one cannot make a video", async ({
+  page,
+}) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
@@ -254,8 +258,13 @@ test("a posted reel takes an approved product and its link goes in the pinned co
       }).then((response) => response.json());
     const { topics } = await send("/options");
     const fields = {
-      knowledge_topic_id: topics[0].id, shop_name: "Nhà Vừng", shop_type: "mall", rating: 4.8, sold: 500,
-      price: 100000, commission_rate: 10,
+      knowledge_topic_id: topics[0].id,
+      shop_name: "Nhà Vừng",
+      shop_type: "mall",
+      rating: 4.8,
+      sold: 500,
+      price: 100000,
+      commission_rate: 10,
     };
     const sesame = await send("", "POST", { ...fields, name: "Vừng đen rang", url: "https://s.shopee.vn/vung" });
     const tea = await send("", "POST", { ...fields, name: "Trà sen", url: "https://s.shopee.vn/tra", price: 50000 });
@@ -283,7 +292,10 @@ test("a posted reel takes an approved product and its link goes in the pinned co
 
   // A product that lost its approval stays on the reel with a warning, but its link is not copied.
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await page.getByRole("row", { name: /Trà sen/ }).getByRole("button", { name: "Bỏ duyệt" }).click();
+  await page
+    .getByRole("row", { name: /Trà sen/ })
+    .getByRole("button", { name: "Bỏ duyệt" })
+    .click();
   await expect(page.getByRole("row", { name: /Trà sen/ }).getByRole("button", { name: "Duyệt" })).toBeVisible();
   await page.getByRole("tab", { name: "Video đã đăng" }).click();
   await expect(page.getByText("Đã bỏ duyệt: Trà sen")).toBeVisible();
@@ -295,8 +307,18 @@ test("a posted reel takes an approved product and its link goes in the pinned co
 /** Gives the title and every content scene a photo, as a member does after the script is written. */
 async function uploadPhotos(page: Page) {
   const file = path.join(os.tmpdir(), `e2e-photo-${process.pid}.jpg`);
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1080x1280:rate=1",
-    "-frames:v", "1", file]);
+  execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc2=size=1080x1280:rate=1",
+    "-frames:v",
+    "1",
+    file,
+  ]);
   await page.getByLabel("Tải ảnh lên cho cảnh tiêu đề").setInputFiles(file);
   await expect(page.getByTestId("title-scene").getByTestId("scene-preview")).toBeVisible();
   const scenes = page.getByTestId("scene");
@@ -314,8 +336,22 @@ async function jobFinished(page: Page) {
 
 function makeMp3(): string {
   const file = path.join(os.tmpdir(), `e2e-tone-${process.pid}.mp3`);
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-ac", "2",
-    "-c:a", "libmp3lame", "-b:a", "96k", file]);
+  execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    "sine=frequency=440:duration=3",
+    "-ac",
+    "2",
+    "-c:a",
+    "libmp3lame",
+    "-b:a",
+    "96k",
+    file,
+  ]);
   return file;
 }
 
@@ -328,7 +364,9 @@ test("add and remove music", async ({ page }) => {
   await expect(page.getByTestId("music-name")).toHaveText(/e2e-tone-\d+\.mp3/);
   await expect(page.getByText("Âm lượng: 25%")).toBeVisible();
   await page.getByLabel("Tải nhạc MP3 lên").setInputFiles({
-    name: "gia.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("RIFF0000WAVEfmt fake audio"),
+    name: "gia.mp3",
+    mimeType: "audio/mpeg",
+    buffer: Buffer.from("RIFF0000WAVEfmt fake audio"),
   });
   await expect(page.getByText("File nhạc phải là MP3 thật", { exact: false })).toBeVisible();
   await page.getByRole("button", { name: "Gỡ nhạc" }).click();
@@ -427,8 +465,20 @@ test("clone a video with a change request, then see every job in the job log", a
 
 function makeClip(): string {
   const file = path.join(os.tmpdir(), `e2e-clip-${process.pid}.mp4`);
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=25:duration=3",
-    "-c:v", "libx264", "-pix_fmt", "yuv420p", file]);
+  execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc2=size=1280x720:rate=25:duration=3",
+    "-c:v",
+    "libx264",
+    "-pix_fmt",
+    "yuv420p",
+    file,
+  ]);
   return file;
 }
 
@@ -442,8 +492,11 @@ test("a title clip with a start time renders, and removing it asks for a photo a
   // The title has a photo: the clip replaces it only after a confirmation, which then opens the file chooser.
   await title.getByRole("button", { name: "Tải video lên" }).click();
   const chooser = page.waitForEvent("filechooser");
-  await page.getByRole("tooltip").filter({ hasText: "Video sẽ thay ảnh của cảnh này?" })
-    .getByRole("button", { name: "Đổi" }).click();
+  await page
+    .getByRole("tooltip")
+    .filter({ hasText: "Video sẽ thay ảnh của cảnh này?" })
+    .getByRole("button", { name: "Đổi" })
+    .click();
   await (await chooser).setFiles(makeClip());
   await expect(title.getByTestId("scene-video")).toBeVisible();
   await expect(title.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");

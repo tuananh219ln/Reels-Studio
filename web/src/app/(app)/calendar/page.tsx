@@ -50,7 +50,9 @@ export default function CalendarPage() {
       </Typography.Title>
       <Flex gap={4} style={{ marginBottom: 12 }}>
         {Object.values(POST_STATUS).map((status) => (
-          <Tag key={status.label} color={status.color}>{status.label}</Tag>
+          <Tag key={status.label} color={status.color}>
+            {status.label}
+          </Tag>
         ))}
       </Flex>
       <Card styles={{ body: { overflowX: "auto" } }}>

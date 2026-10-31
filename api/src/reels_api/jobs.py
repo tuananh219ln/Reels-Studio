@@ -60,8 +60,9 @@ def work_dir(job_id: int) -> Path:
     return Path(tempfile.gettempdir()) / f"reels-job-{job_id}"
 
 
-def run_job(job_id: int, factory: sessionmaker, storage: DirectoryStorage,
-            call: Callable[[str, str], str] = call_claude) -> None:
+def run_job(
+    job_id: int, factory: sessionmaker, storage: DirectoryStorage, call: Callable[[str, str], str] = call_claude
+) -> None:
     with factory() as db:
         job = db.get(Job, job_id)
         if job is None or job.status != "running":
@@ -93,12 +94,16 @@ def run_job(job_id: int, factory: sessionmaker, storage: DirectoryStorage,
 
 
 def _finish(db: DbSession, job_id: int, status: str, error: str | None = None, detail: str | None = None) -> None:
-    db.execute(update(Job).where(Job.id == job_id).values(
-        status=status, finished_at=now(), error=error, error_detail=detail or None))
+    db.execute(
+        update(Job)
+        .where(Job.id == job_id)
+        .values(status=status, finished_at=now(), error=error, error_detail=detail or None)
+    )
     db.commit()
 
 
 # --- Script ---
+
 
 def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str]) -> None:
     video = db.get(Video, job.video_id)
@@ -135,11 +140,31 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     video.pinned_comment = script.pinned_comment
     video.self_review = script.self_review
     video.music_suggestions = script.music_suggestions
-    db.add(Scene(video_id=video.id, is_title=True, position=0, text=script.titles[0], seconds=TITLE_SECONDS,
-                 keywords=script.title_keywords, image_prompt="", voice_text=script.title_voice))
+    db.add(
+        Scene(
+            video_id=video.id,
+            is_title=True,
+            position=0,
+            text=script.titles[0],
+            seconds=TITLE_SECONDS,
+            keywords=script.title_keywords,
+            image_prompt="",
+            voice_text=script.title_voice,
+        )
+    )
     for position, scene in enumerate(script.scenes, start=1):
-        db.add(Scene(video_id=video.id, is_title=False, position=position, text=scene.text, seconds=scene.seconds,
-                     keywords=scene.keywords, image_prompt=scene.image_prompt, voice_text=scene.voice))
+        db.add(
+            Scene(
+                video_id=video.id,
+                is_title=False,
+                position=position,
+                text=scene.text,
+                seconds=scene.seconds,
+                keywords=scene.keywords,
+                image_prompt=scene.image_prompt,
+                voice_text=scene.voice,
+            )
+        )
 
 
 # --- Render ---
@@ -162,6 +187,7 @@ def _checked_music(video: Video, storage: DirectoryStorage, folder: Path) -> Pat
     if not any(stream.get("codec_type") == "audio" for stream in streams):
         raise JobFailure(MUSIC_UNREADABLE, "File không có luồng âm thanh")
     return music
+
 
 def _scene_label(scene: Scene, index: int) -> str:
     return "Cảnh tiêu đề" if scene.is_title else f"Cảnh {index}"
@@ -209,8 +235,10 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         # Narration lengthens its scene, so the total is only known now.
         blocking = run_checks(db, video, title, scenes).blocking
         if blocking:
-            raise JobFailure(f"Chưa render được: {blocking[0].message}",
-                             "Lời đọc làm cảnh dài thêm: hãy rút gọn lời đọc hoặc bớt cảnh")
+            raise JobFailure(
+                f"Chưa render được: {blocking[0].message}",
+                "Lời đọc làm cảnh dài thêm: hãy rút gọn lời đọc hoặc bớt cảnh",
+            )
 
         def entry(scene: Scene, index: int) -> dict:
             label = _scene_label(scene, index)
@@ -220,13 +248,18 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     raise JobFailure(f"{label} chưa có video trong storage, hãy tải video lên lại rồi render")
                 extension = scene.video_key.rsplit(".", 1)[-1]
                 clip = storage.copy_to(scene.video_key, folder / f"clip-{index:02d}.{extension}")
-                data = {"text": scene.text, "seconds": scene.seconds, "video": clip.name,
-                        "video_start": scene.video_start}
+                data = {
+                    "text": scene.text,
+                    "seconds": scene.seconds,
+                    "video": clip.name,
+                    "video_start": scene.video_start,
+                }
             else:
                 if not scene.image_key or not storage.exists(scene.image_key):
                     raise JobFailure(f"{label} chưa có ảnh trong storage, hãy gán lại ảnh rồi render")
-                image = storage.copy_to(scene.image_key,
-                                        folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}")
+                image = storage.copy_to(
+                    scene.image_key, folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}"
+                )
                 data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
@@ -238,8 +271,9 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         output = folder / "video.mp4"
         started = time.monotonic()
         try:
-            render_video(parse_script(data, base_dir=folder), output, music=music,
-                         music_volume=video.music_volume / 100)
+            render_video(
+                parse_script(data, base_dir=folder), output, music=music, music_volume=video.music_volume / 100
+            )
             seconds = float(probe(find_tools().ffprobe, output)["format"]["duration"])
         except FFmpegError as err:
             raise JobFailure("FFmpeg lỗi khi render video", err.stderr_tail) from None

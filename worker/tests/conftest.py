@@ -122,17 +122,48 @@ def extract_frame(video: Path, seconds: float, target: Path) -> Image.Image:
 
 def mean_volume(media: Path, start: float, duration: float) -> float:
     result = subprocess.run(
-        ["ffmpeg", "-hide_banner", "-nostats", "-ss", f"{start:.3f}", "-t", f"{duration:.3f}", "-i", str(media),
-         "-vn", "-af", "volumedetect", "-f", "null", "-"],
-        capture_output=True, encoding="utf-8", errors="replace", check=True,
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-nostats",
+            "-ss",
+            f"{start:.3f}",
+            "-t",
+            f"{duration:.3f}",
+            "-i",
+            str(media),
+            "-vn",
+            "-af",
+            "volumedetect",
+            "-f",
+            "null",
+            "-",
+        ],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
     )
     return float(re.search(r"mean_volume: (-?[\d.]+|-inf) dB", result.stderr).group(1))
 
 
 def make_tone(path: Path, seconds: float) -> Path:
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
-         "-ac", "2", "-c:a", "pcm_s16le", str(path)],
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-ac",
+            "2",
+            "-c:a",
+            "pcm_s16le",
+            str(path),
+        ],
         check=True,
     )
     return path
@@ -141,9 +172,28 @@ def make_tone(path: Path, seconds: float) -> Path:
 def make_clip(path: Path, seconds: float, size: str = "1280x720", rate: int = 25) -> Path:
     """A test-pattern clip with a loud tone, so a test can tell whether the clip's own sound leaks into the MP4."""
     subprocess.run(
-        ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=size={size}:rate={rate}:duration={seconds}",
-         "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}", "-c:v", "libx264", "-pix_fmt", "yuv420p",
-         "-c:a", "aac", "-shortest", str(path)],
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"testsrc2=size={size}:rate={rate}:duration={seconds}",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-shortest",
+            str(path),
+        ],
         check=True,
     )
     return path

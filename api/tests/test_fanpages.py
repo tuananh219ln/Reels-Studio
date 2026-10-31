@@ -39,7 +39,8 @@ def test_a_user_token_lists_its_pages_and_saves_nothing(an, fakes):
 
 def test_a_pages_own_token_lists_that_page(an, fakes):
     assert [page["page_id"] for page in an.post(f"{URL}/lookup", json={"token": FACEBOOK_TOKEN}).json()["pages"]] == [
-        FACEBOOK_PAGE]
+        FACEBOOK_PAGE
+    ]
 
 
 def test_a_page_the_token_cannot_post_to_is_marked_and_refused(an, fakes):
@@ -63,8 +64,11 @@ def test_a_bad_token_is_refused_with_its_reason(an, fakes):
 
 @pytest.mark.parametrize(
     ("token", "reason"),
-    [("   ", "Hãy dán token"), ("abc\ndef", "Token không hợp lệ, hãy chép lại đúng một dòng token"),
-     ("a" * 1001, "Token không hợp lệ, hãy chép lại đúng một dòng token")],
+    [
+        ("   ", "Hãy dán token"),
+        ("abc\ndef", "Token không hợp lệ, hãy chép lại đúng một dòng token"),
+        ("a" * 1001, "Token không hợp lệ, hãy chép lại đúng một dòng token"),
+    ],
 )
 def test_a_malformed_token_never_reaches_facebook(an, token, reason):
     refused = an.post(f"{URL}/lookup", json={"token": token})
@@ -84,8 +88,10 @@ def test_connecting_keeps_the_pages_own_token_encrypted_and_shows_only_its_tail(
 
 
 def test_several_pages_connect_from_one_token(an, fakes):
-    fakes.facebook_pages = [PAGE | {"tasks": ["CREATE_CONTENT"]},
-                            {"id": "222", "name": "Trang Hai", "tasks": ["CREATE_CONTENT"]}]
+    fakes.facebook_pages = [
+        PAGE | {"tasks": ["CREATE_CONTENT"]},
+        {"id": "222", "name": "Trang Hai", "tasks": ["CREATE_CONTENT"]},
+    ]
     rows = an.post(URL, json={"token": FACEBOOK_USER_TOKEN, "page_ids": [FACEBOOK_PAGE, "222"]}).json()
     assert {row["page_id"] for row in rows} == {FACEBOOK_PAGE, "222"}
 
@@ -111,7 +117,9 @@ def test_a_new_token_must_reach_this_very_page(an, db, fakes):
     fakes.facebook_pages = [{"id": "222", "name": "Trang Hai", "tasks": ["CREATE_CONTENT"]}]
     refused = an.put(f"{URL}/{row['id']}/token", json={"token": FACEBOOK_USER_TOKEN})
     assert (refused.status_code, refused.json()["message"]) == (
-        422, "Token mới không có quyền đăng lên Page “Trang Dưỡng Sinh”")
+        422,
+        "Token mới không có quyền đăng lên Page “Trang Dưỡng Sinh”",
+    )
     assert fanpages.load_page(db, row["id"]).token == FACEBOOK_TOKEN
 
 

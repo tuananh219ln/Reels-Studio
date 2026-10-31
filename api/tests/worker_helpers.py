@@ -29,8 +29,13 @@ def committed(engine):
 
 def add_user(factory, email="an@doi.vn", name="Nguyễn Văn An") -> User:
     with factory() as db:
-        user = User(email=email, name=name, password_hash=hash_password("mat-khau-dung-1"), is_active=True,
-                    must_change_password=False)
+        user = User(
+            email=email,
+            name=name,
+            password_hash=hash_password("mat-khau-dung-1"),
+            is_active=True,
+            must_change_password=False,
+        )
         db.add(user)
         db.commit()
         return user
@@ -60,16 +65,20 @@ def wait_until(check, timeout=60.0, interval=0.2, message="condition"):
 
 
 def wait_for_status(factory, job_id: int, statuses=("done", "failed", "cancelled"), timeout=60.0) -> Job:
-    return wait_until(lambda: (job := job_row(factory, job_id)).status in statuses and job,
-                      timeout, message=f"job {job_id} to reach {statuses}")
+    return wait_until(
+        lambda: (job := job_row(factory, job_id)).status in statuses and job,
+        timeout,
+        message=f"job {job_id} to reach {statuses}",
+    )
 
 
 class WorkerProcess:
     def __init__(self, env: dict[str, str], log: Path):
         self.log = log
         self.handle = open(log, "wb")  # noqa: SIM115 - stays open for the process's lifetime
-        self.process = subprocess.Popen([sys.executable, "-m", "reels_api", "worker"], env=env,
-                                        stdout=self.handle, stderr=subprocess.STDOUT)
+        self.process = subprocess.Popen(
+            [sys.executable, "-m", "reels_api", "worker"], env=env, stdout=self.handle, stderr=subprocess.STDOUT
+        )
 
     def output(self) -> str:
         return self.log.read_text(encoding="utf-8", errors="replace")
@@ -93,13 +102,17 @@ def worker_env(engine, tmp_path):
     temp = tmp_path / "worker-temp"
     temp.mkdir()
     env = dict(os.environ)
-    env.update({
-        "DATABASE_URL": engine.url.render_as_string(hide_password=False),
-        "STORAGE_DIR": str(tmp_path / "storage"),
-        # Own temp folder: job work dirs and the Pixabay search cache never leak between tests.
-        "TMP": str(temp), "TEMP": str(temp), "TMPDIR": str(temp),
-        "PYTHONIOENCODING": "utf-8",
-    })
+    env.update(
+        {
+            "DATABASE_URL": engine.url.render_as_string(hide_password=False),
+            "STORAGE_DIR": str(tmp_path / "storage"),
+            # Own temp folder: job work dirs and the Pixabay search cache never leak between tests.
+            "TMP": str(temp),
+            "TEMP": str(temp),
+            "TMPDIR": str(temp),
+            "PYTHONIOENCODING": "utf-8",
+        }
+    )
     return env
 
 
@@ -121,7 +134,8 @@ def fake_tools(folder: Path, behaviour: str) -> Path:
     """`ffmpeg`/`ffprobe` stand-ins: `hang` records its PID and sleeps, `fail` prints to stderr and exits 1."""
     folder.mkdir(parents=True, exist_ok=True)
     script = folder / "fake_tool.py"
-    script.write_text(textwrap.dedent(f"""
+    script.write_text(
+        textwrap.dedent(f"""
         import os, sys, time
         if "{behaviour}" == "hang":
             with open(os.environ["FAKE_FFMPEG_PID"], "w") as f:
@@ -129,7 +143,9 @@ def fake_tools(folder: Path, behaviour: str) -> Path:
             time.sleep(600)
         print("Error while filtering: boom from fake ffmpeg", file=sys.stderr)
         sys.exit(1)
-    """), encoding="utf-8")
+    """),
+        encoding="utf-8",
+    )
     for name in ("ffmpeg", "ffprobe"):
         if os.name == "nt":
             (folder / f"{name}.cmd").write_text(f'@"{sys.executable}" "{script}" %*\n', encoding="utf-8")

@@ -39,8 +39,9 @@ def binh(app, db):
 
 
 def scene_ids(db, video):
-    return db.scalars(select(Scene.id).where(Scene.video_id == video.id, Scene.is_title.is_(False))
-                      .order_by(Scene.position)).all()
+    return db.scalars(
+        select(Scene.id).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position)
+    ).all()
 
 
 def title_id(db, video):
@@ -55,6 +56,7 @@ def add_job(db, video, user, kind="render", status="queued", **fields):
 
 
 # --- Creating and listing ---
+
 
 def test_new_video_queues_a_script_job_and_is_locked(an, db):
     group = first_topic(db).id
@@ -96,6 +98,7 @@ def test_a_teammate_sees_edits_and_renders_a_video_someone_else_made(binh, db, m
 
 # --- Autosave ---
 
+
 def test_field_saves_never_overwrite_other_fields(an, binh, db, me, storage):
     video = make_video(db, storage, me)
     first, second = scene_ids(db, video)[:2]
@@ -113,8 +116,13 @@ def test_field_saves_never_overwrite_other_fields(an, binh, db, me, storage):
 
 def test_post_fields_and_image_prompt_are_editable(an, db, me, storage):
     video = make_video(db, storage, me)
-    body = {"caption": "Mới", "hashtags": ["#x", "#y"], "affiliates": ["A", "B"], "pinned_comment": "G",
-            "music_suggestions": ["Windy Hill", "Nhạc 2"]}
+    body = {
+        "caption": "Mới",
+        "hashtags": ["#x", "#y"],
+        "affiliates": ["A", "B"],
+        "pinned_comment": "G",
+        "music_suggestions": ["Windy Hill", "Nhạc 2"],
+    }
     saved = an.patch(f"/api/videos/{video.id}", json=body).json()
     assert {name: saved[name] for name in body} == body
     scene = an.patch(f"/api/scenes/{scene_ids(db, video)[0]}", json={"image_prompt": "cá trên bàn gỗ"}).json()
@@ -150,6 +158,7 @@ def test_add_delete_and_reorder_scenes_with_the_last_order_winning(an, binh, db,
 
 
 # --- Locking and jobs ---
+
 
 def test_an_active_job_locks_editing_deleting_and_a_second_render(an, db, me, storage):
     video = make_video(db, storage, me)
@@ -277,8 +286,10 @@ def test_a_failed_rerender_keeps_done_with_a_label(an, db, me, storage):
         (("delete", None), True),
         (("image", None), True),
         (("video", {"caption": "khác"}), False),
-        (("video", {"hashtags": ["#khac"], "affiliates": ["x"], "pinned_comment": "y", "music_suggestions": ["z"]}),
-         False),
+        (
+            ("video", {"hashtags": ["#khac"], "affiliates": ["x"], "pinned_comment": "y", "music_suggestions": ["z"]}),
+            False,
+        ),
         (("scene", {"keywords": ["khác"], "image_prompt": "khác"}), False),
     ],
 )
@@ -327,6 +338,7 @@ def test_deleting_a_video_removes_rows_and_every_file(an, db, me, storage):
 
 # --- Photos, previews, thumbnail ---
 
+
 def test_upload_accepts_jpg_png_webp_and_refuses_other_types_and_large_files(an, db, me, storage, monkeypatch):
     video = make_video(db, storage, me, images=False)
     target = scene_ids(db, video)[0]
@@ -341,6 +353,7 @@ def test_upload_accepts_jpg_png_webp_and_refuses_other_types_and_large_files(an,
     assert (refused.status_code, refused.json()["message"]) == (415, "Ảnh phải là JPG, PNG hoặc WebP và không bị hỏng")
 
     from reels_api import routes_videos
+
     monkeypatch.setattr(routes_videos, "MAX_IMAGE_BYTES", 1000)
     big = an.post(f"/api/scenes/{target}/image", files={"file": ("a.jpg", photo_bytes())})
     assert (big.status_code, big.json()["message"]) == (413, "Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn")
@@ -412,14 +425,14 @@ def test_preview_uses_the_photo_and_the_renderers_text_box(an, db, me, storage):
     layout = layout_text(parse_scene_text(SCENE_TEXT), SCENE_STYLE)
     box = render_box(layout)
     photo_key = db.scalar(select(Scene.image_key).where(Scene.id == scene["id"]))
-    expected = ImageOps.fit(Image.open(storage.path(photo_key)).convert("RGB"), (1080, 1920),
-                            Image.Resampling.BICUBIC)
+    expected = ImageOps.fit(Image.open(storage.path(photo_key)).convert("RGB"), (1080, 1920), Image.Resampling.BICUBIC)
     expected.paste(box, scene_box_position(layout.width, layout.height), box)
     difference = sum(ImageStat.Stat(ImageChops.difference(preview, _yuv420(expected))).mean) / 3
     assert difference < 1, "only JPEG noise may differ"
 
 
 # --- "Tìm lại ảnh" ---
+
 
 def test_find_other_photo_assigns_a_different_pixabay_photo(an, db, me, storage, fakes):
     video = make_video(db, storage, me, images=False)
@@ -460,10 +473,13 @@ def test_find_other_photo_needs_keywords(an, db, me, storage, fakes):
     assert an.post(f"/api/scenes/{target}/find-image").json()["message"] == "Hãy nhập từ khóa tìm ảnh trước"
 
 
-@pytest.mark.parametrize(("setup", "message"), [
-    ("bad_key", "Key Pixabay không hợp lệ"),
-    ("error500", "Pixabay đang lỗi (HTTP 500)"),
-])
+@pytest.mark.parametrize(
+    ("setup", "message"),
+    [
+        ("bad_key", "Key Pixabay không hợp lệ"),
+        ("error500", "Pixabay đang lỗi (HTTP 500)"),
+    ],
+)
 def test_pixabay_failures_keep_the_old_photo(an, db, me, storage, fakes, monkeypatch, setup, message):
     video = make_video(db, storage, me)
     target = scene_ids(db, video)[0]
@@ -479,6 +495,7 @@ def test_pixabay_failures_keep_the_old_photo(an, db, me, storage, fakes, monkeyp
 
 def test_a_slow_pixabay_is_given_up_after_about_ten_seconds(an, db, me, storage, fakes, monkeypatch):
     from reels_api import routes_videos
+
     monkeypatch.setattr(routes_videos, "FIND_IMAGE_SECONDS", 1.5)
     video = make_video(db, storage, me)
     target = scene_ids(db, video)[0]
@@ -491,6 +508,7 @@ def test_a_slow_pixabay_is_given_up_after_about_ten_seconds(an, db, me, storage,
 
 # --- Scene video clips ---
 
+
 def test_a_file_that_is_not_a_video_container_is_refused(an, db, me, storage):
     video = make_video(db, storage, me)
     target = scene_ids(db, video)[0]
@@ -501,10 +519,14 @@ def test_a_file_that_is_not_a_video_container_is_refused(an, db, me, storage):
 
 def test_a_clip_larger_than_the_limit_is_refused(an, db, me, storage, monkeypatch):
     from reels_api import clips
+
     monkeypatch.setattr(clips, "MAX_CLIP_BYTES", 1000)
     video = make_video(db, storage, me)
     big = an.post(f"/api/scenes/{scene_ids(db, video)[0]}/video", files={"file": ("a.mp4", bytes(5000))})
-    assert (big.status_code, big.json()["message"]) == (413, "Video quá 50 MB, hãy chọn video ngắn hơn hoặc nén nhỏ lại")
+    assert (big.status_code, big.json()["message"]) == (
+        413,
+        "Video quá 50 MB, hãy chọn video ngắn hơn hoặc nén nhỏ lại",
+    )
 
 
 def test_video_start_needs_a_clip(an, db, me, storage):
@@ -576,6 +598,7 @@ def test_changing_the_clip_or_its_start_marks_the_mp4_outdated(an, db, me, stora
     target = scene_ids(db, video)[0]
     an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip_bytes(tmp_path, seconds=3))})
     from reels_api.videos import render_signature, split_scenes
+
     row = db.get(Video, video.id)
     row.mp4_key, row.rendered_signature = "videos/x/video.mp4", render_signature(row, *split_scenes(db, row))
     db.commit()
@@ -585,9 +608,17 @@ def test_changing_the_clip_or_its_start_marks_the_mp4_outdated(an, db, me, stora
 
 def test_replacing_a_clip_with_another_of_the_same_length_changes_the_fingerprint():
     from reels_api.videos import render_signature
+
     video = Video(music_key=None, music_volume=25, voice_enabled=False)
-    scene = Scene(is_title=False, text="Rau dền", seconds=10, image_key=None, video_key="videos/1/clip-a.mp4",
-                  video_start=0.0, voice_text="")
+    scene = Scene(
+        is_title=False,
+        text="Rau dền",
+        seconds=10,
+        image_key=None,
+        video_key="videos/1/clip-a.mp4",
+        video_start=0.0,
+        voice_text="",
+    )
     before = render_signature(video, None, [scene])
     scene.video_key = "videos/1/clip-b.mp4"
     assert render_signature(video, None, [scene]) != before

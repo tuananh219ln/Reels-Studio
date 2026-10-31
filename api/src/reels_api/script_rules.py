@@ -115,8 +115,9 @@ def check_script(
 
     # Scenes count as lengthened to fit narration made earlier; narration not made yet is measured by the render job.
     # Rounded so float sums such as 0.1 + 0.2 never push an exact 90 over the limit.
-    total = round(sum(fit_seconds(scene.seconds, scene.voice_seconds)
-                      for scene in ([title] if title else []) + scenes), 3)
+    total = round(
+        sum(fit_seconds(scene.seconds, scene.voice_seconds) for scene in ([title] if title else []) + scenes), 3
+    )
     if total > MAX_TOTAL_SECONDS:
         block(Issue(f"Tổng độ dài {total:g} giây, tối đa {MAX_TOTAL_SECONDS} giây", field="total"))
     elif not TOTAL_SECONDS_RANGE[0] <= total <= TOTAL_SECONDS_RANGE[1]:

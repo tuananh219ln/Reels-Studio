@@ -57,9 +57,9 @@ def render_video(
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
-    timeline = build_timeline([
-        fit_seconds(scene.seconds, voice_seconds(tools.ffprobe, scene)) for scene in script.all_scenes
-    ])
+    timeline = build_timeline(
+        [fit_seconds(scene.seconds, voice_seconds(tools.ffprobe, scene)) for scene in script.all_scenes]
+    )
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
@@ -83,8 +83,9 @@ def render_video(
                 place = title_box_position if index == 0 else scene_box_position
                 box_x, box_y = place(layout.width, layout.height)
             voice = scene.voice.resolve() if scene.voice is not None else None
-            inputs.append(SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice,
-                                     video_start=video_start))
+            inputs.append(
+                SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice, video_start=video_start)
+            )
 
         try:
             output.parent.mkdir(parents=True, exist_ok=True)
@@ -138,8 +139,7 @@ def _publish(temp: Path, output: Path) -> Path:
             last_error = err
             continue
         raise OutputNotReplacedError(
-            f"Không thay được {output}: file đích đang bị mở ({target_error}). "
-            f"Bản render mới đã lưu tại: {candidate}",
+            f"Không thay được {output}: file đích đang bị mở ({target_error}). Bản render mới đã lưu tại: {candidate}",
             kept_path=candidate,
         )
     raise OutputNotReplacedError(

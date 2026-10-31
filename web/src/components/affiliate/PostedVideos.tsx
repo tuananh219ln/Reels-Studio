@@ -92,7 +92,10 @@ export default function PostedVideos() {
           ...video.products.map((product) => ({ value: product.id, label: product.name })),
           ...approved
             .filter((product) => !attached.has(product.id) && product.problems.length === 0)
-            .map((product) => ({ value: product.id, label: `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)` })),
+            .map((product) => ({
+              value: product.id,
+              label: `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)`,
+            })),
         ];
         return (
           <Flex vertical gap={6}>

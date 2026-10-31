@@ -92,7 +92,16 @@ class TestOutput:
         path, folder = video
         frame = extract_frame(path, 1.75, folder / "mid-scene-1.png")  # middle of content scene 1
         w, h = frame.size
-        border = [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1), (w // 2, 0), (w // 2, h - 1), (0, h // 2), (w - 1, h // 2)]
+        border = [
+            (0, 0),
+            (w - 1, 0),
+            (0, h - 1),
+            (w - 1, h - 1),
+            (w // 2, 0),
+            (w // 2, h - 1),
+            (0, h // 2),
+            (w - 1, h // 2),
+        ]
         for point in border:
             assert min(frame.getpixel(point)) > 60, f"viền tối tại {point}"
 

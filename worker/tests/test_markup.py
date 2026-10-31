@@ -35,7 +35,10 @@ def test_invalid_text(text, message):
 
 
 def test_vietnamese_uppercase():
-    assert normalize_text("đậu phụ, rau cải, sữa chua, ưu tiên, vừng đen") == "ĐẬU PHỤ, RAU CẢI, SỮA CHUA, ƯU TIÊN, VỪNG ĐEN"
+    assert (
+        normalize_text("đậu phụ, rau cải, sữa chua, ưu tiên, vừng đen")
+        == "ĐẬU PHỤ, RAU CẢI, SỮA CHUA, ƯU TIÊN, VỪNG ĐEN"
+    )
 
 
 def test_decomposed_input_becomes_nfc():

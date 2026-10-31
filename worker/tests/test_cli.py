@@ -15,7 +15,10 @@ from reels_render.stock import NetworkError
 def run_cli(*args, cwd):
     return subprocess.run(
         [sys.executable, "-m", "reels_render", *map(str, args)],
-        capture_output=True, encoding="utf-8", errors="replace", cwd=cwd,
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=cwd,
     )
 
 
@@ -70,7 +73,9 @@ def untitled_script(tmp_path) -> Path:
     return write_script(tmp_path, script_data(image=""))
 
 
-def test_title_without_keywords_is_asked_without_a_key_and_render_continues(tmp_path, monkeypatch, capsys, renders, photo):
+def test_title_without_keywords_is_asked_without_a_key_and_render_continues(
+    tmp_path, monkeypatch, capsys, renders, photo
+):
     script = untitled_script(tmp_path)
 
     assert run_main(monkeypatch, script, Terminal(f'"{photo}"')) == 0
@@ -97,7 +102,9 @@ def test_time_spent_at_the_prompt_counts_as_neither_search_nor_render(tmp_path, 
     assert "Tìm ảnh: 0.0s (0 lượt gọi API) · Render: 0.0s" in capsys.readouterr().out
 
 
-def test_content_scene_image_is_named_by_number_and_unaccented_first_line(tmp_path, monkeypatch, pixabay, renders, photo):
+def test_content_scene_image_is_named_by_number_and_unaccented_first_line(
+    tmp_path, monkeypatch, pixabay, renders, photo
+):
     make_image(tmp_path / "a.jpg", (40, 40))
     data = script_data()
     data["scenes"][0] = scene("Đậu phụ chiên\nCanxi và *đạm*", image="", keywords=["xyzqwv"])
@@ -157,7 +164,9 @@ def test_existing_name_gets_a_number_and_is_never_overwritten(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize("stop", [KeyboardInterrupt(), EOFError()], ids=["ctrl-c", "eof"])
-def test_stopping_keeps_earlier_answers_and_does_not_render(tmp_path, monkeypatch, capsys, pixabay, renders, photo, stop):
+def test_stopping_keeps_earlier_answers_and_does_not_render(
+    tmp_path, monkeypatch, capsys, pixabay, renders, photo, stop
+):
     make_image(tmp_path / "a.jpg", (40, 40))
     data = script_data(image="")
     data["scenes"][0] = scene("Cá kho tộ\nGiàu *canxi*", image="", keywords=["xyzqwv"])
@@ -256,7 +265,9 @@ def test_stock_images_stay_out_of_the_script_and_temp_folder(tmp_path, monkeypat
 def test_invalid_music_volume_is_rejected(tmp_path):
     make_image(tmp_path / "a.jpg", (40, 40))
     script = write_script(tmp_path, script_data())
-    result = run_cli(script, "-o", tmp_path / "v.mp4", "--music", tmp_path / "a.jpg", "--music-volume", "2", cwd=tmp_path)
+    result = run_cli(
+        script, "-o", tmp_path / "v.mp4", "--music", tmp_path / "a.jpg", "--music-volume", "2", cwd=tmp_path
+    )
     assert result.returncode != 0
     assert "từ 0 đến 1" in result.stderr
     assert not (tmp_path / "v.mp4").exists()

@@ -108,7 +108,13 @@ export default function JobsPage() {
       title: "Lỗi",
       key: "error",
       render: (_, row) =>
-        row.error ? <Typography.Text type="danger" ellipsis={{ tooltip: row.error }}>{row.error}</Typography.Text> : "",
+        row.error ? (
+          <Typography.Text type="danger" ellipsis={{ tooltip: row.error }}>
+            {row.error}
+          </Typography.Text>
+        ) : (
+          ""
+        ),
     },
   ];
 

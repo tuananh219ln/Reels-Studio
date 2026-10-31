@@ -125,12 +125,18 @@ def build_script_prompt(template: str, topic: str, banned_words: list[str]) -> s
 
 def build_clone_prompt(template: str, source: dict, banned_words: list[str]) -> str:
     """`source` is the snapshot taken when "Nhân bản" was pressed (see routes_videos.clone_snapshot)."""
-    return _assemble(_fill(template, [
-        ("[tiêu đề]", "Tiêu đề video gốc", source["title"]),
-        ("[chủ đề]", "Chủ đề video gốc", source["topic"]),
-        ("[kịch bản đã sửa của video gốc]", "Kịch bản đã sửa của video gốc", source["script"]),
-        ("[yêu cầu đổi]", "Yêu cầu đổi", source["request"]),
-    ]), banned_words)
+    return _assemble(
+        _fill(
+            template,
+            [
+                ("[tiêu đề]", "Tiêu đề video gốc", source["title"]),
+                ("[chủ đề]", "Chủ đề video gốc", source["topic"]),
+                ("[kịch bản đã sửa của video gốc]", "Kịch bản đã sửa của video gốc", source["script"]),
+                ("[yêu cầu đổi]", "Yêu cầu đổi", source["request"]),
+            ],
+        ),
+        banned_words,
+    )
 
 
 def _fill(template: str, placeholders: list[tuple[str, str, str]]) -> str:
@@ -147,8 +153,10 @@ def _fill(template: str, placeholders: list[tuple[str, str, str]]) -> str:
 def _assemble(body: str, banned_words: list[str]) -> str:
     parts = [body]
     if banned_words:
-        quoted = ", ".join(f"\"{word}\"" for word in banned_words)
-        parts.append(f"Từ cấm, không được dùng trong tiêu đề, chữ trên màn hình, lời đọc, caption và bình luận ghim: {quoted}.")
+        quoted = ", ".join(f'"{word}"' for word in banned_words)
+        parts.append(
+            f"Từ cấm, không được dùng trong tiêu đề, chữ trên màn hình, lời đọc, caption và bình luận ghim: {quoted}."
+        )
     parts.append(OUTPUT_FORMAT)
     return "\n\n".join(parts)
 
@@ -159,7 +167,7 @@ def parse_output(raw: str) -> GeneratedScript:
     if start < 0 or end < start:
         raise ScriptOutputError("câu trả lời không có object JSON")
     try:
-        data = json.loads(raw[start:end + 1])
+        data = json.loads(raw[start : end + 1])
     except json.JSONDecodeError as err:
         raise ScriptOutputError(f"JSON lỗi cú pháp: {err.msg} (dòng {err.lineno}, cột {err.colno})") from None
     if not isinstance(data, dict):
@@ -167,8 +175,11 @@ def parse_output(raw: str) -> GeneratedScript:
     titles = _strings(data.get("titles"))[:5]
     if not titles:
         raise ScriptOutputError("thiếu tiêu đề")
-    scenes = [_scene(item) for item in data.get("scenes") or [] if isinstance(item, dict)] \
-        if isinstance(data.get("scenes"), list) else []
+    scenes = (
+        [_scene(item) for item in data.get("scenes") or [] if isinstance(item, dict)]
+        if isinstance(data.get("scenes"), list)
+        else []
+    )
     if not scenes:
         raise ScriptOutputError("không có cảnh nội dung nào")
     return GeneratedScript(
@@ -263,16 +274,23 @@ def call_claude(prompt: str, label: str) -> str:
         raise ClaudeError("Không kết nối được Claude, kiểm tra mạng rồi thử lại", str(err)) from None
 
     usage = response.usage
-    log.info("Claude call %s: model=%s input_tokens=%s output_tokens=%s stop_reason=%s",
-             label, response.model, usage.input_tokens, usage.output_tokens, response.stop_reason)
+    log.info(
+        "Claude call %s: model=%s input_tokens=%s output_tokens=%s stop_reason=%s",
+        label,
+        response.model,
+        usage.input_tokens,
+        usage.output_tokens,
+        response.stop_reason,
+    )
     if response.stop_reason == "refusal":
         details = getattr(response, "stop_details", None)
         raise ClaudeError("Claude từ chối viết kịch bản cho chủ đề này, hãy đổi cách diễn đạt", str(details or ""))
     return "".join(block.text for block in response.content if block.type == "text")
 
 
-def generate_script(prompt: str, label: str, on_call: Callable[[], None],
-                    call: Callable[[str, str], str] = call_claude) -> GeneratedScript:
+def generate_script(
+    prompt: str, label: str, on_call: Callable[[], None], call: Callable[[str, str], str] = call_claude
+) -> GeneratedScript:
     """Ask once more when the answer is unusable, then give up with the raw answer as the detail."""
     for attempt in (1, 2):
         raw = call(prompt, label)

@@ -127,8 +127,7 @@ def layout_text(lines: list[list[Run]], style: BoxStyle) -> TextLayout:
                 )
     if needed_lines:
         raise TextFitError(
-            f"chữ quá dài: ở cỡ tối thiểu {style.min_size}px vẫn cần {needed_lines} dòng, "
-            f"tối đa {style.max_lines} dòng"
+            f"chữ quá dài: ở cỡ tối thiểu {style.min_size}px vẫn cần {needed_lines} dòng, tối đa {style.max_lines} dòng"
         )
     raise TextFitError(f"có từ quá dài, không vừa hộp rộng {MAX_BOX_WIDTH}px ở cỡ tối thiểu {style.min_size}px")
 

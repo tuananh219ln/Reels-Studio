@@ -145,8 +145,9 @@ class Scene(Base):
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
-        Index("uq_jobs_active_video", "video_id", unique=True,
-              postgresql_where=text("status IN ('queued', 'running')")),
+        Index(
+            "uq_jobs_active_video", "video_id", unique=True, postgresql_where=text("status IN ('queued', 'running')")
+        ),
         Index("ix_jobs_status_id", "status", "id"),
     )
 
@@ -178,8 +179,9 @@ class Fanpage(Base):
     token_tail: Mapped[str] = mapped_column(String(8))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
-                                                 onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     updated_by: Mapped[User | None] = relationship()
 
@@ -271,5 +273,6 @@ class Setting(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     value: Mapped[object] = mapped_column(JSONB)
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
-                                                 onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

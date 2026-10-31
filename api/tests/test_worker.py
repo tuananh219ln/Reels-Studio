@@ -55,6 +55,7 @@ def load(factory, video_id):
 
 # --- Script jobs ---
 
+
 def test_script_job_writes_the_script_and_leaves_the_photos_to_members(committed, services, start_worker):
     user = add_user(committed)
     video_id = new_video(committed, user)
@@ -112,10 +113,15 @@ def test_a_broken_answer_is_retried_once_then_the_job_fails(committed, services,
 
 def test_slightly_off_answers_are_repaired_and_saved(committed, services, start_worker):
     user = add_user(committed)
-    services.claude_replies = ["rác", json.dumps({
-        "titles": ["MỘT", "HAI"],
-        "scenes": [{"text": "Cá\n*canxi*", "seconds": 0.5, "keywords": ["k" * 150]}],
-    })]
+    services.claude_replies = [
+        "rác",
+        json.dumps(
+            {
+                "titles": ["MỘT", "HAI"],
+                "scenes": [{"text": "Cá\n*canxi*", "seconds": 0.5, "keywords": ["k" * 150]}],
+            }
+        ),
+    ]
     video_id = new_video(committed, user)
     job_id = add_job(committed, video_id, user.id)
     start_worker()
@@ -147,6 +153,7 @@ def test_a_retry_after_the_script_was_saved_keeps_the_edits_and_calls_claude_onc
 
 # --- The loop ---
 
+
 def test_jobs_run_one_after_another_in_queue_order(committed, services, start_worker):
     user = add_user(committed)
     ids = [add_job(committed, new_video(committed, user, topic=f"chủ đề {n}"), user.id) for n in range(3)]
@@ -166,14 +173,18 @@ def test_a_job_over_the_time_limit_is_killed_with_its_ffmpeg(committed, services
     tools = fake_tools(tmp_path / "hanging-tools", "hang")
     render_id = add_job(committed, video.id, user.id, kind="render")
     next_id = add_job(committed, new_video(committed, user), user.id)
-    start_worker(JOB_TIMEOUT_SECONDS="20", FAKE_FFMPEG_PID=str(pid_file),
-                 PATH=f"{tools}{os.pathsep}{worker_env['PATH']}")
+    start_worker(
+        JOB_TIMEOUT_SECONDS="20", FAKE_FFMPEG_PID=str(pid_file), PATH=f"{tools}{os.pathsep}{worker_env['PATH']}"
+    )
 
     pid = int(wait_until(lambda: pid_file.exists() and pid_file.read_text(), 30, message="fake ffmpeg"))
     job = wait_for_status(committed, render_id, timeout=60)
     assert job.status == "failed" and "quá" in job.error and job.error_detail
-    wait_until(lambda: not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE,
-               10, message="ffmpeg to die")
+    wait_until(
+        lambda: not psutil.pid_exists(pid) or psutil.Process(pid).status() == psutil.STATUS_ZOMBIE,
+        10,
+        message="ffmpeg to die",
+    )
     with committed() as db:
         assert db.get(Video, video.id).mp4_key is None
         assert active_job(db, video.id) is None
@@ -206,8 +217,10 @@ def test_a_second_worker_waits_for_the_lock_before_cleaning_or_claiming(committe
     assert job_row(committed, running_id).status == "running"
 
     first.stop()
-    assert wait_for_status(committed, running_id, statuses=("failed",), timeout=30).error == \
-        "Worker khởi động lại giữa chừng"
+    assert (
+        wait_for_status(committed, running_id, statuses=("failed",), timeout=30).error
+        == "Worker khởi động lại giữa chừng"
+    )
     queued_id = add_job(committed, new_video(committed, user), user.id)
     assert wait_for_status(committed, queued_id).status == "done"
     assert second.process.poll() is None
@@ -230,6 +243,7 @@ def test_the_worker_waits_while_the_jobs_table_is_missing(committed, engine, ser
 
 
 # --- Render jobs, in process ---
+
 
 def run_render(factory, storage, video_id, user_id) -> Job:
     job_id = add_job(factory, video_id, user_id, kind="render", status="running")
@@ -258,6 +272,7 @@ def test_ffmpeg_failure_stores_its_stderr_and_keeps_the_old_mp4(committed, tmp_p
 
 
 # --- Cancel racing the claim ---
+
 
 def test_cancel_waits_for_a_claim_in_progress_and_then_refuses(committed, monkeypatch):
     import threading
@@ -319,17 +334,27 @@ def test_a_job_being_cancelled_is_skipped_by_the_claim_and_never_runs(committed)
 
 # --- Part 2: clone jobs and music ---
 
+
 def test_clone_job_writes_a_new_script_from_the_snapshot(committed, services, start_worker):
     user = add_user(committed)
-    snapshot = {"video_id": 1, "title": "5 MÓN BỔ XƯƠNG", "topic": "xương khớp",
-                "script": "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi*", "request": "đổi sang mốc 45 tuổi, tim mạch"}
+    snapshot = {
+        "video_id": 1,
+        "title": "5 MÓN BỔ XƯƠNG",
+        "topic": "xương khớp",
+        "script": "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi*",
+        "request": "đổi sang mốc 45 tuổi, tim mạch",
+    }
     with committed() as db:
-        draft = Video(topic=snapshot["request"], knowledge_topic_id=first_topic(db).id, has_script=False,
-                      created_by_id=user.id, clone_source=snapshot)
+        draft = Video(
+            topic=snapshot["request"],
+            knowledge_topic_id=first_topic(db).id,
+            has_script=False,
+            created_by_id=user.id,
+            clone_source=snapshot,
+        )
         db.add(draft)
         db.commit()
-    services.claude_replies = [{**script_json("tim mạch"),
-                                "music_suggestions": ["River Flows In You"]}]
+    services.claude_replies = [{**script_json("tim mạch"), "music_suggestions": ["River Flows In You"]}]
     job_id = add_job(committed, draft.id, user.id, kind="clone")
     start_worker()
 
@@ -348,9 +373,19 @@ def test_clone_job_uses_the_edited_clone_prompt(committed, services, start_worke
         topic = KnowledgeTopic(name="Tim mạch", clone_prompt="Viết biến thể của [tiêu đề] theo: [yêu cầu đổi]")
         db.add(topic)
         db.flush()
-        draft = Video(topic="tim mạch", knowledge_topic_id=topic.id, has_script=False, created_by_id=user.id, clone_source={
-            "video_id": 1, "title": "5 MÓN BỔ XƯƠNG", "topic": "xương khớp", "script": "Cảnh 1 (4 giây): Cá",
-            "request": "tim mạch"})
+        draft = Video(
+            topic="tim mạch",
+            knowledge_topic_id=topic.id,
+            has_script=False,
+            created_by_id=user.id,
+            clone_source={
+                "video_id": 1,
+                "title": "5 MÓN BỔ XƯƠNG",
+                "topic": "xương khớp",
+                "script": "Cảnh 1 (4 giây): Cá",
+                "request": "tim mạch",
+            },
+        )
         db.add(draft)
         db.commit()
     job_id = add_job(committed, draft.id, user.id, kind="clone")
@@ -368,14 +403,37 @@ needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg
 
 
 def make_mp3(path, seconds=4):
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}",
-                    "-ac", "2", "-c:a", "libmp3lame", "-b:a", "128k", str(path)], check=True)
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"sine=frequency=440:duration={seconds}",
+            "-ac",
+            "2",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "128k",
+            str(path),
+        ],
+        check=True,
+    )
     return path.read_bytes()
 
 
 def mean_volume(media) -> float:
-    result = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(media), "-vn", "-af", "volumedetect",
-                             "-f", "null", "-"], capture_output=True, encoding="utf-8", errors="replace", check=True)
+    result = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(media), "-vn", "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+        check=True,
+    )
     value = re.search(r"mean_volume: (-?[\d.]+|-inf) dB", result.stderr).group(1)
     return float("-inf") if value == "-inf" else float(value)
 
@@ -451,8 +509,9 @@ def test_a_title_clip_renders_from_its_start_and_matches_the_thumbnail(committed
 
     mp4 = rendered_mp4(committed, storage, video_id, user.id)
     first = tmp_path / "first.png"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(mp4), "-frames:v", "1", "-s", "540x960", str(first)],
-                   check=True)
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-i", str(mp4), "-frames:v", "1", "-s", "540x960", str(first)], check=True
+    )
     difference = ImageStat.Stat(ImageChops.difference(Image.open(first).convert("RGB"), thumbnail)).mean
     assert sum(difference) / 3 <= 4, "the MP4 opens on the clip frame the thumbnail shows"
     assert mean_volume(mp4) < -80, "the clip's own sound never reaches the MP4"

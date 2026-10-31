@@ -23,14 +23,19 @@ pytestmark = pytest.mark.skipif(not HAS_FFMPEG, reason="ffmpeg/ffprobe khÃ´ng cÃ
 
 
 def probe(path: Path) -> dict:
-    result = subprocess.run(["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)],
-                            capture_output=True, check=True)
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_streams", "-show_format", "-of", "json", str(path)],
+        capture_output=True,
+        check=True,
+    )
     return json.loads(result.stdout)
 
 
 def frame(video: Path, seconds: float, target: Path) -> Image.Image:
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{seconds:.3f}", "-i", str(video), "-frames:v", "1",
-                    str(target)], check=True)
+    subprocess.run(
+        ["ffmpeg", "-v", "error", "-y", "-ss", f"{seconds:.3f}", "-i", str(video), "-frames:v", "1", str(target)],
+        check=True,
+    )
     return Image.open(target).convert("RGB")
 
 
@@ -48,9 +53,18 @@ def load_sample(factory, storage: DirectoryStorage, user) -> int:
             image = SAMPLE.parent / item["image"]
             key = f"videos/{video.id}/sample-{position}{image.suffix}"
             storage.save_file(key, image)
-            db.add(Scene(video_id=video.id, is_title=position == 0, position=position, text=item["text"],
-                         seconds=item["seconds"], keywords=item.get("keywords", []), image_key=key,
-                         image_source="upload"))
+            db.add(
+                Scene(
+                    video_id=video.id,
+                    is_title=position == 0,
+                    position=position,
+                    text=item["text"],
+                    seconds=item["seconds"],
+                    keywords=item.get("keywords", []),
+                    image_key=key,
+                    image_source="upload",
+                )
+            )
         db.commit()
         return video.id
 
@@ -72,8 +86,12 @@ def test_server_render_matches_the_cli_and_the_title_preview(committed, tmp_path
         print(f"render took {video.render_seconds}s for {video.mp4_seconds}s of video")
 
     cli_mp4 = tmp_path / "cli.mp4"
-    subprocess.run([sys.executable, "-m", "reels_render", str(SAMPLE), "-o", str(cli_mp4)], check=True,
-                   stdin=subprocess.DEVNULL, capture_output=True)
+    subprocess.run(
+        [sys.executable, "-m", "reels_render", str(SAMPLE), "-o", str(cli_mp4)],
+        check=True,
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+    )
 
     server, cli = probe(server_mp4), probe(cli_mp4)
     assert float(server["format"]["duration"]) == pytest.approx(float(cli["format"]["duration"]), abs=1 / FPS)

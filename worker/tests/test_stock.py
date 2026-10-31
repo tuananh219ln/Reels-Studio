@@ -154,7 +154,9 @@ class TestChoosingImages:
 
     def test_title_with_keywords_is_searched(self, folder, pixabay):
         pixabay.results["món ăn giàu canxi"] = urls("canxi", 2)
-        result = find(folder, script_with(scene(), title=stock_scene("5 MÓN\nCHẮC XƯƠNG", keywords=["món ăn giàu canxi"])))
+        result = find(
+            folder, script_with(scene(), title=stock_scene("5 MÓN\nCHẮC XƯƠNG", keywords=["món ăn giàu canxi"]))
+        )
         assert result.missing == []
         assert pixabay.keywords == ["món ăn giàu canxi"]
 
@@ -269,12 +271,17 @@ class TestErrors:
         pixabay.results["Cá kho tộ"] = failure
         sleeps = []
         with pytest.raises(StockSearchError, match=message):
-            find(folder, script_with(stock_scene(keywords=["Cá kho tộ", "món cá"])), pixabay_client=client(folder, sleeps=sleeps))
+            find(
+                folder,
+                script_with(stock_scene(keywords=["Cá kho tộ", "món cá"])),
+                pixabay_client=client(folder, sleeps=sleeps),
+            )
         assert sleeps == [5]
         assert pixabay.keywords == ["Cá kho tộ", "Cá kho tộ"]
 
     @pytest.mark.parametrize(
-        "body", ["[ERROR 400] Invalid API key: abc", "[ERROR 400] Invalid or missing API key (https://pixabay.com/api/docs/)"]
+        "body",
+        ["[ERROR 400] Invalid API key: abc", "[ERROR 400] Invalid or missing API key (https://pixabay.com/api/docs/)"],
     )
     def test_rejected_key_stops_at_once(self, folder, pixabay, body):
         pixabay.results["Cá kho tộ"] = HttpStatusError(400, body)
@@ -441,7 +448,9 @@ class TestFetch:
             REAL_FETCH("https://cdn.pixabay.com/a.jpg", 15, 100)
 
     def test_http_error_keeps_status_and_body(self, monkeypatch):
-        error = urllib.error.HTTPError("https://pixabay.com/api/", 400, "Bad Request", {}, io.BytesIO(b"[ERROR 400] Invalid API key"))
+        error = urllib.error.HTTPError(
+            "https://pixabay.com/api/", 400, "Bad Request", {}, io.BytesIO(b"[ERROR 400] Invalid API key")
+        )
         self.serve(monkeypatch, error)
         with pytest.raises(HttpStatusError) as err:
             REAL_FETCH("https://pixabay.com/api/", 15, 100)

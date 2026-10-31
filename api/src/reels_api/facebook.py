@@ -96,12 +96,15 @@ def managed_pages(token: str) -> list[dict]:
         accounts = _read(page, "me/accounts", fields="id,name,access_token,tasks", limit="100").get("data", [])
     except FacebookError:
         return [{"id": str(me.get("id")), "name": str(me.get("name", "")), "token": token, "can_post": True}]
-    return [{
-        "id": str(account.get("id")),
-        "name": str(account.get("name", "")),
-        "token": account.get("access_token", ""),
-        "can_post": "CREATE_CONTENT" in account.get("tasks", []) and bool(account.get("access_token")),
-    } for account in accounts]
+    return [
+        {
+            "id": str(account.get("id")),
+            "name": str(account.get("name", "")),
+            "token": account.get("access_token", ""),
+            "can_post": "CREATE_CONTENT" in account.get("tasks", []) and bool(account.get("access_token")),
+        }
+        for account in accounts
+    ]
 
 
 def start_upload(page: Page) -> tuple[str, str]:
@@ -116,10 +119,18 @@ def start_upload(page: Page) -> tuple[str, str]:
 def upload(page: Page, upload_url: str, path: Path) -> None:
     size = str(path.stat().st_size)
     with path.open("rb") as file:
-        request = urllib.request.Request(upload_url, data=file, method="POST", headers={
-            "Authorization": f"OAuth {page.token}", "offset": "0", "file_size": size, "Content-Length": size,
-            "Content-Type": "application/octet-stream",
-        })
+        request = urllib.request.Request(
+            upload_url,
+            data=file,
+            method="POST",
+            headers={
+                "Authorization": f"OAuth {page.token}",
+                "offset": "0",
+                "file_size": size,
+                "Content-Length": size,
+                "Content-Type": "application/octet-stream",
+            },
+        )
         _send(request, UPLOAD_TIMEOUT)
 
 
@@ -141,8 +152,9 @@ def reel_status(page: Page, video_id: str) -> dict | None:
     except FacebookError as err:
         if err.status == 404:
             return None
-        raise FacebookError(f"Không đọc được trạng thái reel, hãy xem Page trước khi thử lại: {err.message}",
-                            err.detail) from None
+        raise FacebookError(
+            f"Không đọc được trạng thái reel, hãy xem Page trước khi thử lại: {err.message}", err.detail
+        ) from None
     if not reply.get("status"):
         raise FacebookError("Không đọc được trạng thái reel, hãy xem Page trước khi thử lại", str(reply))
     return reply["status"]
@@ -169,7 +181,8 @@ def _phases(status: dict) -> list[dict]:
 def is_failed(status: dict) -> bool:
     # Meta's example of a refused reel has an `error` in a phase that is still "not_started".
     return status.get("video_status") in FAILED_STATUSES or any(
-        phase.get("status") == "error" or phase.get("error") for phase in _phases(status))
+        phase.get("status") == "error" or phase.get("error") for phase in _phases(status)
+    )
 
 
 def is_busy(status: dict) -> bool:
@@ -192,6 +205,7 @@ def wait_until_live(page: Page, video_id: str) -> dict:
         if is_failed(status):
             raise FacebookError("Facebook không xử lý được video này", json.dumps(status, ensure_ascii=False))
         if time.monotonic() >= deadline:
-            raise FacebookError("Facebook xử lý video quá lâu, hãy xem Page rồi bấm Thử lại",
-                                json.dumps(status, ensure_ascii=False))
+            raise FacebookError(
+                "Facebook xử lý video quá lâu, hãy xem Page rồi bấm Thử lại", json.dumps(status, ensure_ascii=False)
+            )
         time.sleep(POLL_SECONDS)

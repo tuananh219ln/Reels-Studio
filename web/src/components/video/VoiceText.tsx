@@ -23,8 +23,14 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
       />
       {scene.voice_url && scene.voice_seconds !== null && (
         <Flex vertical gap={4} style={{ marginBottom: 8 }}>
-          <audio key={scene.voice_url} src={scene.voice_url} controls preload="none" data-testid="voice-player"
-            style={{ width: "100%", maxWidth: 360 }} />
+          <audio
+            key={scene.voice_url}
+            src={scene.voice_url}
+            controls
+            preload="none"
+            data-testid="voice-player"
+            style={{ width: "100%", maxWidth: 360 }}
+          />
           <Typography.Text type="secondary" data-testid="voice-length">
             Lời đọc dài {seconds(scene.voice_seconds)} giây
             {lengthened && ` · cảnh kéo dài thành ${seconds(scene.fitted_seconds)} giây`}

@@ -43,14 +43,19 @@ def in_minutes(minutes: float) -> str:
 
 # --- The endpoint ---
 
+
 def test_publish_queues_a_job_and_locks_the_video(an, db, me, storage):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
     payload = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me)}).json()
     assert payload["active_job"]["kind"] == "publish"
     assert payload["status_label"] == "Chờ thứ 1"
-    assert payload["publication"] == {"status": "pending", "fanpage": "Trang Dưỡng Sinh", "scheduled_at": None,
-                                       "url": None}
+    assert payload["publication"] == {
+        "status": "pending",
+        "fanpage": "Trang Dưỡng Sinh",
+        "scheduled_at": None,
+        "url": None,
+    }
     refused = an.patch(f"/api/videos/{video.id}", json={"caption": "khác"})
     assert (refused.status_code, refused.json()["message"]) == (409, "Video đang đăng lên Facebook, chưa lưu")
 
@@ -73,16 +78,26 @@ def test_publish_needs_a_current_mp4(an, db, me, storage):
 def test_scheduled_time_must_be_one_facebook_accepts(an, db, me, storage, minutes):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
-    refused = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me), "scheduled_at": in_minutes(minutes)})
+    refused = an.post(
+        f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me), "scheduled_at": in_minutes(minutes)}
+    )
     assert (refused.status_code, refused.json()["message"]) == (
-        422, "Giờ hẹn phải sau ít nhất 15 phút và trong vòng 29 ngày tới")
+        422,
+        "Giờ hẹn phải sau ít nhất 15 phút và trong vòng 29 ngày tới",
+    )
 
 
 @pytest.mark.parametrize("minutes", [16, 29 * 24 * 60 - 5])
 def test_a_time_inside_the_limits_is_accepted_and_shown_as_scheduled_once_done(an, db, me, storage, minutes):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
-    assert an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me), "scheduled_at": in_minutes(minutes)}).status_code == 200
+    assert (
+        an.post(
+            f"/api/videos/{video.id}/publish",
+            json={"fanpage_id": fanpage_id(db, me), "scheduled_at": in_minutes(minutes)},
+        ).status_code
+        == 200
+    )
     post = db.scalar(select(Publication).where(Publication.video_id == video.id))
     db.execute(update(Job).where(Job.video_id == video.id).values(status="done"))
     post.status, post.remote_id = "scheduled", "1000"
@@ -94,7 +109,10 @@ def test_a_time_inside_the_limits_is_accepted_and_shown_as_scheduled_once_done(a
 def test_scheduled_time_needs_a_time_zone(an, db, me, storage):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
-    refused = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me), "scheduled_at": "2030-01-01T11:00:00"})
+    refused = an.post(
+        f"/api/videos/{video.id}/publish",
+        json={"fanpage_id": fanpage_id(db, me), "scheduled_at": "2030-01-01T11:00:00"},
+    )
     assert (refused.status_code, refused.json()["message"]) == (422, "Giờ đăng phải kèm múi giờ")
 
 
@@ -103,8 +121,16 @@ def test_a_video_is_posted_only_once(an, db, me, storage, status):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
     scheduled_at = datetime.now(UTC) + timedelta(days=1)
-    db.add(Publication(video_id=video.id, platform="facebook", status=status, remote_id="1000",
-                       scheduled_at=scheduled_at if status == "scheduled" else None, created_by_id=me.id))
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="facebook",
+            status=status,
+            remote_id="1000",
+            scheduled_at=scheduled_at if status == "scheduled" else None,
+            created_by_id=me.id,
+        )
+    )
     db.commit()
     refused = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me)})
     assert (refused.status_code, refused.json()["code"]) == (409, "already_published")
@@ -112,8 +138,16 @@ def test_a_video_is_posted_only_once(an, db, me, storage, status):
 
 def test_a_scheduled_post_counts_as_published_once_its_time_has_passed(an, db, me, storage):
     video = make_video(db, storage, me)
-    db.add(Publication(video_id=video.id, platform="facebook", status="scheduled", remote_id="1000",
-                       scheduled_at=datetime.now(UTC) - timedelta(minutes=1), created_by_id=me.id))
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="facebook",
+            status="scheduled",
+            remote_id="1000",
+            scheduled_at=datetime.now(UTC) - timedelta(minutes=1),
+            created_by_id=me.id,
+        )
+    )
     db.commit()
     post = an.get(f"/api/videos/{video.id}").json()["publication"]
     assert (post["status"], post["url"]) == ("published", "https://www.facebook.com/reel/1000")
@@ -122,13 +156,14 @@ def test_a_scheduled_post_counts_as_published_once_its_time_has_passed(an, db, m
 def test_a_failed_publish_can_be_sent_again_with_a_new_time(an, db, me, storage):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
-    db.add(Publication(video_id=video.id, platform="facebook", scheduled_at=datetime.now(UTC),
-                       created_by_id=me.id))
+    db.add(Publication(video_id=video.id, platform="facebook", scheduled_at=datetime.now(UTC), created_by_id=me.id))
     db.commit()
     db.add(Job(video_id=video.id, kind="publish", status="failed", created_by_id=me.id))
     db.commit()
     when = in_minutes(60)
-    payload = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me), "scheduled_at": when}).json()
+    payload = an.post(
+        f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me), "scheduled_at": when}
+    ).json()
     assert payload["active_job"]["kind"] == "publish"
     assert datetime.fromisoformat(payload["publication"]["scheduled_at"]) == datetime.fromisoformat(when)
 
@@ -158,8 +193,16 @@ def test_a_reel_already_uploaded_stays_on_its_fanpage(an, db, me, storage):
 
 def test_the_video_shows_which_fanpage_it_went_to(an, db, me, storage):
     video = make_video(db, storage, me)
-    db.add(Publication(video_id=video.id, platform="facebook", status="published", remote_id="1000",
-                       fanpage_id=fanpage_id(db, me), created_by_id=me.id))
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="facebook",
+            status="published",
+            remote_id="1000",
+            fanpage_id=fanpage_id(db, me),
+            created_by_id=me.id,
+        )
+    )
     db.commit()
     assert an.get(f"/api/videos/{video.id}").json()["publication"]["fanpage"] == "Trang Dưỡng Sinh"
 
@@ -167,8 +210,15 @@ def test_the_video_shows_which_fanpage_it_went_to(an, db, me, storage):
 def test_a_failed_publish_is_not_shown_as_a_failed_render(an, db, me, storage):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
-    db.add(Job(video_id=video.id, kind="publish", status="failed", error="Facebook từ chối đăng video này",
-               created_by_id=me.id))
+    db.add(
+        Job(
+            video_id=video.id,
+            kind="publish",
+            status="failed",
+            error="Facebook từ chối đăng video này",
+            created_by_id=me.id,
+        )
+    )
     db.commit()
     payload = an.get(f"/api/videos/{video.id}").json()
     assert payload["rerender_failed"] is False
@@ -176,6 +226,7 @@ def test_a_failed_publish_is_not_shown_as_a_failed_render(an, db, me, storage):
 
 
 # --- The job, in process ---
+
 
 @pytest.fixture
 def ready(committed, tmp_path, fakes):
@@ -185,8 +236,9 @@ def ready(committed, tmp_path, fakes):
         video = make_video(db, storage, user, scene_count=1)
         video.caption, video.hashtags = "Ăn vừng đen mỗi sáng", ["#vungden", "#suckhoe"]
         add_mp4(db, storage, video)
-        db.add(Publication(video_id=video.id, platform="facebook", created_by_id=user.id,
-                           fanpage_id=fanpage_id(db, user)))
+        db.add(
+            Publication(video_id=video.id, platform="facebook", created_by_id=user.id, fanpage_id=fanpage_id(db, user))
+        )
         db.commit()
     return user, storage, video.id
 
@@ -246,7 +298,10 @@ def test_a_time_gone_by_fails_before_anything_is_uploaded(committed, ready, fake
         post.scheduled_at = datetime.now(UTC) + timedelta(minutes=2)
         db.commit()
     job = run_publish(committed, storage, video_id, user.id)
-    assert (job.status, job.error) == ("failed", "Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại")
+    assert (job.status, job.error) == (
+        "failed",
+        "Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại",
+    )
     assert fakes.reels == {}
 
 
@@ -344,7 +399,9 @@ def test_a_new_render_waits_for_a_reel_facebook_may_still_publish(committed, rea
     re_render(committed, storage, video_id)
     job = run_publish(committed, storage, video_id, user.id)
     assert (job.status, job.error) == (
-        "failed", "Facebook có thể vẫn đang đăng bản trước, hãy xem Page, đợi 30 phút rồi Thử lại")
+        "failed",
+        "Facebook có thể vẫn đang đăng bản trước, hãy xem Page, đợi 30 phút rồi Thử lại",
+    )
     assert len(fakes.reels) == 1
 
     with committed() as db:
@@ -399,14 +456,16 @@ def test_facebook_decides_the_state_after_a_lost_answer(committed, ready, fakes)
 def test_a_scheduled_time_gone_by_does_not_matter_for_a_reel_already_scheduled(committed, ready, fakes):
     user, storage, video_id = ready
     with committed() as db:
-        db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = (
-            datetime.now(UTC) + timedelta(hours=1))
+        db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = datetime.now(
+            UTC
+        ) + timedelta(hours=1)
         db.commit()
     fakes.facebook_finish_replies_lost = 1
     assert run_publish(committed, storage, video_id, user.id).status == "failed"
     with committed() as db:
-        db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = (
-            datetime.now(UTC) + timedelta(minutes=1))
+        db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = datetime.now(
+            UTC
+        ) + timedelta(minutes=1)
         db.commit()
     assert run_publish(committed, storage, video_id, user.id).status == "done"
 
@@ -457,10 +516,23 @@ def test_a_resend_keeps_the_reel_of_the_attempt_before(an, db, me, storage):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
     page = fanpage_id(db, me)
-    db.add(Publication(video_id=video.id, platform="facebook", remote_id="1000", remote_mp4_key=video.mp4_key,
-                       fanpage_id=page, created_by_id=me.id))
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="facebook",
+            remote_id="1000",
+            remote_mp4_key=video.mp4_key,
+            fanpage_id=page,
+            created_by_id=me.id,
+        )
+    )
     db.commit()
-    assert an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": page, "scheduled_at": in_minutes(60)}).status_code == 200
+    assert (
+        an.post(
+            f"/api/videos/{video.id}/publish", json={"fanpage_id": page, "scheduled_at": in_minutes(60)}
+        ).status_code
+        == 200
+    )
     post = db.scalar(select(Publication).where(Publication.video_id == video.id))
     assert (post.remote_id, post.remote_mp4_key) == ("1000", video.mp4_key)
 
@@ -485,8 +557,9 @@ def test_a_public_reel_is_recorded_as_public_whatever_time_was_asked_last(commit
     fakes.facebook_finish_replies_lost = 1
     assert run_publish(committed, storage, video_id, user.id).status == "failed"
     with committed() as db:
-        db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = (
-            datetime.now(UTC) + timedelta(hours=1))
+        db.scalar(select(Publication).where(Publication.video_id == video_id)).scheduled_at = datetime.now(
+            UTC
+        ) + timedelta(hours=1)
         db.commit()
     assert run_publish(committed, storage, video_id, user.id).status == "done"
     post = post_of(committed, video_id)
@@ -520,7 +593,10 @@ def test_a_bad_token_fails_with_a_clear_reason(committed, ready, fakes):
         fanpages.save(db, FACEBOOK_PAGE, "Trang Dưỡng Sinh", "het-han", user.id)
         db.commit()
     job = run_publish(committed, storage, video_id, user.id)
-    assert (job.status, job.error) == ("failed", "Token Facebook hết hạn hoặc không hợp lệ, hãy dán token mới trong Kết nối Fanpage")
+    assert (job.status, job.error) == (
+        "failed",
+        "Token Facebook hết hạn hoặc không hợp lệ, hãy dán token mới trong Kết nối Fanpage",
+    )
     assert "het-han" not in (job.error_detail or "")
 
 
@@ -541,7 +617,9 @@ def test_a_stopped_fanpage_fails_with_a_clear_reason(committed, ready, fakes):
         db.commit()
     job = run_publish(committed, storage, video_id, user.id)
     assert (job.status, job.error) == (
-        "failed", "Fanpage “Trang Dưỡng Sinh” đang ngừng dùng, hãy dùng lại trong Kết nối Fanpage")
+        "failed",
+        "Fanpage “Trang Dưỡng Sinh” đang ngừng dùng, hãy dùng lại trong Kết nối Fanpage",
+    )
     assert fakes.reels == {}
 
 

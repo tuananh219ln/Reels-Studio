@@ -59,8 +59,9 @@ def _tool(name: str) -> str:
 
 def _run(argv: list[str]) -> bytes:
     try:
-        result = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, timeout=FFMPEG_SECONDS,
-                                check=False)
+        result = subprocess.run(
+            argv, stdin=subprocess.DEVNULL, capture_output=True, timeout=FFMPEG_SECONDS, check=False
+        )
     except subprocess.TimeoutExpired:
         raise ClipError(f"{Path(argv[0]).name} chạy quá {FFMPEG_SECONDS} giây") from None
     if result.returncode != 0:
@@ -80,8 +81,9 @@ def check_clip(path: Path) -> Clip:
     """Refuse anything that is not a 1–60 s MP4/MOV/WebM clip with a usable video stream."""
     demuxer, extension = _demuxer(path)
     try:
-        raw = _run([_tool("ffprobe"), "-v", "error", "-f", demuxer, "-show_streams", "-show_format",
-                    "-of", "json", str(path)])
+        raw = _run(
+            [_tool("ffprobe"), "-v", "error", "-f", demuxer, "-show_streams", "-show_format", "-of", "json", str(path)]
+        )
         data = json.loads(raw)
     except (ClipError, json.JSONDecodeError):
         raise UploadRejected(_REFUSED) from None
@@ -105,8 +107,9 @@ def check_clip(path: Path) -> Clip:
     if seconds is None:
         raise UploadRejected("Không đọc được độ dài video")
     if not MIN_CLIP_SECONDS <= seconds <= MAX_CLIP_SECONDS:
-        raise UploadRejected(f"Video phải dài từ {MIN_CLIP_SECONDS} đến {MAX_CLIP_SECONDS} giây "
-                             f"(đang là {seconds:.1f} giây)")
+        raise UploadRejected(
+            f"Video phải dài từ {MIN_CLIP_SECONDS} đến {MAX_CLIP_SECONDS} giây (đang là {seconds:.1f} giây)"
+        )
     return Clip(extension, seconds)
 
 
@@ -125,9 +128,31 @@ def frame_at(path: Path, start: float) -> Image.Image:
     except (OSError, UploadRejected):
         raise ClipError(f"Không đọc được video {path.name}") from None
     # The first video stream, as the render's `[N:v]` takes; FFmpeg's own choice would be the largest one.
-    data = _run([_tool("ffmpeg"), "-v", "error", "-nostdin", "-ss", f"{start:.3f}", "-max_pixels",
-                 str(MAX_FRAME_PIXELS), "-f", demuxer, "-i", str(path),
-                 "-map", "0:v:0", "-frames:v", "1", "-f", "image2pipe", "-c:v", "png", "-"])
+    data = _run(
+        [
+            _tool("ffmpeg"),
+            "-v",
+            "error",
+            "-nostdin",
+            "-ss",
+            f"{start:.3f}",
+            "-max_pixels",
+            str(MAX_FRAME_PIXELS),
+            "-f",
+            demuxer,
+            "-i",
+            str(path),
+            "-map",
+            "0:v:0",
+            "-frames:v",
+            "1",
+            "-f",
+            "image2pipe",
+            "-c:v",
+            "png",
+            "-",
+        ]
+    )
     try:
         with Image.open(io.BytesIO(data)) as image:
             return image.convert("RGB")
