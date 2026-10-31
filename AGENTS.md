@@ -46,7 +46,7 @@ docs/     project documentation (shared by every agent)
 
 ## Commands
 
-Run from the repo root unless noted. One-time setup is in the README (it shows Windows paths; on
+Python is 3.12 (`.python-version`, CI and the Docker images); Node is 22. Run from the repo root unless noted. One-time setup is in the README (it shows Windows paths; on
 macOS/Linux use `.venv/bin/...`).
 
 | What | Command |
