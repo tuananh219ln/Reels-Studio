@@ -34,7 +34,9 @@ Built:
     searches again) and every result as a thumbnail grid that fits the screen (two columns on a
     phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
     it first in the scene's keywords. "Tìm ảnh" ("Tìm ảnh khác" once the scene has a photo) takes
-    the next result for the saved keywords. Each scene shows its own spinner and the api's
+    the next result for the saved keywords from the source named on the button (Pixabay until another
+    is picked from the arrow menu beside it). The picker's source tab stays as chosen while the page
+    polls. Each scene shows its own spinner and the api's
     message word for word; without keywords it also points to the keyword field;
   - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
     blocks;

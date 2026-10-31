@@ -155,25 +155,7 @@ class Pixabay:
     def find_photo(
         self, keywords: Iterable[str], deadline: float, avoid: Iterable[str] = (), after: str | None = None
     ) -> Photo | None:
-        """The first usable photo over the keywords, in order, skipping `avoid`.
-
-        With `after` (the photo in use), results that come after it are tried first, so pressing
-        "Tìm lại ảnh" again walks through the results instead of bouncing between two photos.
-        """
-        avoid = set(avoid) | ({after} if after else set())
-        for keyword in keywords:
-            urls = self.search(keyword, deadline)
-            if after in urls:
-                index = urls.index(after)
-                urls = urls[index + 1 :] + urls[:index]
-            for url in urls:
-                if url in avoid:
-                    continue
-                photo = self.download(url, deadline)
-                if photo is not None:
-                    return photo
-                avoid.add(url)
-        return None
+        return find_photo(self, keywords, deadline, avoid, after)
 
     def redact(self, text: str) -> str:
         text = re.sub(r"key=[^&\s]*", "key=***", text)
@@ -192,3 +174,27 @@ class Pixabay:
         if remaining <= 0:
             raise PixabayError("network", "Pixabay không phản hồi kịp, thử lại sau")
         return remaining
+
+
+def find_photo(
+    client, keywords: Iterable[str], deadline: float, avoid: Iterable[str] = (), after: str | None = None
+) -> Photo | None:
+    """The first usable photo from any stock client (search + download) over the keywords, in order, skipping `avoid`.
+
+    With `after` (the photo in use), results that come after it are tried first, so pressing
+    "Tìm ảnh khác" again walks through the results instead of bouncing between two photos.
+    """
+    avoid = set(avoid) | ({after} if after else set())
+    for keyword in keywords:
+        urls = client.search(keyword, deadline)
+        if after in urls:
+            index = urls.index(after)
+            urls = urls[index + 1 :] + urls[:index]
+        for url in urls:
+            if url in avoid:
+                continue
+            photo = client.download(url, deadline)
+            if photo is not None:
+                return photo
+            avoid.add(url)
+    return None

@@ -26,13 +26,14 @@ STATUS_LABELS = {
     "draft": "Nháp",
     "queued": "Chờ",
     "writing": "Đang viết",
+    "imaging": "Đang tạo ảnh",
     "rendering": "Đang render",
     "publishing": "Đang đăng",
     "done": "Xong",
     "failed": "Lỗi",
 }
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
-JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render", "publish": "Đăng Facebook"}
+JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render", "publish": "Đăng Facebook", "image": "Tạo ảnh AI"}
 
 
 def new_key(video_id: int, name: str, extension: str) -> str:
@@ -194,7 +195,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
     if job is not None and job.status == "queued":
         code, label = "queued", f"Chờ thứ {queue_position(db, job)}"
     elif job is not None:
-        code = {"render": "rendering", "publish": "publishing"}.get(job.kind, "writing")
+        code = {"render": "rendering", "publish": "publishing", "image": "imaging"}.get(job.kind, "writing")
         label = STATUS_LABELS[code]
     elif video.mp4_key:
         code, label = "done", STATUS_LABELS["done"]
@@ -261,6 +262,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "text": scene.text,
         "seconds": scene.seconds,
         "keywords": scene.keywords,
+        "keywords_en": scene.keywords_en,
         "image_prompt": scene.image_prompt,
         "voice_text": scene.voice_text,
         # Known once a render has made the narration for the current text; None until then.

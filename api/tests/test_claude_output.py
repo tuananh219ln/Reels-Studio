@@ -77,6 +77,15 @@ def test_missing_music_and_title_keywords_stay_empty_and_fewer_titles_are_kept()
     assert script.music_suggestions == [] and script.title_keywords == []
 
 
+def test_english_keywords_are_parsed_and_kept():
+    data = valid()
+    data["title_keywords_en"] = ["calcium rich food"]
+    data["scenes"][0]["keywords_en"] = ["small fish"]
+    script = parse_output(json.dumps(data))
+    assert script.title_keywords_en == ["calcium rich food"]
+    assert script.scenes[0].keywords_en == ["small fish"]
+
+
 def test_voice_text_drops_markup_stars_and_extra_spaces_and_may_be_missing():
     script = parse_output(
         json.dumps(
@@ -121,6 +130,8 @@ def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
     assert set(example) == {
         "titles",
         "title_voice",
+        "title_keywords",
+        "title_keywords_en",
         "scenes",
         "caption",
         "hashtags",
@@ -129,7 +140,10 @@ def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
         "self_review",
         "music_suggestions",
     }
-    assert all(set(scene) == {"text", "seconds", "voice", "image_prompt"} for scene in example["scenes"])
+    assert all(
+        set(scene) == {"text", "seconds", "voice", "image_prompt", "keywords", "keywords_en"}
+        for scene in example["scenes"]
+    )
     assert parse_output(OUTPUT_FORMAT).titles[0] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE SAU TUỔI 50"
 
 

@@ -11,6 +11,72 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — "Tìm ảnh khác" can search any stock source
+
+Replaces the "What does not change" part of "The picker offers three stock sources" (below) for
+the button only: "Tìm ảnh" / "Tìm ảnh khác" still searches Pixabay by default, and an arrow menu
+next to it switches the scene's button to Pexels or Openverse (only the sources the api offers).
+Each source reads the keyword list in the language it indexes, as the picker does. Owner's
+request: Vietnamese dishes are thin on Pixabay, and opening the picker for every retry was slow.
+The render core CLI stays Pixabay-only and jobs still never pick stock photos.
+
+## 2026-10-31 — AI photos for missing scenes come from Gemini, stored like any chosen photo
+
+The provider left open in `docs/specs/ai-scene-images/brief.md` is settled: Gemini image
+generation via Google AI Studio (the owner's choice — free tier for testing, strong
+Vietnamese prompts, native 9:16 output; model `gemini-2.5-flash-image` by default,
+`IMAGE_GEN_API_KEY` / `IMAGE_GEN_MODEL`). This extends, and does not reverse, the rule
+that a server render only uses a photo already stored on its scene: a new `image` job
+(the video page's "Tạo ảnh AI cho cảnh thiếu") generates a photo only for scenes that
+have neither a photo nor a clip, validates the bytes like an upload, and stores it with
+`image_source` = `ai:<model>`. Photos and clips members chose are never overwritten.
+A prompt Gemini refuses fails only its scene (the reason stays on the scene); a
+provider-wide failure (no key, quota) fails the job, keeping the scenes already done.
+Generated photos carry SynthID, so platforms may label the posts as AI-generated —
+accepted, because the platforms state the label itself does not reduce distribution;
+the mitigations are human review of every scene and mixing AI photos with stock and
+uploads, not hiding the label.
+
+## 2026-10-31 — Scripts write stock keywords in two languages
+
+A scene now carries `keywords` (Vietnamese) and `keywords_en` (English). The Western stock
+libraries index in English, so "Tìm ảnh khác" and the picker's Pixabay/Pexels tabs search the
+English list first; Openverse, whose photos are community uploads often titled in Vietnamese,
+uses the Vietnamese list. Each list falls back to the other when empty, so videos scripted
+before this change keep working. Found while testing locally: with only Vietnamese terms,
+Pixabay answered hyper-local dishes ("rau rút", "gà nguội") with loosely matched junk, and
+find-image took the first hit blindly.
+
+## 2026-10-31 — Openverse may use a registered OAuth application, anonymously by default
+
+Openverse needs no key, and anonymous stays the default. If `OPENVERSE_CLIENT_ID` and
+`OPENVERSE_CLIENT_SECRET` are configured, the client exchanges them for an access token
+(client-credentials flow, cached in memory until shortly before expiry) for the registered
+rate limits. Any failure in that exchange falls back to an anonymous search: a picker search
+must never break because authentication did.
+
+## 2026-10-31 — The picker offers three stock sources; Openverse is public-domain only
+
+Extends "The web editor offers Pixabay photos again" (below). The picker (now "Chọn từ kho
+ảnh") switches between Pixabay (the default), Pexels (vi-VN locale, portrait orientation;
+hidden until `PEXELS_API_KEY` is set) and Openverse (no key). Vietnamese dishes are poorly
+covered by Pixabay alone, and Openverse aggregates Flickr/Wikimedia photos uploaded by
+Vietnamese users. Openverse is limited to CC0 and public-domain-mark works — filtered in the
+query and again on each result's own license — because the channel earns money and the app
+shows no attribution anywhere. A photo chosen from any source passes the same revalidation
+and is stored with the scene exactly like a Pixabay one. What does not change: the quick
+"Tìm ảnh" button and the render core CLI still use Pixabay only, and jobs still never pick
+photos. Brief: [specs/stock-picker-sources/brief.md](specs/stock-picker-sources/brief.md).
+
+## 2026-10-31 — Scripts write photo keywords again
+
+The script output format asks Claude for `keywords` on every scene and `title_keywords` for
+the title scene again (2–4 Vietnamese terms, most specific first), as the original tool did.
+The parser and the save path never stopped reading them; only the format had dropped them,
+which left every new scene without keywords and made "Tìm ảnh" and the picker start empty.
+The format is code, not prompt data (see "Prompt text is app data, the output format is
+code"), so the restoration lives in `claude.py`'s `OUTPUT_FORMAT` and its worked example.
+
 ## 2026-10-31 — The web editor offers Pixabay photos again; the render still uses stored photos only
 
 Replaces the part of "Server renders use member-uploaded scene photos only" (below) that said the

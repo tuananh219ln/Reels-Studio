@@ -4,7 +4,7 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { SEED, chooseOption, connectFacebook, loginAsSeed, resetDatabase } from "./helpers";
 
-// The api, a real worker with FFmpeg, and fake Claude/Pixabay (api/scripts/fake_services.py) all run.
+// The api, a real worker with FFmpeg, and fake Claude/stock sources (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
 
 test("topic to MP4: script, edits, render, play, seek, download and post", async ({ page }) => {
@@ -40,7 +40,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await text.blur();
   await expect(first.getByText("Đã lưu")).toBeVisible();
 
-  // The script's photo keywords are shown for the Pixabay search; the uploaded photo stays until replaced.
+  // The script's photo keywords are shown for the stock search; the uploaded photo stays until replaced.
   await expect(first.getByTestId("scene-preview")).toBeVisible();
   await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá nhỏ, món ăn");
 
@@ -374,7 +374,9 @@ function makeMp3(): string {
   return file;
 }
 
-test("photos from Pixabay: pick from the grid for the title and a scene, find one for another", async ({ page }) => {
+test("photos from the stock picker: pick from the grid for the title and a scene, find one for another", async ({
+  page,
+}) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
@@ -387,19 +389,20 @@ test("photos from Pixabay: pick from the grid for the title and a scene, find on
 
   // The title scene: the grid opens on its first keyword and shows every result as a large-enough thumbnail.
   const title = page.getByTestId("title-scene");
-  await title.getByRole("button", { name: "Chọn từ Pixabay" }).click();
-  let picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
-  await expect(picker.getByLabel("Từ khóa Pixabay")).toHaveValue("món ăn giàu canxi");
-  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(3);
+  await title.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("calcium rich food");
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
   // Measured once the dialog's opening zoom has finished.
   await expect
-    .poll(async () => (await picker.getByTestId("pixabay-hit").first().boundingBox())?.width)
+    .poll(async () => (await picker.getByTestId("stock-hit").first().boundingBox())?.width)
     .toBeGreaterThanOrEqual(140);
-  const chosen = page.waitForRequest((request) => request.method() === "POST" && /\/pixabay$/.test(request.url()));
-  await picker.getByTestId("pixabay-hit").nth(1).click();
-  // The full-size address goes back with the keyword it was found with.
-  const body = (await chosen).postDataJSON() as { keyword: string; url: string };
-  expect(body.keyword).toBe("món ăn giàu canxi");
+  const chosen = page.waitForRequest((request) => request.method() === "POST" && /\/stock$/.test(request.url()));
+  await picker.getByTestId("stock-hit").nth(1).click();
+  // The full-size address goes back with the source and the keyword it was found with.
+  const body = (await chosen).postDataJSON() as { source: string; keyword: string; url: string };
+  expect(body.source).toBe("pixabay");
+  expect(body.keyword).toBe("calcium rich food");
   expect(body.url).toMatch(/\/img\/\w+\.jpg$/);
   await expect(picker).toBeHidden();
   // The chosen photo is served by the app, not linked from Pixabay.
@@ -409,20 +412,22 @@ test("photos from Pixabay: pick from the grid for the title and a scene, find on
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
   const first = scenes.nth(0);
-  await first.getByRole("button", { name: "Chọn từ Pixabay" }).click();
-  picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
-  await expect(picker.getByLabel("Từ khóa Pixabay")).toHaveValue("cá nhỏ");
-  const firstResult = picker.getByTestId("pixabay-hit").first().locator("img");
+  await first.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("small fried fish");
+  const firstResult = picker.getByTestId("stock-hit").first().locator("img");
   await expect(firstResult).toBeVisible();
   const oldThumbnail = await firstResult.getAttribute("src");
-  await picker.getByLabel("Từ khóa Pixabay").fill("cá cơm chiên");
-  await picker.getByLabel("Từ khóa Pixabay").press("Enter");
+  await picker.getByLabel("Từ khóa tìm ảnh").fill("cá cơm chiên");
+  await picker.getByLabel("Từ khóa tìm ảnh").press("Enter");
   // The fake returns different photos per keyword: wait for the new keyword's results before choosing.
   await expect(firstResult).not.toHaveAttribute("src", oldThumbnail ?? "");
-  await picker.getByTestId("pixabay-hit").nth(2).click();
+  await picker.getByTestId("stock-hit").nth(2).click();
   await expect(picker).toBeHidden();
   await expect(first.getByTestId("scene-preview")).toBeVisible();
-  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá cơm chiên, cá nhỏ, món ăn");
+  // The typed keyword was searched on Pixabay, so it now leads the English list (not shown on the
+  // card); the card's field is the Vietnamese list, unchanged.
+  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá nhỏ, món ăn");
 
   // "Tìm ảnh" takes the first photo for the saved keywords; pressed again it moves on to another one.
   const second = scenes.nth(1);
@@ -441,10 +446,10 @@ test("photos from Pixabay: pick from the grid for the title and a scene, find on
   await expect(third.getByTestId("image-error")).toHaveText("Hãy nhập từ khóa tìm ảnh trước");
   await expect(third.getByTestId("keywords-hint")).toBeVisible();
   // The grid then waits for a keyword to be typed instead of searching nothing.
-  await third.getByRole("button", { name: "Chọn từ Pixabay" }).click();
-  picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
+  await third.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByTestId("picker-hint")).toBeVisible();
-  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(0);
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(picker).toBeHidden();
   await third.getByLabel("Từ khóa tìm ảnh").fill("đậu phụ rán");
@@ -463,15 +468,85 @@ test("photos from Pixabay: pick from the grid for the title and a scene, find on
 
   // On a phone the grid fits the screen: no sideways scroll, thumbnails still large enough to tell apart.
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ Pixabay" }).click();
-  picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
-  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(3);
-  for (const hit of await picker.getByTestId("pixabay-hit").all()) {
+  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  for (const hit of await picker.getByTestId("stock-hit").all()) {
     await expect.poll(async () => (await hit.boundingBox())?.width).toBeGreaterThanOrEqual(140);
     const place = await hit.boundingBox();
     expect((place?.x ?? 0) + (place?.width ?? 0)).toBeLessThanOrEqual(390);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("photos from Pexels and Openverse: switch sources inside the picker", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "món ăn tốt cho xương");
+  const scene = page.getByTestId("scene").first();
+  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  // Pixabay is the default source: its three fake photos show first.
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByText("Pexels", { exact: true }).click();
+  await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
+  // The page polls the video every 2.5 s; a poll must not send the picker back to Pixabay.
+  const poll = (response: { url(): string; request(): { method(): string } }) =>
+    /\/api\/videos\/\d+$/.test(response.url()) && response.request().method() === "GET";
+  await page.waitForResponse(poll);
+  await page.waitForResponse(poll);
+  await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
+  await expect(picker.getByRole("radio", { name: "Pexels" })).toBeChecked();
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByTestId("stock-hit").first().click();
+  await expect(picker).toBeHidden();
+  await expect(scene.getByTestId("scene-preview")).toBeVisible();
+
+  // Reopen and take a photo from Openverse instead; the picker starts on Pixabay again.
+  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await picker.getByText("Openverse", { exact: true }).click();
+  await expect(picker.getByText(/ảnh từ Openverse cho/)).toBeVisible();
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByTestId("stock-hit").nth(1).click();
+  await expect(picker).toBeHidden();
+  await expect(scene.getByTestId("scene-preview")).toBeVisible();
+
+  // "Tìm ảnh khác" searches Pixabay until another source is picked from its arrow menu.
+  const find = scene.getByRole("button", { name: "Tìm ảnh khác (Pixabay)" });
+  await expect(find).toBeVisible();
+  await scene.getByRole("button", { name: "Đổi nguồn ảnh" }).click();
+  await page.getByRole("menuitem", { name: "Openverse" }).click();
+  const fromOpenverse = page.waitForRequest(
+    (request) => request.method() === "POST" && /\/find-image\?source=openverse$/.test(request.url()),
+  );
+  await scene.getByRole("button", { name: "Tìm ảnh khác (Openverse)" }).click();
+  await fromOpenverse;
+  await expect(scene.getByTestId("image-error")).toHaveCount(0);
+  await expect(scene.getByTestId("scene-preview")).toBeVisible();
+});
+
+test("AI photos fill the scenes that have none, then the video can render", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho xương khớp");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+
+  // No scene has a photo yet: the AI button is offered and Render stays blocked.
+  await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
+  await page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" }).click();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+
+  await expect(page.getByTestId("title-scene").getByTestId("scene-preview")).toBeVisible({ timeout: 30_000 });
+  const scenes = page.getByTestId("scene");
+  for (let index = 0; index < (await scenes.count()); index++) {
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+  }
+  // Every scene has a photo now: the button is gone and Render is unblocked.
+  await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
 });
 
 test("add and remove music", async ({ page }) => {

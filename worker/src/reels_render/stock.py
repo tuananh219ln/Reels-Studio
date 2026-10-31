@@ -53,10 +53,12 @@ class TooLargeError(Exception):
 _clock = time.monotonic
 
 
-def fetch(url: str, timeout: float, max_bytes: int) -> bytes:
-    """GET with a total deadline that also covers a body trickling in slowly."""
+def fetch(
+    url: str, timeout: float, max_bytes: int, headers: dict[str, str] | None = None, data: bytes | None = None
+) -> bytes:
+    """GET with a total deadline that also covers a body trickling in slowly; `data` makes it a POST."""
     deadline = _clock() + timeout
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    request = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT, **(headers or {})})
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             length = response.headers.get("Content-Length", "")

@@ -12,10 +12,12 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import clips, frames, knowledge
+from . import clips, config, frames, knowledge
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateProduct, Fanpage, Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
+from .openverse import Openverse, OpenverseError
+from .pexels import Pexels, PexelsError
 from .pixabay import Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS
 from .sessions import current_member, now
@@ -88,6 +90,7 @@ class ScenePatchBody(BaseModel):
     text: str | None = None
     seconds: float | None = None
     keywords: list[str] | None = None
+    keywords_en: list[str] | None = None
     image_prompt: str | None = None
     voice_text: str | None = None
     video_start: float | None = None
@@ -254,6 +257,19 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
     ensure_unlocked(db, video)
     _ensure_renderable(db, video)
     _enqueue(db, video, "render", me)
+    return _saved(db, video)
+
+
+@router.post("/videos/{video_id}/image")
+def generate_images(
+    video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    video = lock_video(db, video_id)
+    if not video.has_script:
+        raise ApiError(409, "no_script", "Video chưa có kịch bản")
+    # Scenes that already have a photo or a clip are skipped by the job, so pressing this
+    # again after a partial run only pays for the scenes still missing a photo.
+    _enqueue(db, video, "image", me)
     return _saved(db, video)
 
 
@@ -451,6 +467,7 @@ def add_scene(video_id: int, me: Session = Depends(current_member), db: DbSessio
             text="",
             seconds=NEW_SCENE_SECONDS,
             keywords=[],
+            keywords_en=[],
             image_prompt="",
         )
     )
@@ -498,6 +515,11 @@ def patch_scene(
         if len(keywords) > MAX_KEYWORDS:
             raise invalid(f"Tối đa {MAX_KEYWORDS} từ khóa")
         scene.keywords = keywords
+    if "keywords_en" in fields and body.keywords_en is not None:
+        keywords_en = _clean_list(body.keywords_en, MAX_KEYWORD_LENGTH, "Từ khóa tiếng Anh")
+        if len(keywords_en) > MAX_KEYWORDS:
+            raise invalid(f"Tối đa {MAX_KEYWORDS} từ khóa")
+        scene.keywords_en = keywords_en
     if "image_prompt" in fields and body.image_prompt is not None:
         scene.image_prompt = _clean_text(body.image_prompt, MAX_LONG_TEXT_LENGTH, "Prompt ảnh").strip()
     if "voice_text" in fields and body.voice_text is not None:
@@ -642,22 +664,28 @@ def remove_scene_video(
 @router.post("/scenes/{scene_id}/find-image")
 def find_other_image(
     scene_id: int,
+    source: str = "pixabay",
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
+    client, error_type = _stock_client(source)
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
-    keywords, current = list(scene.keywords), scene.image_source
+    # Each source is searched in the language it indexes: Openverse in Vietnamese, Pixabay and Pexels
+    # in English; the other list is the fallback (scenes scripted before English keywords existed).
+    vietnamese, english = list(scene.keywords), list(scene.keywords_en)
+    keywords = (vietnamese or english) if source == "openverse" else (english or vietnamese)
+    current = scene.image_source
     if not keywords:
         raise invalid("Hãy nhập từ khóa tìm ảnh trước")
-    # No row lock may be held while Pixabay answers; the save below locks and re-checks everything.
+    # No row lock may be held while the source answers; the save below locks and re-checks everything.
     db.rollback()
-    client = Pixabay()
     try:
         photo = client.find_photo(keywords, time.monotonic() + FIND_IMAGE_SECONDS, after=current)
-    except PixabayError as err:
-        raise ApiError(502, "pixabay_error", f"Không tìm được ảnh: {err.message}") from None
+    except error_type as err:
+        code = "pixabay_error" if source == "pixabay" else "stock_error"
+        raise ApiError(502, code, f"Không tìm được ảnh: {err.message}") from None
     if photo is None:
         raise ApiError(404, "no_other_image", "Không tìm thấy ảnh khác, hãy đổi từ khóa")
     return _store_photo(db, storage, scene_id, photo.data, photo.extension, photo.url)
@@ -718,6 +746,95 @@ def choose_pixabay(
     return _store_photo(db, storage, scene_id, photo.data, photo.extension, photo.url)
 
 
+# --- Stock sources for the picker ---
+
+STOCK_SOURCES = ("pixabay", "pexels", "openverse")
+STOCK_LABELS = {"pixabay": "Pixabay", "pexels": "Pexels", "openverse": "Openverse"}
+
+
+def _stock_client(source: str):
+    """The picker client for a source and its error type; an unknown source is a bad request."""
+    if source == "pixabay":
+        return Pixabay(), PixabayError
+    if source == "pexels":
+        return Pexels(), PexelsError
+    if source == "openverse":
+        return Openverse(), OpenverseError
+    raise invalid("Nguồn ảnh không hợp lệ")
+
+
+def _stock_available(source: str) -> bool:
+    if source == "pixabay":
+        return bool(config.pixabay_key())
+    if source == "pexels":
+        return bool(config.pexels_key())
+    return True  # Openverse answers anonymous calls.
+
+
+@router.get("/stock/sources")
+def stock_sources(me: Session = Depends(current_member)) -> list[dict]:
+    return [
+        {"id": source, "label": STOCK_LABELS[source], "available": _stock_available(source)} for source in STOCK_SOURCES
+    ]
+
+
+@router.get("/scenes/{scene_id}/stock")
+def search_stock(
+    scene_id: int,
+    q: str = "",
+    source: str = "pixabay",
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """Results for the picker's source switch; the same contract as the Pixabay-only search."""
+    if db.get(Scene, scene_id) is None:
+        raise ApiError(404, "scene_deleted", "Cảnh này đã bị xóa")
+    keyword = " ".join(q.split())
+    if not keyword:
+        raise invalid("Hãy nhập từ khóa tìm ảnh")
+    if len(keyword) > MAX_KEYWORD_LENGTH:
+        raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
+    client, error_type = _stock_client(source)
+    db.rollback()
+    try:
+        hits = client.search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS)
+    except error_type as err:
+        raise ApiError(502, "stock_error", f"Không tìm được ảnh: {err.message}") from None
+    return {"keyword": keyword, "source": source, "hits": [{"url": hit.url, "preview": hit.preview} for hit in hits]}
+
+
+class StockChoiceBody(BaseModel):
+    source: str
+    keyword: str
+    url: str
+
+
+@router.post("/scenes/{scene_id}/stock")
+def choose_stock(
+    scene_id: int,
+    body: StockChoiceBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """Download the chosen photo from its source; it must be one of that source's results for the keyword."""
+    video, _ = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    client, error_type = _stock_client(body.source)
+    db.rollback()
+    deadline = time.monotonic() + FIND_IMAGE_SECONDS
+    try:
+        # The address comes from the browser: only a result the source itself returned may be fetched.
+        if body.url not in client.search(" ".join(body.keyword.split()), deadline):
+            raise invalid("Ảnh này không có trong kết quả tìm, hãy tìm lại")
+        photo = client.download(body.url, deadline)
+    except error_type as err:
+        raise ApiError(502, "stock_error", f"Không tìm được ảnh: {err.message}") from None
+    if photo is None:
+        raise ApiError(422, "unusable_image", "Ảnh này không tải được, hãy chọn ảnh khác")
+    return _store_photo(db, storage, scene_id, photo.data, photo.extension, photo.url)
+
+
 # --- Jobs ---
 
 JOB_LIST_LIMIT = 300
@@ -756,6 +873,7 @@ def list_jobs(
                 if job.started_at and ended
                 else None,
                 "claude_calls": job.claude_calls,
+                "image_calls": job.image_calls,
                 "error": job.error,
             }
         )

@@ -72,19 +72,23 @@ when set to an empty string. Containers use real environment variables only.
 |---|---|
 | `ANTHROPIC_API_KEY` | worker: Claude API |
 | `CLAUDE_MODEL` | worker: model override; the default is `claude-sonnet-5-5` |
-| `PIXABAY_API_KEY` | optional: only the api's unused Pixabay endpoints and the render core CLI |
+| `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI) |
+| `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it the picker hides Pexels. Openverse needs no key |
+| `OPENVERSE_CLIENT_ID`, `OPENVERSE_CLIENT_SECRET` | optional, api: a registered Openverse application for its higher rate limits; without them Openverse is called anonymously, and a failed token exchange falls back to anonymous |
 | `STORAGE_DIR` | api and worker: the shared files folder; `/data/storage` in production, `data/storage` at the repo root when empty |
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
 | `ELEVENLABS_API_KEY` | worker: scene narration; without it a render with voice text fails with a clear reason |
+| `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); without it an image job fails with a clear reason |
+| `IMAGE_GEN_MODEL` | worker, optional: the image model; the default is `gemini-2.5-flash-image` |
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL` | api and worker, optional, same values on both (the api recognizes made narration and the MP4 fingerprint by them): the voice (default "Adam", `pNInz6obpgDQGcFmaJgB`) and model (default `eleven_v3`); changing either re-makes every narration on the next render |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable |
 
-Only tests and E2E set these, to reach the local fake Claude, Pixabay, and ElevenLabs
+Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLabs and Gemini
 ([api/scripts/fake_services.py](../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
-`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `FACEBOOK_API_URL`. The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
+`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `IMAGE_GEN_API_URL`, `FACEBOOK_API_URL`. The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
 
 ## Operations
 

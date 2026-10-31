@@ -29,7 +29,7 @@ export type UserRow = {
   is_me: boolean;
 };
 
-export type VideoStatus = "draft" | "queued" | "writing" | "rendering" | "publishing" | "done" | "failed";
+export type VideoStatus = "draft" | "queued" | "writing" | "imaging" | "rendering" | "publishing" | "done" | "failed";
 
 export type VideoRow = {
   id: number;
@@ -46,7 +46,7 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish";
+  kind: "script" | "clone" | "render" | "publish" | "image";
   status: "queued" | "running" | "done" | "failed" | "cancelled";
   error: string | null;
   error_detail: string | null;
@@ -61,6 +61,8 @@ export type SceneData = {
   text: string;
   seconds: number;
   keywords: string[];
+  /** The same search terms in English, for the Western stock libraries (Pixabay, Pexels). */
+  keywords_en: string[];
   image_prompt: string;
   voice_text: string;
   /** Length of the narration made for the current voice text; null until a render has made it. */
@@ -158,6 +160,8 @@ export type MusicOptions = { topics: string[]; moods: string[] };
 /** One "Chọn từ Pixabay" result: `preview` is only a thumbnail to show; `url` is the full photo the server stores. */
 export type PixabayHit = { url: string; preview: string };
 
+export type StockSource = { id: string; label: string; available: boolean };
+
 export type AffiliateProduct = {
   id: number;
   knowledge_topic_id: number;
@@ -219,6 +223,7 @@ export type JobRow = {
   started_at: string | null;
   duration_seconds: number | null;
   claude_calls: number;
+  image_calls: number;
   error: string | null;
 };
 

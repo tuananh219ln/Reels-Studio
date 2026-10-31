@@ -32,6 +32,11 @@ Các trường:
   nguyên văn tiêu đề nào), 15–20 từ.
   Tổng số từ của "title_voice" và mọi "voice" không quá 120 từ: nhiều cảnh thì viết mỗi lời gần 15 từ, ít cảnh mới viết
   gần 20 từ.
+- "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh tiêu đề, xếp từ cụ thể đến chung
+  (món tiêu biểu nhất của chủ đề trước, nhóm món sau).
+- "title_keywords_en": 2–4 từ khóa tiếng Anh tương ứng để tìm ở các kho ảnh phương Tây (Pixabay, Pexels —
+  hai kho này đánh chỉ mục bằng tiếng Anh): dịch tên món/nguyên liệu sang tiếng Anh phổ thông, xếp từ cụ thể
+  đến chung, không để tên riêng tiếng Việt.
 - "scenes": 5–7 cảnh nội dung theo thứ tự. Mỗi cảnh có:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
@@ -39,7 +44,11 @@ Các trường:
   - "voice": lời đọc của cảnh, câu nói tự nhiên dựa trên đúng nội dung chữ trên màn hình của cảnh đó nhưng chi tiết hơn
     một chút (thêm lý do, cách ăn hoặc mẹo nhỏ), 15–20 từ; không dùng *dấu sao*, viết số và đơn vị
     thành chữ khi cần đọc rõ;
-  - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ).
+  - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ);
+  - "keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh, xếp từ cụ thể đến chung
+    (tên món/nguyên liệu cụ thể của cảnh trước, nhóm chung sau).
+  - "keywords_en": 2–4 từ khóa tiếng Anh tương ứng cho các kho ảnh phương Tây: dịch tên món/nguyên liệu
+    sang tiếng Anh phổ thông, xếp từ cụ thể đến chung, không để tên riêng tiếng Việt.
 - "caption": caption 80–120 từ.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
 - "affiliates": 2 sản phẩm affiliate phù hợp, mỗi sản phẩm một chuỗi.
@@ -57,22 +66,34 @@ Ví dụ đầy đủ:
     "5 THỰC PHẨM GIÀU CANXI DỄ TÌM CHO NGƯỜI 50+"
   ],
   "title_voice": "Sau tuổi năm mươi, xương yếu dần theo năm tháng, bữa cơm nhà bạn đã đủ năm món này chưa?",
+  "title_keywords": ["cá cơm chiên giòn", "món ăn giàu canxi"],
+  "title_keywords_en": ["fried whitebait", "calcium rich food"],
   "scenes": [
     {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
      "voice": "Món đầu tiên là cá nhỏ ăn cả xương, vừa rẻ vừa dễ tìm lại giàu canxi cho xương.",
-     "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["cá cơm chiên giòn", "cá nhỏ", "món cá"],
+     "keywords_en": ["fried whitebait", "small fish", "fish dish"]},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
      "voice": "Một hũ sữa chua mỗi ngày giúp bổ sung thêm canxi và đạm, lại dễ ăn cho người lớn tuổi.",
-     "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["hũ sữa chua", "sữa chua"],
+     "keywords_en": ["yogurt cup", "yogurt"]},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
      "voice": "Đậu phụ quen thuộc cũng có canxi và nhiều đạm thực vật, rán hay nấu canh đều ngon.",
-     "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["đậu phụ rán", "đậu phụ", "món đậu"],
+     "keywords_en": ["fried tofu", "tofu", "tofu dish"]},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
      "voice": "Rau cải xanh có canxi và vitamin K, nên có mặt trong bữa cơm để xương chắc khỏe hơn.",
-     "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["rau cải xanh", "rau xanh"],
+     "keywords_en": ["green vegetables", "leafy greens"]},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
      "voice": "Cuối cùng, rắc chút vừng đen vào cháo hay sữa hạt mỗi sáng, vừa thơm vừa bổ sung canxi.",
-     "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"}
+     "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["vừng đen rang", "vừng đen"],
+     "keywords_en": ["black sesame seeds", "black sesame"]}
   ],
   "caption": "Sau tuổi 50, xương dễ yếu đi ... (80–120 từ, nhắc lại tiêu đề và đủ danh sách món)",
   "hashtags": ["#xuongkhop", "#duongsinh", "#dinhduong", "#nguoicaotuoi", "#canxi"],
@@ -103,6 +124,7 @@ class GeneratedScene:
     keywords: list[str]
     image_prompt: str
     voice: str = ""
+    keywords_en: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -117,6 +139,7 @@ class GeneratedScript:
     pinned_comment: str = ""
     self_review: list[str] = field(default_factory=list)
     music_suggestions: list[str] = field(default_factory=list)
+    title_keywords_en: list[str] = field(default_factory=list)
 
 
 def build_script_prompt(template: str, topic: str, banned_words: list[str]) -> str:
@@ -193,6 +216,7 @@ def parse_output(raw: str) -> GeneratedScript:
         pinned_comment=_text(data.get("pinned_comment")),
         self_review=_strings(data.get("self_review")),
         music_suggestions=_strings(data.get("music_suggestions")),
+        title_keywords_en=_keywords(data.get("title_keywords_en")),
     )
 
 
@@ -205,6 +229,7 @@ def _scene(item: dict) -> GeneratedScene:
         keywords=_keywords(item.get("keywords")),
         image_prompt=_text(item.get("image_prompt")),
         voice=_voice(item.get("voice")),
+        keywords_en=_keywords(item.get("keywords_en")),
     )
 
 

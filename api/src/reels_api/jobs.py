@@ -18,7 +18,7 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import facebook, fanpages, knowledge
+from . import config, facebook, fanpages, knowledge
 from .claude import (
     ClaudeError,
     GeneratedScript,
@@ -28,14 +28,17 @@ from .claude import (
     generate_script,
 )
 from .facebook import FacebookError
+from .imagegen import ImageGenError, generate_image
 from .models import Job, Publication, Scene, Video
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
+from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .videos import (
     made_voice_seconds,
     new_key,
     publication_of,
+    refresh_thumbnail,
     render_signature,
     run_checks,
     split_scenes,
@@ -74,6 +77,8 @@ def run_job(
                 run_script_job(db, job, call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
+            elif job.kind == "image":
+                run_image_job(db, job, storage)
             elif job.kind == "publish":
                 run_publish_job(db, job, storage)
             else:
@@ -148,6 +153,7 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
             text=script.titles[0],
             seconds=TITLE_SECONDS,
             keywords=script.title_keywords,
+            keywords_en=script.title_keywords_en,
             image_prompt="",
             voice_text=script.title_voice,
         )
@@ -161,6 +167,7 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 text=scene.text,
                 seconds=scene.seconds,
                 keywords=scene.keywords,
+                keywords_en=scene.keywords_en,
                 image_prompt=scene.image_prompt,
                 voice_text=scene.voice,
             )
@@ -361,3 +368,59 @@ def _check_publishable(db: DbSession, video: Video, post: Publication, storage: 
         raise JobFailure("Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại")
     if not video.mp4_key or not storage.exists(video.mp4_key):
         raise JobFailure("Không thấy file MP4 trong storage, hãy render lại rồi đăng")
+
+
+# --- Images ---
+
+
+def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    """AI photos for the scenes that have neither a photo nor a clip yet.
+
+    Every finished scene is committed at once, so a cancelled job (or a dead worker) keeps
+    the photos already paid for, and pressing the button again only pays for the scenes
+    still missing one. A prompt Gemini refuses fails only its scene: the reason stays on
+    the scene's `image_error`, where members see it. Only a provider-wide failure (no key,
+    quota) fails the job, after the scenes already done.
+    """
+    video = db.get(Video, job.video_id)
+    title, scenes = split_scenes(db, video)
+    if title is None:
+        raise JobFailure("Video chưa có kịch bản đủ để tạo ảnh")
+    for index, scene in enumerate([title, *scenes]):
+        if scene.image_key or scene.video_key:
+            continue
+        label = _scene_label(scene, index)
+        prompt = scene.image_prompt.strip() or (scene.text.strip().splitlines() or [""])[0].strip()
+        if not prompt:
+            scene.image_error = "Cảnh chưa có prompt ảnh, cũng chưa có chữ để tạo ảnh"
+            db.commit()
+            continue
+        # Counted before the call, like the script job counts Claude: a killed job keeps the count.
+        db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+        db.commit()
+        try:
+            data = generate_image(prompt)
+        except ImageGenError as err:
+            if err.fatal:
+                raise JobFailure(err.message, err.detail) from None
+            scene.image_error = err.message
+            db.commit()
+            log.warning("Image job %s: %s failed: %s", job.id, label, err.message)
+            continue
+        if len(data) > MAX_IMAGE_BYTES:
+            scene.image_error = "Ảnh Gemini trả về quá 15 MB, hãy bấm tạo lại"
+            db.commit()
+            continue
+        try:
+            extension = image_extension(data)
+        except UploadRejected as err:
+            scene.image_error = str(err)
+            db.commit()
+            continue
+        key = new_key(video.id, f"scene-{scene.id}", extension)
+        storage.save_bytes(key, data)
+        scene.image_key, scene.image_source, scene.image_error = key, f"ai:{config.image_gen_model()}", None
+        if scene.is_title:
+            refresh_thumbnail(db, storage, video, scene)
+        db.commit()
+        log.info("Image job %s: %s stored", job.id, label)

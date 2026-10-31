@@ -1,9 +1,12 @@
-"""Local stand-ins for the Claude Messages API, Pixabay, ElevenLabs TTS and Facebook Reels, for pytest and E2E.
+"""Local stand-ins for the Claude Messages API, the stock sources (Pixabay, Pexels, Openverse),
+ElevenLabs TTS, Gemini image generation and Facebook Reels, for pytest and E2E.
 
-The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, ELEVENLABS_API_URL and FACEBOOK_API_URL,
+The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
+OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL and FACEBOOK_API_URL,
 so production code has no test switches. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
 
+import base64
 import hashlib
 import io
 import json
@@ -17,17 +20,33 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from PIL import Image
 
 PIXABAY_KEY = "fake-pixabay-key"
+PEXELS_KEY = "fake-pexels-key"
+OPENVERSE_CLIENT_ID = "fake-openverse-client"
+OPENVERSE_CLIENT_SECRET = "fake-openverse-secret"
+OPENVERSE_TOKEN = "fake-openverse-token"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
+IMAGE_GEN_KEY = "fake-image-gen-key"
 FACEBOOK_PAGE = "1234567"
 FACEBOOK_TOKEN = "fake-facebook-token"  # the Page's own token, the only one that can post
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
 
 
 def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
-    foods = ["Cá nhỏ", "Sữa chua", "Đậu phụ", "Rau cải", "Vừng đen", "Tôm khô", "Hạnh nhân"]
+    # (Vietnamese name, English stock term). Tofu's English term is empty on purpose: the suites
+    # cover scenes whose script wrote no English terms and must fall back to the Vietnamese ones.
+    foods = [
+        ("Cá nhỏ", "small fried fish"),
+        ("Sữa chua", "yogurt"),
+        ("Đậu phụ", ""),
+        ("Rau cải", "green vegetables"),
+        ("Vừng đen", "black sesame seeds"),
+        ("Tôm khô", "dried shrimp"),
+        ("Hạnh nhân", "almonds"),
+    ]
     return {
         "titles": [f"{n} MÓN TỐT CHO {topic.upper()}"[:60] for n in (5, 6, 7, 4, 3)],
         "title_keywords": ["món ăn giàu canxi"],
+        "title_keywords_en": ["calcium rich food"],
         "title_voice": "Mời bạn xem đến cuối nhé",
         "scenes": [
             {
@@ -35,9 +54,10 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
                 "seconds": seconds,
                 "voice": f"{food} giàu canxi",
                 "keywords": [food.lower(), "món ăn"],
+                "keywords_en": [english, "food"] if english else [],
                 "image_prompt": f"{food} trên bàn gỗ, ánh sáng tự nhiên",
             }
-            for food in foods[:scene_count]
+            for food, english in foods[:scene_count]
         ],
         "caption": f"Caption về {topic}. " * 10,
         "hashtags": ["#a", "#b", "#c", "#d", "#e"],
@@ -57,10 +77,22 @@ class FakeServices:
         self.pixabay_mode = "ok"  # ok | empty | error500 | hang
         self.pixabay_results: dict[str, list[str]] = {}
         self.pixabay_queries: list[str] = []
+        self.pexels_mode = "ok"  # ok | error500
+        self.pexels_results: dict[str, list[str]] = {}
+        self.pexels_queries: list[str] = []
+        self.openverse_mode = "ok"  # ok | error500
+        self.openverse_results: dict[str, list[dict]] = {}  # keyword -> [{"name", "license"}]
+        self.openverse_queries: list[str] = []
+        self.openverse_token_requests = 0
+        self.openverse_authorized: list[bool] = []  # per search: did it carry the fake access token?
         self.image_downloads: list[str] = []
         self.default_seconds = 4.0
         self.tts_mode = "ok"  # ok | quota | error500
         self.tts_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
+        self.image_gen_mode = "ok"  # ok | quota | error500
+        self.image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
+        self.image_gen_refused: list[str] = []  # a prompt containing one of these is safety-refused (200, no image)
+        self.image_gen_prompts: list[str] = []
         self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code"}
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
         self.facebook_finish_fails = 0  # that many finish calls fail: 500 without publishing
@@ -92,8 +124,15 @@ class FakeServices:
             "ANTHROPIC_BASE_URL": self.url,
             "PIXABAY_API_KEY": PIXABAY_KEY,
             "PIXABAY_API_URL": f"{self.url}/api/",
+            "PEXELS_API_KEY": PEXELS_KEY,
+            "PEXELS_API_URL": f"{self.url}/pexels",
+            "OPENVERSE_API_URL": f"{self.url}/openverse",
+            "OPENVERSE_CLIENT_ID": OPENVERSE_CLIENT_ID,
+            "OPENVERSE_CLIENT_SECRET": OPENVERSE_CLIENT_SECRET,
             "ELEVENLABS_API_KEY": ELEVENLABS_KEY,
             "ELEVENLABS_API_URL": self.url,
+            "IMAGE_GEN_API_KEY": IMAGE_GEN_KEY,
+            "IMAGE_GEN_API_URL": f"{self.url}/gemini",
             "FACEBOOK_API_URL": f"{self.url}/facebook",
         }
 
@@ -146,6 +185,69 @@ class FakeServices:
         ]
         return 200, {"total": len(hits), "totalHits": len(hits), "hits": hits}
 
+    def _pexels(self, query: dict, key: str | None) -> tuple[int, object]:
+        keyword = query.get("query", "")
+        with self.lock:
+            self.pexels_queries.append(keyword)
+        if key != PEXELS_KEY:
+            return 401, {"error": "Invalid API key"}
+        if self.pexels_mode == "error500":
+            return 500, {"error": "server error"}
+        names = self.pexels_results.get(keyword) or [
+            hashlib.sha1(f"pexels-{keyword}-{n}".encode()).hexdigest()[:10] for n in range(1, 4)
+        ]
+        sizes = ("original", "large2x", "large", "medium", "small", "tiny")
+        photos = [
+            {
+                "id": n,
+                "width": 720,
+                "height": 1280,
+                "url": f"{self.url}/pexels-photo/{name}",
+                "src": {size: self.image_url(name) for size in sizes},
+            }
+            for n, name in enumerate(names)
+        ]
+        return 200, {"total_results": len(photos), "page": 1, "per_page": len(photos), "photos": photos}
+
+    def _openverse_token(self, form: dict) -> tuple[int, object]:
+        with self.lock:
+            self.openverse_token_requests += 1
+        if (
+            form.get("grant_type") != "client_credentials"
+            or form.get("client_id") != OPENVERSE_CLIENT_ID
+            or form.get("client_secret") != OPENVERSE_CLIENT_SECRET
+        ):
+            return 400, {"error": "invalid_client"}
+        return 200, {"access_token": OPENVERSE_TOKEN, "token_type": "Bearer", "expires_in": 3600, "scope": "read"}
+
+    def _openverse(self, query: dict, authorized: bool = False) -> tuple[int, object]:
+        keyword = query.get("q", "")
+        with self.lock:
+            self.openverse_queries.append(keyword)
+            self.openverse_authorized.append(authorized)
+        if self.openverse_mode == "error500":
+            return 500, {"detail": "server error"}
+        entries = self.openverse_results.get(keyword)
+        if entries is None:
+            entries = [
+                {"name": hashlib.sha1(f"openverse-{keyword}-{n}".encode()).hexdigest()[:10], "license": "cc0"}
+                for n in range(1, 4)
+            ]
+        results = [
+            {
+                "id": entry["name"],
+                "title": entry["name"],
+                "url": self.image_url(entry["name"]),
+                "thumbnail": self.image_url(entry["name"]),
+                "license": entry["license"],
+                "foreign_landing_url": f"{self.url}/openverse/{entry['name']}",
+                "width": 720,
+                "height": 1280,
+            }
+            for entry in entries
+        ]
+        return 200, {"result_count": len(results), "page_count": 1, "page": 1, "results": results}
+
     def _tts(self, voice_id: str, key: str, body: dict) -> tuple[int, object]:
         with self.lock:
             self.tts_requests.append(
@@ -187,6 +289,29 @@ class FakeServices:
             check=True,
         ).stdout
         return 200, audio
+
+    def _image_gen(self, key: str | None, body: dict) -> tuple[int, dict]:
+        try:
+            prompt = str(body["contents"][0]["parts"][0]["text"])
+        except (KeyError, IndexError, TypeError):
+            prompt = ""
+        with self.lock:
+            self.image_gen_prompts.append(prompt)
+            calls = len(self.image_gen_prompts)
+        if key != IMAGE_GEN_KEY:
+            return 401, {"error": {"message": "API key not valid. Please pass a valid API key.", "status": "UNAUTHENTICATED"}}
+        if self.image_gen_mode == "error500":
+            return 500, {"error": {"message": "Internal error", "status": "INTERNAL"}}
+        if self.image_gen_mode == "quota" or (self.image_gen_ok_count is not None and calls > self.image_gen_ok_count):
+            return 429, {"error": {"message": "Quota exceeded for quota metric 'GenerateRequests'", "status": "RESOURCE_EXHAUSTED"}}
+        if any(marker in prompt for marker in self.image_gen_refused):
+            # Gemini answers a safety refusal with 200 and no candidates, not with an error.
+            return 200, {"promptFeedback": {"blockReason": "SAFETY"}}
+        digest = hashlib.sha1(prompt.encode()).digest()
+        buffer = io.BytesIO()
+        Image.new("RGB", (720, 1280), (digest[0], digest[1], digest[2])).save(buffer, "PNG")
+        data = base64.b64encode(buffer.getvalue()).decode()
+        return 200, {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": data}}]}}]}
 
     def _reels_call(self, page: str, form: dict) -> tuple[int, dict]:
         if form.get("access_token") != FACEBOOK_TOKEN:
@@ -309,9 +434,15 @@ class FakeServices:
                     form = dict(urllib.parse.parse_qsl(raw.decode()))
                     self._send(*fake._reels_call(path.split("/")[2], form))
                     return
+                if path == "/openverse/v1/auth_tokens/token/":
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*fake._openverse_token(form))
+                    return
                 body = json.loads(raw or b"{}")
                 if path == "/v1/messages":
                     self._send(*fake._claude(body))
+                elif path.startswith("/gemini/v1beta/models/"):
+                    self._send(*fake._image_gen(self.headers.get("x-goog-api-key"), body))
                 elif path.startswith("/v1/text-to-speech/"):
                     status, reply = fake._tts(
                         path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
@@ -333,6 +464,12 @@ class FakeServices:
                         self._send(*fake._reel_status(target, query))
                 elif parts.path == "/api/":
                     self._send(*fake._pixabay(dict(urllib.parse.parse_qsl(parts.query))))
+                elif parts.path == "/pexels/v1/search":
+                    query = dict(urllib.parse.parse_qsl(parts.query))
+                    self._send(*fake._pexels(query, self.headers.get("Authorization")))
+                elif parts.path == "/openverse/v1/images/":
+                    authorized = self.headers.get("Authorization") == f"Bearer {OPENVERSE_TOKEN}"
+                    self._send(*fake._openverse(dict(urllib.parse.parse_qsl(parts.query)), authorized))
                 elif parts.path.startswith("/img/"):
                     self._send(200, fake._image(parts.path.removeprefix("/img/").removesuffix(".jpg")), "image/jpeg")
                 else:
@@ -345,5 +482,5 @@ if __name__ == "__main__":
     services = FakeServices(int(sys.argv[1]))
     # E2E videos stay short so the render finishes quickly.
     services.default_seconds = float(sys.argv[2]) if len(sys.argv) > 2 else 1.0
-    print(f"Fake Claude/Pixabay/ElevenLabs/Facebook on {services.url}", flush=True)
+    print(f"Fake Claude/Pixabay/ElevenLabs/Gemini/Facebook on {services.url}", flush=True)
     services.server.serve_forever()

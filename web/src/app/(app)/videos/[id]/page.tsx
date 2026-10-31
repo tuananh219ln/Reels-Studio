@@ -6,6 +6,7 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   PlusOutlined,
+  RobotOutlined,
   VideoCameraOutlined,
 } from "@ant-design/icons";
 import {
@@ -40,7 +41,13 @@ import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
-const JOB_NAMES = { script: "Viết kịch bản", clone: "Nhân bản", render: "Render", publish: "Đăng Facebook" } as const;
+const JOB_NAMES = {
+  script: "Viết kịch bản",
+  clone: "Nhân bản",
+  render: "Render",
+  publish: "Đăng Facebook",
+  image: "Tạo ảnh AI",
+} as const;
 
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
@@ -103,6 +110,12 @@ export default function VideoPage() {
     // "Render" uses the saved data: leave the field being typed in and wait until it is saved.
     await editor.flush();
     await act(() => api<VideoDetail>(`/videos/${id}/render`, "POST"));
+  }
+
+  async function generateImages() {
+    // The job reads the saved prompts: flush first, like "Render".
+    await editor.flush();
+    await act(() => api<VideoDetail>(`/videos/${id}/image`, "POST"));
   }
 
   function remove() {
@@ -176,6 +189,12 @@ export default function VideoPage() {
           </div>
         </div>
         <Space wrap>
+          {video.has_script &&
+            [video.title_scene, ...video.scenes].some((scene) => scene && !scene.has_image && !scene.video) && (
+              <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={generateImages}>
+                Tạo ảnh AI cho cảnh thiếu
+              </Button>
+            )}
           {video.has_script && (
             <Tooltip title={video.can_render || job ? undefined : "Còn lỗi cần sửa ở các cảnh (xem ô đỏ)"}>
               <Button
@@ -220,11 +239,13 @@ export default function VideoPage() {
               ? `${video.status_label}: ${JOB_NAMES[job.kind]}`
               : job.kind === "render"
                 ? "Đang render video…"
-                : job.kind === "publish"
-                  ? "Đang đăng lên Facebook…"
-                  : job.kind === "clone"
-                    ? "Claude đang viết kịch bản nhân bản…"
-                    : "Đang viết kịch bản…"
+                : job.kind === "image"
+                  ? "Đang tạo ảnh AI cho các cảnh thiếu…"
+                  : job.kind === "publish"
+                    ? "Đang đăng lên Facebook…"
+                    : job.kind === "clone"
+                      ? "Claude đang viết kịch bản nhân bản…"
+                      : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
