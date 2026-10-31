@@ -33,7 +33,14 @@ STATUS_LABELS = {
     "failed": "Lỗi",
 }
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
-JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render", "publish": "Đăng Facebook", "image": "Tạo ảnh AI"}
+JOB_KINDS = {
+    "script": "Viết kịch bản",
+    "clone": "Nhân bản",
+    "render": "Render",
+    "publish": "Đăng Facebook",
+    "image": "Tạo ảnh AI",
+}
+SENTENCE_ENDS = (".", "!", "?", "…", ":")
 
 
 def new_key(video_id: int, name: str, extension: str) -> str:
@@ -174,6 +181,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             scene.voice_text if spoken(video, scene) else "",
             made_voice_seconds(video, scene),
             clip_seconds,
+            bool(scene.keywords or scene.keywords_en),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]

@@ -38,7 +38,8 @@ Built:
     is picked from the arrow menu beside it). The picker's source tab stays as chosen while the page
     polls. Each scene shows its own spinner and the api's
     message word for word; without keywords it also points to the keyword field;
-  - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
+  - blocking reasons in red at the scene, warnings in yellow; a scene with neither a photo nor photo
+    keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
   - the "Giọng đọc" switch (narration on/off); optional music, chosen from the library ("Chọn từ

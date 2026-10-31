@@ -64,7 +64,8 @@ One Claude call per topic returns JSON with:
 1. 5 title options, each ≤ 12 words and uppercase.
 2. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
    breaks), and a 9:16 image prompt (realistic photo, natural light, wooden table).
-3. A caption as the prompt asks, short when it does not say, plus 5 hashtags.
+3. A caption as the prompt asks (the default prompt asks for about 3 short lines), short when it
+   does not say, plus 5 hashtags.
 4. 2 affiliate product suggestions plus the pinned-comment text.
 5. A safety self-review that lists the sentences it changed.
 6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when

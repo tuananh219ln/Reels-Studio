@@ -33,13 +33,22 @@ Các trường:
   Khi đọc, mỗi cảnh được đọc chữ trên màn hình trước rồi mới đến lời đọc của cảnh đó, nên lời đọc nói tiếp ý, không lặp
   lại chữ trên màn hình. Tổng số từ của tiêu đề dài nhất, "title_voice", mọi "text" và mọi "voice" không quá 120 từ:
   nhiều cảnh thì viết mỗi lời gần 6 từ, ít cảnh mới viết gần 12 từ.
+- "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh tiêu đề, xếp từ cụ thể đến chung
+  (món tiêu biểu nhất của chủ đề trước, nhóm món sau).
+- "title_keywords_en": 2–4 từ khóa tiếng Anh tương ứng để tìm ở các kho ảnh phương Tây (Pixabay, Pexels —
+  hai kho này đánh chỉ mục bằng tiếng Anh): dịch tên món/nguyên liệu sang tiếng Anh phổ thông, xếp từ cụ thể
+  đến chung, không để tên riêng tiếng Việt.
 - "scenes": 5–7 cảnh nội dung theo thứ tự. Mỗi cảnh có:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
   - "seconds": số giây của cảnh (3–5);
   - "voice": lời đọc của cảnh, câu nói tự nhiên nối tiếp chữ trên màn hình của cảnh đó và chi tiết hơn một chút (thêm
     lý do, cách ăn hoặc mẹo nhỏ), 6–12 từ; không dùng *dấu sao*, viết số và đơn vị thành chữ khi cần đọc rõ;
-  - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ).
+  - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ);
+  - "keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh, xếp từ cụ thể đến chung
+    (tên món/nguyên liệu cụ thể của cảnh trước, nhóm chung sau).
+  - "keywords_en": 2–4 từ khóa tiếng Anh tương ứng cho các kho ảnh phương Tây: dịch tên món/nguyên liệu
+    sang tiếng Anh phổ thông, xếp từ cụ thể đến chung, không để tên riêng tiếng Việt.
 - "caption": caption theo yêu cầu trong prompt; không có yêu cầu thì viết ngắn gọn.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
 - "affiliates": 2 sản phẩm affiliate phù hợp, mỗi sản phẩm một chuỗi.
@@ -57,22 +66,34 @@ Ví dụ đầy đủ:
     "5 THỰC PHẨM GIÀU CANXI DỄ TÌM CHO NGƯỜI 50+"
   ],
   "title_voice": "Xương yếu dần theo năm tháng, bữa cơm đã đủ chưa?",
+  "title_keywords": ["cá cơm chiên giòn", "món ăn giàu canxi"],
+  "title_keywords_en": ["fried whitebait", "calcium rich food"],
   "scenes": [
     {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
      "voice": "Chiên giòn hay kho nhạt đều rất hợp bữa cơm.",
-     "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["cá cơm chiên giòn", "cá nhỏ", "món cá"],
+     "keywords_en": ["fried whitebait", "small fish", "fish dish"]},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
      "voice": "Mỗi ngày một hũ, lại dễ ăn cho người lớn tuổi.",
-     "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["hũ sữa chua", "sữa chua"],
+     "keywords_en": ["yogurt cup", "yogurt"]},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
      "voice": "Món quen thuộc, rán hay nấu canh đều ngon.",
-     "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["đậu phụ rán", "đậu phụ", "món đậu"],
+     "keywords_en": ["fried tofu", "tofu", "tofu dish"]},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
      "voice": "Nên có mặt trong bữa cơm để xương chắc khỏe hơn.",
-     "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
+     "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["rau cải xanh", "rau xanh"],
+     "keywords_en": ["green vegetables", "leafy greens"]},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
      "voice": "Chỉ một chút thôi, vừa thơm vừa bổ sung canxi.",
-     "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"}
+     "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "keywords": ["vừng đen rang", "vừng đen"],
+     "keywords_en": ["black sesame seeds", "black sesame"]}
   ],
   "caption": "5 món giúp xương chắc khỏe sau tuổi 50! Nhà bạn hay ăn món nào nhất?",
   "hashtags": ["#xuongkhop", "#duongsinh", "#dinhduong", "#nguoicaotuoi", "#canxi"],
