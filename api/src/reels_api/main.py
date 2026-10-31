@@ -9,6 +9,7 @@ from .routes_affiliate import router as affiliate_router
 from .routes_auth import router as auth_router
 from .routes_fanpages import router as fanpages_router
 from .routes_music import router as music_router
+from .routes_posts import router as posts_router
 from .routes_users import router as users_router
 from .routes_videos import router as videos_router
 
@@ -39,4 +40,5 @@ def create_app() -> FastAPI:
     app.include_router(music_router)
     app.include_router(fanpages_router)
     app.include_router(affiliate_router)
+    app.include_router(posts_router)
     return app

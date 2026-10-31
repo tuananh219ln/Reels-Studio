@@ -21,5 +21,6 @@ export const theme: ThemeConfig = {
       activeBarBorderWidth: 0,
     },
     Layout: { siderBg: "#FFFFFF", headerBg: "#FFFFFF", bodyBg: "#F7F7F7" },
+    Calendar: { itemActiveBg: "#F7F7F7" },
   },
 };

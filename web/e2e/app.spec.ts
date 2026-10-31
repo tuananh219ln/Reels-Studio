@@ -8,7 +8,7 @@ async function newPage(browser: Browser) {
   return context.newPage();
 }
 
-for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/affiliate", "/jobs", "/change-password"]) {
+for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/posts", "/calendar", "/affiliate", "/jobs", "/change-password"]) {
   test(`${path} redirects to login on the server when there is no session`, async ({ page }) => {
     const response = await page.goto(path);
     // A server redirect means the first request answered 307; the app page never rendered.
@@ -31,6 +31,17 @@ test("last login is shown as dd/mm/yyyy hh:mm in Vietnam time whatever the brows
   );
   expect(shown).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
   expect(shown.slice(0, 13)).toBe(`${parts.day}/${parts.month}/${parts.year} ${parts.hour}`);
+});
+
+test("the calendar opens on today in Vietnam whatever the browser time zone", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: "http://localhost:3100", timezoneId: "America/New_York" });
+  const page = await context.newPage();
+  await loginAsSeed(page);
+  // 30 November in New York, already 1 December in Vietnam.
+  await page.clock.setFixedTime(new Date("2026-11-30T20:00:00Z"));
+  await page.goto("/calendar");
+  await expect(page.getByText("Th 12", { exact: true })).toBeVisible();
+  await expect(page.locator(".ant-picker-cell-today")).toHaveAttribute("title", "2026-12-01");
 });
 
 test("search box filters by email or name", async ({ page }) => {

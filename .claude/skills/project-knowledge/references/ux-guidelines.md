@@ -64,6 +64,14 @@ Built:
   - "Sản phẩm": products ranked by expected commission per order, with shop, type, rating, sales,
     price, and status; filters by name or shop, topic group, and status; "Thêm sản phẩm", "Sửa",
     "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows why, in yellow.
+- **Đăng bài**, a menu group of two view-only screens. Nothing is posted or approved here: a member
+  reviews and posts a video from the "Đăng Facebook" card on its page.
+  - **Bài đăng** (`/posts`): videos posted or scheduled, latest time first, with the Fanpage,
+    "Đã hẹn lịch" or "Đã đăng", the time in Vietnam time, who posted it, and "Xem Reel" once public.
+    The title opens the video.
+  - **Lịch đăng bài** (`/calendar`): the same videos in a month view, coloured by status. A video
+    opens its page. Everything is in Vietnam time whatever the browser's time zone: the day a video
+    sits under, the month it opens on, and the "today" mark.
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
   Claude call count, and error; a row opens its video.
 

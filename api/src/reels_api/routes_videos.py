@@ -278,7 +278,7 @@ def publish(
     # A reel belongs to its Page: moving the post would leave the first reel to go live by itself.
     elif post.remote_id and post.fanpage_id != fanpage.id:
         raise ApiError(409, "other_fanpage", "Video đã tải lên Fanpage khác, hãy đăng lại trên Fanpage đó")
-    post.fanpage_id, post.scheduled_at = fanpage.id, when
+    post.fanpage_id, post.scheduled_at, post.created_by_id = fanpage.id, when, me.user_id
     _enqueue(db, video, "publish", me)
     return _saved(db, video)
 

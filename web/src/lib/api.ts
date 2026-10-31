@@ -192,6 +192,18 @@ export type AffiliateVideo = {
   products: Pick<AffiliateProduct, "id" | "name" | "url" | "status" | "problems">[];
 };
 
+/** A reel on Facebook, or waiting there for its time. */
+export type PostRow = {
+  video_id: number;
+  title: string;
+  status: "scheduled" | "published";
+  fanpage: string | null;
+  /** When it went live, or goes live. */
+  at: string;
+  url: string | null;
+  created_by: string;
+};
+
 export type JobRow = {
   id: number;
   video_id: number;
