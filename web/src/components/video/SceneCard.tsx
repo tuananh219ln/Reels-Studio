@@ -4,6 +4,8 @@ import {
   ArrowDownOutlined,
   ArrowUpOutlined,
   DeleteOutlined,
+  PictureOutlined,
+  SearchOutlined,
   UploadOutlined,
   VideoCameraOutlined,
 } from "@ant-design/icons";
@@ -11,6 +13,7 @@ import { App, Alert, Button, Card, Col, Flex, Popconfirm, Row, Space, Tooltip, T
 import { cloneElement, useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
+import PixabayPicker from "./PixabayPicker";
 import VoiceText from "./VoiceText";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -24,6 +27,13 @@ function parseSeconds(text: string): number {
     throw new Error("Nhập số giây, ví dụ 4 hoặc 3,5");
   }
   return seconds;
+}
+
+function parseKeywords(text: string): string[] {
+  return text
+    .split(",")
+    .map((keyword) => keyword.trim())
+    .filter(Boolean);
 }
 
 export default function SceneCard({
@@ -41,7 +51,7 @@ export default function SceneCard({
 }) {
   const editor = useEditor();
   const patch = (
-    body: Partial<Pick<SceneData, "text" | "seconds" | "image_prompt" | "voice_text">> & {
+    body: Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">> & {
       video_start?: number;
     },
   ) => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body);
@@ -120,6 +130,14 @@ export default function SceneCard({
                   save={async (text) => patch({ video_start: parseSeconds(text) })}
                 />
               )}
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <AutoSaveField
+                  label="Từ khóa tìm ảnh"
+                  value={scene.keywords.join(", ")}
+                  placeholder="cụ thể nhất trước, cách nhau bằng dấu phẩy"
+                  save={(text) => patch({ keywords: parseKeywords(text) })}
+                />
+              </div>
             </Flex>
             {!scene.is_title && (
               <AutoSaveField
@@ -142,21 +160,25 @@ export default function SceneCard({
   );
 }
 
+type Busy = "upload" | "video" | "remove" | "find";
+
 function ScenePicture({ scene }: { scene: SceneData }) {
   const { message } = App.useApp();
   const editor = useEditor();
   const input = useRef<HTMLInputElement>(null);
   const video = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<"upload" | "video" | "remove" | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Busy | null>(null);
+  const [error, setError] = useState<{ kind: Busy; message: string } | null>(null);
+  const [picking, setPicking] = useState(false);
 
-  async function run(kind: "upload" | "video" | "remove", action: () => Promise<VideoDetail>) {
+  // Busy and errors are this scene's own: working on one scene never blocks the others.
+  async function run(kind: Busy, action: () => Promise<VideoDetail>) {
     setBusy(kind);
     setError(null);
     try {
       editor.onSaved(await action());
     } catch (err) {
-      setError(errorMessage(err));
+      setError({ kind, message: errorMessage(err) });
     } finally {
       setBusy(null);
     }
@@ -296,11 +318,48 @@ function ScenePicture({ scene }: { scene: SceneData }) {
           Tải ảnh lên
         </Button>
       </Switching>
+      <Switching
+        show={scene.video !== null}
+        title="Ảnh chọn được sẽ thay video của cảnh này?"
+        disabled={off}
+        onConfirm={async () => {
+          // The grid starts from the keywords on screen, so their save goes first.
+          await editor.flush();
+          setPicking(true);
+        }}
+      >
+        <Button icon={<PictureOutlined />} disabled={off}>
+          Chọn từ Pixabay
+        </Button>
+      </Switching>
+      <Switching
+        show={scene.video !== null}
+        title="Ảnh tìm được sẽ thay video của cảnh này?"
+        disabled={off}
+        onConfirm={() =>
+          run("find", async () => {
+            // The api searches the saved keywords: the one being typed is saved first.
+            await editor.flush();
+            return api<VideoDetail>(`/scenes/${scene.id}/find-image`, "POST");
+          })
+        }
+      >
+        {/* The api walks on from the photo in use, so a scene that has one gets a different one. */}
+        <Button icon={<SearchOutlined />} loading={busy === "find"} disabled={off}>
+          {scene.has_image ? "Tìm ảnh khác" : "Tìm ảnh"}
+        </Button>
+      </Switching>
       {error && (
         <Typography.Text type="danger" data-testid="image-error">
-          {error}
+          {error.message}
         </Typography.Text>
       )}
+      {error?.kind === "find" && scene.keywords.length === 0 && (
+        <Typography.Text type="secondary" data-testid="keywords-hint">
+          Nhập từ khóa ở ô “Từ khóa tìm ảnh” của cảnh này rồi bấm lại.
+        </Typography.Text>
+      )}
+      {picking && <PixabayPicker sceneId={scene.id} keywords={scene.keywords} onClose={() => setPicking(false)} />}
     </Flex>
   );
 }

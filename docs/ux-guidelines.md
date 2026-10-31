@@ -29,6 +29,13 @@ Built:
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red; photo by upload, or a
     video clip by "Tải video lên" with its start time;
+  - per scene (title included) a "Từ khóa tìm ảnh" field and two Pixabay buttons: "Chọn từ
+    Pixabay" opens a dialog with the scene's first keyword already searched (editable, Enter
+    searches again) and every result as a thumbnail grid that fits the screen (two columns on a
+    phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
+    it first in the scene's keywords. "Tìm ảnh" ("Tìm ảnh khác" once the scene has a photo) takes
+    the next result for the saved keywords. Each scene shows its own spinner and the api's
+    message word for word; without keywords it also points to the keyword field;
   - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;

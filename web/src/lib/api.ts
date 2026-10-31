@@ -155,6 +155,9 @@ export type MusicTrack = {
 /** The api's fixed lists that tag every track. */
 export type MusicOptions = { topics: string[]; moods: string[] };
 
+/** One "Chọn từ Pixabay" result: `preview` is only a thumbnail to show; `url` is the full photo the server stores. */
+export type PixabayHit = { url: string; preview: string };
+
 export type AffiliateProduct = {
   id: number;
   knowledge_topic_id: number;

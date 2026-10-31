@@ -45,8 +45,9 @@ app replaces CapCut, so the output is a finished MP4.
    script, a caption with hashtags, per-scene image prompts, affiliate
    suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
    writes one variant of an existing video from a change request.
-4. **Scene images (built):** members upload their own photo or clip for every scene; a scene
-   without one blocks the render.
+4. **Scene images (built):** members give every scene a photo or clip: their own upload, or a
+   Pixabay photo picked from a grid or found by the scene's keywords and stored with the scene; a
+   scene without one blocks the render.
 5. **Templated render (built):** a fixed visual template, Ken Burns motion, rendered on the server.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text (on by default, off per
    video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks

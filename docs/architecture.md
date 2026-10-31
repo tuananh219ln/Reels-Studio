@@ -48,7 +48,7 @@ Workers (see [deployment.md](deployment.md#production)).
 | Component | Responsibility |
 |---|---|
 | `web` | Next.js UI. Calls the API only. |
-| `api` | FastAPI app ([api/](../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, Pixabay search (no longer offered in the web UI), previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
+| `api` | FastAPI app ([api/](../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, Pixabay search and picker for scene photos, previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
 | worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude), renders (ElevenLabs narration, then FFmpeg), and posting to the Facebook Page. |
 | `postgres` | Relational data and the job queue. |
 | storage | One folder of uploaded photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
@@ -60,7 +60,7 @@ Files go through a small storage layer ([storage.py](../api/src/reels_api/storag
 only a folder backend exists, chosen so an S3/R2 backend can be added later without touching video,
 scene, or job logic.
 
-**Render pipeline:** every scene photo is uploaded by a member while editing and stored, so the render uses exactly the photo the preview showed. The
+**Render pipeline:** every scene photo is chosen by a member while editing (uploaded, picked from the Pixabay grid, or found by "Tìm ảnh") and stored, so the render uses exactly the photo the preview showed. The
 worker then:
 
 1. Makes the narration each scene still lacks (see [Narration](#narration)), then checks the total
@@ -170,7 +170,7 @@ A scene may hold an uploaded video clip instead of a photo
 | Claude API | Script generation and cloning (built); drafting Knowledge Base content (planned) | Called only from the worker, through the Anthropic SDK. Model is configurable; the default is `claude-sonnet-5-5`, with the server-side refusal fallback enabled. Every call is logged with its token counts. Knowledge drafting will use web search so it can return source URLs. |
 | ElevenLabs | Scene narration in the render job | The premade "Adam" voice by default, model `eleven_v3` with `language_code: vi` (`eleven_multilingual_v2` does not speak Vietnamese). Voice and model are configurable. Paid per character, so each scene's MP3 is stored and reused. |
 | Facebook Reels Publishing API | Posting a video to the team's one Page | Called only from the worker ([facebook.py](../api/src/reels_api/facebook.py)). Pages are connected on `/fanpages` by pasting a token, so there is no OAuth screen. A user or system user token is swapped for each Page's own token through `/me/accounts`, and that token is what is kept. |
-| Pixabay | The CLI's stock search; the only stock source. The api's search and picker endpoints remain, but the web UI no longer offers them and jobs no longer pick photos | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). Searches inside a request give up after about 10 seconds. |
+| Pixabay | The only stock source: the CLI's stock search, and in the web editor "Chọn từ Pixabay" (a grid of results for a keyword) and "Tìm ảnh" / "Tìm ảnh khác" (the next result for the scene's saved keywords) on every scene card. A chosen photo is downloaded by the api and stored with the scene, like an upload; the grid's thumbnails are only shown. Jobs never pick photos | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). Searches inside a request give up after about 10 seconds. |
 | FFmpeg | Rendering | Installed in the worker image from Debian's package ([api/Dockerfile.worker](../api/Dockerfile.worker)); on the dev host installed natively (see [deployment.md](deployment.md#current-state)). |
 
 Later phases add the Instagram, YouTube, and TikTok publishing APIs.
@@ -180,7 +180,7 @@ Later phases add the Instagram, YouTube, and TikTok publishing APIs.
 1. A member enters a topic; the API creates a draft video and a script job.
 2. The worker calls Claude with the editable script prompt and the banned words (see
    [content.md](content.md#script-generation-contract)), and saves the script.
-3. Members upload a photo or clip for every scene and edit the script, music, and post texts; each field saves on its own.
+3. Members give every scene a photo or clip (upload, or a Pixabay photo the api stores) and edit the script, music, and post texts; each field saves on its own.
 4. "Render" enqueues a render job after the pre-render checks pass.
 5. The worker renders the MP4 from the saved data into storage and records it on the video.
 6. The video page plays and downloads the MP4; `/jobs` lists every job.

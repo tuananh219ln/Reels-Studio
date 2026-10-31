@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-10-31 — The web editor offers Pixabay photos again; the render still uses stored photos only
+
+Replaces the part of "Server renders use member-uploaded scene photos only" (below) that said the
+web UI no longer offers stock search. Owner's decision, phase 1 of
+[specs/ai-scene-images/brief.md](specs/ai-scene-images/brief.md): uploading every scene photo by
+hand was the slowest step of making a video. Each scene card (title included) has "Chọn từ
+Pixabay" (a grid of results for a keyword) and "Tìm ảnh" (the next result for the scene's saved
+keywords), plus the "Từ khóa tìm ảnh" field, because the script no longer writes keywords. What
+stays: a Pixabay photo is downloaded by the api and stored with the scene like an upload, so the
+member sees and can replace it; the render uses only stored photos and still blocks a scene
+without one; jobs never pick photos; no source or license info beyond the stored Pixabay URL.
+
 ## 2026-10-31 — Decisions are logged in the repo
 
 Settled decisions are recorded in this file, in the repo, because agents and team members can

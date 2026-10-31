@@ -40,11 +40,9 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await text.blur();
   await expect(first.getByText("Đã lưu")).toBeVisible();
 
-  // Members bring their own photos: the Pixabay search is not offered.
+  // The script's photo keywords are shown for the Pixabay search; the uploaded photo stays until replaced.
   await expect(first.getByTestId("scene-preview")).toBeVisible();
-  await expect(first.getByRole("button", { name: "Tìm lại ảnh" })).toHaveCount(0);
-  await expect(first.getByRole("button", { name: "Chọn từ Pixabay" })).toHaveCount(0);
-  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveCount(0);
+  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá nhỏ, món ăn");
 
   await page.reload();
   await expect(page.getByTestId("scene").first().getByLabel("Chữ trên màn hình")).toHaveValue(
@@ -375,6 +373,106 @@ function makeMp3(): string {
   ]);
   return file;
 }
+
+test("photos from Pixabay: pick from the grid for the title and a scene, find one for another", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho người lớn tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  const render = page.getByRole("button", { name: "Render" });
+  await expect(render).toBeDisabled();
+
+  // The title scene: the grid opens on its first keyword and shows every result as a large-enough thumbnail.
+  const title = page.getByTestId("title-scene");
+  await title.getByRole("button", { name: "Chọn từ Pixabay" }).click();
+  let picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
+  await expect(picker.getByLabel("Từ khóa Pixabay")).toHaveValue("món ăn giàu canxi");
+  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(3);
+  // Measured once the dialog's opening zoom has finished.
+  await expect
+    .poll(async () => (await picker.getByTestId("pixabay-hit").first().boundingBox())?.width)
+    .toBeGreaterThanOrEqual(140);
+  const chosen = page.waitForRequest((request) => request.method() === "POST" && /\/pixabay$/.test(request.url()));
+  await picker.getByTestId("pixabay-hit").nth(1).click();
+  // The full-size address goes back with the keyword it was found with.
+  const body = (await chosen).postDataJSON() as { keyword: string; url: string };
+  expect(body.keyword).toBe("món ăn giàu canxi");
+  expect(body.url).toMatch(/\/img\/\w+\.jpg$/);
+  await expect(picker).toBeHidden();
+  // The chosen photo is served by the app, not linked from Pixabay.
+  await expect(title.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
+  await expect(title.getByRole("button", { name: "Tìm ảnh khác" })).toBeVisible();
+
+  // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
+  const scenes = page.getByTestId("scene");
+  const first = scenes.nth(0);
+  await first.getByRole("button", { name: "Chọn từ Pixabay" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
+  await expect(picker.getByLabel("Từ khóa Pixabay")).toHaveValue("cá nhỏ");
+  const firstResult = picker.getByTestId("pixabay-hit").first().locator("img");
+  await expect(firstResult).toBeVisible();
+  const oldThumbnail = await firstResult.getAttribute("src");
+  await picker.getByLabel("Từ khóa Pixabay").fill("cá cơm chiên");
+  await picker.getByLabel("Từ khóa Pixabay").press("Enter");
+  // The fake returns different photos per keyword: wait for the new keyword's results before choosing.
+  await expect(firstResult).not.toHaveAttribute("src", oldThumbnail ?? "");
+  await picker.getByTestId("pixabay-hit").nth(2).click();
+  await expect(picker).toBeHidden();
+  await expect(first.getByTestId("scene-preview")).toBeVisible();
+  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá cơm chiên, cá nhỏ, món ăn");
+
+  // "Tìm ảnh" takes the first photo for the saved keywords; pressed again it moves on to another one.
+  const second = scenes.nth(1);
+  await second.getByRole("button", { name: "Tìm ảnh" }).click();
+  await expect(second.getByTestId("scene-preview")).toBeVisible();
+  const before = await second.getByTestId("scene-preview").getAttribute("src");
+  await second.getByRole("button", { name: "Tìm ảnh khác" }).click();
+  await expect(second.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
+
+  // Without keywords the api's own message is shown, with a pointer to the keyword field.
+  const third = scenes.nth(2);
+  await third.getByLabel("Từ khóa tìm ảnh").fill("");
+  await third.getByLabel("Từ khóa tìm ảnh").blur();
+  await expect(third.getByText("Đã lưu")).toBeVisible();
+  await third.getByRole("button", { name: "Tìm ảnh" }).click();
+  await expect(third.getByTestId("image-error")).toHaveText("Hãy nhập từ khóa tìm ảnh trước");
+  await expect(third.getByTestId("keywords-hint")).toBeVisible();
+  // The grid then waits for a keyword to be typed instead of searching nothing.
+  await third.getByRole("button", { name: "Chọn từ Pixabay" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
+  await expect(picker.getByTestId("picker-hint")).toBeVisible();
+  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(picker).toBeHidden();
+  await third.getByLabel("Từ khóa tìm ảnh").fill("đậu phụ rán");
+  await third.getByLabel("Từ khóa tìm ảnh").blur();
+  await expect(third.getByText("Đã lưu")).toBeVisible();
+
+  // Once every scene has a photo the render is no longer blocked.
+  for (let index = 2; index < 5; index++) {
+    await scenes.nth(index).getByRole("button", { name: "Tìm ảnh" }).click();
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+  }
+  await expect(page.getByTestId("scene-blocking")).toHaveCount(0);
+  await expect(render).toBeEnabled();
+  await page.reload();
+  await expect(page.getByTestId("scene-preview")).toHaveCount(6);
+
+  // On a phone the grid fits the screen: no sideways scroll, thumbnails still large enough to tell apart.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ Pixabay" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ Pixabay" });
+  await expect(picker.getByTestId("pixabay-hit")).toHaveCount(3);
+  for (const hit of await picker.getByTestId("pixabay-hit").all()) {
+    await expect.poll(async () => (await hit.boundingBox())?.width).toBeGreaterThanOrEqual(140);
+    const place = await hit.boundingBox();
+    expect((place?.x ?? 0) + (place?.width ?? 0)).toBeLessThanOrEqual(390);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
 
 test("add and remove music", async ({ page }) => {
   test.setTimeout(180_000);
