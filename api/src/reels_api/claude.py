@@ -40,7 +40,7 @@ Các trường:
   - "voice": lời đọc của cảnh, câu nói tự nhiên nối tiếp chữ trên màn hình của cảnh đó và chi tiết hơn một chút (thêm
     lý do, cách ăn hoặc mẹo nhỏ), 6–12 từ; không dùng *dấu sao*, viết số và đơn vị thành chữ khi cần đọc rõ;
   - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ).
-- "caption": caption 80–120 từ.
+- "caption": caption theo yêu cầu trong prompt; không có yêu cầu thì viết ngắn gọn.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
 - "affiliates": 2 sản phẩm affiliate phù hợp, mỗi sản phẩm một chuỗi.
 - "pinned_comment": câu bình luận ghim.
@@ -74,7 +74,7 @@ Ví dụ đầy đủ:
      "voice": "Chỉ một chút thôi, vừa thơm vừa bổ sung canxi.",
      "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"}
   ],
-  "caption": "Sau tuổi 50, xương dễ yếu đi ... (80–120 từ, nhắc lại tiêu đề và đủ danh sách món)",
+  "caption": "5 món giúp xương chắc khỏe sau tuổi 50! Nhà bạn hay ăn món nào nhất?",
   "hashtags": ["#xuongkhop", "#duongsinh", "#dinhduong", "#nguoicaotuoi", "#canxi"],
   "affiliates": ["Sữa hạt bổ sung canxi cho người lớn tuổi", "Vừng đen rang sẵn đóng hũ"],
   "pinned_comment": "Món nào nhà bạn hay ăn nhất? Link sản phẩm trong bình luận ghim nhé!",

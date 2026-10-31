@@ -133,6 +133,11 @@ def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
     assert parse_output(OUTPUT_FORMAT).titles[0] == "5 MÓN GIÚP XƯƠNG CHẮC KHỎE SAU TUỔI 50"
 
 
+def test_the_format_leaves_the_caption_length_to_the_editable_prompt():
+    assert '"caption": caption theo yêu cầu trong prompt' in OUTPUT_FORMAT
+    assert "80–120" not in OUTPUT_FORMAT
+
+
 def test_a_broken_answer_is_asked_once_more():
     answers = iter(["hỏng", json.dumps(valid())])
     calls = []
