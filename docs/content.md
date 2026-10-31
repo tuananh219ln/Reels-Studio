@@ -59,7 +59,7 @@ forward it as a tip.
 
 ## Script Generation Contract
 
-One Claude call per topic returns JSON with:
+One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Claude by default) returns JSON with:
 
 1. 5 title options, each ≤ 12 words and uppercase.
 2. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line

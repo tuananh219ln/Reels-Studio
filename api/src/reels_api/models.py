@@ -166,7 +166,12 @@ class Job(Base):
     error: Mapped[str | None] = mapped_column(Text)
     error_detail: Mapped[str | None] = mapped_column(Text)
     claude_calls: Mapped[int] = mapped_column(Integer, default=0)
-    image_calls: Mapped[int] = mapped_column(Integer, default=0)  # Gemini calls of an image job, counted like claude_calls
+    image_calls: Mapped[int] = mapped_column(
+        Integer, default=0
+    )  # Gemini calls of an image job, counted like claude_calls
+    # The LLM a script or clone job wrote with (llm.py's provider id and the model name); claude_calls counts its calls.
+    llm_provider: Mapped[str | None] = mapped_column(String(32))
+    llm_model: Mapped[str | None] = mapped_column(String(200))
 
     created_by: Mapped[User] = relationship()
 
@@ -188,6 +193,38 @@ class Fanpage(Base):
     )
 
     updated_by: Mapped[User | None] = relationship()
+
+
+class LlmProvider(Base):
+    """A provider's settings from /settings/ai; the list of providers is fixed in llm.py. The key is encrypted
+    like a Fanpage token (see crypto.py) and empty fields fall back to the provider's defaults."""
+
+    __tablename__ = "llm_providers"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    base_url: Mapped[str] = mapped_column(String(500), default="")
+    model: Mapped[str] = mapped_column(String(200), default="")
+    key_encrypted: Mapped[str | None] = mapped_column(Text)
+    key_tail: Mapped[str | None] = mapped_column(String(8))
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    updated_by: Mapped[User | None] = relationship()
+
+
+class AppSetting(Base):
+    """A team-wide setting from the Cài đặt pages, by key (e.g. "llm_provider")."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[object] = mapped_column(JSONB)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Publication(Base):

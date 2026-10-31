@@ -1,4 +1,4 @@
-"""Script writing with Claude: the prompt, the call and turning the answer into a checked script.
+"""Script writing: the prompt and turning the LLM's answer into a checked script (the call is in llm.py).
 
 Members edit only the prompt's content on /knowledge. The output format below is fixed in code, so
 an edited prompt can never break the JSON every job depends on.
@@ -10,19 +10,11 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-import anthropic
-
-from . import config
-
 log = logging.getLogger(__name__)
 
 TOPIC_PLACEHOLDER = "[Chủ đề]"
 MAX_KEYWORD_LENGTH = 100
 FALLBACK_SECONDS = 4
-MAX_TOKENS = 16000
-REQUEST_TIMEOUT = 300
-# Server-side refusal fallback: only these models accept the "default" form on the Claude API.
-FALLBACK_MODELS = {"claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"}
 
 OUTPUT_FORMAT = """\
 ĐỊNH DẠNG ĐẦU RA (bắt buộc): chỉ trả về đúng một object JSON, không kèm chữ nào khác, không bọc trong ```.
@@ -105,7 +97,9 @@ Ví dụ đầy đủ:
 
 
 class ClaudeError(Exception):
-    """The call failed or Claude's answer was unusable; `message` is shown to members, `detail` is diagnostic."""
+    """The LLM call failed or its answer was unusable; `message` is shown to members, `detail` is diagnostic.
+
+    Named for Claude, the first provider; every provider in llm.py raises it."""
 
     def __init__(self, message: str, detail: str = ""):
         super().__init__(message)
@@ -260,61 +254,8 @@ def _keywords(value: object) -> list[str]:
     return [keyword[:MAX_KEYWORD_LENGTH].strip() for keyword in _strings(value)]
 
 
-def call_claude(prompt: str, label: str) -> str:
-    """One Messages API call; the token counts of every call go to the worker log."""
-    key = config.read_env("ANTHROPIC_API_KEY")
-    if not key:
-        raise ClaudeError("Chưa cấu hình ANTHROPIC_API_KEY nên không gọi được Claude")
-    model = config.claude_model()
-    client = anthropic.Anthropic(
-        api_key=key,
-        # Only tests and E2E set it, to reach a local fake Claude.
-        base_url=config.read_env("ANTHROPIC_BASE_URL") or None,
-        timeout=REQUEST_TIMEOUT,
-        max_retries=1,
-    )
-    extra = {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"} if model in FALLBACK_MODELS else {}
-    try:
-        response = client.beta.messages.create(
-            model=model,
-            max_tokens=MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}],
-            **extra,
-        )
-    except anthropic.AuthenticationError:
-        raise ClaudeError("Key Claude (ANTHROPIC_API_KEY) không hợp lệ") from None
-    except anthropic.PermissionDeniedError as err:
-        raise ClaudeError("Key Claude không có quyền gọi model này", str(err)) from None
-    except anthropic.RateLimitError as err:
-        raise ClaudeError("Claude đang giới hạn lượt gọi hoặc đã hết hạn mức, thử lại sau", str(err)) from None
-    except anthropic.BadRequestError as err:
-        if "credit" in str(err).lower():
-            raise ClaudeError("Tài khoản Claude đã hết hạn mức (credit), cần nạp thêm", str(err)) from None
-        raise ClaudeError("Claude từ chối yêu cầu", str(err)) from None
-    except anthropic.APIStatusError as err:
-        raise ClaudeError(f"Claude đang lỗi hoặc quá tải (HTTP {err.status_code}), thử lại sau", str(err)) from None
-    except anthropic.APITimeoutError:
-        raise ClaudeError("Claude không trả lời kịp, thử lại sau") from None
-    except anthropic.APIConnectionError as err:
-        raise ClaudeError("Không kết nối được Claude, kiểm tra mạng rồi thử lại", str(err)) from None
-
-    usage = response.usage
-    log.info(
-        "Claude call %s: model=%s input_tokens=%s output_tokens=%s stop_reason=%s",
-        label,
-        response.model,
-        usage.input_tokens,
-        usage.output_tokens,
-        response.stop_reason,
-    )
-    if response.stop_reason == "refusal":
-        details = getattr(response, "stop_details", None)
-        raise ClaudeError("Claude từ chối viết kịch bản cho chủ đề này, hãy đổi cách diễn đạt", str(details or ""))
-    return "".join(block.text for block in response.content if block.type == "text")
-
-
 def generate_script(
-    prompt: str, label: str, on_call: Callable[[], None], call: Callable[[str, str], str] = call_claude
+    prompt: str, label: str, on_call: Callable[[], None], call: Callable[[str, str], str]
 ) -> GeneratedScript:
     """Ask once more when the answer is unusable, then give up with the raw answer as the detail."""
     for attempt in (1, 2):
@@ -323,9 +264,9 @@ def generate_script(
         try:
             return parse_output(raw)
         except ScriptOutputError as err:
-            log.warning("Claude answer unusable for %s (attempt %d): %s\n%s", label, attempt, err, raw[:4000])
+            log.warning("LLM answer unusable for %s (attempt %d): %s\n%s", label, attempt, err, raw[:4000])
             problem = err
     raise ClaudeError(
-        f"Claude trả kịch bản không đúng định dạng ({problem}), đã thử lại 1 lần",
-        f"Câu trả lời thô của Claude:\n{raw[:8000]}",
+        f"AI trả kịch bản không đúng định dạng ({problem}), đã thử lại 1 lần",
+        f"Câu trả lời thô:\n{raw[:8000]}",
     )

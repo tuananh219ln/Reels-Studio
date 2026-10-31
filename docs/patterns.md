@@ -5,8 +5,9 @@
 - **Long-running work goes through the queue.** API handlers enqueue and return immediately; see
   [architecture.md](architecture.md#tech-stack) for which work runs in the worker and how
   rendering is composited.
-- **Provider choice is configuration.** The ElevenLabs voice and model and the Claude model are
-  selected by config, not hard-coded. The exception is the stock image
+- **Provider choice is configuration.** The ElevenLabs voice and model are selected by config; the
+  LLM provider, its base URL and model are chosen on Cài đặt › Mô hình AI ([llm.py](../api/src/reels_api/llm.py)).
+  Nothing is hard-coded. The exception is the stock image
   source: it is fixed to Pixabay and not configurable.
 - **Attribute adapted code.** Code adapted from MoneyPrinterTurbo keeps its MIT attribution in the
   file header.
@@ -14,7 +15,9 @@
   banned words on `/knowledge`; the JSON output format and its example stay fixed in
   [claude.py](../api/src/reels_api/claude.py), so an edited prompt can never break the
   parsing every job depends on. See [content.md](content.md#script-generation-contract).
-- **Claude, Pixabay, ElevenLabs, and Facebook are reached only through their base URL in tests.** Tests and
+- **Claude, Pixabay, ElevenLabs, and Facebook are reached only through their base URL in tests.** The other
+  LLM providers are reached the way members set them up, through the base URL saved on `/settings/ai`,
+  pointed at the fake's OpenAI-compatible API (`<fake>/openai/v1`). Tests and
   E2E point `ANTHROPIC_BASE_URL`, `PIXABAY_API_URL`, `ELEVENLABS_API_URL`, and `FACEBOOK_API_URL` at a local fake server; production code has no test
   switches.
 

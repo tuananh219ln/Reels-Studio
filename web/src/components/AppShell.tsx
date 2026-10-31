@@ -12,6 +12,7 @@ import {
   FacebookOutlined,
   NotificationOutlined,
   PlaySquareOutlined,
+  RobotOutlined,
   SettingOutlined,
   ShoppingOutlined,
   TeamOutlined,
@@ -50,7 +51,10 @@ const NAV = [
     key: SETTINGS_GROUP,
     icon: <SettingOutlined />,
     label: "Cài đặt",
-    children: [{ key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" }],
+    children: [
+      { key: "/settings/ai", icon: <RobotOutlined />, label: "Mô hình AI" },
+      { key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" },
+    ],
   },
 ];
 

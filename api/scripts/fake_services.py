@@ -1,9 +1,10 @@
-"""Local stand-ins for the Claude Messages API, the stock sources (Pixabay, Pexels, Openverse),
+"""Local stand-ins for the Claude Messages API, an OpenAI-compatible chat API, the stock sources (Pixabay, Pexels, Openverse),
 ElevenLabs TTS, Gemini image generation and Facebook Reels, for pytest and E2E.
 
 The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
 OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL and FACEBOOK_API_URL,
-so production code has no test switches. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
+so production code has no test switches. The OpenAI-compatible API (at <url>/openai/v1) is reached the way a
+member sets any provider up, through its base URL on /settings/ai. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
 
 import base64
@@ -26,6 +27,8 @@ OPENVERSE_CLIENT_SECRET = "fake-openverse-secret"
 OPENVERSE_TOKEN = "fake-openverse-token"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
 IMAGE_GEN_KEY = "fake-image-gen-key"
+OPENAI_KEY = "fake-openai-key"
+OPENAI_MODELS = ["fake-gpt-mini", "models/fake-gemini-flash"]
 FACEBOOK_PAGE = "1234567"
 FACEBOOK_TOKEN = "fake-facebook-token"  # the Page's own token, the only one that can post
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
@@ -74,6 +77,9 @@ class FakeServices:
         self.claude_replies: list[object] = []  # str (raw text) or dict (JSON); empty: a valid script
         self.claude_hang = False
         self.claude_prompts: list[str] = []
+        # The OpenAI-compatible chat shares claude_replies and claude_prompts; these record what only it sees.
+        self.chat_requests: list[dict] = []  # {"model", "authorization"}
+        self.chat_finish_reason = "stop"
         self.pixabay_mode = "ok"  # ok | empty | error500 | hang
         self.pixabay_results: dict[str, list[str]] = {}
         self.pixabay_queries: list[str] = []
@@ -162,6 +168,38 @@ class FakeServices:
             "stop_sequence": None,
             "usage": {"input_tokens": len(prompt) // 4, "output_tokens": len(text) // 4},
         }
+
+    def _chat(self, authorization: str | None, body: dict) -> tuple[int, dict]:
+        with self.lock:
+            self.chat_requests.append({"model": body.get("model"), "authorization": authorization})
+        if authorization != f"Bearer {OPENAI_KEY}":
+            return 401, {"error": {"message": "Incorrect API key provided", "type": "invalid_request_error"}}
+        status, message = self._claude(body)
+        text = message["content"][0]["text"]
+        return status, {
+            "id": "chatcmpl-fake",
+            "object": "chat.completion",
+            "model": body.get("model", "fake"),
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": text},
+                    "finish_reason": self.chat_finish_reason,
+                }
+            ],
+            "usage": {"prompt_tokens": message["usage"]["input_tokens"], "completion_tokens": len(text) // 4},
+        }
+
+    def _models(self, authorization: str | None, anthropic_key: str | None) -> tuple[int, dict]:
+        if anthropic_key is not None:
+            if anthropic_key != "fake-claude-key":
+                return 401, {"type": "error", "error": {"type": "authentication_error", "message": "invalid x-api-key"}}
+            ids = ["claude-haiku-5-5", "claude-sonnet-5-5"]
+            data = [{"type": "model", "id": i, "display_name": i, "created_at": "2026-01-01T00:00:00Z"} for i in ids]
+            return 200, {"data": data, "has_more": False, "first_id": ids[0], "last_id": ids[-1]}
+        if authorization != f"Bearer {OPENAI_KEY}":
+            return 401, {"error": {"message": "Incorrect API key provided"}}
+        return 200, {"object": "list", "data": [{"id": i, "object": "model"} for i in OPENAI_MODELS]}
 
     def _pixabay(self, query: dict) -> tuple[int, object]:
         keyword = query.get("q", "")
@@ -299,11 +337,18 @@ class FakeServices:
             self.image_gen_prompts.append(prompt)
             calls = len(self.image_gen_prompts)
         if key != IMAGE_GEN_KEY:
-            return 401, {"error": {"message": "API key not valid. Please pass a valid API key.", "status": "UNAUTHENTICATED"}}
+            return 401, {
+                "error": {"message": "API key not valid. Please pass a valid API key.", "status": "UNAUTHENTICATED"}
+            }
         if self.image_gen_mode == "error500":
             return 500, {"error": {"message": "Internal error", "status": "INTERNAL"}}
         if self.image_gen_mode == "quota" or (self.image_gen_ok_count is not None and calls > self.image_gen_ok_count):
-            return 429, {"error": {"message": "Quota exceeded for quota metric 'GenerateRequests'", "status": "RESOURCE_EXHAUSTED"}}
+            return 429, {
+                "error": {
+                    "message": "Quota exceeded for quota metric 'GenerateRequests'",
+                    "status": "RESOURCE_EXHAUSTED",
+                }
+            }
         if any(marker in prompt for marker in self.image_gen_refused):
             # Gemini answers a safety refusal with 200 and no candidates, not with an error.
             return 200, {"promptFeedback": {"blockReason": "SAFETY"}}
@@ -441,6 +486,8 @@ class FakeServices:
                 body = json.loads(raw or b"{}")
                 if path == "/v1/messages":
                     self._send(*fake._claude(body))
+                elif path == "/openai/v1/chat/completions":
+                    self._send(*fake._chat(self.headers.get("Authorization"), body))
                 elif path.startswith("/gemini/v1beta/models/"):
                     self._send(*fake._image_gen(self.headers.get("x-goog-api-key"), body))
                 elif path.startswith("/v1/text-to-speech/"):
@@ -455,6 +502,12 @@ class FakeServices:
                 parts = urllib.parse.urlsplit(self.path)
                 if parts.path == "/health":
                     self._send(200, {"ok": True})
+                elif parts.path == "/v1/models":
+                    # The Anthropic SDK sends the key as a bearer token; older clients use x-api-key.
+                    bearer = (self.headers.get("Authorization") or "").removeprefix("Bearer ")
+                    self._send(*fake._models(None, self.headers.get("x-api-key") or bearer))
+                elif parts.path == "/openai/v1/models":
+                    self._send(*fake._models(self.headers.get("Authorization"), None))
                 elif parts.path.startswith("/facebook/"):
                     query = dict(urllib.parse.parse_qsl(parts.query))
                     target = parts.path.removeprefix("/facebook/")

@@ -11,6 +11,35 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — Scripts can be written by any of several LLM providers; their API keys are entered in the app
+
+Owner's request, adapted from MoneyPrinterTurbo's LLM settings. "Cài đặt › Mô hình AI" (`/settings/ai`)
+lists a fixed set of providers — Claude (Anthropic), OpenAI, Google Gemini, DeepSeek, OpenRouter, Groq,
+xAI Grok, Qwen, Ollama and one custom OpenAI-compatible slot — each with its API key, base URL and model,
+and one provider is chosen for the whole team (script and clone jobs). Two connectors cover them: the
+Anthropic SDK for Claude, and the OpenAI-compatible `/chat/completions` for every other one. Every job
+records the provider and model it wrote with, shown on the video page and in the job log, because other
+models may follow the Vietnamese and the safety rules less well and reviewers should know.
+
+The API keys are typed into the app and stored in the database, **encrypted like Fanpage tokens** with
+the key in the storage folder (owner's choice, "option A"). This is an exception to "Secrets stay in
+`.env`" for keys members manage on the Cài đặt pages; deployment secrets stay in `.env`. A key never
+comes back in a response, only its last four characters. With nothing set on the page, Claude keeps
+using `ANTHROPIC_API_KEY` / `CLAUDE_MODEL` from the environment, so existing deployments behave as
+before. The provider in use cannot lose its key or model, and "Kiểm tra kết nối" only lists the
+provider's models, which costs no tokens. The output format stays code and the same for every provider.
+
+## 2026-11-01 — Settings roadmap: team defaults for new videos, and the template opens up
+
+Owner's decisions for the settings work adapted from MoneyPrinterTurbo (voice, music, transitions,
+motion, text style and captions, stock clips), recorded now so later rounds follow them:
+team defaults on the Cài đặt pages apply only to **videos created afterwards** — each video keeps its
+own copy, changeable on its "Thiết lập" tab, so changing a default never makes an old video render
+differently; and the MVP's "one fixed template" rule is lifted for named presets (text-box styles,
+transitions, motion), never free colour or size sliders. The video editor's side column became three
+tabs (Xuất bản, Thiết lập, Nội dung đăng) and "Render" moved to a bar stuck to the bottom of the screen
+to make room for them.
+
 ## 2026-11-01 — "Tìm ảnh khác" can search any stock source
 
 Replaces the "What does not change" part of "The picker offers three stock sources" (below) for

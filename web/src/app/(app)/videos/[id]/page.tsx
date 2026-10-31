@@ -236,7 +236,7 @@ export default function VideoPage() {
                   : job.kind === "publish"
                     ? "Đang đăng lên Facebook…"
                     : job.kind === "clone"
-                      ? "Claude đang viết kịch bản nhân bản…"
+                      ? "AI đang viết kịch bản nhân bản…"
                       : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
@@ -293,7 +293,7 @@ export default function VideoPage() {
         !job && (
           <Card>
             <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-              Video chưa có kịch bản. Bấm “Viết kịch bản” để Claude viết theo chủ đề.
+              Video chưa có kịch bản. Bấm “Viết kịch bản” để AI viết theo chủ đề.
             </Typography.Paragraph>
           </Card>
         )
@@ -310,7 +310,17 @@ export default function VideoPage() {
                   <Alert key={warning.message} type="warning" showIcon title={warning.message} />
                 ))}
               {video.title_scene && (
-                <Card title="Tiêu đề" size="small">
+                <Card
+                  title="Tiêu đề"
+                  size="small"
+                  extra={
+                    video.script_by && (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="script-by">
+                        Kịch bản viết bởi {video.script_by}
+                      </Typography.Text>
+                    )
+                  }
+                >
                   <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
                   <Radio.Group
                     style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
@@ -421,7 +431,7 @@ export default function VideoPage() {
   );
 }
 
-/** "Nhân bản": Claude writes a new draft from this video as it is now, changed as the member asks. */
+/** "Nhân bản": the team's LLM writes a new draft from this video as it is now, changed as the member asks. */
 function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean; onClose: () => void }) {
   const { message } = App.useApp();
   const router = useRouter();
@@ -456,7 +466,7 @@ function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean
       afterClose={() => setRequest("")}
     >
       <Typography.Paragraph type="secondary">
-        Claude giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là một
+        AI giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là một
         video nháp riêng, chưa có ảnh, có gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị khóa hay thay
         đổi.
       </Typography.Paragraph>

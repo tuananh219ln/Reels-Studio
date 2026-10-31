@@ -18,13 +18,12 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import config, facebook, fanpages, knowledge
+from . import config, facebook, fanpages, knowledge, llm
 from .claude import (
     ClaudeError,
     GeneratedScript,
     build_clone_prompt,
     build_script_prompt,
-    call_claude,
     generate_script,
 )
 from .facebook import FacebookError
@@ -64,8 +63,9 @@ def work_dir(job_id: int) -> Path:
 
 
 def run_job(
-    job_id: int, factory: sessionmaker, storage: DirectoryStorage, call: Callable[[str, str], str] = call_claude
+    job_id: int, factory: sessionmaker, storage: DirectoryStorage, call: Callable[[str, str], str] | None = None
 ) -> None:
+    """`call` replaces the team's LLM (see llm.py) in unit tests that run a job in-process."""
     with factory() as db:
         job = db.get(Job, job_id)
         if job is None or job.status != "running":
@@ -110,7 +110,7 @@ def _finish(db: DbSession, job_id: int, status: str, error: str | None = None, d
 # --- Script ---
 
 
-def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str]) -> None:
+def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
     video = db.get(Video, job.video_id)
     # A retried job whose script was already saved has nothing to do: no new Claude call,
     # and nothing the members edited meanwhile is overwritten.
@@ -123,6 +123,15 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str]) -> 
             prompt = build_clone_prompt(topic.clone_prompt, video.clone_source, topic.banned_words)
         else:
             prompt = build_script_prompt(topic.script_prompt, video.topic, topic.banned_words)
+
+        if call is None:
+            # The provider chosen on /settings/ai when the job starts; the job remembers which one wrote the script.
+            target = llm.active_target(db)
+            db.execute(update(Job).where(Job.id == job.id).values(llm_provider=target.provider, llm_model=target.model))
+            db.commit()
+
+            def call(prompt: str, label: str) -> str:
+                return llm.complete(target, prompt, label)
 
         def count_call() -> None:
             db.execute(update(Job).where(Job.id == job.id).values(claude_calls=Job.claude_calls + 1))

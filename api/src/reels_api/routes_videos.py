@@ -12,7 +12,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import clips, config, frames, knowledge
+from . import clips, config, frames, knowledge, llm
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateProduct, Fanpage, Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
@@ -261,9 +261,7 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
 
 
 @router.post("/videos/{video_id}/image")
-def generate_images(
-    video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
-) -> dict:
+def generate_images(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     video = lock_video(db, video_id)
     if not video.has_script:
         raise ApiError(409, "no_script", "Video chưa có kịch bản")
@@ -874,6 +872,7 @@ def list_jobs(
                 else None,
                 "claude_calls": job.claude_calls,
                 "image_calls": job.image_calls,
+                "llm": llm.label(job.llm_provider, job.llm_model),
                 "error": job.error,
             }
         )

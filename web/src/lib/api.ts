@@ -107,6 +107,8 @@ export type VideoDetail = VideoRow & {
     url: string | null;
   } | null;
   knowledge_topic: string | null;
+  /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
+  script_by: string | null;
   clone_of: { title: string; request: string } | null;
   title_scene: SceneData | null;
   scenes: SceneData[];
@@ -133,6 +135,32 @@ export type Fanpage = {
   updated_at: string;
   updated_by: string | null;
 };
+
+/** One LLM provider on /settings/ai. Its API key never comes back: only where it comes from and its last characters. */
+export type LlmProvider = {
+  id: string;
+  name: string;
+  kind: "anthropic" | "openai";
+  needs_key: boolean;
+  key_source: "saved" | "env" | null;
+  key_tail: string | null;
+  key_unreadable: boolean;
+  base_url: string;
+  default_base_url: string;
+  model: string;
+  model_suggestions: string[];
+  effective_base_url: string;
+  effective_model: string;
+  problem: string | null;
+  active: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
+};
+
+export type LlmSettings = { active: string; providers: LlmProvider[] };
+
+/** The provider and model a script job would use now. */
+export type ActiveLlm = { provider: string; name: string; model: string; problem: string | null };
 
 /** A Page a pasted token manages. */
 export type FanpageChoice = { page_id: string; name: string; can_post: boolean };
@@ -224,6 +252,8 @@ export type JobRow = {
   duration_seconds: number | null;
   claude_calls: number;
   image_calls: number;
+  /** "DeepSeek · deepseek-chat" for a script or clone job; null for other jobs and older ones. */
+  llm: string | null;
   error: string | null;
 };
 

@@ -12,7 +12,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from conftest import API_DIR, first_topic, make_video
-from fake_services import script_json
+from fake_services import OPENAI_KEY, script_json
 from sqlalchemy import select
 from worker_helpers import (  # noqa: F401  (fixtures)
     add_job,
@@ -26,10 +26,10 @@ from worker_helpers import (  # noqa: F401  (fixtures)
     worker_env,
 )
 
-from reels_api import jobs
-from reels_api.models import Job, KnowledgeTopic, Scene, Video
+from reels_api import crypto, jobs, llm
+from reels_api.models import AppSetting, Job, KnowledgeTopic, LlmProvider, Scene, Video
 from reels_api.storage import DirectoryStorage
-from reels_api.videos import active_job
+from reels_api.videos import active_job, script_writer
 
 
 @pytest.fixture
@@ -149,6 +149,76 @@ def test_a_retry_after_the_script_was_saved_keeps_the_edits_and_calls_claude_onc
     assert scenes[1].text == "Chữ đã sửa tay"
     assert len(services.claude_prompts) == 1, "the retry must not call Claude again"
     worker.stop()
+
+
+def test_a_script_job_writes_with_the_provider_the_team_chose(committed, services, start_worker):
+    """An OpenAI-compatible provider set up on /settings/ai, reached through the base URL a member gave."""
+    user = add_user(committed)
+    with committed() as db:
+        db.add(
+            LlmProvider(
+                id="deepseek",
+                base_url=f"{services.url}/openai/v1",
+                model="fake-gpt-mini",
+                key_encrypted=crypto.encrypt(OPENAI_KEY),
+                key_tail="-key",
+            )
+        )
+        db.add(AppSetting(key=llm.ACTIVE_KEY, value="deepseek"))
+        db.commit()
+    video_id = new_video(committed, user)
+    job_id = add_job(committed, video_id, user.id)
+    worker = start_worker()
+
+    job = wait_for_status(committed, job_id)
+    assert (job.status, job.error, job.claude_calls) == ("done", None, 1)
+    assert (job.llm_provider, job.llm_model) == ("deepseek", "fake-gpt-mini")
+    assert services.chat_requests == [{"model": "fake-gpt-mini", "authorization": f"Bearer {OPENAI_KEY}"}]
+    assert "Chủ đề: xương khớp sau 50 tuổi" in services.claude_prompts[0]
+    video, scenes = load(committed, video_id)
+    assert video.has_script and len(scenes) >= 6
+    with committed() as db:
+        assert script_writer(db, video_id) == "DeepSeek · fake-gpt-mini"
+    assert "provider=deepseek model=fake-gpt-mini" in worker.output()
+
+
+def test_a_cut_off_answer_fails_at_once_with_the_reason(committed, services, start_worker):
+    user = add_user(committed)
+    services.chat_finish_reason = "length"
+    with committed() as db:
+        db.add(
+            LlmProvider(
+                id="custom",
+                base_url=f"{services.url}/openai/v1",
+                model="fake-gpt-mini",
+                key_encrypted=crypto.encrypt(OPENAI_KEY),
+                key_tail="-key",
+            )
+        )
+        db.add(AppSetting(key=llm.ACTIVE_KEY, value="custom"))
+        db.commit()
+    job_id = add_job(committed, new_video(committed, user), user.id)
+    start_worker()
+
+    job = wait_for_status(committed, job_id)
+    # One request only: asking again would be cut at the same place. (claude_calls counts the answers that came back.)
+    assert job.status == "failed" and len(services.chat_requests) == 1
+    assert job.error.startswith("Câu trả lời của Tùy chỉnh (chuẩn OpenAI) bị cắt giữa chừng")
+
+
+def test_a_provider_without_a_key_fails_the_job_without_a_call(committed, services, start_worker):
+    user = add_user(committed)
+    with committed() as db:
+        # Put in use directly: the settings page would refuse it, but a key can still become unreadable.
+        db.add(AppSetting(key=llm.ACTIVE_KEY, value="openai"))
+        db.commit()
+    job_id = add_job(committed, new_video(committed, user), user.id)
+    start_worker()
+
+    job = wait_for_status(committed, job_id)
+    assert (job.status, job.claude_calls) == ("failed", 0)
+    assert job.error == "Chưa có API key cho OpenAI: nhập trong Cài đặt › Mô hình AI"
+    assert services.chat_requests == [] and services.claude_prompts == []
 
 
 # --- The loop ---

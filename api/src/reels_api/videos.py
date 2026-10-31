@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import facebook, fanpages, knowledge
+from . import facebook, fanpages, knowledge, llm
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -314,6 +314,17 @@ def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | N
     }
 
 
+def script_writer(db: DbSession, video_id: int) -> str | None:
+    """The provider and model of the job that wrote the video's script, so reviewers know what they read."""
+    job = db.scalar(
+        select(Job)
+        .where(Job.video_id == video_id, Job.kind.in_(("script", "clone")), Job.status == "done")
+        .order_by(Job.id.desc())
+        .limit(1)
+    )
+    return llm.label(job.llm_provider, job.llm_model) if job else None
+
+
 def title_of(video: Video, title: Scene | None) -> str:
     return plain_title(title.text) if title is not None and title.text.strip() else ""
 
@@ -366,6 +377,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "publication": publication_payload(publication_of(db, video.id)),
         "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,
+        "script_by": script_writer(db, video.id) if video.has_script else None,
         "clone_of": {
             "title": video.clone_source["title"],
             "request": video.clone_source["request"],

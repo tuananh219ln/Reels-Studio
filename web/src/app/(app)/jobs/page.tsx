@@ -111,6 +111,12 @@ export default function JobsPage() {
       render: (_, row) => (row.kind === "image" ? row.image_calls : row.claude_calls),
     },
     {
+      title: "Mô hình",
+      key: "llm",
+      width: 220,
+      render: (_, row) => row.llm ?? <Typography.Text type="secondary">—</Typography.Text>,
+    },
+    {
       title: "Lỗi",
       key: "error",
       render: (_, row) =>

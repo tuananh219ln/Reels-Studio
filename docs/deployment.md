@@ -70,8 +70,8 @@ when set to an empty string. Containers use real environment variables only.
 
 | Variable | Purpose |
 |---|---|
-| `ANTHROPIC_API_KEY` | worker: Claude API |
-| `CLAUDE_MODEL` | worker: model override; the default is `claude-sonnet-5-5` |
+| `ANTHROPIC_API_KEY` | worker and api: Claude API, used when no Claude key is saved on Cài đặt › Mô hình AI (keys for other LLM providers are entered only there) |
+| `CLAUDE_MODEL` | worker and api: Claude's model when none is set on Cài đặt › Mô hình AI; the default is `claude-sonnet-5-5` |
 | `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI) |
 | `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it the picker hides Pexels. Openverse needs no key |
 | `OPENVERSE_CLIENT_ID`, `OPENVERSE_CLIENT_SECRET` | optional, api: a registered Openverse application for its higher rate limits; without them Openverse is called anonymously, and a failed token exchange falls back to anonymous |

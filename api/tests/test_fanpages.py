@@ -3,7 +3,7 @@ from conftest import login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN, FACEBOOK_USER_TOKEN
 from sqlalchemy import select
 
-from reels_api import config, fanpages
+from reels_api import config, crypto, fanpages
 from reels_api.facebook import FacebookError
 from reels_api.models import Fanpage
 
@@ -149,13 +149,13 @@ def test_an_unknown_fanpage_is_not_found(an):
 
 def test_a_lost_key_asks_for_a_new_token(an, db, fakes):
     (row,) = connect(an).json()
-    (config.storage_dir() / fanpages.KEY_FILE).unlink()
+    (config.storage_dir() / crypto.KEY_FILE).unlink()
     with pytest.raises(FacebookError, match="hãy dán token mới"):
         fanpages.load_page(db, row["id"])
 
 
 def test_the_key_stays_the_same_between_saves(an, fakes):
     connect(an)
-    first = (config.storage_dir() / fanpages.KEY_FILE).read_bytes()
+    first = (config.storage_dir() / crypto.KEY_FILE).read_bytes()
     connect(an)
-    assert (config.storage_dir() / fanpages.KEY_FILE).read_bytes() == first
+    assert (config.storage_dir() / crypto.KEY_FILE).read_bytes() == first

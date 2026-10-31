@@ -19,6 +19,9 @@ field, the scene, or the job banner); technical detail sits in a collapsed "Chi 
 Built:
 
 - **Login** and **user management**.
+- **Tạo video** (on the video list): topic group, topic, and a line naming the provider and model
+  that will write the script ("Viết bằng: … (đổi trong Cài đặt)"), in red with a link when that
+  provider is not set up.
 - **Video list** (`/videos`): thumbnail (the title-scene preview, or a grey tile with the title or
   topic), title, status (Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) with the labels "MP4
   chưa cập nhật theo bản sửa" and "Render lại lỗi", creator, date, search by title or topic,
@@ -31,7 +34,8 @@ Built:
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
   counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
   one when clicked. The editor has:
-  - choose 1 of 5 titles; edit the title scene and every content scene (text with `*word*` in
+  - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
+    viết bởi …"); edit the title scene and every content scene (text with `*word*` in
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red; photo by upload, or a
@@ -87,8 +91,17 @@ Built:
     On a phone the month is compact, with a dot on each day that has a video, and the chosen day's
     videos are listed under it.
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
-  Claude call count, and error; a row opens its video.
-- **Cài đặt**, a menu group, last in the sidebar.
+  AI call count, the model that wrote a script ("DeepSeek · deepseek-chat"), and error; a row opens
+  its video.
+- **Cài đặt**, a menu group, last in the sidebar; `/settings` opens its first page.
+  - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
+    provider not set up yet is greyed out, "chưa cấu hình"). Below, one collapsible line per
+    provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
+    Opened: "API key" (pasted once with "Lưu key", then shown as "Đã lưu, kết thúc bằng …abcd" with
+    "Dán key mới" and "Xoá key"; Claude without a saved key says it uses the server's `.env` key),
+    "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
+    names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
+    "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
   - **Kết nối Fanpage** (`/fanpages`): a table of Pages with the name and id, the token's last four
     characters, "Đang dùng" or "Ngừng dùng", and who changed it when. "Thêm Fanpage" takes a token,
     "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is

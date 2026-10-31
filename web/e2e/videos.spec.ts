@@ -749,3 +749,46 @@ test("a title clip with a start time renders, and removing it asks for a photo a
   await expect(title.getByTestId("scene-no-preview")).toHaveText("Chưa có ảnh");
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
 });
+
+test("AI model settings: set up an OpenAI-compatible provider, check it, and write a script with it", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Mô hình AI" }).click();
+  await expect(page).toHaveURL(/\/settings\/ai$/);
+  // With nothing set, the team writes with Claude from the server's environment.
+  const claude = page.getByTestId("provider-anthropic");
+  await expect(claude.getByTestId("key-status")).toHaveText("Đang dùng key trong file .env của máy chủ");
+
+  await page.getByRole("button", { name: /Tùy chỉnh \(chuẩn OpenAI\)/ }).click();
+  const custom = page.getByTestId("provider-custom");
+  await custom.getByLabel("API key Tùy chỉnh (chuẩn OpenAI)").fill("fake-openai-key");
+  await custom.getByRole("button", { name: "Lưu key" }).click();
+  await expect(custom.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
+  await custom.getByLabel("Base URL Tùy chỉnh (chuẩn OpenAI)").fill("http://127.0.0.1:8199/openai/v1");
+  await custom.getByLabel("Model Tùy chỉnh (chuẩn OpenAI)").fill("fake-gpt-mini");
+  await custom.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(page.getByText("Đã lưu Tùy chỉnh (chuẩn OpenAI)")).toBeVisible();
+  await custom.getByRole("button", { name: "Kiểm tra kết nối" }).click();
+  await expect(page.getByText("Kết nối được Tùy chỉnh (chuẩn OpenAI) (2 model)")).toBeVisible();
+  await custom.getByRole("button", { name: "Dùng để viết kịch bản" }).click();
+  await expect(page.getByText("Từ giờ kịch bản được viết bằng Tùy chỉnh (chuẩn OpenAI)")).toBeVisible();
+  await expect(page.getByLabel("Nhà cung cấp đang dùng").locator("..")).toContainText(
+    "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
+  );
+
+  await page.getByRole("menuitem", { name: "Video" }).click();
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog.getByTestId("llm-line")).toContainText("Viết bằng: Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini");
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  await expect(page.getByTestId("script-by")).toHaveText("Kịch bản viết bởi Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini");
+
+  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await expect(page.locator(".ant-table-tbody .ant-table-row").first()).toContainText(
+    "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
+  );
+});
