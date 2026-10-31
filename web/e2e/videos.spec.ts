@@ -184,6 +184,20 @@ async function newVideoWithScript(page: Page, topic: string) {
   await uploadPhotos(page);
 }
 
+test("phone width: the editor title keeps the full width and the actions sit below it", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  const title = await page.getByTestId("video-title").boundingBox();
+  const render = await page.getByRole("button", { name: "Render" }).boundingBox();
+  // Before the fix the actions kept their row and squeezed the title to one letter per line.
+  expect(title!.width).toBeGreaterThan(300);
+  expect(render!.y).toBeGreaterThan(title!.y + title!.height - 1);
+  // A scene photo stays a thumbnail, not a full-screen-tall frame.
+  const preview = await page.getByTestId("title-scene").getByTestId("scene-preview").boundingBox();
+  expect(preview!.height).toBeLessThan(420);
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);
@@ -218,6 +232,13 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await expect(page).toHaveURL(/\/calendar$/);
   await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
   await page.locator(".ant-picker-cell-in-view a[href^='/videos/']").click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+
+  // A phone shows the compact month with a dot, and today's posts listed under it.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/calendar");
+  await expect(page.locator(".ant-picker-cell-today [data-testid='calendar-dot']")).toBeVisible();
+  await page.locator("a[href^='/videos/']").click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 

@@ -17,5 +17,7 @@
 - Template "Thực phẩm X + Y": hook 2,3s + N cặp kết hợp chia màn hình 1/3 B-roll liền mạch trên, đĩa đồ ăn dưới (3,5s/cặp, cảnh nối 0,8s), cắt thẳng theo nhịp nhạc, không chữ trên cặp, kết thúc đột ngột để xem lại; hook có bản an toàn. Cảnh dùng video đã có; còn thiếu bố cục chia màn hình và cắt theo nhịp. Chi tiết: ux-guidelines.md (Food Pairing Template, Smooth Motion Rules). Vì sao: video tham khảo rau dền có tỷ lệ chia sẻ cao. (2026-10-30)
 - Tạo ảnh bằng AI cho cảnh thiếu ảnh. Vì sao: nội dung gốc thay cho ảnh stock. (2026-10-28)
 - Đăng nhập bằng Google (danh sách email được phép, callback qua /api). Vì sao: tiện cho đội, không phải nhớ mật khẩu. (2026-10-29)
+- Trang sửa video trên điện thoại: thanh "Render" dính ở đáy màn hình, và nút nhảy tới phần MP4/Đăng Facebook. Vì sao: trang vẫn dài khoảng 9.000 px, phải cuộn lên đầu mới bấm được Render. (2026-10-31)
+- Bảng trên điện thoại (Job logs, Người dùng, Fanpage, Bài đăng, Sản phẩm affiliate) hiện dạng thẻ thay vì cuộn ngang. Vì sao: các cột bên phải bị khuất, dễ không biết là cuộn được. (2026-10-31)
 
 ## Lỗi

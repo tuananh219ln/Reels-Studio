@@ -121,7 +121,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <MeContext.Provider value={{ me, setMe }}>
       <Layout style={{ minHeight: "100vh" }}>
         {desktop && (
-          <Layout.Sider width={220} style={{ borderRight: "1px solid #EDEDED" }}>
+          // Sticky: on a long page (the video editor) the menu stays in reach while scrolling.
+          <Layout.Sider
+            width={220}
+            style={{ borderRight: "1px solid #EDEDED", position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}
+          >
             <div style={{ padding: "20px 20px 24px" }}>
               <Logo />
             </div>
@@ -141,15 +145,23 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <Layout style={{ minWidth: 0 }}>
           <Layout.Header
             style={{
-              height: 72,
-              padding: "0 16px",
+              height: desktop ? 72 : 60,
+              padding: desktop ? "0 24px" : "0 12px",
+              position: "sticky",
+              top: 0,
+              zIndex: 10,
               borderBottom: "1px solid #EDEDED",
               display: "flex",
               alignItems: "center",
               justifyContent: desktop ? "flex-end" : "space-between",
             }}
           >
-            {!desktop && <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />}
+            {!desktop && (
+              <Flex align="center" gap={12}>
+                <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
+                <Logo />
+              </Flex>
+            )}
             <Dropdown
               trigger={["click"]}
               menu={{
@@ -166,13 +178,25 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
                 ],
               }}
             >
-              <Button type="text" style={{ height: 44, display: "flex", alignItems: "center", gap: 10 }}>
+              <Button
+                type="text"
+                aria-label={screens.sm === false ? `Tài khoản ${me.name}` : undefined}
+                style={{ height: 44, display: "flex", alignItems: "center", gap: 10 }}
+              >
                 <UserAvatar initial={me.initial} />
-                <span data-testid="header-name">{me.name}</span>
+                {/* A phone keeps only the avatar, so the logo and the menu button fit beside it. */}
+                {screens.sm !== false && <span data-testid="header-name">{me.name}</span>}
               </Button>
             </Dropdown>
           </Layout.Header>
-          <Layout.Content style={{ padding: "32px 16px 40px", maxWidth: 1400, width: "100%", boxSizing: "border-box" }}>
+          <Layout.Content
+            style={{
+              padding: desktop ? "32px 32px 48px" : "20px 16px 40px",
+              maxWidth: 1464,
+              width: "100%",
+              boxSizing: "border-box",
+            }}
+          >
             {children}
           </Layout.Content>
         </Layout>

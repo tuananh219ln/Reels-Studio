@@ -88,7 +88,10 @@ export default function SceneCard({
     >
       <Row gutter={[16, 12]}>
         <Col xs={24} sm={9} md={7}>
-          <ScenePicture scene={scene} />
+          {/* On a phone the column is the full width: keep the 9:16 frame a thumbnail, centred. */}
+          <div style={{ maxWidth: 220, margin: "0 auto" }}>
+            <ScenePicture scene={scene} />
+          </div>
         </Col>
         <Col xs={24} sm={15} md={17}>
           <Flex vertical gap={4}>
