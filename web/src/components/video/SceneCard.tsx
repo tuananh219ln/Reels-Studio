@@ -189,6 +189,7 @@ function ScenePicture({ scene }: { scene: SceneData }) {
     <Flex vertical gap={8}>
       {scene.preview_url && !reason ? (
         // A plain <img>: the preview is drawn by the api with the renderer's own code.
+        // eslint-disable-next-line @next/next/no-img-element
         <img src={scene.preview_url} alt={`Xem trước ${scene.is_title ? "cảnh tiêu đề" : "cảnh"}`}
           style={{ ...frame, objectFit: "cover", display: "block" }} data-testid="scene-preview" />
       ) : (

@@ -57,13 +57,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [modal, setModal] = useState<"password" | "name" | null>(null);
 
   const load = useCallback(() => {
-    setError(null);
     api<Me>("/me")
       .then((loaded) => (loaded.must_change_password ? router.replace("/change-password") : setMe(loaded)))
       .catch((err) => setError(err instanceof ApiError ? err.message : String(err)));
   }, [router]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   async function logout() {
     await api("/auth/logout", "POST").catch(() => undefined);
@@ -76,7 +77,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         status="warning"
         title={error}
         extra={
-          <Button type="primary" onClick={load}>
+          <Button
+            type="primary"
+            onClick={() => {
+              setError(null);
+              load();
+            }}
+          >
             Thử lại
           </Button>
         }

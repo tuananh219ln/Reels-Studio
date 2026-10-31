@@ -255,9 +255,13 @@ async function send<T>(path: string, init: RequestInit): Promise<T> {
     return data as T;
   }
   if (data && typeof data.code === "string" && typeof data.message === "string") {
+    // A full page load on purpose: this helper runs outside components (no router), and leaving the app
+    // must drop every client state of the expired session.
     if (data.code === "not_authenticated") {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/login");
     } else if (data.code === "password_change_required") {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/change-password");
     }
     throw new ApiError(response.status, data.code, data.message);

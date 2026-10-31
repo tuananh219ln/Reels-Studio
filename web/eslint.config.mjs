@@ -5,14 +5,6 @@ import nextTs from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
-  {
-    // Existing code breaks these React Compiler rules in a few places (load-on-mount effects, a ref read
-    // in AutoSaveField). Fixing them changes component behaviour, so they warn until that is done.
-    rules: {
-      "react-hooks/set-state-in-effect": "warn",
-      "react-hooks/refs": "warn",
-    },
-  },
   globalIgnores([
     ".next/**",
     ".next-e2e/**",

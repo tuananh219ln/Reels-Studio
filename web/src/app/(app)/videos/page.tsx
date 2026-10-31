@@ -89,6 +89,9 @@ function VideoCard({ row }: { row: VideoRow }) {
         styles={{ body: { padding: 12 } }}
         cover={
           row.thumbnail_url ? (
+            // A plain <img>: thumbnails come from the api behind the session cookie, which next/image's
+            // optimizer would not send.
+            // eslint-disable-next-line @next/next/no-img-element
             <img src={row.thumbnail_url} alt={name} style={{ aspectRatio: "9 / 16", objectFit: "cover" }} />
           ) : (
             <Flex
