@@ -33,6 +33,7 @@ STATUS_LABELS = {
 }
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
 JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render", "publish": "Đăng Facebook"}
+SENTENCE_ENDS = (".", "!", "?", "…", ":")
 
 
 def new_key(video_id: int, name: str, extension: str) -> str:
@@ -97,8 +98,14 @@ def split_scenes(db: DbSession, video: Video) -> tuple[Scene | None, list[Scene]
 
 
 def spoken(video: Video, scene: Scene) -> str:
-    """The narration this scene gets in the next render: empty when it has none or the video's narration is off."""
-    return scene.voice_text if video.voice_enabled and scene.voice_text.strip() else ""
+    """The narration this scene gets in the next render, its on-screen text then its voice text: empty when it has
+    no voice text or the video's narration is off."""
+    if not video.voice_enabled or not scene.voice_text.strip():
+        return ""
+    screen_text = plain_title(scene.text)
+    if not screen_text:
+        return scene.voice_text
+    return f"{screen_text}{'' if screen_text.endswith(SENTENCE_ENDS) else '.'} {scene.voice_text}"
 
 
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
@@ -164,7 +171,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             scene.text,
             scene.seconds,
             bool(scene.image_key or scene.video_key),
-            spoken(video, scene),
+            scene.voice_text if spoken(video, scene) else "",
             made_voice_seconds(video, scene),
             clip_seconds,
         )

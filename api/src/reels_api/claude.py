@@ -29,16 +29,16 @@ OUTPUT_FORMAT = """\
 Các trường:
 - "titles": 5 tiêu đề viết hoa, mỗi tiêu đề tối đa 12 từ.
 - "title_voice": lời đọc cho cảnh tiêu đề: một câu mở đầu gây tò mò về chủ đề chung, hợp với cả 5 tiêu đề (không đọc lại
-  nguyên văn tiêu đề nào), 15–20 từ.
-  Tổng số từ của "title_voice" và mọi "voice" không quá 120 từ: nhiều cảnh thì viết mỗi lời gần 15 từ, ít cảnh mới viết
-  gần 20 từ.
+  nguyên văn tiêu đề nào), 8–12 từ.
+  Khi đọc, mỗi cảnh được đọc chữ trên màn hình trước rồi mới đến lời đọc của cảnh đó, nên lời đọc nói tiếp ý, không lặp
+  lại chữ trên màn hình. Tổng số từ của tiêu đề dài nhất, "title_voice", mọi "text" và mọi "voice" không quá 120 từ:
+  nhiều cảnh thì viết mỗi lời gần 6 từ, ít cảnh mới viết gần 12 từ.
 - "scenes": 5–7 cảnh nội dung theo thứ tự. Mỗi cảnh có:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
   - "seconds": số giây của cảnh (3–5);
-  - "voice": lời đọc của cảnh, câu nói tự nhiên dựa trên đúng nội dung chữ trên màn hình của cảnh đó nhưng chi tiết hơn
-    một chút (thêm lý do, cách ăn hoặc mẹo nhỏ), 15–20 từ; không dùng *dấu sao*, viết số và đơn vị
-    thành chữ khi cần đọc rõ;
+  - "voice": lời đọc của cảnh, câu nói tự nhiên nối tiếp chữ trên màn hình của cảnh đó và chi tiết hơn một chút (thêm
+    lý do, cách ăn hoặc mẹo nhỏ), 6–12 từ; không dùng *dấu sao*, viết số và đơn vị thành chữ khi cần đọc rõ;
   - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ).
 - "caption": caption 80–120 từ.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
@@ -56,22 +56,22 @@ Ví dụ đầy đủ:
     "ĂN GÌ ĐỂ XƯƠNG CHẮC KHỎE SAU TUỔI 50?",
     "5 THỰC PHẨM GIÀU CANXI DỄ TÌM CHO NGƯỜI 50+"
   ],
-  "title_voice": "Sau tuổi năm mươi, xương yếu dần theo năm tháng, bữa cơm nhà bạn đã đủ năm món này chưa?",
+  "title_voice": "Xương yếu dần theo năm tháng, bữa cơm đã đủ chưa?",
   "scenes": [
     {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
-     "voice": "Món đầu tiên là cá nhỏ ăn cả xương, vừa rẻ vừa dễ tìm lại giàu canxi cho xương.",
+     "voice": "Chiên giòn hay kho nhạt đều rất hợp bữa cơm.",
      "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
-     "voice": "Một hũ sữa chua mỗi ngày giúp bổ sung thêm canxi và đạm, lại dễ ăn cho người lớn tuổi.",
+     "voice": "Mỗi ngày một hũ, lại dễ ăn cho người lớn tuổi.",
      "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
-     "voice": "Đậu phụ quen thuộc cũng có canxi và nhiều đạm thực vật, rán hay nấu canh đều ngon.",
+     "voice": "Món quen thuộc, rán hay nấu canh đều ngon.",
      "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
-     "voice": "Rau cải xanh có canxi và vitamin K, nên có mặt trong bữa cơm để xương chắc khỏe hơn.",
+     "voice": "Nên có mặt trong bữa cơm để xương chắc khỏe hơn.",
      "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
-     "voice": "Cuối cùng, rắc chút vừng đen vào cháo hay sữa hạt mỗi sáng, vừa thơm vừa bổ sung canxi.",
+     "voice": "Chỉ một chút thôi, vừa thơm vừa bổ sung canxi.",
      "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16"}
   ],
   "caption": "Sau tuổi 50, xương dễ yếu đi ... (80–120 từ, nhắc lại tiêu đề và đủ danh sách món)",

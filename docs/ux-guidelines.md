@@ -125,10 +125,10 @@ There is one fixed template in the MVP, derived from the reference channel (see
   used outside their apps and an uploaded copyrighted MP3 can get the video muted or demonetized.
   A member may add one MP3 per video, uploaded or picked from the team music library, at 25%
   volume by default, looped or cut to the video length with a 1.5 s fade-out.
-- **Narration:** each scene's voice text read in the ElevenLabs "Adam" voice, mixed at full level
-  over the music, starting 0.2 s into the scene. A scene whose narration is longer than its
-  seconds is lengthened to fit. The "Giọng đọc" card turns it off for the whole video; an empty
-  voice text leaves that scene silent.
+- **Narration:** each scene's on-screen text, then its voice text, read in the ElevenLabs "Adam"
+  voice, mixed at full level over the music, starting 0.2 s into the scene. A scene whose narration
+  is longer than its seconds is lengthened to fit. The "Giọng đọc" card turns it off for the whole
+  video; an empty voice text leaves that scene silent, even when it has on-screen text.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
 - **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 30–48 seconds with narration, which lengthens scenes to fit.
 
