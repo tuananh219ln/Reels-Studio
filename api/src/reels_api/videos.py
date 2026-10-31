@@ -3,6 +3,7 @@
 import hashlib
 import json
 import secrets
+from datetime import datetime
 from pathlib import Path
 
 from PIL import Image
@@ -218,7 +219,12 @@ def is_published(post: Publication) -> bool:
         post.status == "scheduled" and post.scheduled_at is not None and post.scheduled_at <= now())
 
 
-def _publication_payload(post: Publication | None) -> dict | None:
+def live_at(post: Publication) -> datetime:
+    # The publish job stamps published_at when the upload ends, which for a scheduled reel is before it goes live.
+    return post.scheduled_at or post.published_at
+
+
+def publication_payload(post: Publication | None) -> dict | None:
     if post is None:
         return None
     published = is_published(post)
@@ -320,7 +326,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         } if video.music_key else None,
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
-        "publication": _publication_payload(publication_of(db, video.id)),
+        "publication": publication_payload(publication_of(db, video.id)),
         "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,
         "clone_of": {
