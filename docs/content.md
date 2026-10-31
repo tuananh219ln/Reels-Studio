@@ -19,8 +19,8 @@ Source: the owner's plan "Plan Project Knowledge – Kênh Reels Dưỡng sinh &
 ## Video Formula
 
 Each reel is a numbered list. A close-up food image carries large black text in a yellow box, with
-soft instrumental music. There are no faces. The caption repeats the title and the full list so
-viewers save it. The visual specification is in [ux-guidelines.md](ux-guidelines.md#video-template).
+soft instrumental music. There are no faces. What the caption says follows the topic group's
+prompt on `/knowledge`. The visual specification is in [ux-guidelines.md](ux-guidelines.md#video-template).
 
 Recurring title formulas:
 
@@ -64,7 +64,7 @@ One Claude call per topic returns JSON with:
 1. 5 title options, each ≤ 12 words and uppercase.
 2. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
    breaks), and a 9:16 image prompt (realistic photo, natural light, wooden table).
-3. A caption of 80–120 words plus 5 hashtags.
+3. A caption as the prompt asks, short when it does not say, plus 5 hashtags.
 4. 2 affiliate product suggestions plus the pinned-comment text.
 5. A safety self-review that lists the sentences it changed.
 6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when

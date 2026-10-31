@@ -11,6 +11,12 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-10-31 — Caption length comes from the editable prompt
+
+The fixed output format no longer sets 80–120 words or a repeated full list, so a topic group can
+ask for a short caption on `/knowledge` without a code change. With no request in the prompt, the
+caption is short. The output format still fixes the JSON field and the 5 hashtags.
+
 ## 2026-10-31 — Narration reads the on-screen text, then the voice text
 
 The spoken text is joined when the render runs rather than copied into the voice text, so choosing
