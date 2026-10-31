@@ -203,8 +203,7 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await page.getByRole("menuitem", { name: "Lịch đăng bài" }).click();
   await expect(page).toHaveURL(/\/calendar$/);
   await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
-  // Not only in-view cells: the post sits on its Vietnam day, which can be next month for a browser on another clock.
-  await page.locator(".ant-picker-cell a[href^='/videos/']").click();
+  await page.locator(".ant-picker-cell-in-view a[href^='/videos/']").click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 

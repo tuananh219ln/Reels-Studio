@@ -33,6 +33,17 @@ test("last login is shown as dd/mm/yyyy hh:mm in Vietnam time whatever the brows
   expect(shown.slice(0, 13)).toBe(`${parts.day}/${parts.month}/${parts.year} ${parts.hour}`);
 });
 
+test("the calendar opens on today in Vietnam whatever the browser time zone", async ({ browser }) => {
+  const context = await browser.newContext({ baseURL: "http://localhost:3100", timezoneId: "America/New_York" });
+  const page = await context.newPage();
+  await loginAsSeed(page);
+  // 30 November in New York, already 1 December in Vietnam.
+  await page.clock.setFixedTime(new Date("2026-11-30T20:00:00Z"));
+  await page.goto("/calendar");
+  await expect(page.getByText("Th 12", { exact: true })).toBeVisible();
+  await expect(page.locator(".ant-picker-cell-today")).toHaveAttribute("title", "2026-12-01");
+});
+
 test("search box filters by email or name", async ({ page }) => {
   await loginAsSeed(page);
   await addUser(page, "binh@doi.vn", "Trần Thị Bình", "tam-thoi-123");

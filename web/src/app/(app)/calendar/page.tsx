@@ -1,7 +1,8 @@
 "use client";
 
+import dayjsGenerateConfig from "@rc-component/picker/generate/dayjs";
 import { App, Calendar, Card, Flex, Tag, Typography } from "antd";
-import dayjs from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/vi";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -9,6 +10,15 @@ import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
 
 dayjs.locale("vi");
+
+/** Today's date in Vietnam as a plain local date, because the calendar's cells have no time zone. */
+function vietnamToday(): Dayjs {
+  const [day, month, year] = formatDateTime(new Date().toISOString()).split(" ")[0].split("/");
+  return dayjs(`${year}-${month}-${day}`);
+}
+
+// Antd takes "now" from the browser's clock; this one opens on Vietnam's month and marks Vietnam's today.
+const VietnamCalendar = Calendar.generateCalendar<Dayjs>({ ...dayjsGenerateConfig, getNow: vietnamToday });
 
 /** Oldest first, under their day in Vietnam time, keyed dd/mm/yyyy as `formatDateTime` writes it. */
 function byDay(posts: PostRow[]): Map<string, { post: PostRow; clock: string }[]> {
@@ -45,7 +55,7 @@ export default function CalendarPage() {
       </Flex>
       <Card styles={{ body: { overflowX: "auto" } }}>
         <div style={{ minWidth: 760 }}>
-          <Calendar
+          <VietnamCalendar
             cellRender={(date, info) =>
               info.type !== "date" ? null : (
                 <Flex vertical gap={2}>
