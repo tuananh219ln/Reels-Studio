@@ -8,7 +8,7 @@ async function newPage(browser: Browser) {
   return context.newPage();
 }
 
-for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/jobs", "/change-password"]) {
+for (const path of ["/", "/videos", "/users", "/knowledge", "/music", "/posts", "/calendar", "/jobs", "/change-password"]) {
   test(`${path} redirects to login on the server when there is no session`, async ({ page }) => {
     const response = await page.goto(path);
     // A server redirect means the first request answered 307; the app page never rendered.

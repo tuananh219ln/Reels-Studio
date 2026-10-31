@@ -56,6 +56,13 @@ Built:
   "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is
   greyed out), and "Lưu" keeps the chosen ones. Each row has "Dán token mới", which must reach that
   Page, and "Ngừng dùng" or "Dùng lại". A stopped Page cannot be posted to.
+- **Đăng bài**, a menu group of two view-only screens. Nothing is posted or approved here: a member
+  reviews and posts a video from the "Đăng Facebook" card on its page.
+  - **Bài đăng** (`/posts`): videos posted or scheduled, latest time first, with the Fanpage,
+    "Đã hẹn lịch" or "Đã đăng", the time in Vietnam time, who posted it, and "Xem Reel" once public.
+    The title opens the video.
+  - **Lịch đăng bài** (`/calendar`): the same videos in a month view, under their day in Vietnam
+    time, coloured by status. A video opens its page.
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
   Claude call count, and error; a row opens its video.
 

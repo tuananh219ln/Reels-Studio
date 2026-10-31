@@ -2,6 +2,7 @@
 
 import {
   BookOutlined,
+  CalendarOutlined,
   ClockCircleOutlined,
   CustomerServiceOutlined,
   KeyOutlined,
@@ -9,8 +10,10 @@ import {
   MenuOutlined,
   EditOutlined,
   FacebookOutlined,
+  NotificationOutlined,
   PlaySquareOutlined,
   TeamOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
 import { Button, Drawer, Dropdown, Flex, Grid, Layout, Menu, Result, Spin } from "antd";
 import Link from "next/link";
@@ -22,8 +25,19 @@ import Logo from "./Logo";
 import { MeContext } from "./MeContext";
 import UserAvatar from "./UserAvatar";
 
+const POST_GROUP = "group:posts";
+
 const NAV = [
   { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
+  {
+    key: POST_GROUP,
+    icon: <NotificationOutlined />,
+    label: "Đăng bài",
+    children: [
+      { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
+      { key: "/calendar", icon: <CalendarOutlined />, label: "Lịch đăng bài" },
+    ],
+  },
   { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
   { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
   { key: "/users", icon: <TeamOutlined />, label: "Quản lý người dùng" },
@@ -75,17 +89,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const selected = NAV.find((item) => pathname.startsWith(item.key))?.key ?? "/videos";
+  const pageItem = (item: { key: string; icon: React.ReactNode; label: string }) => ({
+    key: item.key,
+    icon: item.icon,
+    label: <Link href={item.key}>{item.label}</Link>,
+  });
+  const selected = NAV.flatMap((item) => item.children ?? [item]).find((item) => pathname.startsWith(item.key))?.key ?? "/videos";
   const menu = (
     <Menu
       mode="inline"
       selectedKeys={[selected]}
+      defaultOpenKeys={[POST_GROUP]}
       style={{ border: "none", padding: "0 6px" }}
-      items={NAV.map((item) => ({
-        key: item.key,
-        icon: item.icon,
-        label: <Link href={item.key}>{item.label}</Link>,
-      }))}
+      items={NAV.map((item) =>
+        item.children ? { ...item, children: item.children.map(pageItem) } : pageItem(item),
+      )}
       onClick={() => setDrawerOpen(false)}
     />
   );

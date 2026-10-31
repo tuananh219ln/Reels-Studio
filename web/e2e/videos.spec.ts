@@ -180,6 +180,34 @@ async function newVideoWithScript(page: Page, topic: string) {
   await uploadPhotos(page);
 }
 
+test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  await page.getByRole("dialog", { name: "Tạo video" }).getByLabel("Chủ đề", { exact: true }).fill("xương khớp");
+  await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
+  await jobFinished(page);
+  await uploadPhotos(page);
+  await page.getByRole("button", { name: "Render" }).click();
+  await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+  await page.getByRole("button", { name: "Đăng lên Facebook" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
+  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+
+  await page.getByRole("menuitem", { name: "Bài đăng" }).click();
+  await expect(page).toHaveURL(/\/posts$/);
+  await expect(page.getByRole("link", { name: "Xem Reel" })).toBeVisible();
+
+  await page.getByRole("menuitem", { name: "Lịch đăng bài" }).click();
+  await expect(page).toHaveURL(/\/calendar$/);
+  await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
+  // Not only in-view cells: the post sits on its Vietnam day, which can be next month for a browser on another clock.
+  await page.locator(".ant-picker-cell a[href^='/videos/']").click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+});
+
 /** Gives the title and every content scene a photo, as a member does after the script is written. */
 async function uploadPhotos(page: Page) {
   const file = path.join(os.tmpdir(), `e2e-photo-${process.pid}.jpg`);
