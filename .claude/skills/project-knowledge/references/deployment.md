@@ -84,7 +84,7 @@ when set to an empty string. Containers use real environment variables only.
 
 Only tests and E2E set these, to reach the local fake Claude, Pixabay, and ElevenLabs
 ([api/scripts/fake_services.py](../../../../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
-`PIXABAY_API_URL`, `ELEVENLABS_API_URL`. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
+`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `FACEBOOK_API_URL`. The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
 
 ## Operations
 

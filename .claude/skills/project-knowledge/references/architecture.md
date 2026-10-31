@@ -47,7 +47,7 @@ Workers (see [deployment.md](deployment.md#production)).
 |---|---|
 | `web` | Next.js UI. Calls the API only. |
 | `api` | FastAPI app ([api/](../../../../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, Pixabay search (no longer offered in the web UI), previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
-| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude) and renders (ElevenLabs narration, then FFmpeg). |
+| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude), renders (ElevenLabs narration, then FFmpeg), and posting to the Facebook Page. |
 | `postgres` | Relational data and the job queue. |
 | storage | One folder of uploaded photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
 
@@ -167,10 +167,11 @@ A scene may hold an uploaded video clip instead of a photo
 |---|---|---|
 | Claude API | Script generation and cloning (built); drafting Knowledge Base content (planned) | Called only from the worker, through the Anthropic SDK. Model is configurable; the default is `claude-sonnet-5-5`, with the server-side refusal fallback enabled. Every call is logged with its token counts. Knowledge drafting will use web search so it can return source URLs. |
 | ElevenLabs | Scene narration in the render job | The premade "Adam" voice by default, model `eleven_v3` with `language_code: vi` (`eleven_multilingual_v2` does not speak Vietnamese). Voice and model are configurable. Paid per character, so each scene's MP3 is stored and reused. |
+| Facebook Reels Publishing API | Posting a video to the team's one Page | Called only from the worker ([facebook.py](../../../../api/src/reels_api/facebook.py)). The Page id and a non-expiring Page token are entered on `/settings`, so there is no OAuth screen. |
 | Pixabay | The CLI's stock search; the only stock source. The api's search and picker endpoints remain, but the web UI no longer offers them and jobs no longer pick photos | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). Searches inside a request give up after about 10 seconds. |
 | FFmpeg | Rendering | Installed in the worker image from Debian's package ([api/Dockerfile.worker](../../../../api/Dockerfile.worker)); on the dev host installed natively (see [deployment.md](deployment.md#current-state)). |
 
-Later phases add the Meta (Instagram/Facebook) and TikTok publishing APIs.
+Later phases add the Instagram, YouTube, and TikTok publishing APIs.
 
 ## Data Flow
 
@@ -193,8 +194,9 @@ Built (migrations in [api/migrations/](../../../../api/migrations/), models in
 | `videos` | Topic, whether the script exists, narration on/off, title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from. |
-| `jobs` | Belongs to a video; kind (script, clone, render), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
-| `settings` | The prompts and banned words before `knowledge_topics`; no longer read. |
+| `publications` | A video posted to a platform, one row per video and platform (only `facebook` today): pending, scheduled, or published, the scheduled time, the platform's id of the post, who started it. |
+| `jobs` | Belongs to a video; kind (script, clone, render, publish), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
+| `settings` | The Facebook Page id and its encrypted token. The rows of the prompts and banned words from before `knowledge_topics` are no longer read. |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../../../../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
 
 Files are not table rows: a video's files live under one storage folder per video, with
@@ -248,6 +250,24 @@ Planned:
   voice, or model, and commits each MP3 at once, so a retry or re-render pays only for what
   changed. Once made, the scene card plays it and shows the lengthened scene. Narration not made
   yet cannot be measured, so a total over 90 s is caught by the render job after it is made.
+- **Posting to Facebook ("Đăng lên Facebook"):**
+  - The `publish` job uploads the current MP4 with the saved caption and hashtags. An MP4 out of date
+    with the edits is refused. A video is posted once: a scheduled or published one is refused.
+  - Scheduling uses Facebook's own scheduling, so the file is uploaded at once, the worker has no
+    timer, and a later re-render never changes what was scheduled. Facebook then publishes by itself,
+    so the app counts a scheduled post as published once its time has passed. Changing or cancelling
+    one is done in Meta Business Suite.
+  - **Never a second post.** The reel's id and its MP4 are saved before the upload, and the moment
+    Facebook is asked to publish is saved before asking. A retry reads the reel's status first,
+    because an attempt may have reached Facebook whatever it reported. A live reel needs nothing,
+    and the app records what Facebook says. One Facebook was asked to publish and is still
+    processing is waited for. A reel holding the current MP4 is finished again; whether a second
+    finish is harmless is assumed, because the docs do not say. A new reel is made only when the old
+    one is gone (HTTP 404), refused, or not fully received, or when it holds an older render and
+    was never asked to publish, or was asked over 30 minutes ago. A status read that fails or says
+    nothing fails the job and posts nothing.
+  - The job repeats the MP4 and time checks, because "Thử lại" skips the endpoint.
+  - The job locks the video like a render, for the minute or so it takes.
 - **Clone ("Nhân bản"):** stores a snapshot of the source as edited at that moment plus the change
   request on the new draft, and copies the source's MP3 as the draft's own file. The source is not
   locked. Cancelling and writing the draft again reruns the same clone.
@@ -289,5 +309,10 @@ Planned:
 
 - API keys (Anthropic, Pixabay, ElevenLabs) live only in environment variables. They are never
   committed or stored in the database.
+- The Facebook Page token is entered on `/settings`, by the owner's decision, and stored in
+  `settings` encrypted with a key generated in the storage folder
+  ([page_settings.py](../../../../api/src/reels_api/page_settings.py)), so a database dump alone
+  does not reveal it. No response ever carries it. Any member can replace it. Losing the key file
+  only means entering the token again.
 - Passwords are stored hashed.
 - The only personal data is team members' emails.

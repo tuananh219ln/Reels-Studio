@@ -2,14 +2,15 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { SEED, chooseOption, loginAsSeed, resetDatabase } from "./helpers";
+import { SEED, chooseOption, connectFacebook, loginAsSeed, resetDatabase } from "./helpers";
 
 // The api, a real worker with FFmpeg, and fake Claude/Pixabay (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
 
-test("topic to MP4: script, edits, render, play, seek and download", async ({ page }) => {
+test("topic to MP4: script, edits, render, play, seek, download and post", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);
+  await connectFacebook(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
   await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
@@ -66,6 +67,11 @@ test("topic to MP4: script, edits, render, play, seek and download", async ({ pa
   expect(download.headers()["content-type"]).toBe("video/mp4");
   expect(download.headers()["content-disposition"]).toContain("attachment");
 
+  await page.getByRole("button", { name: "Đăng lên Facebook" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
+  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveAttribute("href", /facebook\.com\/reel\//);
+
   await page.goto("/videos");
   const card = page.getByTestId("video-card").first();
   await expect(card.getByTestId("video-status")).toHaveText("Xong");
@@ -76,6 +82,7 @@ test("topic to MP4: script, edits, render, play, seek and download", async ({ pa
 test("after a render, editing a scene text marks the MP4 outdated", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);
+  await connectFacebook(page);
   await page.getByRole("button", { name: "Tạo video" }).click();
   await page.getByRole("dialog", { name: "Tạo video" }).getByLabel("Chủ đề", { exact: true }).fill("tim mạch");
   await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Viết kịch bản" }).click();
@@ -83,6 +90,15 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await uploadPhotos(page);
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+
+  // datetime-local takes the browser's local time.
+  const later = new Date(Date.now() + 2 * 3600 * 1000);
+  later.setMinutes(later.getMinutes() - later.getTimezoneOffset());
+  await page.getByRole("radio", { name: "Hẹn giờ" }).click();
+  await page.getByLabel("Giờ đăng").fill(later.toISOString().slice(0, 16));
+  await page.getByRole("button", { name: "Đăng lên Facebook" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
+  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
   const caption = page.getByLabel("Caption");
   await caption.fill("Caption mới");

@@ -2,6 +2,7 @@ import math
 import tempfile
 import time
 import unicodedata
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile
@@ -14,7 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import clips, frames, knowledge
 from .db import get_db
 from .errors import ApiError
-from .models import Job, KnowledgeTopic, MusicTrack, Scene, Session, Video
+from .models import Job, KnowledgeTopic, MusicTrack, Publication, Scene, Session, Video
 from .pixabay import Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS
 from .sessions import current_member, now
@@ -35,7 +36,9 @@ from .videos import (
     lock_scene,
     lock_video,
     new_key,
+    publication_of,
     refresh_thumbnail,
+    render_signature,
     run_checks,
     scene_still,
     split_scenes,
@@ -61,6 +64,9 @@ CLIP_TYPES = {"mp4": "video/mp4", "webm": "video/webm"}
 # Scene length a new clip sets, so the whole clip plays without being longer than a scene may be.
 MAX_CLIP_SCENE_SECONDS = 10
 MAX_TOPIC_NAME_LENGTH = 100
+# The upload takes a few minutes, and Facebook wants the time at least 10 minutes after it and within 29 days.
+MIN_SCHEDULE_DELAY = timedelta(minutes=15)
+MAX_SCHEDULE_DELAY = timedelta(days=29)
 
 
 class NewVideoBody(BaseModel):
@@ -85,6 +91,10 @@ class ScenePatchBody(BaseModel):
     image_prompt: str | None = None
     voice_text: str | None = None
     video_start: float | None = None
+
+
+class PublishBody(BaseModel):
+    scheduled_at: datetime | None = None
 
 
 class SceneOrderBody(BaseModel):
@@ -235,6 +245,34 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
     ensure_unlocked(db, video)
     _ensure_renderable(db, video)
     _enqueue(db, video, "render", me)
+    return _saved(db, video)
+
+
+@router.post("/videos/{video_id}/publish")
+def publish(
+    video_id: int, body: PublishBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    video = lock_video(db, video_id)
+    ensure_unlocked(db, video)
+    if not video.mp4_key:
+        raise ApiError(409, "no_mp4", "Video chưa có MP4, hãy render trước")
+    title, scenes = split_scenes(db, video)
+    if video.rendered_signature != render_signature(video, title, scenes):
+        raise ApiError(409, "mp4_outdated", "MP4 chưa cập nhật theo bản sửa, hãy render lại rồi đăng")
+    post = publication_of(db, video.id)
+    if post is not None and post.status != "pending":
+        raise ApiError(409, "already_published", "Video này đã đăng hoặc đã hẹn giờ trên Facebook")
+    when = body.scheduled_at
+    if when is not None:
+        if when.tzinfo is None:
+            raise invalid("Giờ đăng phải kèm múi giờ")
+        if not now() + MIN_SCHEDULE_DELAY <= when <= now() + MAX_SCHEDULE_DELAY:
+            raise invalid("Giờ hẹn phải sau ít nhất 15 phút và trong vòng 29 ngày tới")
+    if post is None:
+        post = Publication(video_id=video.id, platform="facebook", created_by_id=me.user_id)
+        db.add(post)
+    post.scheduled_at = when
+    _enqueue(db, video, "publish", me)
     return _saved(db, video)
 
 

@@ -9,7 +9,7 @@
 - Lịch chủ đề: ma trận chủ đề (tuổi thọ, tim mạch, máu não, xương khớp, gan, da tóc, giấc ngủ, giảm cân) và theo mùa (cúm, nồm, Tết). Vì sao: bước 1 của quy trình sản xuất. (2026-10-28)
 - Đo chỉ số sau 48 giờ (view, share, lưu) và KPI tuần (share/view ≥ 0,2%, view trung vị, số video vượt 10× trung vị). Vì sao: tìm video thắng. (2026-10-28)
 - Nhân bản video thắng: video vượt 10× trung vị → Claude đề xuất 10 biến thể (đổi thực phẩm / mốc tuổi / nhóm bệnh) xếp theo khả năng viral, làm ngay 3. Đã có: nút "Nhân bản" viết 1 biến thể theo yêu cầu đổi. Vì sao: chủ đề thắng khai thác thành chuỗi. (2026-10-28)
-- Tự động đăng qua API Meta và TikTok. Vì sao: bỏ bước đăng tay; cần tài khoản Business + Page và TikTok audit. (2026-10-28)
+- Tự động đăng lên Instagram và TikTok. Đã có: đăng lên một Facebook Page. TikTok không nhận công cụ nội bộ cho audit nên hướng đi là gửi vào hộp nháp của app. Vì sao: bỏ bước đăng tay. (2026-10-28)
 - Hỗ trợ YouTube Shorts. (2026-10-28)
 - Nội dung tiếng Anh: chọn ngôn ngữ VI/EN cho từng video (kịch bản, giọng TTS, quy tắc an toàn). (2026-10-28)
 - Câu miễn trừ "Tham khảo, không thay thế tư vấn bác sĩ" và câu "không phải là thuốc" cho sản phẩm TPCN. Vì sao: giảm rủi ro chính sách Meta và Luật Quảng cáo. (2026-10-28)

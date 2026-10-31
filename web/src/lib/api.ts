@@ -29,7 +29,7 @@ export type UserRow = {
   is_me: boolean;
 };
 
-export type VideoStatus = "draft" | "queued" | "writing" | "rendering" | "done" | "failed";
+export type VideoStatus = "draft" | "queued" | "writing" | "rendering" | "publishing" | "done" | "failed";
 
 export type VideoRow = {
   id: number;
@@ -46,7 +46,7 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render";
+  kind: "script" | "clone" | "render" | "publish";
   status: "queued" | "running" | "done" | "failed" | "cancelled";
   error: string | null;
   error_detail: string | null;
@@ -95,6 +95,10 @@ export type VideoDetail = VideoRow & {
   music: { url: string; name: string | null } | null;
   music_volume: number;
   voice_enabled: boolean;
+  /** The Page id and token are entered on /settings. */
+  facebook_ready: boolean;
+  /** The post to the Facebook Page; `pending` until the publish job has finished. */
+  publication: { status: "pending" | "scheduled" | "published"; scheduled_at: string | null; url: string | null } | null;
   knowledge_topic: string | null;
   clone_of: { title: string; request: string } | null;
   title_scene: SceneData | null;
@@ -112,6 +116,8 @@ export type KnowledgeTopic = {
   banned_words: string[];
   video_count: number;
 };
+
+export type FacebookSettings = { page_id: string; has_token: boolean };
 
 export type Knowledge = {
   topics: KnowledgeTopic[];
@@ -132,7 +138,6 @@ export type MusicTrack = {
 
 /** The api's fixed lists that tag every track. */
 export type MusicOptions = { topics: string[]; moods: string[] };
-
 
 export type JobRow = {
   id: number;

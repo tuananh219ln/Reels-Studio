@@ -63,13 +63,15 @@ app replaces CapCut, so the output is a finished MP4.
    [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
    comment manually.
 3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking, winner variants, API
-   auto-posting, YouTube Shorts, English content, the disclaimer and functional-food sentence, and
+   auto-posting beyond the Facebook Page (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
    AI image generation. Concrete items live in [backlog.md](../../../../backlog.md).
 
-API auto-posting is deferred for these reasons:
+Posting to one Facebook Page is built. The rest of API auto-posting is deferred for these reasons:
 
 - Instagram publishing needs a Business/Creator account linked to a Facebook Page.
-- Until the TikTok Content Posting API app passes audit, it can only post privately.
+- Until the TikTok Content Posting API app passes audit, it can only post privately, and TikTok's
+  guidelines do not accept a tool for a team's own accounts. Sending to the app's inbox, where a
+  member finishes the post, is the likely route.
 - Neither platform's API can pin a comment.
 
 ---
@@ -81,4 +83,4 @@ API auto-posting is deferred for these reasons:
   prompt is stored as editable configuration.
 - Editing videos in CapCut or exporting CapCut projects.
 - Using Facebook/CapCut music libraries. They are not accessible outside those apps.
-- Automatic posting, metrics, and analytics in the MVP.
+- Metrics and analytics in the MVP.

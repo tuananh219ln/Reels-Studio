@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import knowledge
+from . import facebook, knowledge, page_settings
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
-from .models import ACTIVE_JOB_STATUSES, Job, Scene, Video
+from .models import ACTIVE_JOB_STATUSES, Job, Publication, Scene, Video
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
+from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
 
@@ -25,11 +26,12 @@ STATUS_LABELS = {
     "queued": "Chờ",
     "writing": "Đang viết",
     "rendering": "Đang render",
+    "publishing": "Đang đăng",
     "done": "Xong",
     "failed": "Lỗi",
 }
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
-JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render"}
+JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render", "publish": "Đăng Facebook"}
 
 
 def new_key(video_id: int, name: str, extension: str) -> str:
@@ -65,6 +67,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         return
     if job.kind == "render":
         raise ApiError(409, "video_locked", "Video đang render, chưa lưu")
+    if job.kind == "publish":
+        raise ApiError(409, "video_locked", "Video đang đăng lên Facebook, chưa lưu")
     raise ApiError(409, "video_locked", "Video đang viết kịch bản, chưa lưu")
 
 
@@ -178,7 +182,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
     if job is not None and job.status == "queued":
         code, label = "queued", f"Chờ thứ {queue_position(db, job)}"
     elif job is not None:
-        code = "rendering" if job.kind == "render" else "writing"
+        code = {"render": "rendering", "publish": "publishing"}.get(job.kind, "writing")
         label = STATUS_LABELS[code]
     elif video.mp4_key:
         code, label = "done", STATUS_LABELS["done"]
@@ -201,6 +205,27 @@ def _job_payload(job: Job | None) -> dict | None:
         "created_by": job.created_by.name if job.created_by else None,
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+    }
+
+
+def publication_of(db: DbSession, video_id: int) -> Publication | None:
+    return db.scalar(select(Publication).where(Publication.video_id == video_id, Publication.platform == "facebook"))
+
+
+def is_published(post: Publication) -> bool:
+    # Facebook publishes a scheduled reel by itself, so nothing here changes when the time comes.
+    return post.status == "published" or (
+        post.status == "scheduled" and post.scheduled_at is not None and post.scheduled_at <= now())
+
+
+def _publication_payload(post: Publication | None) -> dict | None:
+    if post is None:
+        return None
+    published = is_published(post)
+    return {
+        "status": "published" if published else post.status,
+        "scheduled_at": post.scheduled_at.isoformat() if post.scheduled_at else None,
+        "url": facebook.reel_url(post.remote_id) if published and post.remote_id else None,
     }
 
 
@@ -245,7 +270,7 @@ def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | N
     return {
         "mp4_outdated": bool(video.mp4_key) and video.rendered_signature != render_signature(video, title, scenes),
         # A failed re-render keeps the old MP4 and the "Xong" status, with this extra label.
-        "rerender_failed": job is None and bool(video.mp4_key) and failed is not None,
+        "rerender_failed": job is None and bool(video.mp4_key) and failed is not None and failed.kind == "render",
     }
 
 
@@ -294,6 +319,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         } if video.music_key else None,
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
+        "publication": _publication_payload(publication_of(db, video.id)),
+        "facebook_ready": bool(page_settings.page_id(db)) and page_settings.has_token(db),
         "knowledge_topic": topic.name if topic else None,
         "clone_of": {
             "title": video.clone_source["title"],

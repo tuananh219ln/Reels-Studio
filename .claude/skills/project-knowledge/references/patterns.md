@@ -14,8 +14,8 @@
   banned words on `/knowledge`; the JSON output format and its example stay fixed in
   [claude.py](../../../../api/src/reels_api/claude.py), so an edited prompt can never break the
   parsing every job depends on. See [content.md](content.md#script-generation-contract).
-- **Claude, Pixabay, and ElevenLabs are reached only through their base URL in tests.** Tests and
-  E2E point `ANTHROPIC_BASE_URL`, `PIXABAY_API_URL`, and `ELEVENLABS_API_URL` at a local fake server; production code has no test
+- **Claude, Pixabay, ElevenLabs, and Facebook are reached only through their base URL in tests.** Tests and
+  E2E point `ANTHROPIC_BASE_URL`, `PIXABAY_API_URL`, `ELEVENLABS_API_URL`, and `FACEBOOK_API_URL` at a local fake server; production code has no test
   switches.
 
 ## Git Workflow
