@@ -12,6 +12,7 @@ import {
   FacebookOutlined,
   NotificationOutlined,
   PlaySquareOutlined,
+  SettingOutlined,
   ShoppingOutlined,
   TeamOutlined,
   UnorderedListOutlined,
@@ -27,6 +28,7 @@ import { MeContext } from "./MeContext";
 import UserAvatar from "./UserAvatar";
 
 const POST_GROUP = "group:posts";
+const SETTINGS_GROUP = "group:settings";
 
 const NAV = [
   { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
@@ -44,7 +46,12 @@ const NAV = [
   { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate Shopee" },
   { key: "/users", icon: <TeamOutlined />, label: "Quản lý người dùng" },
   { key: "/jobs", icon: <ClockCircleOutlined />, label: "Job logs" },
-  { key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" },
+  {
+    key: SETTINGS_GROUP,
+    icon: <SettingOutlined />,
+    label: "Cài đặt",
+    children: [{ key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" }],
+  },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
@@ -109,7 +116,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     <Menu
       mode="inline"
       selectedKeys={[selected]}
-      defaultOpenKeys={[POST_GROUP]}
+      defaultOpenKeys={[POST_GROUP, SETTINGS_GROUP]}
       style={{ border: "none", padding: "0 6px" }}
       items={NAV.map((item) => (item.children ? { ...item, children: item.children.map(pageItem) } : pageItem(item)))}
       onClick={() => setDrawerOpen(false)}

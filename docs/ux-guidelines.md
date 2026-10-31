@@ -51,11 +51,6 @@ Built:
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
   used the track keep their copy).
-- **Kết nối Fanpage** (`/fanpages`): a table of Pages with the name and id, the token's last four
-  characters, "Đang dùng" or "Ngừng dùng", and who changed it when. "Thêm Fanpage" takes a token,
-  "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is
-  greyed out), and "Lưu" keeps the chosen ones. Each row has "Dán token mới", which must reach that
-  Page, and "Ngừng dùng" or "Dùng lại". A stopped Page cannot be posted to.
 - **Affiliate Shopee** (`/affiliate`), two tabs:
   - "Video đã đăng": reels on the Facebook Page, newest first, with the script's suggestions, a
     picker of approved products (labelled with the expected commission per order), and a copy button
@@ -76,6 +71,12 @@ Built:
     videos are listed under it.
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
   Claude call count, and error; a row opens its video.
+- **Cài đặt**, a menu group, last in the sidebar.
+  - **Kết nối Fanpage** (`/fanpages`): a table of Pages with the name and id, the token's last four
+    characters, "Đang dùng" or "Ngừng dùng", and who changed it when. "Thêm Fanpage" takes a token,
+    "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is
+    greyed out), and "Lưu" keeps the chosen ones. Each row has "Dán token mới", which must reach
+    that Page, and "Ngừng dùng" or "Dùng lại". A stopped Page cannot be posted to.
 
 Phones (below 992 px wide; built):
 
