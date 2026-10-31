@@ -216,6 +216,16 @@ def test_a_failure_partway_keeps_the_narration_already_paid_for(committed, tmp_p
 
 
 @needs_ffmpeg
+def test_a_scene_with_empty_text_renders(committed, voiced, fakes):
+    user, storage, video_id = voiced
+    with committed() as db:
+        first_scene(db, db.get(Video, video_id)).text = ""
+        db.commit()
+    job = render(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+
+
+@needs_ffmpeg
 def test_narration_switched_off_renders_without_calling_elevenlabs(committed, voiced, fakes):
     user, storage, video_id = voiced
     with committed() as db:

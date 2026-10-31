@@ -35,7 +35,7 @@ def text_box(text: str, is_title: bool) -> tuple[Image.Image, tuple[int, int]]:
 
 
 def compose_frame(image: Path | Image.Image, text: str, is_title: bool) -> Image.Image:
-    """Cover-cropped photo (or clip frame) plus the text box; the box is left out while the text cannot render."""
+    """Cover-cropped photo (or clip frame) plus the text box; no box without text or while the text cannot render."""
     if isinstance(image, Image.Image):
         upright = image.convert("RGB")
     else:
@@ -43,7 +43,7 @@ def compose_frame(image: Path | Image.Image, text: str, is_title: bool) -> Image
             source.load()
             upright = ImageOps.exif_transpose(source).convert("RGB")
     frame = ImageOps.fit(upright, (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC, centering=(0.5, 0.5))
-    if text_problem(text, is_title) is None:
+    if text.strip() and text_problem(text, is_title) is None:
         box, position = text_box(text, is_title)
         frame.paste(box, position, box)
     return _yuv420(frame)

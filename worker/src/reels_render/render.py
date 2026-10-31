@@ -13,6 +13,7 @@ from .textbox import (
     SCENE_STYLE,
     TITLE_STYLE,
     TextFitError,
+    empty_box,
     layout_text,
     render_box,
     scene_box_position,
@@ -51,7 +52,8 @@ def render_video(
     layouts = []
     for index, scene in enumerate(script.all_scenes):
         try:
-            layouts.append(layout_text(scene.lines, TITLE_STYLE if index == 0 else SCENE_STYLE))
+            style = TITLE_STYLE if index == 0 else SCENE_STYLE
+            layouts.append(layout_text(scene.lines, style) if scene.lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
@@ -73,9 +75,13 @@ def render_video(
                 image, video_start = work_dir / f"scene-{index:02d}.jpg", None
                 normalize_image(scene.image, image, scene.label)
             box = work_dir / f"text-{index:02d}.png"
-            render_box(layout).save(box)
-            place = title_box_position if index == 0 else scene_box_position
-            box_x, box_y = place(layout.width, layout.height)
+            if layout is None:
+                empty_box().save(box)
+                box_x, box_y = 0, 0
+            else:
+                render_box(layout).save(box)
+                place = title_box_position if index == 0 else scene_box_position
+                box_x, box_y = place(layout.width, layout.height)
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice,
                                      video_start=video_start))

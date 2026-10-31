@@ -81,7 +81,7 @@ export default function SceneCard({
               value={scene.text}
               multiline
               save={(text) => patch({ text })}
-              hint="*từ* để tô đỏ, xuống dòng để ngắt dòng"
+              hint="*từ* để tô đỏ, xuống dòng để ngắt dòng, để trống nếu cảnh không hiện chữ"
             />
             {voiceEnabled && <VoiceText scene={scene} save={(voice_text) => patch({ voice_text })} />}
             <Flex wrap gap={16}>

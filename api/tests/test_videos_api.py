@@ -376,6 +376,26 @@ def test_thumbnail_appears_with_the_title_photo_and_follows_its_text_and_photo(a
     assert len([p for p in storage.path(f"videos/{video.id}").iterdir() if p.name.startswith("thumb-")]) == 1
 
 
+@pytest.mark.parametrize("text", ["", "   "])
+def test_empty_text_leaves_the_preview_and_thumbnail_without_a_box_and_can_render(an, db, me, storage, text):
+    def has_yellow_box(url):
+        image = Image.open(io.BytesIO(an.get(url).content)).convert("RGB")
+        column = [image.getpixel((image.width // 2, y)) for y in range(0, image.height, 8)]
+        return any(r > 200 and g > 170 and b < 100 for r, g, b in column)
+
+    video = make_video(db, storage, me)
+    title = title_id(db, video)
+    shown = an.get(f"/api/videos/{video.id}").json()
+    assert has_yellow_box(shown["title_scene"]["preview_url"])
+
+    empty = an.patch(f"/api/scenes/{title}", json={"text": text}).json()
+    assert empty["can_render"] is True
+    assert empty["title_scene"]["text_problem"] is None and empty["title_scene"]["blocking"] == []
+    assert empty["title"] == "", "the page falls back to the topic"
+    assert not has_yellow_box(empty["title_scene"]["preview_url"])
+    assert not has_yellow_box(empty["thumbnail_url"])
+
+
 def test_preview_uses_the_photo_and_the_renderers_text_box(an, db, me, storage):
     from PIL import ImageChops, ImageOps, ImageStat
 

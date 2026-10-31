@@ -95,6 +95,8 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   next to the script, and writes its path into `image`.
 - **The title scene has its own image and length.** It never borrows scene 1's image. In the
   database it is a scene row marked as the title scene, 3 seconds by default.
+- **Empty text means no text box.** The filter graph still gets a box input, a transparent pixel,
+  so every scene keeps one image and one box.
 - **Validation runs before FFmpeg.** The output is written to a temp file next to the target and
   replaced only after a successful render.
 - **FFmpeg safety:** every file is passed with `-i` and referenced by stream label, never written

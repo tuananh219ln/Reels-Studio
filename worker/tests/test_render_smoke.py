@@ -110,6 +110,20 @@ class TestOutput:
 
 
 @needs_ffmpeg
+def test_scene_without_text_has_no_box_and_keeps_its_length(tmp_path):
+    make_image(tmp_path / "anh.jpg", (1000, 1000), (240, 200, 205))
+    data = script_data(scene_count=1, image="anh.jpg", seconds=1, text="")
+    data["scenes"][0].update(image="anh.jpg", seconds=1.5, text="")
+    path = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+    assert float(probe("ffprobe", path)["format"]["duration"]) == pytest.approx(2.5, abs=FRAME)
+    for name, seconds in (("title.png", 0), ("scene.png", 1.75)):
+        frame = extract_frame(path, seconds, tmp_path / name)
+        centre = [frame.getpixel((540, y)) for y in range(0, 1920, 8)]
+        assert not any(r > 200 and g > 170 and b < 100 for r, g, b in centre), f"{name} còn hộp vàng"
+
+
+@needs_ffmpeg
 class TestMusic:
     def render(self, tmp_path, tone_seconds, **volume):
         script = short_script(tmp_path, seconds=(1, 1, 1))

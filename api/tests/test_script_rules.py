@@ -88,8 +88,6 @@ def test_no_content_scene_blocks():
 @pytest.mark.parametrize(
     ("text", "reason"),
     [
-        ("", "Chữ đang trống"),
-        ("   ", "Chữ đang trống"),
         ("Cá *nhỏ", "dấu * không đóng cặp"),
         ("Cá ** nhỏ", "có cặp ** rỗng"),
         ("Cá nhỏ\n\nGiàu canxi", "có dòng trống"),
@@ -103,8 +101,10 @@ def test_text_that_reels_render_refuses_blocks(text, reason):
     assert any(reason in message for message in messages(run(content=content).blocking, 9))
 
 
-def test_empty_title_text_blocks():
-    assert "Chữ đang trống" in messages(run(title(text="")).blocking, 0)
+@pytest.mark.parametrize("text", ["", "   "])
+def test_empty_text_is_a_scene_without_a_box_and_blocks_nothing(text):
+    assert text_problem(text, is_title=True) is None
+    assert run(title(text=text), scenes(4) + [SceneInput(9, False, text, 4, True)]).blocking == []
 
 
 def test_missing_photo_blocks_for_title_and_scene():
@@ -178,3 +178,8 @@ def test_the_title_and_the_last_scene_have_one_crossfade_to_cover(place, seconds
                       seconds, True, clip_seconds=2.0)
     checks = run(clip, scenes(4) + [clip]) if place == "last" else run(clip, scenes(4))
     assert ("Video ngắn hơn cảnh, khung cuối sẽ đứng yên" in messages(checks.warnings, clip.id)) is warned
+
+
+@pytest.mark.parametrize("text", ["5 MÓN *GIÚP", "CÁ " * 60])
+def test_title_text_that_reels_render_refuses_still_blocks(text):
+    assert messages(run(title(text=text)).blocking, 0)
