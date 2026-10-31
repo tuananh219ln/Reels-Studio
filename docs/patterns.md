@@ -26,8 +26,9 @@ history in [specs/](specs/).
 
 ### Quality Gates
 
-[ci-cd.yml](../.github/workflows/ci-cd.yml) runs lint (ruff for api and worker with
-the repo-root `ruff.toml`; ESLint with the Next.js config for web), the typecheck, the api, worker,
+[ci-cd.yml](../.github/workflows/ci-cd.yml) runs lint and format checks (ruff for api
+and worker with the repo-root `ruff.toml`; ESLint with the Next.js config and Prettier for web), the
+typecheck, the api, worker,
 and web tests (with E2E and the Cloudflare build) on every PR; a push to `main` deploys only after
 all of them pass.
 

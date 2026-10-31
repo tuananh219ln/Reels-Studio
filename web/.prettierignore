@@ -1,0 +1,11 @@
+# Generated or not ours to format.
+package-lock.json
+AGENTS.md
+next-env.d.ts
+.next/
+.next-e2e/
+.open-next/
+.wrangler/
+.e2e-data/
+test-results/
+playwright-report/

@@ -51,10 +51,10 @@ macOS/Linux use `.venv/bin/...`).
 
 | What | Command |
 | --- | --- |
-| Python lint (api + worker, config in `ruff.toml`) | `api/.venv/bin/ruff check api worker` (`--fix` for safe fixes) |
+| Python lint + format (api + worker, config in `ruff.toml`) | `api/.venv/bin/ruff check --fix api worker && api/.venv/bin/ruff format api worker` |
 | api tests (need Postgres `reels_test` and FFmpeg) | `cd api && .venv/bin/python -m pytest -q` |
 | worker tests | `cd worker && ../api/.venv/bin/python -m pytest -q` |
-| web lint / typecheck | `cd web && npm run lint && npm run typecheck` |
+| web format, lint, typecheck (Prettier, ESLint, tsc) | `cd web && npm run format && npm run lint && npm run typecheck` |
 | E2E (starts api, worker and fake services itself) | `cd web && npm run e2e` |
 | New migration | `cd api && .venv/bin/alembic revision -m "..."`, then edit it |
 
