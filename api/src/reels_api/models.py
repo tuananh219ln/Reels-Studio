@@ -1,6 +1,19 @@
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, MetaData, String, Text, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+    text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -139,7 +152,7 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render
+    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render | publish
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     retry_of_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))
@@ -151,6 +164,27 @@ class Job(Base):
     claude_calls: Mapped[int] = mapped_column(Integer, default=0)
 
     created_by: Mapped[User] = relationship()
+
+
+class Publication(Base):
+    """A video posted to a platform, once per platform. The publish job reads what to do from here."""
+
+    __tablename__ = "publications"
+    __table_args__ = (UniqueConstraint("video_id", "platform"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    platform: Mapped[str] = mapped_column(String(16))  # facebook
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | scheduled | published
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The platform's id, saved before the upload, so "Thử lại" continues this reel instead of posting a second one.
+    remote_id: Mapped[str | None] = mapped_column(String(64))
+    remote_mp4_key: Mapped[str | None] = mapped_column(String(200))  # the MP4 sent as `remote_id`
+    # Set before Facebook is asked to publish `remote_id`: from then on it may go live even if the answer was lost.
+    finish_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class MusicTrack(Base):
@@ -172,7 +206,8 @@ class MusicTrack(Base):
 
 
 class Setting(Base):
-    """The prompts and banned words before knowledge_topics; no longer read, kept so a rollback finds them."""
+    """Values entered in the app: the Facebook Page (page_settings.py). The rows of the prompts and banned words
+    from before knowledge_topics are no longer read, and stay so a rollback finds them."""
 
     __tablename__ = "settings"
 
