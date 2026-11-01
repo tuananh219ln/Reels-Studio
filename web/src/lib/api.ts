@@ -157,6 +157,12 @@ export type VideoOptions = {
   /** The *marked* words' colour: "auto" or "#RRGGBB". */
   accent_color: string;
   box_opacity: "auto" | "solid" | "soft" | "clear" | "none";
+  /** The title scene's own look, like the five above; "same" follows the scenes (or title_style "yellow"). */
+  title_text_style: "same" | VideoOptions["text_style"];
+  title_text_color: string;
+  title_box_color: string;
+  title_accent_color: string;
+  title_box_opacity: VideoOptions["box_opacity"];
   captions: "off" | "phrase" | "word";
 };
 

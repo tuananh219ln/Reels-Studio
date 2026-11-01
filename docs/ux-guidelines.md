@@ -63,7 +63,12 @@ Built:
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
     Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
-    Mạnh); "Chữ & phụ đề" (Kiểu hộp chữ chosen from small 9:16 previews: Không hộp, then the team's
+    Mạnh); "Chữ & phụ đề" (a "Chỉnh chữ cho" switch at the top, Các cảnh or Tiêu đề: Tiêu đề shows
+    "Tiêu đề giống các cảnh", ticked by default (and unticked, with the yellow box, for a video made
+    with the older "Hộp vàng"); unticking starts the title's own look from the scenes' and shows the
+    same cards and colour rows for the title only; ticking it again drops the title's look; the
+    captions are shown under Các cảnh only, with a note that the title is the thumbnail. For each, the
+    Kiểu hộp chữ chosen from small 9:16 previews: Không hộp, then the team's
     own box styles, then a dashed "+ Thêm kiểu" card opening "Thêm kiểu hộp chữ" (Tên kiểu, Màu nền
     hộp, Độ trong của hộp: Đặc, Hơi trong, Trong, Không nền; Màu chữ; Màu chữ đánh dấu, with a live sample and the
     readability warnings); a new style is picked at once; under the cards the picked style's name with
@@ -224,9 +229,10 @@ relied on (samples in the PR that added them).
   RGB distance 100 of the text or below contrast 3 on the box, then the style's alternate (black on
   Vàng/Trắng, white on Tối/Đỏ, red without a box), then red, yellow, white or black. Near-black letters
   (luminance under 0.05) without a box get a white outline. The thumbnail and the scene previews are
-  drawn in the chosen style and colours. **Kiểu tiêu đề:** Giống cảnh (the default: the title scene
-  follows the choices above), Hộp vàng (the title keeps the original yellow box and black text
-  whatever the scenes use, for example yellow letters with a black outline on the scenes).
+  drawn in the chosen style and colours. **The title's look:** by default the title scene follows the
+  choices above; it can instead have a look of its own (style, colours and opacity, the same choices
+  as the scenes'), which wins over everything else. Videos made with the older "Kiểu tiêu đề: Hộp
+  vàng" keep the original yellow box and black text on the title, whatever the scenes use.
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
   the speed (ElevenLabs `speed` 0.9 / 1.0 / 1.1), the level (0–100%), and "Nhỏ nhạc khi có giọng
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).

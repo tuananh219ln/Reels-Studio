@@ -20,12 +20,10 @@ from .textbox import (
     TextFitError,
     empty_box,
     layout_text,
-    palette_for,
     render_box,
     render_caption,
     scene_box_position,
     title_box_position,
-    title_palette,
 )
 from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
@@ -68,9 +66,7 @@ def render_video(
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
     spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
-    colours = (options.box_color, options.accent_color, options.box_opacity)
-    palette = palette_for(options.text_style, options.text_color, *colours)
-    first_palette = title_palette(options.text_style, options.text_color, options.title_style, *colours)
+    palette, first_palette = options.scene_palette(), options.title_palette()
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
