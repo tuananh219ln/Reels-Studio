@@ -17,9 +17,7 @@ depends_on = None
 
 def upgrade() -> None:
     # Only new nullable or defaulted columns: the previous api version keeps working during a deploy.
-    op.add_column(
-        "scenes", sa.Column("keywords_en", postgresql.JSONB(), server_default="[]", nullable=False)
-    )
+    op.add_column("scenes", sa.Column("keywords_en", postgresql.JSONB(), server_default="[]", nullable=False))
 
 
 def downgrade() -> None:
