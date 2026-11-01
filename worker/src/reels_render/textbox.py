@@ -31,9 +31,12 @@ class Palette:
     outline: str | None = None
 
 
-# The text box styles members choose from (options.TEXT_STYLES). "yellow" is the original template.
+# The text box styles (options.TEXT_STYLES). "yellow" is the original template; "box" is the team's own box
+# styles, drawn from the colours a video copies from one, and is the yellow box while none are chosen. The page
+# offers only "box" and "none"; the other boxes stay for videos made before.
 PALETTES = {
     "yellow": Palette(BOX_COLOR, TEXT_COLOR, RED_COLOR),
+    "box": Palette(BOX_COLOR, TEXT_COLOR, RED_COLOR),
     "white": Palette("#FFFFFF", TEXT_COLOR, RED_COLOR),
     "dark": Palette((17, 17, 17, 224), "#FFFFFF", "#FFD60A"),
     "red": Palette("#E10600", "#FFFFFF", "#FFD60A"),
@@ -42,8 +45,18 @@ PALETTES = {
 # The named text colours (options.TEXT_COLORS): each is the same as its hex value.
 TEXT_COLORS = {"white": "#FFFFFF", "black": TEXT_COLOR, "yellow": BOX_COLOR, "red": RED_COLOR}
 # Marked words take this colour when the style's own would vanish into the text or the box.
-ALTERNATE_ACCENTS = {"yellow": TEXT_COLOR, "white": TEXT_COLOR, "dark": "#FFFFFF", "red": "#FFFFFF", "none": RED_COLOR}
+ALTERNATE_ACCENTS = {
+    "yellow": TEXT_COLOR,
+    "box": TEXT_COLOR,
+    "white": TEXT_COLOR,
+    "dark": "#FFFFFF",
+    "red": "#FFFFFF",
+    "none": RED_COLOR,
+}
 FALLBACK_ACCENTS = (RED_COLOR, BOX_COLOR, "#FFFFFF", TEXT_COLOR)
+# How much of the photo shows through a box (options.BOX_OPACITIES); "auto" keeps the style's own, and "none"
+# (no background) draws the letters outlined as without a box, the box colour becoming the outline's.
+BOX_ALPHAS = {"solid": 255, "soft": 224, "clear": 178}
 OUTLINE_RATIO = 0.09  # of the font size, for letters without a box
 DARK_LETTERS = 0.05  # relative luminance under which outlined letters get a white outline
 MIN_ACCENT_CONTRAST = 3.0  # marked words against their box (or outline)
@@ -86,13 +99,19 @@ def _auto_accent(text_style: str, text: str, ground: str | tuple[int, ...]) -> s
 
 
 def palette_for(
-    text_style: str, text_color: str = "auto", box_color: str = "auto", accent_color: str = "auto"
+    text_style: str,
+    text_color: str = "auto",
+    box_color: str = "auto",
+    accent_color: str = "auto",
+    box_opacity: str = "auto",
 ) -> Palette:
     """The style's palette with the chosen colours, each "auto" (the style's own), a named colour or a hex one.
 
     Every choice is drawn as chosen, faint or not (the page warns about faint ones). Without a box the box colour
     is the outline's. Marked words left on "auto" keep a colour that differs from the text and reads on the box.
     """
+    if box_opacity == "none":
+        text_style, box_opacity = "none", "auto"
     base = PALETTES[text_style]
     text = base.text if text_color == "auto" else TEXT_COLORS.get(text_color, text_color).upper()
     if base.box is None:
@@ -102,20 +121,27 @@ def palette_for(
             outline = "#FFFFFF" if luminance(text) < DARK_LETTERS else base.outline
         box, ground = None, outline
     else:
-        box = base.box
-        if box_color != "auto":
-            box = box_color.upper() if isinstance(base.box, str) else (*rgb(box_color), base.box[3])
+        colour = base.box if box_color == "auto" else box_color.upper()
+        own_alpha = 255 if isinstance(base.box, str) else base.box[3]
+        alpha = own_alpha if box_opacity == "auto" else BOX_ALPHAS[box_opacity]
+        # A solid box from a hex colour stays a hex string, as the styles' own are.
+        box = colour if isinstance(colour, str) and alpha == 255 else (*rgb(colour), alpha)
         outline, ground = None, box
     accent = accent_color.upper() if accent_color != "auto" else _auto_accent(text_style, text, ground)
     return Palette(box, text, accent, outline)
 
 
 def title_palette(
-    text_style: str, text_color: str, title_style: str, box_color: str = "auto", accent_color: str = "auto"
+    text_style: str,
+    text_color: str,
+    title_style: str,
+    box_color: str = "auto",
+    accent_color: str = "auto",
+    box_opacity: str = "auto",
 ) -> Palette:
     """The title scene's palette: its own box style, or the one every scene uses."""
     if title_style == "same":
-        return palette_for(text_style, text_color, box_color, accent_color)
+        return palette_for(text_style, text_color, box_color, accent_color, box_opacity)
     return PALETTES[title_style]
 
 

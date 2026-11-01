@@ -63,11 +63,23 @@ Built:
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
     Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
-    Mạnh); "Chữ & phụ đề" (Kiểu hộp chữ chosen from five small 9:16 previews, Vàng, Trắng, Tối, Đỏ,
-    Không hộp; then three colour rows, Màu chữ, Màu chữ đánh dấu and Màu nền hộp (Màu viền chữ for
+    Mạnh); "Chữ & phụ đề" (a "Chỉnh chữ cho" switch at the top, Các cảnh or Tiêu đề: Tiêu đề shows
+    "Tiêu đề giống các cảnh", ticked by default (and unticked, with the yellow box, for a video made
+    with the older "Hộp vàng"); unticking starts the title's own look from the scenes' and shows the
+    same cards and colour rows for the title only; ticking it again drops the title's look; the
+    captions are shown under Các cảnh only, with a note that the title is the thumbnail. For each, the
+    Kiểu hộp chữ chosen from small 9:16 previews: Không hộp, then the team's
+    own box styles, then a dashed "+ Thêm kiểu" card opening "Thêm kiểu hộp chữ" (Tên kiểu, Màu nền
+    hộp, Độ trong của hộp: Đặc, Hơi trong, Trong, Không nền; Màu chữ; Màu chữ đánh dấu, with a live sample and the
+    readability warnings); a new style is picked at once; under the cards the picked style's name with
+    "Sửa kiểu" and "Xoá kiểu" (confirmed: "Video đã dùng kiểu này vẫn giữ màu của nó."); the styles are
+    shared by the whole team and a video keeps a copy of the colours, so editing or deleting a style
+    never changes a video; then three colour rows, Màu chữ, Màu chữ đánh dấu and Màu nền hộp (Màu viền chữ for
     Không hộp), each with Theo kiểu, eight swatches (Trắng, Đen, Vàng, Đỏ, Cam, Xanh lá, Xanh dương,
     Hồng) and "Tuỳ chỉnh" opening a colour picker; a faint pair is allowed with a warning under the
-    rows ("Chữ khó đọc trên nền hộp này. …"); picking a box style puts the box colour back to Theo kiểu;
+    rows ("Chữ khó đọc trên nền hộp này. …"); Độ trong của hộp (Theo kiểu, Đặc, Hơi trong, Trong, Không nền) while
+    the style has a box, Không nền turning the box colour row into Màu viền chữ; these rows change only the video (or the defaults), not the team style, whose card
+    is then no longer marked; picking Không hộp puts the box colour and opacity back to Theo kiểu;
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and "Lấy
     theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
     with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
@@ -204,7 +216,10 @@ relied on (samples in the PR that added them).
   same for all three.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
-- **Text box:** Vàng (the default above), Trắng (white box, black text, red keywords), Tối (near-black
+- **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied
+  into the video; with nothing chosen it is the yellow box) or Không hộp. Opacity: Đặc 100%, Hơi
+  trong 88%, Trong 70%, Không nền (drawn exactly as Không hộp, the box colour as the outline's). The older presets below are no longer offered on the page and stay only so
+  videos made with them render as before: Vàng (the default above), Trắng (white box, black text, red keywords), Tối (near-black
   box at 88%, white text, yellow keywords), Đỏ (`#E10600` box, white text, yellow keywords), Không
   hộp (white letters with a black outline 9% of the font size, yellow keywords). **Colours:** the
   text, the keywords and the box (the outline without a box) are each Theo kiểu (the style's own) or
@@ -214,9 +229,10 @@ relied on (samples in the PR that added them).
   RGB distance 100 of the text or below contrast 3 on the box, then the style's alternate (black on
   Vàng/Trắng, white on Tối/Đỏ, red without a box), then red, yellow, white or black. Near-black letters
   (luminance under 0.05) without a box get a white outline. The thumbnail and the scene previews are
-  drawn in the chosen style and colours. **Kiểu tiêu đề:** Giống cảnh (the default: the title scene
-  follows the choices above), Hộp vàng (the title keeps the original yellow box and black text
-  whatever the scenes use, for example yellow letters with a black outline on the scenes).
+  drawn in the chosen style and colours. **The title's look:** by default the title scene follows the
+  choices above; it can instead have a look of its own (style, colours and opacity, the same choices
+  as the scenes'), which wins over everything else. Videos made with the older "Kiểu tiêu đề: Hộp
+  vàng" keep the original yellow box and black text on the title, whatever the scenes use.
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
   the speed (ElevenLabs `speed` 0.9 / 1.0 / 1.1), the level (0–100%), and "Nhỏ nhạc khi có giọng
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).

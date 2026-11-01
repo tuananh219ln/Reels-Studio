@@ -147,7 +147,8 @@ export type VideoOptions = {
   transition: "fade" | "cut" | "slide";
   motion: "zoom_in" | "zoom_out" | "pan" | "static";
   zoom: "light" | "medium" | "strong";
-  text_style: "yellow" | "white" | "dark" | "red" | "none";
+  /** "box": a team box style's copied colours; yellow, white, dark and red are kept for older videos. */
+  text_style: "yellow" | "white" | "dark" | "red" | "box" | "none";
   /** "auto", a named colour (older videos) or "#RRGGBB". */
   text_color: string;
   title_style: "same" | "yellow";
@@ -155,7 +156,24 @@ export type VideoOptions = {
   box_color: string;
   /** The *marked* words' colour: "auto" or "#RRGGBB". */
   accent_color: string;
+  box_opacity: "auto" | "solid" | "soft" | "clear" | "none";
+  /** The title scene's own look, like the five above; "same" follows the scenes (or title_style "yellow"). */
+  title_text_style: "same" | VideoOptions["text_style"];
+  title_text_color: string;
+  title_box_color: string;
+  title_accent_color: string;
+  title_box_opacity: VideoOptions["box_opacity"];
   captions: "off" | "phrase" | "word";
+};
+
+/** One of the team's text box styles (Cài đặt, shared); a video copies its colours. */
+export type TextBoxStyle = {
+  id: string;
+  name: string;
+  box_color: string;
+  box_opacity: "solid" | "soft" | "clear" | "none";
+  text_color: string;
+  accent_color: string;
 };
 
 /** What a new video starts with (Cài đặt › Thiết lập mặc định). */

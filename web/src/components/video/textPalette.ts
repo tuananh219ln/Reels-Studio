@@ -23,12 +23,31 @@ export const STYLES: {
   { value: "white", label: "Trắng", box: WHITE, alpha: 1, text: BLACK, accent: RED },
   { value: "dark", label: "Tối", box: BLACK, alpha: 224 / 255, text: WHITE, accent: YELLOW },
   { value: "red", label: "Đỏ", box: RED, alpha: 1, text: WHITE, accent: YELLOW },
+  // A team box style's colours, copied into the video; the yellow box while none are chosen.
+  { value: "box", label: "Hộp", box: YELLOW, alpha: 1, text: BLACK, accent: RED },
   { value: "none", label: "Không hộp", box: null, alpha: 0, text: WHITE, accent: YELLOW },
 ];
 
 /** The named text colours stored before custom ones existed; each is its hex value. */
 const NAMED: Record<string, string> = { white: WHITE, black: BLACK, yellow: YELLOW, red: RED };
-const ALTERNATE: Record<Style, string> = { yellow: BLACK, white: BLACK, dark: WHITE, red: WHITE, none: RED };
+const ALTERNATE: Record<Style, string> = {
+  yellow: BLACK,
+  white: BLACK,
+  dark: WHITE,
+  red: WHITE,
+  box: BLACK,
+  none: RED,
+};
+
+export type Opacity = VideoOptions["box_opacity"];
+/** How much of the photo shows through a box (textbox.BOX_ALPHAS); "auto" keeps the style's own. */
+export const OPACITIES: { value: Exclude<Opacity, "auto">; label: string; alpha: number }[] = [
+  { value: "solid", label: "Đặc", alpha: 1 },
+  { value: "soft", label: "Hơi trong", alpha: 224 / 255 },
+  { value: "clear", label: "Trong", alpha: 178 / 255 },
+  // No background: drawn like Không hộp, the box colour becoming the outline's.
+  { value: "none", label: "Không nền", alpha: 0 },
+];
 const FALLBACK = [RED, YELLOW, WHITE, BLACK];
 
 /** The colours offered as swatches; any other comes from the colour picker. */
@@ -86,7 +105,11 @@ export function palette(
   textColor: string = "auto",
   boxColor: string = "auto",
   accentColor: string = "auto",
+  opacity: Opacity = "auto",
 ): Drawn {
+  if (opacity === "none") {
+    return palette("none", textColor, boxColor, accentColor);
+  }
   // An unknown style (e.g. from an api older than the page) draws the original yellow box.
   const base = STYLES.find((item) => item.value === style) ?? STYLES[0];
   const text = toHex(textColor) ?? base.text;
@@ -99,7 +122,8 @@ export function palette(
   } else {
     ground = toHex(boxColor) ?? base.box;
     const [r, g, b] = rgb(ground);
-    box = base.alpha < 1 ? `rgba(${r},${g},${b},${base.alpha.toFixed(2)})` : ground;
+    const alpha = OPACITIES.find((item) => item.value === opacity)?.alpha ?? base.alpha;
+    box = alpha < 1 ? `rgba(${r},${g},${b},${alpha.toFixed(2)})` : ground;
   }
   const accent =
     toHex(accentColor) ??

@@ -1,23 +1,13 @@
 "use client";
 
 import { PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
-import {
-  Button,
-  Card,
-  Checkbox,
-  ColorPicker,
-  Flex,
-  Segmented,
-  Select,
-  Slider,
-  Switch,
-  Tooltip,
-  Typography,
-} from "antd";
+import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice } from "@/lib/api";
-import { palette, STYLES, SWATCHES, toHex, warnings, type Style } from "./textPalette";
+import { ColorChoice } from "./textControls";
+import { OPACITIES, palette, warnings } from "./textPalette";
+import { TextStyleCards } from "./TextStyleCards";
 
 /** The values these sections edit: a video's options plus its narration switch (and, for defaults, music level). */
 export type SettingsValues = VideoOptions & { voice_enabled: boolean; music_volume?: number };
@@ -54,141 +44,6 @@ const CAPTIONS = [
   { value: "phrase", label: "Từng cụm" },
   { value: "word", label: "Từng từ" },
 ];
-const TITLE_STYLES: { value: VideoOptions["title_style"]; label: string }[] = [
-  { value: "same", label: "Giống cảnh" },
-  { value: "yellow", label: "Hộp vàng" },
-];
-function Sample({ style, textColor, accentColor }: { style: Style; textColor: string; accentColor: string }) {
-  const drawn = palette(style, textColor, "auto", accentColor);
-  const stroke = drawn.outline
-    ? [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((y) => `${x}px ${y}px 0 ${drawn.outline}`)).join(", ")
-    : undefined;
-  return (
-    <div
-      style={{
-        aspectRatio: "9 / 16",
-        borderRadius: 6,
-        background: "linear-gradient(160deg, #9bb57a 0%, #c98b4b 55%, #6d4b2f 100%)",
-        display: "flex",
-        alignItems: "flex-end",
-        justifyContent: "center",
-        paddingBottom: 18,
-      }}
-    >
-      <span
-        style={{
-          background: drawn.box ?? "none",
-          color: drawn.text,
-          textShadow: stroke,
-          fontWeight: 900,
-          fontSize: 9,
-          lineHeight: 1.2,
-          padding: "3px 5px",
-          borderRadius: 3,
-          textAlign: "center",
-        }}
-      >
-        CÁ NHỎ
-        <br />
-        <span style={{ color: drawn.accent }}>CANXI</span>
-      </span>
-    </div>
-  );
-}
-
-/** One colour: the style's own, a swatch, or any colour from the picker; `name` prefixes each choice's label. */
-function ColorChoice({
-  name,
-  value,
-  onChange,
-  disabled,
-}: {
-  name: string;
-  value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
-}) {
-  const hex = toHex(value);
-  const custom = hex !== null && !SWATCHES.some((swatch) => swatch.hex === hex);
-  const ring = (checked: boolean) => ({
-    border: `1px solid ${checked ? "#1677ff" : "#d9d9d9"}`,
-    boxShadow: checked ? "0 0 0 1px #1677ff" : undefined,
-    cursor: disabled ? "not-allowed" : "pointer",
-  });
-  return (
-    <Flex wrap gap={8} align="center" role="radiogroup" aria-label={name}>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={hex === null}
-        aria-label={`${name} Theo kiểu`}
-        disabled={disabled}
-        onClick={() => onChange("auto")}
-        style={{ ...ring(hex === null), padding: "3px 10px", borderRadius: 6, background: "none" }}
-      >
-        <Typography.Text style={{ fontSize: 13 }}>Theo kiểu</Typography.Text>
-      </button>
-      {SWATCHES.map((swatch) => (
-        <Tooltip key={swatch.hex} title={swatch.label}>
-          <button
-            type="button"
-            role="radio"
-            aria-checked={hex === swatch.hex}
-            aria-label={`${name} ${swatch.label}`}
-            disabled={disabled}
-            onClick={() => onChange(swatch.hex)}
-            style={{
-              ...ring(hex === swatch.hex),
-              width: 26,
-              height: 26,
-              padding: 0,
-              borderRadius: "50%",
-              background: swatch.hex,
-              outline: "1px solid rgba(0,0,0,0.15)",
-              outlineOffset: -3,
-            }}
-          />
-        </Tooltip>
-      ))}
-      <ColorPicker
-        value={hex ?? "#FFFFFF"}
-        disabled={disabled}
-        disabledAlpha
-        disabledFormat
-        onChangeComplete={(color) => onChange(color.toHexString().toUpperCase())}
-      >
-        <button
-          type="button"
-          role="radio"
-          aria-checked={custom}
-          aria-label={`${name} Tuỳ chỉnh`}
-          disabled={disabled}
-          style={{
-            ...ring(custom),
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "3px 10px",
-            borderRadius: 6,
-            background: "none",
-          }}
-        >
-          <span
-            style={{
-              width: 14,
-              height: 14,
-              borderRadius: "50%",
-              background: custom ? hex : "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
-              border: "1px solid rgba(0,0,0,0.25)",
-            }}
-          />
-          <Typography.Text style={{ fontSize: 13 }}>{custom ? hex : "Tuỳ chỉnh"}</Typography.Text>
-        </button>
-      </ColorPicker>
-    </Flex>
-  );
-}
-
 let voiceCache: Promise<{ default_id: string; voices: Voice[] }> | null = null;
 
 /** The ElevenLabs voices, fetched once per page load. */
@@ -379,99 +234,186 @@ export function MotionSettings({ values, onChange, disabled }: Props) {
 }
 
 /** The text box style, chosen from small previews, its colours, and the narration captions. */
-export function TextSettings({ values, onChange, disabled }: Props) {
-  const hasBox = values.text_style !== "none";
+type Look = Pick<VideoOptions, "text_style" | "text_color" | "box_color" | "accent_color" | "box_opacity">;
+const TITLE_FIELDS = {
+  text_style: "title_text_style",
+  text_color: "title_text_color",
+  box_color: "title_box_color",
+  accent_color: "title_accent_color",
+  box_opacity: "title_box_opacity",
+} as const;
+const AUTO_TITLE = {
+  title_text_style: "same",
+  title_text_color: "auto",
+  title_box_color: "auto",
+  title_accent_color: "auto",
+  title_box_opacity: "auto",
+} as const;
+
+const sceneLook = (values: SettingsValues): Look => ({
+  text_style: values.text_style,
+  text_color: values.text_color,
+  box_color: values.box_color,
+  accent_color: values.accent_color,
+  box_opacity: values.box_opacity,
+});
+
+/** What the title is drawn with (RenderOptions.title_palette): its own look, the old yellow box, or the scenes'. */
+function titleLook(values: SettingsValues): Look {
+  // An api older than the page leaves the title fields out: the title then follows the older choices.
+  if (values.title_text_style && values.title_text_style !== "same") {
+    return {
+      text_style: values.title_text_style,
+      text_color: values.title_text_color,
+      box_color: values.title_box_color,
+      accent_color: values.title_accent_color,
+      box_opacity: values.title_box_opacity,
+    };
+  }
+  if (values.title_style === "yellow") {
+    return { text_style: "yellow", text_color: "auto", box_color: "auto", accent_color: "auto", box_opacity: "auto" };
+  }
+  return sceneLook(values);
+}
+
+/** The title's own look as options; the older "Hộp vàng" choice gives way to it. */
+const asTitle = (look: Look): Partial<VideoOptions> => ({
+  title_style: "same",
+  ...Object.fromEntries(Object.entries(look).map(([name, value]) => [TITLE_FIELDS[name as keyof Look], value])),
+});
+
+/** The style cards and colour rows for one look: the content scenes', or the title's own. */
+function LookControls({
+  look,
+  onChange,
+  disabled,
+}: {
+  look: Look;
+  onChange: (changes: Partial<Look>) => void;
+  disabled?: boolean;
+}) {
+  const hasBox = look.text_style !== "none" && look.box_opacity !== "none";
   const problems = warnings(
-    palette(values.text_style, values.text_color, values.box_color, values.accent_color),
+    palette(look.text_style, look.text_color, look.box_color, look.accent_color, look.box_opacity),
     hasBox,
   );
   return (
+    <>
+      <Field label="Kiểu hộp chữ" hint="Kiểu dùng chung cả đội. Chỉnh màu bên dưới không làm đổi kiểu.">
+        <TextStyleCards values={look} onChange={onChange} disabled={disabled} />
+      </Field>
+      <Field label="Màu chữ">
+        <ColorChoice
+          name="Màu"
+          value={look.text_color}
+          disabled={disabled}
+          onChange={(text_color) => onChange({ text_color })}
+        />
+      </Field>
+      <Field label="Màu chữ đánh dấu" hint="Chữ đánh dấu *như thế này*; “Theo kiểu” tự giữ một màu khác chữ thường.">
+        <ColorChoice
+          name="Đánh dấu"
+          value={look.accent_color}
+          disabled={disabled}
+          onChange={(accent_color) => onChange({ accent_color })}
+        />
+      </Field>
+      <Field label={hasBox ? "Màu nền hộp" : "Màu viền chữ"}>
+        <ColorChoice
+          name={hasBox ? "Nền" : "Viền"}
+          value={look.box_color}
+          disabled={disabled}
+          onChange={(box_color) => onChange({ box_color })}
+        />
+      </Field>
+      {look.text_style !== "none" && (
+        <Field label="Độ trong của hộp" hint="Không nền: chữ có viền như Không hộp, màu nền thành màu viền.">
+          <Segmented
+            aria-label="Độ trong của hộp"
+            // Five choices outgrow a phone: they scroll inside instead of widening the page.
+            style={{ maxWidth: "100%", overflowX: "auto" }}
+            options={[
+              { value: "auto", label: "Theo kiểu" },
+              ...OPACITIES.map(({ value, label }) => ({ value, label })),
+            ]}
+            value={look.box_opacity}
+            disabled={disabled}
+            onChange={(box_opacity) => onChange({ box_opacity: box_opacity as VideoOptions["box_opacity"] })}
+          />
+        </Field>
+      )}
+      {problems.length > 0 && (
+        <Typography.Text type="warning" data-testid="color-warning">
+          {problems.join(" ")} Vẫn render được, nhưng nên chọn màu khác.
+        </Typography.Text>
+      )}
+    </>
+  );
+}
+
+/** The text boxes (the content scenes', and the title's when it has its own look) and the narration captions. */
+export function TextSettings({ values, onChange, disabled }: Props) {
+  const [target, setTarget] = useState<"scenes" | "title">("scenes");
+  const title = titleLook(values);
+  const followsScenes =
+    (!values.title_text_style || values.title_text_style === "same") && values.title_style !== "yellow";
+  return (
     <Card title="Chữ & phụ đề" size="small" data-testid="text-settings">
       <Flex vertical gap={14}>
-        <Field label="Kiểu hộp chữ">
-          <Flex wrap gap={10} role="radiogroup" aria-label="Kiểu hộp chữ">
-            {STYLES.map((style) => {
-              const checked = values.text_style === style.value;
-              return (
-                <button
-                  key={style.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={checked}
-                  aria-label={`Kiểu ${style.label}`}
-                  disabled={disabled}
-                  // The style brings its own box (or outline); the text colours stay.
-                  onClick={() => onChange({ text_style: style.value, box_color: "auto" })}
-                  style={{
-                    width: 64,
-                    padding: 0,
-                    border: `2px solid ${checked ? "#1677ff" : "transparent"}`,
-                    borderRadius: 8,
-                    background: "none",
-                    cursor: disabled ? "not-allowed" : "pointer",
-                  }}
-                >
-                  <Sample style={style.value} textColor={values.text_color} accentColor={values.accent_color} />
-                  <Typography.Text style={{ fontSize: 12 }}>{style.label}</Typography.Text>
-                </button>
-              );
-            })}
-          </Flex>
-        </Field>
-        <Field label="Kiểu tiêu đề" hint="Hộp vàng giữ tiêu đề dễ đọc dù các cảnh dùng kiểu khác.">
-          <Segmented
-            aria-label="Kiểu tiêu đề"
-            options={TITLE_STYLES}
-            value={values.title_style}
-            disabled={disabled}
-            onChange={(title_style) => onChange({ title_style: title_style as VideoOptions["title_style"] })}
-          />
-        </Field>
-        <Field label="Màu chữ">
-          <ColorChoice
-            name="Màu"
-            value={values.text_color}
-            disabled={disabled}
-            onChange={(text_color) => onChange({ text_color })}
-          />
-        </Field>
-        <Field label="Màu chữ đánh dấu" hint="Chữ đánh dấu *như thế này*; “Theo kiểu” tự giữ một màu khác chữ thường.">
-          <ColorChoice
-            name="Đánh dấu"
-            value={values.accent_color}
-            disabled={disabled}
-            onChange={(accent_color) => onChange({ accent_color })}
-          />
-        </Field>
-        <Field label={hasBox ? "Màu nền hộp" : "Màu viền chữ"}>
-          <ColorChoice
-            name={hasBox ? "Nền" : "Viền"}
-            value={values.box_color}
-            disabled={disabled}
-            onChange={(box_color) => onChange({ box_color })}
-          />
-        </Field>
-        {problems.length > 0 && (
-          <Typography.Text type="warning" data-testid="color-warning">
-            {problems.join(" ")} Vẫn render được, nhưng nên chọn màu khác.
-          </Typography.Text>
+        <Segmented
+          aria-label="Chỉnh chữ cho"
+          block
+          options={[
+            { value: "scenes", label: "Các cảnh" },
+            { value: "title", label: "Tiêu đề" },
+          ]}
+          value={target}
+          onChange={(value) => setTarget(value as "scenes" | "title")}
+        />
+        {target === "scenes" ? (
+          <>
+            <LookControls look={sceneLook(values)} onChange={onChange} disabled={disabled} />
+            <Field
+              label="Phụ đề theo giọng đọc"
+              hint={
+                values.voice_enabled
+                  ? "Chữ trắng trên nền tối, ngay trên hộp chữ của cảnh; “Từng từ” tô vàng từ đang đọc."
+                  : "Cần bật giọng đọc."
+              }
+            >
+              <Segmented
+                aria-label="Phụ đề theo giọng đọc"
+                options={CAPTIONS}
+                value={values.captions}
+                disabled={disabled || !values.voice_enabled}
+                onChange={(captions) => onChange({ captions: captions as VideoOptions["captions"] })}
+              />
+            </Field>
+          </>
+        ) : (
+          <>
+            <Checkbox
+              checked={followsScenes}
+              disabled={disabled}
+              // Leaving the scenes' look starts the title from it; going back drops the title's own.
+              onChange={(event) =>
+                onChange(event.target.checked ? { title_style: "same", ...AUTO_TITLE } : asTitle(title))
+              }
+            >
+              Tiêu đề giống các cảnh
+            </Checkbox>
+            {!followsScenes && (
+              <LookControls
+                look={title}
+                onChange={(changes) => onChange(asTitle({ ...title, ...changes }))}
+                disabled={disabled}
+              />
+            )}
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Tiêu đề cũng là ảnh thumbnail của video. Phụ đề không hiện trên cảnh tiêu đề.
+            </Typography.Text>
+          </>
         )}
-        <Field
-          label="Phụ đề theo giọng đọc"
-          hint={
-            values.voice_enabled
-              ? "Chữ trắng trên nền tối, ngay trên hộp chữ của cảnh; “Từng từ” tô vàng từ đang đọc."
-              : "Cần bật giọng đọc."
-          }
-        >
-          <Segmented
-            aria-label="Phụ đề theo giọng đọc"
-            options={CAPTIONS}
-            value={values.captions}
-            disabled={disabled || !values.voice_enabled}
-            onChange={(captions) => onChange({ captions: captions as VideoOptions["captions"] })}
-          />
-        </Field>
       </Flex>
     </Card>
   );
