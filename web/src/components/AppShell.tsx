@@ -4,6 +4,7 @@ import {
   BookOutlined,
   CalendarOutlined,
   ClockCircleOutlined,
+  ControlOutlined,
   CustomerServiceOutlined,
   KeyOutlined,
   LogoutOutlined,
@@ -11,7 +12,9 @@ import {
   EditOutlined,
   FacebookOutlined,
   NotificationOutlined,
+  PictureOutlined,
   PlaySquareOutlined,
+  RobotOutlined,
   SettingOutlined,
   ShoppingOutlined,
   TeamOutlined,
@@ -50,7 +53,12 @@ const NAV = [
     key: SETTINGS_GROUP,
     icon: <SettingOutlined />,
     label: "Cài đặt",
-    children: [{ key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" }],
+    children: [
+      { key: "/settings/defaults", icon: <ControlOutlined />, label: "Thiết lập mặc định" },
+      { key: "/settings/ai", icon: <RobotOutlined />, label: "Mô hình AI" },
+      { key: "/settings/sources", icon: <PictureOutlined />, label: "Nguồn tư liệu" },
+      { key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" },
+    ],
   },
 ];
 

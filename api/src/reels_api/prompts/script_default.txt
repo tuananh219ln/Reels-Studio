@@ -9,7 +9,7 @@ Format: danh sách [5] món, 30–45 giây.
 Trả về:
 1. 5 tiêu đề theo công thức trong 02_thu-vien-tieu-de.md
 2. Bảng cảnh: số cảnh | giây | chữ trên màn hình (≤ 10 từ) | hình cần quay
-3. Caption 80–120 từ + 5 hashtag
+3. Caption khoảng 3 dòng ngắn (câu mở gây tò mò, tóm tắt các món, lời kêu gọi bình luận) + 5 hashtag
 4. Prompt tạo ảnh 9:16 cho từng cảnh (phong cách ảnh thực, ánh sáng tự nhiên,
 bàn gỗ)
 5. 2 sản phẩm affiliate phù hợp + câu bình luận ghim

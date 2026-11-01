@@ -81,7 +81,7 @@ export default function PostContent({ video }: { video: VideoDetail }) {
             Copy gợi ý nhạc
           </Button>
         </Flex>
-        <Typography.Text strong>Tự rà soát an toàn của Claude</Typography.Text>
+        <Typography.Text strong>Tự rà soát an toàn của AI</Typography.Text>
         {video.self_review.length ? (
           <ul style={{ margin: "4px 0 0", paddingLeft: 20 }} data-testid="self-review">
             {video.self_review.map((item) => (

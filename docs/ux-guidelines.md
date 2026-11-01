@@ -19,22 +19,56 @@ field, the scene, or the job banner); technical detail sits in a collapsed "Chi 
 Built:
 
 - **Login** and **user management**.
+- **Tạo video** (on the video list): topic group, topic, and a line naming the provider and model
+  that will write the script ("Viết bằng: … (đổi trong Cài đặt)"), in red with a link when that
+  provider is not set up.
 - **Video list** (`/videos`): thumbnail (the title-scene preview, or a grey tile with the title or
   topic), title, status (Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) with the labels "MP4
   chưa cập nhật theo bản sửa" and "Render lại lỗi", creator, date, search by title or topic,
   "Tạo video".
-- **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit:
-  - choose 1 of 5 titles; edit the title scene and every content scene (text with `*word*` in
+- **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
+  The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
+  and "Đăng Facebook"), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
+  đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
+  and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
+  "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
+  counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
+  one when clicked. The editor has:
+  - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
+    viết bởi …"); edit the title scene and every content scene (text with `*word*` in
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red; photo by upload, or a
     video clip by "Tải video lên" with its start time;
-  - blocking reasons in red at the scene, warnings in yellow; "Render" is disabled until nothing
+  - per scene (title included) a "Từ khóa tìm ảnh" field and two Pixabay buttons: "Chọn từ
+    Pixabay" opens a dialog with the scene's first keyword already searched (editable, Enter
+    searches again) and every result as a thumbnail grid that fits the screen (two columns on a
+    phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
+    it first in the scene's keywords. "Tìm ảnh" ("Tìm ảnh khác" once the scene has a photo) takes
+    the next result for the saved keywords from the source named on the button (Pixabay until another
+    is picked from the arrow menu beside it). The picker's source tab stays as chosen while the page
+    polls. Each scene shows its own spinner and the api's
+    message word for word; without keywords it also points to the keyword field. The dialog (now
+    "Chọn từ kho ảnh/video") has an "Ảnh | Video" switch when a source offers clips: "Video" lists
+    vertical stock clips from Pexels and Pixabay (English keyword first) as 9:16 stills with their
+    length, playing muted when pointed at; clicking one stores it as the scene's clip, like
+    "Tải video lên", in place of its photo or clip. Sources turned off on Nguồn tư liệu are left out;
+  - blocking reasons in red at the scene, warnings in yellow; a scene with neither a photo nor photo
+    keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
-  - the "Giọng đọc" switch (narration on/off); optional music, chosen from the library ("Chọn từ
-    thư viện", filtered by topic, mood, and name) or uploaded as an MP3 (optionally saved to the
-    library with its topics and mood), with a volume slider; MP4 player, "Tải MP4", and the render time;
+  - the "Thiết lập" tab, every change saved at once: "Âm thanh" (narration on/off, the ElevenLabs
+    voice picked from the account's voices with "Nghe thử" playing ElevenLabs' free sample, speed
+    Chậm/Vừa/Nhanh, voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
+    ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
+    the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
+    Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
+    Mạnh); "Chữ & phụ đề" (Kiểu hộp chữ chosen from five small 9:16 previews, Vàng, Trắng, Tối, Đỏ,
+    Không hộp; Màu chữ: Theo kiểu, Trắng, Đen, Vàng, Đỏ, a colour too faint on the chosen box greyed
+    out with "Khó đọc trên kiểu hộp này";
+    Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and "Lấy
+    theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
+    with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list;
   - the "Đăng Facebook" card once there is an MP4: the Fanpage (a sole Page is chosen by itself),
@@ -70,8 +104,27 @@ Built:
     On a phone the month is compact, with a dot on each day that has a video, and the chosen day's
     videos are listed under it.
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
-  Claude call count, and error; a row opens its video.
-- **Cài đặt**, a menu group, last in the sidebar.
+  AI call count, the model that wrote a script ("DeepSeek · deepseek-chat"), and error; a row opens
+  its video.
+- **Cài đặt**, a menu group, last in the sidebar; `/settings` opens its first page.
+  - **Thiết lập mặc định** (`/settings/defaults`, the group's first page): the same three cards as
+    a video's "Thiết lập" tab plus the music level, saved at once ("Đã lưu mặc định"). They apply
+    only to videos created afterwards.
+  - **Nguồn tư liệu** (`/settings/sources`): one card per stock library (Pixabay, Pexels: photos
+    and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
+    hộp chọn" that hides a source from the picker and "Tìm ảnh khác" for the whole team, and its API
+    key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
+    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, one card per AI photo
+    provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its model, its key and
+    "Đang dùng" on the one `IMAGE_GEN_PROVIDER` picks.
+  - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
+    provider not set up yet is greyed out, "chưa cấu hình"). Below, one collapsible line per
+    provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
+    Opened: "API key" (pasted once with "Lưu key", then shown as "Đã lưu, kết thúc bằng …abcd" with
+    "Dán key mới" and "Xoá key"; Claude without a saved key says it uses the server's `.env` key),
+    "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
+    names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
+    "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
   - **Kết nối Fanpage** (`/fanpages`): a table of Pages with the name and id, the token's last four
     characters, "Đang dùng" or "Ngừng dùng", and who changed it when. "Thêm Fanpage" takes a token,
     "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is
@@ -82,8 +135,9 @@ Phones (below 992 px wide; built):
 
 - The menu collapses into a drawer opened from the header, which shows the logo and the avatar
   only. On a wider screen the sidebar and the header stay in place while the page scrolls.
-- In the video editor the actions ("Render", "Nhân bản", "Xóa") wrap under the title, and each
-  scene's preview is a centred thumbnail at most 220 px wide.
+- In the video editor the actions ("Nhân bản", "Xóa") wrap under the title, the tab panel sits
+  under the scenes, the render bar stays at the bottom of the screen, and each scene's preview is
+  a centred thumbnail at most 220 px wide.
 - Tables keep their columns and scroll sideways inside their card; the page itself never scrolls
   sideways.
 
@@ -94,8 +148,9 @@ Planned:
 
 ## Video Template
 
-There is one fixed template in the MVP, derived from the reference channel (see
-[content.md](content.md#video-formula)).
+One template, derived from the reference channel (see [content.md](content.md#video-formula)),
+with named presets a video can switch (its "Thiết lập" tab, defaults on Cài đặt › Thiết lập mặc
+định). The defaults below are the original template; [Presets](#presets) lists the others.
 
 - **Frame:** 9:16 vertical, 1080×1920 at 30 fps. Photos are cover-cropped from the centre, with
   no black bars.
@@ -105,8 +160,9 @@ There is one fixed template in the MVP, derived from the reference channel (see
 - **Text box:** a scene whose text is empty has none, so a video can mix scenes with and without
   text, or carry no text at all. An empty title scene leaves the thumbnail without a box, and the
   video is listed under its topic.
-  - yellow background (`#FFD60A`) with black text (`#111111`). The "yellow text with a black
-    outline" style was rejected because it is hard to read on bright photos;
+  - yellow background (`#FFD60A`) with black text (`#111111`). Outlined text without a box was
+    rejected as the default because it is hard to read on bright photos; it is offered only as the
+    opt-in "Không hộp" preset below;
   - bold, uppercase, centered, at most 960 px wide;
   - keywords marked `*...*` are drawn in red (`#E10600`);
   - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts
@@ -131,6 +187,35 @@ There is one fixed template in the MVP, derived from the reference channel (see
   video; an empty voice text leaves that scene silent, even when it has on-screen text.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
 - **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 30–48 seconds with narration, which lengthens scenes to fit.
+
+### Presets
+
+Each video picks one of each ([reels_render/options.py](../worker/src/reels_render/options.py));
+free colour or size sliders are not offered. A person watches a sample of each before they are
+relied on (samples in the PR that added them).
+
+- **Transition:** Mờ dần (the 0.4 s crossfade above), Cắt thẳng (hard cut; each scene is exactly its
+  seconds), Trượt (the next scene slides in from the right over 0.4 s). The total length is the
+  same for all three.
+- **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
+  (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
+- **Text box:** Vàng (the default above), Trắng (white box, black text, red keywords), Tối (near-black
+  box at 88%, white text, yellow keywords), Đỏ (`#E10600` box, white text, yellow keywords), Không
+  hộp (white letters with a black outline 9% of the font size, yellow keywords). **Màu chữ:** Theo
+  kiểu (the style's own), Trắng, Đen, Vàng, Đỏ; a colour too faint on its box is not offered and
+  falls back to the box's own; keywords keep a colour that differs from the text (black letters
+  without a box get a white outline and red keywords). The thumbnail and the scene previews are
+  drawn in the chosen style and colour.
+- **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
+  the speed (ElevenLabs `speed` 0.9 / 1.0 / 1.1), the level (0–100%), and "Nhỏ nhạc khi có giọng
+  đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).
+  Changing the voice or speed makes the narration again on the next render.
+- **Captions (phụ đề theo giọng đọc):** content scenes with narration only, never the title scene.
+  White bold 58 px text on a rounded black box at 67%, at most two lines and four words, centred
+  just above the scene's text box (or with its bottom at y = 1440 when the scene has none).
+  "Từng cụm" shows each phrase while it is read; "Từng từ" also lights the word being read in
+  yellow. Phrases break after punctuation. The timing is an estimate spread over the narration by
+  letters, not ElevenLabs' timestamps, so it can run slightly ahead or behind.
 
 ### Video Scenes
 

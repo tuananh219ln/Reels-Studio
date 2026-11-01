@@ -119,6 +119,19 @@ def test_missing_photo_blocks_for_title_and_scene():
 
 
 @pytest.mark.parametrize(
+    ("has_image", "has_keywords", "warned"), [(False, False, True), (False, True, False), (True, False, False)]
+)
+def test_a_scene_without_photo_or_keywords_warns_on_the_keyword_field(has_image, has_keywords, warned):
+    # A script that left out the keywords made "Tìm ảnh" fail with no hint at the scene itself.
+    bare = SceneInput(9, False, SCENE_TEXT, 4, has_image, has_keywords=has_keywords)
+    checks = run(content=scenes(4) + [bare])
+    hint = "Cảnh chưa có từ khóa tìm ảnh: nhập từ khóa hoặc tải ảnh lên"
+    assert (hint in messages(checks.warnings, 9)) == warned
+    if warned:
+        assert [issue.field for issue in checks.warnings if issue.message == hint] == ["keywords"]
+
+
+@pytest.mark.parametrize(
     "text", ["CHỮA KHỎI đau lưng", "*chữa* khỏi", unicodedata.normalize("NFD", "chữa khỏi"), "chữa\nkhỏi"]
 )
 def test_banned_words_match_case_markup_and_unicode_forms(text):

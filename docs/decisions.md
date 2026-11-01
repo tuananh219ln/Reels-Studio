@@ -11,6 +11,162 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — Cloudflare Workers AI added as a second AI image provider
+
+Gemini stays (for when the team has a paid plan) and Cloudflare Workers AI is added beside it; the image job's
+provider is chosen with `IMAGE_GEN_PROVIDER` (`gemini` by default, so nothing changes until it is set to
+`cloudflare`). The 2026-10-31 Gemini entry still holds. Reason: Gemini's free tier in practice gives no image
+quota, while Cloudflare Workers AI's free allowance (10,000 neurons a day on every plan, Workers Free included)
+covers about 57 FLUX.1 schnell photos a day, plenty for 1–3 videos, and the account is already used for the web.
+
+Consequences: Cloudflare's FLUX.1 schnell ignores width/height and answers a 1024×1024 square, which
+[imagegen.py](../api/src/reels_api/imagegen.py) cuts at the centre to 9:16 before storing; Gemini's frames are left
+as they are. FLUX.1 schnell is Apache-2.0 and its photos carry no SynthID. Each provider has its own key on
+Cài đặt › Nguồn tư liệu ("gemini", "cloudflare"); the Cloudflare account ID stays in `.env`.
+
+## 2026-11-01 — Stock and AI-image keys can be pasted in the app; text colour and "no box" presets
+
+Owner's request after the presets round. Cài đặt › Nguồn tư liệu takes the API keys of Pixabay,
+Pexels and Gemini (AI photos), stored encrypted like the LLM keys
+([source_keys.py](../api/src/reels_api/source_keys.py)); a key saved there wins over the `.env` one,
+and with none saved the `.env` key still applies, so existing servers keep working. This extends the
+2026-11-01 entry below that kept these keys in `.env`.
+
+The text box gains a fifth style, "Không hộp" (outlined letters, no box), and a text colour
+(Theo kiểu, Trắng, Đen, Vàng, Đỏ). The owner asked for both, knowingly reopening the MVP's rejection
+of outlined text as hard to read on bright photos: it is an opt-in choice, the default stays the
+yellow box, and the outline is thick (9% of the font size). Colours too faint on a box (white or
+yellow on the yellow and white boxes, black on the dark box, red on the red box) are not offered and
+fall back to the box's own colour in the renderer; marked words always keep a colour that differs
+from the text.
+
+## 2026-11-01 — Video presets, narration captions and stock clips
+
+Built on the roadmap entry below. The render core takes per-video presets
+([options.py](../worker/src/reels_render/options.py)): transition (fade, cut, slide), photo motion
+(zoom in/out, pan, static) and its strength, four text box palettes, narration level, music ducking,
+and captions. The defaults build the same FFmpeg filter graph as before, and a video's MP4 is flagged
+outdated only when one of its presets differs from them. Narration voice and speed are per video
+(any voice of the ElevenLabs account; speed 0.9/1.0/1.1), and the speed joins a narration's
+signature only when not normal, so no existing MP3 is made again.
+
+Captions time each word by an estimate spread over the measured narration (Vietnamese words are
+single syllables of similar length) instead of ElevenLabs' `/with-timestamps` endpoint: switching
+the endpoint would change how every narration is bought and stored, and is a later step if the
+estimate drifts visibly. Captions are shown on content scenes only, never on the title scene, so
+the first frame stays the thumbnail.
+
+Stock video clips come from Pexels and Pixabay (the keys already used for photos) in the picker's
+"Video" mode and are stored like uploaded clips: jobs still never pick photos or clips. The team can
+turn any stock source off on Cài đặt › Nguồn tư liệu; keys stay in `.env`.
+
+## 2026-11-01 — Scripts can be written by any of several LLM providers; their API keys are entered in the app
+
+Owner's request, adapted from MoneyPrinterTurbo's LLM settings. "Cài đặt › Mô hình AI" (`/settings/ai`)
+lists a fixed set of providers — Claude (Anthropic), OpenAI, Google Gemini, DeepSeek, OpenRouter, Groq,
+xAI Grok, Qwen, Ollama and one custom OpenAI-compatible slot — each with its API key, base URL and model,
+and one provider is chosen for the whole team (script and clone jobs). Two connectors cover them: the
+Anthropic SDK for Claude, and the OpenAI-compatible `/chat/completions` for every other one. Every job
+records the provider and model it wrote with, shown on the video page and in the job log, because other
+models may follow the Vietnamese and the safety rules less well and reviewers should know.
+
+The API keys are typed into the app and stored in the database, **encrypted like Fanpage tokens** with
+the key in the storage folder (owner's choice, "option A"). This is an exception to "Secrets stay in
+`.env`" for keys members manage on the Cài đặt pages; deployment secrets stay in `.env`. A key never
+comes back in a response, only its last four characters. With nothing set on the page, Claude keeps
+using `ANTHROPIC_API_KEY` / `CLAUDE_MODEL` from the environment, so existing deployments behave as
+before. The provider in use cannot lose its key or model, and "Kiểm tra kết nối" only lists the
+provider's models, which costs no tokens. The output format stays code and the same for every provider.
+
+## 2026-11-01 — Settings roadmap: team defaults for new videos, and the template opens up
+
+Owner's decisions for the settings work adapted from MoneyPrinterTurbo (voice, music, transitions,
+motion, text style and captions, stock clips), recorded now so later rounds follow them:
+team defaults on the Cài đặt pages apply only to **videos created afterwards** — each video keeps its
+own copy, changeable on its "Thiết lập" tab (a clone takes its source's), so changing a default never makes an old video render
+differently; and the MVP's "one fixed template" rule is lifted for named presets (text-box styles,
+transitions, motion), never free colour or size sliders. The video editor's side column became three
+tabs (Xuất bản, Thiết lập, Nội dung đăng) and "Render" moved to a bar stuck to the bottom of the screen
+to make room for them.
+
+## 2026-11-01 — "Tìm ảnh khác" can search any stock source
+
+Replaces the "What does not change" part of "The picker offers three stock sources" (below) for
+the button only: "Tìm ảnh" / "Tìm ảnh khác" still searches Pixabay by default, and an arrow menu
+next to it switches the scene's button to Pexels or Openverse (only the sources the api offers).
+Each source reads the keyword list in the language it indexes, as the picker does. Owner's
+request: Vietnamese dishes are thin on Pixabay, and opening the picker for every retry was slow.
+The render core CLI stays Pixabay-only and jobs still never pick stock photos.
+
+## 2026-10-31 — AI photos for missing scenes come from Gemini, stored like any chosen photo
+
+The provider left open in `docs/specs/ai-scene-images/brief.md` is settled: Gemini image
+generation via Google AI Studio (the owner's choice — free tier for testing, strong
+Vietnamese prompts, native 9:16 output; model `gemini-2.5-flash-image` by default,
+`IMAGE_GEN_API_KEY` / `IMAGE_GEN_MODEL`). This extends, and does not reverse, the rule
+that a server render only uses a photo already stored on its scene: a new `image` job
+(the video page's "Tạo ảnh AI cho cảnh thiếu") generates a photo only for scenes that
+have neither a photo nor a clip, validates the bytes like an upload, and stores it with
+`image_source` = `ai:<model>`. Photos and clips members chose are never overwritten.
+A prompt Gemini refuses fails only its scene (the reason stays on the scene); a
+provider-wide failure (no key, quota) fails the job, keeping the scenes already done.
+Generated photos carry SynthID, so platforms may label the posts as AI-generated —
+accepted, because the platforms state the label itself does not reduce distribution;
+the mitigations are human review of every scene and mixing AI photos with stock and
+uploads, not hiding the label.
+
+## 2026-10-31 — Scripts write stock keywords in two languages
+
+A scene now carries `keywords` (Vietnamese) and `keywords_en` (English). The Western stock
+libraries index in English, so "Tìm ảnh khác" and the picker's Pixabay/Pexels tabs search the
+English list first; Openverse, whose photos are community uploads often titled in Vietnamese,
+uses the Vietnamese list. Each list falls back to the other when empty, so videos scripted
+before this change keep working. Found while testing locally: with only Vietnamese terms,
+Pixabay answered hyper-local dishes ("rau rút", "gà nguội") with loosely matched junk, and
+find-image took the first hit blindly.
+
+## 2026-10-31 — Openverse may use a registered OAuth application, anonymously by default
+
+Openverse needs no key, and anonymous stays the default. If `OPENVERSE_CLIENT_ID` and
+`OPENVERSE_CLIENT_SECRET` are configured, the client exchanges them for an access token
+(client-credentials flow, cached in memory until shortly before expiry) for the registered
+rate limits. Any failure in that exchange falls back to an anonymous search: a picker search
+must never break because authentication did.
+
+## 2026-10-31 — The picker offers three stock sources; Openverse is public-domain only
+
+Extends "The web editor offers Pixabay photos again" (below). The picker (now "Chọn từ kho
+ảnh") switches between Pixabay (the default), Pexels (vi-VN locale, portrait orientation;
+hidden until `PEXELS_API_KEY` is set) and Openverse (no key). Vietnamese dishes are poorly
+covered by Pixabay alone, and Openverse aggregates Flickr/Wikimedia photos uploaded by
+Vietnamese users. Openverse is limited to CC0 and public-domain-mark works — filtered in the
+query and again on each result's own license — because the channel earns money and the app
+shows no attribution anywhere. A photo chosen from any source passes the same revalidation
+and is stored with the scene exactly like a Pixabay one. What does not change: the quick
+"Tìm ảnh" button and the render core CLI still use Pixabay only, and jobs still never pick
+photos. Brief: [specs/stock-picker-sources/brief.md](specs/stock-picker-sources/brief.md).
+
+## 2026-10-31 — Scripts write photo keywords again
+
+The script output format asks Claude for `keywords` on every scene and `title_keywords` for
+the title scene again (2–4 Vietnamese terms, most specific first), as the original tool did.
+The parser and the save path never stopped reading them; only the format had dropped them,
+which left every new scene without keywords and made "Tìm ảnh" and the picker start empty.
+The format is code, not prompt data (see "Prompt text is app data, the output format is
+code"), so the restoration lives in `claude.py`'s `OUTPUT_FORMAT` and its worked example.
+
+## 2026-10-31 — The web editor offers Pixabay photos again; the render still uses stored photos only
+
+Replaces the part of "Server renders use member-uploaded scene photos only" (below) that said the
+web UI no longer offers stock search. Owner's decision, phase 1 of
+[specs/ai-scene-images/brief.md](specs/ai-scene-images/brief.md): uploading every scene photo by
+hand was the slowest step of making a video. Each scene card (title included) has "Chọn từ
+Pixabay" (a grid of results for a keyword) and "Tìm ảnh" (the next result for the scene's saved
+keywords), plus the "Từ khóa tìm ảnh" field, because the script no longer writes keywords. What
+stays: a Pixabay photo is downloaded by the api and stored with the scene like an upload, so the
+member sees and can replace it; the render uses only stored photos and still blocks a scene
+without one; jobs never pick photos; no source or license info beyond the stored Pixabay URL.
+
 ## 2026-10-31 — Caption length comes from the editable prompt
 
 The fixed output format no longer sets 80–120 words or a repeated full list, so a topic group can

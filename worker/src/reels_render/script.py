@@ -25,6 +25,7 @@ class Scene:
     voice: Path | None = None  # narration audio, read over the scene
     video: Path | None = None  # a clip shown instead of a photo
     video_start: float = 0.0  # seconds into the clip where the scene starts
+    voice_text: str = ""  # what the narration says, for captions
 
 
 @dataclass(frozen=True)
@@ -97,6 +98,9 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f'{label}: "image" phải là chuỗi đường dẫn ảnh')
     if not isinstance(voice, str):
         raise InputError(f'{label}: "voice" phải là chuỗi đường dẫn file lời đọc')
+    voice_text = item.get("voice_text", "")
+    if not isinstance(voice_text, str):
+        raise InputError(f'{label}: "voice_text" phải là chuỗi')
     if voice.strip() and not (base_dir / voice).is_file():
         raise InputError(f"{label}: không tìm thấy file lời đọc {voice}")
     video, video_start = _parse_video(item, label, base_dir)
@@ -134,6 +138,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         voice=base_dir / voice if voice.strip() else None,
         video=video,
         video_start=video_start,
+        voice_text=voice_text,
     )
 
 

@@ -10,6 +10,7 @@ import {
   api,
   errorMessage,
   formatDateTime,
+  type ActiveLlm,
   type Knowledge,
   type KnowledgeTopic,
   type VideoDetail,
@@ -132,12 +133,17 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
   const [form] = Form.useForm<NewVideo>();
   const [busy, setBusy] = useState(false);
   const [topics, setTopics] = useState<KnowledgeTopic[] | null>(null);
+  const [llm, setLlm] = useState<ActiveLlm | null>(null);
 
   useEffect(() => {
     if (open) {
       api<Knowledge>("/knowledge")
         .then((data) => setTopics(data.topics))
         .catch((err) => message.error(errorMessage(err)));
+      // Only informative: a failure here leaves the line out and never blocks creating the video.
+      api<ActiveLlm>("/settings/llm/active")
+        .then(setLlm)
+        .catch(() => setLlm(null));
     }
   }, [open, message]);
 
@@ -197,6 +203,23 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
           >
             <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
           </Form.Item>
+          {llm && (
+            <Typography.Paragraph
+              type={llm.problem ? "danger" : "secondary"}
+              style={{ margin: 0 }}
+              data-testid="llm-line"
+            >
+              {llm.problem ? (
+                <>
+                  {llm.problem}. <Link href="/settings/ai">Mở Cài đặt › Mô hình AI</Link>
+                </>
+              ) : (
+                <>
+                  Viết bằng: {llm.name} · {llm.model} (<Link href="/settings/ai">đổi trong Cài đặt</Link>)
+                </>
+              )}
+            </Typography.Paragraph>
+          )}
         </Form>
       )}
     </Modal>

@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import facebook, fanpages, knowledge
+from . import facebook, fanpages, knowledge, llm
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -21,18 +21,26 @@ from .script_rules import Checks, SceneInput, check_script, plain_title, text_pr
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
+from .video_options import effective, look_signature, text_look, voice_id, voice_speed
 
 STATUS_LABELS = {
     "draft": "Nháp",
     "queued": "Chờ",
     "writing": "Đang viết",
+    "imaging": "Đang tạo ảnh",
     "rendering": "Đang render",
     "publishing": "Đang đăng",
     "done": "Xong",
     "failed": "Lỗi",
 }
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
-JOB_KINDS = {"script": "Viết kịch bản", "clone": "Nhân bản", "render": "Render", "publish": "Đăng Facebook"}
+JOB_KINDS = {
+    "script": "Viết kịch bản",
+    "clone": "Nhân bản",
+    "render": "Render",
+    "publish": "Đăng Facebook",
+    "image": "Tạo ảnh AI",
+}
 SENTENCE_ENDS = (".", "!", "?", "…", ":")
 
 
@@ -111,9 +119,13 @@ def spoken(video: Video, scene: Scene) -> str:
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
     """Length of the stored narration when it was made from the current voice text, voice and model."""
     text = spoken(video, scene)
-    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text):
+    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text, *_voice(video)):
         return None
     return scene.voice_seconds
+
+
+def _voice(video: Video) -> tuple[str, str]:
+    return voice_id(video), voice_speed(video)
 
 
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
@@ -128,9 +140,14 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
     # stored with, so they are not flagged as outdated.
     data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
-    voices = [voice_signature(spoken(video, scene)) if spoken(video, scene) else None for scene in every]
+    voices = [
+        voice_signature(spoken(video, scene), *_voice(video)) if spoken(video, scene) else None for scene in every
+    ]
     if any(voices):
         data = [data, voices]
+    look = look_signature(video)
+    if look is not None:
+        data = [data, look]
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -156,7 +173,7 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
         video.thumbnail_key = None
     else:
         key = new_key(video.id, "thumb", "jpg")
-        storage.save_bytes(key, thumbnail_bytes(still, title.text))
+        storage.save_bytes(key, thumbnail_bytes(still, title.text, text_look(video)))
         video.thumbnail_key = key
     if old and old != video.thumbnail_key:
         storage.delete(old)
@@ -174,6 +191,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             scene.voice_text if spoken(video, scene) else "",
             made_voice_seconds(video, scene),
             clip_seconds,
+            bool(scene.keywords or scene.keywords_en),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -201,7 +219,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
     if job is not None and job.status == "queued":
         code, label = "queued", f"Chờ thứ {queue_position(db, job)}"
     elif job is not None:
-        code = {"render": "rendering", "publish": "publishing"}.get(job.kind, "writing")
+        code = {"render": "rendering", "publish": "publishing", "image": "imaging"}.get(job.kind, "writing")
         label = STATUS_LABELS[code]
     elif video.mp4_key:
         code, label = "done", STATUS_LABELS["done"]
@@ -262,12 +280,16 @@ def _version(*parts: object) -> str:
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
     voice_seconds = made_voice_seconds(video, scene)
+    # Only a style other than the original changes the preview's address, so cached previews stay valid.
+    look = text_look(video)
+    style = list(look) if look != ("yellow", "auto") else []
     return {
         "id": scene.id,
         "is_title": scene.is_title,
         "text": scene.text,
         "seconds": scene.seconds,
         "keywords": scene.keywords,
+        "keywords_en": scene.keywords_en,
         "image_prompt": scene.image_prompt,
         "voice_text": scene.voice_text,
         # Known once a render has made the narration for the current text; None until then.
@@ -285,9 +307,9 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         if scene.video_key
         else None,
         "preview_url": (
-            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text)}"
+            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text, *style)}"
             if scene.video_key
-            else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text)}"
+            else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text, *style)}"
             if scene.image_key
             else None
         ),
@@ -303,6 +325,17 @@ def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | N
         # A failed re-render keeps the old MP4 and the "Xong" status, with this extra label.
         "rerender_failed": job is None and bool(video.mp4_key) and failed is not None and failed.kind == "render",
     }
+
+
+def script_writer(db: DbSession, video_id: int) -> str | None:
+    """The provider and model of the job that wrote the video's script, so reviewers know what they read."""
+    job = db.scalar(
+        select(Job)
+        .where(Job.video_id == video_id, Job.kind.in_(("script", "clone")), Job.status == "done")
+        .order_by(Job.id.desc())
+        .limit(1)
+    )
+    return llm.label(job.llm_provider, job.llm_model) if job else None
 
 
 def title_of(video: Video, title: Scene | None) -> str:
@@ -354,9 +387,11 @@ def video_payload(db: DbSession, video: Video) -> dict:
         else None,
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
+        "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id)),
         "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,
+        "script_by": script_writer(db, video.id) if video.has_script else None,
         "clone_of": {
             "title": video.clone_source["title"],
             "request": video.clone_source["request"],

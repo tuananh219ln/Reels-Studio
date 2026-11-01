@@ -76,6 +76,58 @@ def pixabay_api_url() -> str:
     return read_env("PIXABAY_API_URL") or "https://pixabay.com/api/"
 
 
+def pexels_key() -> str:
+    return read_env("PEXELS_API_KEY")
+
+
+def pexels_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return (read_env("PEXELS_API_URL") or "https://api.pexels.com").rstrip("/")
+
+
+def openverse_api_url() -> str:
+    # No key needed: Openverse answers anonymous calls. Overridable only so tests and E2E can point
+    # at a local fake; production uses the default.
+    return (read_env("OPENVERSE_API_URL") or "https://api.openverse.org").rstrip("/")
+
+
+def openverse_client_id() -> str:
+    return read_env("OPENVERSE_CLIENT_ID")
+
+
+def openverse_client_secret() -> str:
+    return read_env("OPENVERSE_CLIENT_SECRET")
+
+
+def image_gen_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return (read_env("IMAGE_GEN_API_URL") or "https://generativelanguage.googleapis.com").rstrip("/")
+
+
+def image_gen_model() -> str:
+    # Gemini image generation via Google AI Studio (owner's choice, 2026-10-31).
+    return read_env("IMAGE_GEN_MODEL") or "gemini-2.5-flash-image"
+
+
+def image_gen_provider() -> str:
+    """Which provider makes AI photos: "cloudflare" only when set so, Gemini otherwise (the default)."""
+    return "cloudflare" if read_env("IMAGE_GEN_PROVIDER").strip().lower() == "cloudflare" else "gemini"
+
+
+def image_gen_cf_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return (read_env("IMAGE_GEN_CF_API_URL") or "https://api.cloudflare.com/client/v4").rstrip("/")
+
+
+def image_gen_cf_account_id() -> str:
+    # The Cloudflare account's ID (not a secret), shown on the dashboard.
+    return read_env("IMAGE_GEN_CF_ACCOUNT_ID")
+
+
+def image_gen_cf_model() -> str:
+    return read_env("IMAGE_GEN_CF_MODEL") or "@cf/black-forest-labs/flux-1-schnell"
+
+
 def claude_model() -> str:
     return read_env("CLAUDE_MODEL") or "claude-sonnet-5-5"
 

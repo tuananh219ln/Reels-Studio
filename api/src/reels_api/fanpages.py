@@ -1,41 +1,16 @@
 """The team's Facebook Pages, connected on /fanpages.
 
-Tokens are encrypted with a key generated in the storage folder, which the api and the worker share and which is
-not in the database, so a database dump alone does not reveal them. Losing the key only means pasting them again.
+Tokens are encrypted with the storage folder's key (see crypto.py).
 """
 
-import os
-import tempfile
-from pathlib import Path
-
-from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import config
+from . import crypto
 from .facebook import FacebookError, Page
 from .models import Fanpage
 
-KEY_FILE = ".settings-key"
 TOKEN_TAIL = 4
-
-
-def _fernet() -> Fernet:
-    path = config.storage_dir() / KEY_FILE
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handle, temp = tempfile.mkstemp(dir=path.parent, prefix=".settings-key-")
-        try:
-            with os.fdopen(handle, "wb") as file:
-                file.write(Fernet.generate_key())
-            # A link never replaces a key made a moment earlier by the other process.
-            try:
-                os.link(temp, path)
-            except FileExistsError:
-                pass
-        finally:
-            Path(temp).unlink(missing_ok=True)
-    return Fernet(path.read_bytes().strip())
 
 
 def save(db: DbSession, page_id: str, name: str, token: str, user_id: int) -> Fanpage:
@@ -45,7 +20,7 @@ def save(db: DbSession, page_id: str, name: str, token: str, user_id: int) -> Fa
         row = Fanpage(page_id=page_id)
         db.add(row)
     row.name, row.active, row.updated_by_id = name, True, user_id
-    row.token_encrypted = _fernet().encrypt(token.encode()).decode()
+    row.token_encrypted = crypto.encrypt(token)
     row.token_tail = token[-TOKEN_TAIL:]
     return row
 
@@ -61,6 +36,6 @@ def load_page(db: DbSession, fanpage_id: int | None) -> Page:
     if not row.active:
         raise FacebookError(f"Fanpage “{row.name}” đang ngừng dùng, hãy dùng lại trong Kết nối Fanpage")
     try:
-        return Page(row.page_id, _fernet().decrypt(row.token_encrypted.encode()).decode())
-    except InvalidToken:
+        return Page(row.page_id, crypto.decrypt(row.token_encrypted))
+    except crypto.CannotDecrypt:
         raise FacebookError(f"Không đọc được token của “{row.name}”, hãy dán token mới trong Kết nối Fanpage") from None

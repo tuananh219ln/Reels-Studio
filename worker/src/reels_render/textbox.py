@@ -22,6 +22,54 @@ BOX_COLOR = "#FFD60A"
 TEXT_COLOR = "#111111"
 RED_COLOR = "#E10600"
 
+
+@dataclass(frozen=True)
+class Palette:
+    box: str | tuple[int, int, int, int] | None  # None: no box, the letters are outlined instead
+    text: str
+    accent: str  # the *marked* words
+    outline: str | None = None
+
+
+# The text box styles members choose from (options.TEXT_STYLES). "yellow" is the original template.
+PALETTES = {
+    "yellow": Palette(BOX_COLOR, TEXT_COLOR, RED_COLOR),
+    "white": Palette("#FFFFFF", TEXT_COLOR, RED_COLOR),
+    "dark": Palette((17, 17, 17, 224), "#FFFFFF", "#FFD60A"),
+    "red": Palette("#E10600", "#FFFFFF", "#FFD60A"),
+    "none": Palette(None, "#FFFFFF", "#FFD60A", outline="#000000"),
+}
+# The text colours members choose from (options.TEXT_COLORS); "auto" keeps the style's own.
+TEXT_COLORS = {"white": "#FFFFFF", "black": TEXT_COLOR, "yellow": BOX_COLOR, "red": RED_COLOR}
+# Colours too faint on a box: the style's own colour is used instead (and the page does not offer them).
+CLASHES = {"yellow": {"yellow", "white"}, "white": {"white", "yellow"}, "dark": {"black"}, "red": {"red"}}
+OUTLINE_RATIO = 0.09  # of the font size, for letters without a box
+
+
+def palette_for(text_style: str, text_color: str = "auto") -> Palette:
+    """The style's palette with the chosen text colour; the marked words keep a colour that differs from it."""
+    base = PALETTES[text_style]
+    if text_color == "auto" or text_color in CLASHES.get(text_style, set()):
+        return base
+    text = TEXT_COLORS[text_color]
+    if base.box is None:
+        # Black letters get a white outline; the marked words then stand out in red.
+        outline = "#FFFFFF" if text_color == "black" else base.outline
+        accent = RED_COLOR if text_color in ("black", "yellow") else base.accent
+        return Palette(None, text, accent, outline)
+    return Palette(base.box, text, base.text if text == base.accent else base.accent)
+
+
+# Narration captions: white on a dark, see-through box, the spoken word in yellow.
+CAPTION_SIZE = 58
+CAPTION_MAX_LINES = 2
+CAPTION_PAD_X = 28
+CAPTION_PAD_Y = 16
+CAPTION_GAP = 28  # between the captions and the text box under them
+CAPTION_BOX = (0, 0, 0, 170)
+CAPTION_TEXT = "#FFFFFF"
+CAPTION_LIT = "#FFD60A"
+
 # Stacked Vietnamese capitals rise above the font ascender; measured once per size.
 _TALL_PROBE = "ỔẪẶỖỠỄỂẤẨ"
 
@@ -132,17 +180,28 @@ def layout_text(lines: list[list[Run]], style: BoxStyle) -> TextLayout:
     raise TextFitError(f"có từ quá dài, không vừa hộp rộng {MAX_BOX_WIDTH}px ở cỡ tối thiểu {style.min_size}px")
 
 
-def render_box(layout: TextLayout) -> Image.Image:
+def render_box(layout: TextLayout, palette: Palette = PALETTES["yellow"]) -> Image.Image:
     image = Image.new("RGBA", (layout.width, layout.height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle((0, 0, layout.width - 1, layout.height - 1), radius=RADIUS, fill=BOX_COLOR)
+    if palette.box is not None:
+        draw.rounded_rectangle((0, 0, layout.width - 1, layout.height - 1), radius=RADIUS, fill=palette.box)
     font = _font(layout.font_size)
     ascent = font.getmetrics()[0]
+    outline = round(OUTLINE_RATIO * layout.font_size) if palette.outline else 0
     for index, (runs, line_width) in enumerate(zip(layout.lines, layout.line_widths)):
         x = (layout.width - line_width) / 2
         baseline = PAD_Y + layout.overshoot + ascent + index * layout.line_height
         for run in runs:
-            draw.text((x, baseline), run.text, font=font, fill=RED_COLOR if run.red else TEXT_COLOR, anchor="ls")
+            fill = palette.accent if run.red else palette.text
+            draw.text(
+                (x, baseline),
+                run.text,
+                font=font,
+                fill=fill,
+                anchor="ls",
+                stroke_width=outline,
+                stroke_fill=palette.outline,
+            )
             x += font.getlength(run.text)
     return image
 
@@ -158,3 +217,41 @@ def title_box_position(width: int, height: int) -> tuple[int, int]:
 
 def scene_box_position(width: int, height: int) -> tuple[int, int]:
     return (FRAME_WIDTH - width) // 2, SCENE_BOX_BOTTOM - height
+
+
+def caption_lines(words: list[str]) -> list[list[str]] | None:
+    """The words wrapped to the caption width at the caption size; None when they need more than two lines."""
+    font = _font(CAPTION_SIZE)
+    max_width = MAX_BOX_WIDTH - 2 * CAPTION_PAD_X
+    lines: list[list[str]] = [[]]
+    for word in words:
+        trial = " ".join([*lines[-1], word])
+        if lines[-1] and font.getlength(trial) > max_width:
+            lines.append([word])
+        else:
+            lines[-1].append(word)
+    return lines if len(lines) <= CAPTION_MAX_LINES else None
+
+
+def render_caption(lines: list[list[str]], lit: int | None) -> Image.Image:
+    """One caption phrase; `lit` counts words across the lines and marks the one being spoken (None: none)."""
+    font = _font(CAPTION_SIZE)
+    ascent, descent = font.getmetrics()
+    overshoot = _overshoot(font)
+    line_height = overshoot + ascent + descent
+    widths = [font.getlength(" ".join(line)) for line in lines]
+    width = math.ceil(max(widths)) + 2 * CAPTION_PAD_X
+    height = line_height * len(lines) + 2 * CAPTION_PAD_Y
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle((0, 0, width - 1, height - 1), radius=RADIUS, fill=CAPTION_BOX)
+    space = font.getlength(" ")
+    number = 0
+    for index, (line, line_width) in enumerate(zip(lines, widths)):
+        x = (width - line_width) / 2
+        baseline = CAPTION_PAD_Y + overshoot + ascent + index * line_height
+        for word in line:
+            draw.text((x, baseline), word, font=font, fill=CAPTION_LIT if number == lit else CAPTION_TEXT, anchor="ls")
+            x += font.getlength(word) + space
+            number += 1
+    return image

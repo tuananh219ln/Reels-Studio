@@ -36,6 +36,7 @@ class SceneInput:
     voice_text: str = ""  # the member's own voice text; empty when the video's narration is off
     voice_seconds: float | None = None  # length of the narration already made for the current voice text
     clip_seconds: float | None = None  # what is left of the scene's clip after its start time
+    has_keywords: bool = True  # Vietnamese or English photo keywords, for "Tìm ảnh" and the picker
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,9 @@ def check_script(
             block(Issue(problem, scene.id))
         if not scene.has_image:
             block(Issue("Cảnh chưa có ảnh", scene.id, "image"))
+            if not scene.has_keywords:
+                # A script may leave the keywords out; without them "Tìm ảnh" has nothing to search.
+                warn(Issue("Cảnh chưa có từ khóa tìm ảnh: nhập từ khóa hoặc tải ảnh lên", scene.id, "keywords"))
         if not MIN_SECONDS <= scene.seconds <= MAX_SECONDS:
             block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
         neighbours = (index > 0) + (index < len(every) - 1)

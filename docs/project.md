@@ -41,12 +41,14 @@ app replaces CapCut, so the output is a finished MP4.
    prompts and the banned words. Planned: editable channel documents and a food bank with sourced
    benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
    [content.md](content.md#knowledge-base).
-3. **Script generation (built):** one Claude call turns a topic into 5 title options, a 5–7 scene
+3. **Script generation (built):** one LLM call (Claude by default; another provider can be chosen
+   on Cài đặt › Mô hình AI) turns a topic into 5 title options, a 5–7 scene
    script, a caption with hashtags, per-scene image prompts, affiliate
    suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
    writes one variant of an existing video from a change request.
-4. **Scene images (built):** members upload their own photo or clip for every scene; a scene
-   without one blocks the render.
+4. **Scene images (built):** members give every scene a photo or clip: their own upload, or a
+   Pixabay photo picked from a grid or found by the scene's keywords and stored with the scene; a
+   scene without one blocks the render.
 5. **Templated render (built):** a fixed visual template, Ken Burns motion, rendered on the server.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text (on by default, off per
    video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
@@ -54,7 +56,8 @@ app replaces CapCut, so the output is a finished MP4.
 6. **Affiliate Shopee (built, manual):** a product list entered by hand, ranked by expected
    commission and approved by a member, with products attached to each posted reel and a
    ready pinned comment. There is no Shopee API call yet, and members still pin the comment.
-7. **Job log (built):** every job with status, duration, Claude call count, and error; failed jobs
+7. **Job log (built):** every job with status, duration, AI call count, the model that wrote a
+   script, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
 8. **Facebook posting (built):** members connect Fanpages by pasting a Page token, then post a
    rendered video as a Reel now or at a set time. "Bài đăng" lists posted and scheduled videos and

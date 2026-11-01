@@ -48,8 +48,8 @@ Workers (see [deployment.md](deployment.md#production)).
 | Component | Responsibility |
 |---|---|
 | `web` | Next.js UI. Calls the API only. |
-| `api` | FastAPI app ([api/](../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, Pixabay search (no longer offered in the web UI), previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
-| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude), renders (ElevenLabs narration, then FFmpeg), and posting to the Facebook Page. |
+| `api` | FastAPI app ([api/](../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, stock search and picker for scene photos (Pixabay, Pexels, Openverse), previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
+| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude), AI photos for scenes that have none (Gemini), renders (ElevenLabs narration, then FFmpeg), and posting to the Facebook Page. |
 | `postgres` | Relational data and the job queue. |
 | storage | One folder of uploaded photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
 
@@ -60,7 +60,7 @@ Files go through a small storage layer ([storage.py](../api/src/reels_api/storag
 only a folder backend exists, chosen so an S3/R2 backend can be added later without touching video,
 scene, or job logic.
 
-**Render pipeline:** every scene photo is uploaded by a member while editing and stored, so the render uses exactly the photo the preview showed. The
+**Render pipeline:** every scene photo is chosen by a member while editing (uploaded, picked from the stock grid, or found by "Tìm ảnh") and stored, so the render uses exactly the photo the preview showed. The
 worker then:
 
 1. Makes the narration each scene still lacks (see [Narration](#narration)), then checks the total
@@ -167,10 +167,13 @@ A scene may hold an uploaded video clip instead of a photo
 
 | Service | Use | Notes |
 |---|---|---|
-| Claude API | Script generation and cloning (built); drafting Knowledge Base content (planned) | Called only from the worker, through the Anthropic SDK. Model is configurable; the default is `claude-sonnet-5-5`, with the server-side refusal fallback enabled. Every call is logged with its token counts. Knowledge drafting will use web search so it can return source URLs. |
+| LLM (Claude and other providers) | Script generation and cloning (built); drafting Knowledge Base content (planned) | Called only from the worker ([llm.py](../api/src/reels_api/llm.py)), with the provider the team chose on `/settings/ai`. Claude goes through the Anthropic SDK (default model `claude-sonnet-5-5`, with the server-side refusal fallback enabled); OpenAI, Gemini, DeepSeek, OpenRouter, Groq, xAI, Qwen, Ollama and a custom provider go through the OpenAI-compatible `POST {base URL}/chat/completions` with one user message and no `max_tokens`. An answer cut off by the model's length limit fails the job at once instead of being asked again. "Kiểm tra kết nối" calls `GET /models` (no tokens) from the api. Every call is logged with the provider, model and token counts. With nothing set on the page, Claude is used with `ANTHROPIC_API_KEY` / `CLAUDE_MODEL`. Knowledge drafting will use web search so it can return source URLs. |
 | ElevenLabs | Scene narration in the render job | The premade "Adam" voice by default, model `eleven_v3` with `language_code: vi` (`eleven_multilingual_v2` does not speak Vietnamese). Voice and model are configurable. Paid per character, so each scene's MP3 is stored and reused. |
 | Facebook Reels Publishing API | Posting a video to the team's one Page | Called only from the worker ([facebook.py](../api/src/reels_api/facebook.py)). Pages are connected on `/fanpages` by pasting a token, so there is no OAuth screen. A user or system user token is swapped for each Page's own token through `/me/accounts`, and that token is what is kept. |
-| Pixabay | The CLI's stock search; the only stock source. The api's search and picker endpoints remain, but the web UI no longer offers them and jobs no longer pick photos | Free for commercial use, no attribution required on the video. API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). Searches inside a request give up after about 10 seconds. |
+| Stock photos (Pixabay, Pexels, Openverse) | The web editor's "Chọn từ kho ảnh" picker switches between three sources: Pixabay (the default; keys of Pixabay, Pexels and Gemini come from Cài đặt › Nguồn tư liệu, encrypted, or else `.env`, see `source_keys.py`), Pexels (vi-VN locale, portrait; offered only when it has a key) and Openverse (no key needed; optional registered OAuth credentials raise its rate limits; CC0 and public-domain-mark works only, filtered in the query and again per result). The picker opens each source in the language it indexes: the scene's English terms for Pixabay/Pexels, its Vietnamese terms for Openverse. "Tìm ảnh" / "Tìm ảnh khác" takes the next result from one source, Pixabay unless the member picks another from the arrow beside it (`POST /scenes/{id}/find-image?source=`), reading the keyword list in that source's language with the other list as fallback; the CLI's stock search stays Pixabay-only. A chosen photo from any source is re-checked against that source's results, downloaded by the api and stored with the scene, like an upload; the grid's thumbnails are only shown. Jobs never pick stock photos; the one job that fills empty scenes generates its own (the Gemini row below) |
+| Stock video clips (Pexels Videos, Pixabay Videos) | The picker's "Video" mode | Searched by the api ([stock_clips.py](../api/src/reels_api/stock_clips.py)) with the same keys as the photos; Pexels asked for portrait clips. Of each clip's files the one closest to 1080 px wide is offered. A chosen clip is named by its id, searched again, downloaded (at most 50 MB) and stored like an uploaded clip, so the render never fetches anything. |
+| Gemini (Google AI Studio) | AI photos for scenes that have neither a photo nor a clip, in the `image` job | Called only from the worker ([imagegen.py](../api/src/reels_api/imagegen.py)), from the scene's `image_prompt` (the title scene: its first line of text). The model is configurable; the default is `gemini-2.5-flash-image`, asked for a 9:16 frame. The bytes pass the upload checks before they are stored with `image_source` = `ai:<model>`, and every call is counted on the job like the script job counts Claude. A refused prompt fails only its scene; a missing key or an exhausted quota fails the job and keeps the scenes already done. | Free for commercial use; no attribution is shown anywhere, which is why Openverse is limited to works without conditions. Pixabay API terms: download images that are used (no hotlinking) and cache search results for 24 hours (under the system temp folder). Searches inside a request give up after about 10 seconds. |
+| Cloudflare Workers AI | AI photos, the second provider of the `image` job, beside Gemini; the provider is chosen with `IMAGE_GEN_PROVIDER` (`gemini` by default) | Called only from the worker ([imagegen.py](../api/src/reels_api/imagegen.py)): REST `POST /accounts/{account}/ai/run/{model}` with a Bearer API token (from Cài đặt › Nguồn tư liệu or `IMAGE_GEN_CF_API_KEY`) and `IMAGE_GEN_CF_ACCOUNT_ID`; default model FLUX.1 schnell (`@cf/black-forest-labs/flux-1-schnell`, 4 steps). It ignores width/height and answers a 1024×1024 square, which imagegen cuts at the centre to 9:16 (JPEG) before the same upload checks; `image_source` = `ai:<model>`. The free allowance is 10,000 neurons a day (about 57 photos), reset at 00:00 UTC; running out or a bad token fails the job, a refused prompt fails only its scene. | FLUX.1 schnell is Apache-2.0; no SynthID watermark. |
 | FFmpeg | Rendering | Installed in the worker image from Debian's package ([api/Dockerfile.worker](../api/Dockerfile.worker)); on the dev host installed natively (see [deployment.md](deployment.md#current-state)). |
 
 Later phases add the Instagram, YouTube, and TikTok publishing APIs.
@@ -178,9 +181,9 @@ Later phases add the Instagram, YouTube, and TikTok publishing APIs.
 ## Data Flow
 
 1. A member enters a topic; the API creates a draft video and a script job.
-2. The worker calls Claude with the editable script prompt and the banned words (see
+2. The worker calls the team's LLM (Claude unless another provider is chosen on `/settings/ai`) with the editable script prompt and the banned words (see
    [content.md](content.md#script-generation-contract)), and saves the script.
-3. Members upload a photo or clip for every scene and edit the script, music, and post texts; each field saves on its own.
+3. Members give every scene a photo or clip (upload, or a stock photo the api stores); "Tạo ảnh AI cho cảnh thiếu" instead runs an image job that generates the missing photos with Gemini and stores them the same way. Members then edit the script, music, and post texts; each field saves on its own.
 4. "Render" enqueues a render job after the pre-render checks pass.
 5. The worker renders the MP4 from the saved data into storage and records it on the video.
 6. The video page plays and downloads the MP4; `/jobs` lists every job.
@@ -193,13 +196,15 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | Table | Key contents |
 |---|---|
 | `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
-| `videos` | Topic, whether the script exists, narration on/off, title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
+| `videos` | Topic, whether the script exists, narration on/off, its own settings (`options`: voice, speed, voice level, ducking, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
-| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, keywords, image prompt, the stored photo and where it came from (upload or Pixabay URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from. |
+| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from. |
 | `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last. |
 | `publications` | A video posted to a platform, one row per video and platform (only `facebook` today): the Fanpage, pending, scheduled, or published, the scheduled time, the platform's id of the post, who started it. |
-| `jobs` | Belongs to a video; kind (script, clone, render, publish), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of Claude calls, the job it retries. At most one queued or running job per video. |
+| `jobs` | Belongs to a video; kind (script, clone, render, publish, image), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of LLM calls (`claude_calls`, named for the first provider) and of Gemini image calls, the provider and model a script or clone job wrote with, the job it retries. At most one queued or running job per video. |
 | `settings` | The prompts and banned words before `knowledge_topics`; no longer read. |
+| `llm_providers` | One row per provider set up on `/settings/ai` (the list itself is fixed in [llm.py](../api/src/reels_api/llm.py)): base URL and model (empty means the provider's default), the API key encrypted like a Fanpage token ([crypto.py](../api/src/reels_api/crypto.py)) and its last characters, who changed it last. |
+| `app_settings` | Team-wide settings from the Cài đặt pages by key: `llm_provider` (the provider that writes scripts; Claude when unset), `video_defaults` (what a new video's settings, narration switch and music level start as), `stock_sources_off` (stock sources the team turned off). |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
 | `affiliate_products` | The team's Shopee products, typed in from the affiliate dashboard: topic group, name, link, shop, shop type, rating, sales, price, commission rate, draft or approved, who approved it and when, creator. Approval needs a trusted shop type, at least 4.7 stars, 100 sales, and no banned word in the name ([routes_affiliate.py](../api/src/reels_api/routes_affiliate.py)); changing an approved row sends it back to draft. A topic group with products cannot be deleted. |
 | `video_affiliate_products` | The products attached to a posted reel; deleted with either side. Only an approved product that meets the rules can be added; one that later stops qualifying stays, flagged, and is left out of the copied comment. |
@@ -316,7 +321,7 @@ Planned:
 
 ### Sensitive Data
 
-- API keys (Anthropic, Pixabay, ElevenLabs) live only in environment variables. They are never
+- API keys (Anthropic, Pixabay, Pexels, ElevenLabs, Gemini) live only in environment variables. They are never
   committed or stored in the database.
 - Facebook Page tokens are pasted on `/fanpages`, by the owner's decision, checked with Facebook,
   and stored in `fanpages` encrypted with a key generated in the storage folder

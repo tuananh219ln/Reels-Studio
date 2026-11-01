@@ -6,6 +6,7 @@ narration whose text, voice or model changed.
 
 import hashlib
 import json
+import time
 import urllib.error
 import urllib.request
 
@@ -28,24 +29,30 @@ def spoken_text(voice_text: str) -> str:
     return " ".join(voice_text.split())
 
 
-def voice_signature(voice_text: str) -> str:
-    data = [config.voice_id(), config.voice_model(), spoken_text(voice_text)]
+# ElevenLabs voice_settings.speed for each speed preset (video_options.SPEEDS).
+SPEEDS = {"slow": 0.9, "normal": 1.0, "fast": 1.1}
+
+
+def voice_signature(voice_text: str, voice_id: str | None = None, speed: str = "normal") -> str:
+    """What one narration MP3 is made from. The speed joins only when it is not the normal one, so narration
+    made before speeds existed stays valid."""
+    data = [voice_id or config.voice_id(), config.voice_model(), spoken_text(voice_text)]
+    if speed != "normal":
+        data.append(speed)
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
-def synthesize(voice_text: str) -> bytes:
-    """The narration as MP3 bytes."""
+def synthesize(voice_text: str, voice_id: str | None = None, speed: str = "normal") -> bytes:
+    """The narration as MP3 bytes, in the given voice (the server's default when None) and speed."""
     key = config.elevenlabs_key()
     if not key:
         raise TtsError("Chưa cấu hình ELEVENLABS_API_KEY nên không tạo được lời đọc")
-    url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{config.voice_id()}?output_format=mp3_44100_128"
-    body = json.dumps(
-        {
-            "text": spoken_text(voice_text),
-            "model_id": config.voice_model(),
-            "language_code": "vi",
-        }
-    ).encode()
+    voice = voice_id or config.voice_id()
+    url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{voice}?output_format=mp3_44100_128"
+    payload: dict = {"text": spoken_text(voice_text), "model_id": config.voice_model(), "language_code": "vi"}
+    if speed != "normal":
+        payload["voice_settings"] = {"speed": SPEEDS[speed]}
+    body = json.dumps(payload).encode()
     request = urllib.request.Request(
         url,
         data=body,
@@ -84,3 +91,45 @@ def _http_error(status: int, body: str) -> TtsError:
     if status >= 500:
         return TtsError(f"ElevenLabs đang lỗi (HTTP {status}), thử lại sau", detail)
     return TtsError("ElevenLabs từ chối tạo lời đọc", detail)
+
+
+VOICES_TIMEOUT = 15
+VOICES_CACHE_SECONDS = 600
+_voices_cache: dict[str, tuple[float, list[dict]]] = {}
+
+
+def list_voices() -> list[dict]:
+    """The account's ElevenLabs voices for the voice picker: id, name, a short description and a sample URL.
+    Listing costs no characters; the answer is kept for 10 minutes."""
+    key = config.elevenlabs_key()
+    if not key:
+        raise TtsError("Chưa cấu hình ELEVENLABS_API_KEY nên chưa chọn được giọng đọc")
+    url = f"{config.elevenlabs_api_url()}/v1/voices"
+    cached = _voices_cache.get(url)
+    if cached and time.monotonic() - cached[0] < VOICES_CACHE_SECONDS:
+        return cached[1]
+    request = urllib.request.Request(url, headers={"xi-api-key": key, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=VOICES_TIMEOUT) as response:
+            data = json.loads(response.read(2_000_000))
+    except urllib.error.HTTPError as err:
+        raise _http_error(err.code, err.read(4000).decode("utf-8", "replace")) from None
+    except (OSError, ValueError) as err:
+        raise TtsError("Không lấy được danh sách giọng ElevenLabs, thử lại sau", str(err)) from None
+    voices = []
+    for item in data.get("voices", []) if isinstance(data, dict) else []:
+        if not isinstance(item, dict) or not item.get("voice_id"):
+            continue
+        labels = item.get("labels") if isinstance(item.get("labels"), dict) else {}
+        description = ", ".join(str(labels[name]) for name in ("gender", "age", "accent") if labels.get(name))
+        voices.append(
+            {
+                "id": str(item["voice_id"]),
+                "name": str(item.get("name") or item["voice_id"]),
+                "description": description,
+                "preview_url": item.get("preview_url") or None,
+            }
+        )
+    voices.sort(key=lambda voice: voice["name"].lower())
+    _voices_cache[url] = (time.monotonic(), voices)
+    return voices

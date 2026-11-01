@@ -7,6 +7,7 @@ drive colons or backslashes) is ever escaped into the graph.
 from dataclasses import dataclass
 from pathlib import Path
 
+from .options import DEFAULT_OPTIONS, RenderOptions
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 from .timeline import FPS, VOICE_LEAD, XFADE_FRAMES, Timeline
 
@@ -17,6 +18,9 @@ AUDIO_RATE = 48000
 # A clip's headers can lie about its size (H.264 may switch mid-stream); the decoder refuses larger frames.
 MAX_CLIP_PIXELS = 4096 * 2304
 MUSIC_FADE_SECONDS = 1.5
+XFADE_NAMES = {"fade": "fade", "slide": "slideleft"}
+# Ducking: the music drops to about a quarter while narration plays and comes back in 0.4 s.
+DUCKING = "sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400"
 
 
 @dataclass(frozen=True)
@@ -29,27 +33,53 @@ class SceneInput:
     video_start: float | None = None
 
 
-def zoom_expression(clip_frames: int) -> str:
-    """Linear zoom from 1.00 on the clip's first frame to ZOOM_END on its last frame."""
-    return f"1+{ZOOM_END - 1:.4f}*on/{clip_frames - 1}"
+@dataclass(frozen=True)
+class CaptionInput:
+    """One caption image shown from `start` to `end` seconds of the video."""
+
+    image: Path
+    x: int
+    y: int
+    start: float
+    end: float
+
+
+def zoom_expression(clip_frames: int, motion: str = "zoom_in", zoom_end: float = ZOOM_END) -> str:
+    """zoom_in: linear from 1.00 on the clip's first frame to zoom_end on its last; zoom_out the reverse; pan
+    holds zoom_end so there is room to travel sideways; static stays at 1.00."""
+    if motion == "zoom_out":
+        return f"{zoom_end:.4f}-{zoom_end - 1:.4f}*on/{clip_frames - 1}"
+    if motion == "pan":
+        return f"{zoom_end:.4f}"
+    if motion == "static":
+        return "1"
+    return f"1+{zoom_end - 1:.4f}*on/{clip_frames - 1}"
+
+
+def _pan_x(clip_frames: int, motion: str) -> str:
+    """Centred, except a pan that travels from the left edge of the zoomed frame to the right."""
+    if motion == "pan":
+        return f"(iw-iw/zoom)*on/{clip_frames - 1}"
+    return "iw/2-(iw/zoom/2)"
 
 
 def _seconds(frames: int) -> str:
     return f"{frames / FPS:.6f}"
 
 
-def _photo_chain(source: int, frames: int, label: str) -> str:
+def _photo_chain(source: int, frames: int, label: str, options: RenderOptions = DEFAULT_OPTIONS) -> str:
     scale_w, scale_h = FRAME_WIDTH * PRESCALE, FRAME_HEIGHT * PRESCALE
+    zoom = zoom_expression(frames, options.motion, options.zoom_end)
     return (
         f"[{source}:v]scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
-        f"zoompan=z='{zoom_expression(frames)}':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)'"
+        f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion)}':y='ih/2-(ih/zoom/2)'"
         f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
         f"format=yuv420p[{label}]"
     )
 
 
-def _clip_chain(source: int, frames: int, label: str) -> str:
+def _clip_chain(source: int, frames: int, label: str, options: RenderOptions = DEFAULT_OPTIONS) -> str:
     """A clip already moves, so it gets no zoom. `fps` first turns phone footage with a variable frame rate into
     constant 30 fps; `tpad` holds the last frame when the clip ends before the scene, and `trim` cuts it to the
     timeline's exact frame count so the crossfade offsets stay frame-exact."""
@@ -68,24 +98,44 @@ def build_filter_graph(
     music_volume: float | None,
     voices: list[bool] | None = None,
     clips: list[bool] | None = None,
+    options: RenderOptions = DEFAULT_OPTIONS,
+    captions: list[CaptionInput] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
-    narration of each scene that has one (`voices` says which do). A scene that `clips` marks has a video clip
-    in its image's place; the clip's own sound is never used."""
+    narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
+    marks has a video clip in its image's place; the clip's own sound is never used."""
     clips = clips or [False] * len(box_positions)
+    captions = captions or []
+    # A hard cut joins the scenes end to end, so each clip is exactly its scene; a crossfade or slide overlaps
+    # half a transition on each side of a boundary instead.
+    cut = options.transition == "cut"
+    lengths = timeline.scene_frames if cut else timeline.clip_frames
     chains: list[str] = []
-    for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, timeline.clip_frames)):
+    for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, lengths)):
         image, box = 2 * index, 2 * index + 1
         chain = _clip_chain if clips[index] else _photo_chain
-        chains.append(chain(image, frames, f"bg{index}"))
+        chains.append(chain(image, frames, f"bg{index}", options))
         chains.append(f"[bg{index}][{box}:v]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
 
-    previous = "v0"
-    for index, offset in enumerate(timeline.xfade_offsets, start=1):
-        label = f"x{index}"
+    if cut:
+        joined = "".join(f"[v{index}]" for index in range(len(box_positions)))
+        chains.append(f"{joined}concat=n={len(box_positions)}:v=1:a=0[x0]")
+        previous = "x0"
+    else:
+        previous = "v0"
+        for index, offset in enumerate(timeline.xfade_offsets, start=1):
+            label = f"x{index}"
+            chains.append(
+                f"[{previous}][v{index}]xfade=transition={XFADE_NAMES[options.transition]}"
+                f":duration={_seconds(XFADE_FRAMES)}:offset={_seconds(offset)}[{label}]"
+            )
+            previous = label
+    first_caption = 2 * len(box_positions) + (music_volume is not None) + sum(voices or [])
+    for index, caption in enumerate(captions):
+        label = f"c{index}"
         chains.append(
-            f"[{previous}][v{index}]xfade=transition=fade:duration={_seconds(XFADE_FRAMES)}"
-            f":offset={_seconds(offset)}[{label}]"
+            f"[{previous}][{first_caption + index}:v]overlay=x={caption.x}:y={caption.y}"
+            f":enable='between(t,{caption.start:.3f},{caption.end:.3f})'[{label}]"
         )
         previous = label
     chains.append(f"[{previous}]format=yuv420p[vout]")
@@ -105,8 +155,16 @@ def build_filter_graph(
         )
     if bed == "bed":
         chains += _voice_chains(voices, timeline, 2 * len(box_positions) + (music_volume is not None))
+        voice = "voice"
+        if options.voice_volume != 1:
+            chains.append(f"[voice]volume={options.voice_volume:.4f}[voicelevel]")
+            voice = "voicelevel"
+        if options.ducking and music_volume is not None:
+            chains.append(f"[{voice}]asplit=2[voicemix][voicekey]")
+            chains.append(f"[bed][voicekey]{DUCKING}[ducked]")
+            bed, voice = "ducked", "voicemix"
         # amerge + pan adds the two tracks at full level; amix would halve both (FFmpeg 4.3 has no normalize=0).
-        chains.append("[bed][voice]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]")
+        chains.append(f"[{bed}][{voice}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]")
     return ";".join(chains)
 
 
@@ -138,6 +196,8 @@ def build_ffmpeg_args(
     music: Path | None,
     music_volume: float,
     output: Path,
+    options: RenderOptions = DEFAULT_OPTIONS,
+    captions: list[CaptionInput] | None = None,
 ) -> list[str]:
     argv = [ffmpeg, "-hide_banner", "-nostdin", "-v", "error", "-y"]
     for scene in scenes:
@@ -150,12 +210,16 @@ def build_ffmpeg_args(
     for scene in scenes:
         if scene.voice is not None:
             argv += ["-i", str(scene.voice)]
+    for caption in captions or []:
+        argv += ["-i", str(caption.image)]
     graph = build_filter_graph(
         [(scene.box_x, scene.box_y) for scene in scenes],
         timeline,
         music_volume if music is not None else None,
         [scene.voice is not None for scene in scenes],
         [scene.video_start is not None for scene in scenes],
+        options,
+        captions,
     )
     argv += [
         "-filter_complex",

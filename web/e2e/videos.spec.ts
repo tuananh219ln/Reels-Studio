@@ -4,7 +4,7 @@ import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { SEED, chooseOption, connectFacebook, loginAsSeed, resetDatabase } from "./helpers";
 
-// The api, a real worker with FFmpeg, and fake Claude/Pixabay (api/scripts/fake_services.py) all run.
+// The api, a real worker with FFmpeg, and fake Claude/stock sources (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
 
 test("topic to MP4: script, edits, render, play, seek, download and post", async ({ page }) => {
@@ -26,6 +26,9 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
   await uploadPhotos(page);
   await expect(title.getByTestId("scene-preview")).toBeVisible();
+  // Before an MP4 the side panel opens on "Thiết lập"; the post texts have their own tab.
+  await expect(page.getByRole("tab", { name: "Thiết lập" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
   await expect(page.getByTestId("self-review")).toBeVisible();
   await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
 
@@ -40,11 +43,9 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await text.blur();
   await expect(first.getByText("Đã lưu")).toBeVisible();
 
-  // Members bring their own photos: the Pixabay search is not offered.
+  // The script's photo keywords are shown for the stock search; the uploaded photo stays until replaced.
   await expect(first.getByTestId("scene-preview")).toBeVisible();
-  await expect(first.getByRole("button", { name: "Tìm lại ảnh" })).toHaveCount(0);
-  await expect(first.getByRole("button", { name: "Chọn từ Pixabay" })).toHaveCount(0);
-  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveCount(0);
+  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá nhỏ, món ăn");
 
   await page.reload();
   await expect(page.getByTestId("scene").first().getByLabel("Chữ trên màn hình")).toHaveValue(
@@ -60,6 +61,8 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByTestId("render-time")).toContainText("Dài 21.0 giây");
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
+  // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
+  await page.getByRole("tab", { name: "Xuất bản" }).click();
   // Seeking needs Range answers (206) through the web app's /api proxy.
   const src = await page.getByTestId("mp4-player").getAttribute("src");
   const range = await page.request.get(src ?? "", { headers: { Range: "bytes=100-199" } });
@@ -105,6 +108,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
+  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
   const caption = page.getByLabel("Caption");
   await caption.fill("Caption mới");
   await caption.blur();
@@ -199,6 +203,28 @@ test("phone width: the editor title keeps the full width and the actions sit bel
   // A scene photo stays a thumbnail, not a full-screen-tall frame.
   const preview = await page.getByTestId("title-scene").getByTestId("scene-preview").boundingBox();
   expect(preview!.height).toBeLessThan(420);
+  // "Render" stays on screen at the bottom, at the top of the page and deep among the scenes alike.
+  await expect(page.getByRole("button", { name: "Render" })).toBeInViewport();
+  await page.getByTestId("scene").nth(3).scrollIntoViewIfNeeded();
+  await expect(page.getByRole("button", { name: "Render" })).toBeInViewport();
+});
+
+test("the render bar counts what blocks the render and jumps to it", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  // No scene has a photo yet: each of the title and the five scenes is blocked.
+  const bar = page.getByTestId("render-bar");
+  await expect(bar.getByRole("button", { name: /^Còn 6 lỗi cần sửa/ })).toBeVisible();
+  await bar.getByRole("button", { name: /^Còn 6 lỗi cần sửa/ }).click();
+  await expect(page.getByTestId("title-scene").getByTestId("scene-blocking")).toBeInViewport();
+  await uploadPhotos(page);
+  await expect(bar).toContainText("Sẵn sàng render.");
+  await expect(bar.getByRole("button", { name: "Render" })).toBeEnabled();
 });
 
 /** A rendered video with its Page connected, open on its own page. */
@@ -379,6 +405,181 @@ function makeMp3(): string {
   return file;
 }
 
+test("photos from the stock picker: pick from the grid for the title and a scene, find one for another", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho người lớn tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  const render = page.getByRole("button", { name: "Render" });
+  await expect(render).toBeDisabled();
+
+  // The title scene: the grid opens on its first keyword and shows every result as a large-enough thumbnail.
+  const title = page.getByTestId("title-scene");
+  await title.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("calcium rich food");
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  // Measured once the dialog's opening zoom has finished.
+  await expect
+    .poll(async () => (await picker.getByTestId("stock-hit").first().boundingBox())?.width)
+    .toBeGreaterThanOrEqual(140);
+  const chosen = page.waitForRequest((request) => request.method() === "POST" && /\/stock$/.test(request.url()));
+  await picker.getByTestId("stock-hit").nth(1).click();
+  // The full-size address goes back with the source and the keyword it was found with.
+  const body = (await chosen).postDataJSON() as { source: string; keyword: string; url: string };
+  expect(body.source).toBe("pixabay");
+  expect(body.keyword).toBe("calcium rich food");
+  expect(body.url).toMatch(/\/img\/\w+\.jpg$/);
+  await expect(picker).toBeHidden();
+  // The chosen photo is served by the app, not linked from Pixabay.
+  await expect(title.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
+  await expect(title.getByRole("button", { name: "Tìm ảnh khác" })).toBeVisible();
+
+  // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
+  const scenes = page.getByTestId("scene");
+  const first = scenes.nth(0);
+  await first.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("small fried fish");
+  const firstResult = picker.getByTestId("stock-hit").first().locator("img");
+  await expect(firstResult).toBeVisible();
+  const oldThumbnail = await firstResult.getAttribute("src");
+  await picker.getByLabel("Từ khóa tìm ảnh").fill("cá cơm chiên");
+  await picker.getByLabel("Từ khóa tìm ảnh").press("Enter");
+  // The fake returns different photos per keyword: wait for the new keyword's results before choosing.
+  await expect(firstResult).not.toHaveAttribute("src", oldThumbnail ?? "");
+  await picker.getByTestId("stock-hit").nth(2).click();
+  await expect(picker).toBeHidden();
+  await expect(first.getByTestId("scene-preview")).toBeVisible();
+  // The typed keyword was searched on Pixabay, so it now leads the English list (not shown on the
+  // card); the card's field is the Vietnamese list, unchanged.
+  await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá nhỏ, món ăn");
+
+  // "Tìm ảnh" takes the first photo for the saved keywords; pressed again it moves on to another one.
+  const second = scenes.nth(1);
+  await second.getByRole("button", { name: "Tìm ảnh" }).click();
+  await expect(second.getByTestId("scene-preview")).toBeVisible();
+  const before = await second.getByTestId("scene-preview").getAttribute("src");
+  await second.getByRole("button", { name: "Tìm ảnh khác" }).click();
+  await expect(second.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
+
+  // Without keywords the api's own message is shown, with a pointer to the keyword field.
+  const third = scenes.nth(2);
+  await third.getByLabel("Từ khóa tìm ảnh").fill("");
+  await third.getByLabel("Từ khóa tìm ảnh").blur();
+  await expect(third.getByText("Đã lưu")).toBeVisible();
+  await third.getByRole("button", { name: "Tìm ảnh" }).click();
+  await expect(third.getByTestId("image-error")).toHaveText("Hãy nhập từ khóa tìm ảnh trước");
+  await expect(third.getByTestId("keywords-hint")).toBeVisible();
+  // The grid then waits for a keyword to be typed instead of searching nothing.
+  await third.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByTestId("picker-hint")).toBeVisible();
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(picker).toBeHidden();
+  await third.getByLabel("Từ khóa tìm ảnh").fill("đậu phụ rán");
+  await third.getByLabel("Từ khóa tìm ảnh").blur();
+  await expect(third.getByText("Đã lưu")).toBeVisible();
+
+  // Once every scene has a photo the render is no longer blocked.
+  for (let index = 2; index < 5; index++) {
+    await scenes.nth(index).getByRole("button", { name: "Tìm ảnh" }).click();
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+  }
+  await expect(page.getByTestId("scene-blocking")).toHaveCount(0);
+  await expect(render).toBeEnabled();
+  await page.reload();
+  await expect(page.getByTestId("scene-preview")).toHaveCount(6);
+
+  // On a phone the grid fits the screen: no sideways scroll, thumbnails still large enough to tell apart.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  for (const hit of await picker.getByTestId("stock-hit").all()) {
+    await expect.poll(async () => (await hit.boundingBox())?.width).toBeGreaterThanOrEqual(140);
+    const place = await hit.boundingBox();
+    expect((place?.x ?? 0) + (place?.width ?? 0)).toBeLessThanOrEqual(390);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+test("photos from Pexels and Openverse: switch sources inside the picker", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "món ăn tốt cho xương");
+  const scene = page.getByTestId("scene").first();
+  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  // Pixabay is the default source: its three fake photos show first.
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByText("Pexels", { exact: true }).click();
+  await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
+  // The page polls the video every 2.5 s; a poll must not send the picker back to Pixabay.
+  const poll = (response: { url(): string; request(): { method(): string } }) =>
+    /\/api\/videos\/\d+$/.test(response.url()) && response.request().method() === "GET";
+  await page.waitForResponse(poll);
+  await page.waitForResponse(poll);
+  await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
+  await expect(picker.getByRole("radio", { name: "Pexels" })).toBeChecked();
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByTestId("stock-hit").first().click();
+  await expect(picker).toBeHidden();
+  await expect(scene.getByTestId("scene-preview")).toBeVisible();
+
+  // Reopen and take a photo from Openverse instead; the picker starts on Pixabay again.
+  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await picker.getByText("Openverse", { exact: true }).click();
+  await expect(picker.getByText(/ảnh từ Openverse cho/)).toBeVisible();
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByTestId("stock-hit").nth(1).click();
+  await expect(picker).toBeHidden();
+  await expect(scene.getByTestId("scene-preview")).toBeVisible();
+
+  // "Tìm ảnh khác" searches Pixabay until another source is picked from its arrow menu.
+  const find = scene.getByRole("button", { name: "Tìm ảnh khác (Pixabay)" });
+  await expect(find).toBeVisible();
+  await scene.getByRole("button", { name: "Đổi nguồn ảnh" }).click();
+  await page.getByRole("menuitem", { name: "Openverse" }).click();
+  const fromOpenverse = page.waitForRequest(
+    (request) => request.method() === "POST" && /\/find-image\?source=openverse$/.test(request.url()),
+  );
+  await scene.getByRole("button", { name: "Tìm ảnh khác (Openverse)" }).click();
+  await fromOpenverse;
+  await expect(scene.getByTestId("image-error")).toHaveCount(0);
+  await expect(scene.getByTestId("scene-preview")).toBeVisible();
+});
+
+test("AI photos fill the scenes that have none, then the video can render", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho xương khớp");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+
+  // No scene has a photo yet: the AI button is offered and Render stays blocked.
+  await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
+  await page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" }).click();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+
+  await expect(page.getByTestId("title-scene").getByTestId("scene-preview")).toBeVisible({ timeout: 30_000 });
+  const scenes = page.getByTestId("scene");
+  for (let index = 0; index < (await scenes.count()); index++) {
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+  }
+  // Every scene has a photo now: the button is gone and Render is unblocked.
+  await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
+});
+
 test("add and remove music", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
@@ -547,4 +748,124 @@ test("a title clip with a start time renders, and removing it asks for a photo a
   await expect(title.getByTestId("scene-video")).toHaveCount(0);
   await expect(title.getByTestId("scene-no-preview")).toHaveText("Chưa có ảnh");
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
+});
+
+test("AI model settings: set up an OpenAI-compatible provider, check it, and write a script with it", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Mô hình AI" }).click();
+  await expect(page).toHaveURL(/\/settings\/ai$/);
+  // With nothing set, the team writes with Claude from the server's environment.
+  const claude = page.getByTestId("provider-anthropic");
+  await expect(claude.getByTestId("key-status")).toHaveText("Đang dùng key trong file .env của máy chủ");
+
+  await page.getByRole("button", { name: /Tùy chỉnh \(chuẩn OpenAI\)/ }).click();
+  const custom = page.getByTestId("provider-custom");
+  await custom.getByLabel("API key Tùy chỉnh (chuẩn OpenAI)").fill("fake-openai-key");
+  await custom.getByRole("button", { name: "Lưu key" }).click();
+  await expect(custom.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
+  await custom.getByLabel("Base URL Tùy chỉnh (chuẩn OpenAI)").fill("http://127.0.0.1:8199/openai/v1");
+  await custom.getByLabel("Model Tùy chỉnh (chuẩn OpenAI)").fill("fake-gpt-mini");
+  await custom.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(page.getByText("Đã lưu Tùy chỉnh (chuẩn OpenAI)")).toBeVisible();
+  await custom.getByRole("button", { name: "Kiểm tra kết nối" }).click();
+  await expect(page.getByText("Kết nối được Tùy chỉnh (chuẩn OpenAI) (2 model)")).toBeVisible();
+  await custom.getByRole("button", { name: "Dùng để viết kịch bản" }).click();
+  await expect(page.getByText("Từ giờ kịch bản được viết bằng Tùy chỉnh (chuẩn OpenAI)")).toBeVisible();
+  await expect(page.getByLabel("Nhà cung cấp đang dùng").locator("..")).toContainText(
+    "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
+  );
+
+  await page.getByRole("menuitem", { name: "Video" }).click();
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog.getByTestId("llm-line")).toContainText("Viết bằng: Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini");
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  await expect(page.getByTestId("script-by")).toHaveText("Kịch bản viết bởi Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini");
+
+  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await expect(page.locator(".ant-table-tbody .ant-table-row").first()).toContainText(
+    "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
+  );
+});
+
+test("video settings: team defaults reach a new video, which then changes its own", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Thiết lập mặc định" }).click();
+  await expect(page).toHaveURL(/\/settings\/defaults$/);
+  await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
+  await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
+  await page.getByLabel("Tốc độ đọc").getByText("Nhanh").click();
+  await expect(page.getByTestId("audio-settings")).toContainText("Adam (mặc định)");
+
+  await page.getByRole("menuitem", { name: "Video" }).click();
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  const motion = page.getByTestId("motion-settings");
+  await expect(motion.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).toHaveText("Cắt thẳng");
+  await expect(page.getByLabel("Tốc độ đọc").locator(".ant-segmented-item-selected")).toHaveText("Nhanh");
+
+  // The video's own choice: a dark text box redraws the scene previews.
+  const preview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const before = await preview.getAttribute("src");
+  await page.getByRole("radio", { name: "Kiểu Tối" }).click();
+  await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveAttribute("aria-checked", "true");
+  await expect(preview).not.toHaveAttribute("src", before ?? "");
+  // Black letters would vanish into the dark box; yellow ones redraw the previews again.
+  await expect(page.getByRole("radio", { name: "Màu Đen" })).toBeDisabled();
+  const dark = await preview.getAttribute("src");
+  await page.getByRole("radio", { name: "Màu Vàng" }).click();
+  await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
+  await expect(preview).not.toHaveAttribute("src", dark ?? "");
+  // No box keeps the colour.
+  await page.getByRole("radio", { name: "Kiểu Không hộp" }).click();
+  await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
+
+  // Captions need narration.
+  await page.getByRole("switch", { name: "Đọc lời từng cảnh" }).click();
+  await expect(page.getByLabel("Phụ đề theo giọng đọc").locator("input").first()).toBeDisabled();
+  await expect(page.getByText("Cần bật giọng đọc.")).toBeVisible();
+});
+
+test("stock clips: pick a vertical clip for a scene, and a source turned off leaves the picker", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho người lớn tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+
+  const scene = page.getByTestId("scene").first();
+  await scene.getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh/video" });
+  await picker.getByText("Video", { exact: true }).click();
+  // Pixabay offers clips too, Openverse does not.
+  await expect(picker.getByLabel("Nguồn video")).toContainText("Pexels");
+  await expect(picker.getByLabel("Nguồn video")).not.toContainText("Openverse");
+  await expect(picker.getByTestId("clip-hit")).toHaveCount(3);
+  await picker.getByRole("button", { name: "Chọn video 2" }).click();
+  await expect(picker).toBeHidden({ timeout: 30_000 });
+  await expect(scene.getByTestId("scene-video")).toBeVisible();
+
+  await page.getByRole("menuitem", { name: "Nguồn tư liệu" }).click();
+  await expect(page).toHaveURL(/\/settings\/sources$/);
+  await page.getByRole("switch", { name: "Bật Pexels" }).click();
+  await expect(page.getByRole("switch", { name: "Bật Pexels" })).not.toBeChecked();
+  // A key pasted here is stored encrypted and only its last characters come back.
+  const pixabayKey = page.getByTestId("key-pixabay");
+  await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đang dùng key trong file .env của máy chủ");
+  await pixabayKey.getByRole("button", { name: "Dán key mới" }).click();
+  await pixabayKey.getByLabel("API key Pixabay").fill("fake-pixabay-key");
+  await pixabayKey.getByRole("button", { name: "Lưu key" }).click();
+  await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
+  await page.goBack();
+  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
 });

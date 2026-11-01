@@ -282,7 +282,7 @@ function BannedWordsCard({ initial, update }: { initial: string[]; update: Updat
     <Card title="Từ cấm" size="small">
       <Typography.Paragraph type="secondary">
         Mỗi dòng một từ. Tiêu đề, chữ cảnh, caption và bình luận ghim có từ cấm sẽ hiện cảnh báo vàng (không chặn
-        render). Claude cũng được dặn tránh các từ này.
+        render). AI viết kịch bản cũng được dặn tránh các từ này.
       </Typography.Paragraph>
       <Input.TextArea
         aria-label="Từ cấm"

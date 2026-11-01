@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  ArrowLeftOutlined,
-  CopyOutlined,
-  DeleteOutlined,
-  DownloadOutlined,
-  PlusOutlined,
-  VideoCameraOutlined,
-} from "@ant-design/icons";
+import { ArrowLeftOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   App,
   Alert,
@@ -16,6 +9,7 @@ import {
   Col,
   Collapse,
   Flex,
+  Grid,
   Input,
   Modal,
   Radio,
@@ -23,7 +17,7 @@ import {
   Row,
   Space,
   Spin,
-  Tooltip,
+  Tabs,
   Typography,
 } from "antd";
 import Link from "next/link";
@@ -31,16 +25,34 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
-import MusicCard from "@/components/video/MusicCard";
 import PostContent from "@/components/video/PostContent";
 import PublishCard from "@/components/video/PublishCard";
-import VoiceCard from "@/components/video/VoiceCard";
+import RenderBar from "@/components/video/RenderBar";
 import SceneCard from "@/components/video/SceneCard";
+import SetupTab from "@/components/video/SetupTab";
 import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
-const JOB_NAMES = { script: "Viết kịch bản", clone: "Nhân bản", render: "Render", publish: "Đăng Facebook" } as const;
+const JOB_NAMES = {
+  script: "Viết kịch bản",
+  clone: "Nhân bản",
+  render: "Render",
+  publish: "Đăng Facebook",
+  image: "Tạo ảnh AI",
+} as const;
+
+/** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
+type SideTab = "publish" | "setup" | "post";
+
+// Below the sticky header (72 px) and above the render bar, so neither covers the panel.
+const SIDE_PANEL_STYLE = {
+  position: "sticky",
+  top: 88,
+  maxHeight: "calc(100vh - 88px - 96px)",
+  overflowY: "auto",
+  paddingRight: 4,
+} as const;
 
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,6 +62,10 @@ export default function VideoPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [cloning, setCloning] = useState(false);
+  // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Xuất bản".
+  const [sideTab, setSideTab] = useState<SideTab | null>(null);
+  // The two columns sit side by side from xl up; only then does the side panel stick.
+  const sideBySide = Grid.useBreakpoint().xl ?? false;
   const pending = useRef(new Set<Promise<unknown>>());
 
   const load = useCallback(async () => {
@@ -103,6 +119,12 @@ export default function VideoPage() {
     // "Render" uses the saved data: leave the field being typed in and wait until it is saved.
     await editor.flush();
     await act(() => api<VideoDetail>(`/videos/${id}/render`, "POST"));
+  }
+
+  async function generateImages() {
+    // The job reads the saved prompts: flush first, like "Render".
+    await editor.flush();
+    await act(() => api<VideoDetail>(`/videos/${id}/image`, "POST"));
   }
 
   function remove() {
@@ -176,18 +198,6 @@ export default function VideoPage() {
           </div>
         </div>
         <Space wrap>
-          {video.has_script && (
-            <Tooltip title={video.can_render || job ? undefined : "Còn lỗi cần sửa ở các cảnh (xem ô đỏ)"}>
-              <Button
-                type="primary"
-                icon={<VideoCameraOutlined />}
-                disabled={!video.can_render || busy}
-                onClick={render}
-              >
-                Render
-              </Button>
-            </Tooltip>
-          )}
           {!video.has_script && !job && (
             <Button
               type="primary"
@@ -220,11 +230,13 @@ export default function VideoPage() {
               ? `${video.status_label}: ${JOB_NAMES[job.kind]}`
               : job.kind === "render"
                 ? "Đang render video…"
-                : job.kind === "publish"
-                  ? "Đang đăng lên Facebook…"
-                  : job.kind === "clone"
-                    ? "Claude đang viết kịch bản nhân bản…"
-                    : "Đang viết kịch bản…"
+                : job.kind === "image"
+                  ? "Đang tạo ảnh AI cho các cảnh thiếu…"
+                  : job.kind === "publish"
+                    ? "Đang đăng lên Facebook…"
+                    : job.kind === "clone"
+                      ? "AI đang viết kịch bản nhân bản…"
+                      : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
@@ -280,7 +292,7 @@ export default function VideoPage() {
         !job && (
           <Card>
             <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-              Video chưa có kịch bản. Bấm “Viết kịch bản” để Claude viết theo chủ đề.
+              Video chưa có kịch bản. Bấm “Viết kịch bản” để AI viết theo chủ đề.
             </Typography.Paragraph>
           </Card>
         )
@@ -289,7 +301,7 @@ export default function VideoPage() {
           <Col xs={24} xl={15}>
             <Flex vertical gap={16}>
               {video.video_blocking.map((reason) => (
-                <Alert key={reason} type="error" showIcon title={reason} />
+                <Alert key={reason} type="error" showIcon title={reason} data-testid="video-blocking" />
               ))}
               {video.video_warnings
                 .filter((warning) => warning.field === "total" || warning.field === "scenes")
@@ -297,7 +309,17 @@ export default function VideoPage() {
                   <Alert key={warning.message} type="warning" showIcon title={warning.message} />
                 ))}
               {video.title_scene && (
-                <Card title="Tiêu đề" size="small">
+                <Card
+                  title="Tiêu đề"
+                  size="small"
+                  extra={
+                    video.script_by && (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="script-by">
+                        Kịch bản viết bởi {video.script_by}
+                      </Typography.Text>
+                    )
+                  }
+                >
                   <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
                   <Radio.Group
                     style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
@@ -334,41 +356,76 @@ export default function VideoPage() {
             </Flex>
           </Col>
           <Col xs={24} xl={9}>
-            <Flex vertical gap={16}>
-              {video.mp4 && (
-                <Card title="MP4" size="small">
-                  <video
-                    key={video.mp4.url}
-                    src={video.mp4.url}
-                    controls
-                    preload="metadata"
-                    data-testid="mp4-player"
-                    style={{ width: "100%", maxWidth: 320, aspectRatio: "9 / 16", background: "#000", borderRadius: 6 }}
-                  />
-                  <Flex wrap gap={8} align="center" style={{ marginTop: 8 }}>
-                    <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
-                      Tải MP4
-                    </Button>
-                    <Typography.Text type="secondary" data-testid="render-time">
-                      Dài {video.mp4.seconds.toFixed(1)} giây · render mất {video.mp4.render_seconds.toFixed(1)} giây
-                    </Typography.Text>
-                  </Flex>
-                </Card>
-              )}
-              {video.mp4 && <PublishCard video={video} />}
-              <VoiceCard video={video} />
-              <MusicCard video={video} />
-              <PostContent video={video} />
-            </Flex>
+            {/* On a wide screen the side panel stays in view while the scenes scroll past it. */}
+            <div style={sideBySide ? SIDE_PANEL_STYLE : undefined}>
+              <Tabs
+                activeKey={sideTab ?? (video.mp4 ? "publish" : "setup")}
+                onChange={(key) => setSideTab(key as SideTab)}
+                items={[
+                  {
+                    key: "publish",
+                    label: "Xuất bản",
+                    children: (
+                      <Flex vertical gap={16}>
+                        {video.mp4 ? (
+                          <>
+                            <Card title="MP4" size="small">
+                              <video
+                                key={video.mp4.url}
+                                src={video.mp4.url}
+                                controls
+                                preload="metadata"
+                                data-testid="mp4-player"
+                                style={{
+                                  width: "100%",
+                                  maxWidth: 320,
+                                  aspectRatio: "9 / 16",
+                                  background: "#000",
+                                  borderRadius: 6,
+                                }}
+                              />
+                              <Flex wrap gap={8} align="center" style={{ marginTop: 8 }}>
+                                <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
+                                  Tải MP4
+                                </Button>
+                                <Typography.Text type="secondary" data-testid="render-time">
+                                  Dài {video.mp4.seconds.toFixed(1)} giây · render mất{" "}
+                                  {video.mp4.render_seconds.toFixed(1)} giây
+                                </Typography.Text>
+                              </Flex>
+                            </Card>
+                            <PublishCard video={video} />
+                          </>
+                        ) : (
+                          <Card size="small">
+                            <Typography.Text type="secondary">
+                              Chưa có MP4. Bấm “Render” ở thanh dưới cùng khi các cảnh đã đủ ảnh; MP4 và phần đăng
+                              Facebook sẽ hiện ở đây.
+                            </Typography.Text>
+                          </Card>
+                        )}
+                      </Flex>
+                    ),
+                  },
+                  {
+                    key: "setup",
+                    label: "Thiết lập",
+                    children: <SetupTab video={video} />,
+                  },
+                  { key: "post", label: "Nội dung đăng", children: <PostContent video={video} /> },
+                ]}
+              />
+            </div>
           </Col>
         </Row>
       )}
+      {video.has_script && <RenderBar video={video} busy={busy} onRender={render} onGenerateImages={generateImages} />}
       <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
     </EditorContext.Provider>
   );
 }
 
-/** "Nhân bản": Claude writes a new draft from this video as it is now, changed as the member asks. */
+/** "Nhân bản": the team's LLM writes a new draft from this video as it is now, changed as the member asks. */
 function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean; onClose: () => void }) {
   const { message } = App.useApp();
   const router = useRouter();
@@ -403,7 +460,7 @@ function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean
       afterClose={() => setRequest("")}
     >
       <Typography.Paragraph type="secondary">
-        Claude giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là một
+        AI giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là một
         video nháp riêng, chưa có ảnh, có gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị khóa hay thay
         đổi.
       </Typography.Paragraph>

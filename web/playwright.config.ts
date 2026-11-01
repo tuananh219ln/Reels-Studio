@@ -26,8 +26,18 @@ const BACKEND_ENV = {
   ANTHROPIC_BASE_URL: FAKES_URL,
   PIXABAY_API_KEY: "fake-pixabay-key",
   PIXABAY_API_URL: `${FAKES_URL}/api/`,
+  PEXELS_API_KEY: "fake-pexels-key",
+  PEXELS_API_URL: `${FAKES_URL}/pexels`,
+  // Anonymous Openverse (no client id/secret), as production runs by default.
+  OPENVERSE_API_URL: `${FAKES_URL}/openverse`,
   ELEVENLABS_API_KEY: "fake-elevenlabs-key",
   ELEVENLABS_API_URL: FAKES_URL,
+  IMAGE_GEN_API_KEY: "fake-image-gen-key",
+  IMAGE_GEN_API_URL: `${FAKES_URL}/gemini`,
+  // Cloudflare Workers AI, ready for tests; IMAGE_GEN_PROVIDER stays unset so the E2E image test uses Gemini.
+  IMAGE_GEN_CF_API_URL: `${FAKES_URL}/cloudflare/client/v4`,
+  IMAGE_GEN_CF_ACCOUNT_ID: "test-account",
+  IMAGE_GEN_CF_API_KEY: "fake-cloudflare-token",
   FACEBOOK_API_URL: `${FAKES_URL}/facebook`,
   PYTHONUNBUFFERED: "1",
   PYTHONIOENCODING: "utf-8",

@@ -93,7 +93,8 @@ a push to `main` deploys only after everything passes.
 - **Prompt text is app data, the output format is code** ([docs/content.md](docs/content.md)).
 - **Times are shown in Vietnam time** (`Asia/Ho_Chi_Minh`) whatever the browser's time zone.
 - **Secrets stay in `.env`** (never committed; add new names to `.env.example`). Agents do not
-  read `.env`. A new env var also updates the table in
+  read `.env`. The one exception is what members paste on the Cài đặt pages (Fanpage tokens, LLM,
+  stock-library and AI-image API keys): stored encrypted in the database, never sent back ([decisions](docs/decisions.md)). A new env var also updates the table in
   [docs/deployment.md](docs/deployment.md) in the same PR.
 - **A person watches the render.** A change to the render core or the video template is done only
   when a person has watched a sample MP4 against [docs/ux-guidelines.md](docs/ux-guidelines.md)

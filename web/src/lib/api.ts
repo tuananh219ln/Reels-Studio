@@ -29,7 +29,7 @@ export type UserRow = {
   is_me: boolean;
 };
 
-export type VideoStatus = "draft" | "queued" | "writing" | "rendering" | "publishing" | "done" | "failed";
+export type VideoStatus = "draft" | "queued" | "writing" | "imaging" | "rendering" | "publishing" | "done" | "failed";
 
 export type VideoRow = {
   id: number;
@@ -46,7 +46,7 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish";
+  kind: "script" | "clone" | "render" | "publish" | "image";
   status: "queued" | "running" | "done" | "failed" | "cancelled";
   error: string | null;
   error_detail: string | null;
@@ -61,6 +61,8 @@ export type SceneData = {
   text: string;
   seconds: number;
   keywords: string[];
+  /** The same search terms in English, for the Western stock libraries (Pixabay, Pexels). */
+  keywords_en: string[];
   image_prompt: string;
   voice_text: string;
   /** Length of the narration made for the current voice text; null until a render has made it. */
@@ -95,6 +97,8 @@ export type VideoDetail = VideoRow & {
   music: { url: string; name: string | null } | null;
   music_volume: number;
   voice_enabled: boolean;
+  /** The video's own settings from its "Thiết lập" tab. */
+  options: VideoOptions;
   /** The Pages in use, connected on /fanpages. */
   fanpages: { id: number; name: string }[];
   /** The post to the Facebook Page; `pending` until the publish job has finished. */
@@ -105,6 +109,8 @@ export type VideoDetail = VideoRow & {
     url: string | null;
   } | null;
   knowledge_topic: string | null;
+  /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
+  script_by: string | null;
   clone_of: { title: string; request: string } | null;
   title_scene: SceneData | null;
   scenes: SceneData[];
@@ -132,6 +138,51 @@ export type Fanpage = {
   updated_by: string | null;
 };
 
+/** A video's settings, each a named preset (api video_options.DEFAULTS). */
+export type VideoOptions = {
+  voice_id: string;
+  voice_speed: "slow" | "normal" | "fast";
+  voice_volume: number;
+  ducking: boolean;
+  transition: "fade" | "cut" | "slide";
+  motion: "zoom_in" | "zoom_out" | "pan" | "static";
+  zoom: "light" | "medium" | "strong";
+  text_style: "yellow" | "white" | "dark" | "red" | "none";
+  text_color: "auto" | "white" | "black" | "yellow" | "red";
+  captions: "off" | "phrase" | "word";
+};
+
+/** What a new video starts with (Cài đặt › Thiết lập mặc định). */
+export type VideoDefaults = VideoOptions & { voice_enabled: boolean; music_volume: number };
+
+export type Voice = { id: string; name: string; description: string; preview_url: string | null };
+
+/** One LLM provider on /settings/ai. Its API key never comes back: only where it comes from and its last characters. */
+export type LlmProvider = {
+  id: string;
+  name: string;
+  kind: "anthropic" | "openai";
+  needs_key: boolean;
+  key_source: "saved" | "env" | null;
+  key_tail: string | null;
+  key_unreadable: boolean;
+  base_url: string;
+  default_base_url: string;
+  model: string;
+  model_suggestions: string[];
+  effective_base_url: string;
+  effective_model: string;
+  problem: string | null;
+  active: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
+};
+
+export type LlmSettings = { active: string; providers: LlmProvider[] };
+
+/** The provider and model a script job would use now. */
+export type ActiveLlm = { provider: string; name: string; model: string; problem: string | null };
+
 /** A Page a pasted token manages. */
 export type FanpageChoice = { page_id: string; name: string; can_post: boolean };
 
@@ -154,6 +205,14 @@ export type MusicTrack = {
 
 /** The api's fixed lists that tag every track. */
 export type MusicOptions = { topics: string[]; moods: string[] };
+
+/** One "Chọn từ Pixabay" result: `preview` is only a thumbnail to show; `url` is the full photo the server stores. */
+export type PixabayHit = { url: string; preview: string };
+
+export type StockSource = { id: string; label: string; available: boolean; clips?: boolean };
+
+/** A stock video clip in the picker's "Video" mode; `preview` is a still shown straight from the source. */
+export type ClipHit = { id: string; preview: string; url: string; seconds: number };
 
 export type AffiliateProduct = {
   id: number;
@@ -216,6 +275,9 @@ export type JobRow = {
   started_at: string | null;
   duration_seconds: number | null;
   claude_calls: number;
+  image_calls: number;
+  /** "DeepSeek · deepseek-chat" for a script or clone job; null for other jobs and older ones. */
+  llm: string | null;
   error: string | null;
 };
 

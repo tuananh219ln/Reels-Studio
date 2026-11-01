@@ -101,6 +101,8 @@ class Video(Base):
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
     voice_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # The video's own settings (video_options.DEFAULTS keys); None renders the original template.
+    options: Mapped[dict | None] = mapped_column(JSONB)
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
@@ -123,6 +125,9 @@ class Scene(Base):
     text: Mapped[str] = mapped_column(Text, default="")
     seconds: Mapped[float] = mapped_column(Float)
     keywords: Mapped[list] = mapped_column(JSONB, default=list)
+    # The same search terms in English: Western stock libraries (Pixabay, Pexels) index in English,
+    # so their searches use these; the Vietnamese list stays for Openverse and for display.
+    keywords_en: Mapped[list] = mapped_column(JSONB, default=list)
     image_prompt: Mapped[str] = mapped_column(Text, default="")
     image_key: Mapped[str | None] = mapped_column(String(200))
     # "upload" or the Pixabay URL the image came from: "Tìm lại ảnh" must pick a different one.
@@ -153,7 +158,7 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render | publish
+    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render | publish | image
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     retry_of_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))
@@ -163,6 +168,12 @@ class Job(Base):
     error: Mapped[str | None] = mapped_column(Text)
     error_detail: Mapped[str | None] = mapped_column(Text)
     claude_calls: Mapped[int] = mapped_column(Integer, default=0)
+    image_calls: Mapped[int] = mapped_column(
+        Integer, default=0
+    )  # Gemini calls of an image job, counted like claude_calls
+    # The LLM a script or clone job wrote with (llm.py's provider id and the model name); claude_calls counts its calls.
+    llm_provider: Mapped[str | None] = mapped_column(String(32))
+    llm_model: Mapped[str | None] = mapped_column(String(200))
 
     created_by: Mapped[User] = relationship()
 
@@ -184,6 +195,38 @@ class Fanpage(Base):
     )
 
     updated_by: Mapped[User | None] = relationship()
+
+
+class LlmProvider(Base):
+    """A provider's settings from /settings/ai; the list of providers is fixed in llm.py. The key is encrypted
+    like a Fanpage token (see crypto.py) and empty fields fall back to the provider's defaults."""
+
+    __tablename__ = "llm_providers"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    base_url: Mapped[str] = mapped_column(String(500), default="")
+    model: Mapped[str] = mapped_column(String(200), default="")
+    key_encrypted: Mapped[str | None] = mapped_column(Text)
+    key_tail: Mapped[str | None] = mapped_column(String(8))
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    updated_by: Mapped[User | None] = relationship()
+
+
+class AppSetting(Base):
+    """A team-wide setting from the Cài đặt pages, by key (e.g. "llm_provider")."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[object] = mapped_column(JSONB)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class Publication(Base):

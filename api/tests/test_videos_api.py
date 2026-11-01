@@ -473,6 +473,49 @@ def test_find_other_photo_needs_keywords(an, db, me, storage, fakes):
     assert an.post(f"/api/scenes/{target}/find-image").json()["message"] == "Hãy nhập từ khóa tìm ảnh trước"
 
 
+def test_find_other_photo_searches_the_english_keywords_when_the_script_wrote_them(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    an.patch(f"/api/scenes/{target}", json={"keywords": ["cá cơm"], "keywords_en": ["fried fish"]})
+    fakes.pixabay_results["fried fish"] = ["en1"]
+    assert an.post(f"/api/scenes/{target}/find-image").status_code == 200
+    # Pixabay indexes in English: only the English list was searched, never the Vietnamese one.
+    assert fakes.pixabay_queries == ["fried fish"]
+    assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("en1")
+
+
+def test_find_other_photo_from_pexels_walks_the_english_keywords(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    an.patch(f"/api/scenes/{target}", json={"keywords": ["cá cơm"], "keywords_en": ["fried fish"]})
+    fakes.pexels_results["fried fish"] = ["px1", "px2"]
+    sources = []
+    for _ in range(3):
+        assert an.post(f"/api/scenes/{target}/find-image", params={"source": "pexels"}).status_code == 200
+        sources.append(db.scalar(select(Scene.image_source).where(Scene.id == target)))
+    assert sources == [fakes.image_url(name) for name in ("px1", "px2", "px1")]
+    assert set(fakes.pexels_queries) == {"fried fish"} and fakes.pixabay_queries == []
+
+
+def test_find_other_photo_from_openverse_searches_the_vietnamese_keywords(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    an.patch(f"/api/scenes/{target}", json={"keywords": ["cá kho"], "keywords_en": ["braised fish"]})
+    fakes.openverse_results["cá kho"] = [{"name": "ov1", "license": "cc0"}, {"name": "ov2", "license": "pdm"}]
+    an.post(f"/api/scenes/{target}/find-image", params={"source": "openverse"})
+    assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("ov1")
+    an.post(f"/api/scenes/{target}/find-image", params={"source": "openverse"})
+    assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("ov2")
+    assert set(fakes.openverse_queries) == {"cá kho"}
+
+
+def test_find_other_photo_with_an_unknown_source_is_a_clean_error(an, db, me, storage, fakes):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    response = an.post(f"/api/scenes/{target}/find-image", params={"source": "flickr"})
+    assert (response.status_code, response.json()["message"]) == (422, "Nguồn ảnh không hợp lệ")
+
+
 @pytest.mark.parametrize(
     ("setup", "message"),
     [
@@ -504,6 +547,115 @@ def test_a_slow_pixabay_is_given_up_after_about_ten_seconds(an, db, me, storage,
     response = an.post(f"/api/scenes/{target}/find-image")
     assert response.status_code == 502 and "không phản hồi kịp" in response.json()["message"]
     assert time.monotonic() - started < 5
+
+
+# --- Stock picker sources ---
+
+
+def test_stock_sources_list_what_is_configured(an, fakes):
+    sources = an.get("/api/stock/sources").json()
+    assert [(item["id"], item["available"]) for item in sources] == [
+        ("pixabay", True),
+        ("pexels", True),
+        ("openverse", True),
+    ]
+
+
+def test_stock_sources_hide_pexels_without_a_key(an, fakes, monkeypatch):
+    monkeypatch.setenv("PEXELS_API_KEY", "")
+    sources = {item["id"]: item["available"] for item in an.get("/api/stock/sources").json()}
+    assert sources == {"pixabay": True, "pexels": False, "openverse": True}
+
+
+def test_pixabay_through_the_stock_endpoints(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    fakes.pixabay_results["cá cơm"] = ["p1"]
+    found = an.get(f"/api/scenes/{target}/stock", params={"q": "cá cơm", "source": "pixabay"})
+    assert [hit["url"] for hit in found.json()["hits"]] == [fakes.image_url("p1")]
+    saved = an.post(
+        f"/api/scenes/{target}/stock",
+        json={"source": "pixabay", "keyword": "cá cơm", "url": fakes.image_url("p1")},
+    )
+    assert saved.status_code == 200
+    assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("p1")
+
+
+def test_choosing_a_pexels_photo_stores_it(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    fakes.pexels_results["cá cơm"] = ["px1", "px2"]
+    found = an.get(f"/api/scenes/{target}/stock", params={"q": "cá cơm", "source": "pexels"})
+    assert found.status_code == 200
+    hits = found.json()["hits"]
+    assert [hit["url"] for hit in hits] == [fakes.image_url("px1"), fakes.image_url("px2")]
+    saved = an.post(
+        f"/api/scenes/{target}/stock",
+        json={"source": "pexels", "keyword": "cá cơm", "url": hits[1]["url"]},
+    )
+    assert saved.status_code == 200
+    assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("px2")
+
+
+def test_choosing_a_photo_that_is_not_a_result_is_refused(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    refused = an.post(
+        f"/api/scenes/{target}/stock",
+        json={"source": "pexels", "keyword": "cá cơm", "url": "https://images.pexels.com/photos/1/x.jpg"},
+    )
+    assert refused.status_code == 422 and "không có trong kết quả tìm" in refused.json()["message"]
+
+
+def test_openverse_only_offers_public_domain_works(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    fakes.openverse_results["cá kho"] = [
+        {"name": "free", "license": "cc0"},
+        {"name": "marked", "license": "pdm"},
+        {"name": "credited", "license": "by"},
+        {"name": "noncommercial", "license": "by-nc"},
+    ]
+    found = an.get(f"/api/scenes/{target}/stock", params={"q": "cá kho", "source": "openverse"})
+    assert [hit["url"] for hit in found.json()["hits"]] == [fakes.image_url("free"), fakes.image_url("marked")]
+    saved = an.post(
+        f"/api/scenes/{target}/stock",
+        json={"source": "openverse", "keyword": "cá kho", "url": fakes.image_url("free")},
+    )
+    assert saved.status_code == 200
+    assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("free")
+
+
+def test_stock_search_with_an_unknown_source_is_a_clean_error(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    response = an.get(f"/api/scenes/{target}/stock", params={"q": "cá", "source": "flickr"})
+    assert response.status_code == 422 and response.json()["message"] == "Nguồn ảnh không hợp lệ"
+
+
+def test_openverse_searches_carry_the_registered_token_and_it_is_cached(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    found = an.get(f"/api/scenes/{target}/stock", params={"q": "cá kho", "source": "openverse"})
+    assert found.status_code == 200
+    assert fakes.openverse_authorized == [True]
+    saved = an.post(
+        f"/api/scenes/{target}/stock",
+        json={"source": "openverse", "keyword": "cá kho", "url": found.json()["hits"][0]["url"]},
+    )
+    assert saved.status_code == 200
+    # Choosing searches again under the same token; no second token was asked for.
+    assert fakes.openverse_authorized == [True, True]
+    assert fakes.openverse_token_requests == 1
+
+
+def test_openverse_falls_back_to_anonymous_when_the_credentials_are_wrong(an, db, me, storage, fakes, monkeypatch):
+    monkeypatch.setenv("OPENVERSE_CLIENT_SECRET", "wrong")
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    found = an.get(f"/api/scenes/{target}/stock", params={"q": "cá kho", "source": "openverse"})
+    assert found.status_code == 200 and found.json()["hits"]
+    assert fakes.openverse_authorized == [False]
 
 
 # --- Scene video clips ---

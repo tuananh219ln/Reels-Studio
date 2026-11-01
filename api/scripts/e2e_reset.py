@@ -17,9 +17,11 @@ from reels_api.config import database_url
 from reels_api.knowledge import default_clone_prompt, default_script_prompt
 from reels_api.models import (
     AffiliateProduct,
+    AppSetting,
     Fanpage,
     Job,
     KnowledgeTopic,
+    LlmProvider,
     MusicTrack,
     Scene,
     Session,
@@ -44,7 +46,20 @@ def main() -> int:
     config.attributes["configure_logger"] = False
     command.upgrade(config, "head")
     with DbSession(create_engine(url)) as db:
-        for model in (Job, Scene, Video, Fanpage, AffiliateProduct, KnowledgeTopic, MusicTrack, Setting, Session, User):
+        for model in (
+            Job,
+            Scene,
+            Video,
+            Fanpage,
+            AffiliateProduct,
+            KnowledgeTopic,
+            MusicTrack,
+            Setting,
+            AppSetting,
+            LlmProvider,
+            Session,
+            User,
+        ):
             db.execute(delete(model))
         db.add(
             User(
