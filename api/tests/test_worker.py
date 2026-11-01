@@ -279,6 +279,9 @@ def test_a_second_worker_waits_for_the_lock_before_cleaning_or_claiming(committe
     user = add_user(committed)
     first = start_worker()
     wait_until(lambda: "Worker lock acquired" in first.output(), 30, message="first worker lock")
+    # The lock is logged before the worker fails interrupted jobs: a job it has served proves that step is over,
+    # otherwise the first worker itself could fail the job added below.
+    assert wait_for_status(committed, add_job(committed, new_video(committed, user), user.id)).status == "done"
     # Looks like the first worker's job in progress: the second one must leave it alone.
     running_id = add_job(committed, new_video(committed, user), user.id, status="running")
     second = start_worker()
