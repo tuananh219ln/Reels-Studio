@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .errors import InputError
 from .markup import MarkupError, Run, parse_scene_text
+from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 MIN_SCENE_SECONDS = 1
 MAX_KEYWORD_LENGTH = 100
@@ -26,6 +27,7 @@ class Scene:
     video: Path | None = None  # a clip shown instead of a photo
     video_start: float = 0.0  # seconds into the clip where the scene starts
     voice_text: str = ""  # what the narration says, for captions
+    text_position: tuple[int, int] | None = None  # the text box's centre in the frame; None: the template's place
 
 
 @dataclass(frozen=True)
@@ -104,6 +106,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
     if voice.strip() and not (base_dir / voice).is_file():
         raise InputError(f"{label}: không tìm thấy file lời đọc {voice}")
     video, video_start = _parse_video(item, label, base_dir)
+    text_position = _parse_position(item.get("text_position"), label)
     if video is not None and image.strip():
         raise InputError(f'{label}: chỉ dùng một trong "image" hoặc "video"')
     keywords = _parse_keywords(item.get("keywords"), label)
@@ -139,7 +142,21 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         video=video,
         video_start=video_start,
         voice_text=voice_text,
+        text_position=text_position,
     )
+
+
+def _parse_position(value: object, label: str) -> tuple[int, int] | None:
+    if value is None:
+        return None
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or not all(isinstance(number, int) and not isinstance(number, bool) for number in value)
+        or not (0 <= value[0] <= FRAME_WIDTH and 0 <= value[1] <= FRAME_HEIGHT)
+    ):
+        raise InputError(f'{label}: "text_position" phải là [x, y] trong khung {FRAME_WIDTH}×{FRAME_HEIGHT}')
+    return value[0], value[1]
 
 
 def _parse_video(item: dict, label: str, base_dir: Path) -> tuple[Path | None, float]:

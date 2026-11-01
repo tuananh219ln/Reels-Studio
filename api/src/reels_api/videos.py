@@ -128,13 +128,30 @@ def _voice(video: Video) -> tuple[str, str]:
     return voice_id(video), voice_speed(video)
 
 
+def text_position(video: Video, scene: Scene) -> list[int] | None:
+    """Where the scene's text box goes (its centre): its own place, else for a content scene the video's place,
+    else None (where the template puts it)."""
+    if scene.text_x is not None and scene.text_y is not None:
+        return [scene.text_x, scene.text_y]
+    if scene.is_title:
+        return None
+    return effective(video)["text_position"]
+
+
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
     """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume, narration); captions and
     keywords are left out."""
     every = ([title] if title else []) + scenes
     # A clip joins its scene's part only when there is one, so MP4s rendered before clips existed stay current.
+    # So does a moved text box, so a box in the template's place keeps the fingerprint from before.
     parts = [
-        [scene.text, scene.seconds, scene.image_key, *([scene.video_key, scene.video_start] if scene.video_key else [])]
+        [
+            scene.text,
+            scene.seconds,
+            scene.image_key,
+            *([scene.video_key, scene.video_start] if scene.video_key else []),
+            *([["text_position", *position]] if (position := text_position(video, scene)) else []),
+        ]
         for scene in every
     ]
     # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
@@ -173,7 +190,7 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
         video.thumbnail_key = None
     else:
         key = new_key(video.id, "thumb", "jpg")
-        storage.save_bytes(key, thumbnail_bytes(still, title.text, render_options(video)))
+        storage.save_bytes(key, thumbnail_bytes(still, title.text, render_options(video), text_position(video, title)))
         video.thumbnail_key = key
     if old and old != video.thumbnail_key:
         storage.delete(old)
@@ -281,8 +298,13 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
     voice_seconds = made_voice_seconds(video, scene)
     style = preview_look(video, scene.is_title)
+    position = text_position(video, scene)
+    if position:
+        style = [*style, "text_position", *position]
+    still = scene.video_key or scene.image_key
     return {
         "id": scene.id,
+        "video_id": scene.video_id,
         "is_title": scene.is_title,
         "text": scene.text,
         "seconds": scene.seconds,
@@ -309,6 +331,16 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
             if scene.video_key
             else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text, *style)}"
             if scene.image_key
+            else None
+        ),
+        # Where a member dragged this scene's box; None: the video's place (content scenes) or the template's.
+        "text_position": [scene.text_x, scene.text_y] if scene.text_x is not None else None,
+        "placed_at": position,  # where it goes after all: its own place, the video's, or None (the template's)
+        # The drag is drawn from the frame without text and the exact box image the renderer overlays.
+        "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start)}" if still else None,
+        "textbox_url": (
+            f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
+            if scene.text.strip() and text_problem(scene.text, scene.is_title) is None
             else None
         ),
         "text_problem": text_problem(scene.text, scene.is_title),

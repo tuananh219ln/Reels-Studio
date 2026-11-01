@@ -210,3 +210,11 @@ def test_bad_video_is_named(folder, override, message):
     (folder / "vuon.mp4").write_bytes(b"clip")
     with pytest.raises(InputError, match=message):
         load(folder, {"title": scene(), "scenes": [scene(**override)]})
+
+
+def test_a_scene_may_carry_where_its_text_box_goes(folder):
+    script = load(folder, {"title": scene(text_position=[540, 600]), "scenes": [scene()]})
+    assert script.title.text_position == (540, 600) and script.scenes[0].text_position is None
+    for bad in ([1, 2, 3], ["a", 2], [True, 5], [-1, 5], [5, 99999], "540,600"):
+        with pytest.raises(InputError, match="text_position"):
+            load(folder, {"title": scene(text_position=bad), "scenes": [scene()]})

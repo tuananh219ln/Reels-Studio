@@ -40,6 +40,15 @@ Built:
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red; photo by upload, or a
     video clip by "Tải video lên" with its start time;
+  - per scene with text and a picture, "Vị trí chữ" ("Vị trí chữ (riêng)" once the scene has a place
+    of its own) opens a dialog: the frame without text at a quarter size, the platforms' covered
+    areas darkened and the safe zone dashed (x 60–940, y 220–1440), and the exact box image dragged
+    with the mouse or the arrow keys (10 px a press); the box stops at the zone's edges, and a box
+    wider than the zone stays centred across. Buttons: "Vị trí gốc" (back to the template's place),
+    "Lưu cho cảnh này", "Lưu cho mọi cảnh" (the video's place for every content scene without one of
+    its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
+    moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
+    or under it when they would reach past the top of the safe zone;
   - per scene (title included) a "Từ khóa tìm ảnh" field and two Pixabay buttons: "Chọn từ
     Pixabay" opens a dialog with the scene's first keyword already searched (editable, Enter
     searches again) and every result as a thumbnail grid that fits the screen (two columns on a
@@ -189,7 +198,8 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
   - one item per scene, 3–5 seconds each (the renderer accepts any length of 1 s or more);
   - the item name plus one benefit line, separated by a manual line break;
   - text box in the lower third, with its bottom edge at y = 1440, clear of the food and of the
-    platforms' caption and button area.
+    platforms' caption and button area; a member may drag it elsewhere inside the safe zone (see
+    "Vị trí chữ" above).
 - **Motion:** every scene zooms in linearly around the centre, from 1.00 to 1.12. Scenes are
   joined by a 0.4 s crossfade centred on the boundary, so the total length equals the summed
   scene seconds.

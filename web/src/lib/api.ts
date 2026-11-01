@@ -57,6 +57,7 @@ export type JobInfo = {
 
 export type SceneData = {
   id: number;
+  video_id: number;
   is_title: boolean;
   text: string;
   seconds: number;
@@ -76,6 +77,13 @@ export type SceneData = {
   /** A clip shown instead of the photo; the scene has one or the other. */
   video: { url: string; seconds: number; start: number } | null;
   preview_url: string | null;
+  /** Where a member dragged this scene's text box (its centre in the 1080×1920 frame); null: not moved. */
+  text_position: [number, number] | null;
+  /** Where the box goes after all: its own place, the video's place for content scenes, or null (the template's). */
+  placed_at: [number, number] | null;
+  /** The frame without text and the exact box image, which the box is dragged with. */
+  frame_url: string | null;
+  textbox_url: string | null;
   text_problem: string | null;
   blocking: string[];
   warnings: string[];
@@ -164,6 +172,8 @@ export type VideoOptions = {
   title_accent_color: string;
   title_box_opacity: VideoOptions["box_opacity"];
   captions: "off" | "phrase" | "word";
+  /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
+  text_position: [number, number] | null;
 };
 
 /** One of the team's text box styles (Cài đặt, shared); a video copies its colours. */

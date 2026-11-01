@@ -957,3 +957,81 @@ test("text settings from an api without the colour options still open, on Theo k
   await expect(text.getByRole("radio", { name: "Nền Theo kiểu" })).toHaveAttribute("aria-checked", "true");
   await expect(text.getByRole("radio", { name: "Đánh dấu Theo kiểu" })).toHaveAttribute("aria-checked", "true");
 });
+
+/** A dialog's box once its zoom-in has finished, so what is measured or dragged is where it stays. */
+async function settledBox(page: Page, locator: ReturnType<Page["locator"]>) {
+  await expect(page.locator('.ant-modal[class*="zoom"]')).toHaveCount(0);
+  return locator.boundingBox();
+}
+
+test("drag a scene's text box inside the safe zone, for that scene or every scene, and move the title", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  const first = page.getByTestId("scene").first();
+  const second = page.getByTestId("scene").nth(1);
+  const firstPreview = first.getByTestId("scene-preview");
+  const secondPreview = second.getByTestId("scene-preview");
+  const firstBefore = await firstPreview.getAttribute("src");
+  const secondBefore = await secondPreview.getAttribute("src");
+
+  // Dragged far up, the box stops at the top of the safe zone (y 220), clear of the platform's top bar.
+  await first.getByRole("button", { name: "Vị trí chữ" }).click();
+  const dialog = page.getByRole("dialog", { name: "Vị trí chữ của cảnh" });
+  const box = dialog.getByTestId("position-box");
+  await expect(box).toBeVisible();
+  await expect(box).toHaveAttribute("aria-valuetext", /^x 540, /);
+  const start = await settledBox(page, box);
+  const grab = [(start?.x ?? 0) + (start?.width ?? 0) / 2, (start?.y ?? 0) + (start?.height ?? 0) / 2];
+  await page.mouse.move(grab[0], grab[1]);
+  await page.mouse.down();
+  await page.mouse.move(grab[0], grab[1] - 260, { steps: 8 });
+  await page.mouse.up();
+  const frame = await dialog.getByTestId("position-frame").boundingBox();
+  const moved = await box.boundingBox();
+  expect(Math.round((moved?.y ?? 0) - (frame?.y ?? 0))).toBe(55); // 220 frame pixels at a quarter size
+  await dialog.getByRole("button", { name: "Lưu cho cảnh này" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(firstPreview).not.toHaveAttribute("src", firstBefore ?? "");
+  await expect(secondPreview).toHaveAttribute("src", secondBefore ?? "");
+  await expect(first.getByRole("button", { name: "Vị trí chữ (riêng)" })).toBeVisible();
+
+  // The arrow keys move it too; "Lưu cho mọi cảnh" moves the scenes without a place of their own.
+  await second.getByRole("button", { name: "Vị trí chữ" }).click();
+  const secondBox = page.getByRole("dialog", { name: "Vị trí chữ của cảnh" }).getByTestId("position-box");
+  await expect(secondBox).toBeVisible();
+  await secondBox.focus();
+  for (let step = 0; step < 30; step += 1) {
+    await page.keyboard.press("ArrowUp");
+  }
+  await page.getByRole("button", { name: "Lưu cho mọi cảnh" }).click();
+  await expect(secondPreview).not.toHaveAttribute("src", secondBefore ?? "");
+  const firstOwn = await firstPreview.getAttribute("src");
+  await expect(first.getByRole("button", { name: "Vị trí chữ (riêng)" })).toBeVisible();
+  expect(await firstPreview.getAttribute("src")).toBe(firstOwn);
+
+  // Giving the scene's own place back makes it follow the video's.
+  await first.getByRole("button", { name: "Vị trí chữ (riêng)" }).click();
+  await page.getByRole("button", { name: "Bỏ vị trí riêng của cảnh này" }).click();
+  await expect(first.getByRole("button", { name: "Vị trí chữ (riêng)" })).toHaveCount(0);
+
+  // The title moves only up and down.
+  const title = page.getByTestId("title-scene");
+  const titleBefore = await title.getByTestId("scene-preview").getAttribute("src");
+  await title.getByRole("button", { name: "Vị trí chữ" }).click();
+  const titleBox = page.getByRole("dialog", { name: "Vị trí chữ cảnh tiêu đề" }).getByTestId("position-box");
+  await expect(titleBox).toBeVisible();
+  // Placed once its image has loaded: the title sits in the middle of the frame (x 539 or 540, as its width
+  // is odd or even). Its place is read from the box's value, not from the screen.
+  await expect(titleBox).toHaveAttribute("aria-valuetext", /^x 5(39|40), y 9\d\d$/);
+  const [centredX, centredY] = ((await titleBox.getAttribute("aria-valuetext")) ?? "").match(/\d+/g)!.map(Number);
+  await titleBox.focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowDown");
+  // Left does nothing, down moves it one step (10 frame pixels).
+  await expect(titleBox).toHaveAttribute("aria-valuetext", `x ${centredX}, y ${centredY + 10}`);
+  await page.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(title.getByTestId("scene-preview")).not.toHaveAttribute("src", titleBefore ?? "");
+});

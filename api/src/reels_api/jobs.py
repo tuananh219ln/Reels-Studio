@@ -43,6 +43,7 @@ from .videos import (
     run_checks,
     split_scenes,
     spoken,
+    text_position,
 )
 
 log = logging.getLogger(__name__)
@@ -286,6 +287,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     scene.image_key, folder / f"image-{index:02d}.{scene.image_key.rsplit('.', 1)[-1]}"
                 )
                 data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
+            if position := text_position(video, scene):
+                data["text_position"] = position
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
                 data["voice_text"] = spoken(video, scene)
