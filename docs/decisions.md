@@ -11,6 +11,14 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — The title scene can keep the yellow box over outlined scenes
+
+Requested by a member (tuananh219ln): the title in the yellow box, the scenes in yellow letters with a
+black outline. The style and colour were one choice for the whole video, so a third choice, "Kiểu
+tiêu đề" (Giống cảnh, Hộp vàng), draws the title on its own. The yellow is the template's `#FFD60A`, so
+the letters match the title box. The default stays "Giống cảnh": no video changes until it is picked.
+The outlined scenes remain the opt-in the entry below describes, including its readability caveat.
+
 ## 2026-11-01 — Cloudflare Workers AI added as a second AI image provider
 
 Gemini stays (for when the team has a paid plan) and Cloudflare Workers AI is added beside it; the image job's

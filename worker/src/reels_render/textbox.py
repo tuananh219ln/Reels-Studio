@@ -60,6 +60,11 @@ def palette_for(text_style: str, text_color: str = "auto") -> Palette:
     return Palette(base.box, text, base.text if text == base.accent else base.accent)
 
 
+def title_palette(text_style: str, text_color: str, title_style: str) -> Palette:
+    """The title scene's palette: its own box style, or the one every scene uses."""
+    return palette_for(text_style, text_color) if title_style == "same" else PALETTES[title_style]
+
+
 # Narration captions: white on a dark, see-through box, the spoken word in yellow.
 CAPTION_SIZE = 58
 CAPTION_MAX_LINES = 2

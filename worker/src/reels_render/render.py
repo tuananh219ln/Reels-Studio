@@ -25,6 +25,7 @@ from .textbox import (
     render_caption,
     scene_box_position,
     title_box_position,
+    title_palette,
 )
 from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
@@ -68,6 +69,7 @@ def render_video(
     spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
     palette = palette_for(options.text_style, options.text_color)
+    first_palette = title_palette(options.text_style, options.text_color, options.title_style)
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
@@ -88,7 +90,7 @@ def render_video(
                 empty_box().save(box)
                 box_x, box_y = 0, 0
             else:
-                render_box(layout, palette).save(box)
+                render_box(layout, first_palette if index == 0 else palette).save(box)
                 place = title_box_position if index == 0 else scene_box_position
                 box_x, box_y = place(layout.width, layout.height)
             # Captions sit just above a content scene's text box; the title scene keeps its hook box alone.

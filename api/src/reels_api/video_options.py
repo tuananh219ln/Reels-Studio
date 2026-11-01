@@ -7,7 +7,16 @@ code defaults below render exactly the original template.
 
 from sqlalchemy.orm import Session as DbSession
 
-from reels_render.options import CAPTIONS, MOTIONS, TEXT_COLORS, TEXT_STYLES, TRANSITIONS, ZOOMS, RenderOptions
+from reels_render.options import (
+    CAPTIONS,
+    MOTIONS,
+    TEXT_COLORS,
+    TEXT_STYLES,
+    TITLE_STYLES,
+    TRANSITIONS,
+    ZOOMS,
+    RenderOptions,
+)
 
 from . import config
 from .models import AppSetting, Video
@@ -26,6 +35,7 @@ DEFAULTS: dict = {
     "zoom": "medium",
     "text_style": "yellow",
     "text_color": "auto",  # the text box style's own colour
+    "title_style": "same",  # the title scene is drawn like the other scenes
     "captions": "off",
 }
 # Kept as columns of their own before these settings existed; the team defaults hold them too.
@@ -37,6 +47,7 @@ CHOICES = {
     "zoom": tuple(ZOOMS),
     "text_style": TEXT_STYLES,
     "text_color": TEXT_COLORS,
+    "title_style": TITLE_STYLES,
     "captions": CAPTIONS,
 }
 
@@ -48,6 +59,7 @@ LABELS = {
     "zoom": "Độ zoom",
     "text_style": "Kiểu hộp chữ",
     "text_color": "Màu chữ",
+    "title_style": "Kiểu tiêu đề",
     "captions": "Phụ đề theo giọng",
     "ducking": "Nhỏ nhạc khi có giọng",
     "voice_enabled": "Giọng đọc",
@@ -94,10 +106,10 @@ def voice_speed(video: Video) -> str:
     return effective(video)["voice_speed"]
 
 
-def text_look(video: Video) -> tuple[str, str]:
-    """The text box style and text colour, which previews and the thumbnail are drawn with."""
+def text_look(video: Video) -> tuple[str, str, str]:
+    """The text box style, text colour and title style, which previews and the thumbnail are drawn with."""
     values = effective(video)
-    return values["text_style"], values["text_color"]
+    return values["text_style"], values["text_color"], values["title_style"]
 
 
 def render_options(video: Video) -> RenderOptions:
@@ -108,6 +120,7 @@ def render_options(video: Video) -> RenderOptions:
         zoom=values["zoom"],
         text_style=values["text_style"],
         text_color=values["text_color"],
+        title_style=values["title_style"],
         captions=values["captions"],
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],
@@ -119,7 +132,12 @@ def look_signature(video: Video) -> dict | None:
     narration signature); None while all are the defaults, so MP4s rendered before they existed stay current."""
     values = effective(video)
     changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed")}
-    return None if changed == {name: DEFAULTS[name] for name in changed} else changed
+    if changed == {name: DEFAULTS[name] for name in changed}:
+        return None
+    # Left out while unused, so videos with other presets, rendered before it existed, stay current.
+    if changed["title_style"] == DEFAULTS["title_style"]:
+        del changed["title_style"]
+    return changed
 
 
 def team_defaults(db: DbSession) -> dict:
