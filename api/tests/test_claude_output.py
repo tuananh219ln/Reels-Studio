@@ -12,6 +12,7 @@ from reels_api.claude import (
     parse_output,
 )
 from reels_api.knowledge import default_script_prompt
+from reels_api.script_rules import TOTAL_SECONDS_RANGE, count_words
 
 
 def valid(**changes) -> dict:
@@ -150,6 +151,22 @@ def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
 def test_the_format_leaves_the_caption_length_to_the_editable_prompt():
     assert '"caption": caption theo yêu cầu trong prompt' in OUTPUT_FORMAT
     assert "80–120" not in OUTPUT_FORMAT
+
+
+def test_the_format_and_its_example_give_narration_room_for_detail():
+    assert "không quá 150 từ" in OUTPUT_FORMAT and "6–12 từ" not in OUTPUT_FORMAT
+    assert "8–15 từ" in OUTPUT_FORMAT
+    example = parse_output(OUTPUT_FORMAT)
+    voices = [count_words(scene.voice) for scene in example.scenes]
+    # The model copies the example's length, so it shows the fuller voice text the format asks for.
+    assert min(voices) >= 12 and max(voices) <= 15
+    title = max(count_words(title) for title in example.titles)
+    texts = sum(count_words(scene.text) for scene in example.scenes)
+    assert title + count_words(example.title_voice) + texts + sum(voices) <= 150
+
+
+def test_a_full_length_script_is_not_warned_about_its_length():
+    assert 150 / 2.9 < TOTAL_SECONDS_RANGE[1]
 
 
 def test_a_broken_answer_is_asked_once_more():

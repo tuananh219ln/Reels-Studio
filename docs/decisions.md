@@ -48,6 +48,12 @@ instead of falling back. Also decided for the next rounds: text can be dragged p
 position, overridden by a scene) but only inside the platforms' safe zone, clear of the top bar, the right
 button column and the bottom caption area; the title scene moves only up and down so the thumbnail stays
 centred.
+## 2026-11-01 — Scripts may run to 150 words, about 52 seconds
+
+Requested by a member (tuananh219ln): the voice texts felt short of ideas. This replaces the 120-word budget and
+the 48-second target in "Narration reads the on-screen text, then the voice text" below: the budget is 150 words,
+a voice text is 8–15 words instead of 6–12, and the pre-render check warns above 55 seconds instead of 48. The cost
+is a longer video, which may lose viewers before the end. The 90-second block stays.
 
 ## 2026-11-01 — The ElevenLabs key can be pasted in the app too
 
