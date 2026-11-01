@@ -190,10 +190,10 @@ def put_video_defaults(
 
 
 @router.get("/voices")
-def get_voices(me: Session = Depends(current_member)) -> dict:
+def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """The ElevenLabs voices to choose from, and the server's default one."""
     try:
-        voices = tts.list_voices()
+        voices = tts.list_voices(source_keys.get(db, "elevenlabs"))
     except tts.TtsError as err:
         raise ApiError(422, "voices_unavailable", err.message) from None
     return {"default_id": config.voice_id(), "voices": voices}
@@ -207,6 +207,7 @@ SOURCE_SIGNUP = {
     "pexels": "https://www.pexels.com/api/",
     "gemini": "https://aistudio.google.com/apikey",
     "cloudflare": "https://dash.cloudflare.com/profile/api-tokens",
+    "elevenlabs": "https://elevenlabs.io/app/settings/api-keys",
 }
 
 
@@ -247,6 +248,8 @@ def _sources(db: DbSession) -> dict:
             "account_id_set": bool(config.image_gen_cf_account_id()),
             "key": _key(db, "cloudflare"),
         },
+        # Narration (ElevenLabs): the render job and the voice picker use this key.
+        "voices": {"configured": bool(source_keys.get(db, "elevenlabs")), "key": _key(db, "elevenlabs")},
     }
 
 

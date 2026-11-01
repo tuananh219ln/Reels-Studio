@@ -11,6 +11,14 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — The ElevenLabs key can be pasted in the app too
+
+Cài đặt › Nguồn tư liệu also takes the ElevenLabs key (narration), stored encrypted with the other source keys
+("elevenlabs") and winning over `ELEVENLABS_API_KEY` in `.env`, which still works when nothing is pasted. It extends
+the stock and AI-image keys entry below. Reason: without it the team could not change the narration
+key without server access; a bad or missing key showed only "ELEVENLABS_API_KEY", with nowhere to fix it in the app.
+Like every key on that page it is shared by the whole team, not per member.
+
 ## 2026-11-01 — The title scene can keep the yellow box over outlined scenes
 
 Requested by a member (tuananh219ln): the title in the yellow box, the scenes in yellow letters with a

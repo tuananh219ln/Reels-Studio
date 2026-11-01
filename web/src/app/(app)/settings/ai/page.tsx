@@ -253,10 +253,7 @@ export default function AiSettingsPage() {
 
   return (
     <>
-      <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }}>
-        Mô hình AI
-      </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: "8px 0 16px", maxWidth: 760 }}>
+      <Typography.Paragraph type="secondary" style={{ margin: "0 0 16px", maxWidth: 760 }}>
         Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model
         riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó.
       </Typography.Paragraph>

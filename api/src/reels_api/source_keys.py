@@ -1,5 +1,5 @@
-"""API keys of the stock libraries (Pixabay, Pexels) and of both AI image providers (Gemini, Cloudflare Workers AI),
-pasted on Cài đặt › Nguồn tư liệu.
+"""API keys of the stock libraries (Pixabay, Pexels), both AI image providers (Gemini, Cloudflare Workers AI) and
+ElevenLabs (narration), pasted on Cài đặt › Nguồn tư liệu.
 
 A key saved there is stored encrypted (crypto) and wins over the server's .env; with none saved, the .env key is
 used, so a server set up before this page keeps working. A saved key is never sent back to the browser.
@@ -16,6 +16,7 @@ ENV_NAMES = {
     "pexels": "PEXELS_API_KEY",
     "gemini": "IMAGE_GEN_API_KEY",
     "cloudflare": "IMAGE_GEN_CF_API_KEY",
+    "elevenlabs": "ELEVENLABS_API_KEY",
 }
 MAX_KEY_LENGTH = 300
 

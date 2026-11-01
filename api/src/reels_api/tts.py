@@ -42,11 +42,14 @@ def voice_signature(voice_text: str, voice_id: str | None = None, speed: str = "
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
-def synthesize(voice_text: str, voice_id: str | None = None, speed: str = "normal") -> bytes:
-    """The narration as MP3 bytes, in the given voice (the server's default when None) and speed."""
-    key = config.elevenlabs_key()
+NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › Nguồn tư liệu"
+
+
+def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: str = "normal") -> bytes:
+    """The narration as MP3 bytes, in the given voice (the server's default when None) and speed. `key` is the
+    ElevenLabs key in use (source_keys: pasted on Cài đặt › Nguồn tư liệu, else the .env one)."""
     if not key:
-        raise TtsError("Chưa cấu hình ELEVENLABS_API_KEY nên không tạo được lời đọc")
+        raise TtsError(NO_KEY.format("không tạo được lời đọc"))
     voice = voice_id or config.voice_id()
     url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{voice}?output_format=mp3_44100_128"
     payload: dict = {"text": spoken_text(voice_text), "model_id": config.voice_model(), "language_code": "vi"}
@@ -81,7 +84,7 @@ def _http_error(status: int, body: str) -> TtsError:
     if "quota" in body.lower() or status == 402:
         return TtsError("Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm", detail)
     if status == 401:
-        return TtsError("Key ElevenLabs (ELEVENLABS_API_KEY) không hợp lệ", detail)
+        return TtsError("Key ElevenLabs không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
     if status == 404:
         return TtsError(
             "ElevenLabs không có giọng hoặc model đã cấu hình (ELEVENLABS_VOICE_ID, ELEVENLABS_MODEL)", detail
@@ -95,17 +98,17 @@ def _http_error(status: int, body: str) -> TtsError:
 
 VOICES_TIMEOUT = 15
 VOICES_CACHE_SECONDS = 600
-_voices_cache: dict[str, tuple[float, list[dict]]] = {}
+_voices_cache: dict[tuple[str, str], tuple[float, list[dict]]] = {}
 
 
-def list_voices() -> list[dict]:
+def list_voices(key: str) -> list[dict]:
     """The account's ElevenLabs voices for the voice picker: id, name, a short description and a sample URL.
-    Listing costs no characters; the answer is kept for 10 minutes."""
-    key = config.elevenlabs_key()
+    Listing costs no characters; the answer is kept for 10 minutes per key, so a newly pasted key lists at once."""
     if not key:
-        raise TtsError("Chưa cấu hình ELEVENLABS_API_KEY nên chưa chọn được giọng đọc")
+        raise TtsError(NO_KEY.format("chưa chọn được giọng đọc"))
     url = f"{config.elevenlabs_api_url()}/v1/voices"
-    cached = _voices_cache.get(url)
+    cache_key = (url, hashlib.sha256(key.encode()).hexdigest())
+    cached = _voices_cache.get(cache_key)
     if cached and time.monotonic() - cached[0] < VOICES_CACHE_SECONDS:
         return cached[1]
     request = urllib.request.Request(url, headers={"xi-api-key": key, "Accept": "application/json"})
@@ -131,5 +134,5 @@ def list_voices() -> list[dict]:
             }
         )
     voices.sort(key=lambda voice: voice["name"].lower())
-    _voices_cache[url] = (time.monotonic(), voices)
+    _voices_cache[cache_key] = (time.monotonic(), voices)
     return voices

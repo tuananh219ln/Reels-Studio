@@ -2,6 +2,7 @@
 
 import { PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice } from "@/lib/api";
 
@@ -185,7 +186,11 @@ function VoicePicker({ values, onChange, disabled }: Props) {
   }
 
   if (voices?.error) {
-    return <Typography.Text type="warning">{voices.error}</Typography.Text>;
+    return (
+      <Typography.Text type="warning">
+        {voices.error} <Link href="/settings/sources">Mở Nguồn tư liệu</Link>
+      </Typography.Text>
+    );
   }
   return (
     <Flex gap={8}>

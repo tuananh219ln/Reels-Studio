@@ -12,9 +12,7 @@ import {
   EditOutlined,
   FacebookOutlined,
   NotificationOutlined,
-  PictureOutlined,
   PlaySquareOutlined,
-  RobotOutlined,
   SettingOutlined,
   ShoppingOutlined,
   TeamOutlined,
@@ -54,9 +52,8 @@ const NAV = [
     icon: <SettingOutlined />,
     label: "Cài đặt",
     children: [
-      { key: "/settings/defaults", icon: <ControlOutlined />, label: "Thiết lập mặc định" },
-      { key: "/settings/ai", icon: <RobotOutlined />, label: "Mô hình AI" },
-      { key: "/settings/sources", icon: <PictureOutlined />, label: "Nguồn tư liệu" },
+      // One page with tabs: Thiết lập mặc định, Mô hình AI, Nguồn tư liệu (settings/layout.tsx).
+      { key: "/settings", icon: <ControlOutlined />, label: "Cấu hình" },
       { key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" },
     ],
   },

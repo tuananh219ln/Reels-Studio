@@ -755,7 +755,8 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
 }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
-  await page.getByRole("menuitem", { name: "Mô hình AI" }).click();
+  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await page.getByRole("tab", { name: "Mô hình AI" }).click();
   await expect(page).toHaveURL(/\/settings\/ai$/);
   // With nothing set, the team writes with Claude from the server's environment.
   const claude = page.getByTestId("provider-anthropic");
@@ -796,7 +797,8 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
 test("video settings: team defaults reach a new video, which then changes its own", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
-  await page.getByRole("menuitem", { name: "Thiết lập mặc định" }).click();
+  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await page.getByRole("tab", { name: "Thiết lập mặc định" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
   await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
   await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
@@ -858,8 +860,10 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await picker.getByRole("button", { name: "Chọn video 2" }).click();
   await expect(picker).toBeHidden({ timeout: 30_000 });
   await expect(scene.getByTestId("scene-video")).toBeVisible();
+  const videoUrl = page.url();
 
-  await page.getByRole("menuitem", { name: "Nguồn tư liệu" }).click();
+  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
   await expect(page).toHaveURL(/\/settings\/sources$/);
   await page.getByRole("switch", { name: "Bật Pexels" }).click();
   await expect(page.getByRole("switch", { name: "Bật Pexels" })).not.toBeChecked();
@@ -870,7 +874,14 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await pixabayKey.getByLabel("API key Pixabay").fill("fake-pixabay-key");
   await pixabayKey.getByRole("button", { name: "Lưu key" }).click();
   await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
-  await page.goBack();
+  // The ElevenLabs key for narration is pasted on the same page.
+  const voiceKey = page.getByTestId("key-elevenlabs");
+  await voiceKey.getByRole("button", { name: "Dán key mới" }).click();
+  await voiceKey.getByLabel("API key ElevenLabs").fill("fake-elevenlabs-key");
+  await voiceKey.getByRole("button", { name: "Lưu key" }).click();
+  await expect(voiceKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
+  await expect(page.getByTestId("source-elevenlabs")).toContainText("Sẵn sàng");
+  await page.goto(videoUrl);
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
 });

@@ -38,10 +38,7 @@ export default function VideoDefaultsPage() {
 
   return (
     <>
-      <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }}>
-        Thiết lập mặc định
-      </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: "8px 0 16px", maxWidth: 760 }}>
+      <Typography.Paragraph type="secondary" style={{ margin: "0 0 16px", maxWidth: 760 }}>
         Video tạo mới bắt đầu với các thiết lập này; video nhân bản lấy theo video gốc. Video đã có giữ thiết lập riêng:
         đổi ở tab “Thiết lập” của từng video, hoặc bấm “Lấy theo mặc định nhóm” ở đó.
       </Typography.Paragraph>
