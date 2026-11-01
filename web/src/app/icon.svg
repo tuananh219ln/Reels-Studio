@@ -1,0 +1,28 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#FF8A1E"/>
+<stop offset="0.55" stop-color="#F5551F"/>
+<stop offset="1" stop-color="#E02424"/>
+</linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.32" r="0.75">
+<stop offset="0" stop-color="#FFD98A" stop-opacity="0.55"/>
+<stop offset="0.5" stop-color="#FFB15C" stop-opacity="0.12"/>
+<stop offset="1" stop-color="#FFB15C" stop-opacity="0"/>
+</radialGradient>
+</defs>
+
+<rect width="1024" height="1024" fill="url(#bg)"/>
+<rect width="1024" height="1024" fill="url(#glow)"/>
+
+<!-- studio light sparkles -->
+<circle cx="624" cy="250" r="14" fill="#FFF3D6"/>
+<circle cx="690" cy="300" r="9" fill="#FFF3D6" opacity="0.85"/>
+<circle cx="596" cy="196" r="7" fill="#FFF3D6" opacity="0.7"/>
+
+<!-- vertical 9:16 frame -->
+<rect x="360" y="286" width="304" height="452" rx="56" fill="none" stroke="#FFFFFF" stroke-width="40"/>
+
+<!-- play triangle -->
+<path d="M470 420 L616 512 L470 604 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="28" stroke-linejoin="round"/>
+</svg>
