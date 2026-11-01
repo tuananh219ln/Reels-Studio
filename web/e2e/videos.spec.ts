@@ -897,3 +897,19 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
 });
+
+test("text settings from an api without the colour options still open, on Theo kiểu", async ({ page }) => {
+  // An api older than the page (e.g. not restarted after an update) leaves the new colours out.
+  await page.route("**/api/settings/video-defaults", async (route) => {
+    const response = await route.fetch();
+    const older = await response.json();
+    delete older.box_color;
+    delete older.accent_color;
+    await route.fulfill({ response, json: older });
+  });
+  await loginAsSeed(page);
+  await page.goto("/settings/defaults");
+  const text = page.getByTestId("text-settings");
+  await expect(text.getByRole("radio", { name: "Nền Theo kiểu" })).toHaveAttribute("aria-checked", "true");
+  await expect(text.getByRole("radio", { name: "Đánh dấu Theo kiểu" })).toHaveAttribute("aria-checked", "true");
+});

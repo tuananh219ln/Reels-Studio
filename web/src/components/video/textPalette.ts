@@ -43,12 +43,11 @@ export const SWATCHES = [
   { label: "Hồng", hex: "#EC4899" },
 ];
 
-/** A stored colour as hex: "auto" stays null, a named one becomes its hex. */
-export function toHex(value: string): string | null {
-  if (value === "auto") {
-    return null;
-  }
-  return (NAMED[value] ?? value).toUpperCase();
+/** A stored colour as hex: "auto" stays null, a named one becomes its hex. A missing one (from an api older
+ * than the page) or one that is not a colour counts as "auto". */
+export function toHex(value: string | undefined): string | null {
+  const hex = value === undefined ? undefined : (NAMED[value] ?? value);
+  return hex !== undefined && /^#[0-9a-f]{6}$/i.test(hex) ? hex.toUpperCase() : null;
 }
 
 function rgb(hex: string): [number, number, number] {
