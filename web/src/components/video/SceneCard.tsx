@@ -5,6 +5,7 @@ import {
   ArrowUpOutlined,
   DeleteOutlined,
   DownOutlined,
+  DragOutlined,
   PictureOutlined,
   SearchOutlined,
   UploadOutlined,
@@ -15,6 +16,7 @@ import { cloneElement, useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type StockSource, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import StockPicker from "./StockPicker";
+import TextPositionModal from "./TextPositionModal";
 import VoiceText from "./VoiceText";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
@@ -173,6 +175,7 @@ function ScenePicture({ scene }: { scene: SceneData }) {
   const [busy, setBusy] = useState<Busy | null>(null);
   const [error, setError] = useState<{ kind: Busy; message: string } | null>(null);
   const [picking, setPicking] = useState(false);
+  const [placing, setPlacing] = useState(false);
   // Where "Tìm ảnh khác" searches: Pixabay until the member picks another source from the arrow menu.
   const [findSource, setFindSource] = useState<StockSource>(PIXABAY);
   const [sources, setSources] = useState<StockSource[] | null>(null);
@@ -271,6 +274,19 @@ function ScenePicture({ scene }: { scene: SceneData }) {
         >
           <Typography.Text type="danger">{reason ?? scene.image_error ?? "Chưa có ảnh"}</Typography.Text>
         </Flex>
+      )}
+      {scene.preview_url && !reason && scene.textbox_url && scene.frame_url && (
+        <Button
+          icon={<DragOutlined />}
+          disabled={off}
+          onClick={async () => {
+            // The box is drawn from the saved text: the text being typed is saved first.
+            await editor.flush();
+            setPlacing(true);
+          }}
+        >
+          {scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
+        </Button>
       )}
       {scene.video && (
         // The clip as uploaded, without sound: the render never uses its sound either.
@@ -392,6 +408,7 @@ function ScenePicture({ scene }: { scene: SceneData }) {
           Nhập từ khóa ở ô “Từ khóa tìm ảnh” của cảnh này rồi bấm lại.
         </Typography.Text>
       )}
+      {placing && <TextPositionModal scene={scene} onClose={() => setPlacing(false)} onSaved={editor.onSaved} />}
       {picking && (
         <StockPicker
           sceneId={scene.id}

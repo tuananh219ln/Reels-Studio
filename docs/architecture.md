@@ -144,6 +144,10 @@ A scene may hold an uploaded video clip instead of a photo
 - **Preview:** the scene preview and, for the title scene, the thumbnail are drawn from the
   clip's frame at the start time, taken with the same input seeking as the render. The editor
   plays the stored clip through the login-protected `/api/scenes/{id}/video` endpoint.
+- **Text box place:** a scene may carry `text_position` ([x, y], the box centre); `textbox.place_box`
+  centres the box there inside `SAFE_ZONE` (the title only moves up and down), and without it the box
+  sits where the template puts it. The api writes each scene's effective place (its own, else the
+  video's for content scenes) into the script and into the MP4 signature only when there is one.
 - **Script input:** a scene has `video` (path relative to the JSON) and `video_start` instead of
   `image`. A scene with both is a validation error, and stock search never runs for a clip scene.
 - **Filter graph:** the clip is passed with `-ss <start>` before its `-i`. Its chain replaces the
@@ -198,7 +202,7 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
 | `videos` | Topic, whether the script exists, narration on/off, its own settings (`options`: voice, speed, voice level, ducking, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
-| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from. |
+| `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from, and where a member dragged its text box (`text_x`, `text_y`, the box centre; null: the video's place in `videos.options.text_position`, else the template's). |
 | `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last. |
 | `publications` | A video posted to a platform, one row per video and platform (only `facebook` today): the Fanpage, pending, scheduled, or published, the scheduled time, the platform's id of the post, who started it. |
 | `jobs` | Belongs to a video; kind (script, clone, render, publish, image), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of LLM calls (`claude_calls`, named for the first provider) and of Gemini image calls, the provider and model a script or clone job wrote with, the job it retries. At most one queued or running job per video. |

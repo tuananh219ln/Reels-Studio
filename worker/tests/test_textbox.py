@@ -140,3 +140,29 @@ def test_stacked_diacritics_are_not_clipped_or_touching(style):
     gap = rows[line1_bottom + 1 : line2_top]
     assert gap, "dòng 1 và dấu dòng 2 dính nhau"
     assert any(all(is_yellow(p) for p in row[30:-30]) for row in gap)
+
+
+def test_a_moved_box_is_centred_on_its_point_and_kept_inside_the_safe_zone():
+    from reels_render.textbox import SAFE_ZONE, place_box
+
+    left, top, right, bottom = SAFE_ZONE
+    # Without a point a box sits where the template puts it.
+    assert place_box(400, 200, None, is_title=False) == scene_box_position(400, 200)
+    assert place_box(400, 200, None, is_title=True) == title_box_position(400, 200)
+    # A point inside the zone centres the box on it.
+    assert place_box(400, 200, (500, 700), is_title=False) == (300, 600)
+    # Past an edge, the box stops at that edge: clear of the top bar, the buttons and the caption area.
+    assert place_box(400, 200, (1080, 0), is_title=False) == (right - 400, top)
+    assert place_box(400, 200, (0, 1920), is_title=False) == (left, bottom - 200)
+    # A box wider than the zone stays centred across the frame.
+    assert place_box(MAX_BOX_WIDTH, 200, (900, 700), is_title=False)[0] == (FRAME_WIDTH - MAX_BOX_WIDTH) // 2
+    # The title moves only up and down, so the thumbnail stays centred.
+    assert place_box(400, 200, (100, 500), is_title=True) == ((FRAME_WIDTH - 400) // 2, 400)
+
+
+def test_captions_go_under_a_box_moved_to_the_top():
+    from reels_render.textbox import CAPTION_GAP, SAFE_ZONE, caption_y
+
+    assert caption_y(1200, 1400, 100) == 1100
+    # Above a box near the top the captions would run under the top bar: they go below the box instead.
+    assert caption_y(SAFE_ZONE[1] + 50, 600, 100) == 600 + CAPTION_GAP

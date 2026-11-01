@@ -18,12 +18,12 @@ from .textbox import (
     SCENE_STYLE,
     TITLE_STYLE,
     TextFitError,
+    caption_y,
     empty_box,
     layout_text,
+    place_box,
     render_box,
     render_caption,
-    scene_box_position,
-    title_box_position,
 )
 from .timeline import FPS, VOICE_LEAD, build_timeline, fit_seconds
 
@@ -88,11 +88,11 @@ def render_video(
                 box_x, box_y = 0, 0
             else:
                 render_box(layout, first_palette if index == 0 else palette).save(box)
-                place = title_box_position if index == 0 else scene_box_position
-                box_x, box_y = place(layout.width, layout.height)
+                box_x, box_y = place_box(layout.width, layout.height, scene.text_position, is_title=index == 0)
             # Captions sit just above a content scene's text box; the title scene keeps its hook box alone.
             if index > 0 and spoken[index] is not None and scene.voice_text.strip():
                 bottom = box_y - CAPTION_GAP if layout is not None else SCENE_BOX_BOTTOM
+                box_bottom = box_y + layout.height if layout is not None else SCENE_BOX_BOTTOM
                 start = scene_start / FPS + VOICE_LEAD
                 for number, cue in enumerate(plan_captions(scene.voice_text, start, spoken[index], options.captions)):
                     path = work_dir / f"caption-{index:02d}-{number:03d}.png"
@@ -102,7 +102,7 @@ def render_video(
                         CaptionInput(
                             image=path,
                             x=(FRAME_WIDTH - image_caption.width) // 2,
-                            y=bottom - image_caption.height,
+                            y=caption_y(bottom, box_bottom, image_caption.height),
                             start=cue.start,
                             end=cue.end,
                         )

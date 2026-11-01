@@ -304,6 +304,36 @@ def scene_box_position(width: int, height: int) -> tuple[int, int]:
     return (FRAME_WIDTH - width) // 2, SCENE_BOX_BOTTOM - height
 
 
+# Where the platforms draw nothing over the video (left, top, right, bottom): below the top bar, left of the
+# like/comment/share column and above the caption and music area. A moved text box stays inside it.
+SAFE_ZONE = (60, 220, 940, SCENE_BOX_BOTTOM)
+
+
+def _clamp(start: int, size: int, low: int, high: int, frame: int) -> int:
+    if size > high - low:
+        return (frame - size) // 2  # wider (or taller) than the zone: centred across the frame
+    return max(low, min(start, high - size))
+
+
+def place_box(width: int, height: int, centre: tuple[int, int] | None, is_title: bool) -> tuple[int, int]:
+    """Top-left corner of a text box: where the template puts it, or centred on `centre` (a member dragged it)
+    inside SAFE_ZONE. The title moves only up and down, so the thumbnail stays centred."""
+    if centre is None:
+        return title_box_position(width, height) if is_title else scene_box_position(width, height)
+    left, top, right, bottom = SAFE_ZONE
+    x = (FRAME_WIDTH - width) // 2 if is_title else _clamp(centre[0] - width // 2, width, left, right, FRAME_WIDTH)
+    y = _clamp(centre[1] - height // 2, height, top, bottom, FRAME_HEIGHT)
+    return x, y
+
+
+def caption_y(above: int, box_bottom: int, height: int) -> int:
+    """Captions sit with their bottom at `above` (just over the text box), or just under the box when a box moved
+    up would push them past the top of the safe zone."""
+    if above - height < SAFE_ZONE[1]:
+        return box_bottom + CAPTION_GAP
+    return above - height
+
+
 def caption_lines(words: list[str]) -> list[list[str]] | None:
     """The words wrapped to the caption width at the caption size; None when they need more than two lines."""
     font = _font(CAPTION_SIZE)

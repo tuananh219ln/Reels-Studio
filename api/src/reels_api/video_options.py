@@ -19,7 +19,7 @@ from reels_render.options import (
     ZOOMS,
     RenderOptions,
 )
-from reels_render.textbox import is_hex
+from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 
 from . import config
 from .models import AppSetting, Video
@@ -49,6 +49,8 @@ DEFAULTS: dict = {
     "title_accent_color": "auto",
     "title_box_opacity": "auto",
     "captions": "off",
+    # The content scenes' text box centre in the frame, [x, y]; None: the template's place. A scene's own wins.
+    "text_position": None,
 }
 # What the text boxes are drawn with (previews, thumbnail, MP4); text_look keeps this order.
 LOOK_FIELDS = (
@@ -141,12 +143,28 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
         elif name in ("ducking", "voice_enabled"):
             if not isinstance(value, bool):
                 raise OptionError(f"“{LABELS[name]}” chỉ nhận bật hoặc tắt")
+        elif name == "text_position":
+            value = clean_position(value)
         elif name == "voice_id":
             if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH or len(value.split()) > 1:
                 raise OptionError("Mã giọng đọc không hợp lệ")
             value = value.strip()
         cleaned[name] = value
     return cleaned
+
+
+def clean_position(value: object) -> list[int] | None:
+    """A text box centre [x, y] inside the frame, or None; the message is shown to members."""
+    if value is None:
+        return None
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or not all(isinstance(number, int) and not isinstance(number, bool) for number in value)
+        or not (0 <= value[0] <= FRAME_WIDTH and 0 <= value[1] <= FRAME_HEIGHT)
+    ):
+        raise OptionError(f"Vị trí chữ phải là [x, y] trong khung {FRAME_WIDTH}×{FRAME_HEIGHT}")
+    return [value[0], value[1]]
 
 
 def voice_id(video: Video) -> str:
@@ -196,7 +214,7 @@ def look_signature(video: Video) -> dict | None:
     changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed")}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
-    for name in LATER_LOOK_FIELDS:
+    for name in (*LATER_LOOK_FIELDS, "text_position"):
         if changed[name] == DEFAULTS[name]:
             del changed[name]
     return changed

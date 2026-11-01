@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — Text boxes can be dragged inside the platforms' safe zone
+
+Owner's decisions, from the text round: a member drags a scene's text box on a "Vị trí chữ" dialog, and the box
+stays inside a safe zone (x 60–940, y 220–1440 of the 1080×1920 frame) clear of the platforms' top bar, the
+right-hand button column and the bottom caption and music area, so text is never covered once posted. The
+place is per scene (new `scenes.text_x`/`text_y`, migration 0015) over a video-wide place for content scenes
+(`text_position` in the video's options); the title scene moves only up and down, so the thumbnail stays
+centred. This changes the template's fixed places only when a member moves a box: without one, every box
+is where it was, and the MP4 signature is unchanged. Captions move with the box and go under it when above
+would leave the safe zone. The drag works on the exact box image the renderer overlays (`textbox.png`) over
+the frame without text (`frame.jpg`), so what is dragged is what is rendered.
+
 ## 2026-11-01 — The title can have a look of its own
 
 Owner's decision: "Kiểu tiêu đề" (Giống cảnh, Hộp vàng) stood apart from the new styles and colours. The text

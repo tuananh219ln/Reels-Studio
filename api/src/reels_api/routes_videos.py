@@ -1,3 +1,4 @@
+import io
 import math
 import tempfile
 import time
@@ -11,6 +12,8 @@ from pydantic import BaseModel
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
+
+from reels_render.textbox import FRAME_WIDTH
 
 from . import clips, frames, knowledge, llm, source_keys, stock_clips, video_options
 from .db import get_db
@@ -30,7 +33,7 @@ from .models import (
 from .openverse import Openverse, OpenverseError
 from .pexels import Pexels, PexelsError
 from .pixabay import Pixabay, PixabayError
-from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS
+from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, text_problem
 from .sessions import current_member, now
 from .storage import DirectoryStorage, get_storage
 from .uploads import (
@@ -55,6 +58,7 @@ from .videos import (
     run_checks,
     scene_still,
     split_scenes,
+    text_position,
     title_of,
     video_not_found,
     video_payload,
@@ -107,6 +111,7 @@ class ScenePatchBody(BaseModel):
     image_prompt: str | None = None
     voice_text: str | None = None
     video_start: float | None = None
+    text_position: object = None  # the text box centre [x, y]; null: back to the video's (or template's)
 
 
 class PublishBody(BaseModel):
@@ -566,7 +571,19 @@ def patch_scene(
         start = round(body.video_start, 2)
         start_changed = start != scene.video_start
         scene.video_start = start
-    if scene.is_title and (text_changed or start_changed):
+    moved = False
+    if "text_position" in fields:
+        try:
+            position = video_options.clean_position(body.text_position)
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
+        # The title moves only up and down (place_box): its x is kept at the centre.
+        if position and scene.is_title:
+            position[0] = FRAME_WIDTH // 2
+        new_x, new_y = position if position else (None, None)
+        moved = (new_x, new_y) != (scene.text_x, scene.text_y)
+        scene.text_x, scene.text_y = new_x, new_y
+    if scene.is_title and (text_changed or start_changed or moved):
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
     return _saved(db, video)
@@ -1105,10 +1122,41 @@ def scene_preview(
     if still is None:
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
     video = db.get(Video, scene.video_id)
-    frame = frames.compose_frame(still, scene.text, scene.is_title, video_options.render_options(video))
+    frame = frames.compose_frame(
+        still, scene.text, scene.is_title, video_options.render_options(video), text_position(video, scene)
+    )
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )
+
+
+@router.get("/scenes/{scene_id}/frame.jpg")
+def scene_frame(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> Response:
+    """The scene's first frame without its text box, which the text box is dragged over."""
+    still = scene_still(storage, _scene(db, scene_id))
+    if still is None:
+        raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
+    frame = frames.compose_frame(still, "", is_title=False)
+    return Response(
+        frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
+    )
+
+
+@router.get("/scenes/{scene_id}/textbox.png")
+def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> Response:
+    """The exact box image the renderer overlays on this scene (transparent around it)."""
+    scene = _scene(db, scene_id)
+    if not scene.text.strip() or text_problem(scene.text, scene.is_title) is not None:
+        raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
+    box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(db.get(Video, scene.video_id)))
+    buffer = io.BytesIO()
+    box.save(buffer, "PNG")
+    return Response(buffer.getvalue(), media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.get("/scenes/{scene_id}/video")
