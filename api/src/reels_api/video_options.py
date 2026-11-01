@@ -14,6 +14,7 @@ from reels_render.options import (
     TEXT_COLORS,
     TEXT_STYLES,
     TITLE_STYLES,
+    TITLE_TEXT_STYLES,
     TRANSITIONS,
     ZOOMS,
     RenderOptions,
@@ -40,13 +41,42 @@ DEFAULTS: dict = {
     "title_style": "same",  # the title scene is drawn like the other scenes
     "box_color": "auto",  # the style's own box (or outline, without a box); or "#RRGGBB"
     "accent_color": "auto",  # marked words keep a colour apart from the text; or "#RRGGBB"
-    "box_opacity": "auto",  # the style's own; or solid, soft (88%), clear (70%)
+    "box_opacity": "auto",  # the style's own; or solid, soft (88%), clear (70%), none (outlined)
+    # The title scene's own look, like the five above; "same" follows the scenes (or title_style "yellow").
+    "title_text_style": "same",
+    "title_text_color": "auto",
+    "title_box_color": "auto",
+    "title_accent_color": "auto",
+    "title_box_opacity": "auto",
     "captions": "off",
 }
+# What the text boxes are drawn with (previews, thumbnail, MP4); text_look keeps this order.
+LOOK_FIELDS = (
+    "text_style",
+    "text_color",
+    "title_style",
+    "box_color",
+    "accent_color",
+    "box_opacity",
+    "title_text_style",
+    "title_text_color",
+    "title_box_color",
+    "title_accent_color",
+    "title_box_opacity",
+)
+# Left out of the MP4 fingerprint while unused, so videos rendered before each existed stay current.
+LATER_LOOK_FIELDS = LOOK_FIELDS[2:]
 # Kept as columns of their own before these settings existed; the team defaults hold them too.
 VIDEO_FIELDS = {"voice_enabled": True, "music_volume": 25}
 # Colours: a named one or any "#RRGGBB", stored in capitals.
-COLORS = {"text_color": TEXT_COLORS, "box_color": ("auto",), "accent_color": ("auto",)}
+COLORS = {
+    "text_color": TEXT_COLORS,
+    "box_color": ("auto",),
+    "accent_color": ("auto",),
+    "title_text_color": TEXT_COLORS,
+    "title_box_color": ("auto",),
+    "title_accent_color": ("auto",),
+}
 CHOICES = {
     "voice_speed": tuple(SPEEDS),
     "transition": TRANSITIONS,
@@ -55,6 +85,8 @@ CHOICES = {
     "text_style": TEXT_STYLES,
     "title_style": TITLE_STYLES,
     "box_opacity": BOX_OPACITIES,
+    "title_text_style": TITLE_TEXT_STYLES,
+    "title_box_opacity": BOX_OPACITIES,
     "captions": CAPTIONS,
 }
 
@@ -70,6 +102,11 @@ LABELS = {
     "accent_color": "Màu chữ đánh dấu",
     "box_opacity": "Độ trong của hộp",
     "title_style": "Kiểu tiêu đề",
+    "title_text_style": "Kiểu hộp chữ tiêu đề",
+    "title_text_color": "Màu chữ tiêu đề",
+    "title_box_color": "Màu nền hộp tiêu đề",
+    "title_accent_color": "Màu chữ đánh dấu tiêu đề",
+    "title_box_opacity": "Độ trong của hộp tiêu đề",
     "captions": "Phụ đề theo giọng",
     "ducking": "Nhỏ nhạc khi có giọng",
     "voice_enabled": "Giọng đọc",
@@ -120,18 +157,23 @@ def voice_speed(video: Video) -> str:
     return effective(video)["voice_speed"]
 
 
-def text_look(video: Video) -> tuple[str, str, str, str, str, str]:
-    """The text box style, text colour, title style, box colour, marked-word colour and box opacity, which
-    previews and the thumbnail are drawn with (frames.DEFAULT_LOOK)."""
+def text_look(video: Video) -> tuple[str, ...]:
+    """The values the text boxes are drawn with (LOOK_FIELDS): previews and the thumbnail change with them."""
     values = effective(video)
-    return (
-        values["text_style"],
-        values["text_color"],
-        values["title_style"],
-        values["box_color"],
-        values["accent_color"],
-        values["box_opacity"],
-    )
+    return tuple(values[name] for name in LOOK_FIELDS)
+
+
+# What a content scene's box is drawn with; the title's depends on every look field.
+SCENE_LOOK_FIELDS = ("text_style", "text_color", "box_color", "accent_color", "box_opacity")
+
+
+def preview_look(video: Video, is_title: bool) -> list[str]:
+    """The look values a scene preview's address carries: none while they are the defaults (so previews cached
+    before stay valid), and only what that scene is drawn with, so a title-only change leaves the scenes' alone."""
+    values = effective(video)
+    names = LOOK_FIELDS if is_title else SCENE_LOOK_FIELDS
+    look = [values[name] for name in names]
+    return [] if look == [DEFAULTS[name] for name in names] else look
 
 
 def render_options(video: Video) -> RenderOptions:
@@ -140,15 +182,10 @@ def render_options(video: Video) -> RenderOptions:
         transition=values["transition"],
         motion=values["motion"],
         zoom=values["zoom"],
-        text_style=values["text_style"],
-        text_color=values["text_color"],
-        title_style=values["title_style"],
-        box_color=values["box_color"],
-        accent_color=values["accent_color"],
-        box_opacity=values["box_opacity"],
         captions=values["captions"],
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],
+        **{name: values[name] for name in LOOK_FIELDS},
     )
 
 
@@ -159,8 +196,7 @@ def look_signature(video: Video) -> dict | None:
     changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed")}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
-    # Left out while unused, so videos with other presets, rendered before it existed, stay current.
-    for name in ("title_style", "box_color", "accent_color", "box_opacity"):
+    for name in LATER_LOOK_FIELDS:
         if changed[name] == DEFAULTS[name]:
             del changed[name]
     return changed

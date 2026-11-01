@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — The title can have a look of its own
+
+Owner's decision: "Kiểu tiêu đề" (Giống cảnh, Hộp vàng) stood apart from the new styles and colours. The text
+card now has a "Chỉnh chữ cho" switch, Các cảnh or Tiêu đề, and the title can take a look of its own (team
+style or Không hộp, colours, opacity) with the same controls, stored as `title_text_style`, `title_text_color`,
+`title_box_color`, `title_accent_color` and `title_box_opacity`. "Tiêu đề giống các cảnh" stays the default.
+This extends, and does not reverse, "The title scene can keep the yellow box over outlined scenes": a video
+with `title_style` "yellow" still renders the original yellow title box, and is shown with the box unticked;
+the page no longer offers the two-way choice itself. A scene preview's address now carries only what that
+scene is drawn with, so changing the title's look leaves the scenes' cached previews alone.
+
 ## 2026-11-01 — Text boxes are the team's own styles; the four preset boxes leave the page
 
 Owner's decision. The "Kiểu hộp chữ" cards are now Không hộp, the team's own box styles and "+ Thêm kiểu":

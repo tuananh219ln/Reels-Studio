@@ -865,11 +865,29 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: "Màu Trắng" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: "Viền Theo kiểu" })).toHaveAttribute("aria-checked", "true");
-  // The title can keep the yellow box over those outlined scenes.
+  // The title takes a look of its own, with the same controls; the scenes keep theirs.
   const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const scenePreview = page.getByTestId("scene").first().getByTestId("scene-preview");
   const outlinedTitle = await titlePreview.getAttribute("src");
-  await page.getByText("Hộp vàng", { exact: true }).click();
+  const outlinedScene = await scenePreview.getAttribute("src");
+  await page.getByLabel("Chỉnh chữ cho").getByText("Tiêu đề").click();
+  const follows = page.getByRole("checkbox", { name: "Tiêu đề giống các cảnh" });
+  await expect(follows).toBeChecked();
+  await expect(page.getByLabel("Phụ đề theo giọng đọc")).toHaveCount(0);
+  // The box follows what the api saved, so it is clicked and then awaited.
+  await follows.click();
+  await expect(follows).not.toBeChecked();
+  // It starts from the scenes' look, so nothing changes until a choice of its own.
+  await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Màu Đỏ" }).click();
+  await expect(page.getByRole("radio", { name: "Màu Đỏ" })).toHaveAttribute("aria-checked", "true");
   await expect(titlePreview).not.toHaveAttribute("src", outlinedTitle ?? "");
+  await expect(scenePreview).toHaveAttribute("src", outlinedScene ?? "");
+  // Following the scenes again drops the title's own look.
+  await follows.click();
+  await expect(follows).toBeChecked();
+  await expect(titlePreview).toHaveAttribute("src", outlinedTitle ?? "");
+  await page.getByLabel("Chỉnh chữ cho").getByText("Các cảnh").click();
 
   // Captions need narration.
   await page.getByRole("switch", { name: "Đọc lời từng cảnh" }).click();

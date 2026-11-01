@@ -270,3 +270,25 @@ def test_a_box_style_without_a_background_outlines_its_letters_in_the_box_colour
     # A video without a box has nothing to make clear.
     assert palette_for("none", box_opacity="none") == palette_for("none")
     RenderOptions(text_style="box", box_opacity="none")
+
+
+def test_the_title_can_take_a_look_of_its_own():
+    scenes = {"text_style": "box", "box_color": "#1D4ED8", "text_color": "#FFFFFF"}
+    # By default the title follows the scenes, or the original yellow box with the older "Hộp vàng" choice.
+    assert RenderOptions(**scenes).title_palette() == RenderOptions(**scenes).scene_palette()
+    assert RenderOptions(**scenes, title_style="yellow").title_palette() == PALETTES["yellow"]
+    own = RenderOptions(
+        **scenes,
+        title_text_style="box",
+        title_box_color="#111111",
+        title_box_opacity="soft",
+        title_text_color="#FFD60A",
+        title_accent_color="#FFFFFF",
+    )
+    assert own.title_palette() == Palette((17, 17, 17, 224), "#FFD60A", "#FFFFFF")
+    assert own.scene_palette() == palette_for("box", "#FFFFFF", "#1D4ED8")
+    # A look of its own wins over the older choice.
+    assert RenderOptions(title_style="yellow", title_text_style="none").title_palette() == palette_for("none")
+    for name, value in (("title_text_style", "pink"), ("title_box_color", "blue"), ("title_box_opacity", "50")):
+        with pytest.raises(InputError):
+            RenderOptions(**{name: value})
