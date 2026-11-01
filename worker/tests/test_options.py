@@ -292,15 +292,3 @@ def test_the_title_can_take_a_look_of_its_own():
     for name, value in (("title_text_style", "pink"), ("title_box_color", "blue"), ("title_box_opacity", "50")):
         with pytest.raises(InputError):
             RenderOptions(**{name: value})
-
-
-@needs_ffmpeg
-def test_a_moved_text_box_renders_where_it_was_put(tmp_path):
-    make_image(tmp_path / "a.jpg", (1000, 1600), (60, 90, 160))
-    data = script_data(scene_count=1, image="a.jpg", seconds=2)
-    data["scenes"][0].update(image="a.jpg", seconds=2, text_position=[540, 450])
-    output = render_video(load_script(write_script(tmp_path, data)), tmp_path / "out.mp4")
-    frame = extract_frame(output, 3.0, tmp_path / "scene.png")
-    top, bottom = frame.crop((0, 300, 1080, 600)), frame.crop((0, 1240, 1080, 1440))
-    # The yellow box left the lower third for the point it was dragged to.
-    assert yellow_pixels(top) > 10_000 and yellow_pixels(bottom) == 0

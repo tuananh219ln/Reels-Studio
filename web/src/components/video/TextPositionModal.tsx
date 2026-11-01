@@ -36,10 +36,11 @@ export function placeBox(size: Size, centre: Point | null, isTitle: boolean): Po
   return [x, y];
 }
 
-/** The centre of a box placed at a corner, as the api stores it. */
+/** The centre of a box placed at a corner, as the api stores it: the inverse of placeBox (which takes half the
+ * size rounded down, like textbox.place_box), so placing a box at its own centre never moves it. */
 const centreOf = (corner: Point, size: Size): Point => [
-  Math.round(corner[0] + size.width / 2),
-  Math.round(corner[1] + size.height / 2),
+  corner[0] + Math.floor(size.width / 2),
+  corner[1] + Math.floor(size.height / 2),
 ];
 
 /** Drag the scene's text box over its frame, inside the platforms' safe zone, and save it for the scene or video. */

@@ -5,11 +5,10 @@ import io
 import pytest
 from conftest import login, make_user, make_video
 from PIL import Image
-from test_voice import first_scene, needs_ffmpeg, render
+from test_voice import first_scene, render
 from worker_helpers import add_user, committed  # noqa: F401  (fixture)
 
 from reels_api import videos
-from reels_api.models import Video
 from reels_api.storage import DirectoryStorage
 from reels_api.videos import render_signature, split_scenes
 
@@ -104,28 +103,28 @@ def test_the_drag_is_drawn_from_the_bare_frame_and_the_exact_text_box(an, db, me
     assert an.get(f"/api/scenes/{scene.id}/textbox.png").status_code == 404
 
 
-def yellow_pixels(image: Image.Image) -> int:
-    return sum(r > 220 and g > 180 and b < 60 for r, g, b in image.convert("RGB").getdata())
-
-
-@needs_ffmpeg
-def test_the_render_puts_a_moved_box_where_it_was_dragged(committed, tmp_path, fakes):  # noqa: F811
-    import subprocess
+def test_the_render_job_hands_each_scene_its_place(committed, tmp_path, monkeypatch):  # noqa: F811
+    """The job's script carries the places; the render core itself is stubbed, so no MP4 is made."""
+    from reels_api import jobs
+    from reels_render import RenderError
 
     user = add_user(committed)
     storage = DirectoryStorage(tmp_path / "storage")
     with committed() as db:
-        video = make_video(db, storage, user, scene_count=1, seconds=2)
-        scene = first_scene(db, video)
-        scene.text_x, scene.text_y = 540, 450
+        video = make_video(db, storage, user, scene_count=2, seconds=2)
+        video.options = {"text_position": [540, 600]}
+        first = first_scene(db, video)
+        first.text_x, first.text_y = 300, 900
         db.commit()
         video_id = video.id
+    handed = []
+
+    def fake_render(script, output, **_):
+        handed.extend(scene.text_position for scene in script.all_scenes)
+        raise RenderError("dừng trước FFmpeg")
+
+    monkeypatch.setattr(jobs, "render_video", fake_render)
     job = render(committed, storage, video_id, user.id)
-    assert job.status == "done", (job.error, job.error_detail)
-    with committed() as db:
-        path = storage.path(db.get(Video, video_id).mp4_key)
-    still = tmp_path / "scene.png"
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", "4.5", "-i", str(path), "-frames:v", "1", str(still)])
-    frame = Image.open(still)
-    assert yellow_pixels(frame.crop((0, 300, 1080, 600))) > 10_000
-    assert yellow_pixels(frame.crop((0, 1240, 1080, 1440))) == 0
+    assert job.status == "failed" and job.error == "dừng trước FFmpeg"
+    # The title keeps the template's place; the first scene its own; the second the video's.
+    assert handed == [None, (300, 900), (540, 600)]

@@ -958,18 +958,10 @@ test("text settings from an api without the colour options still open, on Theo k
   await expect(text.getByRole("radio", { name: "Đánh dấu Theo kiểu" })).toHaveAttribute("aria-checked", "true");
 });
 
-/** A locator's box once it stops moving (the dialog zooms in when it opens). */
-async function settledBox(locator: ReturnType<Page["locator"]>) {
-  let last = await locator.boundingBox();
-  await expect
-    .poll(async () => {
-      const now = await locator.boundingBox();
-      const same = JSON.stringify(now) === JSON.stringify(last);
-      last = now;
-      return same;
-    })
-    .toBe(true);
-  return last;
+/** A dialog's box once its zoom-in has finished, so what is measured or dragged is where it stays. */
+async function settledBox(page: Page, locator: ReturnType<Page["locator"]>) {
+  await expect(page.locator('.ant-modal[class*="zoom"]')).toHaveCount(0);
+  return locator.boundingBox();
 }
 
 test("drag a scene's text box inside the safe zone, for that scene or every scene, and move the title", async ({
@@ -991,7 +983,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   const box = dialog.getByTestId("position-box");
   await expect(box).toBeVisible();
   await expect(box).toHaveAttribute("aria-valuetext", /^x 540, /);
-  const start = await settledBox(box);
+  const start = await settledBox(page, box);
   const grab = [(start?.x ?? 0) + (start?.width ?? 0) / 2, (start?.y ?? 0) + (start?.height ?? 0) / 2];
   await page.mouse.move(grab[0], grab[1]);
   await page.mouse.down();
@@ -1031,16 +1023,15 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   await title.getByRole("button", { name: "Vị trí chữ" }).click();
   const titleBox = page.getByRole("dialog", { name: "Vị trí chữ cảnh tiêu đề" }).getByTestId("position-box");
   await expect(titleBox).toBeVisible();
-  // Placed once its image has loaded: the title sits in the middle of the frame.
-  await expect(titleBox).toHaveAttribute("aria-valuetext", /^x 540, y 9\d\d$/);
-  const centred = await settledBox(titleBox);
+  // Placed once its image has loaded: the title sits in the middle of the frame (x 539 or 540, as its width
+  // is odd or even). Its place is read from the box's value, not from the screen.
+  await expect(titleBox).toHaveAttribute("aria-valuetext", /^x 5(39|40), y 9\d\d$/);
+  const [centredX, centredY] = ((await titleBox.getAttribute("aria-valuetext")) ?? "").match(/\d+/g)!.map(Number);
   await titleBox.focus();
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowDown");
-  const after = await titleBox.boundingBox();
-  await expect(titleBox).toHaveAttribute("aria-valuetext", /^x 540, /);
-  expect(after?.x).toBe(centred?.x);
-  expect(after?.y).toBeGreaterThan(centred?.y ?? 0);
+  // Left does nothing, down moves it one step (10 frame pixels).
+  await expect(titleBox).toHaveAttribute("aria-valuetext", `x ${centredX}, y ${centredY + 10}`);
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(title.getByTestId("scene-preview")).not.toHaveAttribute("src", titleBefore ?? "");
 });
