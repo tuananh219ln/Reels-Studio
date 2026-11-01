@@ -11,7 +11,8 @@ from .errors import InputError
 TRANSITIONS = ("fade", "cut", "slide")
 MOTIONS = ("zoom_in", "zoom_out", "pan", "static")
 ZOOMS = {"light": 1.06, "medium": 1.12, "strong": 1.18}
-TEXT_STYLES = ("yellow", "white", "dark", "red")
+TEXT_STYLES = ("yellow", "white", "dark", "red", "none")  # "none": no box, outlined letters
+TEXT_COLORS = ("auto", "white", "black", "yellow", "red")  # "auto": the style's own text colour
 CAPTIONS = ("off", "phrase", "word")
 
 
@@ -24,6 +25,7 @@ class RenderOptions:
     captions: str = "off"  # narration captions: off, phrase by phrase, or phrase with the spoken word lit
     voice_volume: float = 1.0  # narration level, 0–1
     ducking: bool = False  # lower the music while narration plays
+    text_color: str = "auto"  # the plain words' colour (textbox.palette_for)
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
@@ -31,6 +33,7 @@ class RenderOptions:
             ("motion", self.motion, MOTIONS),
             ("zoom", self.zoom, tuple(ZOOMS)),
             ("text_style", self.text_style, TEXT_STYLES),
+            ("text_color", self.text_color, TEXT_COLORS),
             ("captions", self.captions, CAPTIONS),
         ):
             if value not in allowed:

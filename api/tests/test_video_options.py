@@ -85,6 +85,18 @@ def test_a_style_change_redraws_the_thumbnail(an, db, me, storage):
     an.patch(f"/api/videos/{video.id}", json={"options": {"text_style": "red"}})
     db.refresh(video)
     assert video.thumbnail_key and video.thumbnail_key != yellow
+    red = video.thumbnail_key
+    # So does a text colour, and "no box".
+    an.patch(f"/api/videos/{video.id}", json={"options": {"text_color": "black"}})
+    db.refresh(video)
+    assert video.thumbnail_key not in (None, red)
+    black = video.thumbnail_key
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": {"text_style": "none"}}).json()
+    assert (payload["options"]["text_style"], payload["options"]["text_color"]) == ("none", "black")
+    db.refresh(video)
+    assert video.thumbnail_key not in (None, black)
+    refused = an.patch(f"/api/videos/{video.id}", json={"options": {"text_color": "pink"}})
+    assert refused.status_code == 422 and "Màu chữ" in refused.json()["message"]
 
 
 def test_a_clone_takes_its_sources_settings(an, db, me, storage, fakes):

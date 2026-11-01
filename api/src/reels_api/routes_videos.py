@@ -12,7 +12,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import clips, config, frames, knowledge, llm, stock_clips, video_options
+from . import clips, frames, knowledge, llm, source_keys, stock_clips, video_options
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -240,7 +240,7 @@ def patch_video(
         video.music_volume = body.music_volume
     if "voice_enabled" in fields and body.voice_enabled is not None:
         video.voice_enabled = body.voice_enabled
-    style = video_options.effective(video)["text_style"]
+    look = video_options.text_look(video)
     if body.reset_options:
         video_options.apply_team_defaults(db, video)
     if body.options:
@@ -249,7 +249,7 @@ def patch_video(
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
         video.options = video_options.effective(video) | changes
-    if video_options.effective(video)["text_style"] != style:
+    if video_options.text_look(video) != look:
         # The thumbnail is the title scene's first frame, drawn in the text box style.
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
@@ -705,7 +705,7 @@ def find_other_image(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    client, error_type = _stock_client(source)
+    client, error_type = _stock_client(source, db)
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     if source in stock_turned_off(db):
@@ -747,7 +747,7 @@ def search_pixabay(
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     db.rollback()
     try:
-        hits = Pixabay().search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS)
+        hits = Pixabay(source_keys.get(db, "pixabay")).search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS)
     except PixabayError as err:
         raise _pixabay_failed(err) from None
     return {"keyword": keyword, "hits": [{"url": hit.url, "preview": hit.preview} for hit in hits]}
@@ -770,7 +770,7 @@ def choose_pixabay(
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     db.rollback()
-    client = Pixabay()
+    client = Pixabay(source_keys.get(db, "pixabay"))
     deadline = time.monotonic() + FIND_IMAGE_SECONDS
     try:
         # The address comes from the browser: only a result Pixabay itself returned may be fetched.
@@ -792,22 +792,20 @@ STOCK_OFF_KEY = "stock_sources_off"
 CLIP_DOWNLOAD_SECONDS = 60
 
 
-def _stock_client(source: str):
+def _stock_client(source: str, db: DbSession):
     """The picker client for a source and its error type; an unknown source is a bad request."""
     if source == "pixabay":
-        return Pixabay(), PixabayError
+        return Pixabay(source_keys.get(db, "pixabay")), PixabayError
     if source == "pexels":
-        return Pexels(), PexelsError
+        return Pexels(source_keys.get(db, "pexels")), PexelsError
     if source == "openverse":
         return Openverse(), OpenverseError
     raise invalid("Nguồn ảnh không hợp lệ")
 
 
-def stock_configured(source: str) -> bool:
-    if source == "pixabay":
-        return bool(config.pixabay_key())
-    if source == "pexels":
-        return bool(config.pexels_key())
+def stock_configured(source: str, db: DbSession) -> bool:
+    if source in ("pixabay", "pexels"):
+        return bool(source_keys.get(db, source))
     return True  # Openverse answers anonymous calls.
 
 
@@ -821,8 +819,8 @@ def stock_turned_off(db: DbSession) -> set[str]:
     )
 
 
-def _stock_available(source: str, db: DbSession | None = None) -> bool:
-    return stock_configured(source) and (db is None or source not in stock_turned_off(db))
+def _stock_available(source: str, db: DbSession) -> bool:
+    return stock_configured(source, db) and source not in stock_turned_off(db)
 
 
 @router.get("/stock/sources")
@@ -859,7 +857,7 @@ def search_stock_clips(
         raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
     db.rollback()
     try:
-        hits = stock_clips.search(source, keyword, FIND_IMAGE_SECONDS)
+        hits = stock_clips.search(source, keyword, FIND_IMAGE_SECONDS, source_keys.get(db, source))
     except stock_clips.ClipSearchError as err:
         raise ApiError(502, "stock_error", f"Không tìm được video: {err.message}") from None
     return {
@@ -893,7 +891,12 @@ def choose_stock_clip(
         hit = next(
             (
                 hit
-                for hit in stock_clips.search(body.source, " ".join(body.keyword.split()), FIND_IMAGE_SECONDS)
+                for hit in stock_clips.search(
+                    body.source,
+                    " ".join(body.keyword.split()),
+                    FIND_IMAGE_SECONDS,
+                    source_keys.get(db, body.source),
+                )
                 if hit.id == body.id
             ),
             None,
@@ -927,7 +930,7 @@ def search_stock(
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     if source in stock_turned_off(db):
         raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
-    client, error_type = _stock_client(source)
+    client, error_type = _stock_client(source, db)
     db.rollback()
     try:
         hits = client.search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS)
@@ -955,7 +958,7 @@ def choose_stock(
     ensure_unlocked(db, video)
     if body.source in stock_turned_off(db):
         raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
-    client, error_type = _stock_client(body.source)
+    client, error_type = _stock_client(body.source, db)
     db.rollback()
     deadline = time.monotonic() + FIND_IMAGE_SECONDS
     try:
@@ -1102,7 +1105,7 @@ def scene_preview(
     if still is None:
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
     video = db.get(Video, scene.video_id)
-    frame = frames.compose_frame(still, scene.text, scene.is_title, video_options.effective(video)["text_style"])
+    frame = frames.compose_frame(still, scene.text, scene.is_title, video_options.text_look(video))
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )

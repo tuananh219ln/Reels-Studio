@@ -2,10 +2,11 @@
 
 import pytest
 from conftest import first_topic, login, make_user, make_video
+from fake_services import IMAGE_GEN_KEY
 from sqlalchemy import select
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
-from reels_api import jobs
+from reels_api import jobs, source_keys
 from reels_api.models import Job, Scene, Video
 
 
@@ -132,6 +133,20 @@ def test_a_wrong_key_fails_the_job_at_once(committed, fakes, storage, monkeypatc
     assert not any(scene.image_key for scene in load_scenes(committed, video_id))
 
 
+def test_a_key_saved_on_the_sources_page_makes_the_photos(committed, fakes, storage, monkeypatch):
+    user = add_user(committed)
+    video_id = build(committed, storage, user)
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")
+    with committed() as db:
+        source_keys.save(db, "gemini", IMAGE_GEN_KEY, user.id)
+        db.commit()
+
+    job = run_image_job(committed, storage, video_id, user.id)
+
+    assert job.status == "done", job.error
+    assert len(fakes.image_gen_prompts) == 4
+
+
 def test_no_key_configured_fails_with_a_clear_message(committed, fakes, storage, monkeypatch):
     user = add_user(committed)
     video_id = build(committed, storage, user)
@@ -139,7 +154,7 @@ def test_no_key_configured_fails_with_a_clear_message(committed, fakes, storage,
 
     job = run_image_job(committed, storage, video_id, user.id)
 
-    assert job.status == "failed" and "Chưa cấu hình IMAGE_GEN_API_KEY" in (job.error or "")
+    assert job.status == "failed" and "Chưa có key Gemini nên không tạo được ảnh AI" in (job.error or "")
     assert fakes.image_gen_prompts == []
 
 

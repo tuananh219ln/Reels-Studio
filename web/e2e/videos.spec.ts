@@ -816,6 +816,16 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.getByRole("radio", { name: "Kiểu Tối" }).click();
   await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveAttribute("aria-checked", "true");
   await expect(preview).not.toHaveAttribute("src", before ?? "");
+  // Black letters would vanish into the dark box; yellow ones redraw the previews again.
+  await expect(page.getByRole("radio", { name: "Màu Đen" })).toBeDisabled();
+  const dark = await preview.getAttribute("src");
+  await page.getByRole("radio", { name: "Màu Vàng" }).click();
+  await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
+  await expect(preview).not.toHaveAttribute("src", dark ?? "");
+  // No box keeps the colour.
+  await page.getByRole("radio", { name: "Kiểu Không hộp" }).click();
+  await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
 
   // Captions need narration.
   await page.getByRole("switch", { name: "Đọc lời từng cảnh" }).click();
@@ -848,6 +858,13 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await expect(page).toHaveURL(/\/settings\/sources$/);
   await page.getByRole("switch", { name: "Bật Pexels" }).click();
   await expect(page.getByRole("switch", { name: "Bật Pexels" })).not.toBeChecked();
+  // A key pasted here is stored encrypted and only its last characters come back.
+  const pixabayKey = page.getByTestId("key-pixabay");
+  await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đang dùng key trong file .env của máy chủ");
+  await pixabayKey.getByRole("button", { name: "Dán key mới" }).click();
+  await pixabayKey.getByLabel("API key Pixabay").fill("fake-pixabay-key");
+  await pixabayKey.getByRole("button", { name: "Lưu key" }).click();
+  await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
   await page.goBack();
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");

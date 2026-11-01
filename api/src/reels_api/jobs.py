@@ -18,7 +18,7 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import config, facebook, fanpages, knowledge, llm
+from . import config, facebook, fanpages, knowledge, llm, source_keys
 from .claude import (
     ClaudeError,
     GeneratedScript,
@@ -204,6 +204,10 @@ def _checked_music(video: Video, storage: DirectoryStorage, folder: Path) -> Pat
     if not any(stream.get("codec_type") == "audio" for stream in streams):
         raise JobFailure(MUSIC_UNREADABLE, "File không có luồng âm thanh")
     return music
+
+
+def _image_model(provider: str) -> str:
+    return config.image_gen_cf_model() if provider == "cloudflare" else config.image_gen_model()
 
 
 def _scene_label(scene: Scene, index: int) -> str:
@@ -418,7 +422,8 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
         db.commit()
         try:
-            data = generate_image(prompt)
+            provider = config.image_gen_provider()
+            data = generate_image(prompt, source_keys.get(db, provider), provider)
         except ImageGenError as err:
             if err.fatal:
                 raise JobFailure(err.message, err.detail) from None
@@ -438,7 +443,7 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             continue
         key = new_key(video.id, f"scene-{scene.id}", extension)
         storage.save_bytes(key, data)
-        scene.image_key, scene.image_source, scene.image_error = key, f"ai:{config.image_gen_model()}", None
+        scene.image_key, scene.image_source, scene.image_error = key, f"ai:{_image_model(provider)}", None
         if scene.is_title:
             refresh_thumbnail(db, storage, video, scene)
         db.commit()

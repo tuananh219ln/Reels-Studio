@@ -1,4 +1,4 @@
-"""Secrets kept in the database (Fanpage tokens, LLM API keys), encrypted with one key in the storage folder.
+"""Secrets kept in the database (Fanpage tokens, LLM, stock-library and AI-image API keys), encrypted with one key in the storage folder.
 
 The api and the worker share that folder and the key is not in the database, so a database dump alone does not
 reveal a secret. Losing the key only means pasting the secrets again.

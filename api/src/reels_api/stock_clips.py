@@ -37,10 +37,6 @@ class ClipHit:
     height: int
 
 
-def available(source: str) -> bool:
-    return bool(config.pixabay_key() if source == "pixabay" else config.pexels_key())
-
-
 def _get(url: str, deadline_seconds: float, headers: dict | None = None) -> dict:
     try:
         body = stock.fetch(url, deadline_seconds, MAX_SEARCH_BYTES, headers=headers)
@@ -63,15 +59,16 @@ def _closest(files: list[tuple[str, int, int]]) -> tuple[str, int, int] | None:
     return min(usable, key=lambda item: abs(item[1] - TARGET_WIDTH), default=None)
 
 
-def search(source: str, keyword: str, timeout: float) -> list[ClipHit]:
+def search(source: str, keyword: str, timeout: float, key: str) -> list[ClipHit]:
+    """`key` is the source's API key (source_keys)."""
     if source not in SOURCES:
         raise ClipSearchError("Nguồn video không hợp lệ")
-    if not available(source):
+    if not key:
         raise ClipSearchError(f"Chưa cấu hình key {SOURCES[source]} nên không tìm được video")
     hits: list[ClipHit] = []
     if source == "pexels":
         query = urllib.parse.urlencode({"query": keyword, "orientation": "portrait", "per_page": RESULTS})
-        data = _get(f"{config.pexels_api_url()}/videos/search?{query}", timeout, {"Authorization": config.pexels_key()})
+        data = _get(f"{config.pexels_api_url()}/videos/search?{query}", timeout, {"Authorization": key})
         for item in data.get("videos") or []:
             files = [
                 (str(f.get("link") or ""), int(f.get("width") or 0), int(f.get("height") or 0))
@@ -91,9 +88,7 @@ def search(source: str, keyword: str, timeout: float) -> list[ClipHit]:
                     )
                 )
     else:
-        query = urllib.parse.urlencode(
-            {"key": config.pixabay_key(), "q": keyword, "per_page": RESULTS, "safesearch": "true"}
-        )
+        query = urllib.parse.urlencode({"key": key, "q": keyword, "per_page": RESULTS, "safesearch": "true"})
         data = _get(f"{config.pixabay_api_url().rstrip('/')}/videos/?{query}", timeout)
         for item in data.get("hits") or []:
             sizes = item.get("videos") or {}

@@ -1,8 +1,8 @@
 """Local stand-ins for the Claude Messages API, an OpenAI-compatible chat API, the stock sources (Pixabay, Pexels, Openverse),
-ElevenLabs TTS, Gemini image generation and Facebook Reels, for pytest and E2E.
+ElevenLabs TTS, Gemini and Cloudflare Workers AI image generation and Facebook Reels, for pytest and E2E.
 
 The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
-OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL and FACEBOOK_API_URL,
+OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL and FACEBOOK_API_URL,
 so production code has no test switches. The OpenAI-compatible API (at <url>/openai/v1) is reached the way a
 member sets any provider up, through its base URL on /settings/ai. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
@@ -27,6 +27,7 @@ OPENVERSE_CLIENT_SECRET = "fake-openverse-secret"
 OPENVERSE_TOKEN = "fake-openverse-token"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
 IMAGE_GEN_KEY = "fake-image-gen-key"
+IMAGE_GEN_CF_KEY = "fake-cloudflare-token"
 OPENAI_KEY = "fake-openai-key"
 OPENAI_MODELS = ["fake-gpt-mini", "models/fake-gemini-flash"]
 FACEBOOK_PAGE = "1234567"
@@ -102,6 +103,11 @@ class FakeServices:
         self.image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
         self.image_gen_refused: list[str] = []  # a prompt containing one of these is safety-refused (200, no image)
         self.image_gen_prompts: list[str] = []
+        # Cloudflare Workers AI, apart from Gemini's state.
+        self.cf_image_gen_mode = "ok"  # ok | quota | error500
+        self.cf_image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
+        self.cf_image_gen_refused: list[str] = []  # a prompt containing one of these is refused (200, success false)
+        self.cf_image_gen_prompts: list[str] = []
         self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code", "speed"}
         self.voice_list_requests = 0
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
@@ -143,6 +149,10 @@ class FakeServices:
             "ELEVENLABS_API_URL": self.url,
             "IMAGE_GEN_API_KEY": IMAGE_GEN_KEY,
             "IMAGE_GEN_API_URL": f"{self.url}/gemini",
+            # IMAGE_GEN_PROVIDER is left unset: Gemini stays the default; Cloudflare tests set it themselves.
+            "IMAGE_GEN_CF_API_URL": f"{self.url}/cloudflare/client/v4",
+            "IMAGE_GEN_CF_ACCOUNT_ID": "test-account",
+            "IMAGE_GEN_CF_API_KEY": IMAGE_GEN_CF_KEY,
             "FACEBOOK_API_URL": f"{self.url}/facebook",
         }
 
@@ -458,6 +468,37 @@ class FakeServices:
         data = base64.b64encode(buffer.getvalue()).decode()
         return 200, {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": data}}]}}]}
 
+    def _cf_image_gen(self, authorization: str | None, body: dict) -> tuple[int, dict]:
+        prompt = str(body.get("prompt") or "")
+        with self.lock:
+            self.cf_image_gen_prompts.append(prompt)
+            calls = len(self.cf_image_gen_prompts)
+
+        def failed(status: int, code: int, message: str) -> tuple[int, dict]:
+            return status, {
+                "result": None,
+                "success": False,
+                "errors": [{"code": code, "message": message}],
+                "messages": [],
+            }
+
+        if authorization != f"Bearer {IMAGE_GEN_CF_KEY}":
+            return failed(401, 10000, "Authentication error")
+        if self.cf_image_gen_mode == "error500":
+            return failed(500, 7000, "Internal server error")
+        if self.cf_image_gen_mode == "quota" or (
+            self.cf_image_gen_ok_count is not None and calls > self.cf_image_gen_ok_count
+        ):
+            return failed(429, 4006, "you have used up your daily free allocation of 10,000 neurons")
+        if any(marker in prompt for marker in self.cf_image_gen_refused):
+            return failed(200, 3030, "content policy violation: the prompt was flagged")
+        # FLUX.1 schnell on Cloudflare ignores width/height and always answers a 1024x1024 JPEG.
+        digest = hashlib.sha1(prompt.encode()).digest()
+        buffer = io.BytesIO()
+        Image.new("RGB", (1024, 1024), (digest[0], digest[1], digest[2])).save(buffer, "JPEG", quality=90)
+        image = base64.b64encode(buffer.getvalue()).decode()
+        return 200, {"result": {"image": image}, "success": True, "errors": [], "messages": []}
+
     def _reels_call(self, page: str, form: dict) -> tuple[int, dict]:
         if form.get("access_token") != FACEBOOK_TOKEN:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
@@ -590,6 +631,8 @@ class FakeServices:
                     self._send(*fake._chat(self.headers.get("Authorization"), body))
                 elif path.startswith("/gemini/v1beta/models/"):
                     self._send(*fake._image_gen(self.headers.get("x-goog-api-key"), body))
+                elif path.startswith("/cloudflare/client/v4/accounts/") and "/ai/run/" in path:
+                    self._send(*fake._cf_image_gen(self.headers.get("Authorization"), body))
                 elif path.startswith("/v1/text-to-speech/"):
                     status, reply = fake._tts(
                         path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body

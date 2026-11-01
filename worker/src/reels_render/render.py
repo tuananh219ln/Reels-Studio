@@ -14,13 +14,13 @@ from .stock import find_stock_images
 from .textbox import (
     CAPTION_GAP,
     FRAME_WIDTH,
-    PALETTES,
     SCENE_BOX_BOTTOM,
     SCENE_STYLE,
     TITLE_STYLE,
     TextFitError,
     empty_box,
     layout_text,
+    palette_for,
     render_box,
     render_caption,
     scene_box_position,
@@ -67,7 +67,7 @@ def render_video(
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
     spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
-    palette = PALETTES[options.text_style]
+    palette = palette_for(options.text_style, options.text_color)
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)

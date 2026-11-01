@@ -4,6 +4,7 @@ import shutil
 
 import pytest
 from conftest import login, make_user, make_video
+from fake_services import PEXELS_KEY as FAKE_PEXELS_KEY
 from sqlalchemy import select
 
 from reels_api.models import Scene
@@ -86,9 +87,60 @@ def test_a_source_turned_off_disappears_from_the_picker(an, db, me, storage, fak
     assert an.get(f"/api/scenes/{scene.id}/stock-clips", params={"q": "cá", "source": "pexels"}).status_code == 200
 
 
-def test_the_sources_page_says_which_keys_are_missing(an, monkeypatch):
+def test_the_sources_page_says_which_keys_are_missing(an, fakes, monkeypatch):
     monkeypatch.setenv("PEXELS_API_KEY", "")
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")
     payload = an.get("/api/settings/sources").json()
     pexels = next(item for item in payload["sources"] if item["id"] == "pexels")
-    assert (pexels["configured"], pexels["key_name"]) == (False, "PEXELS_API_KEY")
+    assert (pexels["configured"], pexels["key"]["origin"]) == (False, None)
     assert payload["ai_images"]["configured"] is False
+    pixabay = next(item for item in payload["sources"] if item["id"] == "pixabay")
+    assert (pixabay["configured"], pixabay["key"]["origin"]) == (True, "env")
+
+
+def test_a_key_pasted_on_the_sources_page_is_used_and_never_sent_back(an, db, me, storage, fakes, monkeypatch):
+    scene = scene_of(db, make_video(db, storage, me))
+    monkeypatch.setenv("PEXELS_API_KEY", "")
+    search = {"q": "cá", "source": "pexels"}
+    assert an.get(f"/api/scenes/{scene.id}/stock-clips", params=search).status_code == 502
+
+    saved = an.put("/api/settings/sources/pexels/key", json={"api_key": f"  {FAKE_PEXELS_KEY} "})
+    assert saved.status_code == 200 and FAKE_PEXELS_KEY not in saved.text
+    pexels = next(item for item in saved.json()["sources"] if item["id"] == "pexels")
+    assert (pexels["configured"], pexels["key"]["origin"], pexels["key"]["hint"]) == (True, "saved", "-key")
+    assert an.get(f"/api/scenes/{scene.id}/stock-clips", params=search).status_code == 200
+    assert an.get("/api/stock/sources").json()[1] == {
+        "id": "pexels",
+        "label": "Pexels",
+        "available": True,
+        "clips": True,
+    }
+
+    # A saved key wins over the server's .env one; removing it brings the .env key back.
+    monkeypatch.setenv("PEXELS_API_KEY", "an-old-env-key")
+    an.put("/api/settings/sources/pexels/key", json={"api_key": "a-wrong-saved-key"})
+    assert an.get(f"/api/scenes/{scene.id}/stock-clips", params=search).status_code == 502
+    removed = an.put("/api/settings/sources/pexels/key", json={"api_key": ""}).json()
+    assert next(item for item in removed["sources"] if item["id"] == "pexels")["key"]["origin"] == "env"
+
+
+def test_the_cloudflare_token_is_pasted_beside_gemini(an, fakes, monkeypatch):
+    monkeypatch.setenv("IMAGE_GEN_CF_API_KEY", "")
+    payload = an.get("/api/settings/sources").json()
+    assert payload["ai_provider"] == "gemini"
+    assert (payload["ai_images_cloudflare"]["configured"], payload["ai_images_cloudflare"]["key"]["origin"]) == (
+        False,
+        None,
+    )
+    monkeypatch.setenv("IMAGE_GEN_PROVIDER", "cloudflare")
+    saved = an.put("/api/settings/sources/cloudflare/key", json={"api_key": "a-cloudflare-api-token"})
+    assert saved.status_code == 200 and "a-cloudflare-api-token" not in saved.text
+    cloudflare = saved.json()["ai_images_cloudflare"]
+    assert (cloudflare["configured"], cloudflare["key"]["origin"], cloudflare["key"]["hint"]) == (True, "saved", "oken")
+    assert cloudflare["model"] == "@cf/black-forest-labs/flux-1-schnell" and saved.json()["ai_provider"] == "cloudflare"
+
+
+def test_bad_keys_and_keyless_sources_are_refused(an):
+    refused = an.put("/api/settings/sources/pixabay/key", json={"api_key": "two words"})
+    assert refused.status_code == 422 and "khoảng trắng" in refused.json()["message"]
+    assert an.put("/api/settings/sources/openverse/key", json={"api_key": "abc"}).status_code == 404

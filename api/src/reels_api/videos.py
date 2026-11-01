@@ -21,7 +21,7 @@ from .script_rules import Checks, SceneInput, check_script, plain_title, text_pr
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
-from .video_options import effective, look_signature, voice_id, voice_speed
+from .video_options import effective, look_signature, text_look, voice_id, voice_speed
 
 STATUS_LABELS = {
     "draft": "Nháp",
@@ -173,7 +173,7 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
         video.thumbnail_key = None
     else:
         key = new_key(video.id, "thumb", "jpg")
-        storage.save_bytes(key, thumbnail_bytes(still, title.text, effective(video)["text_style"]))
+        storage.save_bytes(key, thumbnail_bytes(still, title.text, text_look(video)))
         video.thumbnail_key = key
     if old and old != video.thumbnail_key:
         storage.delete(old)
@@ -281,8 +281,8 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
     voice_seconds = made_voice_seconds(video, scene)
     # Only a style other than the original changes the preview's address, so cached previews stay valid.
-    text_style = effective(video)["text_style"]
-    style = [text_style] if text_style != "yellow" else []
+    look = text_look(video)
+    style = list(look) if look != ("yellow", "auto") else []
     return {
         "id": scene.id,
         "is_title": scene.is_title,

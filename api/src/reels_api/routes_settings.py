@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import config, crypto, llm, routes_videos, tts, video_options
+from . import config, crypto, llm, routes_videos, source_keys, tts, video_options
 from .claude import ClaudeError
 from .db import get_db
 from .errors import ApiError
@@ -38,6 +38,10 @@ class DefaultsBody(BaseModel):
 
 class SourceBody(BaseModel):
     enabled: bool
+
+
+class SourceKeyBody(BaseModel):
+    api_key: str  # "" removes the saved key
 
 
 def _preset(provider_id: str) -> llm.Preset:
@@ -198,7 +202,22 @@ def get_voices(me: Session = Depends(current_member)) -> dict:
 # --- Cài đặt › Nguồn tư liệu ---
 
 SOURCE_KINDS = {"pixabay": "Ảnh và video", "pexels": "Ảnh và video", "openverse": "Ảnh (chỉ ảnh không cần ghi nguồn)"}
-SOURCE_KEYS = {"pixabay": "PIXABAY_API_KEY", "pexels": "PEXELS_API_KEY", "openverse": None}
+SOURCE_SIGNUP = {
+    "pixabay": "https://pixabay.com/api/docs/",
+    "pexels": "https://www.pexels.com/api/",
+    "gemini": "https://aistudio.google.com/apikey",
+    "cloudflare": "https://dash.cloudflare.com/profile/api-tokens",
+}
+
+
+def _key(db: DbSession, name: str) -> dict:
+    """What the page shows of a key: where it comes from and its last four characters, never the key itself."""
+    key = source_keys.get(db, name)
+    return {
+        "origin": source_keys.origin(db, name),
+        "hint": key[-4:] if len(key) >= 12 else "",
+        "signup_url": SOURCE_SIGNUP[name],
+    }
 
 
 def _sources(db: DbSession) -> dict:
@@ -209,13 +228,25 @@ def _sources(db: DbSession) -> dict:
                 "id": source,
                 "label": routes_videos.STOCK_LABELS[source],
                 "kinds": SOURCE_KINDS[source],
-                "key_name": SOURCE_KEYS[source],
-                "configured": routes_videos.stock_configured(source),
+                "key": _key(db, source) if source in source_keys.ENV_NAMES else None,
+                "configured": routes_videos.stock_configured(source, db),
                 "enabled": source not in off,
             }
             for source in routes_videos.STOCK_SOURCES
         ],
-        "ai_images": {"configured": bool(config.read_env("IMAGE_GEN_API_KEY")), "model": config.image_gen_model()},
+        # Both AI image providers; IMAGE_GEN_PROVIDER picks the one the image job uses.
+        "ai_provider": config.image_gen_provider(),
+        "ai_images": {
+            "configured": bool(source_keys.get(db, "gemini")),
+            "model": config.image_gen_model(),
+            "key": _key(db, "gemini"),
+        },
+        "ai_images_cloudflare": {
+            "configured": bool(source_keys.get(db, "cloudflare") and config.image_gen_cf_account_id()),
+            "model": config.image_gen_cf_model(),
+            "account_id_set": bool(config.image_gen_cf_account_id()),
+            "key": _key(db, "cloudflare"),
+        },
     }
 
 
@@ -236,5 +267,20 @@ def set_source(
         db.add(AppSetting(key=routes_videos.STOCK_OFF_KEY, value=sorted(off), updated_by_id=me.user_id))
     else:
         setting.value, setting.updated_by_id = sorted(off), me.user_id
+    db.commit()
+    return _sources(db)
+
+
+@router.put("/sources/{name}/key")
+def set_source_key(
+    name: str, body: SourceKeyBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """Save a pasted key for Pixabay, Pexels, Gemini or Cloudflare (AI images); an empty key removes the saved one."""
+    if name not in source_keys.ENV_NAMES:
+        raise ApiError(404, "source_not_found", "Nguồn này không cần key")
+    try:
+        source_keys.save(db, name, body.api_key, me.user_id)
+    except source_keys.SourceKeyError as err:
+        raise invalid(str(err)) from None
     db.commit()
     return _sources(db)

@@ -7,7 +7,7 @@ code defaults below render exactly the original template.
 
 from sqlalchemy.orm import Session as DbSession
 
-from reels_render.options import CAPTIONS, MOTIONS, TEXT_STYLES, TRANSITIONS, ZOOMS, RenderOptions
+from reels_render.options import CAPTIONS, MOTIONS, TEXT_COLORS, TEXT_STYLES, TRANSITIONS, ZOOMS, RenderOptions
 
 from . import config
 from .models import AppSetting, Video
@@ -25,6 +25,7 @@ DEFAULTS: dict = {
     "motion": "zoom_in",
     "zoom": "medium",
     "text_style": "yellow",
+    "text_color": "auto",  # the text box style's own colour
     "captions": "off",
 }
 # Kept as columns of their own before these settings existed; the team defaults hold them too.
@@ -35,6 +36,7 @@ CHOICES = {
     "motion": MOTIONS,
     "zoom": tuple(ZOOMS),
     "text_style": TEXT_STYLES,
+    "text_color": TEXT_COLORS,
     "captions": CAPTIONS,
 }
 
@@ -45,6 +47,7 @@ LABELS = {
     "motion": "Chuyển động",
     "zoom": "Độ zoom",
     "text_style": "Kiểu hộp chữ",
+    "text_color": "Màu chữ",
     "captions": "Phụ đề theo giọng",
     "ducking": "Nhỏ nhạc khi có giọng",
     "voice_enabled": "Giọng đọc",
@@ -91,6 +94,12 @@ def voice_speed(video: Video) -> str:
     return effective(video)["voice_speed"]
 
 
+def text_look(video: Video) -> tuple[str, str]:
+    """The text box style and text colour, which previews and the thumbnail are drawn with."""
+    values = effective(video)
+    return values["text_style"], values["text_color"]
+
+
 def render_options(video: Video) -> RenderOptions:
     values = effective(video)
     return RenderOptions(
@@ -98,6 +107,7 @@ def render_options(video: Video) -> RenderOptions:
         motion=values["motion"],
         zoom=values["zoom"],
         text_style=values["text_style"],
+        text_color=values["text_color"],
         captions=values["captions"],
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],

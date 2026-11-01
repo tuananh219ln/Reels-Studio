@@ -147,7 +147,8 @@ export type VideoOptions = {
   transition: "fade" | "cut" | "slide";
   motion: "zoom_in" | "zoom_out" | "pan" | "static";
   zoom: "light" | "medium" | "strong";
-  text_style: "yellow" | "white" | "dark" | "red";
+  text_style: "yellow" | "white" | "dark" | "red" | "none";
+  text_color: "auto" | "white" | "black" | "yellow" | "red";
   captions: "off" | "phrase" | "word";
 };
 

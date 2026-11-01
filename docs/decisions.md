@@ -11,6 +11,35 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — Cloudflare Workers AI added as a second AI image provider
+
+Gemini stays (for when the team has a paid plan) and Cloudflare Workers AI is added beside it; the image job's
+provider is chosen with `IMAGE_GEN_PROVIDER` (`gemini` by default, so nothing changes until it is set to
+`cloudflare`). The 2026-10-31 Gemini entry still holds. Reason: Gemini's free tier in practice gives no image
+quota, while Cloudflare Workers AI's free allowance (10,000 neurons a day on every plan, Workers Free included)
+covers about 57 FLUX.1 schnell photos a day, plenty for 1–3 videos, and the account is already used for the web.
+
+Consequences: Cloudflare's FLUX.1 schnell ignores width/height and answers a 1024×1024 square, which
+[imagegen.py](../api/src/reels_api/imagegen.py) cuts at the centre to 9:16 before storing; Gemini's frames are left
+as they are. FLUX.1 schnell is Apache-2.0 and its photos carry no SynthID. Each provider has its own key on
+Cài đặt › Nguồn tư liệu ("gemini", "cloudflare"); the Cloudflare account ID stays in `.env`.
+
+## 2026-11-01 — Stock and AI-image keys can be pasted in the app; text colour and "no box" presets
+
+Owner's request after the presets round. Cài đặt › Nguồn tư liệu takes the API keys of Pixabay,
+Pexels and Gemini (AI photos), stored encrypted like the LLM keys
+([source_keys.py](../api/src/reels_api/source_keys.py)); a key saved there wins over the `.env` one,
+and with none saved the `.env` key still applies, so existing servers keep working. This extends the
+2026-11-01 entry below that kept these keys in `.env`.
+
+The text box gains a fifth style, "Không hộp" (outlined letters, no box), and a text colour
+(Theo kiểu, Trắng, Đen, Vàng, Đỏ). The owner asked for both, knowingly reopening the MVP's rejection
+of outlined text as hard to read on bright photos: it is an opt-in choice, the default stays the
+yellow box, and the outline is thick (9% of the font size). Colours too faint on a box (white or
+yellow on the yellow and white boxes, black on the dark box, red on the red box) are not offered and
+fall back to the box's own colour in the renderer; marked words always keep a colour that differs
+from the text.
+
 ## 2026-11-01 — Video presets, narration captions and stock clips
 
 Built on the roadmap entry below. The render core takes per-video presets

@@ -123,3 +123,5 @@ client — phần còn lại của brief giữ nguyên.
   cấp đã chốt.
 - Xoá mục backlog "Tạo ảnh bằng AI cho cảnh thiếu ảnh" khi giai đoạn 2 xong (giai
   đoạn 1 xong thì ghi chú tiến độ vào backlog).
+
+Cập nhật 2026-11-01: thêm Cloudflare Workers AI làm provider thứ hai bên cạnh Gemini — xem docs/decisions.md.

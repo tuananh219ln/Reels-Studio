@@ -63,7 +63,9 @@ Built:
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
     Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
-    Mạnh); "Chữ & phụ đề" (Kiểu hộp chữ chosen from four small 9:16 previews, Vàng, Trắng, Tối, Đỏ;
+    Mạnh); "Chữ & phụ đề" (Kiểu hộp chữ chosen from five small 9:16 previews, Vàng, Trắng, Tối, Đỏ,
+    Không hộp; Màu chữ: Theo kiểu, Trắng, Đen, Vàng, Đỏ, a colour too faint on the chosen box greyed
+    out with "Khó đọc trên kiểu hộp này";
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and "Lấy
     theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
     with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
@@ -108,10 +110,13 @@ Built:
   - **Thiết lập mặc định** (`/settings/defaults`, the group's first page): the same three cards as
     a video's "Thiết lập" tab plus the music level, saved at once ("Đã lưu mặc định"). They apply
     only to videos created afterwards.
-  - **Nguồn tư liệu** (`/settings/sources`): the stock libraries (Pixabay, Pexels: photos and
-    clips; Openverse: photos) with "Sẵn sàng" or the missing key's name, and a switch "Hiện trong
-    hộp chọn" that hides a source from the picker and "Tìm ảnh khác" for the whole team; below, the
-    state of AI photos (Gemini).
+  - **Nguồn tư liệu** (`/settings/sources`): one card per stock library (Pixabay, Pexels: photos
+    and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
+    hộp chọn" that hides a source from the picker and "Tìm ảnh khác" for the whole team, and its API
+    key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
+    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, one card per AI photo
+    provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its model, its key and
+    "Đang dùng" on the one `IMAGE_GEN_PROVIDER` picks.
   - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
     provider not set up yet is greyed out, "chưa cấu hình"). Below, one collapsible line per
     provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
@@ -155,8 +160,9 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
 - **Text box:** a scene whose text is empty has none, so a video can mix scenes with and without
   text, or carry no text at all. An empty title scene leaves the thumbnail without a box, and the
   video is listed under its topic.
-  - yellow background (`#FFD60A`) with black text (`#111111`). The "yellow text with a black
-    outline" style was rejected because it is hard to read on bright photos;
+  - yellow background (`#FFD60A`) with black text (`#111111`). Outlined text without a box was
+    rejected as the default because it is hard to read on bright photos; it is offered only as the
+    opt-in "Không hộp" preset below;
   - bold, uppercase, centered, at most 960 px wide;
   - keywords marked `*...*` are drawn in red (`#E10600`);
   - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts
@@ -194,8 +200,12 @@ relied on (samples in the PR that added them).
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** Vàng (the default above), Trắng (white box, black text, red keywords), Tối (near-black
-  box at 88%, white text, yellow keywords), Đỏ (`#E10600` box, white text, yellow keywords). The
-  thumbnail and the scene previews are drawn in the chosen style.
+  box at 88%, white text, yellow keywords), Đỏ (`#E10600` box, white text, yellow keywords), Không
+  hộp (white letters with a black outline 9% of the font size, yellow keywords). **Màu chữ:** Theo
+  kiểu (the style's own), Trắng, Đen, Vàng, Đỏ; a colour too faint on its box is not offered and
+  falls back to the box's own; keywords keep a colour that differs from the text (black letters
+  without a box get a white outline and red keywords). The thumbnail and the scene previews are
+  drawn in the chosen style and colour.
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
   the speed (ElevenLabs `speed` 0.9 / 1.0 / 1.1), the level (0–100%), and "Nhỏ nhạc khi có giọng
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).

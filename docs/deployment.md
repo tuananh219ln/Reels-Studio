@@ -72,8 +72,8 @@ when set to an empty string. Containers use real environment variables only.
 |---|---|
 | `ANTHROPIC_API_KEY` | worker and api: Claude API, used when no Claude key is saved on Cài đặt › Mô hình AI (keys for other LLM providers are entered only there) |
 | `CLAUDE_MODEL` | worker and api: Claude's model when none is set on Cài đặt › Mô hình AI; the default is `claude-sonnet-5-5` |
-| `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI) |
-| `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it the picker hides Pexels. Openverse needs no key |
+| `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI); a key pasted on Cài đặt › Nguồn tư liệu wins over it |
+| `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it (or a key pasted on Cài đặt › Nguồn tư liệu) the picker hides Pexels. Openverse needs no key |
 | `OPENVERSE_CLIENT_ID`, `OPENVERSE_CLIENT_SECRET` | optional, api: a registered Openverse application for its higher rate limits; without them Openverse is called anonymously, and a failed token exchange falls back to anonymous |
 | `STORAGE_DIR` | api and worker: the shared files folder; `/data/storage` in production, `data/storage` at the repo root when empty |
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
@@ -81,14 +81,20 @@ when set to an empty string. Containers use real environment variables only.
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
 | `ELEVENLABS_API_KEY` | worker: scene narration; without it a render with voice text fails with a clear reason |
-| `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); without it an image job fails with a clear reason |
+| `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
 | `IMAGE_GEN_MODEL` | worker, optional: the image model; the default is `gemini-2.5-flash-image` |
+| `IMAGE_GEN_PROVIDER` | worker, optional: which provider makes AI photos, `gemini` (the default, also for any other value) or `cloudflare` |
+| `IMAGE_GEN_CF_API_KEY` | worker: Cloudflare Workers AI API token, used when `IMAGE_GEN_PROVIDER=cloudflare`; a token pasted on Cài đặt › Nguồn tư liệu wins over it |
+| `IMAGE_GEN_CF_ACCOUNT_ID` | worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare` |
+| `IMAGE_GEN_CF_MODEL` | worker, optional: the Workers AI model; the default is `@cf/black-forest-labs/flux-1-schnell` |
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL` | api and worker, optional, same values on both (the api recognizes made narration and the MP4 fingerprint by them): the voice (default "Adam", `pNInz6obpgDQGcFmaJgB`) and model (default `eleven_v3`); changing either re-makes every narration on the next render |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable |
 
-Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLabs and Gemini
+Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLabs, Gemini and Cloudflare Workers AI
 ([api/scripts/fake_services.py](../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
-`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `IMAGE_GEN_API_URL`, `FACEBOOK_API_URL`. The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
+`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `IMAGE_GEN_API_URL`, `IMAGE_GEN_CF_API_URL`, `FACEBOOK_API_URL` (the fakes also
+set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`; Cloudflare tests set `IMAGE_GEN_PROVIDER`
+themselves). The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
 
 ## Operations
 

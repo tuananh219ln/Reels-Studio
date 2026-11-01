@@ -13,7 +13,7 @@ from reels_render.graph import CaptionInput, build_filter_graph, zoom_expression
 from reels_render.options import DEFAULT_OPTIONS, RenderOptions
 from reels_render.render import render_video
 from reels_render.script import load_script
-from reels_render.textbox import PALETTES, SCENE_STYLE, layout_text, render_box
+from reels_render.textbox import PALETTES, SCENE_STYLE, Palette, layout_text, palette_for, render_box
 from reels_render.timeline import build_timeline
 
 BOXES = [(0, 0), (0, 0), (0, 0)]
@@ -30,7 +30,14 @@ def test_the_defaults_are_the_original_template():
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("transition", "wipe"), ("motion", "spin"), ("zoom", "huge"), ("text_style", "pink"), ("captions", "all")],
+    [
+        ("transition", "wipe"),
+        ("motion", "spin"),
+        ("zoom", "huge"),
+        ("text_style", "pink"),
+        ("text_color", "pink"),
+        ("captions", "all"),
+    ],
 )
 def test_unknown_presets_are_refused(field, value):
     with pytest.raises(InputError, match=field):
@@ -91,6 +98,33 @@ def test_palettes_colour_the_box_and_the_marked_words():
     corner = (layout.width // 2, 4)
     assert yellow.getpixel(corner)[:3] == (255, 214, 10)
     assert dark.getpixel(corner) == (17, 17, 17, 224)
+
+
+def colours(image) -> set[tuple[int, int, int]]:
+    """The solid colours drawn (anti-aliased edges left out)."""
+    return {pixel[:3] for pixel in image.getdata() if pixel[3] == 255}
+
+
+def test_no_box_draws_outlined_letters_on_a_clear_background():
+    from reels_render.markup import parse_scene_text
+
+    layout = layout_text(parse_scene_text("Cá nhỏ\nGiàu *canxi*"), SCENE_STYLE)
+    plain = render_box(layout, palette_for("none"))
+    assert plain.getpixel((layout.width // 2, 4))[3] == 0
+    assert {(255, 255, 255), (0, 0, 0), (255, 214, 10)} <= colours(plain)
+    # Black letters get a white outline and red marked words.
+    black = render_box(layout, palette_for("none", "black"))
+    assert {(17, 17, 17), (255, 255, 255), (225, 6, 0)} <= colours(black)
+
+
+def test_a_text_colour_recolours_the_words_and_keeps_the_marked_words_apart():
+    assert palette_for("yellow", "auto") == PALETTES["yellow"]
+    assert palette_for("yellow", "red") == Palette("#FFD60A", "#E10600", "#111111")
+    assert palette_for("dark", "yellow") == Palette((17, 17, 17, 224), "#FFD60A", "#FFFFFF")
+    assert palette_for("red", "black").text == "#111111"
+    # A colour too faint on its box keeps the style's own colour.
+    for style, colour in (("yellow", "white"), ("white", "yellow"), ("dark", "black"), ("red", "red")):
+        assert palette_for(style, colour) == PALETTES[style]
 
 
 def test_captions_split_into_short_phrases_timed_across_the_narration():

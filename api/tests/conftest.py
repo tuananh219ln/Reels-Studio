@@ -137,6 +137,11 @@ def isolated_files(tmp_path, monkeypatch):
         "IMAGE_GEN_API_KEY",
         "IMAGE_GEN_API_URL",
         "IMAGE_GEN_MODEL",
+        "IMAGE_GEN_PROVIDER",
+        "IMAGE_GEN_CF_API_URL",
+        "IMAGE_GEN_CF_ACCOUNT_ID",
+        "IMAGE_GEN_CF_API_KEY",
+        "IMAGE_GEN_CF_MODEL",
         "ELEVENLABS_VOICE_ID",
         "ELEVENLABS_MODEL",
     ):
