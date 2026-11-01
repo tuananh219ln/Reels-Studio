@@ -4,10 +4,11 @@ import shutil
 
 import pytest
 from conftest import login, make_user, make_video
+from fake_services import ELEVENLABS_KEY
 from sqlalchemy import select
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
-from reels_api import config
+from reels_api import config, source_keys
 from reels_api.models import Job, Scene, Video
 from reels_api.storage import DirectoryStorage
 from reels_api.tts import voice_signature
@@ -294,6 +295,27 @@ def test_elevenlabs_out_of_credit_fails_the_render_with_a_clear_reason(committed
     assert "quota_exceeded" in job.error_detail
     with committed() as db:
         assert db.get(Video, video_id).mp4_key is None
+
+
+@needs_ffmpeg
+def test_render_reads_with_the_elevenlabs_key_pasted_on_the_sources_page(committed, voiced, fakes, monkeypatch):
+    user, storage, video_id = voiced
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    with committed() as db:
+        source_keys.save(db, "elevenlabs", ELEVENLABS_KEY, user.id)
+        db.commit()
+    job = render(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert len(fakes.tts_requests) == 1
+
+
+@needs_ffmpeg
+def test_render_without_an_elevenlabs_key_says_where_to_paste_one(committed, voiced, fakes, monkeypatch):
+    user, storage, video_id = voiced
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    job = render(committed, storage, video_id, user.id)
+    assert job.status == "failed" and "Chưa có key ElevenLabs" in job.error and "Nguồn tư liệu" in job.error
+    assert fakes.tts_requests == []
 
 
 @needs_ffmpeg

@@ -2,6 +2,7 @@
 
 import pytest
 from conftest import first_topic, login, make_user, make_video
+from fake_services import ELEVENLABS_KEY
 from test_voice import first_scene, needs_ffmpeg, render, voiced  # noqa: F401  (fixture)
 from worker_helpers import committed  # noqa: F401  (fixture)
 
@@ -151,7 +152,27 @@ def test_the_voice_list_comes_from_elevenlabs(an, fakes):
 def test_without_an_elevenlabs_key_the_voice_list_says_so(an, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
     refused = an.get("/api/settings/voices")
-    assert refused.status_code == 422 and "ELEVENLABS_API_KEY" in refused.json()["message"]
+    assert refused.status_code == 422
+    assert "Chưa có key ElevenLabs" in refused.json()["message"] and "Nguồn tư liệu" in refused.json()["message"]
+
+
+def test_an_elevenlabs_key_pasted_on_the_sources_page_lists_the_voices(an, fakes, monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    before = an.get("/api/settings/sources").json()["voices"]
+    assert (before["configured"], before["key"]["origin"]) == (False, None)
+
+    saved = an.put("/api/settings/sources/elevenlabs/key", json={"api_key": ELEVENLABS_KEY})
+    assert saved.status_code == 200 and ELEVENLABS_KEY not in saved.text
+    voices = saved.json()["voices"]
+    assert (voices["configured"], voices["key"]["origin"]) == (True, "saved")
+    assert [voice["name"] for voice in an.get("/api/settings/voices").json()["voices"]] == ["Adam", "Mai"]
+
+
+def test_a_wrong_elevenlabs_key_says_where_to_fix_it(an, fakes):
+    an.put("/api/settings/sources/elevenlabs/key", json={"api_key": "not-the-fake-key"})
+    refused = an.get("/api/settings/voices")
+    assert refused.status_code == 422
+    assert "Key ElevenLabs không hợp lệ" in refused.json()["message"] and "Nguồn tư liệu" in refused.json()["message"]
 
 
 @needs_ffmpeg

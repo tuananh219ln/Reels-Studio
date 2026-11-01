@@ -19,6 +19,7 @@ type Sources = {
   ai_provider?: "gemini" | "cloudflare";
   ai_images: AiImages;
   ai_images_cloudflare?: AiImages & { account_id_set: boolean };
+  voices?: { configured: boolean; key: Key };
 };
 
 /** Paste, replace or remove one source's API key; the key itself is never shown again. */
@@ -51,7 +52,9 @@ function KeyField({
           ? data.ai_images.key
           : name === "cloudflare"
             ? data.ai_images_cloudflare?.key
-            : data.sources.find((item) => item.id === name)?.key;
+            : name === "elevenlabs"
+              ? data.voices?.key
+              : data.sources.find((item) => item.id === name)?.key;
       setPasting(!now?.origin);
       message.success(apiKey ? `Đã lưu API key của ${label}` : `Đã xoá API key của ${label}`);
     } catch (err) {
@@ -125,7 +128,7 @@ function KeyField({
 const ready = (configured: boolean) =>
   configured ? <Tag color="success">Sẵn sàng</Tag> : <Tag color="warning">Chưa có key</Tag>;
 
-/** The stock libraries the picker and "Tìm ảnh khác" use, their keys, and the AI image model's key. */
+/** The stock libraries the picker and "Tìm ảnh khác" use, their keys, the AI image models' keys and ElevenLabs'. */
 export default function SourcesPage() {
   const { message } = App.useApp();
   const [data, setData] = useState<Sources | null>(null);
@@ -157,12 +160,9 @@ export default function SourcesPage() {
 
   return (
     <>
-      <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }}>
-        Nguồn tư liệu
-      </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: "8px 0 16px", maxWidth: 760 }}>
-        Các kho ảnh và video miễn phí mà hộp “Chọn từ kho ảnh/video” và nút “Tìm ảnh khác” dùng, cùng key tạo ảnh AI.
-        Tắt một nguồn thì nó biến khỏi hộp chọn của cả nhóm.
+      <Typography.Paragraph type="secondary" style={{ margin: "0 0 16px", maxWidth: 760 }}>
+        Các kho ảnh và video miễn phí mà hộp “Chọn từ kho ảnh/video” và nút “Tìm ảnh khác” dùng, cùng key tạo ảnh AI và
+        key giọng đọc. Tắt một nguồn thì nó biến khỏi hộp chọn của cả nhóm.
       </Typography.Paragraph>
       <Flex vertical gap={16} style={{ maxWidth: 900 }}>
         {(data?.sources ?? []).map((source) => (
@@ -246,6 +246,25 @@ export default function SourcesPage() {
                   Máy chủ chưa có IMAGE_GEN_CF_ACCOUNT_ID (Account ID của Cloudflare) trong file .env.
                 </Typography.Text>
               )}
+            </Flex>
+          </Card>
+        )}
+        {data?.voices && (
+          <Card
+            size="small"
+            data-testid="source-elevenlabs"
+            title={
+              <Flex wrap gap={8} align="center">
+                <span>Giọng đọc (ElevenLabs)</span>
+                {ready(data.voices.configured)}
+              </Flex>
+            }
+          >
+            <Flex vertical gap={12}>
+              <Typography.Text type="secondary">
+                Đọc lời từng cảnh khi render và danh sách giọng ở Thiết lập mặc định.
+              </Typography.Text>
+              <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
             </Flex>
           </Card>
         )}

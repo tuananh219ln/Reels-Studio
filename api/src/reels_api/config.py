@@ -141,10 +141,6 @@ def facebook_api_url() -> str:
     return (read_env("FACEBOOK_API_URL") or "https://graph.facebook.com/v26.0").rstrip("/")
 
 
-def elevenlabs_key() -> str:
-    return read_env("ELEVENLABS_API_KEY")
-
-
 def elevenlabs_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("ELEVENLABS_API_URL") or "https://api.elevenlabs.io").rstrip("/")

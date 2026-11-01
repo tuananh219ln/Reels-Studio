@@ -223,7 +223,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             continue
         label = _scene_label(scene, index)
         try:
-            data = synthesize(text, voice_id(video), voice_speed(video))
+            data = synthesize(text, source_keys.get(db, "elevenlabs"), voice_id(video), voice_speed(video))
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
         key = new_key(video.id, f"voice-{scene.id}", "mp3")

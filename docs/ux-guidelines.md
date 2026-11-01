@@ -106,17 +106,12 @@ Built:
 - **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
   AI call count, the model that wrote a script ("DeepSeek · deepseek-chat"), and error; a row opens
   its video.
-- **Cài đặt**, a menu group, last in the sidebar; `/settings` opens its first page.
-  - **Thiết lập mặc định** (`/settings/defaults`, the group's first page): the same three cards as
+- **Cài đặt**, a menu group, last in the sidebar, with two pages: **Cấu hình** and **Kết nối Fanpage**.
+  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with three tabs, each
+  its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all three:
+  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): the same three cards as
     a video's "Thiết lập" tab plus the music level, saved at once ("Đã lưu mặc định"). They apply
     only to videos created afterwards.
-  - **Nguồn tư liệu** (`/settings/sources`): one card per stock library (Pixabay, Pexels: photos
-    and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
-    hộp chọn" that hides a source from the picker and "Tìm ảnh khác" for the whole team, and its API
-    key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
-    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, one card per AI photo
-    provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its model, its key and
-    "Đang dùng" on the one `IMAGE_GEN_PROVIDER` picks.
   - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
     provider not set up yet is greyed out, "chưa cấu hình"). Below, one collapsible line per
     provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
@@ -125,7 +120,15 @@ Built:
     "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
-  - **Kết nối Fanpage** (`/fanpages`): a table of Pages with the name and id, the token's last four
+  - **Nguồn tư liệu** (`/settings/sources`): one card per stock library (Pixabay, Pexels: photos
+    and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
+    hộp chọn" that hides a source from the picker and "Tìm ảnh khác" for the whole team, and its API
+    key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
+    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, one card per AI photo
+    provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its model, its key and
+    "Đang dùng" on the one `IMAGE_GEN_PROVIDER` picks; last, "Giọng đọc (ElevenLabs)" with the narration key. A
+    missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
+  - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a table of Pages with the name and id, the token's last four
     characters, "Đang dùng" or "Ngừng dùng", and who changed it when. "Thêm Fanpage" takes a token,
     "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is
     greyed out), and "Lưu" keeps the chosen ones. Each row has "Dán token mới", which must reach

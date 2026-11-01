@@ -124,6 +124,22 @@ test("Kết nối Fanpage opens from inside the Cài đặt menu group", async (
   await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toBeVisible();
 });
 
+test("Cấu hình holds the defaults, AI model and sources as tabs, each with its own address", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await expect(page).toHaveURL(/\/settings\/defaults$/);
+  await expect(page.getByRole("tab", { name: "Thiết lập mặc định" })).toHaveAttribute("aria-selected", "true");
+  await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
+  await expect(page).toHaveURL(/\/settings\/sources$/);
+  await expect(page.getByTestId("source-elevenlabs")).toBeVisible();
+  // A reload stays on the same tab, and the menu keeps Cấu hình selected.
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Nguồn tư liệu" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("menuitem", { name: "Cấu hình" })).toHaveClass(/ant-menu-item-selected/);
+  await page.getByRole("tab", { name: "Mô hình AI" }).click();
+  await expect(page).toHaveURL(/\/settings\/ai$/);
+});
+
 test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and approve", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Affiliate Shopee" }).click();
