@@ -11,37 +11,35 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 from reels_render.markup import parse_scene_text
+from reels_render.options import DEFAULT_OPTIONS, RenderOptions
 from reels_render.textbox import (
     FRAME_HEIGHT,
     FRAME_WIDTH,
     SCENE_STYLE,
     TITLE_STYLE,
     layout_text,
-    palette_for,
     render_box,
     scene_box_position,
     title_box_position,
-    title_palette,
 )
 
 from .script_rules import text_problem
 
 THUMBNAIL_SIZE = (540, 960)
-DEFAULT_LOOK = ("yellow", "auto", "same")
 
 
 def text_box(
-    text: str, is_title: bool, look: tuple[str, str, str] = DEFAULT_LOOK
+    text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTIONS
 ) -> tuple[Image.Image, tuple[int, int]]:
     """The exact RGBA box image render_video overlays for this scene, and where it goes."""
     layout = layout_text(parse_scene_text(text), TITLE_STYLE if is_title else SCENE_STYLE)
     place = title_box_position if is_title else scene_box_position
-    palette = title_palette(*look) if is_title else palette_for(*look[:2])
+    palette = options.title_palette() if is_title else options.scene_palette()
     return render_box(layout, palette), place(layout.width, layout.height)
 
 
 def compose_frame(
-    image: Path | Image.Image, text: str, is_title: bool, look: tuple[str, str, str] = DEFAULT_LOOK
+    image: Path | Image.Image, text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTIONS
 ) -> Image.Image:
     """Cover-cropped photo (or clip frame) plus the text box; no box without text or while the text cannot render."""
     if isinstance(image, Image.Image):
@@ -52,7 +50,7 @@ def compose_frame(
             upright = ImageOps.exif_transpose(source).convert("RGB")
     frame = ImageOps.fit(upright, (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC, centering=(0.5, 0.5))
     if text.strip() and text_problem(text, is_title) is None:
-        box, position = text_box(text, is_title, look)
+        box, position = text_box(text, is_title, options)
         frame.paste(box, position, box)
     return _yuv420(frame)
 
@@ -73,7 +71,7 @@ def jpeg_bytes(image: Image.Image, quality: int = 90) -> bytes:
     return buffer.getvalue()
 
 
-def thumbnail_bytes(image: Path | Image.Image, title_text: str, look: tuple[str, str, str] = DEFAULT_LOOK) -> bytes:
-    """`look` is the text box style, text colour and title style (video_options.text_look)."""
-    frame = compose_frame(image, title_text, is_title=True, look=look)
+def thumbnail_bytes(image: Path | Image.Image, title_text: str, options: RenderOptions = DEFAULT_OPTIONS) -> bytes:
+    """Drawn with the video's text box choices (video_options.render_options)."""
+    frame = compose_frame(image, title_text, is_title=True, options=options)
     return jpeg_bytes(frame.resize(THUMBNAIL_SIZE, Image.Resampling.LANCZOS), quality=85)

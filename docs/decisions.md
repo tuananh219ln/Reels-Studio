@@ -11,6 +11,43 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — The title can have a look of its own
+
+Owner's decision: "Kiểu tiêu đề" (Giống cảnh, Hộp vàng) stood apart from the new styles and colours. The text
+card now has a "Chỉnh chữ cho" switch, Các cảnh or Tiêu đề, and the title can take a look of its own (team
+style or Không hộp, colours, opacity) with the same controls, stored as `title_text_style`, `title_text_color`,
+`title_box_color`, `title_accent_color` and `title_box_opacity`. "Tiêu đề giống các cảnh" stays the default.
+This extends, and does not reverse, "The title scene can keep the yellow box over outlined scenes": a video
+with `title_style` "yellow" still renders the original yellow title box, and is shown with the box unticked;
+the page no longer offers the two-way choice itself. A scene preview's address now carries only what that
+scene is drawn with, so changing the title's look leaves the scenes' cached previews alone.
+
+## 2026-11-01 — Text boxes are the team's own styles; the four preset boxes leave the page
+
+Owner's decision. The "Kiểu hộp chữ" cards are now Không hộp, the team's own box styles and "+ Thêm kiểu":
+a member names a style and picks its box colour, opacity (Đặc, Hơi trong 88%, Trong 70%), text and marked-word
+colours; "Không nền" draws a style's letters outlined, as Không hộp, in the box colour. Styles are shared by the whole team, kept as one team setting (`text_box_styles`), and any member
+can add, edit or delete them. A video copies a style's colours into its own options (`text_style` "box"), so,
+like the team defaults, editing or deleting a style never changes an existing video. The colour rows stay
+to adjust one video without changing the style. The presets Vàng, Trắng, Tối and Đỏ are removed from the page
+(the owner chose removal over turning them into team styles); the render core keeps them so videos made
+with them render as before, and the code default for a new video stays the yellow box (the original
+template) until the team defaults pick a team style. "Kiểu tiêu đề: Hộp vàng" is unchanged.
+
+## 2026-11-01 — Text colours are free: any text, keyword and box colour, with a warning when faint
+
+Owner's decision for the text and captions round (colours, style presets, text that can be moved). Replaces,
+for colours only, "never free colour or size sliders" in the settings roadmap entry below, and the "too faint
+colours are not offered" part of the "text colour and no box presets" entry. The text, the *marked* words and
+the box (the outline for Không hộp) each take Theo kiểu, a swatch, or any `#RRGGBB` from a colour picker.
+Every colour is drawn as chosen; the page warns instead of refusing when a pair is hard to read (WCAG contrast
+under 3 against the box or outline). Sizes stay presets. Marked words on Theo kiểu still move off the
+text's colour by themselves. The named colours stored before (white, black, yellow, red) are aliases of their
+hex values, so no stored video changes; a faint named colour some api call may have stored is now drawn
+instead of falling back. Also decided for the next rounds: text can be dragged per scene (a video-wide
+position, overridden by a scene) but only inside the platforms' safe zone, clear of the top bar, the right
+button column and the bottom caption area; the title scene moves only up and down so the thumbnail stays
+centred.
 ## 2026-11-01 — Scripts may run to 150 words, about 52 seconds
 
 Requested by a member (tuananh219ln): the voice texts felt short of ideas. This replaces the 120-word budget and

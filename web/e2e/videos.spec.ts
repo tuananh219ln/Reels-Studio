@@ -815,27 +815,79 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await expect(motion.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).toHaveText("Cắt thẳng");
   await expect(page.getByLabel("Tốc độ đọc").locator(".ant-segmented-item-selected")).toHaveText("Nhanh");
 
-  // The video's own choice: a dark text box redraws the scene previews.
+  // The old preset boxes are gone: a member adds a team style, which the video picks at once.
   const preview = page.getByTestId("title-scene").getByTestId("scene-preview");
   const before = await preview.getAttribute("src");
-  await page.getByRole("radio", { name: "Kiểu Tối" }).click();
+  await expect(page.getByRole("radio", { name: "Kiểu Vàng" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Thêm kiểu" }).click();
+  const editor = page.getByRole("dialog", { name: "Thêm kiểu hộp chữ" });
+  await editor.getByLabel("Tên kiểu").fill("Tối");
+  await editor.getByRole("radio", { name: "Kiểu nền Đen" }).click();
+  await editor.getByLabel("Độ trong của kiểu").getByText("Hơi trong").click();
+  await editor.getByRole("radio", { name: "Kiểu chữ Trắng" }).click();
+  await editor.getByRole("button", { name: "Thêm kiểu" }).click();
+  await expect(page.getByText("Đã thêm kiểu “Tối”")).toBeVisible();
   await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveAttribute("aria-checked", "true");
   await expect(preview).not.toHaveAttribute("src", before ?? "");
-  // Black letters would vanish into the dark box; yellow ones redraw the previews again.
-  await expect(page.getByRole("radio", { name: "Màu Đen" })).toBeDisabled();
+  // Black letters would vanish into the dark box: allowed, with a warning; yellow ones redraw the previews again.
+  await page.getByRole("radio", { name: "Màu Đen" }).click();
+  await expect(page.getByTestId("color-warning")).toContainText("Chữ khó đọc trên nền hộp này.");
+  // The video's own colours no longer match the team style, which stays as it was.
+  await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveAttribute("aria-checked", "false");
   const dark = await preview.getAttribute("src");
   await page.getByRole("radio", { name: "Màu Vàng" }).click();
   await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("color-warning")).toHaveCount(0);
   await expect(preview).not.toHaveAttribute("src", dark ?? "");
-  // No box keeps the colour.
+  // A box colour and an opacity of its own redraw them too.
+  const yellow = await preview.getAttribute("src");
+  await page.getByRole("radio", { name: "Nền Xanh dương" }).click();
+  await expect(page.getByRole("radio", { name: "Nền Xanh dương" })).toHaveAttribute("aria-checked", "true");
+  await expect(preview).not.toHaveAttribute("src", yellow ?? "");
+  const blue = await preview.getAttribute("src");
+  await page.getByLabel("Độ trong của hộp").getByText("Đặc").click();
+  await expect(preview).not.toHaveAttribute("src", blue ?? "");
+  // No background outlines the letters, in the box colour.
+  const solid = await preview.getAttribute("src");
+  await page.getByLabel("Độ trong của hộp").getByText("Không nền").click();
+  await expect(page.getByRole("radio", { name: "Viền Xanh dương" })).toHaveAttribute("aria-checked", "true");
+  await expect(preview).not.toHaveAttribute("src", solid ?? "");
+  // Picking the style again brings its colours back; deleting it leaves the video's copy alone.
+  await page.getByRole("radio", { name: "Kiểu Tối" }).click();
+  await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveAttribute("aria-checked", "true");
+  const styled = await preview.getAttribute("src");
+  await page.getByRole("button", { name: "Xoá kiểu" }).click();
+  await page.getByRole("button", { name: "Xoá", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveCount(0);
+  await expect(preview).toHaveAttribute("src", styled ?? "");
+  // No box keeps the text colour and brings its own outline.
   await page.getByRole("radio", { name: "Kiểu Không hộp" }).click();
   await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
-  // The title can keep the yellow box over those outlined scenes.
+  await expect(page.getByRole("radio", { name: "Màu Trắng" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: "Viền Theo kiểu" })).toHaveAttribute("aria-checked", "true");
+  // The title takes a look of its own, with the same controls; the scenes keep theirs.
   const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const scenePreview = page.getByTestId("scene").first().getByTestId("scene-preview");
   const outlinedTitle = await titlePreview.getAttribute("src");
-  await page.getByText("Hộp vàng", { exact: true }).click();
+  const outlinedScene = await scenePreview.getAttribute("src");
+  await page.getByLabel("Chỉnh chữ cho").getByText("Tiêu đề").click();
+  const follows = page.getByRole("checkbox", { name: "Tiêu đề giống các cảnh" });
+  await expect(follows).toBeChecked();
+  await expect(page.getByLabel("Phụ đề theo giọng đọc")).toHaveCount(0);
+  // The box follows what the api saved, so it is clicked and then awaited.
+  await follows.click();
+  await expect(follows).not.toBeChecked();
+  // It starts from the scenes' look, so nothing changes until a choice of its own.
+  await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("radio", { name: "Màu Đỏ" }).click();
+  await expect(page.getByRole("radio", { name: "Màu Đỏ" })).toHaveAttribute("aria-checked", "true");
   await expect(titlePreview).not.toHaveAttribute("src", outlinedTitle ?? "");
+  await expect(scenePreview).toHaveAttribute("src", outlinedScene ?? "");
+  // Following the scenes again drops the title's own look.
+  await follows.click();
+  await expect(follows).toBeChecked();
+  await expect(titlePreview).toHaveAttribute("src", outlinedTitle ?? "");
+  await page.getByLabel("Chỉnh chữ cho").getByText("Các cảnh").click();
 
   // Captions need narration.
   await page.getByRole("switch", { name: "Đọc lời từng cảnh" }).click();
@@ -888,4 +940,20 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await page.goto(videoUrl);
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
+});
+
+test("text settings from an api without the colour options still open, on Theo kiểu", async ({ page }) => {
+  // An api older than the page (e.g. not restarted after an update) leaves the new colours out.
+  await page.route("**/api/settings/video-defaults", async (route) => {
+    const response = await route.fetch();
+    const older = await response.json();
+    delete older.box_color;
+    delete older.accent_color;
+    await route.fulfill({ response, json: older });
+  });
+  await loginAsSeed(page);
+  await page.goto("/settings/defaults");
+  const text = page.getByTestId("text-settings");
+  await expect(text.getByRole("radio", { name: "Nền Theo kiểu" })).toHaveAttribute("aria-checked", "true");
+  await expect(text.getByRole("radio", { name: "Đánh dấu Theo kiểu" })).toHaveAttribute("aria-checked", "true");
 });

@@ -131,9 +131,45 @@ def test_a_text_colour_recolours_the_words_and_keeps_the_marked_words_apart():
     assert palette_for("yellow", "red") == Palette("#FFD60A", "#E10600", "#111111")
     assert palette_for("dark", "yellow") == Palette((17, 17, 17, 224), "#FFD60A", "#FFFFFF")
     assert palette_for("red", "black").text == "#111111"
-    # A colour too faint on its box keeps the style's own colour.
-    for style, colour in (("yellow", "white"), ("white", "yellow"), ("dark", "black"), ("red", "red")):
-        assert palette_for(style, colour) == PALETTES[style]
+    # A colour faint on its box is drawn as chosen too (the page warns): the named colours are the hex ones.
+    for style, colour, hex_colour in (("yellow", "white", "#FFFFFF"), ("dark", "black", "#111111")):
+        assert palette_for(style, colour).text == hex_colour
+        assert palette_for(style, colour) == palette_for(style, hex_colour)
+
+
+def test_a_custom_text_colour_is_drawn_as_chosen_even_where_it_is_faint():
+    # Members may pick any colour; the page warns about faint ones instead of refusing them.
+    assert palette_for("yellow", "#FFFFFF") == Palette("#FFD60A", "#FFFFFF", "#E10600")
+    assert palette_for("dark", "#1D4ED8").text == "#1D4ED8"
+    # The marked words move off the text's own colour, to one still readable on the box.
+    assert palette_for("yellow", "#E10600").accent == "#111111"
+    assert palette_for("dark", "#FFD60A").accent == "#FFFFFF"
+
+
+def test_a_custom_box_colour_keeps_the_styles_opacity_and_outlines_letters_without_a_box():
+    assert palette_for("yellow", box_color="#16A34A").box == "#16A34A"
+    assert palette_for("dark", box_color="#1D4ED8").box == (29, 78, 216, 224)
+    assert palette_for("none", box_color="#E10600") == Palette(None, "#FFFFFF", "#FFD60A", "#E10600")
+    # Red marked words would vanish into a red box: they take another colour that reads on it.
+    assert palette_for("yellow", box_color="#E10600").accent == "#FFD60A"
+    # Near-black letters without a box get a white outline, and marked words that read on it.
+    assert palette_for("none", "#0A0A0A") == Palette(None, "#0A0A0A", "#E10600", "#FFFFFF")
+    assert palette_for("none", "#1D4ED8") == Palette(None, "#1D4ED8", "#FFD60A", "#000000")
+
+
+def test_a_custom_marked_word_colour_is_drawn_as_chosen():
+    assert palette_for("yellow", accent_color="#1D4ED8").accent == "#1D4ED8"
+    assert palette_for("none", "black", accent_color="#FF7A00") == Palette(None, "#111111", "#FF7A00", "#FFFFFF")
+    assert title_palette("red", "auto", "same", "#16A34A", "#FFFFFF") == Palette("#16A34A", "#FFFFFF", "#FFFFFF")
+    # The yellow title box stays the original whatever the scenes use.
+    assert title_palette("red", "#1D4ED8", "yellow", "#16A34A", "#FFFFFF") == PALETTES["yellow"]
+
+
+def test_colours_are_named_presets_or_six_digit_hex():
+    RenderOptions(text_color="#1d4ed8", box_color="#FFFFFF", accent_color="auto")
+    for name, value in (("text_color", "#12345"), ("box_color", "blue"), ("accent_color", "#GGGGGG")):
+        with pytest.raises(InputError):
+            RenderOptions(**{name: value})
 
 
 def test_the_title_can_keep_the_yellow_box_while_the_scenes_use_outlined_letters():
@@ -201,3 +237,58 @@ def test_every_preset_together_renders_a_playable_mp4(tmp_path):
     frame = extract_frame(output, 2.2, tmp_path / "frame.png")
     band = frame.crop((90, 1000, 990, 1150))
     assert ImageStat.Stat(band.convert("L")).mean < ImageStat.Stat(frame.crop((90, 300, 990, 450)).convert("L")).mean
+
+
+def test_auto_marked_words_stay_bright_on_a_custom_box():
+    # Red would vanish into blue and black reads poorly on it: white is taken.
+    assert palette_for("yellow", "#FFD60A", "#1D4ED8").accent == "#FFFFFF"
+
+
+def test_a_team_box_style_draws_its_own_colours_and_opacity():
+    # "box" with nothing chosen is the original yellow box, so a team style starts from the template.
+    assert palette_for("box") == PALETTES["yellow"]
+    assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "solid") == Palette("#1D4ED8", "#FFFFFF", "#FFD60A")
+    assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "soft").box == (29, 78, 216, 224)
+    assert palette_for("box", "#FFFFFF", "#111111", "#FF7A00", "clear").box == (17, 17, 17, 178)
+    # An opacity of its own applies to the older boxes too; "auto" keeps theirs (Tối stays 88%).
+    assert palette_for("dark").box == (17, 17, 17, 224)
+    assert palette_for("dark", box_opacity="solid").box == (17, 17, 17, 255)
+    # Without a box there is nothing to see through.
+    assert palette_for("none", box_opacity="clear") == palette_for("none")
+
+
+def test_box_opacity_is_a_named_preset():
+    RenderOptions(text_style="box", box_opacity="soft")
+    with pytest.raises(InputError):
+        RenderOptions(box_opacity="50")
+
+
+def test_a_box_style_without_a_background_outlines_its_letters_in_the_box_colour():
+    # "No background" is the no-box drawing: the box colour becomes the outline's.
+    assert palette_for("box", "#FFD60A", "#000000", "auto", "none") == Palette(None, "#FFD60A", "#E10600", "#000000")
+    assert palette_for("box", "#FFFFFF", "auto", "auto", "none") == palette_for("none")
+    # A video without a box has nothing to make clear.
+    assert palette_for("none", box_opacity="none") == palette_for("none")
+    RenderOptions(text_style="box", box_opacity="none")
+
+
+def test_the_title_can_take_a_look_of_its_own():
+    scenes = {"text_style": "box", "box_color": "#1D4ED8", "text_color": "#FFFFFF"}
+    # By default the title follows the scenes, or the original yellow box with the older "Hộp vàng" choice.
+    assert RenderOptions(**scenes).title_palette() == RenderOptions(**scenes).scene_palette()
+    assert RenderOptions(**scenes, title_style="yellow").title_palette() == PALETTES["yellow"]
+    own = RenderOptions(
+        **scenes,
+        title_text_style="box",
+        title_box_color="#111111",
+        title_box_opacity="soft",
+        title_text_color="#FFD60A",
+        title_accent_color="#FFFFFF",
+    )
+    assert own.title_palette() == Palette((17, 17, 17, 224), "#FFD60A", "#FFFFFF")
+    assert own.scene_palette() == palette_for("box", "#FFFFFF", "#1D4ED8")
+    # A look of its own wins over the older choice.
+    assert RenderOptions(title_style="yellow", title_text_style="none").title_palette() == palette_for("none")
+    for name, value in (("title_text_style", "pink"), ("title_box_color", "blue"), ("title_box_opacity", "50")):
+        with pytest.raises(InputError):
+            RenderOptions(**{name: value})

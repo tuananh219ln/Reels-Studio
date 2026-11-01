@@ -1105,7 +1105,7 @@ def scene_preview(
     if still is None:
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
     video = db.get(Video, scene.video_id)
-    frame = frames.compose_frame(still, scene.text, scene.is_title, video_options.text_look(video))
+    frame = frames.compose_frame(still, scene.text, scene.is_title, video_options.render_options(video))
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )

@@ -15,13 +15,13 @@ from reels_render.timeline import fit_seconds
 from . import facebook, fanpages, knowledge, llm
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import DEFAULT_LOOK, thumbnail_bytes
+from .frames import thumbnail_bytes
 from .models import ACTIVE_JOB_STATUSES, Job, Publication, Scene, Video
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
-from .video_options import effective, look_signature, text_look, voice_id, voice_speed
+from .video_options import effective, look_signature, preview_look, render_options, voice_id, voice_speed
 
 STATUS_LABELS = {
     "draft": "Nháp",
@@ -173,7 +173,7 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
         video.thumbnail_key = None
     else:
         key = new_key(video.id, "thumb", "jpg")
-        storage.save_bytes(key, thumbnail_bytes(still, title.text, text_look(video)))
+        storage.save_bytes(key, thumbnail_bytes(still, title.text, render_options(video)))
         video.thumbnail_key = key
     if old and old != video.thumbnail_key:
         storage.delete(old)
@@ -280,9 +280,7 @@ def _version(*parts: object) -> str:
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
     voice_seconds = made_voice_seconds(video, scene)
-    # Only a style other than the original changes the preview's address, so cached previews stay valid.
-    look = text_look(video)
-    style = list(look) if look != DEFAULT_LOOK else []
+    style = preview_look(video, scene.is_title)
     return {
         "id": scene.id,
         "is_title": scene.is_title,
