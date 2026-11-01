@@ -27,16 +27,16 @@ from reels_render.textbox import (
 from .script_rules import text_problem
 
 THUMBNAIL_SIZE = (540, 960)
-DEFAULT_LOOK = ("yellow", "auto", "same", "auto", "auto")
-Look = tuple[str, str, str, str, str]
+DEFAULT_LOOK = ("yellow", "auto", "same", "auto", "auto", "auto")
+Look = tuple[str, str, str, str, str, str]
 
 
 def text_box(text: str, is_title: bool, look: Look = DEFAULT_LOOK) -> tuple[Image.Image, tuple[int, int]]:
     """The exact RGBA box image render_video overlays for this scene, and where it goes."""
     layout = layout_text(parse_scene_text(text), TITLE_STYLE if is_title else SCENE_STYLE)
     place = title_box_position if is_title else scene_box_position
-    style, text_color, _, box_color, accent_color = look
-    palette = title_palette(*look) if is_title else palette_for(style, text_color, box_color, accent_color)
+    style, text_color, _, *colours = look
+    palette = title_palette(*look) if is_title else palette_for(style, text_color, *colours)
     return render_box(layout, palette), place(layout.width, layout.height)
 
 

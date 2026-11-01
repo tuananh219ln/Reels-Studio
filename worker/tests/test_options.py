@@ -242,3 +242,31 @@ def test_every_preset_together_renders_a_playable_mp4(tmp_path):
 def test_auto_marked_words_stay_bright_on_a_custom_box():
     # Red would vanish into blue and black reads poorly on it: white is taken.
     assert palette_for("yellow", "#FFD60A", "#1D4ED8").accent == "#FFFFFF"
+
+
+def test_a_team_box_style_draws_its_own_colours_and_opacity():
+    # "box" with nothing chosen is the original yellow box, so a team style starts from the template.
+    assert palette_for("box") == PALETTES["yellow"]
+    assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "solid") == Palette("#1D4ED8", "#FFFFFF", "#FFD60A")
+    assert palette_for("box", "#FFFFFF", "#1D4ED8", "auto", "soft").box == (29, 78, 216, 224)
+    assert palette_for("box", "#FFFFFF", "#111111", "#FF7A00", "clear").box == (17, 17, 17, 178)
+    # An opacity of its own applies to the older boxes too; "auto" keeps theirs (Tối stays 88%).
+    assert palette_for("dark").box == (17, 17, 17, 224)
+    assert palette_for("dark", box_opacity="solid").box == (17, 17, 17, 255)
+    # Without a box there is nothing to see through.
+    assert palette_for("none", box_opacity="clear") == palette_for("none")
+
+
+def test_box_opacity_is_a_named_preset():
+    RenderOptions(text_style="box", box_opacity="soft")
+    with pytest.raises(InputError):
+        RenderOptions(box_opacity="50")
+
+
+def test_a_box_style_without_a_background_outlines_its_letters_in_the_box_colour():
+    # "No background" is the no-box drawing: the box colour becomes the outline's.
+    assert palette_for("box", "#FFD60A", "#000000", "auto", "none") == Palette(None, "#FFD60A", "#E10600", "#000000")
+    assert palette_for("box", "#FFFFFF", "auto", "auto", "none") == palette_for("none")
+    # A video without a box has nothing to make clear.
+    assert palette_for("none", box_opacity="none") == palette_for("none")
+    RenderOptions(text_style="box", box_opacity="none")

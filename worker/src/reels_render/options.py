@@ -12,7 +12,9 @@ from .textbox import is_hex
 TRANSITIONS = ("fade", "cut", "slide")
 MOTIONS = ("zoom_in", "zoom_out", "pan", "static")
 ZOOMS = {"light": 1.06, "medium": 1.12, "strong": 1.18}
-TEXT_STYLES = ("yellow", "white", "dark", "red", "none")  # "none": no box, outlined letters
+# "box": a team box style's copied colours; "none": no box, outlined letters; the rest predate team styles.
+TEXT_STYLES = ("yellow", "white", "dark", "red", "box", "none")
+BOX_OPACITIES = ("auto", "solid", "soft", "clear", "none")  # the style's own, 100%, 88%, 70%, no background
 TEXT_COLORS = ("auto", "white", "black", "yellow", "red")  # "auto": the style's own text colour; or "#RRGGBB"
 TITLE_STYLES = ("same", "yellow")  # "same": the title scene is drawn like the other scenes
 CAPTIONS = ("off", "phrase", "word")
@@ -31,6 +33,7 @@ class RenderOptions:
     title_style: str = "same"  # the title scene's own text box (textbox.title_palette)
     box_color: str = "auto"  # the box's colour, or the outline's without a box: "auto" or "#RRGGBB"
     accent_color: str = "auto"  # the *marked* words' colour: "auto" or "#RRGGBB"
+    box_opacity: str = "auto"  # how much of the photo shows through the box (textbox.BOX_ALPHAS)
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
@@ -39,6 +42,7 @@ class RenderOptions:
             ("zoom", self.zoom, tuple(ZOOMS)),
             ("text_style", self.text_style, TEXT_STYLES),
             ("title_style", self.title_style, TITLE_STYLES),
+            ("box_opacity", self.box_opacity, BOX_OPACITIES),
             ("captions", self.captions, CAPTIONS),
         ):
             if value not in allowed:

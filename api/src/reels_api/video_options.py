@@ -8,6 +8,7 @@ code defaults below render exactly the original template.
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.options import (
+    BOX_OPACITIES,
     CAPTIONS,
     MOTIONS,
     TEXT_COLORS,
@@ -39,6 +40,7 @@ DEFAULTS: dict = {
     "title_style": "same",  # the title scene is drawn like the other scenes
     "box_color": "auto",  # the style's own box (or outline, without a box); or "#RRGGBB"
     "accent_color": "auto",  # marked words keep a colour apart from the text; or "#RRGGBB"
+    "box_opacity": "auto",  # the style's own; or solid, soft (88%), clear (70%)
     "captions": "off",
 }
 # Kept as columns of their own before these settings existed; the team defaults hold them too.
@@ -52,6 +54,7 @@ CHOICES = {
     "zoom": tuple(ZOOMS),
     "text_style": TEXT_STYLES,
     "title_style": TITLE_STYLES,
+    "box_opacity": BOX_OPACITIES,
     "captions": CAPTIONS,
 }
 
@@ -65,6 +68,7 @@ LABELS = {
     "text_color": "Màu chữ",
     "box_color": "Màu nền hộp",
     "accent_color": "Màu chữ đánh dấu",
+    "box_opacity": "Độ trong của hộp",
     "title_style": "Kiểu tiêu đề",
     "captions": "Phụ đề theo giọng",
     "ducking": "Nhỏ nhạc khi có giọng",
@@ -116,9 +120,9 @@ def voice_speed(video: Video) -> str:
     return effective(video)["voice_speed"]
 
 
-def text_look(video: Video) -> tuple[str, str, str, str, str]:
-    """The text box style, text colour, title style, box colour and marked-word colour, which previews and the
-    thumbnail are drawn with (frames.DEFAULT_LOOK)."""
+def text_look(video: Video) -> tuple[str, str, str, str, str, str]:
+    """The text box style, text colour, title style, box colour, marked-word colour and box opacity, which
+    previews and the thumbnail are drawn with (frames.DEFAULT_LOOK)."""
     values = effective(video)
     return (
         values["text_style"],
@@ -126,6 +130,7 @@ def text_look(video: Video) -> tuple[str, str, str, str, str]:
         values["title_style"],
         values["box_color"],
         values["accent_color"],
+        values["box_opacity"],
     )
 
 
@@ -140,6 +145,7 @@ def render_options(video: Video) -> RenderOptions:
         title_style=values["title_style"],
         box_color=values["box_color"],
         accent_color=values["accent_color"],
+        box_opacity=values["box_opacity"],
         captions=values["captions"],
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],
@@ -154,7 +160,7 @@ def look_signature(video: Video) -> dict | None:
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
     # Left out while unused, so videos with other presets, rendered before it existed, stay current.
-    for name in ("title_style", "box_color", "accent_color"):
+    for name in ("title_style", "box_color", "accent_color", "box_opacity"):
         if changed[name] == DEFAULTS[name]:
             del changed[name]
     return changed

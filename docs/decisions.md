@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — Text boxes are the team's own styles; the four preset boxes leave the page
+
+Owner's decision. The "Kiểu hộp chữ" cards are now Không hộp, the team's own box styles and "+ Thêm kiểu":
+a member names a style and picks its box colour, opacity (Đặc, Hơi trong 88%, Trong 70%), text and marked-word
+colours; "Không nền" draws a style's letters outlined, as Không hộp, in the box colour. Styles are shared by the whole team, kept as one team setting (`text_box_styles`), and any member
+can add, edit or delete them. A video copies a style's colours into its own options (`text_style` "box"), so,
+like the team defaults, editing or deleting a style never changes an existing video. The colour rows stay
+to adjust one video without changing the style. The presets Vàng, Trắng, Tối and Đỏ are removed from the page
+(the owner chose removal over turning them into team styles); the render core keeps them so videos made
+with them render as before, and the code default for a new video stays the yellow box (the original
+template) until the team defaults pick a team style. "Kiểu tiêu đề: Hộp vàng" is unchanged.
+
 ## 2026-11-01 — Text colours are free: any text, keyword and box colour, with a warning when faint
 
 Owner's decision for the text and captions round (colours, style presets, text that can be moved). Replaces,
