@@ -15,8 +15,8 @@ MIN_SECONDS = 1
 MAX_SECONDS = 10
 MAX_TOTAL_SECONDS = 90
 SCENE_COUNT_RANGE = (5, 7)
-# "30–45 giây" in the default prompt plus the 3-second title scene.
-TOTAL_SECONDS_RANGE = (20, 48)
+# A narrated script at its 150-word limit runs about 52 seconds; a longer one has outgrown the format.
+TOTAL_SECONDS_RANGE = (20, 55)
 MAX_SCENE_WORDS = 10
 MAX_TITLE_WORDS = 12
 

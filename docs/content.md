@@ -81,11 +81,11 @@ How the prompt is built (built, compact version):
   `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
 - **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
   are code, not editable (see [patterns.md](patterns.md)). It asks for a voice text per scene
-  (6–12 words, continuing that scene's on-screen text without repeating it, no `*` markup) and an
+  (8–15 words, continuing that scene's on-screen text without repeating it, no `*` markup) and an
   opening line for the title scene (8–12 words) that fits all 5 titles, since members choose among
   them after it is written. Narration reads each scene's on-screen text, then its voice text, so
-  the longest title, every on-screen text, and every voice text together stay within 120 words,
-  which keeps a narrated video under 48 seconds at about 2.9 words per second; banned words cover
+  the longest title, every on-screen text, and every voice text together stay within 150 words,
+  about 52 seconds of narrated video at about 2.9 words per second; banned words cover
   the voice text too.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1

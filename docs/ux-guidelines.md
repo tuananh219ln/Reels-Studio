@@ -213,7 +213,7 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
   is longer than its seconds is lengthened to fit. The "Giọng đọc" card turns it off for the whole
   video; an empty voice text leaves that scene silent, even when it has on-screen text.
 - **Font:** must render Vietnamese diacritics. The default is Be Vietnam Pro Black.
-- **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 30–48 seconds with narration, which lengthens scenes to fit.
+- **Length:** derived from the scene count. A title scene plus 5–7 scenes runs about 30–55 seconds with narration, which lengthens scenes to fit.
 
 ### Presets
 
