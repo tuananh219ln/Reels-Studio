@@ -5,7 +5,7 @@ Chỉ dùng lợi ích có trong 03_ngan-hang-thuc-pham.csv.
 Luôn kiểm tra 07_quy-tac-an-toan.md trước khi xuất; không hứa chữa bệnh.
 
 Chủ đề: [Chủ đề]
-Format: danh sách [5] món, 30–45 giây.
+Format: danh sách [5] món, 30–55 giây.
 Trả về:
 1. 5 tiêu đề theo công thức trong 02_thu-vien-tieu-de.md
 2. Bảng cảnh: số cảnh | giây | chữ trên màn hình (≤ 10 từ) | hình cần quay

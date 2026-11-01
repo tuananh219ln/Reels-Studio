@@ -65,9 +65,9 @@ def test_scene_count_warning(count, warned):
     assert checks.blocking == []
 
 
-@pytest.mark.parametrize(("total", "warned"), [(19, True), (20, False), (48, False), (49, True)])
+@pytest.mark.parametrize(("total", "warned"), [(19, True), (20, False), (55, False), (56, True)])
 def test_total_length_warning(total, warned):
-    checks = run(content=scenes(5, (total - 3) / 5))
+    checks = run(content=scenes(7, (total - 3) / 7))
     assert any(issue.field == "total" for issue in checks.warnings) is warned
     assert checks.blocking == []
 
