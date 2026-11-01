@@ -13,7 +13,15 @@ from reels_render.graph import CaptionInput, build_filter_graph, zoom_expression
 from reels_render.options import DEFAULT_OPTIONS, RenderOptions
 from reels_render.render import render_video
 from reels_render.script import load_script
-from reels_render.textbox import PALETTES, SCENE_STYLE, Palette, layout_text, palette_for, render_box
+from reels_render.textbox import (
+    PALETTES,
+    SCENE_STYLE,
+    Palette,
+    layout_text,
+    palette_for,
+    render_box,
+    title_palette,
+)
 from reels_render.timeline import build_timeline
 
 BOXES = [(0, 0), (0, 0), (0, 0)]
@@ -36,6 +44,7 @@ def test_the_defaults_are_the_original_template():
         ("zoom", "huge"),
         ("text_style", "pink"),
         ("text_color", "pink"),
+        ("title_style", "pink"),
         ("captions", "all"),
     ],
 )
@@ -125,6 +134,31 @@ def test_a_text_colour_recolours_the_words_and_keeps_the_marked_words_apart():
     # A colour too faint on its box keeps the style's own colour.
     for style, colour in (("yellow", "white"), ("white", "yellow"), ("dark", "black"), ("red", "red")):
         assert palette_for(style, colour) == PALETTES[style]
+
+
+def test_the_title_can_keep_the_yellow_box_while_the_scenes_use_outlined_letters():
+    scenes = palette_for("none", "yellow")
+    assert scenes == Palette(None, "#FFD60A", "#E10600", "#000000")
+    assert title_palette("none", "yellow", "yellow") == PALETTES["yellow"]
+    assert title_palette("none", "yellow", "same") == scenes
+
+
+def yellow_pixels(image) -> int:
+    return sum(r > 220 and g > 180 and b < 60 for r, g, b in image.convert("RGB").getdata())
+
+
+@needs_ffmpeg
+def test_a_yellow_title_box_renders_over_a_video_of_outlined_scenes(tmp_path):
+    make_image(tmp_path / "a.jpg", (1000, 1600), (240, 200, 205))
+    data = script_data(scene_count=1, image="a.jpg", seconds=2)
+    data["scenes"][0].update(image="a.jpg", seconds=2)
+    script = load_script(write_script(tmp_path, data))
+    options = RenderOptions(text_style="none", text_color="yellow", title_style="yellow")
+    output = render_video(script, tmp_path / "out.mp4", options=options)
+    title = extract_frame(output, 0.0, tmp_path / "title.png")
+    scene = extract_frame(output, 3.0, tmp_path / "scene.png")
+    # The box fills its area with yellow; outlined letters only colour their strokes.
+    assert yellow_pixels(title) > 2 * yellow_pixels(scene) > 0
 
 
 def test_captions_split_into_short_phrases_timed_across_the_narration():

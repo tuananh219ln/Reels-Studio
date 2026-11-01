@@ -15,7 +15,7 @@ from reels_render.timeline import fit_seconds
 from . import facebook, fanpages, knowledge, llm
 from .clips import ClipError, frame_at
 from .errors import ApiError
-from .frames import thumbnail_bytes
+from .frames import DEFAULT_LOOK, thumbnail_bytes
 from .models import ACTIVE_JOB_STATUSES, Job, Publication, Scene, Video
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
@@ -282,7 +282,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     voice_seconds = made_voice_seconds(video, scene)
     # Only a style other than the original changes the preview's address, so cached previews stay valid.
     look = text_look(video)
-    style = list(look) if look != ("yellow", "auto") else []
+    style = list(look) if look != DEFAULT_LOOK else []
     return {
         "id": scene.id,
         "is_title": scene.is_title,

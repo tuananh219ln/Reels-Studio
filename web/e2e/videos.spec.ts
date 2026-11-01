@@ -826,6 +826,11 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.getByRole("radio", { name: "Kiểu Không hộp" }).click();
   await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
+  // The title can keep the yellow box over those outlined scenes.
+  const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const outlinedTitle = await titlePreview.getAttribute("src");
+  await page.getByText("Hộp vàng", { exact: true }).click();
+  await expect(titlePreview).not.toHaveAttribute("src", outlinedTitle ?? "");
 
   // Captions need narration.
   await page.getByRole("switch", { name: "Đọc lời từng cảnh" }).click();

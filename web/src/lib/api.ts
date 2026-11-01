@@ -149,6 +149,7 @@ export type VideoOptions = {
   zoom: "light" | "medium" | "strong";
   text_style: "yellow" | "white" | "dark" | "red" | "none";
   text_color: "auto" | "white" | "black" | "yellow" | "red";
+  title_style: "same" | "yellow";
   captions: "off" | "phrase" | "word";
 };
 

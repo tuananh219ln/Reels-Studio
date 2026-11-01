@@ -40,6 +40,10 @@ const CAPTIONS = [
   { value: "phrase", label: "Từng cụm" },
   { value: "word", label: "Từng từ" },
 ];
+const TITLE_STYLES: { value: VideoOptions["title_style"]; label: string }[] = [
+  { value: "same", label: "Giống cảnh" },
+  { value: "yellow", label: "Hộp vàng" },
+];
 // The renderer's palettes (reels_render.textbox), drawn small so members choose by sight.
 type Style = VideoOptions["text_style"];
 type TextColor = VideoOptions["text_color"];
@@ -350,6 +354,15 @@ export function TextSettings({ values, onChange, disabled }: Props) {
               );
             })}
           </Flex>
+        </Field>
+        <Field label="Kiểu tiêu đề" hint="Hộp vàng giữ tiêu đề dễ đọc dù các cảnh dùng kiểu khác.">
+          <Segmented
+            aria-label="Kiểu tiêu đề"
+            options={TITLE_STYLES}
+            value={values.title_style}
+            disabled={disabled}
+            onChange={(title_style) => onChange({ title_style: title_style as VideoOptions["title_style"] })}
+          />
         </Field>
         <Field label="Màu chữ" hint="Chữ đánh dấu *như thế này* giữ một màu khác để vẫn nổi bật.">
           <Flex wrap gap={8} role="radiogroup" aria-label="Màu chữ">

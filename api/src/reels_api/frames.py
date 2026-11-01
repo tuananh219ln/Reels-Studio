@@ -21,24 +21,27 @@ from reels_render.textbox import (
     render_box,
     scene_box_position,
     title_box_position,
+    title_palette,
 )
 
 from .script_rules import text_problem
 
 THUMBNAIL_SIZE = (540, 960)
+DEFAULT_LOOK = ("yellow", "auto", "same")
 
 
 def text_box(
-    text: str, is_title: bool, look: tuple[str, str] = ("yellow", "auto")
+    text: str, is_title: bool, look: tuple[str, str, str] = DEFAULT_LOOK
 ) -> tuple[Image.Image, tuple[int, int]]:
     """The exact RGBA box image render_video overlays for this scene, and where it goes."""
     layout = layout_text(parse_scene_text(text), TITLE_STYLE if is_title else SCENE_STYLE)
     place = title_box_position if is_title else scene_box_position
-    return render_box(layout, palette_for(*look)), place(layout.width, layout.height)
+    palette = title_palette(*look) if is_title else palette_for(*look[:2])
+    return render_box(layout, palette), place(layout.width, layout.height)
 
 
 def compose_frame(
-    image: Path | Image.Image, text: str, is_title: bool, look: tuple[str, str] = ("yellow", "auto")
+    image: Path | Image.Image, text: str, is_title: bool, look: tuple[str, str, str] = DEFAULT_LOOK
 ) -> Image.Image:
     """Cover-cropped photo (or clip frame) plus the text box; no box without text or while the text cannot render."""
     if isinstance(image, Image.Image):
@@ -70,7 +73,7 @@ def jpeg_bytes(image: Image.Image, quality: int = 90) -> bytes:
     return buffer.getvalue()
 
 
-def thumbnail_bytes(image: Path | Image.Image, title_text: str, look: tuple[str, str] = ("yellow", "auto")) -> bytes:
-    """`look` is the text box style and text colour (video_options.text_look)."""
+def thumbnail_bytes(image: Path | Image.Image, title_text: str, look: tuple[str, str, str] = DEFAULT_LOOK) -> bytes:
+    """`look` is the text box style, text colour and title style (video_options.text_look)."""
     frame = compose_frame(image, title_text, is_title=True, look=look)
     return jpeg_bytes(frame.resize(THUMBNAIL_SIZE, Image.Resampling.LANCZOS), quality=85)

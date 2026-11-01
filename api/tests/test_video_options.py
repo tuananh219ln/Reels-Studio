@@ -99,6 +99,41 @@ def test_a_style_change_redraws_the_thumbnail(an, db, me, storage):
     assert refused.status_code == 422 and "Màu chữ" in refused.json()["message"]
 
 
+def test_the_title_can_keep_the_yellow_box_on_a_video_of_outlined_scenes(an, db, me, storage):
+    video = make_video(db, storage, me)
+    title, _ = split_scenes(db, video)
+    an.patch(f"/api/scenes/{title.id}", json={"text": "TIÊU ĐỀ MỚI"})
+    payload = an.patch(
+        f"/api/videos/{video.id}", json={"options": {"text_style": "none", "text_color": "yellow"}}
+    ).json()
+    db.refresh(video)
+    thumbnail, title_url = video.thumbnail_key, payload["title_scene"]["preview_url"]
+    # Previews are drawn on request in the current look, so these are kept before it changes.
+    title_preview = an.get(title_url).content
+    scene_preview = an.get(payload["scenes"][0]["preview_url"]).content
+
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": {"title_style": "yellow"}}).json()
+    assert payload["options"]["title_style"] == "yellow"
+    db.refresh(video)
+    assert video.thumbnail_key != thumbnail and payload["title_scene"]["preview_url"] != title_url
+    assert video_options.render_options(video).title_style == "yellow"
+    # Only the title is drawn differently: the scene's preview keeps the outlined letters.
+    assert an.get(payload["scenes"][0]["preview_url"]).content == scene_preview
+    assert an.get(payload["title_scene"]["preview_url"]).content != title_preview
+
+    refused = an.patch(f"/api/videos/{video.id}", json={"options": {"title_style": "pink"}})
+    assert refused.status_code == 422 and "Kiểu tiêu đề" in refused.json()["message"]
+
+
+def test_the_title_option_leaves_the_fingerprint_of_earlier_videos_alone(db, me, storage):
+    video = make_video(db, storage, me)
+    video.options = {"text_style": "red"}  # saved before the option existed
+    signature = video_options.look_signature(video)
+    assert signature is not None and "title_style" not in signature
+    video.options = {"text_style": "red", "title_style": "yellow"}
+    assert video_options.look_signature(video)["title_style"] == "yellow"
+
+
 def test_a_clone_takes_its_sources_settings(an, db, me, storage, fakes):
     video = make_video(db, storage, me)
     an.patch(f"/api/videos/{video.id}", json={"options": {"zoom": "strong"}, "voice_enabled": False})

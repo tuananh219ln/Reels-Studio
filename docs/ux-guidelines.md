@@ -205,7 +205,9 @@ relied on (samples in the PR that added them).
   kiểu (the style's own), Trắng, Đen, Vàng, Đỏ; a colour too faint on its box is not offered and
   falls back to the box's own; keywords keep a colour that differs from the text (black letters
   without a box get a white outline and red keywords). The thumbnail and the scene previews are
-  drawn in the chosen style and colour.
+  drawn in the chosen style and colour. **Kiểu tiêu đề:** Giống cảnh (the default: the title scene
+  follows the two choices above), Hộp vàng (the title keeps the original yellow box and black text
+  whatever the scenes use, for example yellow letters with a black outline on the scenes).
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
   the speed (ElevenLabs `speed` 0.9 / 1.0 / 1.1), the level (0–100%), and "Nhỏ nhạc khi có giọng
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).
