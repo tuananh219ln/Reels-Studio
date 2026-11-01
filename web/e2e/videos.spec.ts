@@ -174,6 +174,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
   await expect(prompt).toHaveValue(/^Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40\+\./);
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
+  await expect(page.getByRole("dialog")).toBeHidden();
 
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
   await beauty.getByRole("button", { name: "Xoá nhóm" }).click();
@@ -756,6 +757,8 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   test.setTimeout(180_000);
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  // A tab clicked before /settings redirects to its first tab loses to that redirect.
+  await expect(page).toHaveURL(/\/settings\/defaults$/);
   await page.getByRole("tab", { name: "Mô hình AI" }).click();
   await expect(page).toHaveURL(/\/settings\/ai$/);
   // With nothing set, the team writes with Claude from the server's environment.
@@ -863,6 +866,7 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   const videoUrl = page.url();
 
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await expect(page).toHaveURL(/\/settings\/defaults$/);
   await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
   await expect(page).toHaveURL(/\/settings\/sources$/);
   await page.getByRole("switch", { name: "Bật Pexels" }).click();
