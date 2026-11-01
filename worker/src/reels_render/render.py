@@ -68,8 +68,9 @@ def render_video(
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
     spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
-    palette = palette_for(options.text_style, options.text_color)
-    first_palette = title_palette(options.text_style, options.text_color, options.title_style)
+    colours = (options.text_color, options.box_color, options.accent_color)
+    palette = palette_for(options.text_style, *colours)
+    first_palette = title_palette(options.text_style, options.text_color, options.title_style, *colours[1:])
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)

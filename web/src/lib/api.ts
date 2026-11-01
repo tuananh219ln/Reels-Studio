@@ -148,8 +148,13 @@ export type VideoOptions = {
   motion: "zoom_in" | "zoom_out" | "pan" | "static";
   zoom: "light" | "medium" | "strong";
   text_style: "yellow" | "white" | "dark" | "red" | "none";
-  text_color: "auto" | "white" | "black" | "yellow" | "red";
+  /** "auto", a named colour (older videos) or "#RRGGBB". */
+  text_color: string;
   title_style: "same" | "yellow";
+  /** The box's colour, or the outline's without a box: "auto" or "#RRGGBB". */
+  box_color: string;
+  /** The *marked* words' colour: "auto" or "#RRGGBB". */
+  accent_color: string;
   captions: "off" | "phrase" | "word";
 };
 

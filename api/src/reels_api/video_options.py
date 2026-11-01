@@ -17,6 +17,7 @@ from reels_render.options import (
     ZOOMS,
     RenderOptions,
 )
+from reels_render.textbox import is_hex
 
 from . import config
 from .models import AppSetting, Video
@@ -36,17 +37,20 @@ DEFAULTS: dict = {
     "text_style": "yellow",
     "text_color": "auto",  # the text box style's own colour
     "title_style": "same",  # the title scene is drawn like the other scenes
+    "box_color": "auto",  # the style's own box (or outline, without a box); or "#RRGGBB"
+    "accent_color": "auto",  # marked words keep a colour apart from the text; or "#RRGGBB"
     "captions": "off",
 }
 # Kept as columns of their own before these settings existed; the team defaults hold them too.
 VIDEO_FIELDS = {"voice_enabled": True, "music_volume": 25}
+# Colours: a named one or any "#RRGGBB", stored in capitals.
+COLORS = {"text_color": TEXT_COLORS, "box_color": ("auto",), "accent_color": ("auto",)}
 CHOICES = {
     "voice_speed": tuple(SPEEDS),
     "transition": TRANSITIONS,
     "motion": MOTIONS,
     "zoom": tuple(ZOOMS),
     "text_style": TEXT_STYLES,
-    "text_color": TEXT_COLORS,
     "title_style": TITLE_STYLES,
     "captions": CAPTIONS,
 }
@@ -59,6 +63,8 @@ LABELS = {
     "zoom": "Độ zoom",
     "text_style": "Kiểu hộp chữ",
     "text_color": "Màu chữ",
+    "box_color": "Màu nền hộp",
+    "accent_color": "Màu chữ đánh dấu",
     "title_style": "Kiểu tiêu đề",
     "captions": "Phụ đề theo giọng",
     "ducking": "Nhỏ nhạc khi có giọng",
@@ -81,7 +87,11 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
     for name, value in values.items():
         if name not in known:
             raise OptionError(f"Không có tuỳ chọn “{name}”")
-        if name in CHOICES:
+        if name in COLORS:
+            if not isinstance(value, str) or (value not in COLORS[name] and not is_hex(value)):
+                raise OptionError(f"Giá trị không hợp lệ cho “{LABELS[name]}” (cần dạng #RRGGBB)")
+            value = value.upper() if is_hex(value) else value
+        elif name in CHOICES:
             if value not in CHOICES[name]:
                 raise OptionError(f"Giá trị không hợp lệ cho “{LABELS[name]}”")
         elif name in ("voice_volume", "music_volume"):
@@ -106,10 +116,17 @@ def voice_speed(video: Video) -> str:
     return effective(video)["voice_speed"]
 
 
-def text_look(video: Video) -> tuple[str, str, str]:
-    """The text box style, text colour and title style, which previews and the thumbnail are drawn with."""
+def text_look(video: Video) -> tuple[str, str, str, str, str]:
+    """The text box style, text colour, title style, box colour and marked-word colour, which previews and the
+    thumbnail are drawn with (frames.DEFAULT_LOOK)."""
     values = effective(video)
-    return values["text_style"], values["text_color"], values["title_style"]
+    return (
+        values["text_style"],
+        values["text_color"],
+        values["title_style"],
+        values["box_color"],
+        values["accent_color"],
+    )
 
 
 def render_options(video: Video) -> RenderOptions:
@@ -121,6 +138,8 @@ def render_options(video: Video) -> RenderOptions:
         text_style=values["text_style"],
         text_color=values["text_color"],
         title_style=values["title_style"],
+        box_color=values["box_color"],
+        accent_color=values["accent_color"],
         captions=values["captions"],
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],
@@ -135,8 +154,9 @@ def look_signature(video: Video) -> dict | None:
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
     # Left out while unused, so videos with other presets, rendered before it existed, stay current.
-    if changed["title_style"] == DEFAULTS["title_style"]:
-        del changed["title_style"]
+    for name in ("title_style", "box_color", "accent_color"):
+        if changed[name] == DEFAULTS[name]:
+            del changed[name]
     return changed
 
 

@@ -821,16 +821,24 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.getByRole("radio", { name: "Kiểu Tối" }).click();
   await expect(page.getByRole("radio", { name: "Kiểu Tối" })).toHaveAttribute("aria-checked", "true");
   await expect(preview).not.toHaveAttribute("src", before ?? "");
-  // Black letters would vanish into the dark box; yellow ones redraw the previews again.
-  await expect(page.getByRole("radio", { name: "Màu Đen" })).toBeDisabled();
+  // Black letters would vanish into the dark box: allowed, with a warning; yellow ones redraw the previews again.
+  await page.getByRole("radio", { name: "Màu Đen" }).click();
+  await expect(page.getByTestId("color-warning")).toContainText("Chữ khó đọc trên nền hộp này.");
   const dark = await preview.getAttribute("src");
   await page.getByRole("radio", { name: "Màu Vàng" }).click();
   await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("color-warning")).toHaveCount(0);
   await expect(preview).not.toHaveAttribute("src", dark ?? "");
-  // No box keeps the colour.
+  // A box colour of its own redraws them too.
+  const yellow = await preview.getAttribute("src");
+  await page.getByRole("radio", { name: "Nền Xanh dương" }).click();
+  await expect(page.getByRole("radio", { name: "Nền Xanh dương" })).toHaveAttribute("aria-checked", "true");
+  await expect(preview).not.toHaveAttribute("src", yellow ?? "");
+  // No box keeps the text colour and brings its own outline.
   await page.getByRole("radio", { name: "Kiểu Không hộp" }).click();
   await expect(page.getByRole("radio", { name: "Kiểu Không hộp" })).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("radio", { name: "Màu Vàng" })).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByRole("radio", { name: "Viền Theo kiểu" })).toHaveAttribute("aria-checked", "true");
   // The title can keep the yellow box over those outlined scenes.
   const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
   const outlinedTitle = await titlePreview.getAttribute("src");

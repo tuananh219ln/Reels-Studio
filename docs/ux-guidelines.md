@@ -64,8 +64,10 @@ Built:
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
     Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
     Mạnh); "Chữ & phụ đề" (Kiểu hộp chữ chosen from five small 9:16 previews, Vàng, Trắng, Tối, Đỏ,
-    Không hộp; Màu chữ: Theo kiểu, Trắng, Đen, Vàng, Đỏ, a colour too faint on the chosen box greyed
-    out with "Khó đọc trên kiểu hộp này";
+    Không hộp; then three colour rows, Màu chữ, Màu chữ đánh dấu and Màu nền hộp (Màu viền chữ for
+    Không hộp), each with Theo kiểu, eight swatches (Trắng, Đen, Vàng, Đỏ, Cam, Xanh lá, Xanh dương,
+    Hồng) and "Tuỳ chỉnh" opening a colour picker; a faint pair is allowed with a warning under the
+    rows ("Chữ khó đọc trên nền hộp này. …"); picking a box style puts the box colour back to Theo kiểu;
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and "Lấy
     theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
     with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
@@ -204,12 +206,16 @@ relied on (samples in the PR that added them).
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** Vàng (the default above), Trắng (white box, black text, red keywords), Tối (near-black
   box at 88%, white text, yellow keywords), Đỏ (`#E10600` box, white text, yellow keywords), Không
-  hộp (white letters with a black outline 9% of the font size, yellow keywords). **Màu chữ:** Theo
-  kiểu (the style's own), Trắng, Đen, Vàng, Đỏ; a colour too faint on its box is not offered and
-  falls back to the box's own; keywords keep a colour that differs from the text (black letters
-  without a box get a white outline and red keywords). The thumbnail and the scene previews are
-  drawn in the chosen style and colour. **Kiểu tiêu đề:** Giống cảnh (the default: the title scene
-  follows the two choices above), Hộp vàng (the title keeps the original yellow box and black text
+  hộp (white letters with a black outline 9% of the font size, yellow keywords). **Colours:** the
+  text, the keywords and the box (the outline without a box) are each Theo kiểu (the style's own) or
+  any colour, from a swatch or the picker; a custom box keeps the style's opacity (Tối stays 88%).
+  Every colour is drawn as chosen: a pair below WCAG contrast 3 (text or keywords on their box or
+  outline) only warns. Keywords on Theo kiểu take the style's keyword colour unless it is within
+  RGB distance 100 of the text or below contrast 3 on the box, then the style's alternate (black on
+  Vàng/Trắng, white on Tối/Đỏ, red without a box), then red, yellow, white or black. Near-black letters
+  (luminance under 0.05) without a box get a white outline. The thumbnail and the scene previews are
+  drawn in the chosen style and colours. **Kiểu tiêu đề:** Giống cảnh (the default: the title scene
+  follows the choices above), Hộp vàng (the title keeps the original yellow box and black text
   whatever the scenes use, for example yellow letters with a black outline on the scenes).
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
   the speed (ElevenLabs `speed` 0.9 / 1.0 / 1.1), the level (0–100%), and "Nhỏ nhạc khi có giọng

@@ -11,6 +11,21 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-01 — Text colours are free: any text, keyword and box colour, with a warning when faint
+
+Owner's decision for the text and captions round (colours, style presets, text that can be moved). Replaces,
+for colours only, "never free colour or size sliders" in the settings roadmap entry below, and the "too faint
+colours are not offered" part of the "text colour and no box presets" entry. The text, the *marked* words and
+the box (the outline for Không hộp) each take Theo kiểu, a swatch, or any `#RRGGBB` from a colour picker.
+Every colour is drawn as chosen; the page warns instead of refusing when a pair is hard to read (WCAG contrast
+under 3 against the box or outline). Sizes stay presets. Marked words on Theo kiểu still move off the
+text's colour by themselves. The named colours stored before (white, black, yellow, red) are aliases of their
+hex values, so no stored video changes; a faint named colour some api call may have stored is now drawn
+instead of falling back. Also decided for the next rounds: text can be dragged per scene (a video-wide
+position, overridden by a scene) but only inside the platforms' safe zone, clear of the top bar, the right
+button column and the bottom caption area; the title scene moves only up and down so the thumbnail stays
+centred.
+
 ## 2026-11-01 — The ElevenLabs key can be pasted in the app too
 
 Cài đặt › Nguồn tư liệu also takes the ElevenLabs key (narration), stored encrypted with the other source keys

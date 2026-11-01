@@ -1,10 +1,23 @@
 "use client";
 
 import { PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
-import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
+import {
+  Button,
+  Card,
+  Checkbox,
+  ColorPicker,
+  Flex,
+  Segmented,
+  Select,
+  Slider,
+  Switch,
+  Tooltip,
+  Typography,
+} from "antd";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice } from "@/lib/api";
+import { palette, STYLES, SWATCHES, toHex, warnings, type Style } from "./textPalette";
 
 /** The values these sections edit: a video's options plus its narration switch (and, for defaults, music level). */
 export type SettingsValues = VideoOptions & { voice_enabled: boolean; music_volume?: number };
@@ -45,55 +58,8 @@ const TITLE_STYLES: { value: VideoOptions["title_style"]; label: string }[] = [
   { value: "same", label: "Giống cảnh" },
   { value: "yellow", label: "Hộp vàng" },
 ];
-// The renderer's palettes (reels_render.textbox), drawn small so members choose by sight.
-type Style = VideoOptions["text_style"];
-type TextColor = VideoOptions["text_color"];
-const STYLES: { value: Style; label: string; box: string | null; text: string; accent: string }[] = [
-  { value: "yellow", label: "Vàng", box: "#FFD60A", text: "#111111", accent: "#E10600" },
-  { value: "white", label: "Trắng", box: "#FFFFFF", text: "#111111", accent: "#E10600" },
-  { value: "dark", label: "Tối", box: "rgba(17,17,17,0.88)", text: "#FFFFFF", accent: "#FFD60A" },
-  { value: "red", label: "Đỏ", box: "#E10600", text: "#FFFFFF", accent: "#FFD60A" },
-  { value: "none", label: "Không hộp", box: null, text: "#FFFFFF", accent: "#FFD60A" },
-];
-const COLORS: { value: Exclude<TextColor, "auto">; label: string; hex: string }[] = [
-  { value: "white", label: "Trắng", hex: "#FFFFFF" },
-  { value: "black", label: "Đen", hex: "#111111" },
-  { value: "yellow", label: "Vàng", hex: "#FFD60A" },
-  { value: "red", label: "Đỏ", hex: "#E10600" },
-];
-// Colours too faint on a box (textbox.CLASHES): not offered with that box.
-const CLASHES: Partial<Record<Style, TextColor[]>> = {
-  yellow: ["yellow", "white"],
-  white: ["white", "yellow"],
-  dark: ["black"],
-  red: ["red"],
-};
-
-const clashes = (style: Style, color: TextColor) => CLASHES[style]?.includes(color) ?? false;
-
-/** What the renderer draws for a style and colour (textbox.palette_for). */
-function look(style: Style, color: TextColor) {
-  // An unknown value (e.g. from an api older than the page) draws the original yellow box.
-  const base = STYLES.find((item) => item.value === style) ?? STYLES[0];
-  const outline = base.box === null ? (color === "black" ? "#FFFFFF" : "#000000") : null;
-  const chosen = COLORS.find((item) => item.value === color);
-  if (!chosen || clashes(base.value, color)) {
-    return { ...base, outline };
-  }
-  const text = chosen.hex;
-  const accent =
-    base.box === null
-      ? color === "black" || color === "yellow"
-        ? "#E10600"
-        : base.accent
-      : text === base.accent
-        ? base.text
-        : base.accent;
-  return { ...base, text, accent, outline };
-}
-
-function Sample({ style, color }: { style: Style; color: TextColor }) {
-  const drawn = look(style, color);
+function Sample({ style, textColor, accentColor }: { style: Style; textColor: string; accentColor: string }) {
+  const drawn = palette(style, textColor, "auto", accentColor);
   const stroke = drawn.outline
     ? [-1, 0, 1].flatMap((x) => [-1, 0, 1].map((y) => `${x}px ${y}px 0 ${drawn.outline}`)).join(", ")
     : undefined;
@@ -127,6 +93,99 @@ function Sample({ style, color }: { style: Style; color: TextColor }) {
         <span style={{ color: drawn.accent }}>CANXI</span>
       </span>
     </div>
+  );
+}
+
+/** One colour: the style's own, a swatch, or any colour from the picker; `name` prefixes each choice's label. */
+function ColorChoice({
+  name,
+  value,
+  onChange,
+  disabled,
+}: {
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  const hex = toHex(value);
+  const custom = hex !== null && !SWATCHES.some((swatch) => swatch.hex === hex);
+  const ring = (checked: boolean) => ({
+    border: `1px solid ${checked ? "#1677ff" : "#d9d9d9"}`,
+    boxShadow: checked ? "0 0 0 1px #1677ff" : undefined,
+    cursor: disabled ? "not-allowed" : "pointer",
+  });
+  return (
+    <Flex wrap gap={8} align="center" role="radiogroup" aria-label={name}>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={hex === null}
+        aria-label={`${name} Theo kiểu`}
+        disabled={disabled}
+        onClick={() => onChange("auto")}
+        style={{ ...ring(hex === null), padding: "3px 10px", borderRadius: 6, background: "none" }}
+      >
+        <Typography.Text style={{ fontSize: 13 }}>Theo kiểu</Typography.Text>
+      </button>
+      {SWATCHES.map((swatch) => (
+        <Tooltip key={swatch.hex} title={swatch.label}>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={hex === swatch.hex}
+            aria-label={`${name} ${swatch.label}`}
+            disabled={disabled}
+            onClick={() => onChange(swatch.hex)}
+            style={{
+              ...ring(hex === swatch.hex),
+              width: 26,
+              height: 26,
+              padding: 0,
+              borderRadius: "50%",
+              background: swatch.hex,
+              outline: "1px solid rgba(0,0,0,0.15)",
+              outlineOffset: -3,
+            }}
+          />
+        </Tooltip>
+      ))}
+      <ColorPicker
+        value={hex ?? "#FFFFFF"}
+        disabled={disabled}
+        disabledAlpha
+        disabledFormat
+        onChangeComplete={(color) => onChange(color.toHexString().toUpperCase())}
+      >
+        <button
+          type="button"
+          role="radio"
+          aria-checked={custom}
+          aria-label={`${name} Tuỳ chỉnh`}
+          disabled={disabled}
+          style={{
+            ...ring(custom),
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            padding: "3px 10px",
+            borderRadius: 6,
+            background: "none",
+          }}
+        >
+          <span
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: "50%",
+              background: custom ? hex : "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+              border: "1px solid rgba(0,0,0,0.25)",
+            }}
+          />
+          <Typography.Text style={{ fontSize: 13 }}>{custom ? hex : "Tuỳ chỉnh"}</Typography.Text>
+        </button>
+      </ColorPicker>
+    </Flex>
   );
 }
 
@@ -319,8 +378,13 @@ export function MotionSettings({ values, onChange, disabled }: Props) {
   );
 }
 
-/** The text box style, chosen from small previews, and the narration captions. */
+/** The text box style, chosen from small previews, its colours, and the narration captions. */
 export function TextSettings({ values, onChange, disabled }: Props) {
+  const hasBox = values.text_style !== "none";
+  const problems = warnings(
+    palette(values.text_style, values.text_color, values.box_color, values.accent_color),
+    hasBox,
+  );
   return (
     <Card title="Chữ & phụ đề" size="small" data-testid="text-settings">
       <Flex vertical gap={14}>
@@ -336,14 +400,8 @@ export function TextSettings({ values, onChange, disabled }: Props) {
                   aria-checked={checked}
                   aria-label={`Kiểu ${style.label}`}
                   disabled={disabled}
-                  // A colour too faint on the new box goes back to the box's own.
-                  onClick={() =>
-                    onChange(
-                      clashes(style.value, values.text_color)
-                        ? { text_style: style.value, text_color: "auto" }
-                        : { text_style: style.value },
-                    )
-                  }
+                  // The style brings its own box (or outline); the text colours stay.
+                  onClick={() => onChange({ text_style: style.value, box_color: "auto" })}
                   style={{
                     width: 64,
                     padding: 0,
@@ -353,7 +411,7 @@ export function TextSettings({ values, onChange, disabled }: Props) {
                     cursor: disabled ? "not-allowed" : "pointer",
                   }}
                 >
-                  <Sample style={style.value} color={values.text_color} />
+                  <Sample style={style.value} textColor={values.text_color} accentColor={values.accent_color} />
                   <Typography.Text style={{ fontSize: 12 }}>{style.label}</Typography.Text>
                 </button>
               );
@@ -369,57 +427,35 @@ export function TextSettings({ values, onChange, disabled }: Props) {
             onChange={(title_style) => onChange({ title_style: title_style as VideoOptions["title_style"] })}
           />
         </Field>
-        <Field label="Màu chữ" hint="Chữ đánh dấu *như thế này* giữ một màu khác để vẫn nổi bật.">
-          <Flex wrap gap={8} role="radiogroup" aria-label="Màu chữ">
-            {[{ value: "auto" as const, label: "Theo kiểu", hex: "" }, ...COLORS].map((color) => {
-              const checked = values.text_color === color.value;
-              const faint = clashes(values.text_style, color.value);
-              const button = (
-                <button
-                  key={color.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={checked}
-                  aria-label={`Màu ${color.label}`}
-                  disabled={disabled || faint}
-                  onClick={() => onChange({ text_color: color.value })}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "4px 10px",
-                    border: `1px solid ${checked ? "#1677ff" : "#d9d9d9"}`,
-                    boxShadow: checked ? "0 0 0 1px #1677ff" : undefined,
-                    borderRadius: 6,
-                    background: "none",
-                    opacity: faint ? 0.4 : 1,
-                    cursor: disabled || faint ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {color.hex && (
-                    <span
-                      style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: "50%",
-                        background: color.hex,
-                        border: "1px solid rgba(0,0,0,0.25)",
-                      }}
-                    />
-                  )}
-                  <Typography.Text style={{ fontSize: 13 }}>{color.label}</Typography.Text>
-                </button>
-              );
-              return faint ? (
-                <Tooltip key={color.value} title="Khó đọc trên kiểu hộp này">
-                  {button}
-                </Tooltip>
-              ) : (
-                button
-              );
-            })}
-          </Flex>
+        <Field label="Màu chữ">
+          <ColorChoice
+            name="Màu"
+            value={values.text_color}
+            disabled={disabled}
+            onChange={(text_color) => onChange({ text_color })}
+          />
         </Field>
+        <Field label="Màu chữ đánh dấu" hint="Chữ đánh dấu *như thế này*; “Theo kiểu” tự giữ một màu khác chữ thường.">
+          <ColorChoice
+            name="Đánh dấu"
+            value={values.accent_color}
+            disabled={disabled}
+            onChange={(accent_color) => onChange({ accent_color })}
+          />
+        </Field>
+        <Field label={hasBox ? "Màu nền hộp" : "Màu viền chữ"}>
+          <ColorChoice
+            name={hasBox ? "Nền" : "Viền"}
+            value={values.box_color}
+            disabled={disabled}
+            onChange={(box_color) => onChange({ box_color })}
+          />
+        </Field>
+        {problems.length > 0 && (
+          <Typography.Text type="warning" data-testid="color-warning">
+            {problems.join(" ")} Vẫn render được, nhưng nên chọn màu khác.
+          </Typography.Text>
+        )}
         <Field
           label="Phụ đề theo giọng đọc"
           hint={

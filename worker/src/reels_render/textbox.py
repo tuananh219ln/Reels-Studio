@@ -39,30 +39,84 @@ PALETTES = {
     "red": Palette("#E10600", "#FFFFFF", "#FFD60A"),
     "none": Palette(None, "#FFFFFF", "#FFD60A", outline="#000000"),
 }
-# The text colours members choose from (options.TEXT_COLORS); "auto" keeps the style's own.
+# The named text colours (options.TEXT_COLORS): each is the same as its hex value.
 TEXT_COLORS = {"white": "#FFFFFF", "black": TEXT_COLOR, "yellow": BOX_COLOR, "red": RED_COLOR}
-# Colours too faint on a box: the style's own colour is used instead (and the page does not offer them).
-CLASHES = {"yellow": {"yellow", "white"}, "white": {"white", "yellow"}, "dark": {"black"}, "red": {"red"}}
+# Marked words take this colour when the style's own would vanish into the text or the box.
+ALTERNATE_ACCENTS = {"yellow": TEXT_COLOR, "white": TEXT_COLOR, "dark": "#FFFFFF", "red": "#FFFFFF", "none": RED_COLOR}
+FALLBACK_ACCENTS = (RED_COLOR, BOX_COLOR, "#FFFFFF", TEXT_COLOR)
 OUTLINE_RATIO = 0.09  # of the font size, for letters without a box
+DARK_LETTERS = 0.05  # relative luminance under which outlined letters get a white outline
+MIN_ACCENT_CONTRAST = 3.0  # marked words against their box (or outline)
+MIN_ACCENT_DISTANCE = 100  # RGB distance between the marked words and the plain ones
 
 
-def palette_for(text_style: str, text_color: str = "auto") -> Palette:
-    """The style's palette with the chosen text colour; the marked words keep a colour that differs from it."""
+def is_hex(value: str) -> bool:
+    return len(value) == 7 and value[0] == "#" and all(char in "0123456789abcdefABCDEF" for char in value[1:])
+
+
+def rgb(colour: str | tuple[int, ...]) -> tuple[int, int, int]:
+    if isinstance(colour, tuple):
+        return colour[0], colour[1], colour[2]
+    return int(colour[1:3], 16), int(colour[3:5], 16), int(colour[5:7], 16)
+
+
+def luminance(colour: str | tuple[int, ...]) -> float:
+    """WCAG relative luminance."""
+    channels = [value / 255 for value in rgb(colour)]
+    linear = [value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4 for value in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def contrast(first: str | tuple[int, ...], second: str | tuple[int, ...]) -> float:
+    """WCAG contrast ratio, 1 (none) to 21 (black on white)."""
+    light, dark = sorted((luminance(first), luminance(second)), reverse=True)
+    return (light + 0.05) / (dark + 0.05)
+
+
+def _distance(first: str, second: str) -> float:
+    return math.dist(rgb(first), rgb(second))
+
+
+def _auto_accent(text_style: str, text: str, ground: str | tuple[int, ...]) -> str:
+    base = PALETTES[text_style].accent
+    for accent in (base, ALTERNATE_ACCENTS[text_style], *FALLBACK_ACCENTS):
+        if _distance(accent, text) >= MIN_ACCENT_DISTANCE and contrast(accent, ground) >= MIN_ACCENT_CONTRAST:
+            return accent
+    return base
+
+
+def palette_for(
+    text_style: str, text_color: str = "auto", box_color: str = "auto", accent_color: str = "auto"
+) -> Palette:
+    """The style's palette with the chosen colours, each "auto" (the style's own), a named colour or a hex one.
+
+    Every choice is drawn as chosen, faint or not (the page warns about faint ones). Without a box the box colour
+    is the outline's. Marked words left on "auto" keep a colour that differs from the text and reads on the box.
+    """
     base = PALETTES[text_style]
-    if text_color == "auto" or text_color in CLASHES.get(text_style, set()):
-        return base
-    text = TEXT_COLORS[text_color]
+    text = base.text if text_color == "auto" else TEXT_COLORS.get(text_color, text_color).upper()
     if base.box is None:
-        # Black letters get a white outline; the marked words then stand out in red.
-        outline = "#FFFFFF" if text_color == "black" else base.outline
-        accent = RED_COLOR if text_color in ("black", "yellow") else base.accent
-        return Palette(None, text, accent, outline)
-    return Palette(base.box, text, base.text if text == base.accent else base.accent)
+        if box_color != "auto":
+            outline = box_color.upper()
+        else:
+            outline = "#FFFFFF" if luminance(text) < DARK_LETTERS else base.outline
+        box, ground = None, outline
+    else:
+        box = base.box
+        if box_color != "auto":
+            box = box_color.upper() if isinstance(base.box, str) else (*rgb(box_color), base.box[3])
+        outline, ground = None, box
+    accent = accent_color.upper() if accent_color != "auto" else _auto_accent(text_style, text, ground)
+    return Palette(box, text, accent, outline)
 
 
-def title_palette(text_style: str, text_color: str, title_style: str) -> Palette:
+def title_palette(
+    text_style: str, text_color: str, title_style: str, box_color: str = "auto", accent_color: str = "auto"
+) -> Palette:
     """The title scene's palette: its own box style, or the one every scene uses."""
-    return palette_for(text_style, text_color) if title_style == "same" else PALETTES[title_style]
+    if title_style == "same":
+        return palette_for(text_style, text_color, box_color, accent_color)
+    return PALETTES[title_style]
 
 
 # Narration captions: white on a dark, see-through box, the spoken word in yellow.

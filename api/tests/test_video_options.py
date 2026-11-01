@@ -201,3 +201,39 @@ def test_the_chosen_voice_and_speed_make_the_narration_and_a_change_remakes_it(c
         db.commit()
     assert render(committed, storage, video_id, user.id).status == "done"
     assert len(fakes.tts_requests) == 2 and "speed" not in fakes.tts_requests[1]
+
+
+def test_custom_colours_redraw_the_previews_and_render_as_chosen(an, db, me, storage):
+    video = make_video(db, storage, me)
+    an.patch(f"/api/scenes/{split_scenes(db, video)[0].id}", json={"text": "TIÊU ĐỀ MỚI"})
+    db.refresh(video)
+    thumbnail = video.thumbnail_key
+    before = an.get(f"/api/videos/{video.id}").json()["scenes"][0]["preview_url"]
+    colours = {"text_color": "#1d4ed8", "box_color": "#ffffff", "accent_color": "#16A34A"}
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": colours}).json()
+    # Stored in capitals, so the same colour typed twice is one look.
+    assert {name: payload["options"][name] for name in colours} == {
+        "text_color": "#1D4ED8",
+        "box_color": "#FFFFFF",
+        "accent_color": "#16A34A",
+    }
+    assert payload["scenes"][0]["preview_url"] != before
+    db.refresh(video)
+    assert video.thumbnail_key not in (None, thumbnail)
+    options = video_options.render_options(video)
+    assert (options.text_color, options.box_color, options.accent_color) == ("#1D4ED8", "#FFFFFF", "#16A34A")
+
+    for name, label in (("text_color", "Màu chữ"), ("box_color", "Màu nền"), ("accent_color", "Màu chữ đánh dấu")):
+        refused = an.patch(f"/api/videos/{video.id}", json={"options": {name: "#12345"}})
+        assert refused.status_code == 422 and label in refused.json()["message"], name
+    defaults = an.put(DEFAULTS_URL, json={"values": {"box_color": "#e10600"}}).json()
+    assert defaults["box_color"] == "#E10600"
+
+
+def test_the_colour_options_leave_the_fingerprint_of_earlier_videos_alone(db, me, storage):
+    video = make_video(db, storage, me)
+    video.options = {"text_style": "red", "text_color": "black"}  # saved before the options existed
+    signature = video_options.look_signature(video)
+    assert signature is not None and not {"box_color", "accent_color"} & set(signature)
+    video.options = {"text_style": "red", "box_color": "#16A34A"}
+    assert video_options.look_signature(video)["box_color"] == "#16A34A"
