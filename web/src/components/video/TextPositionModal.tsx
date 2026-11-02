@@ -5,10 +5,10 @@ import { useRef, useState } from "react";
 import { api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
 
 // The renderer's frame and safe zone (reels_render.textbox): keep these in step with it.
-const FRAME_WIDTH = 1080;
-const FRAME_HEIGHT = 1920;
+export const FRAME_WIDTH = 1080;
+export const FRAME_HEIGHT = 1920;
 const SCENE_BOX_BOTTOM = 1440;
-const SAFE = { left: 60, top: 220, right: 940, bottom: SCENE_BOX_BOTTOM };
+export const SAFE = { left: 60, top: 220, right: 940, bottom: SCENE_BOX_BOTTOM };
 const SHOWN_WIDTH = 270; // the frame on screen, a quarter of its size
 const SCALE = SHOWN_WIDTH / FRAME_WIDTH;
 const STEP = 10; // frame pixels an arrow key moves the box

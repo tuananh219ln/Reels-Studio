@@ -8,6 +8,7 @@ import {
   DragOutlined,
   InboxOutlined,
   PictureOutlined,
+  PlayCircleOutlined,
   RightOutlined,
   ScissorOutlined,
   SearchOutlined,
@@ -71,12 +72,15 @@ export default function SceneCard({
   onToggle,
   onMove,
   onDelete,
+  onPreview,
 }: {
   scene: SceneData;
   label: string;
   voiceEnabled: boolean;
   expanded: boolean;
   onToggle: () => void;
+  /** "Xem từ cảnh này": the browser preview, starting at this scene. */
+  onPreview?: () => void;
   onMove?: (step: -1 | 1) => void;
   onDelete?: () => void;
 }) {
@@ -96,38 +100,54 @@ export default function SceneCard({
       // A closed card keeps its fields mounted, so text not yet saved is never lost by closing it.
       styles={{ body: expanded ? undefined : { display: "none" } }}
       extra={
-        !scene.is_title && (
-          <Space size={4}>
-            <Tooltip title="Lên trên">
+        <Space size={4}>
+          {onPreview && (
+            <Tooltip title="Xem từ cảnh này">
               <Button
-                aria-label="Lên trên"
+                aria-label="Xem từ cảnh này"
                 size="small"
-                icon={<ArrowUpOutlined />}
-                disabled={frozen || !onMove}
-                onClick={() => onMove?.(-1)}
+                icon={<PlayCircleOutlined />}
+                onClick={async () => {
+                  // The preview shows the saved scene: the field being typed in is saved first.
+                  await editor.flush();
+                  onPreview();
+                }}
               />
             </Tooltip>
-            <Tooltip title="Xuống dưới">
-              <Button
-                aria-label="Xuống dưới"
-                size="small"
-                icon={<ArrowDownOutlined />}
-                disabled={frozen || !onMove}
-                onClick={() => onMove?.(1)}
-              />
-            </Tooltip>
-            <Popconfirm
-              title="Xóa cảnh này?"
-              okText="Xóa"
-              cancelText="Huỷ"
-              okButtonProps={{ danger: true }}
-              onConfirm={onDelete}
-              disabled={frozen}
-            >
-              <Button aria-label="Xóa cảnh" size="small" danger icon={<DeleteOutlined />} disabled={frozen} />
-            </Popconfirm>
-          </Space>
-        )
+          )}
+          {!scene.is_title && (
+            <>
+              <Tooltip title="Lên trên">
+                <Button
+                  aria-label="Lên trên"
+                  size="small"
+                  icon={<ArrowUpOutlined />}
+                  disabled={frozen || !onMove}
+                  onClick={() => onMove?.(-1)}
+                />
+              </Tooltip>
+              <Tooltip title="Xuống dưới">
+                <Button
+                  aria-label="Xuống dưới"
+                  size="small"
+                  icon={<ArrowDownOutlined />}
+                  disabled={frozen || !onMove}
+                  onClick={() => onMove?.(1)}
+                />
+              </Tooltip>
+              <Popconfirm
+                title="Xóa cảnh này?"
+                okText="Xóa"
+                cancelText="Huỷ"
+                okButtonProps={{ danger: true }}
+                onConfirm={onDelete}
+                disabled={frozen}
+              >
+                <Button aria-label="Xóa cảnh" size="small" danger icon={<DeleteOutlined />} disabled={frozen} />
+              </Popconfirm>
+            </>
+          )}
+        </Space>
       }
     >
       <Row gutter={[16, 12]}>

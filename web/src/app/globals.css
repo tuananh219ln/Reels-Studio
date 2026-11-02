@@ -34,3 +34,31 @@ body {
     opacity: 1;
   }
 }
+
+/* Video preview ("Xem trước"): the render's motion, crossfade and slide, played in the browser. */
+@keyframes preview-motion {
+  from {
+    transform: translateX(var(--x0)) scale(var(--z0));
+  }
+  to {
+    transform: translateX(var(--x1)) scale(var(--z1));
+  }
+}
+
+@keyframes preview-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes preview-slide {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}

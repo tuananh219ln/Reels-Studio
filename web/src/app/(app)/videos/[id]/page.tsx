@@ -40,6 +40,7 @@ import PublishCard from "@/components/video/PublishCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
+import VideoPreview from "@/components/video/VideoPreview";
 import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
@@ -85,6 +86,8 @@ export default function VideoPage() {
   // Which scene cards are open, by scene id. A scene seen for the first time opens when the video is a draft or
   // when the scene has something blocking the render; after that only the member opens or closes it.
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  // "Xem trước" is open from this scene (0 is the title scene); null: closed.
+  const [previewFrom, setPreviewFrom] = useState<number | null>(null);
 
   /** Every video the api sends goes through here, so new scenes get their open/closed state. */
   const receive = useCallback((next: VideoDetail) => {
@@ -442,6 +445,7 @@ export default function VideoPage() {
                   scene={video.title_scene}
                   label="Cảnh tiêu đề"
                   voiceEnabled={video.voice_enabled}
+                  onPreview={() => setPreviewFrom(0)}
                   expanded={expanded[video.title_scene.id] ?? true}
                   onToggle={() => {
                     const titleId = video.title_scene!.id;
@@ -455,6 +459,7 @@ export default function VideoPage() {
                   scene={scene}
                   label={`Cảnh ${index + 1}`}
                   voiceEnabled={video.voice_enabled}
+                  onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
                   expanded={expanded[scene.id] ?? true}
                   onToggle={() => setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? true) }))}
                   onMove={(step) => move(index, step)}
@@ -549,8 +554,14 @@ export default function VideoPage() {
           onRender={render}
           onGenerateImages={generateImages}
           onShowBlocking={showBlocking}
+          onPreview={async () => {
+            // The preview shows the saved scenes: the field being typed in is saved first.
+            await editor.flush();
+            setPreviewFrom(0);
+          }}
         />
       )}
+      {previewFrom !== null && <VideoPreview video={video} start={previewFrom} onClose={() => setPreviewFrom(null)} />}
       <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
     </EditorContext.Provider>
   );

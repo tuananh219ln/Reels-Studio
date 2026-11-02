@@ -59,6 +59,19 @@ Built:
     warnings. Under the text and the voice text a counter shows the words as typed (the `*` not
     counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
     on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
+  - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
+    play the video in the browser before any render, in a 9:16 dialog: each scene for its
+    seconds (lengthened to fit its narration), the frame without text moving like the video's
+    motion setting with the exact text box on top where the render puts it, clips from their
+    start time, the video's transition (crossfade, cut or slide), the music from where that scene
+    falls in the video (lowered while narration plays when ducking is on). Narration: the MP3 a
+    render already made when the text has not changed since, else the browser's own Vietnamese
+    voice (free, at the video's speed); a browser without one says so and those scenes stay
+    silent. The covered areas of Reels / TikTok / Shorts (top bar, right button column, name and
+    caption at the bottom) are shaded in red over the frame, the safe zone dashed; a switch hides
+    them. Buttons: previous scene, "Tạm dừng" / "Tiếp tục" ("Xem lại" at the end), next scene,
+    "Từ đầu". A note says it is close to the MP4 but not the MP4 (captions and the audio mix come
+    only with a render). It is available in view mode too;
   - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
     viết bởi …"); edit the title scene and every content scene (text with `*word*` in
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and

@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — "Xem trước" plays the video in the browser, with a free voice
+
+Owner's choice from issue #61: the editor previews the video before a render in the browser, not
+as a draft render job, so a preview costs no worker time and no API money. It is built from what
+the api already draws (each scene's frame without text and its exact text box, clips, music) and
+the render's timing, motion and transitions copied into the page, so it is close to the MP4 but
+not the MP4; captions and FFmpeg's audio mix are not reproduced. Narration uses the ElevenLabs MP3
+when a render already made one for the current text, and otherwise the browser's own Vietnamese
+voice (Web Speech API), which is free; ElevenLabs is never called for a preview. The online
+Google/Microsoft voices send the narration text to those services, as typing it into their
+translator would. The preview can start from any scene and shades the platforms' covered areas.
+
 ## 2026-11-02 — The video editor opens rendered videos read-only; photos are cropped in the browser
 
 Requested by the owner: a finished or posted video could be changed by a stray click (the "MP4

@@ -1,6 +1,6 @@
 "use client";
 
-import { RobotOutlined, VideoCameraOutlined } from "@ant-design/icons";
+import { PlayCircleOutlined, RobotOutlined, VideoCameraOutlined } from "@ant-design/icons";
 import { Button, Flex, Typography } from "antd";
 import type { VideoDetail } from "@/lib/api";
 
@@ -21,6 +21,7 @@ export default function RenderBar({
   onRender,
   onGenerateImages,
   onShowBlocking = showFirstBlocking,
+  onPreview,
 }: {
   video: VideoDetail;
   busy: boolean;
@@ -28,6 +29,8 @@ export default function RenderBar({
   onGenerateImages: () => void;
   /** Opens what hides the first reason (a collapsed scene) before scrolling to it. */
   onShowBlocking?: () => void;
+  /** "Xem trước": the video played in the browser, before any render. */
+  onPreview?: () => void;
 }) {
   const scenes = [video.title_scene, ...video.scenes].filter((scene) => scene !== null);
   const blocking = video.video_blocking.length + scenes.reduce((sum, scene) => sum + scene.blocking.length, 0);
@@ -64,6 +67,11 @@ export default function RenderBar({
           {missingPhotos && (
             <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={onGenerateImages}>
               Tạo ảnh AI cho cảnh thiếu
+            </Button>
+          )}
+          {onPreview && (
+            <Button icon={<PlayCircleOutlined />} onClick={onPreview}>
+              Xem trước
             </Button>
           )}
           <Button type="primary" icon={<VideoCameraOutlined />} disabled={!video.can_render || busy} onClick={onRender}>

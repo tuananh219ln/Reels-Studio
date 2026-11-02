@@ -290,6 +290,33 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   await expect(first.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
 });
 
+test("preview before a render: plays scene by scene, starts from a chosen scene, shows the safe zone", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau củ cho người cao tuổi");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  let preview = page.getByRole("dialog", { name: "Xem trước video" });
+  const now = preview.getByTestId("preview-scene");
+  await expect(now).toContainText("Cảnh tiêu đề");
+  await expect(preview.getByTestId("preview-safe-zone")).toBeVisible();
+  // It moves on by itself once a scene's seconds are up.
+  await expect(now).toContainText("Cảnh 1", { timeout: 20_000 });
+  await preview.getByRole("button", { name: "Cảnh sau" }).click();
+  await expect(now).toContainText("Cảnh 2");
+  await preview.getByRole("button", { name: "Tạm dừng" }).click();
+  await expect(preview.getByRole("button", { name: "Tiếp tục" })).toBeVisible();
+  await preview.getByRole("switch", { name: "Vùng an toàn" }).click();
+  await expect(preview.getByTestId("preview-safe-zone")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(preview).toHaveCount(0);
+
+  await page.getByTestId("scene").nth(2).getByRole("button", { name: "Xem từ cảnh này" }).click();
+  preview = page.getByRole("dialog", { name: "Xem trước video" });
+  await expect(preview.getByTestId("preview-scene")).toContainText("Cảnh 3");
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);
