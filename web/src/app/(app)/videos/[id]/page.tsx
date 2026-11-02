@@ -51,6 +51,7 @@ const JOB_NAMES = {
   render: "Render",
   publish: "Đăng Facebook",
   image: "Tạo ảnh AI",
+  photos: "Tự tìm ảnh",
 } as const;
 
 /** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
@@ -172,10 +173,12 @@ export default function VideoPage() {
     await act(() => api<VideoDetail>(`/videos/${id}/render`, "POST"));
   }
 
-  async function generateImages() {
+  /** `provider`: the one picked from the button's arrow; the team's default otherwise. */
+  async function generateImages(provider?: "cloudflare" | "gemini") {
     // The job reads the saved prompts: flush first, like "Render".
     await editor.flush();
-    await act(() => api<VideoDetail>(`/videos/${id}/image`, "POST"));
+    const query = provider ? `?provider=${provider}` : "";
+    await act(() => api<VideoDetail>(`/videos/${id}/image${query}`, "POST"));
   }
 
   /** "Xong": saves the field being typed in, then locks the page again unless a save was refused. */
@@ -320,7 +323,7 @@ export default function VideoPage() {
           data-testid="job-status"
           title={
             job.status === "queued"
-              ? `${video.status_label}: ${JOB_NAMES[job.kind]}`
+              ? `${video.status_label}: ${JOB_NAMES[job.kind]}${job.scene_id !== null ? " (1 cảnh)" : ""}`
               : job.kind === "render"
                 ? "Đang render video…"
                 : job.kind === "image"
@@ -444,6 +447,7 @@ export default function VideoPage() {
                 <SceneCard
                   scene={video.title_scene}
                   label="Cảnh tiêu đề"
+                  generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(0)}
                   expanded={expanded[video.title_scene.id] ?? true}
@@ -458,6 +462,7 @@ export default function VideoPage() {
                   key={scene.id}
                   scene={scene}
                   label={`Cảnh ${index + 1}`}
+                  generating={job?.kind === "image" && job.scene_id === scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
                   expanded={expanded[scene.id] ?? true}

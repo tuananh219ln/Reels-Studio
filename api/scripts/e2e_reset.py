@@ -70,6 +70,8 @@ def main() -> int:
                 must_change_password=False,
             )
         )
+        # "Tự tìm ảnh" off: most E2E tests start from scenes without photos; the one about it turns it on.
+        db.add(AppSetting(key="auto_photos", value=False))
         db.add(
             KnowledgeTopic(
                 name="Sức khỏe",

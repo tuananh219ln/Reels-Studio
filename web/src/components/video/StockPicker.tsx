@@ -1,18 +1,31 @@
 "use client";
 
 import { SearchOutlined } from "@ant-design/icons";
-import { Alert, Empty, Flex, Input, Modal, Segmented, Spin, Typography } from "antd";
+import { Alert, Checkbox, Empty, Flex, Input, Modal, Segmented, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage, type ClipHit, type PixabayHit, type StockSource, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 
 const MAX_KEYWORDS = 10;
 
+/** The picker's filters: the photo's shape (tall by default) and whether photos the video already shows are hidden. */
+type Filters = { orientation: "vertical" | "square" | "all"; hideUsed: boolean };
+
+const ORIENTATIONS = [
+  { label: "Dọc", value: "vertical" },
+  { label: "Vuông", value: "square" },
+  { label: "Tất cả", value: "all" },
+];
+
 /** One source search; the callers own the state, this only carries the request. */
-function fetchHits(sceneId: number, text: string, sourceId: string) {
-  return api<{ keyword: string; source: string; hits: PixabayHit[] }>(
-    `/scenes/${sceneId}/stock?q=${encodeURIComponent(text)}&source=${sourceId}`,
-  );
+function fetchHits(sceneId: number, text: string, sourceId: string, filters: Filters) {
+  const params = new URLSearchParams({
+    q: text,
+    source: sourceId,
+    orientation: filters.orientation,
+    hide_used: String(filters.hideUsed),
+  });
+  return api<{ keyword: string; source: string; hits: PixabayHit[] }>(`/scenes/${sceneId}/stock?${params.toString()}`);
 }
 
 /** The scene's keywords with the one a photo was just chosen with put first, so "Tìm ảnh khác" starts from it. */
@@ -68,24 +81,28 @@ export default function StockPicker({
   const [choosing, setChoosing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [kind, setKind] = useState<"photo" | "clip">("photo");
+  const [filters, setFilters] = useState<Filters>({ orientation: "vertical", hideUsed: true });
+  // The orientation the shown results were found with: the choice is checked against the same search.
+  const [searchedOrientation, setSearchedOrientation] = useState<Filters["orientation"]>("vertical");
   // Only the latest search may fill the grid, whatever order the answers arrive in.
   const latest = useRef(0);
   // True while the picker is mounted: an answer that arrives after it closed changes nothing.
   const open = useRef(false);
 
-  function search(text: string, sourceId: string) {
+  function search(text: string, sourceId: string, using: Filters = filters) {
     setLoading(true);
     setError(null);
-    void load(++latest.current, text, sourceId);
+    void load(++latest.current, text, sourceId, using);
   }
 
-  async function load(request: number, text: string, sourceId: string) {
+  async function load(request: number, text: string, sourceId: string, using: Filters = filters) {
     try {
-      const result = await fetchHits(sceneId, text, sourceId);
+      const result = await fetchHits(sceneId, text, sourceId, using);
       if (request === latest.current) {
         setHits(result.hits);
         setSearchedFor(result.keyword);
         setSearchedSource(result.source);
+        setSearchedOrientation(using.orientation);
       }
     } catch (err) {
       if (request === latest.current) {
@@ -133,6 +150,18 @@ export default function StockPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per opening, see above
   }, [keywords, keywordsEn, sceneId]);
 
+  /** A filter changed: the shown keyword is searched again with it. */
+  function changeFilters(next: Filters) {
+    setFilters(next);
+    if (query.trim()) {
+      search(query, source, next);
+    }
+  }
+
+  const chips = Array.from(
+    new Set(source === "openverse" ? [...keywords, ...keywordsEn] : [...keywordsEn, ...keywords]),
+  ).filter((keyword) => keyword.trim());
+
   function switchSource(next: string) {
     setSource(next);
     // An untouched box still holds the previous source's opening keyword: swap it for the new
@@ -155,6 +184,7 @@ export default function StockPicker({
         source: searchedSource,
         keyword: searchedFor,
         url: hit.url,
+        orientation: searchedOrientation,
       });
       editor.onSaved(saved);
       // Keep the keyword that found the photo at the head of the list its source reads, so the
@@ -226,8 +256,44 @@ export default function StockPicker({
             onSearch={(text) => search(text, source)}
             loading={loading}
             disabled={choosing !== null}
-            style={{ marginBottom: 12 }}
+            style={{ marginBottom: 8 }}
           />
+          {/* The scene's keywords, in the source's language first: one tap searches it. */}
+          {chips.length > 0 && (
+            <Flex wrap gap={6} style={{ marginBottom: 8 }} data-testid="keyword-chips">
+              {chips.map((keyword) => (
+                <Tag.CheckableTag
+                  key={keyword}
+                  checked={keyword === query}
+                  onChange={() => {
+                    if (choosing === null) {
+                      setQuery(keyword);
+                      search(keyword, source);
+                    }
+                  }}
+                >
+                  {keyword}
+                </Tag.CheckableTag>
+              ))}
+            </Flex>
+          )}
+          <Flex wrap gap={12} align="center" style={{ marginBottom: 12 }}>
+            <Segmented
+              aria-label="Hướng ảnh"
+              size="small"
+              value={filters.orientation}
+              options={ORIENTATIONS}
+              disabled={choosing !== null}
+              onChange={(value) => changeFilters({ ...filters, orientation: value as Filters["orientation"] })}
+            />
+            <Checkbox
+              checked={filters.hideUsed}
+              disabled={choosing !== null}
+              onChange={(event) => changeFilters({ ...filters, hideUsed: event.target.checked })}
+            >
+              Ẩn ảnh đã dùng trong video này
+            </Checkbox>
+          </Flex>
           {error && (
             <Alert type="error" showIcon title={error} style={{ marginBottom: 12 }} data-testid="picker-error" />
           )}

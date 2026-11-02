@@ -51,6 +51,7 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
         "titles": [f"{n} MÓN TỐT CHO {topic.upper()}"[:60] for n in (5, 6, 7, 4, 3)],
         "title_keywords": ["món ăn giàu canxi"],
         "title_keywords_en": ["calcium rich food"],
+        "title_image_prompt": "Calcium-rich Vietnamese dishes on one wooden table, top-down view",
         "title_voice": "Mời bạn xem đến cuối nhé",
         "scenes": [
             {
@@ -59,7 +60,7 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
                 "voice": f"{food} giàu canxi",
                 "keywords": [food.lower(), "món ăn"],
                 "keywords_en": [english, "food"] if english else [],
-                "image_prompt": f"{food} trên bàn gỗ, ánh sáng tự nhiên",
+                "image_prompt": f"A plate of {english or food} on a wooden table, close-up",
             }
             for food, english in foods[:scene_count]
         ],
@@ -81,7 +82,11 @@ class FakeServices:
         # The OpenAI-compatible chat shares claude_replies and claude_prompts; these record what only it sees.
         self.chat_requests: list[dict] = []  # {"model", "authorization"}
         self.chat_finish_reason = "stop"
-        self.pixabay_mode = "ok"  # ok | empty | error500 | hang
+        self.pixabay_mode = "ok"  # ok | empty | error500 | hang | rate_limit | cloudflare_block
+        # name -> (imageWidth, imageHeight) of the original, sent with that result; others carry no size.
+        self.pixabay_sizes: dict[str, tuple[int, int]] = {}
+        # (source, query parameters) of every photo search, to check the filters each source was asked for.
+        self.stock_searches: list[tuple[str, dict]] = []
         self.pixabay_results: dict[str, list[str]] = {}
         self.pixabay_queries: list[str] = []
         self.pexels_mode = "ok"  # ok | error500
@@ -149,7 +154,8 @@ class FakeServices:
             "ELEVENLABS_API_URL": self.url,
             "IMAGE_GEN_API_KEY": IMAGE_GEN_KEY,
             "IMAGE_GEN_API_URL": f"{self.url}/gemini",
-            # IMAGE_GEN_PROVIDER is left unset: Gemini stays the default; Cloudflare tests set it themselves.
+            # IMAGE_GEN_PROVIDER is left unset: both providers are set up, so Cloudflare is the default
+            # (image_providers.default); the Gemini tests set it themselves.
             "IMAGE_GEN_CF_API_URL": f"{self.url}/cloudflare/client/v4",
             "IMAGE_GEN_CF_ACCOUNT_ID": "test-account",
             "IMAGE_GEN_CF_API_KEY": IMAGE_GEN_CF_KEY,
@@ -313,6 +319,12 @@ class FakeServices:
         keyword = query.get("q", "")
         with self.lock:
             self.pixabay_queries.append(keyword)
+            self.stock_searches.append(("pixabay", {k: v for k, v in query.items() if k != "key"}))
+        if self.pixabay_mode == "cloudflare_block":
+            # Cloudflare's bot check in front of Pixabay: an HTML page, whatever the key.
+            return 429, b"<!DOCTYPE html><html><head><title>Just a moment...</title></head><body></body></html>"
+        if self.pixabay_mode == "rate_limit":
+            return 429, "API rate limit exceeded"
         if query.get("key") != PIXABAY_KEY:
             return 400, "[ERROR 400] Invalid or missing API key (https://pixabay.com/api/docs/)."
         if self.pixabay_mode == "error500":
@@ -327,6 +339,11 @@ class FakeServices:
             ]
         hits = [
             {"id": n, "largeImageURL": self.image_url(name), "previewURL": self.image_url(name)}
+            | (
+                {"imageWidth": self.pixabay_sizes[name][0], "imageHeight": self.pixabay_sizes[name][1]}
+                if name in self.pixabay_sizes
+                else {}
+            )
             for n, name in enumerate(names)
         ]
         return 200, {"total": len(hits), "totalHits": len(hits), "hits": hits}
@@ -335,6 +352,7 @@ class FakeServices:
         keyword = query.get("query", "")
         with self.lock:
             self.pexels_queries.append(keyword)
+            self.stock_searches.append(("pexels", dict(query)))
         if key != PEXELS_KEY:
             return 401, {"error": "Invalid API key"}
         if self.pexels_mode == "error500":
@@ -371,6 +389,7 @@ class FakeServices:
         with self.lock:
             self.openverse_queries.append(keyword)
             self.openverse_authorized.append(authorized)
+            self.stock_searches.append(("openverse", dict(query)))
         if self.openverse_mode == "error500":
             return 500, {"detail": "server error"}
         entries = self.openverse_results.get(keyword)

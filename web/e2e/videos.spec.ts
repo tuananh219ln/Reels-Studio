@@ -602,13 +602,105 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho ảnh" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
-  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  // The photo this scene already shows is hidden ("Ẩn ảnh đã dùng trong video này" is on by default).
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(2);
   for (const hit of await picker.getByTestId("stock-hit").all()) {
     await expect.poll(async () => (await hit.boundingBox())?.width).toBeGreaterThanOrEqual(140);
     const place = await hit.boundingBox();
     expect((place?.x ?? 0) + (place?.width ?? 0)).toBeLessThanOrEqual(390);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+});
+
+// A 1×1 PNG, as Google Ảnh's thumbnails arrive: a data: address rather than a file.
+const PNG_DATA_URL =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+test("photos from other sites: paste a photo or its link, drag one from another tab, open Google Ảnh", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho người lớn tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  const scenes = page.getByTestId("scene");
+
+  // "Tìm trên Google" opens Google Ảnh on the scene's first keyword, tall photos only.
+  await page.context().route("https://www.google.com/**", (route) => route.fulfill({ body: "Google Ảnh" }));
+  const opened = page.waitForEvent("popup");
+  await scenes.nth(0).getByRole("button", { name: "Tìm trên Google" }).click();
+  const google = new URL((await opened).url());
+  expect(google.pathname).toBe("/search");
+  expect(google.searchParams.get("q")).toBeTruthy();
+  expect(google.searchParams.get("udm")).toBe("2");
+  expect(google.searchParams.get("tbs")).toBe("iar:t");
+
+  // "Dán ảnh/link" without clipboard permission opens a box; a copied thumbnail's data: address is uploaded.
+  await scenes.nth(0).getByRole("button", { name: "Dán ảnh/link" }).click();
+  let paste = page.getByRole("dialog", { name: /Dán ảnh cho/ });
+  await paste.getByLabel("Link ảnh").fill(PNG_DATA_URL);
+  const uploaded = page.waitForRequest((request) => request.method() === "POST" && /\/image$/.test(request.url()));
+  await paste.getByRole("button", { name: "Lấy ảnh" }).click();
+  await uploaded;
+  await expect(scenes.nth(0).getByTestId("scene-preview")).toBeVisible();
+
+  // A link is fetched by the api, which only reaches the public internet: this machine's address is refused.
+  await scenes.nth(1).getByRole("button", { name: "Dán ảnh/link" }).click();
+  paste = page.getByRole("dialog", { name: /Dán ảnh cho/ });
+  await paste.getByLabel("Link ảnh").fill("http://127.0.0.1:9/anh.jpg");
+  await paste.getByRole("button", { name: "Lấy ảnh" }).click();
+  await expect(scenes.nth(1).getByTestId("image-error")).toContainText("địa chỉ nội bộ");
+
+  // A photo dragged from another tab arrives as its <img>, not as a file.
+  const transfer = await page.evaluateHandle((src) => {
+    const data = new DataTransfer();
+    data.setData("text/html", `<img src="${src}" alt="">`);
+    return data;
+  }, PNG_DATA_URL);
+  await scenes.nth(2).getByTestId("scene-dropzone").dispatchEvent("drop", { dataTransfer: transfer });
+  await expect(scenes.nth(2).getByTestId("scene-preview")).toBeVisible();
+});
+
+test("picker filters: keyword chips, photo shape, and photos already in the video", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho người lớn tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  const scenes = page.getByTestId("scene");
+
+  // The first scene takes the first result; the second scene's picker, on the same keyword, no longer offers it.
+  await scenes.nth(0).getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  const taken = await picker.getByTestId("stock-hit").first().locator("img").getAttribute("src");
+  await picker.getByTestId("stock-hit").first().click();
+  await expect(picker).toBeHidden();
+
+  await scenes.nth(1).getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  // The scene's own keywords are one tap away; the first scene's keyword finds the photo already taken.
+  await expect(picker.getByTestId("keyword-chips")).toContainText("yogurt");
+  await picker.getByLabel("Từ khóa tìm ảnh").fill("small fried fish");
+  await picker.getByLabel("Từ khóa tìm ảnh").press("Enter");
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(2);
+  await expect(picker.locator(`img[src="${taken}"]`)).toHaveCount(0);
+  await picker.getByText("Ẩn ảnh đã dùng trong video này").click();
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+
+  // Another shape searches again with it.
+  const square = page.waitForRequest((request) => /\/stock\?.*orientation=square/.test(request.url()));
+  await picker.getByLabel("Hướng ảnh").getByText("Vuông").click();
+  await square;
+  const chip = page.waitForRequest((request) => /\/stock\?q=yogurt&/.test(request.url()));
+  await picker.getByTestId("keyword-chips").getByText("yogurt", { exact: true }).click();
+  await chip;
+  await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("yogurt");
 });
 
 test("photos from Pexels and Openverse: switch sources inside the picker", async ({ page }) => {
@@ -679,6 +771,112 @@ test("AI photos fill the scenes that have none, then the video can render", asyn
   // Every scene has a photo now: the button is gone and Render is unblocked.
   await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
+});
+
+test("an AI photo for one scene, then a new one in its place", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho xương khớp");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  const scenes = page.getByTestId("scene");
+
+  // Only the chosen scene gets a photo; the others stay empty.
+  await scenes.nth(1).getByRole("button", { name: "Tạo ảnh AI" }).click();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+  const preview = scenes.nth(1).getByTestId("scene-preview");
+  await expect(preview).toBeVisible({ timeout: 30_000 });
+  await expect(scenes.nth(0).getByTestId("scene-preview")).toHaveCount(0);
+  await expect(scenes.nth(2).getByTestId("scene-preview")).toHaveCount(0);
+
+  // An AI photo can be made again, after a confirmation, and replaces the one shown.
+  const first = await preview.getAttribute("src");
+  await scenes.nth(1).getByRole("button", { name: "Tạo lại ảnh AI" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Đổi" }).click();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+  await expect(preview).not.toHaveAttribute("src", first ?? "", { timeout: 30_000 });
+});
+
+test("AI image provider: the team default on Nguồn tư liệu, another one for a single press", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await page.goto("/settings/sources");
+  // The starting default depends on the server's .env (IMAGE_GEN_PROVIDER); choosing one here wins over it.
+  const choice = page.getByTestId("ai-provider");
+  await choice.getByLabel("Nguồn ảnh AI mặc định").getByText("Cloudflare (miễn phí)").click();
+  await expect(choice.locator(".ant-segmented-item-selected")).toHaveText("Cloudflare (miễn phí)");
+  await choice.getByLabel("Nguồn ảnh AI mặc định").getByText("Gemini (tốn phí)").click();
+  await expect(choice.locator(".ant-segmented-item-selected")).toHaveText("Gemini (tốn phí)");
+  // The shared style every AI prompt ends with: edited here, kept after a reload, back to the default on request.
+  const style = choice.getByLabel("Phong cách ảnh AI");
+  await expect(style).toHaveValue(/no text/);
+  await style.fill("watercolor illustration, pastel colours");
+  await choice.getByRole("button", { name: "Lưu phong cách" }).click();
+  await page.reload();
+  await expect(page.getByTestId("ai-provider").getByLabel("Phong cách ảnh AI")).toHaveValue(
+    "watercolor illustration, pastel colours",
+  );
+  await page.getByTestId("ai-provider").getByRole("button", { name: "Dùng mặc định" }).click();
+  await expect(page.getByTestId("ai-provider").getByLabel("Phong cách ảnh AI")).toHaveValue(/no text/);
+
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho xương khớp");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+
+  // The script writes an English AI prompt for the title scene too.
+  await expect(page.getByTestId("title-scene").getByLabel("Prompt ảnh AI")).toHaveValue(/Calcium-rich/);
+
+  // One scene with Cloudflare, picked from the arrow; then the rest with the team's default (Gemini).
+  await page.getByTestId("scene").nth(0).getByRole("button", { name: "Chọn nguồn ảnh AI" }).click();
+  await page.getByRole("menuitem", { name: /Tạo bằng Cloudflare/ }).click();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+  await expect(page.getByTestId("scene").nth(0).getByTestId("scene-preview")).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" }).click();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+  await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0, { timeout: 30_000 });
+
+  // The job log names the provider each image job used.
+  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await expect(page.getByRole("row", { name: /Tạo ảnh AI \(1 cảnh\).*Cloudflare/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /Tạo ảnh AI(?! \(1 cảnh\)).*Gemini/ })).toBeVisible();
+});
+
+test("Tự tìm ảnh: after the script every scene gets a stock photo marked to check", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  // Off for the other E2E tests (api/scripts/e2e_reset.py); on by default for a real team.
+  await page.goto("/settings/sources");
+  const auto = page.getByRole("switch", { name: "Tự tìm ảnh sau khi viết kịch bản" });
+  await expect(auto).not.toBeChecked();
+  await auto.click();
+  await expect(auto).toBeChecked();
+
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho xương khớp");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
+
+  // The photo search runs as its own job after the script; every scene, the title included, gets a photo.
+  await expect(page.getByTestId("image-auto")).toHaveCount(6, { timeout: 120_000 });
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.getByTestId("scene-preview")).toHaveCount(6);
+  await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
+
+  // A member keeps a pick, or replaces it: either way its mark goes.
+  await page.getByTestId("scene").nth(0).getByRole("button", { name: "Giữ ảnh này" }).click();
+  await expect(page.getByTestId("image-auto")).toHaveCount(5);
+  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Tìm ảnh khác" }).click();
+  await expect(page.getByTestId("image-auto")).toHaveCount(4);
+
+  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await expect(page.getByRole("row", { name: /Tự tìm ảnh/ })).toBeVisible();
 });
 
 test("add and remove music", async ({ page }) => {

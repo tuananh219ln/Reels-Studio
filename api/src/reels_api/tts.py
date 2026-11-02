@@ -6,9 +6,14 @@ narration whose text, voice or model changed.
 
 import hashlib
 import json
+import tempfile
 import time
 import urllib.error
 import urllib.request
+from pathlib import Path
+
+from reels_render.errors import RenderError
+from reels_render.ffmpeg import find_tools, run
 
 from . import config
 
@@ -29,16 +34,18 @@ def spoken_text(voice_text: str) -> str:
     return " ".join(voice_text.split())
 
 
-# ElevenLabs voice_settings.speed for each speed preset (video_options.SPEEDS).
+# Tempo applied with FFmpeg to the MP3 ElevenLabs returns, for each speed preset (video_options.SPEEDS).
+# ElevenLabs' own voice_settings.speed is not used: the default model, eleven_v3, ignores it.
 SPEEDS = {"slow": 0.9, "normal": 1.0, "fast": 1.1}
 
 
 def voice_signature(voice_text: str, voice_id: str | None = None, speed: str = "normal") -> str:
     """What one narration MP3 is made from. The speed joins only when it is not the normal one, so narration
-    made before speeds existed stays valid."""
+    made before speeds existed stays valid; it joins as "tempo:<speed>", so narration made while the speed was
+    left to ElevenLabs (and ignored by eleven_v3) is made again."""
     data = [voice_id or config.voice_id(), config.voice_model(), spoken_text(voice_text)]
     if speed != "normal":
-        data.append(speed)
+        data.append(f"tempo:{speed}")
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -46,15 +53,14 @@ NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › Ngu�
 
 
 def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: str = "normal") -> bytes:
-    """The narration as MP3 bytes, in the given voice (the server's default when None) and speed. `key` is the
+    """The narration as MP3 bytes, in the given voice (the server's default when None) and speed (applied here
+    with FFmpeg, see SPEEDS). `key` is the
     ElevenLabs key in use (source_keys: pasted on Cài đặt › Nguồn tư liệu, else the .env one)."""
     if not key:
         raise TtsError(NO_KEY.format("không tạo được lời đọc"))
     voice = voice_id or config.voice_id()
     url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{voice}?output_format=mp3_44100_128"
-    payload: dict = {"text": spoken_text(voice_text), "model_id": config.voice_model(), "language_code": "vi"}
-    if speed != "normal":
-        payload["voice_settings"] = {"speed": SPEEDS[speed]}
+    payload = {"text": spoken_text(voice_text), "model_id": config.voice_model(), "language_code": "vi"}
     body = json.dumps(payload).encode()
     request = urllib.request.Request(
         url,
@@ -76,7 +82,38 @@ def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: st
         raise TtsError("Không kết nối được ElevenLabs, kiểm tra mạng rồi thử lại", str(err)) from None
     if not data or len(data) > MAX_AUDIO_BYTES:
         raise TtsError("ElevenLabs trả file lời đọc không dùng được, thử lại sau", f"{len(data)} bytes")
-    return data
+    return change_speed(data, speed)
+
+
+def change_speed(data: bytes, speed: str) -> bytes:
+    """The MP3 sped up or slowed down to the preset, keeping the pitch (FFmpeg atempo); unchanged when normal."""
+    if speed == "normal":
+        return data
+    with tempfile.TemporaryDirectory() as folder:
+        source, output = Path(folder) / "voice.mp3", Path(folder) / "voice-tempo.mp3"
+        source.write_bytes(data)
+        try:
+            run(
+                [
+                    find_tools().ffmpeg,
+                    "-v",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-filter:a",
+                    f"atempo={SPEEDS[speed]}",
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    "128k",
+                    str(output),
+                ],
+                "FFmpeg không đổi được tốc độ lời đọc",
+            )
+        except RenderError as err:
+            raise TtsError("Không đổi được tốc độ lời đọc, thử lại sau", str(err)) from None
+        return output.read_bytes()
 
 
 def _http_error(status: int, body: str) -> TtsError:

@@ -3,10 +3,11 @@
 import pytest
 from conftest import first_topic, login, make_user, make_video
 from fake_services import ELEVENLABS_KEY
-from test_voice import first_scene, needs_ffmpeg, render, voiced  # noqa: F401  (fixture)
+from test_voice import TEN_WORDS, first_scene, needs_ffmpeg, render, voiced  # noqa: F401  (fixture)
 from worker_helpers import committed  # noqa: F401  (fixture)
 
 from reels_api import config, video_options
+from reels_api.jobs import make_voices
 from reels_api.models import Video
 from reels_api.videos import render_signature, split_scenes
 
@@ -190,7 +191,8 @@ def test_the_chosen_voice_and_speed_make_the_narration_and_a_change_remakes_it(c
     job = render(committed, storage, video_id, user.id)
     assert job.status == "done", (job.error, job.error_detail)
     (request,) = fakes.tts_requests
-    assert (request["voice_id"], request["speed"]) == ("fake-voice-mai", 1.1)
+    # The speed is applied to the returned MP3 (see the reading-speed test), not asked of ElevenLabs.
+    assert request["voice_id"] == "fake-voice-mai" and "speed" not in request
 
     # The same voice and speed: reused. Another speed: made again.
     assert render(committed, storage, video_id, user.id).status == "done"
@@ -201,6 +203,28 @@ def test_the_chosen_voice_and_speed_make_the_narration_and_a_change_remakes_it(c
         db.commit()
     assert render(committed, storage, video_id, user.id).status == "done"
     assert len(fakes.tts_requests) == 2 and "speed" not in fakes.tts_requests[1]
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize(("speed", "factor"), [("slow", 0.9), ("fast", 1.1)])
+def test_the_reading_speed_changes_the_narration_length_even_when_the_model_ignores_it(
+    db, me, storage, fakes, speed, factor
+):
+    # The default model (eleven_v3) ignores ElevenLabs' own speed setting, and so does the fake: the speed has to
+    # be applied to the MP3 ElevenLabs returns.
+    video = make_video(db, storage, me)
+    scene = first_scene(db, video)
+    scene.voice_text = TEN_WORDS
+    video.options = dict(video_options.DEFAULTS)
+    db.commit()
+    make_voices(db, video, split_scenes(db, video)[1], storage)
+    normal = scene.voice_seconds
+
+    video.options = video_options.DEFAULTS | {"voice_speed": speed}
+    db.commit()
+    make_voices(db, video, split_scenes(db, video)[1], storage)
+    assert scene.voice_seconds == pytest.approx(normal / factor, rel=0.03)
+    assert all("speed" not in request for request in fakes.tts_requests)
 
 
 def test_custom_colours_redraw_the_previews_and_render_as_chosen(an, db, me, storage):

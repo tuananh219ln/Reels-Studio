@@ -56,7 +56,19 @@ def load(factory, video_id):
 # --- Script jobs ---
 
 
-def test_script_job_writes_the_script_and_leaves_the_photos_to_members(committed, services, start_worker):
+def photos_job_done(factory, video_id) -> Job:
+    """The "Tự tìm ảnh" job the script job queues, once it has run."""
+
+    def finished():
+        with factory() as db:
+            job = db.scalar(select(Job).where(Job.video_id == video_id, Job.kind == "photos"))
+            return job if job is not None and job.status in ("done", "failed") else None
+
+    wait_until(finished, message="the photo search after the script")
+    return finished()
+
+
+def test_script_job_writes_the_script_then_a_photo_search_fills_the_scenes(committed, services, start_worker):
     user = add_user(committed)
     video_id = new_video(committed, user)
     job_id = add_job(committed, video_id, user.id)
@@ -72,11 +84,13 @@ def test_script_job_writes_the_script_and_leaves_the_photos_to_members(committed
     assert 5 <= len(content) <= 7 and all(scene.keywords for scene in content)
     assert video.caption and len(video.hashtags) == 5 and len(video.affiliates) == 2 and video.pinned_comment
     assert video.self_review and video.music_suggestions
-    assert not any(scene.image_key for scene in scenes) and services.pixabay_queries == []
-    assert video.thumbnail_key is None
     assert "Chủ đề: xương khớp sau 50 tuổi" in services.claude_prompts[0]
     assert "chữa khỏi" in services.claude_prompts[0]
     assert "input_tokens=" in worker.output() and "output_tokens=" in worker.output()
+    # The script job picks no photo itself; the "Tự tìm ảnh" job queued after it does, marked for a member to check.
+    assert photos_job_done(committed, video_id).status == "done"
+    video, scenes = load(committed, video_id)
+    assert all(scene.image_key and scene.image_auto for scene in scenes) and video.thumbnail_key
 
 
 def test_edited_prompt_without_placeholder_gets_the_topic_appended(committed, services, start_worker):
@@ -138,6 +152,7 @@ def test_a_retry_after_the_script_was_saved_keeps_the_edits_and_calls_claude_onc
     job_id = add_job(committed, video_id, user.id)
     worker = start_worker()
     assert wait_for_status(committed, job_id).status == "done"
+    photos_job_done(committed, video_id)  # one active job per video: the retry waits for the photo search
     _, scenes = load(committed, video_id)
     with committed() as db:
         db.get(Scene, scenes[1].id).text = "Chữ đã sửa tay"

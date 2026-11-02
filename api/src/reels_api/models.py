@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
     func,
     text,
 )
@@ -133,6 +134,8 @@ class Scene(Base):
     # "upload" or the Pixabay URL the image came from: "Tìm lại ảnh" must pick a different one.
     image_source: Mapped[str | None] = mapped_column(Text)
     image_error: Mapped[str | None] = mapped_column(Text)
+    # Picked by the app after the script ("Tự tìm ảnh"): shown as "Tự chọn, kiểm tra lại" until the photo changes.
+    image_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     voice_text: Mapped[str] = mapped_column(Text, default="")
     # The last narration MP3 made for this scene and the tts.voice_signature it was made from: it is reused
     # while the signature still matches, so a re-render does not pay ElevenLabs again.
@@ -166,6 +169,10 @@ class Job(Base):
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     retry_of_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))
+    # An image job for one scene ("Tạo ảnh AI" on its card); None: every scene without a photo or clip.
+    scene_id: Mapped[int | None] = mapped_column(Integer)
+    # The AI image provider of an image job ("cloudflare" | "gemini"), fixed when it is queued.
+    image_provider: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

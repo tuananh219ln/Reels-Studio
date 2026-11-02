@@ -8,6 +8,7 @@ const COLORS: Record<VideoRow["status"], string> = {
   queued: "blue",
   writing: "processing",
   imaging: "processing",
+  finding: "processing",
   rendering: "processing",
   publishing: "processing",
   done: "success",

@@ -1,6 +1,6 @@
 "use client";
 
-import { App, Button, Card, Flex, Input, Popconfirm, Space, Switch, Tag, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Space, Switch, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 
@@ -17,6 +17,12 @@ type AiImages = { configured: boolean; model: string; key: Key };
 type Sources = {
   sources: Source[];
   ai_provider?: "gemini" | "cloudflare";
+  /** The default was chosen on this page (not worked out from what is set up). */
+  ai_provider_saved?: boolean;
+  /** The style added to every AI photo prompt; `custom`: edited here rather than the default. */
+  ai_style?: { value: string; default: string; custom: boolean };
+  /** "Tự tìm ảnh sau khi viết kịch bản": a stock photo for every scene once the script is written. */
+  auto_photos?: boolean;
   ai_images: AiImages;
   ai_images_cloudflare?: AiImages & { account_id_set: boolean };
   voices?: { configured: boolean; key: Key };
@@ -133,10 +139,13 @@ export default function SourcesPage() {
   const { message } = App.useApp();
   const [data, setData] = useState<Sources | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [style, setStyle] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setData(await api<Sources>("/settings/sources"));
+      const loaded = await api<Sources>("/settings/sources");
+      setData(loaded);
+      setStyle(loaded.ai_style?.value ?? null);
     } catch (err) {
       message.error(errorMessage(err));
     }
@@ -146,6 +155,43 @@ export default function SourcesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
   }, [load]);
+
+  async function chooseProvider(provider: "gemini" | "cloudflare") {
+    setBusy("ai-provider");
+    try {
+      setData(await api<Sources>("/settings/image-provider", "PUT", { provider }));
+      message.success(`Nguồn ảnh AI mặc định: ${provider === "cloudflare" ? "Cloudflare" : "Gemini"}`);
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function setAutoPhotos(enabled: boolean) {
+    setBusy("auto-photos");
+    try {
+      setData(await api<Sources>("/settings/auto-photos", "PUT", { enabled }));
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function saveStyle(style: string | null) {
+    setBusy("ai-style");
+    try {
+      const saved = await api<Sources>("/settings/image-style", "PUT", { style });
+      setData(saved);
+      setStyle(saved.ai_style?.value ?? "");
+      message.success(style === null ? "Đã dùng lại phong cách mặc định" : "Đã lưu phong cách ảnh AI");
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function toggle(source: Source, enabled: boolean) {
     setBusy(source.id);
@@ -165,6 +211,27 @@ export default function SourcesPage() {
         key giọng đọc. Tắt một nguồn thì nó biến khỏi hộp chọn của cả nhóm.
       </Typography.Paragraph>
       <Flex vertical gap={16} style={{ maxWidth: 900 }}>
+        {data?.auto_photos !== undefined && (
+          <Card size="small" data-testid="auto-photos">
+            <Flex vertical gap={4}>
+              <Flex gap={8} align="center">
+                <Switch
+                  aria-label="Tự tìm ảnh sau khi viết kịch bản"
+                  checked={data.auto_photos}
+                  loading={busy === "auto-photos"}
+                  disabled={busy !== null}
+                  onChange={(checked) => void setAutoPhotos(checked)}
+                />
+                <Typography.Text strong>Tự tìm ảnh sau khi viết kịch bản</Typography.Text>
+              </Flex>
+              <Typography.Text type="secondary">
+                Viết kịch bản xong, app lấy cho mỗi cảnh một ảnh dọc từ các kho miễn phí đang bật bên dưới (không dùng
+                ảnh AI, không trùng ảnh giữa các cảnh). Ảnh tự chọn có nhãn “Tự chọn, kiểm tra lại” để bạn xem và thay
+                nếu sai món.
+              </Typography.Text>
+            </Flex>
+          </Card>
+        )}
         {(data?.sources ?? []).map((source) => (
           <Card
             key={source.id}
@@ -198,15 +265,68 @@ export default function SourcesPage() {
             </Flex>
           </Card>
         ))}
+        {data?.ai_provider && (
+          <Card size="small" data-testid="ai-provider" title="Ảnh AI">
+            <Flex vertical gap={8}>
+              <Segmented
+                aria-label="Nguồn ảnh AI mặc định"
+                value={data.ai_provider}
+                disabled={busy !== null}
+                onChange={(value) => void chooseProvider(value as "gemini" | "cloudflare")}
+                options={[
+                  { label: "Cloudflare (miễn phí)", value: "cloudflare" },
+                  { label: "Gemini (tốn phí)", value: "gemini" },
+                ]}
+                style={{ alignSelf: "flex-start" }}
+              />
+              <Typography.Text type="secondary">
+                Các nút “Tạo ảnh AI” dùng nguồn này. Muốn dùng nguồn kia cho một lần bấm, chọn ở mũi tên cạnh nút. Hết
+                lượt Cloudflare trong ngày thì app báo lỗi chứ không tự chuyển sang Gemini (tốn phí).
+                {!data.ai_provider_saved && " Chưa chọn: app dùng Cloudflare nếu đã có token, không thì dùng Gemini."}
+              </Typography.Text>
+              {data.ai_style && style !== null && (
+                <Flex vertical gap={8} style={{ marginTop: 8 }}>
+                  <Typography.Text strong>Phong cách ảnh AI</Typography.Text>
+                  <Input.TextArea
+                    aria-label="Phong cách ảnh AI"
+                    value={style}
+                    autoSize={{ minRows: 2, maxRows: 5 }}
+                    maxLength={500}
+                    onChange={(event) => setStyle(event.target.value)}
+                  />
+                  <Typography.Text type="secondary">
+                    Thêm vào sau prompt của mọi cảnh khi tạo ảnh AI, để các cảnh cùng một kiểu (nên viết tiếng Anh). Để
+                    trống thì chỉ dùng prompt của cảnh.
+                  </Typography.Text>
+                  <Space>
+                    <Button
+                      type="primary"
+                      loading={busy === "ai-style"}
+                      disabled={busy !== null || style.trim() === data.ai_style.value}
+                      onClick={() => void saveStyle(style)}
+                    >
+                      Lưu phong cách
+                    </Button>
+                    {data.ai_style.custom && (
+                      <Button disabled={busy !== null} onClick={() => void saveStyle(null)}>
+                        Dùng mặc định
+                      </Button>
+                    )}
+                  </Space>
+                </Flex>
+              )}
+            </Flex>
+          </Card>
+        )}
         {data && (
           <Card
             size="small"
             data-testid="source-gemini"
             title={
               <Flex wrap gap={8} align="center">
-                <span>Ảnh AI cho cảnh thiếu (Gemini)</span>
+                <span>Ảnh AI (Gemini)</span>
                 {ready(data.ai_images.configured)}
-                {data.ai_provider === "gemini" && <Tag color="processing">Đang dùng</Tag>}
+                {data.ai_provider === "gemini" && <Tag color="processing">Mặc định</Tag>}
               </Flex>
             }
           >
@@ -224,9 +344,9 @@ export default function SourcesPage() {
             data-testid="source-cloudflare"
             title={
               <Flex wrap gap={8} align="center">
-                <span>Ảnh AI cho cảnh thiếu (Cloudflare)</span>
+                <span>Ảnh AI (Cloudflare)</span>
                 {ready(data.ai_images_cloudflare.configured)}
-                {data.ai_provider === "cloudflare" && <Tag color="processing">Đang dùng</Tag>}
+                {data.ai_provider === "cloudflare" && <Tag color="processing">Mặc định</Tag>}
               </Flex>
             }
           >
@@ -267,12 +387,6 @@ export default function SourcesPage() {
               <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
             </Flex>
           </Card>
-        )}
-        {data?.ai_provider && (
-          <Typography.Text type="secondary">
-            Nguồn ảnh AI đang dùng được chọn bằng biến IMAGE_GEN_PROVIDER trong file .env của máy chủ (gemini hoặc
-            cloudflare).
-          </Typography.Text>
         )}
       </Flex>
     </>

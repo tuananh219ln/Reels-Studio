@@ -29,7 +29,8 @@ export type UserRow = {
   is_me: boolean;
 };
 
-export type VideoStatus = "draft" | "queued" | "writing" | "imaging" | "rendering" | "publishing" | "done" | "failed";
+export type VideoStatus =
+  "draft" | "queued" | "writing" | "imaging" | "finding" | "rendering" | "publishing" | "done" | "failed";
 
 export type VideoRow = {
   id: number;
@@ -46,7 +47,9 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish" | "image";
+  kind: "script" | "clone" | "render" | "publish" | "image" | "photos";
+  /** The one scene an image job makes a photo for; null for every other job. */
+  scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";
   error: string | null;
   error_detail: string | null;
@@ -72,6 +75,10 @@ export type SceneData = {
   /** The scene's seconds, lengthened to fit its narration when that is longer. */
   fitted_seconds: number;
   has_image: boolean;
+  /** The photo was made by AI (an image job), so the card offers "Tạo lại ảnh AI". */
+  image_ai: boolean;
+  /** Picked by "Tự tìm ảnh" after the script and not yet changed or kept by a member. */
+  image_auto: boolean;
   image_error: string | null;
   image_url: string | null;
   /** A clip shown instead of the photo; the scene has one or the other. */

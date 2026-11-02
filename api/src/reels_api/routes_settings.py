@@ -6,7 +6,18 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import config, crypto, llm, routes_videos, source_keys, tts, video_options
+from . import (
+    auto_photos,
+    config,
+    crypto,
+    image_providers,
+    image_style,
+    llm,
+    routes_videos,
+    source_keys,
+    tts,
+    video_options,
+)
 from .claude import ClaudeError
 from .db import get_db
 from .errors import ApiError
@@ -38,6 +49,14 @@ class DefaultsBody(BaseModel):
 
 class SourceBody(BaseModel):
     enabled: bool
+
+
+class ImageProviderBody(BaseModel):
+    provider: str
+
+
+class ImageStyleBody(BaseModel):
+    style: str | None
 
 
 class SourceKeyBody(BaseModel):
@@ -235,8 +254,14 @@ def _sources(db: DbSession) -> dict:
             }
             for source in routes_videos.STOCK_SOURCES
         ],
-        # Both AI image providers; IMAGE_GEN_PROVIDER picks the one the image job uses.
-        "ai_provider": config.image_gen_provider(),
+        # Both AI image providers; the team's default (image_providers.default) makes AI photos unless a member
+        # picks the other for one press. "ai_provider_saved": chosen on this page rather than worked out.
+        "ai_provider": image_providers.default(db),
+        "ai_provider_saved": image_providers.saved(db) is not None,
+        # The style the image job adds to every scene's prompt (image_style.py).
+        "ai_style": image_style.payload(db),
+        # "Tự tìm ảnh sau khi viết kịch bản" (auto_photos.py), on unless the team turned it off.
+        "auto_photos": auto_photos.enabled(db),
         "ai_images": {
             "configured": bool(source_keys.get(db, "gemini")),
             "model": config.image_gen_model(),
@@ -251,6 +276,44 @@ def _sources(db: DbSession) -> dict:
         # Narration (ElevenLabs): the render job and the voice picker use this key.
         "voices": {"configured": bool(source_keys.get(db, "elevenlabs")), "key": _key(db, "elevenlabs")},
     }
+
+
+@router.get("/image-providers")
+def get_image_providers(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """For the arrow beside "Tạo ảnh AI" buttons: both providers, whether each is set up, and the default."""
+    return image_providers.offered(db)
+
+
+@router.put("/image-provider")
+def set_image_provider(
+    body: ImageProviderBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The team's default AI image provider ("Nguồn ảnh AI mặc định" on Cài đặt › Nguồn tư liệu)."""
+    if body.provider not in image_providers.PROVIDERS:
+        raise invalid("Nguồn ảnh AI không hợp lệ")
+    image_providers.save(db, body.provider, me.user_id)
+    db.commit()
+    return _sources(db)
+
+
+@router.put("/auto-photos")
+def set_auto_photos(body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    auto_photos.save(db, body.enabled, me.user_id)
+    db.commit()
+    return _sources(db)
+
+
+@router.put("/image-style")
+def set_image_style(
+    body: ImageStyleBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Phong cách ảnh AI": None goes back to the default, an empty text adds nothing to the prompts."""
+    try:
+        image_style.save(db, body.style, me.user_id)
+    except image_style.ImageStyleError as err:
+        raise invalid(str(err)) from None
+    db.commit()
+    return _sources(db)
 
 
 @router.get("/sources")

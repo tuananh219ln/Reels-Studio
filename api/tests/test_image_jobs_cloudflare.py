@@ -9,7 +9,7 @@ from PIL import Image
 from test_image_jobs import build, load_scenes, run_image_job
 from worker_helpers import add_user, committed  # noqa: F401  (fixture)
 
-from reels_api import source_keys
+from reels_api import image_style, source_keys
 
 MODEL_SOURCE = "ai:@cf/black-forest-labs/flux-1-schnell"
 
@@ -29,9 +29,9 @@ def test_the_job_fills_every_missing_scene_with_a_9_16_photo(committed, fakes, s
     scenes = load_scenes(committed, video_id)
     assert all(scene.image_source == MODEL_SOURCE for scene in scenes)
     assert all(scene.image_error is None for scene in scenes)
-    # The title scene has no image prompt: its first line of text is the prompt, as with Gemini.
-    assert fakes.cf_image_gen_prompts[0] == "5 MÓN GIÚP"
-    assert fakes.cf_image_gen_prompts[1:] == [f"Ảnh món {n} trên bàn gỗ" for n in (1, 2, 3)]
+    # The title scene has no image prompt: its first line of text is the prompt, as with Gemini; the style follows.
+    assert fakes.cf_image_gen_prompts[0] == f"5 MÓN GIÚP. {image_style.DEFAULT}"
+    assert fakes.cf_image_gen_prompts[1:] == [f"Ảnh món {n} trên bàn gỗ. {image_style.DEFAULT}" for n in (1, 2, 3)]
     assert fakes.image_gen_prompts == []
     # The fake answers 1024x1024 squares: what is stored was cut to the vertical frame.
     for scene in scenes:
@@ -61,8 +61,10 @@ def test_the_daily_neurons_running_out_fails_the_job_and_keeps_the_finished_scen
 
     job = run_image_job(committed, storage, video_id, user.id)
 
-    assert job.status == "failed" and "hạn mức" in (job.error or "")
+    # Never switched to Gemini by itself (it costs money): the message says how to choose it.
+    assert job.status == "failed" and "hết lượt" in (job.error or "") and "chọn Gemini" in (job.error or "")
     assert job.image_calls == 3  # two paid for, the third hit the limit
+    assert fakes.image_gen_prompts == []
     scenes = load_scenes(committed, video_id)
     assert [bool(scene.image_key) for scene in scenes] == [True, True, False, False]
 

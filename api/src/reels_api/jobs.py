@@ -10,6 +10,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
@@ -18,7 +19,7 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import config, facebook, fanpages, knowledge, llm, source_keys
+from . import auto_photos, config, facebook, fanpages, image_providers, image_style, knowledge, llm, source_keys
 from .claude import (
     ClaudeError,
     GeneratedScript,
@@ -83,8 +84,15 @@ def run_job(
                 run_image_job(db, job, storage)
             elif job.kind == "publish":
                 run_publish_job(db, job, storage)
+            elif job.kind == "photos":
+                auto_photos.run(db, job, storage)
             else:
                 raise JobFailure(f"Loại job không hỗ trợ: {job.kind}")
+        except auto_photos.AutoPhotosFailed as err:
+            db.rollback()
+            _finish(db, job_id, "failed", str(err))
+            log.warning("Job %s failed: %s", job_id, err)
+            return
         except JobFailure as err:
             db.rollback()
             _finish(db, job_id, "failed", err.message, err.detail)
@@ -98,6 +106,19 @@ def run_job(
             return
         _finish(db, job_id, "done")
         log.info("Job %s done", job_id)
+        if job.kind in ("script", "clone"):
+            _queue_photos(db, job)
+
+
+def _queue_photos(db: DbSession, job: Job) -> None:
+    """ "Tự tìm ảnh" after a script: its own job, so a search problem never fails the script. A job a member queued
+    for the video in the meantime (one active job per video) wins, and the search is simply not queued."""
+    try:
+        auto_photos.queue_after_script(db, job)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        log.info("Job %s: another job is queued for video %s, no photo search", job.id, job.video_id)
 
 
 def _finish(db: DbSession, job_id: int, status: str, error: str | None = None, detail: str | None = None) -> None:
@@ -165,7 +186,7 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
             seconds=TITLE_SECONDS,
             keywords=script.title_keywords,
             keywords_en=script.title_keywords_en,
-            image_prompt="",
+            image_prompt=script.title_image_prompt,
             voice_text=script.title_voice,
         )
     )
@@ -400,54 +421,73 @@ def _check_publishable(db: DbSession, video: Video, post: Publication, storage: 
 
 
 def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
-    """AI photos for the scenes that have neither a photo nor a clip yet.
+    """AI photos for the scenes that have neither a photo nor a clip yet, or for the job's one scene.
 
     Every finished scene is committed at once, so a cancelled job (or a dead worker) keeps
     the photos already paid for, and pressing the button again only pays for the scenes
-    still missing one. A prompt Gemini refuses fails only its scene: the reason stays on
+    still missing one. A prompt the provider refuses fails only its scene: the reason stays on
     the scene's `image_error`, where members see it. Only a provider-wide failure (no key,
     quota) fails the job, after the scenes already done.
+
+    A job for one scene ("Tạo ảnh AI" / "Tạo lại ảnh AI" on its card) makes that scene's photo
+    whatever it has, replacing its photo or clip; any failure fails the job, and the scene keeps
+    what it had.
     """
     video = db.get(Video, job.video_id)
     title, scenes = split_scenes(db, video)
     if title is None:
         raise JobFailure("Video chưa có kịch bản đủ để tạo ảnh")
-    for index, scene in enumerate([title, *scenes]):
-        if scene.image_key or scene.video_key:
-            continue
+    ordered = [title, *scenes]
+    if job.scene_id is not None:
+        targets = [(index, scene) for index, scene in enumerate(ordered) if scene.id == job.scene_id]
+        if not targets:
+            raise JobFailure("Cảnh cần tạo ảnh không còn trong video (đã bị xoá)")
+    else:
+        targets = [(index, scene) for index, scene in enumerate(ordered) if not (scene.image_key or scene.video_key)]
+    provider = job.image_provider or image_providers.default(db)
+    style = image_style.get(db)
+    for index, scene in targets:
         label = _scene_label(scene, index)
         prompt = scene.image_prompt.strip() or (scene.text.strip().splitlines() or [""])[0].strip()
-        if not prompt:
-            scene.image_error = "Cảnh chưa có prompt ảnh, cũng chưa có chữ để tạo ảnh"
-            db.commit()
-            continue
-        # Counted before the call, like the script job counts Claude: a killed job keeps the count.
-        db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
-        db.commit()
         try:
-            provider = config.image_gen_provider()
-            data = generate_image(prompt, source_keys.get(db, provider), provider)
+            if not prompt:
+                raise ImageGenError("Cảnh chưa có prompt ảnh, cũng chưa có chữ để tạo ảnh")
+            # Counted before the call, like the script job counts Claude: a killed job keeps the count.
+            db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+            db.commit()
+            data = generate_image(image_style.styled(prompt, style), source_keys.get(db, provider), provider)
+            if len(data) > MAX_IMAGE_BYTES:
+                raise ImageGenError(
+                    f"Ảnh {image_providers.LABELS.get(provider, provider)} trả về quá 15 MB, hãy bấm tạo lại"
+                )
+            try:
+                extension = image_extension(data)
+            except UploadRejected as err:
+                raise ImageGenError(str(err)) from None
         except ImageGenError as err:
             if err.fatal:
                 raise JobFailure(err.message, err.detail) from None
+            if job.scene_id is not None:
+                # The scene keeps its photo or clip; a scene without one shows why.
+                if not (scene.image_key or scene.video_key):
+                    scene.image_error = err.message
+                    db.commit()
+                raise JobFailure(f"{label}: {err.message}", err.detail) from None
             scene.image_error = err.message
             db.commit()
             log.warning("Image job %s: %s failed: %s", job.id, label, err.message)
             continue
-        if len(data) > MAX_IMAGE_BYTES:
-            scene.image_error = "Ảnh Gemini trả về quá 15 MB, hãy bấm tạo lại"
-            db.commit()
-            continue
-        try:
-            extension = image_extension(data)
-        except UploadRejected as err:
-            scene.image_error = str(err)
-            db.commit()
-            continue
+        old = [scene.image_key, scene.video_key]
         key = new_key(video.id, f"scene-{scene.id}", extension)
         storage.save_bytes(key, data)
         scene.image_key, scene.image_source, scene.image_error = key, f"ai:{_image_model(provider)}", None
+        scene.image_auto = False
+        # A photo replaces the scene's clip: a scene shows one or the other.
+        scene.video_key, scene.video_seconds, scene.video_start = None, None, 0
         if scene.is_title:
             refresh_thumbnail(db, storage, video, scene)
         db.commit()
+        for stale in old:
+            if stale and stale != key:
+                storage.delete(stale)
         log.info("Image job %s: %s stored", job.id, label)
