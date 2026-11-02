@@ -62,3 +62,12 @@ body {
     transform: translateX(0);
   }
 }
+
+@keyframes preview-progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}

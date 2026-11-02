@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — Reading speed is applied with FFmpeg, not by ElevenLabs
+
+Replaces the speed part of the 2026-11-01 "Video presets" entry. The default model, `eleven_v3`,
+ignores ElevenLabs' `voice_settings.speed` ("Speed is not available for the Eleven v3 model"), so
+Chậm / Vừa / Nhanh made the same narration. Owner's choice: keep v3's voice and slow down or speed
+up the returned MP3 with FFmpeg `atempo` (0.9 / 1.0 / 1.1, pitch kept), which works with every
+model and costs no extra characters; ElevenLabs is no longer sent a speed. A non-normal speed now
+joins the narration's signature as `tempo:<speed>`, so slow or fast narration made before this fix
+(at normal speed) is made again on its next render; normal narration is untouched.
+
 ## 2026-11-02 — "Xem trước" plays the video in the browser, with a free voice
 
 Owner's choice from issue #61: the editor previews the video before a render in the browser, not
@@ -21,7 +31,7 @@ not the MP4; captions and FFmpeg's audio mix are not reproduced. Narration uses 
 when a render already made one for the current text, and otherwise the browser's own Vietnamese
 voice (Web Speech API), which is free; ElevenLabs is never called for a preview. The online
 Google/Microsoft voices send the narration text to those services, as typing it into their
-translator would. The preview can start from any scene and shades the platforms' covered areas.
+translator would. The preview can start from any scene and draws a mock of each app's screen (Reels by default, TikTok, Shorts) with generic icons, not the apps' logos, to show what each covers.
 
 ## 2026-11-02 — The video editor opens rendered videos read-only; photos are cropped in the browser
 

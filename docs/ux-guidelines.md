@@ -67,10 +67,16 @@ Built:
     falls in the video (lowered while narration plays when ducking is on). Narration: the MP3 a
     render already made when the text has not changed since, else the browser's own Vietnamese
     voice (free, at the video's speed); a browser without one says so and those scenes stay
-    silent. The covered areas of Reels / TikTok / Shorts (top bar, right button column, name and
-    caption at the bottom) are shaded in red over the frame, the safe zone dashed; a switch hides
-    them. Buttons: previous scene, "Tạm dừng" / "Tiếp tục" ("Xem lại" at the end), next scene,
-    "Từ đầu". A note says it is close to the MP4 but not the MP4 (captions and the audio mix come
+    silent. The video plays inside a phone with the chosen app's own screen drawn over it, "Khung ứng
+    dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
+    right-hand buttons with counts, avatar, channel and follow button, the video's caption and
+    hashtags on one line, the music's name, the navigation bar; Shorts' red progress line), with
+    generic icons and the video's Page as the channel, so the member sees what each app covers.
+    The choice is remembered in the browser. A switch adds the template's safe zone as a yellow
+    dashed box. Under the phone a timeline has one segment per scene, as long as the scene, the
+    current one filling as it plays; a click jumps there. Beside it, the scene list (name, text,
+    seconds) also jumps. Buttons: previous scene, "Tạm dừng" / "Tiếp tục" ("Xem lại" at the end),
+    next scene, back to the start. A note says it is close to the MP4 but not the MP4 (captions and the audio mix come
     only with a render). It is available in view mode too;
   - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
     viết bởi …"); edit the title scene and every content scene (text with `*word*` in
@@ -298,7 +304,7 @@ relied on (samples in the PR that added them).
   as the scenes'), which wins over everything else. Videos made with the older "Kiểu tiêu đề: Hộp
   vàng" keep the original yellow box and black text on the title, whatever the scenes use.
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
-  the speed (ElevenLabs `speed` 0.9 / 1.0 / 1.1), the level (0–100%), and "Nhỏ nhạc khi có giọng
+  the speed (tempo 0.9 / 1.0 / 1.1, applied with FFmpeg to the narration ElevenLabs returns), the level (0–100%), and "Nhỏ nhạc khi có giọng
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).
   Changing the voice or speed makes the narration again on the next render.
 - **Captions (phụ đề theo giọng đọc):** content scenes with narration only, never the title scene.

@@ -7,10 +7,13 @@ import {
   StepBackwardOutlined,
   StepForwardOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Flex, Modal, Space, Switch, Typography } from "antd";
+import { Alert, Button, Flex, Modal, Segmented, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SceneData, VideoDetail } from "@/lib/api";
+import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
 import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
+
+const PLATFORM_KEY = "reels-studio.preview-platform";
 
 // The renderer's timing and motion (reels_render.timeline, options, graph): keep these in step with it.
 const XFADE_MS = 400;
@@ -71,7 +74,16 @@ export default function VideoPreview({
   const [phase, setPhase] = useState<Phase>({ index: Math.min(start, scenes.length - 1), prev: null, run: 0 });
   const [playing, setPlaying] = useState(true);
   const [ended, setEnded] = useState(false);
-  const [safeZone, setSafeZone] = useState(true);
+  // The app frame drawn over the video, Reels by default; each member's choice is remembered in their browser.
+  const [platform, setPlatform] = useState<Platform | "none">(() => {
+    try {
+      const saved = window.localStorage.getItem(PLATFORM_KEY);
+      return saved && ["reels", "tiktok", "shorts", "none"].includes(saved) ? (saved as Platform | "none") : "reels";
+    } catch {
+      return "reels";
+    }
+  });
+  const [guide, setGuide] = useState(false);
   const [voice, setVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [boxes, setBoxes] = useState<Record<string, { width: number; height: number }>>({});
   const stage = useRef<HTMLDivElement>(null);
@@ -254,6 +266,15 @@ export default function VideoPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function choosePlatform(next: Platform | "none") {
+    setPlatform(next);
+    try {
+      window.localStorage.setItem(PLATFORM_KEY, next);
+    } catch {
+      // A browser that refuses storage just forgets the choice.
+    }
+  }
+
   function toggle() {
     if (ended) {
       goTo(0, false);
@@ -284,109 +305,213 @@ export default function VideoPreview({
     }
   }
 
+  const channel = video.publication?.fanpage ?? video.fanpages[0]?.name ?? "Tên kênh";
+  const caption = [video.caption.split("\n")[0], ...video.hashtags].filter(Boolean).join(" ");
+  const sound = video.music?.name ?? "Âm thanh gốc";
+  const total = scenes.reduce((sum, item) => sum + item.fitted_seconds, 0);
+
   return (
     <Modal
       open
       title="Xem trước video"
       onCancel={onClose}
       footer={null}
-      width={520}
+      width={820}
       destroyOnHidden
       styles={{ body: { paddingTop: 8 } }}
     >
-      <Flex vertical gap={12} align="center">
-        <div
-          ref={stage}
-          data-testid="preview-stage"
-          style={{
-            position: "relative",
-            height: "min(68vh, 600px)",
-            aspectRatio: `${FRAME_WIDTH} / ${FRAME_HEIGHT}`,
-            overflow: "hidden",
-            borderRadius: 8,
-            background: "#000",
-          }}
-        >
-          {phase.prev !== null && scenes[phase.prev] && (
-            <SceneLayer
-              key={`prev-${phase.run}`}
-              video={video}
-              scene={scenes[phase.prev]}
-              playing={false}
-              entering={false}
-              atEnd
-              boxes={boxes}
-              onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
-            />
-          )}
-          {scene && (
-            <SceneLayer
-              key={`scene-${phase.run}`}
-              video={video}
-              scene={scene}
-              playing={playing && !ended}
-              entering={phase.prev !== null}
-              boxes={boxes}
-              onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
-            />
-          )}
-          {safeZone && <SafeZone />}
-          <Typography.Text
-            data-testid="preview-scene"
-            style={{
-              position: "absolute",
-              right: 8,
-              top: 8,
-              padding: "1px 8px",
-              borderRadius: 4,
-              color: "#fff",
-              background: "rgba(0,0,0,0.55)",
-              fontSize: 12,
-            }}
+      <Flex wrap gap={24} justify="center">
+        <Flex vertical gap={10} align="center">
+          {/* A phone around the frame, so the overlay reads like the app on a real screen. */}
+          <div
+            style={{ padding: 8, background: "#141414", borderRadius: 30, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}
           >
-            {label(phase.index)} · {seconds(scene?.fitted_seconds ?? 0)} giây
-          </Typography.Text>
-        </div>
-        <Space wrap>
-          <Button
-            aria-label="Cảnh trước"
-            icon={<StepBackwardOutlined />}
-            disabled={phase.index === 0}
-            onClick={() => goTo(phase.index - 1, false)}
-          />
-          <Button
-            type="primary"
-            icon={ended ? <ReloadOutlined /> : playing ? <PauseOutlined /> : <CaretRightOutlined />}
-            onClick={toggle}
-          >
-            {ended ? "Xem lại" : playing ? "Tạm dừng" : "Tiếp tục"}
-          </Button>
-          <Button
-            aria-label="Cảnh sau"
-            icon={<StepForwardOutlined />}
-            disabled={phase.index >= scenes.length - 1}
-            onClick={() => goTo(phase.index + 1, false)}
-          />
-          <Button icon={<ReloadOutlined />} onClick={() => goTo(0, false)}>
-            Từ đầu
-          </Button>
-        </Space>
-        <Flex align="center" gap={8}>
-          <Switch checked={safeZone} onChange={setSafeZone} aria-label="Vùng an toàn" size="small" />
-          <Typography.Text>Hiện vùng bị che trên Reels / TikTok / Shorts</Typography.Text>
+            <div
+              ref={stage}
+              data-testid="preview-stage"
+              style={{
+                position: "relative",
+                height: "min(70vh, 620px)",
+                aspectRatio: `${FRAME_WIDTH} / ${FRAME_HEIGHT}`,
+                overflow: "hidden",
+                borderRadius: 22,
+                background: "#000",
+                containerType: "inline-size",
+              }}
+            >
+              {phase.prev !== null && scenes[phase.prev] && (
+                <SceneLayer
+                  key={`prev-${phase.run}`}
+                  video={video}
+                  scene={scenes[phase.prev]}
+                  playing={false}
+                  entering={false}
+                  atEnd
+                  boxes={boxes}
+                  onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
+                />
+              )}
+              {scene && (
+                <SceneLayer
+                  key={`scene-${phase.run}`}
+                  video={video}
+                  scene={scene}
+                  playing={playing && !ended}
+                  entering={phase.prev !== null}
+                  boxes={boxes}
+                  onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
+                />
+              )}
+              {platform !== "none" && (
+                <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
+              )}
+              {guide && <SafeZone />}
+            </div>
+          </div>
+          {/* One segment per scene, as long as the scene; the current one fills as it plays. Click to jump. */}
+          <Flex gap={3} style={{ width: "100%" }} data-testid="preview-timeline">
+            {scenes.map((item, index) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-label={`Xem ${label(index)}`}
+                onClick={() => goTo(index, false)}
+                style={{
+                  flex: item.fitted_seconds,
+                  height: 6,
+                  padding: 0,
+                  border: 0,
+                  borderRadius: 3,
+                  cursor: "pointer",
+                  overflow: "hidden",
+                  background: index < phase.index ? "#1677ff" : "#d9d9d9",
+                }}
+              >
+                {index === phase.index && (
+                  <span
+                    key={phase.run}
+                    style={{
+                      display: "block",
+                      height: "100%",
+                      background: "#1677ff",
+                      animationName: "preview-progress",
+                      animationDuration: `${item.fitted_seconds}s`,
+                      animationTimingFunction: "linear",
+                      animationFillMode: "both",
+                      animationPlayState: playing && !ended ? "running" : "paused",
+                    }}
+                  />
+                )}
+              </button>
+            ))}
+          </Flex>
+          <Flex justify="space-between" style={{ width: "100%" }}>
+            <Typography.Text strong data-testid="preview-scene">
+              {label(phase.index)} · {seconds(scene?.fitted_seconds ?? 0)} giây
+            </Typography.Text>
+            <Typography.Text type="secondary">
+              {phase.index + 1}/{scenes.length} cảnh · {seconds(total)} giây
+            </Typography.Text>
+          </Flex>
+          <Space wrap>
+            <Button
+              aria-label="Cảnh trước"
+              icon={<StepBackwardOutlined />}
+              disabled={phase.index === 0}
+              onClick={() => goTo(phase.index - 1, false)}
+            />
+            <Button
+              type="primary"
+              icon={ended ? <ReloadOutlined /> : playing ? <PauseOutlined /> : <CaretRightOutlined />}
+              onClick={toggle}
+              style={{ minWidth: 120 }}
+            >
+              {ended ? "Xem lại" : playing ? "Tạm dừng" : "Tiếp tục"}
+            </Button>
+            <Button
+              aria-label="Cảnh sau"
+              icon={<StepForwardOutlined />}
+              disabled={phase.index >= scenes.length - 1}
+              onClick={() => goTo(phase.index + 1, false)}
+            />
+            <Button aria-label="Từ đầu" icon={<ReloadOutlined />} onClick={() => goTo(0, false)} />
+          </Space>
         </Flex>
-        {missingVoice && !voice && (
-          <Alert
-            type="warning"
-            showIcon
-            data-testid="preview-no-voice"
-            title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Chrome hoặc Edge để nghe thử."
-          />
-        )}
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Bản xem trước gần đúng, chưa phải MP4: cảnh đã render có giọng ElevenLabs thật, cảnh chưa có dùng giọng tiếng
-          Việt miễn phí của trình duyệt; phụ đề và cách trộn âm chỉ có khi render.
-        </Typography.Text>
+
+        <Flex vertical gap={16} style={{ flex: "1 1 260px", minWidth: 0, maxWidth: 360 }}>
+          <div>
+            <Typography.Text strong style={{ display: "block", marginBottom: 6 }}>
+              Khung ứng dụng
+            </Typography.Text>
+            <Segmented
+              block
+              aria-label="Khung ứng dụng"
+              value={platform}
+              onChange={(value) => choosePlatform(value as Platform | "none")}
+              options={[
+                ...(Object.keys(PLATFORM_LABELS) as Platform[]).map((key) => ({
+                  value: key,
+                  label: PLATFORM_LABELS[key],
+                })),
+                { value: "none", label: "Không" },
+              ]}
+            />
+            <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, marginTop: 6 }}>
+              Giao diện mô phỏng của app trên điện thoại: chữ và hình bị che chỗ nào thì sẽ bị che như vậy khi đăng.
+            </Typography.Text>
+          </div>
+          <Flex align="center" gap={8}>
+            <Switch checked={guide} onChange={setGuide} aria-label="Vùng an toàn" size="small" />
+            <Typography.Text>Đường vùng an toàn của mẫu</Typography.Text>
+          </Flex>
+          <div>
+            <Typography.Text strong style={{ display: "block", marginBottom: 6 }}>
+              Các cảnh
+            </Typography.Text>
+            <Flex vertical gap={4} style={{ maxHeight: 260, overflowY: "auto" }}>
+              {scenes.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => goTo(index, false)}
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    padding: "6px 8px",
+                    border: `1px solid ${index === phase.index ? "#1677ff" : "#f0f0f0"}`,
+                    borderRadius: 6,
+                    background: index === phase.index ? "#e6f4ff" : "#fff",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <Typography.Text strong style={{ flex: "none", fontSize: 13 }}>
+                    {label(index)}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" ellipsis style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
+                    {item.text.replaceAll("*", "").replace(/\s+/g, " ").trim() || "(không có chữ)"}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" style={{ flex: "none", fontSize: 12 }}>
+                    {seconds(item.fitted_seconds)}s
+                  </Typography.Text>
+                </button>
+              ))}
+            </Flex>
+          </div>
+          {missingVoice && !voice && (
+            <Alert
+              type="warning"
+              showIcon
+              data-testid="preview-no-voice"
+              title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Chrome hoặc Edge để nghe thử."
+            />
+          )}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Bản xem trước gần đúng, chưa phải MP4. Cảnh đã render dùng giọng ElevenLabs thật, cảnh chưa render dùng
+            giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm chỉ có khi render.
+          </Typography.Text>
+        </Flex>
       </Flex>
       <audio ref={music} src={video.music?.url} loop preload="auto" />
       <audio ref={narration} preload="none" />
@@ -490,41 +615,20 @@ function SceneLayer({
   );
 }
 
-/** The parts of the frame the apps cover (top bar, right button column, caption and name at the bottom), shaded. */
+/** The template's safe zone (reels_render.textbox), dashed: the text box always stays inside it. */
 function SafeZone() {
-  const shade = "rgba(255, 77, 79, 0.28)";
-  const area = (style: React.CSSProperties, name: string) => (
-    <div style={{ position: "absolute", background: shade, ...style }}>
-      <span
-        style={{ position: "absolute", left: 6, top: 4, color: "#fff", fontSize: 10, textShadow: "0 1px 2px #000" }}
-      >
-        {name}
-      </span>
-    </div>
-  );
   return (
-    <div data-testid="preview-safe-zone" style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-      {area({ left: 0, right: 0, top: 0, height: percent(SAFE.top, FRAME_HEIGHT) }, "Thanh trên của app")}
-      {area({ left: 0, right: 0, top: percent(SAFE.bottom, FRAME_HEIGHT), bottom: 0 }, "Tên kênh, caption, nhạc")}
-      {area(
-        {
-          left: percent(SAFE.right, FRAME_WIDTH),
-          right: 0,
-          top: percent(SAFE.top, FRAME_HEIGHT),
-          height: percent(SAFE.bottom - SAFE.top, FRAME_HEIGHT),
-        },
-        "Nút",
-      )}
-      <div
-        style={{
-          position: "absolute",
-          left: percent(SAFE.left, FRAME_WIDTH),
-          top: percent(SAFE.top, FRAME_HEIGHT),
-          width: percent(SAFE.right - SAFE.left, FRAME_WIDTH),
-          height: percent(SAFE.bottom - SAFE.top, FRAME_HEIGHT),
-          border: "1px dashed rgba(255,255,255,0.8)",
-        }}
-      />
-    </div>
+    <div
+      data-testid="preview-safe-zone"
+      style={{
+        position: "absolute",
+        left: percent(SAFE.left, FRAME_WIDTH),
+        top: percent(SAFE.top, FRAME_HEIGHT),
+        width: percent(SAFE.right - SAFE.left, FRAME_WIDTH),
+        height: percent(SAFE.bottom - SAFE.top, FRAME_HEIGHT),
+        border: "1.5px dashed #ffd60a",
+        pointerEvents: "none",
+      }}
+    />
   );
 }

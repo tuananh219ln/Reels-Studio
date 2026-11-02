@@ -300,7 +300,9 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   let preview = page.getByRole("dialog", { name: "Xem trước video" });
   const now = preview.getByTestId("preview-scene");
   await expect(now).toContainText("Cảnh tiêu đề");
-  await expect(preview.getByTestId("preview-safe-zone")).toBeVisible();
+  // The Reels frame is drawn over the video by default; the template's safe zone is off until asked for.
+  await expect(preview.getByTestId("platform-frame")).toHaveAttribute("data-platform", "reels");
+  await expect(preview.getByTestId("preview-safe-zone")).toHaveCount(0);
   // It moves on by itself once a scene's seconds are up.
   await expect(now).toContainText("Cảnh 1", { timeout: 20_000 });
   await preview.getByRole("button", { name: "Cảnh sau" }).click();
@@ -308,13 +310,22 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await preview.getByRole("button", { name: "Tạm dừng" }).click();
   await expect(preview.getByRole("button", { name: "Tiếp tục" })).toBeVisible();
   await preview.getByRole("switch", { name: "Vùng an toàn" }).click();
-  await expect(preview.getByTestId("preview-safe-zone")).toHaveCount(0);
+  await expect(preview.getByTestId("preview-safe-zone")).toBeVisible();
+  await preview.getByText("TikTok", { exact: true }).click();
+  await expect(preview.getByTestId("platform-frame")).toHaveAttribute("data-platform", "tiktok");
+  await preview.getByText("Không", { exact: true }).click();
+  await expect(preview.getByTestId("platform-frame")).toHaveCount(0);
+  // A scene segment of the timeline jumps to that scene.
+  await preview.getByRole("button", { name: "Xem Cảnh 4" }).click();
+  await expect(now).toContainText("Cảnh 4");
   await page.keyboard.press("Escape");
   await expect(preview).toHaveCount(0);
 
   await page.getByTestId("scene").nth(2).getByRole("button", { name: "Xem từ cảnh này" }).click();
   preview = page.getByRole("dialog", { name: "Xem trước video" });
   await expect(preview.getByTestId("preview-scene")).toContainText("Cảnh 3");
+  // The frame chosen last time is remembered in this browser.
+  await expect(preview.getByTestId("platform-frame")).toHaveCount(0);
 });
 
 /** A rendered video with its Page connected, open on its own page. */
