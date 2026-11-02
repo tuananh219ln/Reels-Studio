@@ -11,3 +11,63 @@ body {
 .ant-table-thead > tr > th {
   white-space: nowrap;
 }
+
+/* Scene card: quick actions over the 9:16 picture, shown on hover or keyboard focus, always on touch screens. */
+.scene-media__overlay {
+  position: absolute;
+  inset: 0;
+  justify-content: flex-end;
+  padding: 8px;
+  border-radius: 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.scene-media:hover .scene-media__overlay,
+.scene-media:focus-within .scene-media__overlay {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .scene-media__overlay {
+    opacity: 1;
+  }
+}
+
+/* Video preview ("Xem trước"): the render's motion, crossfade and slide, played in the browser. */
+@keyframes preview-motion {
+  from {
+    transform: translateX(var(--x0)) scale(var(--z0));
+  }
+  to {
+    transform: translateX(var(--x1)) scale(var(--z1));
+  }
+}
+
+@keyframes preview-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes preview-slide {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes preview-progress {
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
+}

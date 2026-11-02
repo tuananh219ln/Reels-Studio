@@ -609,10 +609,15 @@ def delete_scene(
 
 
 def _store_photo(
-    db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str, source: str
+    db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str, source: str | None
 ) -> dict:
+    """Store a photo in place of the scene's photo or clip; `source` None keeps the photo's source (a crop of it)."""
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
+    if source is None:
+        if not scene.image_key:
+            raise ApiError(409, "no_image", "Cảnh này chưa có ảnh để chỉnh khung")
+        source = scene.image_source
     old = [scene.image_key, scene.video_key]
     key = new_key(video.id, f"scene-{scene.id}", extension)
     storage.save_bytes(key, data)
@@ -642,6 +647,24 @@ def upload_scene_image(
     except UploadRejected as err:
         raise ApiError(415, "invalid_image", str(err)) from None
     return _store_photo(db, storage, scene_id, data, extension, "upload")
+
+
+@router.post("/scenes/{scene_id}/image/crop")
+def crop_scene_image(
+    scene_id: int,
+    file: UploadFile = File(...),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """The scene's photo as cropped, turned or flipped in the browser. It keeps the photo's source, so an AI photo
+    stays labelled as AI and a stock photo keeps its credit."""
+    data = read_limited(file, MAX_IMAGE_BYTES, "Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn")
+    try:
+        extension = image_extension(data)
+    except UploadRejected as err:
+        raise ApiError(415, "invalid_image", str(err)) from None
+    return _store_photo(db, storage, scene_id, data, extension, None)
 
 
 def _spool_clip(upload: UploadFile, target: Path) -> None:

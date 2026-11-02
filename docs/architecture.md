@@ -60,7 +60,7 @@ Files go through a small storage layer ([storage.py](../api/src/reels_api/storag
 only a folder backend exists, chosen so an S3/R2 backend can be added later without touching video,
 scene, or job logic.
 
-**Render pipeline:** every scene photo is chosen by a member while editing (uploaded, picked from the stock grid, or found by "Tìm ảnh") and stored, so the render uses exactly the photo the preview showed. The
+**Render pipeline:** every scene photo is chosen by a member while editing (uploaded, picked from the stock grid, or found by "Tìm ảnh") and stored, so the render uses exactly the photo the preview showed. A photo cropped in the editor ("Chỉnh khung") is cut to 9:16 in the browser and stored in place of the old one by `POST /scenes/{id}/image/crop`, which validates it like an upload but keeps the scene's `image_source`, so an AI photo stays `ai:<model>`; the render needs no crop settings. The
 worker then:
 
 1. Makes the narration each scene still lacks (see [Narration](#narration)), then checks the total
@@ -141,6 +141,9 @@ A scene may hold an uploaded video clip instead of a photo
   minus the 0.2 s it plays into each crossfade (one for the title, two for a content scene), in
   tenths, between 1 and 10 s. The start time must leave at least 1 s of clip. A clone rewrites every scene, so it
   starts without the source's clips.
+- **Trim:** the editor's "Cắt video" dialog picks a start and an end on the clip and saves
+  `video_start` and `seconds` in one `PATCH /scenes/{id}`, with the end at most the clip's length
+  and the seconds the part less its crossfades; the api checks both as for typed values.
 - **Preview:** the scene preview and, for the title scene, the thumbnail are drawn from the
   clip's frame at the start time, taken with the same input seeking as the render. The editor
   plays the stored clip through the login-protected `/api/scenes/{id}/video` endpoint.
