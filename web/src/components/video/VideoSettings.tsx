@@ -18,11 +18,11 @@ type Props = {
   disabled?: boolean;
 };
 
-const SPEEDS = [
-  { value: "slow", label: "Chậm" },
-  { value: "normal", label: "Vừa" },
-  { value: "fast", label: "Nhanh" },
-];
+// The reading speed slider (api tts.MIN_SPEED, MAX_SPEED, SPEED_STEP).
+const SPEED_MIN = 0.7;
+const SPEED_MAX = 1.3;
+const SPEED_STEP = 0.05;
+const SPEED_MARKS = { [SPEED_MIN]: "Chậm", 1: "Vừa", [SPEED_MAX]: "Nhanh" };
 const TRANSITIONS = [
   { value: "fade", label: "Mờ dần" },
   { value: "cut", label: "Cắt thẳng" },
@@ -102,7 +102,10 @@ function VoicePicker({ values, onChange, disabled }: Props) {
   if (voices?.error) {
     return (
       <Typography.Text type="warning">
-        {voices.error} <Link href="/settings/sources">Mở Nguồn tư liệu</Link>
+        {voices.error}{" "}
+        <Link prefetch={false} href="/settings/sources">
+          Mở Nguồn tư liệu
+        </Link>
       </Typography.Text>
     );
   }
@@ -151,15 +154,7 @@ export function AudioSettings({ values, onChange, disabled, showMusicVolume }: P
         <Field label="Giọng">
           <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
         </Field>
-        <Field label="Tốc độ đọc" hint="Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự).">
-          <Segmented
-            aria-label="Tốc độ đọc"
-            options={SPEEDS}
-            value={values.voice_speed}
-            disabled={disabled || off}
-            onChange={(voice_speed) => onChange({ voice_speed: voice_speed as VideoOptions["voice_speed"] })}
-          />
-        </Field>
+        <SpeedField value={values.voice_speed} disabled={disabled || off} onChange={onChange} />
         <Field label={`Âm lượng giọng: ${values.voice_volume}%`}>
           <Slider
             aria-label="Âm lượng giọng"
@@ -193,6 +188,34 @@ export function AudioSettings({ values, onChange, disabled, showMusicVolume }: P
         </Checkbox>
       </Flex>
     </Card>
+  );
+}
+
+/** The reading speed: the label follows the handle while it moves; the value is saved when it is let go. */
+function SpeedField({ value, disabled, onChange }: { value: number; disabled?: boolean; onChange: Props["onChange"] }) {
+  const [moving, setMoving] = useState<number | null>(null);
+  const shown = moving ?? value;
+  return (
+    <Field
+      label={`Tốc độ đọc: ${shown.toFixed(2).replace(".", ",")}×`}
+      hint="Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự)."
+    >
+      <Slider
+        ariaLabelForHandle="Tốc độ đọc"
+        min={SPEED_MIN}
+        max={SPEED_MAX}
+        step={SPEED_STEP}
+        marks={SPEED_MARKS}
+        tooltip={{ formatter: (speed) => `${speed?.toFixed(2).replace(".", ",")}×` }}
+        value={shown}
+        disabled={disabled}
+        onChange={setMoving}
+        onChangeComplete={(voice_speed) => {
+          setMoving(null);
+          onChange({ voice_speed: Math.round(voice_speed * 100) / 100 });
+        }}
+      />
+    </Field>
   );
 }
 

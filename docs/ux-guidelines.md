@@ -177,8 +177,8 @@ Built:
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
   - the "Thiết lập" tab, every change saved at once, with a row of buttons on top (Âm thanh, Nhạc
     nền, Hình ảnh, Chữ & phụ đề) that scrolls the panel to that group: "Âm thanh" (narration on/off, the ElevenLabs
-    voice picked from the account's voices with "Nghe thử" playing ElevenLabs' free sample, speed
-    Chậm/Vừa/Nhanh, voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
+    voice picked from the account's voices with "Nghe thử" playing ElevenLabs' free sample, the
+    "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
     Cắt thẳng, Trượt; Chuyển động ảnh: Zoom vào, Zoom ra, Lia ngang, Đứng yên; Độ zoom: Nhẹ, Vừa,
@@ -362,7 +362,8 @@ relied on (samples in the PR that added them).
   as the scenes'), which wins over everything else. Videos made with the older "Kiểu tiêu đề: Hộp
   vàng" keep the original yellow box and black text on the title, whatever the scenes use.
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
-  the speed (tempo 0.9 / 1.0 / 1.1, applied with FFmpeg to the narration ElevenLabs returns), the level (0–100%), and "Nhỏ nhạc khi có giọng
+  the speed (a tempo factor from 0.7 to 1.3 in steps of 0.05, applied with FFmpeg to the narration
+  ElevenLabs returns; presets saved before the slider read as 0.8 / 1.0 / 1.2), the level (0–100%), and "Nhỏ nhạc khi có giọng
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).
   Changing the voice or speed makes the narration again on the next render.
 - **Captions (phụ đề theo giọng đọc):** content scenes with narration only, never the title scene.

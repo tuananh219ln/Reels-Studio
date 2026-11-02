@@ -98,7 +98,10 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
           <Button disabled={disabled}>Lấy theo mặc định nhóm</Button>
         </Popconfirm>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Sửa mặc định ở <Link href="/settings/defaults">Cài đặt › Thiết lập mặc định</Link>
+          Sửa mặc định ở{" "}
+          <Link prefetch={false} href="/settings/defaults">
+            Cài đặt › Thiết lập mặc định
+          </Link>
         </Typography.Text>
       </Flex>
     </Flex>

@@ -155,10 +155,11 @@ export type Fanpage = {
   updated_by: string | null;
 };
 
-/** A video's settings, each a named preset (api video_options.DEFAULTS). */
+/** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {
   voice_id: string;
-  voice_speed: "slow" | "normal" | "fast";
+  /** Reading speed, a tempo factor from 0.7 to 1.3 in steps of 0.05 (api tts.MIN_SPEED, MAX_SPEED). */
+  voice_speed: number;
   voice_volume: number;
   ducking: boolean;
   transition: "fade" | "cut" | "slide";

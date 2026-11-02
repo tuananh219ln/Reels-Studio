@@ -114,7 +114,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pageItem = (item: { key: string; icon: React.ReactNode; label: string }) => ({
     key: item.key,
     icon: item.icon,
-    label: <Link href={item.key}>{item.label}</Link>,
+    // No prefetch: each would render that page on the web worker (about a second or more each) while the
+    // current page is still loading; a click renders it then.
+    label: (
+      <Link href={item.key} prefetch={false}>
+        {item.label}
+      </Link>
+    ),
   });
   const selected =
     NAV.flatMap((item) => item.children ?? [item]).find((item) => pathname.startsWith(item.key))?.key ?? "/videos";

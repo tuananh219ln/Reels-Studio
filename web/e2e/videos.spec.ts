@@ -1169,7 +1169,14 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await expect(page).toHaveURL(/\/settings\/defaults$/);
   await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
   await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
-  await page.getByLabel("Tốc độ đọc").getByText("Nhanh").click();
+  // The reading speed slider: each step is saved (the page is busy meanwhile), three steps up from 1 make 1.15.
+  const speed = page.getByRole("slider", { name: "Tốc độ đọc" });
+  for (const shown of ["1,05", "1,10", "1,15"]) {
+    await expect(speed).not.toHaveAttribute("aria-disabled", "true");
+    await speed.focus();
+    await speed.press("ArrowRight");
+    await expect(page.getByText(`Tốc độ đọc: ${shown}×`)).toBeVisible();
+  }
   await expect(page.getByTestId("audio-settings")).toContainText("Adam (mặc định)");
 
   await page.getByRole("menuitem", { name: "Video" }).click();
@@ -1177,7 +1184,8 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.getByRole("tab", { name: "Thiết lập" }).click();
   const motion = page.getByTestId("motion-settings");
   await expect(motion.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).toHaveText("Cắt thẳng");
-  await expect(page.getByLabel("Tốc độ đọc").locator(".ant-segmented-item-selected")).toHaveText("Nhanh");
+  await expect(page.getByText("Tốc độ đọc: 1,15×")).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Tốc độ đọc" })).toHaveAttribute("aria-valuenow", "1.15");
 
   // The old preset boxes are gone: a member adds a team style, which the video picks at once.
   const preview = page.getByTestId("title-scene").getByTestId("scene-preview");
@@ -1437,4 +1445,69 @@ test("each member sees who else has the video open, and whether they are editing
   // Closing the tab leaves at once rather than after the 30 s time-out.
   await binh.close();
   await expect(page.getByTestId("presence")).toHaveCount(0, later);
+});
+
+test("video page: one poll at a time, none while the tab is hidden, and the menu prefetches no pages", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau xanh cho người lớn tuổi");
+  const address = page.url();
+
+  // The menu's pages are not rendered ahead: each prefetch is a server render through the slow web worker.
+  const prefetched: string[] = [];
+  page.on("request", (request) => {
+    if (request.headers()["next-router-prefetch"]) {
+      prefetched.push(request.url());
+    }
+  });
+  await page.goto(address);
+  await expect(page.getByTestId("title-scene")).toBeVisible();
+  await page.waitForTimeout(3000);
+  expect(prefetched).toEqual([]);
+
+  // An answer slower than the 2.5 s refresh: the next poll waits for it instead of piling up.
+  let polls = 0;
+  let waiting = 0;
+  let mostWaiting = 0;
+  await page.route(/\/api\/videos\/\d+$/, async (route) => {
+    if (route.request().method() !== "GET") {
+      return route.continue();
+    }
+    polls += 1;
+    waiting += 1;
+    mostWaiting = Math.max(mostWaiting, waiting);
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    const response = await route.fetch();
+    waiting -= 1;
+    await route.fulfill({ response });
+  });
+  await page.waitForTimeout(12_000);
+  expect(polls).toBeGreaterThanOrEqual(2);
+  expect(mostWaiting).toBe(1);
+  await page.unrouteAll({ behavior: "wait" });
+
+  // A hidden tab stops asking; coming back asks at once.
+  const setHidden = (hidden: boolean) =>
+    page.evaluate((value) => {
+      Object.defineProperty(document, "hidden", { configurable: true, get: () => value });
+      document.dispatchEvent(new Event("visibilitychange"));
+    }, hidden);
+  await setHidden(true);
+  await page.waitForTimeout(3000);
+  let hiddenPolls = 0;
+  page.on("request", (request) => {
+    if (/\/api\/videos\/\d+$/.test(request.url()) && request.method() === "GET") {
+      hiddenPolls += 1;
+    }
+  });
+  await page.waitForTimeout(6000);
+  expect(hiddenPolls).toBe(0);
+  await Promise.all([
+    page.waitForRequest((request) => /\/api\/videos\/\d+$/.test(request.url()) && request.method() === "GET", {
+      timeout: 1500,
+    }),
+    setHidden(false),
+  ]);
 });

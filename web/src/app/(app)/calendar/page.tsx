@@ -50,7 +50,7 @@ export default function CalendarPage() {
   const chosenPosts = days.get(chosen.format("DD/MM/YYYY")) ?? [];
 
   const postTag = ({ post, clock }: { post: PostRow; clock: string }) => (
-    <Link key={post.video_id} href={`/videos/${post.video_id}`}>
+    <Link prefetch={false} key={post.video_id} href={`/videos/${post.video_id}`}>
       <Tag color={POST_STATUS[post.status].color} style={{ whiteSpace: "normal", margin: 0 }}>
         {clock} {post.title}
       </Tag>
@@ -62,7 +62,7 @@ export default function CalendarPage() {
       <PageHeader
         title="Lịch đăng bài"
         actions={
-          <Link href="/posts">
+          <Link prefetch={false} href="/posts">
             <Button icon={<UnorderedListOutlined />}>Xem dạng danh sách</Button>
           </Link>
         }

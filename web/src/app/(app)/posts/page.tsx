@@ -28,7 +28,11 @@ export default function PostsPage() {
     {
       title: "Video",
       key: "video",
-      render: (_, post) => <Link href={`/videos/${post.video_id}`}>{post.title}</Link>,
+      render: (_, post) => (
+        <Link prefetch={false} href={`/videos/${post.video_id}`}>
+          {post.title}
+        </Link>
+      ),
     },
     { title: "Fanpage", key: "fanpage", width: 220, render: (_, post) => post.fanpage ?? "—" },
     {
@@ -67,7 +71,7 @@ export default function PostsPage() {
           `${count("scheduled")} bài đã hẹn lịch · ${count("published")} bài đã đăng, giờ mới nhất trước.`
         }
         actions={
-          <Link href="/calendar">
+          <Link prefetch={false} href="/calendar">
             <Button icon={<CalendarOutlined />}>Xem dạng lịch</Button>
           </Link>
         }

@@ -23,14 +23,14 @@ from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 
 from . import config
 from .models import AppSetting, Video
-from .tts import SPEEDS
+from .tts import MAX_SPEED, MIN_SPEED, SPEED_STEP
 
 DEFAULTS_KEY = "video_defaults"
 MAX_VOICE_ID_LENGTH = 64
 
 DEFAULTS: dict = {
     "voice_id": "",  # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default)
-    "voice_speed": "normal",
+    "voice_speed": 1.0,  # tempo factor, MIN_SPEED to MAX_SPEED
     "voice_volume": 100,  # percent
     "ducking": False,
     "transition": "fade",
@@ -80,7 +80,6 @@ COLORS = {
     "title_accent_color": ("auto",),
 }
 CHOICES = {
-    "voice_speed": tuple(SPEEDS),
     "transition": TRANSITIONS,
     "motion": MOTIONS,
     "zoom": tuple(ZOOMS),
@@ -119,8 +118,26 @@ class OptionError(ValueError):
     """The message is shown to members."""
 
 
+# The reading speed was three presets before the slider; what was saved then reads as the wider levels.
+OLD_SPEEDS = {"slow": 0.8, "normal": 1.0, "fast": 1.2}
+SPEED_ERROR = f"Tốc độ đọc phải từ {MIN_SPEED} đến {MAX_SPEED}"
+
+
 def effective(video: Video) -> dict:
-    return DEFAULTS | (video.options or {})
+    values = DEFAULTS | (video.options or {})
+    return values | {"voice_speed": OLD_SPEEDS.get(values["voice_speed"], values["voice_speed"])}
+
+
+def clean_speed(value: object) -> float:
+    """A reading speed from the slider, kept to its step; an old preset name still means its level."""
+    if isinstance(value, str) and value in OLD_SPEEDS:
+        return OLD_SPEEDS[value]
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise OptionError(SPEED_ERROR)
+    speed = round(round(value / SPEED_STEP) * SPEED_STEP, 2)
+    if not MIN_SPEED <= speed <= MAX_SPEED:
+        raise OptionError(SPEED_ERROR)
+    return speed
 
 
 def clean(values: dict, allow_video_fields: bool = False) -> dict:
@@ -145,6 +162,8 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
                 raise OptionError(f"“{LABELS[name]}” chỉ nhận bật hoặc tắt")
         elif name == "text_position":
             value = clean_position(value)
+        elif name == "voice_speed":
+            value = clean_speed(value)
         elif name == "voice_id":
             if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH or len(value.split()) > 1:
                 raise OptionError("Mã giọng đọc không hợp lệ")
@@ -171,7 +190,7 @@ def voice_id(video: Video) -> str:
     return effective(video)["voice_id"] or config.voice_id()
 
 
-def voice_speed(video: Video) -> str:
+def voice_speed(video: Video) -> float:
     return effective(video)["voice_speed"]
 
 
