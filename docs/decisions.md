@@ -19,6 +19,14 @@ what, why and which area. Issues can be assigned, labelled, linked from PRs and 
 which a Markdown list could not do for a team of five. Older entries that link to `backlog.md`
 mean the matching issue (the Shopee API one is #47).
 
+## 2026-11-02 — `@claude` in an issue or PR comment answers questions, read-only
+
+A comment mentioning `@claude` from someone with write access runs `claude-ask.yml`: Claude reads
+the repo and the docs and answers in a Vietnamese comment, so the whole team sees the answer next
+to the issue. It cannot change code (the token is read-only and Edit/Write are denied), because
+code changes go through a person's branch and PR. Each run is a paid API call, so it never starts
+by itself, the same as `/ai-review`.
+
 ## 2026-11-01 — Text boxes can be dragged inside the platforms' safe zone
 
 Owner's decisions, from the text round: a member drags a scene's text box on a "Vị trí chữ" dialog, and the box

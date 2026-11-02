@@ -41,6 +41,10 @@ docker-compose.yml  # Postgres cho máy dev
   comment `/ai-review` trên PR đó (mỗi lần chạy tốn phí API); kết quả là comment tiếng Việt. Cần
   secret `ANTHROPIC_API_KEY` (hoặc `CLAUDE_CODE_OAUTH_TOKEN` từ `claude setup-token`) trong
   Settings → Secrets and variables → Actions. Workflow kiểu này chỉ chạy khi file đã nằm trên `main`.
+- `.github/workflows/claude-ask.yml`: hỏi AI về dự án ngay trong issue hoặc PR bằng comment có
+  `@claude` (ví dụ `@claude lỗi này nằm ở file nào?`). Chỉ người có quyền ghi gọi được, mỗi lần
+  tốn phí API. Claude chỉ đọc repo và trả lời bằng comment tiếng Việt, không sửa code hay tạo PR.
+  Dùng chung secret với `claude-review.yml`.
 
 ## Chạy web app trên máy (localhost)
 

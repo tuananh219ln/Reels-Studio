@@ -128,3 +128,6 @@ a push to `main` deploys only after everything passes.
 - An AI review runs on a PR only when someone with write access comments `/ai-review`
   ([claude-review.yml](.github/workflows/claude-review.yml)); each run costs API tokens. Agents
   never post that comment themselves. Answer or fix each point it raises.
+- A comment mentioning `@claude` on an issue or PR, from someone with write access, gets a read-only
+  answer about the project ([claude-ask.yml](.github/workflows/claude-ask.yml)); each run costs
+  API tokens. Agents never post such a comment themselves.
