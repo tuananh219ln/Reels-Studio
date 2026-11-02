@@ -11,6 +11,19 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — The preview opens in a drawer and can ask ElevenLabs for the real voice
+
+Owner's choice: the browser's free Google voice sounds robotic, so the preview now (1) lists the
+browser's Vietnamese voices with Edge's neural ones (HoaiMy, NamMinh) first and suggests Edge when
+none is there, (2) lets each member pick a voice, remembered in their browser, and (3) offers
+"Tạo giọng thật (ElevenLabs)". This changes the entry "Xem trước plays the video in the browser, with a free voice", where ElevenLabs was never called for
+a preview: it is still never called just by opening or playing the preview, only by that button,
+after a confirmation, as a `voice` job in the queue. The job makes exactly the MP3s a render would
+(same text, voice, speed and signature) and stores them on the scenes, so the next render reuses
+them and the credit is spent once per text either way; it only moves the cost earlier, and adds
+cost only when the text is changed again before a render. The preview also opens as a drawer from
+the right instead of a centred dialog, so the page stays in sight beside it.
+
 ## 2026-11-02 — The video page shows who else has it open; edit mode stays without "Lưu"/"Huỷ"
 
 Owner's choice. "Lưu" and "Huỷ" for edit mode were considered and dropped: they would reverse the

@@ -72,9 +72,13 @@ Built:
     without text moving like the video's motion setting with the exact text box on top where the
     render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
     the music from where that scene falls in the video (lowered while narration plays when ducking
-    is on). Narration: the MP3 a render already made when the text has not changed since, else
-    the browser's own Vietnamese voice (free, at the video's speed); a browser without one says
-    so and those scenes stay silent. The video plays inside a phone with the chosen app's own
+    is on). Narration: the ElevenLabs MP3 when one was made for the current text (by a render or
+    by "Tạo giọng thật"), else the browser's own Vietnamese voice (free, at the video's speed). While
+    some scenes lack the MP3, a "Giọng đọc" section lists the browser's Vietnamese voices, the most
+    natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser; suggests Edge
+    when only robotic ones exist; and offers "Tạo giọng thật (ElevenLabs)", which asks first (it
+    costs credit once) and queues a job reading only those scenes. A browser without a Vietnamese
+    voice says so and those scenes stay silent. The video plays inside a phone with the chosen app's own
     screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and

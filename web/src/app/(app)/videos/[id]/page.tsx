@@ -54,6 +54,7 @@ const JOB_NAMES = {
   publish: "Đăng Facebook",
   image: "Tạo ảnh AI",
   photos: "Tự tìm ảnh",
+  voice: "Tạo giọng thật",
 } as const;
 
 /** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
@@ -175,6 +176,12 @@ export default function VideoPage() {
     // "Render" uses the saved data: leave the field being typed in and wait until it is saved.
     await editor.flush();
     await act(() => api<VideoDetail>(`/videos/${id}/render`, "POST"));
+  }
+
+  async function makeVoices() {
+    // The job reads the saved voice texts: flush first, like "Render".
+    await editor.flush();
+    await act(() => api<VideoDetail>(`/videos/${id}/voices`, "POST"));
   }
 
   /** `provider`: the one picked from the button's arrow; the team's default otherwise. */
@@ -346,9 +353,11 @@ export default function VideoPage() {
                   ? "Đang tạo ảnh AI cho các cảnh thiếu…"
                   : job.kind === "publish"
                     ? "Đang đăng lên Facebook…"
-                    : job.kind === "clone"
-                      ? "AI đang viết kịch bản nhân bản…"
-                      : "Đang viết kịch bản…"
+                    : job.kind === "voice"
+                      ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
+                      : job.kind === "clone"
+                        ? "AI đang viết kịch bản nhân bản…"
+                        : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
@@ -582,7 +591,14 @@ export default function VideoPage() {
           }}
         />
       )}
-      {previewFrom !== null && <VideoPreview video={video} start={previewFrom} onClose={() => setPreviewFrom(null)} />}
+      {previewFrom !== null && (
+        <VideoPreview
+          video={video}
+          start={previewFrom}
+          onClose={() => setPreviewFrom(null)}
+          onMakeVoices={() => void makeVoices()}
+        />
+      )}
       <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
     </EditorContext.Provider>
   );

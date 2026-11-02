@@ -165,7 +165,7 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render | publish | image
+    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render | publish | image | photos | voice
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     retry_of_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))

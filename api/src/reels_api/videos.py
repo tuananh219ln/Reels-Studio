@@ -29,6 +29,7 @@ STATUS_LABELS = {
     "writing": "Đang viết",
     "imaging": "Đang tạo ảnh",
     "finding": "Đang tìm ảnh",
+    "voicing": "Đang tạo giọng",
     "rendering": "Đang render",
     "publishing": "Đang đăng",
     "done": "Xong",
@@ -42,6 +43,7 @@ JOB_KINDS = {
     "publish": "Đăng Facebook",
     "image": "Tạo ảnh AI",
     "photos": "Tự tìm ảnh",
+    "voice": "Tạo giọng thật",
 }
 SENTENCE_ENDS = (".", "!", "?", "…", ":")
 
@@ -81,6 +83,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang render, chưa lưu")
     if job.kind == "publish":
         raise ApiError(409, "video_locked", "Video đang đăng lên Facebook, chưa lưu")
+    if job.kind == "voice":
+        raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
     raise ApiError(409, "video_locked", "Video đang viết kịch bản, chưa lưu")
 
 
@@ -238,9 +242,13 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
     if job is not None and job.status == "queued":
         code, label = "queued", f"Chờ thứ {queue_position(db, job)}"
     elif job is not None:
-        code = {"render": "rendering", "publish": "publishing", "image": "imaging", "photos": "finding"}.get(
-            job.kind, "writing"
-        )
+        code = {
+            "render": "rendering",
+            "publish": "publishing",
+            "image": "imaging",
+            "photos": "finding",
+            "voice": "voicing",
+        }.get(job.kind, "writing")
         label = STATUS_LABELS[code]
     elif video.mp4_key:
         code, label = "done", STATUS_LABELS["done"]

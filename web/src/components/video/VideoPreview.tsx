@@ -7,13 +7,14 @@ import {
   StepBackwardOutlined,
   StepForwardOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Drawer, Flex, Segmented, Space, Switch, Typography } from "antd";
+import { Alert, Button, Drawer, Flex, Popconfirm, Segmented, Select, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SceneData, VideoDetail } from "@/lib/api";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
 import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
 
 const PLATFORM_KEY = "reels-studio.preview-platform";
+const VOICE_KEY = "reels-studio.preview-voice";
 
 // The renderer's timing and motion (reels_render.timeline, options, graph): keep these in step with it.
 const XFADE_MS = 400;
@@ -42,13 +43,23 @@ export function spokenText(video: VideoDetail, scene: SceneData): string {
   return `${screen}${SENTENCE_ENDS.some((end) => screen.endsWith(end)) ? "" : "."} ${scene.voice_text}`;
 }
 
-/** The browser's Vietnamese voice, preferring the natural-sounding online ones (Google, Microsoft). */
-function vietnameseVoice(): SpeechSynthesisVoice | null {
+// Edge's neural voices (HoaiMy, NamMinh) sound far more natural than Chrome's Google voice.
+const NATURAL = /natural|online/i;
+
+/** How natural a browser voice sounds: Microsoft's neural ones first, then Google's, then the system's own. */
+function rank(voice: SpeechSynthesisVoice): number {
+  return NATURAL.test(voice.name) ? 0 : /google/i.test(voice.name) ? 1 : 2;
+}
+
+/** The browser's Vietnamese voices, the most natural-sounding first. */
+function vietnameseVoices(): SpeechSynthesisVoice[] {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-    return null;
+    return [];
   }
-  const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith("vi"));
-  return voices.find((voice) => /google|microsoft|online|natural/i.test(voice.name)) ?? voices[0] ?? null;
+  return window.speechSynthesis
+    .getVoices()
+    .filter((voice) => voice.lang.toLowerCase().startsWith("vi"))
+    .sort((a, b) => rank(a) - rank(b));
 }
 
 type Phase = { index: number; prev: number | null; run: number };
@@ -62,10 +73,13 @@ export default function VideoPreview({
   video,
   start,
   onClose,
+  onMakeVoices,
 }: {
   video: VideoDetail;
   start: number;
   onClose: () => void;
+  /** "Tạo giọng thật": queues the job that has ElevenLabs read the scenes still without its narration. */
+  onMakeVoices: () => void;
 }) {
   const scenes = useMemo(
     () => [video.title_scene, ...video.scenes].filter((scene): scene is SceneData => scene !== null),
@@ -84,7 +98,16 @@ export default function VideoPreview({
     }
   });
   const [guide, setGuide] = useState(false);
-  const [voice, setVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  // The browser voice each member picked, remembered in their browser; the most natural one otherwise.
+  const [voiceName, setVoiceName] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(VOICE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const voice = voices.find((item) => item.voiceURI === voiceName) ?? voices[0] ?? null;
   const [boxes, setBoxes] = useState<Record<string, { width: number; height: number }>>({});
   const stage = useRef<HTMLDivElement>(null);
   const music = useRef<HTMLAudioElement>(null);
@@ -98,14 +121,16 @@ export default function VideoPreview({
   const label = (index: number) =>
     scenes[index]?.is_title ? "Cảnh tiêu đề" : `Cảnh ${index + (scenes[0]?.is_title ? 0 : 1)}`;
   const durationMs = (scene?.fitted_seconds ?? 0) * 1000;
-  const missingVoice = video.voice_enabled && scenes.some((item) => spokenText(video, item) && !item.voice_url);
+  const unvoiced = video.voice_enabled ? scenes.filter((item) => spokenText(video, item) && !item.voice_url).length : 0;
+  const missingVoice = unvoiced > 0;
+  const voicing = video.active_job?.kind === "voice";
 
   // The browser lists its voices late (voiceschanged), so ask again when it does.
   useEffect(() => {
     if (!("speechSynthesis" in window)) {
       return;
     }
-    const pick = () => setVoice(vietnameseVoice());
+    const pick = () => setVoices(vietnameseVoices());
     const first = window.setTimeout(pick, 0);
     window.speechSynthesis.addEventListener("voiceschanged", pick);
     return () => {
@@ -224,9 +249,9 @@ export default function VideoPreview({
         window.speechSynthesis.cancel();
       }
     };
-    // A new scene, or a voice found late, starts the narration; pausing only pauses it (see `toggle`).
+    // A new scene, or a voice found late or picked, starts the narration; pausing only pauses it (see `toggle`).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.run, voice]);
+  }, [phase.run, voice?.voiceURI]);
 
   // The scene before the current one is shown only for the length of the transition.
   useEffect(() => {
@@ -270,6 +295,15 @@ export default function VideoPreview({
     setPlatform(next);
     try {
       window.localStorage.setItem(PLATFORM_KEY, next);
+    } catch {
+      // A browser that refuses storage just forgets the choice.
+    }
+  }
+
+  function chooseVoice(next: string) {
+    setVoiceName(next);
+    try {
+      window.localStorage.setItem(VOICE_KEY, next);
     } catch {
       // A browser that refuses storage just forgets the choice.
     }
@@ -501,17 +535,52 @@ export default function VideoPreview({
               ))}
             </Flex>
           </div>
-          {missingVoice && !voice && (
-            <Alert
-              type="warning"
-              showIcon
-              data-testid="preview-no-voice"
-              title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Chrome hoặc Edge để nghe thử."
-            />
+          {(missingVoice || voicing) && (
+            <Flex vertical gap={8} data-testid="preview-voice">
+              <Typography.Text strong>Giọng đọc</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {voicing
+                  ? "ElevenLabs đang đọc các cảnh, xong sẽ tự dùng giọng thật."
+                  : `${unvoiced} cảnh chưa có giọng ElevenLabs nên đang đọc bằng giọng miễn phí của trình duyệt.`}
+              </Typography.Text>
+              {voices.length > 0 ? (
+                <Select
+                  aria-label="Giọng trình duyệt"
+                  value={voice?.voiceURI}
+                  onChange={chooseVoice}
+                  options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
+                />
+              ) : (
+                <Alert
+                  type="warning"
+                  showIcon
+                  data-testid="preview-no-voice"
+                  title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử."
+                />
+              )}
+              {voices.length > 0 && !voices.some((item) => NATURAL.test(item.name)) && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-edge-tip">
+                  Giọng tự nhiên hơn: mở trang này bằng Microsoft Edge để có giọng HoaiMy, NamMinh.
+                </Typography.Text>
+              )}
+              <Popconfirm
+                title="Tạo giọng thật bằng ElevenLabs?"
+                description={`ElevenLabs đọc ${unvoiced} cảnh, tốn credit một lần. Render sau đó dùng lại, không tốn thêm.`}
+                okText="Tạo giọng"
+                cancelText="Thôi"
+                onConfirm={onMakeVoices}
+                disabled={voicing || Boolean(video.active_job)}
+              >
+                <Button block loading={voicing} disabled={!voicing && Boolean(video.active_job)}>
+                  Tạo giọng thật (ElevenLabs)
+                </Button>
+              </Popconfirm>
+            </Flex>
           )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Bản xem trước gần đúng, chưa phải MP4. Cảnh đã render dùng giọng ElevenLabs thật, cảnh chưa render dùng
-            giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm chỉ có khi render.
+            Bản xem trước gần đúng, chưa phải MP4. Cảnh đã có giọng ElevenLabs (sau một lần render hoặc “Tạo giọng
+            thật”) dùng giọng đó, cảnh khác dùng giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm chỉ
+            có khi render.
           </Typography.Text>
         </Flex>
       </Flex>

@@ -326,6 +326,14 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(preview.getByTestId("preview-scene")).toContainText("Cảnh 3");
   // The frame chosen last time is remembered in this browser.
   await expect(preview.getByTestId("platform-frame")).toHaveCount(0);
+
+  // "Tạo giọng thật": ElevenLabs (the fake) reads the scenes without narration, after a confirmation.
+  const voiceBox = preview.getByTestId("preview-voice");
+  await expect(voiceBox).toContainText("chưa có giọng ElevenLabs");
+  await voiceBox.getByRole("button", { name: "Tạo giọng thật (ElevenLabs)" }).click();
+  await page.getByRole("button", { name: "Tạo giọng", exact: true }).click();
+  // Once every scene has its narration, the section goes away.
+  await expect(voiceBox).toHaveCount(0, { timeout: 60_000 });
 });
 
 /** A rendered video with its Page connected, open on its own page. */
