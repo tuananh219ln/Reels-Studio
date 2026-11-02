@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — A person may copy the production database into their local dev database
+
+`docker/pull-prod-db.sh` runs `pg_dump` inside the Coolify Postgres container over SSH and
+restores it over the local `reels`, so bugs can be reproduced on real data. Production is only
+read. It is run by a person with SSH access, never by an agent (agents still never connect to
+production). The copy cancels production's unfinished jobs so a local worker cannot call real
+APIs for them, and the stored API keys and Fanpage tokens stay unreadable locally because their
+key file lives in production's storage folder, not in the database.
+
 ## 2026-11-02 — Ideas, features and bugs live in GitHub Issues, not backlog.md
 
 `backlog.md` is removed; its 17 items became issues #41–#57. New work is opened from the forms
