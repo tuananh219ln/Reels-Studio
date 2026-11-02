@@ -39,6 +39,7 @@ export type VideoStatus =
   | "rendering"
   | "publishing"
   | "unpublishing"
+  | "checking"
   | "done"
   | "failed";
 
@@ -57,7 +58,7 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish" | "unpublish" | "image" | "photos" | "voice";
+  kind: "script" | "clone" | "render" | "publish" | "unpublish" | "check" | "image" | "photos" | "voice";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";
@@ -315,7 +316,7 @@ export type Post = {
   at: string;
   url: string | null;
   created_by: string;
-  /** When and by whom it was cancelled or deleted. */
+  /** When and by whom it was cancelled or deleted; `closed_by` is null when a check found it so on Facebook. */
   closed_at: string | null;
   closed_by: string | null;
 };

@@ -386,7 +386,8 @@ async function renderedVideo(page: Page) {
 }
 
 async function openPublish(page: Page) {
-  await page.getByRole("button", { name: "Đăng", exact: true }).click();
+  // The button's name includes its icon's label.
+  await page.getByRole("button", { name: "send Đăng", exact: true }).click();
 }
 
 async function confirmPost(page: Page) {
@@ -457,6 +458,12 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await page.getByLabel("Giờ đăng").fill(local);
   await confirmPost(page);
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
+
+  // "Kiểm tra" reads the reel on Facebook; the fake still holds it for its time, so nothing changes.
+  await page.getByRole("button", { name: "Kiểm tra" }).click();
+  await expect(page.getByTestId("job-status")).toBeVisible();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc");
 
   await page.getByRole("button", { name: "Hủy đăng" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Hủy đăng" }).click();

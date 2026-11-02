@@ -54,6 +54,7 @@ const JOB_NAMES = {
   render: "Render",
   publish: "Đăng Facebook",
   unpublish: "Gỡ bài Facebook",
+  check: "Kiểm tra bài Facebook",
   image: "Tạo ảnh AI",
   photos: "Tự tìm ảnh",
   voice: "Tạo giọng thật",
@@ -360,11 +361,13 @@ export default function VideoPage() {
                     ? "Đang đăng lên Facebook…"
                     : job.kind === "unpublish"
                       ? "Đang gỡ bài trên Facebook…"
-                      : job.kind === "voice"
-                        ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
-                        : job.kind === "clone"
-                          ? "AI đang viết kịch bản nhân bản…"
-                          : "Đang viết kịch bản…"
+                      : job.kind === "check"
+                        ? "Đang kiểm tra bài trên Facebook…"
+                        : job.kind === "voice"
+                          ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
+                          : job.kind === "clone"
+                            ? "AI đang viết kịch bản nhân bản…"
+                            : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={

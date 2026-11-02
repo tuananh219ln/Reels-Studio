@@ -208,8 +208,8 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from, and where a member dragged its text box (`text_x`, `text_y`, the box centre; null: the video's place in `videos.options.text_position`, else the template's). Whether its photo is the app's unchecked pick (`image_auto`). |
 | `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last. |
-| `publications` | One post of a video to a platform (only `facebook` today); a video posted again has one row per post, at most one of them pending: the Fanpage, pending, scheduled, published, cancelled (never public) or deleted (taken off the platform after going public), the scheduled time, the platform's id of the post and the MP4 sent, who started it, who cancelled or deleted it and when. |
-| `jobs` | Belongs to a video; kind (script, clone, render, publish, unpublish: takes the post `publication_id` off Facebook; image, photos: the "Tự tìm ảnh" queued after a script or clone; voice: "Tạo giọng thật" in the preview, the narration a render would make and nothing else; an image job may name one scene, `scene_id`, and its provider, `image_provider`), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of LLM calls (`claude_calls`, named for the first provider) and of Gemini image calls, the provider and model a script or clone job wrote with, the job it retries. At most one queued or running job per video. |
+| `publications` | One post of a video to a platform (only `facebook` today); a video posted again has one row per post, at most one of them pending: the Fanpage, pending, scheduled, published, cancelled (never public) or deleted (taken off the platform after going public), the scheduled time, the platform's id of the post and the MP4 sent, who started it, who cancelled or deleted it and when (nobody when a check found it so on Facebook), when Facebook was last checked (`checked_at`). |
+| `jobs` | Belongs to a video; kind (script, clone, render, publish, unpublish: takes the post `publication_id` off Facebook; check: reads that post on Facebook and records what it says; image, photos: the "Tự tìm ảnh" queued after a script or clone; voice: "Tạo giọng thật" in the preview, the narration a render would make and nothing else; an image job may name one scene, `scene_id`, and its provider, `image_provider`), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of LLM calls (`claude_calls`, named for the first provider) and of Gemini image calls, the provider and model a script or clone job wrote with, the job it retries. At most one queued or running job per video. |
 | `settings` | The prompts and banned words before `knowledge_topics`; no longer read. |
 | `llm_providers` | One row per provider set up on `/settings/ai` (the list itself is fixed in [llm.py](../api/src/reels_api/llm.py)): base URL and model (empty means the provider's default), the API key encrypted like a Fanpage token ([crypto.py](../api/src/reels_api/crypto.py)) and its last characters, who changed it last. |
 | `app_settings` | Team-wide settings from the Cài đặt pages by key: `llm_provider` (the provider that writes scripts; Claude when unset), `video_defaults` (what a new video's settings, narration switch and music level start as), `stock_sources_off` (stock sources the team turned off). |
@@ -276,10 +276,18 @@ Planned:
   - The `publish` job uploads the current MP4 with the saved caption and hashtags. An MP4 out of date
     with the edits is refused, and so is an MP4 the chosen Page already holds. A new render, or the
     same MP4 after its post was cancelled or deleted, makes a new `publications` row.
-  - Scheduling uses Facebook's own scheduling, so the file is uploaded at once, the worker has no
+  - Scheduling uses Facebook's own scheduling, so the file is uploaded at once, the worker has no posting
     timer, and a later re-render never changes what was scheduled. Facebook then publishes by itself,
     so the app counts a scheduled post as published once its time has passed. Changing the time is
     done in Meta Business Suite.
+  - **Checking a post against Facebook.** Nothing tells the app about a change made in Meta Business
+    Suite or a reel Facebook drops, so a `check` job reads the reel and records what Facebook says:
+    live (published, or scheduled with Facebook's time), or closed, as with "Xóa", deleted if it may
+    have been public, else cancelled, with nobody as who closed it. One still processing is left as
+    it is, and the check never changes anything on Facebook. The worker queues one check of each
+    scheduled post 10 minutes after its time (`queue_post_checks`, looked for every minute), once per
+    scheduled time even if it fails, and not while the video has a job; a member queues one any time
+    with "Kiểm tra", `POST /api/posts/{id}/check`, for a scheduled or published post.
   - **"Hủy đăng" and "Xóa"** are one endpoint, `POST /api/posts/{id}/take-down`. A post Facebook never
     received (no `remote_id`) becomes cancelled in the request, its queued `publish` job cancelled.
     Any other queues an `unpublish` job, also replacing a queued `publish` job; a running job refuses

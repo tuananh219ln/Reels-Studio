@@ -164,7 +164,7 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    # script | clone | render | publish | unpublish | image | photos | voice
+    # script | clone | render | publish | unpublish | check | image | photos | voice
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -268,7 +268,10 @@ class Publication(Base):
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when it was cancelled or deleted
+    # None when the reel was found gone or stopped on Facebook by a check, not taken down from the app.
     closed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # When a check last read the reel on Facebook, or was queued to: one automatic check per scheduled time.
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])

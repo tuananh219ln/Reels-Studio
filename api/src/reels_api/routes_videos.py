@@ -47,6 +47,7 @@ from .uploads import (
 )
 from .videos import (
     JOB_KINDS,
+    LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
     active_job,
     ensure_unlocked,
@@ -428,6 +429,22 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
         post.status, post.closed_at, post.closed_by_id = "cancelled", now(), me.user_id
     else:
         _enqueue(db, video, "unpublish", me, publication_id=post.id)
+    return _saved(db, video)
+
+
+@router.post("/posts/{post_id}/check")
+def check_post(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Kiểm tra": read the reel on Facebook and record what it says, after a change made in Meta Business Suite."""
+    video_id = db.scalar(select(Publication.video_id).where(Publication.id == post_id))
+    if video_id is None:
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
+    video = lock_video(db, video_id)
+    post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
+    if post.status not in LIVE_POST_STATUSES or post.remote_id is None:
+        raise ApiError(409, "post_not_checkable", "Chỉ kiểm tra được bài đã lên Facebook hoặc đã hẹn giờ")
+    if active_job(db, video.id) is not None:
+        raise ApiError(409, "video_locked", "Video đang có job chạy, hãy đợi xong rồi kiểm tra bài")
+    _enqueue(db, video, "check", me, publication_id=post.id)
     return _saved(db, video)
 
 

@@ -209,8 +209,9 @@ Built:
     ahead, within 29 days). Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
     very MP4, and it warns when the Page keeps an older post of the video. The pinned comment stays manual;
   - the "Bài đăng của video" card lists every post, newest first: its status, Fanpage, who posted it,
-    the scheduled time or "Xem Reel", who cancelled or deleted it and when, with "Hủy đăng" for a post
-    not yet public and "Xóa" for a public one, each with a confirmation;
+    the scheduled time or "Xem Reel", who cancelled or deleted it and when ("trên Facebook" when a check
+    found it so), with "Kiểm tra" for a post on Facebook (reads it again after a change in Meta Business
+    Suite), "Hủy đăng" for a post not yet public and "Xóa" for a public one, each with a confirmation;
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): one collapsible line per topic group ("Nhóm chủ đề"), added,
   renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
@@ -233,8 +234,8 @@ Built:
   and posts a video from "Đăng" on its page.
   - **Bài đăng** (`/posts`): posts of every status but pending, latest time first, with the Fanpage,
     "Đã hẹn lịch", "Đã đăng", "Đã hủy" or "Đã xóa", the time in Vietnam time, who posted it, who
-    cancelled or deleted it and when, "Xem Reel" once public, and "Hủy đăng" or "Xóa" with a
-    confirmation. A row updates by itself once the worker has done it. The title opens the video. A
+    cancelled or deleted it and when ("Trên Facebook" when a check found it so), "Xem Reel" once
+    public, "Kiểm tra", and "Hủy đăng" or "Xóa" with a confirmation. A row updates by itself once the worker has done it. The title opens the video. A
     line counts the scheduled and published reels; filters by status (Tất cả, Đã hẹn lịch, Đã đăng,
     Đã hủy, Đã xóa) and, with more than one, by Fanpage; "Xem dạng lịch" opens the calendar, whose
     "Xem dạng danh sách" comes back.

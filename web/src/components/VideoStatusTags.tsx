@@ -13,6 +13,7 @@ const COLORS: Record<VideoRow["status"], string> = {
   rendering: "processing",
   publishing: "processing",
   unpublishing: "processing",
+  checking: "processing",
   done: "success",
   failed: "error",
 };

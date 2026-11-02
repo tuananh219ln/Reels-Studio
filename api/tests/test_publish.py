@@ -866,3 +866,140 @@ def test_a_deleted_reel_loses_its_link(an, db, me, storage):
     video = make_video(db, storage, me)
     add_post(db, video, me, None, status="deleted", published_at=datetime.now(UTC))
     assert an.get("/api/posts").json()[0]["url"] is None
+
+
+# --- Checking a post against Facebook ---
+
+
+def run_check(factory, storage, post_id, video_id, user_id) -> Job:
+    from reels_api import jobs
+
+    job_id = add_job(factory, video_id, user_id, kind="check", status="running", publication_id=post_id)
+    jobs.run_job(job_id, factory, storage)
+    return job_row(factory, job_id)
+
+
+def scheduled_post(committed, storage, ready, hours: float) -> Publication:
+    """A reel Facebook accepted for a time, then that time moved to `hours` from now."""
+    user, storage, video_id = ready
+    schedule(committed, video_id, 2)
+    run_publish(committed, storage, video_id, user.id)
+    schedule(committed, video_id, hours)
+    return post_of(committed, video_id)
+
+
+def queue_checks(factory) -> list[Job]:
+    """One round of the worker's loop."""
+    from reels_api import worker
+
+    worker.queue_checks(factory)
+    with factory() as db:
+        return list(db.scalars(select(Job).where(Job.kind == "check")))
+
+
+def test_a_scheduled_reel_cancelled_on_facebook_is_not_shown_as_posted_after_its_time(committed, ready, fakes):
+    """The bug: Facebook dropped the reel, but once its time passed the app showed "Đã đăng" with a dead link."""
+    user, storage, video_id = ready
+    post = scheduled_post(committed, storage, ready, -1)
+    fakes.reels.clear()
+    (queued,) = queue_checks(committed)
+    assert (queued.publication_id, queued.video_id, queued.status) == (post.id, video_id, "queued")
+    with committed() as db:
+        db.get(Job, queued.id).status = "running"
+        db.commit()
+    from reels_api import jobs
+
+    jobs.run_job(queued.id, committed, storage)
+    assert job_row(committed, queued.id).status == "done"
+    post = post_of(committed, video_id)
+    assert post.status == "deleted", "its time passed, so people may have seen it"
+    assert (post.closed_by_id, post.closed_at is not None) == (None, True), "closed on Facebook, not by a member"
+
+
+def test_a_post_is_checked_once_after_its_time_and_not_before(committed, ready, fakes):
+    user, storage, video_id = ready
+    scheduled_post(committed, storage, ready, 1)
+    assert queue_checks(committed) == []
+    schedule(committed, video_id, -0.05)
+    assert queue_checks(committed) == [], "Facebook gets a few minutes to publish it"
+    schedule(committed, video_id, -1)
+    assert len(queue_checks(committed)) == 1
+    with committed() as db:
+        db.execute(update(Job).where(Job.kind == "check").values(status="failed"))
+        db.commit()
+    assert len(queue_checks(committed)) == 1, "a failed check is not queued again: a member can retry it"
+
+
+def test_no_check_is_queued_while_the_video_has_a_job(committed, ready, fakes):
+    user, storage, video_id = ready
+    scheduled_post(committed, storage, ready, -1)
+    add_job(committed, video_id, user.id, kind="render")
+    assert queue_checks(committed) == []
+
+
+def test_the_check_records_a_reel_facebook_published(committed, ready, fakes):
+    user, storage, video_id = ready
+    post = scheduled_post(committed, storage, ready, -1)
+    only_reel(fakes)["state"] = "published"
+    assert run_check(committed, storage, post.id, video_id, user.id).status == "done"
+    post = post_of(committed, video_id)
+    assert (post.status, post.closed_at, post.checked_at is not None) == ("published", None, True)
+
+
+def test_the_check_takes_a_new_time_set_on_facebook(committed, ready, fakes):
+    user, storage, video_id = ready
+    post = scheduled_post(committed, storage, ready, -1)
+    later = datetime.now(UTC).replace(microsecond=0) + timedelta(days=1)
+    only_reel(fakes)["scheduled_publish_time"] = str(int(later.timestamp()))
+    run_check(committed, storage, post.id, video_id, user.id)
+    post = post_of(committed, video_id)
+    assert (post.status, post.scheduled_at) == ("scheduled", later)
+
+
+def test_the_check_closes_a_reel_facebook_will_not_publish_before_its_time(committed, ready, fakes):
+    user, storage, video_id = ready
+    post = scheduled_post(committed, storage, ready, 1)
+    only_reel(fakes)["state"] = "draft"
+    run_check(committed, storage, post.id, video_id, user.id)
+    post = post_of(committed, video_id)
+    assert (post.status, post.closed_by_id) == ("cancelled", None)
+    assert len(fakes.reels) == 1, "a check never deletes anything"
+
+
+def test_a_failed_check_leaves_the_post_as_it_was(committed, ready, fakes):
+    user, storage, video_id = ready
+    post = scheduled_post(committed, storage, ready, -1)
+    fakes.facebook_status_fails = 1
+    job = run_check(committed, storage, post.id, video_id, user.id)
+    assert job.status == "failed"
+    assert job.error.startswith("Không đọc được trạng thái reel")
+    assert post_of(committed, video_id).status == "scheduled"
+
+
+def test_check_endpoint_queues_a_check_of_the_post(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    post = add_post(db, video, me, fanpage_id(db, me))
+    payload = an.post(f"/api/posts/{post.id}/check").json()
+    assert (payload["active_job"]["kind"], payload["status_label"]) == ("check", "Chờ thứ 1")
+    job = db.scalar(select(Job).where(Job.video_id == video.id))
+    assert job.publication_id == post.id
+    refused = an.post(f"/api/posts/{post.id}/check")
+    assert (refused.status_code, refused.json()["message"]) == (
+        409,
+        "Video đang có job chạy, hãy đợi xong rồi kiểm tra bài",
+    )
+
+
+@pytest.mark.parametrize("fields", [{"status": "cancelled"}, {"status": "pending", "remote_id": None}])
+def test_only_a_post_facebook_holds_can_be_checked(an, db, me, storage, fields):
+    video = make_video(db, storage, me)
+    post = add_post(db, video, me, None, **fields)
+    refused = an.post(f"/api/posts/{post.id}/check")
+    assert (refused.status_code, refused.json()["code"]) == (409, "post_not_checkable")
+
+
+def test_checking_needs_a_login_and_a_post(an, client):
+    assert an.post("/api/posts/999/check").status_code == 404
+    client.cookies.clear()
+    assert client.post("/api/posts/999/check").status_code == 401

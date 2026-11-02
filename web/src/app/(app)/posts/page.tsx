@@ -58,7 +58,7 @@ export default function PostsPage() {
       title: "Hủy/xóa",
       key: "closed",
       width: 190,
-      render: (_, post) => post.closed_at && `${post.closed_by} · ${formatDateTime(post.closed_at)}`,
+      render: (_, post) => post.closed_at && `${post.closed_by ?? "Trên Facebook"} · ${formatDateTime(post.closed_at)}`,
     },
     {
       title: "",
@@ -74,7 +74,7 @@ export default function PostsPage() {
     {
       title: "",
       key: "actions",
-      width: 110,
+      width: 180,
       render: (_, post) => <PostActions post={post} disabled={post.busy} onDone={load} />,
     },
   ];

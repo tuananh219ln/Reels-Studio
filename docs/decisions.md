@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — The app checks a scheduled post on Facebook after its time, and on "Kiểm tra"
+
+Requested by a member (tuananh219ln): a scheduled reel cancelled on Facebook still showed as "Đã đăng" once its
+time passed, because the app counts a scheduled post as published by the clock and never asked Facebook again. The
+worker now queues one `check` job per scheduled post, 10 minutes after its time, and a member can queue one with
+"Kiểm tra" on any post on Facebook. The check only reads the reel and records what Facebook says; it never posts or
+deletes. This is a timer for reading, not for posting: "Scheduling uses Facebook's own scheduling; the app has no
+posting timer" (2026-10-31) still holds. A reel found gone after its time ends as "Đã xóa", not "Đã hủy", keeping
+the rule that "Đã hủy" never stands for a reel people may have seen; who closed it is left empty ("Trên Facebook").
+The automatic check runs once per scheduled time, even if it fails, so a broken token never loops; "Thử lại" and
+"Kiểm tra" remain.
+
 ## 2026-11-02 — A re-rendered video can be posted again; posts can be cancelled and deleted from the app
 
 Requested by a member (tuananh219ln). This replaces "A video is never posted to Facebook twice" for a post a member

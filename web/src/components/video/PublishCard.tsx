@@ -146,7 +146,7 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
               <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
                 {[post.fanpage, post.created_by].filter(Boolean).join(" · ")}
                 {post.closed_at &&
-                  ` · ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} bởi ${post.closed_by}`}
+                  ` · ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
               </Typography.Paragraph>
             </div>
             <PostActions post={post} disabled={video.locked} onDone={editor.onSaved} />

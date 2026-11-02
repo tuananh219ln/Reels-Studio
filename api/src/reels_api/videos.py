@@ -34,6 +34,7 @@ STATUS_LABELS = {
     "rendering": "Đang render",
     "publishing": "Đang đăng",
     "unpublishing": "Đang gỡ bài",
+    "checking": "Đang kiểm tra bài",
     "done": "Xong",
     "failed": "Lỗi",
 }
@@ -44,6 +45,7 @@ JOB_KINDS = {
     "render": "Render",
     "publish": "Đăng Facebook",
     "unpublish": "Gỡ bài Facebook",
+    "check": "Kiểm tra bài Facebook",
     "image": "Tạo ảnh AI",
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
@@ -94,6 +96,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang đăng lên Facebook, chưa lưu")
     if job.kind == "unpublish":
         raise ApiError(409, "video_locked", "Video đang gỡ bài trên Facebook, chưa lưu")
+    if job.kind == "check":
+        raise ApiError(409, "video_locked", "Video đang kiểm tra bài trên Facebook, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
     raise ApiError(409, "video_locked", "Video đang viết kịch bản, chưa lưu")
@@ -263,6 +267,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
             "render": "rendering",
             "publish": "publishing",
             "unpublish": "unpublishing",
+            "check": "checking",
             "image": "imaging",
             "photos": "finding",
             "voice": "voicing",
