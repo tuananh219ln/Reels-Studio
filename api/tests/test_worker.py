@@ -344,6 +344,7 @@ def test_ffmpeg_failure_stores_its_stderr_and_keeps_the_old_mp4(committed, tmp_p
     storage = DirectoryStorage(tmp_path / "storage")
     with committed() as db:
         video = make_video(db, storage, user)
+        video.voice_enabled = False
         video.mp4_key = f"videos/{video.id}/video-old.mp4"
         storage.save_bytes(video.mp4_key, b"old mp4")
         db.commit()
@@ -532,6 +533,8 @@ def short_video(committed, tmp_path):
     storage = DirectoryStorage(tmp_path / "storage")
     with committed() as db:
         video = make_video(db, storage, user, scene_count=1, seconds=2)
+        video.voice_enabled = False
+        db.commit()
     return user, storage, video.id
 
 

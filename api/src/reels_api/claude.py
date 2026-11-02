@@ -22,9 +22,8 @@ Các trường:
 - "titles": 5 tiêu đề viết hoa, mỗi tiêu đề tối đa 12 từ.
 - "title_voice": lời đọc cho cảnh tiêu đề: một câu mở đầu gây tò mò về chủ đề chung, hợp với cả 5 tiêu đề (không đọc lại
   nguyên văn tiêu đề nào), 8–12 từ.
-  Khi đọc, mỗi cảnh được đọc chữ trên màn hình trước rồi mới đến lời đọc của cảnh đó, nên lời đọc nói tiếp ý, không lặp
-  lại chữ trên màn hình. Tổng số từ của tiêu đề dài nhất, "title_voice", mọi "text" và mọi "voice" không quá 150 từ:
-  nhiều cảnh thì viết mỗi lời gần 8 từ, ít cảnh mới viết gần 15 từ.
+  Khi đọc, cảnh có lời đọc chỉ đọc lời đọc, không đọc chữ trên màn hình: chữ là nhãn ngắn, lời đọc là phần diễn giải.
+  Tổng số từ của "title_voice" và mọi "voice" không quá 150 từ.
 - "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh tiêu đề, xếp từ cụ thể đến chung
   (món tiêu biểu nhất của chủ đề trước, nhóm món sau).
 - "title_keywords_en": 2–4 từ khóa tiếng Anh tương ứng để tìm ở các kho ảnh phương Tây (Pixabay, Pexels —
@@ -37,7 +36,7 @@ Các trường:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
   - "seconds": số giây của cảnh (3–5);
-  - "voice": lời đọc của cảnh, câu nói tự nhiên nối tiếp chữ trên màn hình của cảnh đó và nói đủ một ý chi tiết (lý
+  - "voice": lời đọc của cảnh, câu nói tự nhiên diễn giải chữ trên màn hình của cảnh đó và nói đủ một ý chi tiết (lý
     do, cách ăn hoặc mẹo nhỏ), 8–15 từ; không dùng *dấu sao*, viết số và đơn vị thành chữ khi cần đọc rõ;
   - "image_prompt": prompt tạo ảnh AI cho cảnh, viết bằng tiếng Anh, 1 câu tả đúng thứ trong ảnh (món/nguyên liệu
     cụ thể của cảnh, cách bày, góc chụp); không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm phong cách

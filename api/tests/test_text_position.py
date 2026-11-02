@@ -113,6 +113,7 @@ def test_the_render_job_hands_each_scene_its_place(committed, tmp_path, monkeypa
     with committed() as db:
         video = make_video(db, storage, user, scene_count=2, seconds=2)
         video.options = {"text_position": [540, 600]}
+        video.voice_enabled = False
         first = first_scene(db, video)
         first.text_x, first.text_y = 300, 900
         db.commit()

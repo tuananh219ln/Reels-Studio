@@ -11,6 +11,38 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — Narration reads the voice text; the on-screen text only stands in for an empty one
+
+Requested by a member (tuananh219ln): the on-screen text is a short label and the voice text explains it, so reading
+both repeated the dish and made the video longer. This replaces "Narration reads the on-screen text, then the voice
+text" (below), including its "An empty voice text still means a silent scene", and the way "Scripts may run to 150
+words" counts its budget. For each scene:
+
+| Voice text | On-screen text | Read |
+| --- | --- | --- |
+| yes | yes | the voice text only |
+| yes | empty | the voice text |
+| empty | yes | the on-screen text, cleaned |
+| empty | empty | nothing; the scene's seconds set its length |
+
+Cleaning, in [videos.py](../api/src/reels_api/videos.py): a content scene loses its leading list number ("2." or "2)",
+otherwise read as "hai chấm"; "2.5 lít" stays) and each line becomes a sentence, so "Canh rau ngót" / "Mát gan, dễ tiêu"
+reads with a pause between them. The split follows the line breaks members and the script already write: guessing
+it inside a single line from capital letters would break on names such as "Phú Quốc". The title scene is read whole.
+The api sends each scene's `spoken_text`, so the preview reads what the render reads instead of a copy of the rule.
+
+Consequences:
+
+- A scene with on-screen text can no longer be silent on its own: the "Giọng đọc" switch turns off the whole video.
+- A scene is not re-read when only its on-screen text changes, as long as it has a voice text.
+- Every narrated video reads differently now, so existing MP4s show as outdated and their next render buys the
+  narration again. Scenes with text and no voice text, silent until now, are read, and a render with narration on needs
+  an ElevenLabs key even when no scene has a voice text.
+- The 150-word budget now counts the title scene's voice text and the scenes' voice texts only. At 8–15 words (kept
+  as they are) a script reaches at most 117 words, about 40 seconds of speech, so the cap no longer binds.
+- Naming the dish in the voice text is a topic's choice, made in its prompt on `/knowledge`: the output format and its
+  example do not ask for it.
+
 ## 2026-11-02 — One app theme in the icon's orange, Be Vietnam Pro
 
 Owner's choice, the first step of a UI refactor that keeps Ant Design: `theme.ts` is the single

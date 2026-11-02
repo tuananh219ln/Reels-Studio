@@ -161,9 +161,12 @@ def test_the_format_and_its_example_give_narration_room_for_detail():
     voices = [count_words(scene.voice) for scene in example.scenes]
     # The model copies the example's length, so it shows the fuller voice text the format asks for.
     assert min(voices) >= 12 and max(voices) <= 15
-    title = max(count_words(title) for title in example.titles)
-    texts = sum(count_words(scene.text) for scene in example.scenes)
-    assert title + count_words(example.title_voice) + texts + sum(voices) <= 150
+    assert count_words(example.title_voice) + sum(voices) <= 150
+
+
+def test_the_format_says_a_voiced_scene_reads_only_its_voice_text():
+    assert "không đọc chữ trên màn hình" in OUTPUT_FORMAT
+    assert "chữ trên màn hình trước" not in OUTPUT_FORMAT
 
 
 def test_a_full_length_script_is_not_warned_about_its_length():
