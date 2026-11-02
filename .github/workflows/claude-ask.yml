@@ -26,7 +26,6 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
-      id-token: write
     env:
       HAS_CREDENTIAL: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
@@ -39,6 +38,9 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # The job's own token, limited to the permissions above, instead of the Claude GitHub
+          # App (not installed here, and it would get wider access to the repo).
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           trigger_phrase: "@claude"
           claude_args: |
             --max-turns 20
