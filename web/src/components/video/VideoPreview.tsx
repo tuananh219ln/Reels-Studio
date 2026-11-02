@@ -9,6 +9,7 @@ import {
 } from "@ant-design/icons";
 import { Alert, Button, Drawer, Flex, Popconfirm, Segmented, Select, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { COLORS } from "@/app/theme";
 import type { SceneData, VideoDetail } from "@/lib/api";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
@@ -441,7 +442,7 @@ export default function VideoPreview({
                   borderRadius: 3,
                   cursor: "pointer",
                   overflow: "hidden",
-                  background: index < phase.index ? "#1677ff" : "#d9d9d9",
+                  background: index < phase.index ? COLORS.primary : COLORS.border,
                 }}
               >
                 {index === phase.index && (
@@ -450,7 +451,7 @@ export default function VideoPreview({
                     style={{
                       display: "block",
                       height: "100%",
-                      background: "#1677ff",
+                      background: COLORS.primary,
                       animationName: "preview-progress",
                       animationDuration: `${item.fitted_seconds}s`,
                       animationTimingFunction: "linear",
@@ -536,9 +537,9 @@ export default function VideoPreview({
                     gap: 8,
                     alignItems: "center",
                     padding: "6px 8px",
-                    border: `1px solid ${index === phase.index ? "#1677ff" : "#f0f0f0"}`,
+                    border: `1px solid ${index === phase.index ? COLORS.primary : COLORS.border}`,
                     borderRadius: 6,
-                    background: index === phase.index ? "#e6f4ff" : "#fff",
+                    background: index === phase.index ? COLORS.primaryBg : COLORS.surface,
                     cursor: "pointer",
                     textAlign: "left",
                   }}

@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — One app theme in the icon's orange, Be Vietnam Pro
+
+Owner's choice, the first step of a UI refactor that keeps Ant Design: `theme.ts` is the single
+source of colours, and the brand colour is the orange of the app's icon (`icon.svg`), replacing the
+teal (`#0F3B4C`) the app started with, the antd blue (`#1677ff`) hard-coded beside it, and the green
+"RS" badge, which the icon now replaces as the logo. The orange is a fill with white on it (primary
+buttons, the selected menu item), as in the icon; small text and thin marks on white (links, tabs,
+switches, focus) use a deeper orange of the same hue (`#C2410C`, about 5:1 on white). The interface
+font is Be Vietnam Pro, drawn for Vietnamese, loaded with `next/font` so the app serves it itself
+(the build downloads it once; browsers never call Google). The video template's font is a separate
+choice and does not change.
+
 ## 2026-11-02 — The preview opens in a drawer and can ask ElevenLabs for the real voice
 
 Owner's choice: the browser's free Google voice sounds robotic, so the preview now (1) lists the

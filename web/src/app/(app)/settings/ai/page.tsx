@@ -18,10 +18,11 @@ import {
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type LlmProvider, type LlmSettings } from "@/lib/api";
+import { COLORS } from "@/app/theme";
 
 function StatusTag({ provider }: { provider: LlmProvider }) {
   if (provider.active) {
-    return <Tag color="blue">Đang dùng</Tag>;
+    return <Tag color="processing">Đang dùng</Tag>;
   }
   return provider.problem ? <Tag>Chưa cấu hình</Tag> : <Tag color="success">Sẵn sàng</Tag>;
 }
@@ -290,7 +291,7 @@ export default function AiSettingsPage() {
             key: provider.id,
             label: (
               <Flex wrap gap={8} align="center">
-                {provider.active && <CheckCircleFilled style={{ color: "#1677ff" }} />}
+                {provider.active && <CheckCircleFilled style={{ color: COLORS.primary }} />}
                 <Typography.Text strong>{provider.name}</Typography.Text>
                 <StatusTag provider={provider} />
                 {!provider.problem && (

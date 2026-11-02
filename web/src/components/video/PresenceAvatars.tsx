@@ -3,19 +3,20 @@
 import { Avatar, Flex, Tooltip, Typography } from "antd";
 import UserAvatar from "@/components/UserAvatar";
 import type { PresentMember } from "@/lib/presence";
+import { COLORS } from "@/app/theme";
 
-// The same blue as the outline round the scenes in "Chỉnh sửa".
-const EDITING_BLUE = "#1677ff";
+// The brand green, like the "Đang chỉnh sửa" tag.
+const EDITING_COLOR = COLORS.primary;
 
-/** "Đang ở đây": the other members with this video open; whoever is editing has a blue ring. */
+/** "Đang ở đây": the other members with this video open; whoever is editing has a green ring. */
 export default function PresenceAvatars({ others }: { others: PresentMember[] }) {
   if (others.length === 0) {
     return null;
   }
   return (
-    <Flex align="center" gap={8} style={{ marginTop: 6 }} data-testid="presence">
+    <Flex align="center" gap={8} data-testid="presence">
       <Typography.Text type="secondary">Đang ở đây:</Typography.Text>
-      <Avatar.Group max={{ count: 5 }} size={28}>
+      <Avatar.Group max={{ count: 5 }} size={24}>
         {others.map((member) => {
           const doing = member.editing ? "đang chỉnh sửa" : "đang xem";
           return (
@@ -27,10 +28,10 @@ export default function PresenceAvatars({ others }: { others: PresentMember[] })
                 style={{
                   display: "inline-flex",
                   borderRadius: "50%",
-                  boxShadow: member.editing ? `0 0 0 2px ${EDITING_BLUE}` : undefined,
+                  boxShadow: member.editing ? `0 0 0 2px ${EDITING_COLOR}` : undefined,
                 }}
               >
-                <UserAvatar initial={member.initial} size={28} />
+                <UserAvatar initial={member.initial} size={24} />
               </span>
             </Tooltip>
           );
