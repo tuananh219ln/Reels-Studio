@@ -120,7 +120,9 @@ the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). T
 - **Production data on a dev machine:** `docker/pull-prod-db.sh <ssh-target> <postgres-container>`
   (bash; on Windows use Git Bash or WSL) dumps the production database over SSH (read only) into
   `data/prod-dumps/` and, after you type `reels` to confirm, replaces the local dev database
-  `reels` with it; `--yes` skips the question. The container name is on the Coolify database page.
+  `reels` with it; `--yes` skips the question. The container name is the end of the URL of Reels
+  Studio's PostgreSQL resource in Coolify (`.../database/<container>`), not `coolify-db`: a dump
+  without the `alembic_version` and `jobs` tables is deleted and the local database is left alone.
   Then run `alembic upgrade head` in `api/`. The copy has production's accounts and passwords;
   it cancels production's unfinished jobs; saved API keys and Fanpage tokens show as unreadable,
   because their key file stays in production's storage folder; video files and images are not
