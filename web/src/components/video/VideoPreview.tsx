@@ -10,6 +10,7 @@ import {
 import { Alert, Button, Drawer, Flex, Popconfirm, Segmented, Select, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SceneData, VideoDetail } from "@/lib/api";
+import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
 import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
 
@@ -27,6 +28,21 @@ const SPEECH_RATE = { slow: 0.85, normal: 1, fast: 1.15 } as const;
 const SENTENCE_ENDS = [".", "!", "?", "…", ":"];
 // A browser voice that never says it has finished must not hold the preview forever.
 const SPEECH_GRACE_MS = 15_000;
+
+// The phone's outer size over its screen (Stageshow's iPhone: a 402 × 874 pt screen, a 13 pt band each side).
+const PHONE_RATIO = (402 + 26) / (874 + 26);
+
+/** The phone's width: as tall as fits the drawer's height, never wider than a small screen. */
+function phoneWidth(): number {
+  const height = Math.min(window.innerHeight * 0.74, 760);
+  return Math.round(Math.min(height * PHONE_RATIO, window.innerWidth - 48));
+}
+
+/** The status bar shows the time in Vietnam, like everywhere else in the app. */
+const clockNow = () =>
+  new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
 
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
 const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
@@ -98,6 +114,8 @@ export default function VideoPreview({
     }
   });
   const [guide, setGuide] = useState(false);
+  const [width, setWidth] = useState(phoneWidth);
+  const [statusTime] = useState(clockNow);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   // The browser voice each member picked, remembered in their browser; the most natural one otherwise.
   const [voiceName, setVoiceName] = useState<string | null>(() => {
@@ -124,6 +142,12 @@ export default function VideoPreview({
   const unvoiced = video.voice_enabled ? scenes.filter((item) => spokenText(video, item) && !item.voice_url).length : 0;
   const missingVoice = unvoiced > 0;
   const voicing = video.active_job?.kind === "voice";
+
+  useEffect(() => {
+    const resize = () => setWidth(phoneWidth());
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
   // The browser lists its voices late (voiceschanged), so ask again when it does.
   useEffect(() => {
@@ -358,19 +382,16 @@ export default function VideoPreview({
     >
       <Flex wrap gap={24} justify="center">
         <Flex vertical gap={10} align="center">
-          {/* A phone around the frame, so the overlay reads like the app on a real screen. */}
-          <div
-            style={{ padding: 8, background: "#141414", borderRadius: 30, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}
-          >
+          {/* A real phone's geometry around the frame: the 9:16 video sits under the status bar, as the apps show it. */}
+          <Phone width={width} frame="pro" dark wallpaper="#000" time={statusTime}>
             <div
               ref={stage}
               data-testid="preview-stage"
               style={{
                 position: "relative",
-                height: "min(70vh, 620px)",
+                width: "100%",
                 aspectRatio: `${FRAME_WIDTH} / ${FRAME_HEIGHT}`,
                 overflow: "hidden",
-                borderRadius: 22,
                 background: "#000",
                 containerType: "inline-size",
               }}
@@ -403,7 +424,7 @@ export default function VideoPreview({
               )}
               {guide && <SafeZone />}
             </div>
-          </div>
+          </Phone>
           {/* One segment per scene, as long as the scene; the current one fills as it plays. Click to jump. */}
           <Flex gap={3} style={{ width: "100%" }} data-testid="preview-timeline">
             {scenes.map((item, index) => (
