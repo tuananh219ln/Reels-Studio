@@ -18,6 +18,13 @@ first start of an empty volume,
 database. Use `127.0.0.1` rather than `localhost` in local URLs: on this host `localhost` tries IPv6
 first and adds a 5-second delay. The setup commands are in the README.
 
+**macOS/Linux:** `scripts/dev.sh` does the whole local start in one terminal (needs uv, Docker, Node
+and FFmpeg): Postgres, `.env` from `.env.example` if missing, `api/.venv` rebuilt with uv on the
+Python in `.python-version` whenever it is missing, on another Python, built for another folder or
+behind a `pyproject.toml`, `alembic upgrade head`, `npm install` when the lock file changed, then api
+(auto-reload), worker and web with labelled output. Ctrl+C, or any one of them stopping, stops all
+three. The compose project is named `reels-studio`, so moving the repo keeps the same database.
+
 **Render budget:** rendering must take no longer than 2× the video length on this host.
 
 ## Production
