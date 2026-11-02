@@ -65,3 +65,11 @@ test("ChatGPT connects through consent, then the member revokes it", async ({ pa
   await expect(page.getByText("Bạn chưa có kết nối ChatGPT nào.")).toBeVisible();
   expect((await rpc()).status()).toBe(401);
 });
+
+// Consent must not be embeddable under another site's UI.
+test("the ChatGPT consent page rejects framing", async ({ page }) => {
+  await loginAsSeed(page);
+  const response = await page.goto("/chatgpt");
+  expect(response?.headers()["content-security-policy"]).toContain("frame-ancestors 'none'");
+  expect(response?.headers()["x-frame-options"]).toBe("DENY");
+});

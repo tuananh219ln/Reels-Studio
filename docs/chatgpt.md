@@ -52,7 +52,7 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
 - `reels:read` reads video content/status and topic-group names. `reels:write` additionally permits
   the explicit write tools. Both use the member's identity; the library is shared by the team.
 - Consent is explicit, protected by the existing Origin guard and a short-lived ticket bound to
-  the member's current browser session. A denied/used ticket cannot be reused. Authorization
+  the member's current browser session. The web page rejects framing (CSP/X-Frame-Options). A denied/used ticket cannot be reused. Authorization
   codes expire after two minutes and are consumed under a database lock after S256 verification.
 - Access tokens last at most one hour. Refresh rotates both tokens and lasts at most 30 days from
   the original grant. Refreshing does not extend the connection or its underlying login session.
