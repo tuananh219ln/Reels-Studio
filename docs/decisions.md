@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — Pages poll one request at a time and links do not prefetch
+
+The video page loaded slowly in production: measured from Vietnam, any request through the
+OpenNext web worker took about 1–2 s (even `/login`, and `/api/me` answering 401), while the
+video payload itself takes about 0.04 s on the api. The 2.5 s polls then overlapped, the menu
+prefetched seven pages as server renders, and every hashed JS file was revalidated on each load.
+Polling now waits for each answer and pauses in a hidden tab, `Link`s do not prefetch, and
+`/_next/static/*` is immutable. Sending `/api/*` straight to the api, without the Next.js worker in
+the way, would remove most of the remaining delay, but changes "One origin is kept" in
+[deployment.md](deployment.md) and is left to the owner.
+
 ## 2026-11-02 — Reading speed is a slider from 0.7× to 1.3×
 
 Owner's choice, replacing the three presets (0.9 / 1.0 / 1.1) in "Reading speed is applied with

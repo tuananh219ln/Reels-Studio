@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import { usePolling } from "@/lib/polling";
 
 const REFRESH_MS = 5000;
 const PAGE_SIZE = 300; // JOB_LIST_LIMIT in the api
@@ -80,9 +81,8 @@ export default function JobsPage() {
 
   useEffect(() => {
     void reload();
-    const timer = setInterval(() => reload(true), REFRESH_MS);
-    return () => clearInterval(timer);
   }, [reload]);
+  usePolling(() => reload(true), REFRESH_MS);
 
   const columns: ColumnsType<JobRow> = [
     {

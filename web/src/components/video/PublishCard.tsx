@@ -72,7 +72,11 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
     return (
       <Card title="Đăng Facebook" size="small">
         <Typography.Text>
-          Chưa có Fanpage nào đang dùng. Vào <Link href="/fanpages">Kết nối Fanpage</Link> để thêm.
+          Chưa có Fanpage nào đang dùng. Vào{" "}
+          <Link prefetch={false} href="/fanpages">
+            Kết nối Fanpage
+          </Link>{" "}
+          để thêm.
         </Typography.Text>
       </Card>
     );
