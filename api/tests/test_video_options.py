@@ -6,9 +6,9 @@ from fake_services import ELEVENLABS_KEY
 from test_voice import TEN_WORDS, first_scene, needs_ffmpeg, render, voiced  # noqa: F401  (fixture)
 from worker_helpers import committed  # noqa: F401  (fixture)
 
-from reels_api import config, video_options
+from reels_api import config, tts, video_options
 from reels_api.jobs import make_voices
-from reels_api.models import Video
+from reels_api.models import AppSetting, Video
 from reels_api.videos import render_signature, split_scenes
 
 DEFAULTS_URL = "/api/settings/video-defaults"
@@ -42,12 +42,12 @@ def test_the_team_defaults_apply_to_videos_created_afterwards_only(an, db, me, s
     old = make_video(db, storage, me)
     assert an.get(DEFAULTS_URL).json() == video_options.VIDEO_FIELDS | video_options.DEFAULTS
     saved = an.put(
-        DEFAULTS_URL, json={"values": {"transition": "slide", "voice_speed": "fast", "music_volume": 15}}
+        DEFAULTS_URL, json={"values": {"transition": "slide", "voice_speed": 1.25, "music_volume": 15}}
     ).json()
-    assert (saved["transition"], saved["voice_speed"], saved["music_volume"]) == ("slide", "fast", 15)
+    assert (saved["transition"], saved["voice_speed"], saved["music_volume"]) == ("slide", 1.25, 15)
 
     created = an.post("/api/videos", json={"topic": "tim mạch", "knowledge_topic_id": first_topic(db).id}).json()
-    assert created["options"]["transition"] == "slide" and created["options"]["voice_speed"] == "fast"
+    assert created["options"]["transition"] == "slide" and created["options"]["voice_speed"] == 1.25
     assert created["music_volume"] == 15
     assert an.get(f"/api/videos/{old.id}").json()["options"]["transition"] == "fade"
 
@@ -58,6 +58,10 @@ def test_bad_defaults_are_refused(an):
         ({"music_volume": 150}, "Âm lượng phải từ 0 đến 100%"),
         ({"colour": "pink"}, "Không có tuỳ chọn"),
         ({"ducking": "yes"}, "“Nhỏ nhạc khi có giọng” chỉ nhận bật hoặc tắt"),
+        ({"voice_speed": 1.5}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
+        ({"voice_speed": 0.6}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
+        ({"voice_speed": "nhanh"}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
+        ({"voice_speed": True}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
     ):
         refused = an.put(DEFAULTS_URL, json={"values": values})
         assert refused.status_code == 422 and refused.json()["message"].startswith(message), values
@@ -182,7 +186,7 @@ def test_the_chosen_voice_and_speed_make_the_narration_and_a_change_remakes_it(c
     with committed() as db:
         db.get(Video, video_id).options = video_options.DEFAULTS | {
             "voice_id": "fake-voice-mai",
-            "voice_speed": "fast",
+            "voice_speed": 1.2,
             "captions": "word",
             "transition": "cut",
             "ducking": True,
@@ -199,17 +203,15 @@ def test_the_chosen_voice_and_speed_make_the_narration_and_a_change_remakes_it(c
     assert len(fakes.tts_requests) == 1
     with committed() as db:
         video = db.get(Video, video_id)
-        video.options = video_options.effective(video) | {"voice_speed": "normal"}
+        video.options = video_options.effective(video) | {"voice_speed": 1.0}
         db.commit()
     assert render(committed, storage, video_id, user.id).status == "done"
     assert len(fakes.tts_requests) == 2 and "speed" not in fakes.tts_requests[1]
 
 
 @needs_ffmpeg
-@pytest.mark.parametrize(("speed", "factor"), [("slow", 0.9), ("fast", 1.1)])
-def test_the_reading_speed_changes_the_narration_length_even_when_the_model_ignores_it(
-    db, me, storage, fakes, speed, factor
-):
+@pytest.mark.parametrize("speed", [0.7, 0.8, 1.2, 1.3])
+def test_the_reading_speed_changes_the_narration_length_even_when_the_model_ignores_it(db, me, storage, fakes, speed):
     # The default model (eleven_v3) ignores ElevenLabs' own speed setting, and so does the fake: the speed has to
     # be applied to the MP3 ElevenLabs returns.
     video = make_video(db, storage, me)
@@ -223,8 +225,35 @@ def test_the_reading_speed_changes_the_narration_length_even_when_the_model_igno
     video.options = video_options.DEFAULTS | {"voice_speed": speed}
     db.commit()
     make_voices(db, video, split_scenes(db, video)[1], storage)
-    assert scene.voice_seconds == pytest.approx(normal / factor, rel=0.03)
+    assert scene.voice_seconds == pytest.approx(normal / speed, rel=0.03)
     assert all("speed" not in request for request in fakes.tts_requests)
+
+
+def test_the_reading_speed_is_a_slider_value_and_old_presets_read_as_the_wider_levels(an, db, me, storage):
+    video = make_video(db, storage, me)
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": {"voice_speed": 0.85}}).json()
+    assert payload["options"]["voice_speed"] == 0.85
+    # Sliders send floats such as 1.1500000000000001: stored to the slider's step.
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": {"voice_speed": 1.1500000000000001}}).json()
+    assert payload["options"]["voice_speed"] == 1.15
+    refused = an.patch(f"/api/videos/{video.id}", json={"options": {"voice_speed": 2}})
+    assert refused.status_code == 422 and "Tốc độ đọc" in refused.json()["message"]
+
+    # Saved before the slider: Chậm and Nhanh now mean the wider 0.8 and 1.2.
+    for preset, speed in (("slow", 0.8), ("normal", 1.0), ("fast", 1.2)):
+        video.options = video_options.DEFAULTS | {"voice_speed": preset}
+        db.commit()
+        assert video_options.voice_speed(video) == speed
+        assert an.get(f"/api/videos/{video.id}").json()["options"]["voice_speed"] == speed
+    db.add(AppSetting(key=video_options.DEFAULTS_KEY, value={"voice_speed": "fast"}))
+    db.commit()
+    assert an.get(DEFAULTS_URL).json()["voice_speed"] == 1.2
+
+
+def test_normal_speed_narration_made_before_the_slider_stays_valid():
+    assert tts.voice_signature("Xin chào", "adam", 1.0) == tts.voice_signature("Xin chào", "adam")
+    # A preset's old narration ("tempo:fast", 1.1) is made again at the wider level.
+    assert tts.voice_signature("Xin chào", "adam", 1.2) != tts.voice_signature("Xin chào", "adam")
 
 
 def test_custom_colours_redraw_the_previews_and_render_as_chosen(an, db, me, storage):

@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — Reading speed is a slider from 0.7× to 1.3×
+
+Owner's choice, replacing the three presets (0.9 / 1.0 / 1.1) in "Reading speed is applied with
+FFmpeg, not by ElevenLabs" below: a 10% change was too small to hear. "Tốc độ đọc" is now a slider
+from 0.7 to 1.3 in steps of 0.05 (marked Chậm, Vừa, Nhanh), stored as the number in
+`videos.options.voice_speed` and the team defaults; it is still applied with FFmpeg `atempo`. Values
+saved as presets read as the wider levels (Chậm 0.8, Vừa 1.0, Nhanh 1.2), with no migration. The
+narration signature now carries `tempo:<factor>`, so narration made at an old Chậm or Nhanh is made
+again on its next render (costing ElevenLabs characters once); narration at 1.0 is untouched. The
+browser preview reads at the same factor.
+
 ## 2026-11-02 — One app theme in the icon's orange, Be Vietnam Pro
 
 Owner's choice, the first step of a UI refactor that keeps Ant Design: `theme.ts` is the single

@@ -25,7 +25,6 @@ const VOICE_TAIL_MS = 400;
 const ZOOMS = { light: 1.06, medium: 1.12, strong: 1.18 } as const;
 // Ducking drops the music to about a quarter while narration plays.
 const DUCKED = 0.25;
-const SPEECH_RATE = { slow: 0.85, normal: 1, fast: 1.15 } as const;
 const SENTENCE_ENDS = [".", "!", "?", "…", ":"];
 // A browser voice that never says it has finished must not hold the preview forever.
 const SPEECH_GRACE_MS = 15_000;
@@ -252,7 +251,7 @@ export default function VideoPreview({
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.voice = voice;
       utterance.lang = voice.lang;
-      utterance.rate = SPEECH_RATE[video.options.voice_speed];
+      utterance.rate = video.options.voice_speed;
       utterance.volume = Math.min(1, video.options.voice_volume);
       utterance.onend = voiceDone;
       utterance.onerror = voiceDone;
