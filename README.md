@@ -48,6 +48,16 @@ docker-compose.yml  # Postgres cho máy dev
 
 ## Chạy web app trên máy (localhost)
 
+**macOS/Linux, một lệnh:** cài `uv`, Docker Desktop, Node 22 và FFmpeg (`brew install uv node@22
+ffmpeg`), rồi từ thư mục gốc repo chạy `./scripts/dev.sh`. Script tự bật Postgres, tạo `.env` nếu
+chưa có, dựng lại `api/.venv` đúng Python 3.12 khi venv thiếu, sai phiên bản hoặc repo bị chuyển
+thư mục, chạy migration, rồi chạy api, worker và web trong cùng một terminal (Ctrl+C tắt cả ba).
+Lần đầu vẫn cần tạo người dùng: `cd api && .venv/bin/python -m reels_api create-user`.
+Muốn có dữ liệu thật để thử: `docker/pull-prod-db.sh` (xem docs/deployment.md), rồi chạy lại
+`./scripts/dev.sh`.
+
+Các bước dưới đây là cách làm tay (lệnh PowerShell cho Windows):
+
 Cần: Docker Desktop (Windows cần WSL2: `wsl --install` bằng quyền admin rồi khởi động lại máy),
 Python 3.12, Node 20.9 trở lên, FFmpeg (`winget install Gyan.FFmpeg`, cho worker render). Mọi lệnh
 chạy từ thư mục gốc repo, trong PowerShell.

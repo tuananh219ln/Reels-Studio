@@ -18,6 +18,13 @@ first start of an empty volume,
 database. Use `127.0.0.1` rather than `localhost` in local URLs: on this host `localhost` tries IPv6
 first and adds a 5-second delay. The setup commands are in the README.
 
+**macOS/Linux:** `scripts/dev.sh` does the whole local start in one terminal (needs uv, Docker, Node
+and FFmpeg): Postgres, `.env` from `.env.example` if missing, `api/.venv` rebuilt with uv on the
+Python in `.python-version` whenever it is missing, on another Python, built for another folder or
+behind a `pyproject.toml`, `alembic upgrade head`, `npm install` when the lock file changed, then api
+(auto-reload), worker and web with labelled output. Ctrl+C, or any one of them stopping, stops all
+three. The compose project is named `reels-studio`, so moving the repo keeps the same database.
+
 **Render budget:** rendering must take no longer than 2× the video length on this host.
 
 ## Production
@@ -84,8 +91,8 @@ when set to an empty string. Containers use real environment variables only.
 | `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
 | `IMAGE_GEN_MODEL` | worker, optional: the image model; the default is `gemini-2.5-flash-image` |
 | `IMAGE_GEN_PROVIDER` | api + worker, optional and kept for older servers: the team's default AI photo provider until one is chosen on Cài đặt › Nguồn tư liệu (`gemini` or `cloudflare`; any other value means `gemini`). Unset: Cloudflare when it is set up, else Gemini |
-| `IMAGE_GEN_CF_API_KEY` | worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › Nguồn tư liệu wins over it |
-| `IMAGE_GEN_CF_ACCOUNT_ID` | worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare` |
+| `IMAGE_GEN_CF_API_KEY` | api + worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › Nguồn tư liệu wins over it |
+| `IMAGE_GEN_CF_ACCOUNT_ID` | api + worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare`. Without it on the api, Cài đặt › Nguồn tư liệu shows Cloudflare as not set up even with a pasted token |
 | `IMAGE_GEN_CF_MODEL` | worker, optional: the Workers AI model; the default is `@cf/black-forest-labs/flux-1-schnell` |
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL` | api and worker, optional, same values on both (the api recognizes made narration and the MP4 fingerprint by them): the voice (default "Adam", `pNInz6obpgDQGcFmaJgB`) and model (default `eleven_v3`); changing either re-makes every narration on the next render |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable |
@@ -113,7 +120,9 @@ the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). T
 - **Production data on a dev machine:** `docker/pull-prod-db.sh <ssh-target> <postgres-container>`
   (bash; on Windows use Git Bash or WSL) dumps the production database over SSH (read only) into
   `data/prod-dumps/` and, after you type `reels` to confirm, replaces the local dev database
-  `reels` with it; `--yes` skips the question. The container name is on the Coolify database page.
+  `reels` with it; `--yes` skips the question. The container name is the end of the URL of Reels
+  Studio's PostgreSQL resource in Coolify (`.../database/<container>`), not `coolify-db`: a dump
+  without the `alembic_version` and `jobs` tables is deleted and the local database is left alone.
   Then run `alembic upgrade head` in `api/`. The copy has production's accounts and passwords;
   it cancels production's unfinished jobs; saved API keys and Fanpage tokens show as unreadable,
   because their key file stays in production's storage folder; video files and images are not

@@ -11,6 +11,28 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — The video page shows who else has it open; edit mode stays without "Lưu"/"Huỷ"
+
+Owner's choice. "Lưu" and "Huỷ" for edit mode were considered and dropped: they would reverse the
+decision below that fields save one by one, and photos, AI photos and scene changes are written at
+once and cannot be taken back. Instead the page shows the other members who have the video open and
+whether they are editing, and warns, without stopping, a member who starts editing while someone
+else is. Each open page reports every 10 s and drops out after 30 s of silence (table
+`video_presence`, migration 0019), polled like the rest of the app, since the web runs on Cloudflare
+Workers with no socket to the api. Showing it on the video list was left for later.
+
+## 2026-11-02 — Local development starts with `scripts/dev.sh`, and uv builds the api venv
+
+Owner's choice. Setting up by hand broke in practice: a venv made with the wrong Python (3.14 instead
+of 3.12), and a repo folder moved after `pip install -e`, which leaves the editable installs pointing
+at the old path (`No module named 'reels_api'`). On macOS/Linux, `scripts/dev.sh` starts Postgres,
+rebuilds `api/.venv` with uv on the Python in `.python-version` whenever it is missing, on another
+Python, built for another folder or behind a `pyproject.toml`, runs the migrations, then runs api,
+worker and web in one terminal. uv only builds the venv: dependencies stay in `pyproject.toml` with
+no lock file, and CI and the Docker images still use pip. `docker-compose.yml` names its project
+`reels-studio`, so a moved or renamed folder keeps the same Postgres container and data. The
+PowerShell steps in the README stay for Windows.
+
 ## 2026-11-02 — "Tự tìm ảnh": jobs now pick stock photos after the script
 
 Reverses "jobs never pick photos" (2026-10-31, repeated in later entries), by the owner's choice:

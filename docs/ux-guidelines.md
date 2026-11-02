@@ -45,6 +45,12 @@ Built:
     "Xong" saves the field being typed in and locks the page again, unless a save was refused
     (then a message points to the field). A video never rendered opens in edit mode. The mode is
     chosen when the page opens and is not stored;
+  - **who else is here.** Under the title, "Đang ở đây:" and the avatars of the other members
+    with the video open (not yourself; one per member, however many tabs). An avatar has a blue
+    ring when that member is in "Chỉnh sửa", and its tooltip says "<name> · đang chỉnh sửa" or
+    "đang xem". It updates within about 10 s, and a closed tab leaves at once. Pressing "Chỉnh
+    sửa" while someone else is editing shows a warning naming them ("Bình đang chỉnh sửa video
+    này…"), but still unlocks the page: nothing is locked, the last field saved wins;
   - **scene cards that open and close.** A closed card's title row shows a 40×40 thumbnail of
     the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, its text on one line (without the
     `*` marks) and a tag: red "N lỗi", yellow "N cảnh báo" or green "Sẵn sàng"; an open card

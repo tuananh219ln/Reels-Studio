@@ -1,4 +1,7 @@
 # Local development database only. Dockerfiles for web/api and a full stack come with the VPS deploy spec.
+# A fixed project name keeps the same container and volume when the repo folder is moved, renamed or
+# checked out as a git worktree (the default name is the folder's).
+name: reels-studio
 services:
   postgres:
     image: postgres:17

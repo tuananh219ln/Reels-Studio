@@ -44,6 +44,16 @@ if ! ssh "$SSH_TARGET" "docker exec $CONTAINER sh -c 'pg_dump -U \"\$POSTGRES_US
   echo "pg_dump failed; the local database was not touched." >&2
   exit 1
 fi
+# The dump must be Reels Studio's database before the local one is dropped: the Coolify server also
+# runs Coolify's own Postgres (coolify-db), whose dump holds the server's keys and every app's secrets.
+toc=$(docker compose exec -T postgres pg_restore -l <"$DUMP.part" 2>/dev/null || true)
+if ! grep -q ' TABLE public alembic_version ' <<<"$toc" || ! grep -q ' TABLE public jobs ' <<<"$toc"; then
+  rm -f "$DUMP.part"
+  echo "$CONTAINER is not the Reels Studio database (no alembic_version and jobs tables); the dump was" >&2
+  echo "deleted and the local database was not touched. The right container is the end of the URL of" >&2
+  echo "Reels Studio's PostgreSQL resource in Coolify (.../database/<container>), not coolify-db." >&2
+  exit 1
+fi
 mv "$DUMP.part" "$DUMP"
 echo "Saved $DUMP ($(du -h "$DUMP" | cut -f1))"
 

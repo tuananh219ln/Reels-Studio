@@ -215,6 +215,7 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | `app_settings` | Team-wide settings from the Cài đặt pages by key: `llm_provider` (the provider that writes scripts; Claude when unset), `video_defaults` (what a new video's settings, narration switch and music level start as), `stock_sources_off` (stock sources the team turned off). |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
 | `affiliate_products` | The team's Shopee products, typed in from the affiliate dashboard: topic group, name, link, shop, shop type, rating, sales, price, commission rate, draft or approved, who approved it and when, creator. Approval needs a trusted shop type, at least 4.7 stars, 100 sales, and no banned word in the name ([routes_affiliate.py](../api/src/reels_api/routes_affiliate.py)); changing an approved row sends it back to draft. A topic group with products cannot be deleted. |
+| `video_presence` | Who has a video open: one row per open video page (`tab`, a random id the page picks), the member, whether that page is in "Chỉnh sửa", and when it last reported. Rows silent for 30 s are deleted at the next report ([routes_presence.py](../api/src/reels_api/routes_presence.py)); deleted with the video or the user. |
 | `video_affiliate_products` | The products attached to a posted reel; deleted with either side. Only an approved product that meets the rules can be added; one that later stops qualifying stays, flagged, and is left out of the copied comment. |
 
 Files are not table rows: a video's files live under one storage folder per video, with
@@ -322,6 +323,11 @@ Planned:
   each other at once cannot both succeed.
 - **Temporary passwords** (set when adding a user or by a teammate) force a password change. The
   API itself blocks everything except `GET /api/me`, the password change, and logout until then.
+- **Who is on a video:** an open video page reports itself every 10 s with
+  `POST /api/presence/videos/{id}` (`tab`, `editing`) and gets back the other members who have
+  the video open, one entry per member (editing if any of their tabs is); it says
+  `POST /api/presence/videos/{id}/leave` when it closes, and a page that stops reporting drops out
+  after 30 s. It is information only: nothing is locked, and two members can still edit at once.
 - **CSRF:** POST/PUT/PATCH/DELETE must carry an `Origin` listed in `ALLOWED_ORIGINS`.
 - **Errors:** refusals return `{code, message}` with a Vietnamese message. A database outage returns
   503 `database_unavailable`. Login failures use one generic message, and "account disabled" is
