@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowLeftOutlined, CopyOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  ArrowLeftOutlined,
+  CheckOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import {
   App,
   Alert,
@@ -18,19 +26,21 @@ import {
   Space,
   Spin,
   Tabs,
+  Tag,
   Typography,
 } from "antd";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
 import PublishCard from "@/components/video/PublishCard";
-import RenderBar from "@/components/video/RenderBar";
+import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
-import { ApiError, api, errorMessage, type VideoDetail } from "@/lib/api";
+import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
@@ -67,17 +77,43 @@ export default function VideoPage() {
   // The two columns sit side by side from xl up; only then does the side panel stick.
   const sideBySide = Grid.useBreakpoint().xl ?? false;
   const pending = useRef(new Set<Promise<unknown>>());
+  // "Xem" or "Chỉnh sửa", chosen when the page opens: a video already rendered or posted opens in "Xem", so a stray
+  // click cannot change it; a draft opens in "Chỉnh sửa". Null until the video has loaded.
+  const [editing, setEditing] = useState<boolean | null>(null);
+  // Fields whose last save was refused; "Xong" waits until there are none.
+  const failedSaves = useRef(new Set<string>());
+  // Which scene cards are open, by scene id. A scene seen for the first time opens when the video is a draft or
+  // when the scene has something blocking the render; after that only the member opens or closes it.
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+
+  /** Every video the api sends goes through here, so new scenes get their open/closed state. */
+  const receive = useCallback((next: VideoDetail) => {
+    const draft = !next.mp4 && !next.publication;
+    setVideo(next);
+    setEditing((current) => current ?? draft);
+    setExpanded((current) => {
+      const scenes = [next.title_scene, ...next.scenes].filter((scene): scene is SceneData => scene !== null);
+      const unseen = scenes.filter((scene) => !(scene.id in current));
+      if (unseen.length === 0) {
+        return current;
+      }
+      return {
+        ...current,
+        ...Object.fromEntries(unseen.map((scene) => [scene.id, draft || scene.blocking.length > 0])),
+      };
+    });
+  }, []);
 
   const load = useCallback(async () => {
     try {
-      setVideo(await api<VideoDetail>(`/videos/${id}`));
+      receive(await api<VideoDetail>(`/videos/${id}`));
       setLoadError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setLoadError(err.message);
       }
     }
-  }, [id]);
+  }, [id, receive]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
@@ -86,9 +122,19 @@ export default function VideoPage() {
     return () => clearInterval(timer);
   }, [load]);
 
+  const reportFailed = useCallback((field: string, bad: boolean) => {
+    if (bad) {
+      failedSaves.current.add(field);
+    } else {
+      failedSaves.current.delete(field);
+    }
+  }, []);
+
   const editor = useMemo(
     () => ({
       locked: video?.locked ?? false,
+      readOnly: editing === false,
+      reportFailed,
       track: (save: Promise<unknown>) => {
         pending.current.add(save);
         save.finally(() => pending.current.delete(save)).catch(() => undefined);
@@ -97,16 +143,18 @@ export default function VideoPage() {
         (document.activeElement as HTMLElement | null)?.blur();
         await Promise.allSettled([...pending.current]);
       },
-      onSaved: setVideo,
+      onSaved: receive,
     }),
-    [video?.locked],
+    [video?.locked, editing, reportFailed, receive],
   );
+  // The post texts are not part of the video itself: they stay editable in "Xem" too.
+  const postEditor = useMemo(() => ({ ...editor, readOnly: false }), [editor]);
 
   /** Run an action that returns the video; refusals show the api's message. */
   async function act(action: () => Promise<VideoDetail>) {
     setBusy(true);
     try {
-      setVideo(await action());
+      receive(await action());
     } catch (err) {
       message.error(errorMessage(err));
       void load();
@@ -125,6 +173,32 @@ export default function VideoPage() {
     // The job reads the saved prompts: flush first, like "Render".
     await editor.flush();
     await act(() => api<VideoDetail>(`/videos/${id}/image`, "POST"));
+  }
+
+  /** "Xong": saves the field being typed in, then locks the page again unless a save was refused. */
+  async function finishEditing() {
+    await editor.flush();
+    if (failedSaves.current.size > 0) {
+      message.warning("Còn ô chưa lưu được. Sửa ô báo lỗi rồi bấm “Xong” lại.");
+      return;
+    }
+    setEditing(false);
+  }
+
+  /** Opens every scene that has a red reason, then scrolls to the first one. */
+  function showBlocking() {
+    const blocked = [video?.title_scene, ...(video?.scenes ?? [])].filter(
+      (scene): scene is SceneData => !!scene && scene.blocking.length > 0,
+    );
+    flushSync(() =>
+      setExpanded((current) => ({ ...current, ...Object.fromEntries(blocked.map((scene) => [scene.id, true])) })),
+    );
+    showFirstBlocking();
+  }
+
+  function setAllExpanded(open: boolean) {
+    const ids = [video?.title_scene, ...(video?.scenes ?? [])].filter((scene) => !!scene).map((scene) => scene!.id);
+    setExpanded(Object.fromEntries(ids.map((sceneId) => [sceneId, open])));
   }
 
   function remove() {
@@ -159,6 +233,7 @@ export default function VideoPage() {
     );
   }
 
+  const viewing = editing === false;
   const job = video.active_job;
   const failed = video.failed_job;
   const scenes = video.scenes;
@@ -195,9 +270,24 @@ export default function VideoPage() {
           )}
           <div style={{ marginTop: 6 }}>
             <VideoStatusTags video={video} />
+            {video.has_script && !viewing && (
+              <Tag color="blue" data-testid="editing-tag">
+                Đang chỉnh sửa
+              </Tag>
+            )}
           </div>
         </div>
         <Space wrap>
+          {video.has_script &&
+            (viewing ? (
+              <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>
+                Chỉnh sửa
+              </Button>
+            ) : (
+              <Button type="primary" icon={<CheckOutlined />} onClick={finishEditing}>
+                Xong
+              </Button>
+            ))}
           {!video.has_script && !job && (
             <Button
               type="primary"
@@ -299,7 +389,13 @@ export default function VideoPage() {
       ) : (
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={15}>
-            <Flex vertical gap={16}>
+            {/* A blue outline while editing, so the member sees at a glance that the page can be changed. */}
+            <Flex
+              vertical
+              gap={16}
+              data-testid="editor-column"
+              style={viewing ? undefined : { outline: "2px solid #1677ff", outlineOffset: 6, borderRadius: 8 }}
+            >
               {video.video_blocking.map((reason) => (
                 <Alert key={reason} type="error" showIcon title={reason} data-testid="video-blocking" />
               ))}
@@ -324,7 +420,7 @@ export default function VideoPage() {
                   <Radio.Group
                     style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
                     value={video.title_options.indexOf(video.title_scene.text)}
-                    disabled={video.locked}
+                    disabled={video.locked || viewing}
                     onChange={(event) => {
                       const text = video.title_options[event.target.value as number];
                       void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
@@ -333,8 +429,25 @@ export default function VideoPage() {
                   />
                 </Card>
               )}
+              <Flex justify="flex-end" gap={4}>
+                <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
+                  Mở tất cả
+                </Button>
+                <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
+                  Thu gọn tất cả
+                </Button>
+              </Flex>
               {video.title_scene && (
-                <SceneCard scene={video.title_scene} label="Cảnh tiêu đề" voiceEnabled={video.voice_enabled} />
+                <SceneCard
+                  scene={video.title_scene}
+                  label="Cảnh tiêu đề"
+                  voiceEnabled={video.voice_enabled}
+                  expanded={expanded[video.title_scene.id] ?? true}
+                  onToggle={() => {
+                    const titleId = video.title_scene!.id;
+                    setExpanded((current) => ({ ...current, [titleId]: !(current[titleId] ?? true) }));
+                  }}
+                />
               )}
               {scenes.map((scene, index) => (
                 <SceneCard
@@ -342,13 +455,15 @@ export default function VideoPage() {
                   scene={scene}
                   label={`Cảnh ${index + 1}`}
                   voiceEnabled={video.voice_enabled}
+                  expanded={expanded[scene.id] ?? true}
+                  onToggle={() => setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? true) }))}
                   onMove={(step) => move(index, step)}
                   onDelete={() => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))}
                 />
               ))}
               <Button
                 icon={<PlusOutlined />}
-                disabled={video.locked || busy}
+                disabled={video.locked || viewing || busy}
                 onClick={() => act(() => api<VideoDetail>(`/videos/${id}/scenes`, "POST"))}
               >
                 Thêm cảnh
@@ -412,14 +527,30 @@ export default function VideoPage() {
                     label: "Thiết lập",
                     children: <SetupTab video={video} />,
                   },
-                  { key: "post", label: "Nội dung đăng", children: <PostContent video={video} /> },
+                  {
+                    key: "post",
+                    label: "Nội dung đăng",
+                    children: (
+                      <EditorContext.Provider value={postEditor}>
+                        <PostContent video={video} />
+                      </EditorContext.Provider>
+                    ),
+                  },
                 ]}
               />
             </div>
           </Col>
         </Row>
       )}
-      {video.has_script && <RenderBar video={video} busy={busy} onRender={render} onGenerateImages={generateImages} />}
+      {video.has_script && (
+        <RenderBar
+          video={video}
+          busy={busy}
+          onRender={render}
+          onGenerateImages={generateImages}
+          onShowBlocking={showBlocking}
+        />
+      )}
       <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
     </EditorContext.Provider>
   );

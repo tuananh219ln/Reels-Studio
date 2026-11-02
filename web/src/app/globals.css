@@ -11,3 +11,26 @@ body {
 .ant-table-thead > tr > th {
   white-space: nowrap;
 }
+
+/* Scene card: quick actions over the 9:16 picture, shown on hover or keyboard focus, always on touch screens. */
+.scene-media__overlay {
+  position: absolute;
+  inset: 0;
+  justify-content: flex-end;
+  padding: 8px;
+  border-radius: 6px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.scene-media:hover .scene-media__overlay,
+.scene-media:focus-within .scene-media__overlay {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .scene-media__overlay {
+    opacity: 1;
+  }
+}

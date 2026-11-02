@@ -5,7 +5,7 @@ import { Button, Flex, Typography } from "antd";
 import type { VideoDetail } from "@/lib/api";
 
 /** Scrolls to the first red reason on the page: a whole-video one, else a scene's. */
-function showFirstBlocking() {
+export function showFirstBlocking() {
   document
     .querySelector('[data-testid="video-blocking"], [data-testid="scene-blocking"]')
     ?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -20,11 +20,14 @@ export default function RenderBar({
   busy,
   onRender,
   onGenerateImages,
+  onShowBlocking = showFirstBlocking,
 }: {
   video: VideoDetail;
   busy: boolean;
   onRender: () => void;
   onGenerateImages: () => void;
+  /** Opens what hides the first reason (a collapsed scene) before scrolling to it. */
+  onShowBlocking?: () => void;
 }) {
   const scenes = [video.title_scene, ...video.scenes].filter((scene) => scene !== null);
   const blocking = video.video_blocking.length + scenes.reduce((sum, scene) => sum + scene.blocking.length, 0);
@@ -48,7 +51,7 @@ export default function RenderBar({
       <Flex wrap gap={8} align="center" justify="space-between">
         <div style={{ minWidth: 0 }}>
           {blocking > 0 ? (
-            <Button type="link" danger style={{ padding: 0 }} onClick={showFirstBlocking}>
+            <Button type="link" danger style={{ padding: 0 }} onClick={onShowBlocking}>
               Còn {blocking} lỗi cần sửa, xem lỗi đầu tiên
             </Button>
           ) : (

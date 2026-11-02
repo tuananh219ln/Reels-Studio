@@ -23,7 +23,8 @@
     "dayjs": "1.11.23",
     "next": "16.4.3",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "react-easy-crop": "6.2.4"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",

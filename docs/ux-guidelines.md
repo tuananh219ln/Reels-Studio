@@ -33,13 +33,54 @@ Built:
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
   counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
-  one when clicked. The editor has:
+  one when clicked, opening the scene that holds it. The editor has:
+  - **View and edit mode**, for the whole page. A video already rendered or posted opens in view
+    mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
+    the title choice, scene move/delete/add, every photo and clip action, "Vị trí chữ", music
+    and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
+    previews and the MP4, "Tải MP4", "Nhân bản", "Xóa", "Render", the "Xuất bản" tab and the
+    post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
+    "Nhân bản" unlocks the page, shown by a blue "Đang chỉnh sửa" tag by the title and a blue
+    outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
+    "Xong" saves the field being typed in and locks the page again, unless a save was refused
+    (then a message points to the field). A video never rendered opens in edit mode. The mode is
+    chosen when the page opens and is not stored;
+  - **scene cards that open and close.** A closed card's title row shows a 40×40 thumbnail of
+    the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, its text on one line (without the
+    `*` marks) and a tag: red "N lỗi", yellow "N cảnh báo" or green "Sẵn sàng"; an open card
+    shows the name, seconds and tag. A click or Enter anywhere on the row opens or closes it;
+    the move and delete buttons beside it do not. When the page opens, a draft's scenes are all
+    open; in a rendered video only the scenes with a red reason are. "Mở tất cả" and "Thu gọn
+    tất cả" sit above the list. A closed card keeps its fields, so closing never loses text;
+  - inside an open card, two columns (stacked on a phone, the picture first): the 9:16 picture
+    with its tools on the left, the fields on the right: "Chữ trên màn hình" (a "?" beside it
+    explains `*từ*` and line breaks), "Lời đọc", "Số giây" and "Bắt đầu từ giây" (clip only) side
+    by side, "Từ khóa tìm ảnh", "Prompt ảnh 9:16" (content scenes), then the reasons and
+    warnings. Under the text and the voice text a counter shows the words as typed (the `*` not
+    counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
+    on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
   - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
     viết bởi …"); edit the title scene and every content scene (text with `*word*` in
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
-  - per scene a preview of the frame, or the reason there is none, in red; photo by upload, or a
-    video clip by "Tải video lên" with its start time;
+  - per scene a preview of the frame, or the reason there is none, in red. Pointing at a picture
+    (always on a touch screen) shows quick actions over a dark gradient: "Chỉnh khung" for a
+    photo or "Cắt video" for a clip, "Vị trí chữ", "Thay" (opens the file chooser) and, for a
+    clip, a delete icon ("Xoá video", confirmed). Under the picture one dashed area, "Kéo thả hoặc
+    bấm để tải ảnh/video lên", takes a photo (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM,
+    50 MB) dropped on it or chosen; a photo in place of a clip, or a clip in place of a photo, asks
+    first ("Đổi" / "Huỷ"). Then "Chọn từ kho ảnh/video" and "Tìm ảnh" with its source arrow;
+  - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
+    (1–4×), "Xoay 90°" and "Lật ngang"; dragging moves the photo under the frame. "Áp dụng" cuts
+    it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
+    where it came from (Pixabay, an AI model…); a crop narrower than 1080 px warns that the photo
+    will look soft. Cropping again starts from the cropped photo: picking the photo again is the
+    way back. **"Cắt video"** (clip): a muted 9:16 player and a two-handle slider over the clip;
+    dragging a handle shows its frame, "Xem thử" plays the chosen part only, and the scene's
+    length is the part less the crossfades (0.2 s on each side with a neighbour). A part shorter
+    than 1 s or longer than 10 s cannot be applied. "Áp dụng" saves the start and the seconds
+    together. A switch plays the clip's sound in the preview only, saying the MP4 never uses it;
+    with narration on, a note says the scene may last longer to fit it;
   - per scene with text and a picture, "Vị trí chữ" ("Vị trí chữ (riêng)" once the scene has a place
     of its own) opens a dialog: the frame without text at a quarter size, the platforms' covered
     areas darkened and the safe zone dashed (x 60–940, y 220–1440), and the exact box image dragged
@@ -61,7 +102,7 @@ Built:
     "Chọn từ kho ảnh/video") has an "Ảnh | Video" switch when a source offers clips: "Video" lists
     vertical stock clips from Pexels and Pixabay (English keyword first) as 9:16 stills with their
     length, playing muted when pointed at; clicking one stores it as the scene's clip, like
-    "Tải video lên", in place of its photo or clip. Sources turned off on Nguồn tư liệu are left out;
+    an uploaded clip, in place of its photo or clip. Sources turned off on Nguồn tư liệu are left out;
   - blocking reasons in red at the scene, warnings in yellow; a scene with neither a photo nor photo
     keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;

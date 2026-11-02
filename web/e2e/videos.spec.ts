@@ -23,6 +23,9 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   const title = page.getByTestId("title-scene");
   // No automatic photo: every scene waits for the member's own.
   await expect(title.getByTestId("scene-no-preview")).toContainText("Chưa có ảnh");
+  // A video never rendered opens ready to edit.
+  await expect(page.getByTestId("editing-tag")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Xong" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
   await uploadPhotos(page);
   await expect(title.getByTestId("scene-preview")).toBeVisible();
@@ -108,6 +111,17 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
+  // Opened again, a rendered video is in view mode: scenes closed, nothing to change by a stray click.
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Chỉnh sửa" })).toBeVisible();
+  await expect(page.getByTestId("editing-tag")).toHaveCount(0);
+  const second = page.getByTestId("scene").nth(1);
+  await expect(second.getByTestId("scene-toggle")).toHaveAttribute("aria-expanded", "false");
+  await expect(second.getByLabel("Chữ trên màn hình")).toHaveAttribute("readonly", "");
+  await expect(page.getByRole("button", { name: "Thêm cảnh" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
+
+  // The post texts stay editable in view mode, and do not outdate the MP4.
   await page.getByRole("tab", { name: "Nội dung đăng" }).click();
   const caption = page.getByLabel("Caption");
   await caption.fill("Caption mới");
@@ -115,10 +129,17 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(page.getByText("Đã lưu")).toBeVisible();
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toHaveCount(0);
 
-  const text = page.getByTestId("scene").nth(1).getByLabel("Chữ trên màn hình");
+  await page.getByRole("button", { name: "Chỉnh sửa" }).click();
+  await expect(page.getByTestId("editing-tag")).toBeVisible();
+  await second.getByTestId("scene-toggle").click();
+  const text = second.getByLabel("Chữ trên màn hình");
   await text.fill("Sữa chua\nThêm *đạm*");
-  await text.blur();
+  // "Xong" saves the field being typed in, then locks the page again.
+  await page.getByRole("button", { name: "Xong" }).click();
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Chỉnh sửa" })).toBeVisible();
+  await expect(text).toHaveAttribute("readonly", "");
+  await expect(text).toHaveValue("Sữa chua\nThêm *đạm*");
 });
 
 test("knowledge topics: each opens from its line, keeps its own texts, and an empty one cannot make a video", async ({
@@ -221,11 +242,52 @@ test("the render bar counts what blocks the render and jumps to it", async ({ pa
   // No scene has a photo yet: each of the title and the five scenes is blocked.
   const bar = page.getByTestId("render-bar");
   await expect(bar.getByRole("button", { name: /^Còn 6 lỗi cần sửa/ })).toBeVisible();
+  // A closed scene opens to show its reason.
+  await page.getByRole("button", { name: "Thu gọn tất cả" }).click();
   await bar.getByRole("button", { name: /^Còn 6 lỗi cần sửa/ }).click();
   await expect(page.getByTestId("title-scene").getByTestId("scene-blocking")).toBeInViewport();
   await uploadPhotos(page);
   await expect(bar).toContainText("Sẵn sàng render.");
   await expect(bar.getByRole("button", { name: "Render" })).toBeEnabled();
+});
+
+test("scene cards open and close, count words, and crop a photo to 9:16", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "canh rau cho người lớn tuổi");
+  const scenes = page.getByTestId("scene");
+  const first = scenes.first();
+  const toggle = first.getByTestId("scene-toggle");
+
+  // A draft opens with every scene open; a closed one sums itself up in its title row.
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await expect(first.getByTestId("scene-summary")).toBeVisible();
+  await expect(first.getByLabel("Chữ trên màn hình")).toBeHidden();
+  await page.getByRole("button", { name: "Mở tất cả" }).click();
+  await expect(page.getByTestId("scene-toggle").and(page.locator('[aria-expanded="false"]'))).toHaveCount(0);
+  await page.getByRole("button", { name: "Thu gọn tất cả" }).click();
+  await expect(page.getByTestId("scene-toggle").and(page.locator('[aria-expanded="true"]'))).toHaveCount(0);
+  await toggle.click();
+
+  // Words are counted without the red-word stars; above the script's 10 a yellow note says so, and it still saves.
+  const text = first.getByLabel("Chữ trên màn hình");
+  await text.fill("Một hai ba bốn năm sáu bảy tám chín *mười* thêm");
+  // The first counter is the on-screen text's; the voice text has its own.
+  await expect(first.getByTestId("word-count").first()).toHaveText("11 từ · nên tối đa 10 từ");
+  await text.blur();
+  await expect(first.getByText("Đã lưu")).toBeVisible();
+
+  // "Chỉnh khung": the photo turned and cropped in the browser replaces the scene's photo.
+  const before = await first.getByTestId("scene-preview").getAttribute("src");
+  await first.getByRole("button", { name: "Chỉnh khung" }).click();
+  const crop = page.getByRole("dialog", { name: "Chỉnh khung ảnh cảnh" });
+  await crop.getByRole("button", { name: "Xoay 90°" }).click();
+  await crop.getByRole("button", { name: "Lật ngang" }).click();
+  await crop.getByRole("button", { name: "Áp dụng" }).click();
+  await expect(crop).toHaveCount(0);
+  await expect(first.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
 });
 
 /** A rendered video with its Page connected, open on its own page. */
@@ -370,11 +432,11 @@ async function uploadPhotos(page: Page) {
     "1",
     file,
   ]);
-  await page.getByLabel("Tải ảnh lên cho cảnh tiêu đề").setInputFiles(file);
+  await page.getByLabel("Tải ảnh/video lên cho cảnh tiêu đề").setInputFiles(file);
   await expect(page.getByTestId("title-scene").getByTestId("scene-preview")).toBeVisible();
   const scenes = page.getByTestId("scene");
   for (let index = 0; index < (await scenes.count()); index++) {
-    await scenes.nth(index).getByLabel("Tải ảnh lên cho cảnh", { exact: true }).setInputFiles(file);
+    await scenes.nth(index).getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(file);
     await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
   }
 }
@@ -715,28 +777,46 @@ test("a title clip with a start time renders, and removing it asks for a photo a
 
   const title = page.getByTestId("title-scene");
   const before = await title.getByTestId("scene-preview").getAttribute("src");
-  // The title has a photo: the clip replaces it only after a confirmation, which then opens the file chooser.
-  await title.getByRole("button", { name: "Tải video lên" }).click();
-  const chooser = page.waitForEvent("filechooser");
+  // The title has a photo: the clip replaces it only after a confirmation.
+  const media = title.getByLabel("Tải ảnh/video lên cho cảnh tiêu đề");
+  await media.setInputFiles(makeClip());
   await page
-    .getByRole("tooltip")
+    .getByRole("dialog")
     .filter({ hasText: "Video sẽ thay ảnh của cảnh này?" })
     .getByRole("button", { name: "Đổi" })
     .click();
-  await (await chooser).setFiles(makeClip());
   await expect(title.getByTestId("scene-video")).toBeVisible();
   await expect(title.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
   // 3 s of clip minus the 0.2 s the title plays into its crossfade.
   await expect(title.getByLabel("Số giây")).toHaveValue("2.8");
 
   // Switching back to a photo asks first; cancelling keeps the clip.
-  await title.getByRole("button", { name: "Tải ảnh lên" }).click();
-  const confirm = page.getByRole("tooltip").filter({ hasText: "Ảnh sẽ thay video của cảnh này?" });
+  await media.setInputFiles(path.join(os.tmpdir(), `e2e-photo-${process.pid}.jpg`));
+  const confirm = page.getByRole("dialog").filter({ hasText: "Ảnh sẽ thay video của cảnh này?" });
   await confirm.getByRole("button", { name: "Huỷ" }).click();
   await expect(title.getByTestId("scene-video")).toBeVisible();
 
+  // "Cắt video": the two handles pick the part the scene plays; too short a part cannot be applied.
+  await title.getByRole("button", { name: "Cắt video" }).click();
+  const trim = page.getByRole("dialog", { name: "Cắt video cảnh tiêu đề" });
+  const from = trim.getByRole("slider").first();
+  await from.focus();
+  for (let step = 0; step < 25; step++) {
+    await from.press("ArrowRight");
+  }
+  await expect(trim.getByTestId("trim-problem")).toBeVisible();
+  await expect(trim.getByRole("button", { name: "Áp dụng" })).toBeDisabled();
+  for (let step = 0; step < 20; step++) {
+    await from.press("ArrowLeft");
+  }
+  // 3 s of clip from 0.5 s, less the title's 0.2 s crossfade.
+  await expect(trim.getByTestId("trim-range")).toContainText("cảnh dài 2,3 giây");
+  await trim.getByRole("button", { name: "Áp dụng" }).click();
+  await expect(trim).toHaveCount(0);
+  await expect(title.getByLabel("Số giây")).toHaveValue("2.3");
+
   const start = title.getByLabel("Bắt đầu từ giây");
-  await expect(start).toHaveValue("0");
+  await expect(start).toHaveValue("0.5");
   await start.fill("1,5");
   await start.blur();
   await expect(title.getByText("Video ngắn hơn cảnh, khung cuối sẽ đứng yên")).toBeVisible();

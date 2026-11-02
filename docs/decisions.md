@@ -11,6 +11,25 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — The video editor opens rendered videos read-only; photos are cropped in the browser
+
+Requested by the owner: a finished or posted video could be changed by a stray click (the "MP4
+chưa cập nhật theo bản sửa" tag then appears). The video page now has one view/edit mode for the
+whole page: a video with an MP4 or a Facebook post opens in "Xem", a draft in "Chỉnh sửa". The
+mode only guards the page in the browser; it is not a permission, and the api accepts changes as
+before. Fields keep saving one by one when left, as before, so edit mode has "Xong" but no
+"Huỷ": uploads and saved fields cannot be taken back, and saving the whole page at once would let
+two members overwrite each other. The post texts ("Nội dung đăng") and "Render" stay available in
+view mode.
+
+Photos are cropped, turned and flipped in the browser ("Chỉnh khung") and stored in place of the
+scene's photo, so the render core, its 9:16 cover crop and the database are unchanged. A cropped
+photo keeps its `image_source`: an AI photo stays labelled as AI (see "AI photos for missing
+scenes come from Gemini") and a stock photo keeps its URL, so "Tìm ảnh khác" still moves on from
+it. The original is not kept: cropping again starts from the cropped photo. A clip is trimmed by
+picking its start and end; its own sound stays out of the render (the toggle in the dialog plays
+it in the preview only).
+
 ## 2026-11-02 — Ideas, features and bugs live in GitHub Issues, not backlog.md
 
 `backlog.md` is removed; its 17 items became issues #41–#57. New work is opened from the forms
