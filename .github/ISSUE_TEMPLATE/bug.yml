@@ -1,0 +1,76 @@
+name: Lỗi
+description: Có gì đó chạy sai, hỏng hoặc khác với mong đợi.
+title: "[Lỗi] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Cảm ơn bạn đã báo lỗi. Đừng dán token, API key hay mật khẩu vào đây.
+  - type: textarea
+    id: what
+    attributes:
+      label: Lỗi gì
+      description: Mô tả ngắn chuyện gì xảy ra.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Các bước tái hiện
+      placeholder: |
+        1. Mở trang ...
+        2. Bấm ...
+        3. Thấy ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Mong đợi
+      description: Đáng lẽ phải thấy gì.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Khu vực
+      multiple: true
+      options:
+        - Giao diện web
+        - Kịch bản / prompt (Claude)
+        - Ảnh / video cảnh
+        - Giọng đọc (TTS)
+        - Render MP4
+        - Đăng Facebook / mạng xã hội
+        - Affiliate
+        - Đăng nhập / người dùng
+        - Cài đặt
+        - Khác / không rõ
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Xảy ra ở đâu
+      options:
+        - Production (bản đang dùng)
+        - Máy local
+        - Không rõ
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Ảnh chụp, log, mã video hoặc mã job
+      description: Kéo thả ảnh vào đây. Ghi thời gian (giờ Việt Nam) nếu nhớ.
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Mức độ
+      options:
+        - Chặn việc, không có cách khác
+        - Phiền nhưng có cách lách
+        - Nhỏ, làm sau cũng được
+    validations:
+      required: true

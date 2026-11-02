@@ -36,7 +36,7 @@ app replaces CapCut, so the output is a finished MP4.
 
 1. **Team login (built):** email and password; accounts are created by members (the first one by
    a CLI command). There is no self-signup and no roles: every member can manage users. Google
-   login is planned (see the backlog).
+   login is planned ([#54](https://github.com/tuananh219ln/Reels-Studio/issues/54)).
 2. **Knowledge Base (partly built):** today `/knowledge` holds the editable script and clone
    prompts and the banned words. Planned: editable channel documents and a food bank with sourced
    benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
@@ -73,7 +73,7 @@ app replaces CapCut, so the output is a finished MP4.
    comment manually.
 3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking, winner variants, API
    auto-posting beyond Facebook Pages (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
-   AI image generation. Concrete items live in [backlog.md](../backlog.md).
+   AI image generation. Concrete items are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues).
 
 Posting to connected Facebook Pages is built. The rest of API auto-posting is deferred for these reasons:
 

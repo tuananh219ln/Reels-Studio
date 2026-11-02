@@ -304,7 +304,7 @@ Planned:
   the session cookie is first-party and the API needs no CORS. `web/src/proxy.ts` redirects app
   pages to `/login` before rendering when there is no session cookie; the API validates the session
   on every request.
-- **Login:** email + password only. There is no self-signup. Google login is planned (see the backlog). The CLI
+- **Login:** email + password only. There is no self-signup. Google login is planned ([#54](https://github.com/tuananh219ln/Reels-Studio/issues/54)). The CLI
   `python -m reels_api create-user` creates the first user and is the
   recovery path: for an existing email it resets the password, re-enables the account, and signs out
   all its sessions.

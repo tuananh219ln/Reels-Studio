@@ -11,6 +11,14 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — Ideas, features and bugs live in GitHub Issues, not backlog.md
+
+`backlog.md` is removed; its 17 items became issues #41–#57. New work is opened from the forms
+in `.github/ISSUE_TEMPLATE/` (Lỗi, Tính năng, Ý tưởng; blank issues are off), so each one says
+what, why and which area. Issues can be assigned, labelled, linked from PRs and closed by them,
+which a Markdown list could not do for a team of five. Older entries that link to `backlog.md`
+mean the matching issue (the Shopee API one is #47).
+
 ## 2026-11-01 — Text boxes can be dragged inside the platforms' safe zone
 
 Owner's decisions, from the text round: a member drags a scene's text box on a "Vị trí chữ" dialog, and the box

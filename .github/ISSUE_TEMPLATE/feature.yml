@@ -1,0 +1,53 @@
+name: Tính năng
+description: "Việc cần làm đã rõ: làm gì, vì sao, xong thì trông thế nào."
+title: "[Tính năng] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Làm gì
+      description: Người dùng sẽ làm được gì mà bây giờ chưa làm được.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Vì sao
+      description: Vấn đề hay mục tiêu thật đằng sau (tốn thời gian ở đâu, mất view, rủi ro chính sách...).
+    validations:
+      required: true
+  - type: textarea
+    id: existing
+    attributes:
+      label: Đã có
+      description: Phần nào của việc này app đã làm được (nếu có).
+  - type: textarea
+    id: done
+    attributes:
+      label: Xong khi
+      description: Tiêu chí để biết việc đã xong.
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+  - type: dropdown
+    id: area
+    attributes:
+      label: Khu vực
+      multiple: true
+      options:
+        - Giao diện web
+        - Kịch bản / prompt (Claude)
+        - Ảnh / video cảnh
+        - Giọng đọc (TTS)
+        - Render MP4
+        - Đăng Facebook / mạng xã hội
+        - Affiliate
+        - Đăng nhập / người dùng
+        - Cài đặt
+        - Khác / không rõ
+  - type: textarea
+    id: notes
+    attributes:
+      label: Ghi chú
+      description: Cần gì trước (API key, tài khoản...), link brief trong docs/specs/, video tham khảo.

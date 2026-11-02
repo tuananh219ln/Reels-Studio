@@ -44,8 +44,9 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
 | Environment, Docker, deployment | [docs/deployment.md](docs/deployment.md) |
 | Why an early feature was built a certain way | [docs/specs/](docs/specs/) (history, not kept up to date) |
 
-Ideas and known bugs go in [backlog.md](backlog.md) (in Vietnamese, with the date added). Remove an
-item when it ships.
+Ideas, features and known bugs are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues), opened from the forms in
+[.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/) (Lỗi, Tính năng, Ý tưởng), written in Vietnamese.
+A PR that ships one says `Closes #<number>` in its description.
 
 ## Layout
 
