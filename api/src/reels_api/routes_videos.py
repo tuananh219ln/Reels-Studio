@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.textbox import FRAME_WIDTH
 
-from . import clips, frames, knowledge, llm, source_keys, stock_clips, video_options
+from . import clips, frames, image_providers, knowledge, llm, remote_images, source_keys, stock_clips, video_options
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -32,7 +32,7 @@ from .models import (
 )
 from .openverse import Openverse, OpenverseError
 from .pexels import Pexels, PexelsError
-from .pixabay import Pixabay, PixabayError
+from .pixabay import ORIENTATIONS, Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, text_problem
 from .sessions import current_member, now
 from .storage import DirectoryStorage, get_storage
@@ -112,6 +112,7 @@ class ScenePatchBody(BaseModel):
     voice_text: str | None = None
     video_start: float | None = None
     text_position: object = None  # the text box centre [x, y]; null: back to the video's (or template's)
+    image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
 
 
 class PublishBody(BaseModel):
@@ -147,7 +148,15 @@ def _saved(db: DbSession, video: Video) -> dict:
     return video_payload(db, video)
 
 
-def _enqueue(db: DbSession, video: Video, kind: str, me: Session, retry_of: Job | None = None) -> None:
+def _enqueue(
+    db: DbSession,
+    video: Video,
+    kind: str,
+    me: Session,
+    retry_of: Job | None = None,
+    scene_id: int | None = None,
+    image_provider: str | None = None,
+) -> None:
     """Callers hold the video lock; the partial unique index is the last guard against a second job."""
     ensure_unlocked(db, video)
     db.add(
@@ -157,6 +166,8 @@ def _enqueue(db: DbSession, video: Video, kind: str, me: Session, retry_of: Job 
             status="queued",
             created_by_id=me.user_id,
             retry_of_id=retry_of.id if retry_of else None,
+            scene_id=scene_id,
+            image_provider=image_provider,
         )
     )
     try:
@@ -296,14 +307,37 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
     return _saved(db, video)
 
 
+def _image_provider(db: DbSession, requested: str | None) -> str:
+    try:
+        return image_providers.choose(db, requested)
+    except ValueError:
+        raise invalid("Nguồn ảnh AI không hợp lệ") from None
+
+
 @router.post("/videos/{video_id}/image")
-def generate_images(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+def generate_images(
+    video_id: int, provider: str | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """`provider`: the one picked from the button's arrow for this press; the team's default otherwise."""
     video = lock_video(db, video_id)
     if not video.has_script:
         raise ApiError(409, "no_script", "Video chưa có kịch bản")
     # Scenes that already have a photo or a clip are skipped by the job, so pressing this
     # again after a partial run only pays for the scenes still missing a photo.
-    _enqueue(db, video, "image", me)
+    _enqueue(db, video, "image", me, image_provider=_image_provider(db, provider))
+    return _saved(db, video)
+
+
+@router.post("/scenes/{scene_id}/image-ai")
+def generate_scene_image(
+    scene_id: int, provider: str | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Tạo ảnh AI" / "Tạo lại ảnh AI" on one scene's card: a job that makes that scene's photo, replacing its photo
+    or clip. The card asks first when the scene already has one."""
+    video, scene = lock_scene(db, scene_id)
+    if not video.has_script:
+        raise ApiError(409, "no_script", "Video chưa có kịch bản")
+    _enqueue(db, video, "image", me, scene_id=scene.id, image_provider=_image_provider(db, provider))
     return _saved(db, video)
 
 
@@ -556,6 +590,8 @@ def patch_scene(
         if len(keywords_en) > MAX_KEYWORDS:
             raise invalid(f"Tối đa {MAX_KEYWORDS} từ khóa")
         scene.keywords_en = keywords_en
+    if body.image_checked:
+        scene.image_auto = False
     if "image_prompt" in fields and body.image_prompt is not None:
         scene.image_prompt = _clean_text(body.image_prompt, MAX_LONG_TEXT_LENGTH, "Prompt ảnh").strip()
     if "voice_text" in fields and body.voice_text is not None:
@@ -622,6 +658,8 @@ def _store_photo(
     key = new_key(video.id, f"scene-{scene.id}", extension)
     storage.save_bytes(key, data)
     scene.image_key, scene.image_source, scene.image_error = key, source, None
+    # A member chose, uploaded or cropped this photo: it is no longer the app's unchecked pick.
+    scene.image_auto = False
     # A photo replaces the scene's clip: a scene shows one or the other.
     scene.video_key, scene.video_seconds, scene.video_start = None, None, 0
     if scene.is_title:
@@ -647,6 +685,31 @@ def upload_scene_image(
     except UploadRejected as err:
         raise ApiError(415, "invalid_image", str(err)) from None
     return _store_photo(db, storage, scene_id, data, extension, "upload")
+
+
+class ImageLinkBody(BaseModel):
+    url: str
+
+
+@router.post("/scenes/{scene_id}/image-from-url")
+def image_from_url(
+    scene_id: int,
+    body: ImageLinkBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """A photo pasted as a link or dragged from another tab (Google Ảnh, a shop, a news site): downloaded here and
+    stored like an upload, its link kept as the source so a copyright claim can be traced back."""
+    video, _ = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    # No row lock may be held while the other site answers; _store_photo locks and re-checks everything.
+    db.rollback()
+    try:
+        data, extension = remote_images.download(body.url)
+    except remote_images.RemoteImageError as err:
+        raise invalid(str(err)) from None
+    return _store_photo(db, storage, scene_id, data, extension, body.url.strip())
 
 
 @router.post("/scenes/{scene_id}/image/crop")
@@ -708,6 +771,7 @@ def _attach_clip(db: DbSession, storage: DirectoryStorage, scene_id: int, upload
     # A clip replaces the scene's photo, and the scene lasts as long as the clip minus the crossfades around it
     # (one for the title, at most two for a content scene), in tenths, so the clip never ends on a held frame.
     scene.image_key, scene.image_source, scene.image_error = None, None, None
+    scene.image_auto = False
     playable = clip.seconds - (1 if scene.is_title else 2) * CROSSFADE_SIDE_SECONDS
     scene.seconds = max(MIN_SECONDS, min(MAX_CLIP_SCENE_SECONDS, math.floor(round(playable * 10, 6)) / 10))
     if scene.is_title:
@@ -737,14 +801,30 @@ def remove_scene_video(
     return payload
 
 
+def _orientation(value: str) -> str:
+    if value not in ORIENTATIONS:
+        raise invalid("Hướng ảnh không hợp lệ")
+    return value
+
+
+def _used_photos(db: DbSession, video_id: int, except_scene: int | None = None) -> set[str]:
+    """The source addresses of the photos the video's scenes already use (all of them, or all but one scene's)."""
+    query = select(Scene.image_source).where(Scene.video_id == video_id, Scene.image_source.is_not(None))
+    if except_scene is not None:
+        query = query.where(Scene.id != except_scene)
+    return set(db.scalars(query))
+
+
 @router.post("/scenes/{scene_id}/find-image")
 def find_other_image(
     scene_id: int,
     source: str = "pixabay",
+    orientation: str = "vertical",
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
+    orientation = _orientation(orientation)
     client, error_type = _stock_client(source, db)
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
@@ -755,12 +835,16 @@ def find_other_image(
     vietnamese, english = list(scene.keywords), list(scene.keywords_en)
     keywords = (vietnamese or english) if source == "openverse" else (english or vietnamese)
     current = scene.image_source
+    # A photo another scene of this video shows is never picked again.
+    used = _used_photos(db, video.id, except_scene=scene.id)
     if not keywords:
         raise invalid("Hãy nhập từ khóa tìm ảnh trước")
     # No row lock may be held while the source answers; the save below locks and re-checks everything.
     db.rollback()
     try:
-        photo = client.find_photo(keywords, time.monotonic() + FIND_IMAGE_SECONDS, after=current)
+        photo = client.find_photo(
+            keywords, time.monotonic() + FIND_IMAGE_SECONDS, avoid=used, after=current, orientation=orientation
+        )
     except error_type as err:
         code = "pixabay_error" if source == "pixabay" else "stock_error"
         raise ApiError(502, code, f"Không tìm được ảnh: {err.message}") from None
@@ -957,12 +1041,19 @@ def search_stock(
     scene_id: int,
     q: str = "",
     source: str = "pixabay",
+    orientation: str = "vertical",
+    hide_used: bool = True,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
 ) -> dict:
-    """Results for the picker's source switch; the same contract as the Pixabay-only search."""
-    if db.get(Scene, scene_id) is None:
+    """Results for the picker's source switch; the same contract as the Pixabay-only search. The picker's filters:
+    `orientation` (vertical, square, all) and `hide_used` (leave out photos the video's scenes already show);
+    photos too small for the frame are always left out."""
+    scene = db.get(Scene, scene_id)
+    if scene is None:
         raise ApiError(404, "scene_deleted", "Cảnh này đã bị xóa")
+    orientation = _orientation(orientation)
+    used = _used_photos(db, scene.video_id) if hide_used else set()
     keyword = " ".join(q.split())
     if not keyword:
         raise invalid("Hãy nhập từ khóa tìm ảnh")
@@ -973,16 +1064,22 @@ def search_stock(
     client, error_type = _stock_client(source, db)
     db.rollback()
     try:
-        hits = client.search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS)
+        hits = client.search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS, orientation)
     except error_type as err:
         raise ApiError(502, "stock_error", f"Không tìm được ảnh: {err.message}") from None
-    return {"keyword": keyword, "source": source, "hits": [{"url": hit.url, "preview": hit.preview} for hit in hits]}
+    return {
+        "keyword": keyword,
+        "source": source,
+        "hits": [{"url": hit.url, "preview": hit.preview} for hit in hits if hit.url not in used],
+    }
 
 
 class StockChoiceBody(BaseModel):
     source: str
     keyword: str
     url: str
+    # The orientation the grid was searched with, so the photo is looked for among the same results.
+    orientation: str = "vertical"
 
 
 @router.post("/scenes/{scene_id}/stock")
@@ -1003,7 +1100,7 @@ def choose_stock(
     deadline = time.monotonic() + FIND_IMAGE_SECONDS
     try:
         # The address comes from the browser: only a result the source itself returned may be fetched.
-        if body.url not in client.search(" ".join(body.keyword.split()), deadline):
+        if body.url not in client.search(" ".join(body.keyword.split()), deadline, _orientation(body.orientation)):
             raise invalid("Ảnh này không có trong kết quả tìm, hãy tìm lại")
         photo = client.download(body.url, deadline)
     except error_type as err:
@@ -1042,7 +1139,7 @@ def list_jobs(
                 "video_id": job.video_id,
                 "video_title": titles[job.video_id],
                 "kind": job.kind,
-                "kind_label": JOB_KINDS.get(job.kind, job.kind),
+                "kind_label": JOB_KINDS.get(job.kind, job.kind) + (" (1 cảnh)" if job.scene_id is not None else ""),
                 "status": job.status,
                 "created_by": job.created_by.name,
                 "created_at": job.created_at.isoformat(),
@@ -1052,7 +1149,8 @@ def list_jobs(
                 else None,
                 "claude_calls": job.claude_calls,
                 "image_calls": job.image_calls,
-                "llm": llm.label(job.llm_provider, job.llm_model),
+                "llm": llm.label(job.llm_provider, job.llm_model)
+                or image_providers.LABELS.get(job.image_provider or "", job.image_provider),
                 "error": job.error,
             }
         )
@@ -1089,7 +1187,7 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
     ensure_unlocked(db, video)
     if job.kind == "render":
         _ensure_renderable(db, video)
-    _enqueue(db, video, job.kind, me, retry_of=job)
+    _enqueue(db, video, job.kind, me, retry_of=job, scene_id=job.scene_id, image_provider=job.image_provider)
     return _saved(db, video)
 
 

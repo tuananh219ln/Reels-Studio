@@ -19,7 +19,7 @@ from collections.abc import Iterable
 from reels_render import stock
 
 from . import config
-from .pixabay import Hit, Photo, find_photo
+from .pixabay import Hit, Photo, delivered_size, find_photo, fits
 from .uploads import UploadRejected, image_extension
 
 MAX_SEARCH_BYTES = 2 * 1024 * 1024
@@ -50,11 +50,12 @@ class Openverse:
         parts = urllib.parse.urlsplit(self.api_url)
         self._api_origin = f"{parts.scheme}://{parts.netloc}/"
 
-    def search(self, keyword: str, deadline: float) -> list[str]:
+    def search(self, keyword: str, deadline: float, orientation: str = "all") -> list[str]:
         """Original image URLs for the keyword; [] when nothing public-domain matches."""
-        return [hit.url for hit in self.search_hits(keyword, deadline)]
+        return [hit.url for hit in self.search_hits(keyword, deadline, orientation)]
 
-    def search_hits(self, keyword: str, deadline: float) -> list[Hit]:
+    def search_hits(self, keyword: str, deadline: float, orientation: str = "all") -> list[Hit]:
+        shape = {"vertical": "tall", "square": "square"}.get(orientation)
         query = urllib.parse.urlencode(
             {
                 "q": keyword,
@@ -62,6 +63,7 @@ class Openverse:
                 "license_type": "commercial",
                 "page_size": RESULTS,
             }
+            | ({"aspect_ratio": shape} if shape else {})
         )
         token = self._access_token(deadline)
         headers = {"Authorization": f"Bearer {token}"} if token else None
@@ -92,10 +94,11 @@ class Openverse:
                     and self._allowed(url)
                     and self._allowed(preview)
                 ):
-                    hits.append(Hit(url, preview))
+                    # `url` is the original, so its size is the one Openverse gives.
+                    hits.append(Hit(url, preview, *delivered_size(item.get("width"), item.get("height"), 10**6, 10**6)))
         except (ValueError, KeyError, TypeError):
             raise OpenverseError("server", "Openverse trả kết quả không đọc được, thử lại sau") from None
-        return hits
+        return [hit for hit in hits if fits(hit, orientation)]
 
     def _access_token(self, deadline: float) -> str | None:
         """A registered access token, or None to search anonymously.
@@ -148,10 +151,15 @@ class Openverse:
             return None
 
     def find_photo(
-        self, keywords: Iterable[str], deadline: float, avoid: Iterable[str] = (), after: str | None = None
+        self,
+        keywords: Iterable[str],
+        deadline: float,
+        avoid: Iterable[str] = (),
+        after: str | None = None,
+        orientation: str = "all",
     ) -> Photo | None:
         """For "Tìm ảnh khác": the next usable photo over the keywords, as Pixabay.find_photo."""
-        return find_photo(self, keywords, deadline, avoid, after)
+        return find_photo(self, keywords, deadline, avoid, after, orientation)
 
     def _allowed(self, url: str) -> bool:
         # Addresses come from the network: only https, or the configured (test) server itself.

@@ -13,7 +13,7 @@ from collections.abc import Iterable
 from reels_render import stock
 
 from . import config
-from .pixabay import Hit, Photo, find_photo
+from .pixabay import Hit, Photo, delivered_size, find_photo, fits
 from .uploads import UploadRejected, image_extension
 
 MAX_SEARCH_BYTES = 2 * 1024 * 1024
@@ -36,15 +36,16 @@ class Pexels:
         parts = urllib.parse.urlsplit(self.api_url)
         self._api_origin = f"{parts.scheme}://{parts.netloc}/"
 
-    def search(self, keyword: str, deadline: float) -> list[str]:
+    def search(self, keyword: str, deadline: float, orientation: str = "all") -> list[str]:
         """Large image URLs for the keyword in Pexels' order; [] when it has nothing."""
-        return [hit.url for hit in self.search_hits(keyword, deadline)]
+        return [hit.url for hit in self.search_hits(keyword, deadline, orientation)]
 
-    def search_hits(self, keyword: str, deadline: float) -> list[Hit]:
+    def search_hits(self, keyword: str, deadline: float, orientation: str = "all") -> list[Hit]:
         if not self.key:
             raise PexelsError("key", "Chưa cấu hình PEXELS_API_KEY nên không tìm được ảnh Pexels")
+        shape = {"vertical": "portrait", "square": "square"}.get(orientation)
         query = urllib.parse.urlencode(
-            {"query": keyword, "locale": "vi-VN", "orientation": "portrait", "per_page": RESULTS}
+            {"query": keyword, "locale": "vi-VN", "per_page": RESULTS} | ({"orientation": shape} if shape else {})
         )
         try:
             body = stock.fetch(
@@ -75,10 +76,12 @@ class Pexels:
                 url = src.get("large2x") or src.get("original") or src.get("large")
                 preview = src.get("small") or src.get("tiny") or src.get("medium")
                 if isinstance(url, str) and isinstance(preview, str) and self._allowed(url) and self._allowed(preview):
-                    hits.append(Hit(url, preview))
+                    # large2x fits inside 1880 × 1300.
+                    size = delivered_size(item.get("width"), item.get("height"), 1880, 1300)
+                    hits.append(Hit(url, preview, *size))
         except (ValueError, KeyError, TypeError):
             raise PexelsError("server", "Pexels trả kết quả không đọc được, thử lại sau") from None
-        return hits
+        return [hit for hit in hits if fits(hit, orientation)]
 
     def download(self, url: str, deadline: float) -> Photo | None:
         """The photo, or None when the file is too large or not a usable JPG/PNG/WebP."""
@@ -96,10 +99,15 @@ class Pexels:
             return None
 
     def find_photo(
-        self, keywords: Iterable[str], deadline: float, avoid: Iterable[str] = (), after: str | None = None
+        self,
+        keywords: Iterable[str],
+        deadline: float,
+        avoid: Iterable[str] = (),
+        after: str | None = None,
+        orientation: str = "all",
     ) -> Photo | None:
         """For "Tìm ảnh khác": the next usable photo over the keywords, as Pixabay.find_photo."""
-        return find_photo(self, keywords, deadline, avoid, after)
+        return find_photo(self, keywords, deadline, avoid, after, orientation)
 
     def _allowed(self, url: str) -> bool:
         # Addresses come from the network: only https, or the configured (test) server itself.

@@ -109,11 +109,6 @@ def image_gen_model() -> str:
     return read_env("IMAGE_GEN_MODEL") or "gemini-2.5-flash-image"
 
 
-def image_gen_provider() -> str:
-    """Which provider makes AI photos: "cloudflare" only when set so, Gemini otherwise (the default)."""
-    return "cloudflare" if read_env("IMAGE_GEN_PROVIDER").strip().lower() == "cloudflare" else "gemini"
-
-
 def image_gen_cf_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("IMAGE_GEN_CF_API_URL") or "https://api.cloudflare.com/client/v4").rstrip("/")

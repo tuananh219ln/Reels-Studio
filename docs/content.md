@@ -63,7 +63,13 @@ One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Cla
 
 1. 5 title options, each ≤ 12 words and uppercase.
 2. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
-   breaks), and a 9:16 image prompt (realistic photo, natural light, wooden table).
+   breaks), and an AI image prompt in English that describes only what is in the photo (the dish
+   or ingredient, how it is laid out, the angle). The title scene gets one too
+   (`title_image_prompt`). Light, the vertical frame and "no text" are not in these prompts: the
+   image job adds the team's shared style ("Phong cách ảnh AI", Cài đặt › Nguồn tư liệu, app data,
+   [image_style.py](../api/src/reels_api/image_style.py)) after each one as "<prompt>. <style>".
+   Scripts from before keep their Vietnamese prompts, and a title scene without a prompt uses its
+   first line of text.
 3. A caption as the prompt asks (the default prompt asks for about 3 short lines), short when it
    does not say, plus 5 hashtags.
 4. 2 affiliate product suggestions plus the pinned-comment text.

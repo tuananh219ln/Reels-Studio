@@ -133,6 +133,7 @@ def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
         "title_voice",
         "title_keywords",
         "title_keywords_en",
+        "title_image_prompt",
         "scenes",
         "caption",
         "hashtags",

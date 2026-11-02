@@ -1,5 +1,5 @@
 """AI photos for scenes that have none, from one of two providers: Gemini image generation via Google AI Studio
-(the default) or Cloudflare Workers AI (FLUX.1 schnell), dispatched by `provider` (config.image_gen_provider).
+(the default) or Cloudflare Workers AI (FLUX.1 schnell), dispatched by `provider` (image_providers: the team's default or the one chosen for a press).
 
 Gemini is asked for the 9:16 frame directly. Cloudflare's FLUX.1 schnell ignores width/height and always answers
 a 1024x1024 square, so that branch cuts the centre to 9:16 here before returning.
@@ -181,7 +181,8 @@ def _cf_refused(messages: str, detail: str) -> ImageGenError:
 
 def _cf_limit(detail: str) -> ImageGenError:
     return ImageGenError(
-        "Tài khoản Cloudflare đã hết hạn mức neurons hôm nay, đợi qua ngày mới (reset 00:00 UTC) hoặc nâng gói",
+        "Cloudflare đã hết lượt tạo ảnh miễn phí hôm nay (mở lại lúc 7 giờ sáng giờ Việt Nam): chọn Gemini ở mũi tên"
+        " cạnh nút tạo ảnh để tạo tiếp",
         detail,
         fatal=True,
     )

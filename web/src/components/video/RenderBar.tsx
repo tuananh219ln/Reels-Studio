@@ -1,8 +1,9 @@
 "use client";
 
 import { PlayCircleOutlined, RobotOutlined, VideoCameraOutlined } from "@ant-design/icons";
-import { Button, Flex, Typography } from "antd";
+import { Button, Flex, Space, Typography } from "antd";
 import type { VideoDetail } from "@/lib/api";
+import ImageProviderMenu from "./ImageProviderMenu";
 
 /** Scrolls to the first red reason on the page: a whole-video one, else a scene's. */
 export function showFirstBlocking() {
@@ -26,7 +27,8 @@ export default function RenderBar({
   video: VideoDetail;
   busy: boolean;
   onRender: () => void;
-  onGenerateImages: () => void;
+  /** Without a provider: the team's default; with one: picked from the button's arrow for this press. */
+  onGenerateImages: (provider?: "cloudflare" | "gemini") => void;
   /** Opens what hides the first reason (a collapsed scene) before scrolling to it. */
   onShowBlocking?: () => void;
   /** "Xem trước": the video played in the browser, before any render. */
@@ -65,9 +67,12 @@ export default function RenderBar({
         </div>
         <Flex wrap gap={8}>
           {missingPhotos && (
-            <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={onGenerateImages}>
-              Tạo ảnh AI cho cảnh thiếu
-            </Button>
+            <Space.Compact>
+              <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={() => onGenerateImages()}>
+                Tạo ảnh AI cho cảnh thiếu
+              </Button>
+              <ImageProviderMenu disabled={busy || video.locked} onPick={onGenerateImages} />
+            </Space.Compact>
           )}
           {onPreview && (
             <Button icon={<PlayCircleOutlined />} onClick={onPreview}>

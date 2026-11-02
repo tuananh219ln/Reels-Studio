@@ -55,7 +55,8 @@ Built:
   - inside an open card, two columns (stacked on a phone, the picture first): the 9:16 picture
     with its tools on the left, the fields on the right: "Chữ trên màn hình" (a "?" beside it
     explains `*từ*` and line breaks), "Lời đọc", "Số giây" and "Bắt đầu từ giây" (clip only) side
-    by side, "Từ khóa tìm ảnh", "Prompt ảnh 9:16" (content scenes), then the reasons and
+    by side, "Từ khóa tìm ảnh", "Prompt ảnh AI" (every scene, the title included; its "?" says to
+    describe what is in the photo, in English, since the shared style is added), then the reasons and
     warnings. Under the text and the voice text a counter shows the words as typed (the `*` not
     counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
     on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
@@ -85,10 +86,20 @@ Built:
   - per scene a preview of the frame, or the reason there is none, in red. Pointing at a picture
     (always on a touch screen) shows quick actions over a dark gradient: "Chỉnh khung" for a
     photo or "Cắt video" for a clip, "Vị trí chữ", "Thay" (opens the file chooser) and, for a
-    clip, a delete icon ("Xoá video", confirmed). Under the picture one dashed area, "Kéo thả hoặc
-    bấm để tải ảnh/video lên", takes a photo (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM,
-    50 MB) dropped on it or chosen; a photo in place of a clip, or a clip in place of a photo, asks
-    first ("Đổi" / "Huỷ"). Then "Chọn từ kho ảnh/video" and "Tìm ảnh" with its source arrow;
+    clip, a delete icon ("Xoá video", confirmed). Under the picture one dashed area, "Kéo thả, dán
+    hoặc bấm để tải ảnh/video lên", takes a photo (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM,
+    50 MB) dropped on it or chosen, and a photo dragged straight from another tab (its address is
+    read from the drop); a photo in place of a clip, or a clip in place of a photo, asks first
+    ("Đổi" / "Huỷ"). Then "Chọn từ kho ảnh/video", "Dán ảnh/link" (reads a copied photo or a photo's
+    link from the clipboard, or opens a box to paste into when the browser does not allow it; Cmd/
+    Ctrl+V anywhere in the picture column outside a text field does the same), "Tìm trên Google"
+    (opens Google Ảnh in a new tab on the scene's first keyword, tall photos only, to copy one and
+    paste it back), "Tìm ảnh" with its source arrow, then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the
+    photo is already an AI one): an image job for this scene only, from its saved prompt, that
+    replaces the scene's photo or clip, asking first when there is one; while it runs the button
+    reads "Đang tạo ảnh AI…" and the job bar says "Tạo ảnh AI (1 cảnh)". Its arrow, like the one
+    beside "Tạo ảnh AI cho cảnh thiếu", offers "Tạo bằng Cloudflare" / "Tạo bằng Gemini" for this
+    press (one without a key is greyed out); the button itself uses the team's default;
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
     (1–4×), "Xoay 90°" and "Lật ngang"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
@@ -109,9 +120,15 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
+  - a photo picked by "Tự tìm ảnh" carries a yellow "Tự chọn, kiểm tra lại" tag under the picture
+    with "Giữ ảnh này"; keeping it, or changing the photo any other way, removes the tag. It never
+    blocks the render;
   - per scene (title included) a "Từ khóa tìm ảnh" field and two Pixabay buttons: "Chọn từ
     Pixabay" opens a dialog with the scene's first keyword already searched (editable, Enter
-    searches again) and every result as a thumbnail grid that fits the screen (two columns on a
+    searches again), the scene's keywords as chips under the box (the source's language first; a tap
+    searches it), the filters "Hướng ảnh" (Dọc, the default | Vuông | Tất cả) and "Ẩn ảnh đã dùng
+    trong video này" (on by default; any change searches again; photos too small for the frame are
+    always left out), and every result as a thumbnail grid that fits the screen (two columns on a
     phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
     it first in the scene's keywords. "Tìm ảnh" ("Tìm ảnh khác" once the scene has a photo) takes
     the next result for the saved keywords from the source named on the button (Pixabay until another
@@ -203,13 +220,17 @@ Built:
     "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
-  - **Nguồn tư liệu** (`/settings/sources`): one card per stock library (Pixabay, Pexels: photos
+  - **Nguồn tư liệu** (`/settings/sources`): first the switch "Tự tìm ảnh sau khi viết kịch bản"
+    (on by default: a stock photo for every scene once a script or clone is written); then one card per stock library (Pixabay, Pexels: photos
     and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
     hộp chọn" that hides a source from the picker and "Tìm ảnh khác" for the whole team, and its API
     key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
-    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, one card per AI photo
-    provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its model, its key and
-    "Đang dùng" on the one `IMAGE_GEN_PROVIDER` picks; last, "Giọng đọc (ElevenLabs)" with the narration key. A
+    của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
+    ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, and
+    "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
+    định" once edited; empty adds nothing) in one "Ảnh AI" card, then one
+    card per AI photo provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its
+    model, its key and "Mặc định" on the default one; last, "Giọng đọc (ElevenLabs)" with the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
   - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a table of Pages with the name and id, the token's last four
     characters, "Đang dùng" or "Ngừng dùng", and who changed it when. "Thêm Fanpage" takes a token,

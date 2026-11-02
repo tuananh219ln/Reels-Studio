@@ -34,7 +34,7 @@ const BACKEND_ENV = {
   ELEVENLABS_API_URL: FAKES_URL,
   IMAGE_GEN_API_KEY: "fake-image-gen-key",
   IMAGE_GEN_API_URL: `${FAKES_URL}/gemini`,
-  // Cloudflare Workers AI, ready for tests; IMAGE_GEN_PROVIDER stays unset so the E2E image test uses Gemini.
+  // Cloudflare Workers AI, ready for tests; IMAGE_GEN_PROVIDER stays unset, so with both set up Cloudflare is the default.
   IMAGE_GEN_CF_API_URL: `${FAKES_URL}/cloudflare/client/v4`,
   IMAGE_GEN_CF_ACCOUNT_ID: "test-account",
   IMAGE_GEN_CF_API_KEY: "fake-cloudflare-token",

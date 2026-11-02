@@ -28,6 +28,7 @@ STATUS_LABELS = {
     "queued": "Chờ",
     "writing": "Đang viết",
     "imaging": "Đang tạo ảnh",
+    "finding": "Đang tìm ảnh",
     "rendering": "Đang render",
     "publishing": "Đang đăng",
     "done": "Xong",
@@ -40,6 +41,7 @@ JOB_KINDS = {
     "render": "Render",
     "publish": "Đăng Facebook",
     "image": "Tạo ảnh AI",
+    "photos": "Tự tìm ảnh",
 }
 SENTENCE_ENDS = (".", "!", "?", "…", ":")
 
@@ -236,7 +238,9 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
     if job is not None and job.status == "queued":
         code, label = "queued", f"Chờ thứ {queue_position(db, job)}"
     elif job is not None:
-        code = {"render": "rendering", "publish": "publishing", "image": "imaging"}.get(job.kind, "writing")
+        code = {"render": "rendering", "publish": "publishing", "image": "imaging", "photos": "finding"}.get(
+            job.kind, "writing"
+        )
         label = STATUS_LABELS[code]
     elif video.mp4_key:
         code, label = "done", STATUS_LABELS["done"]
@@ -253,6 +257,9 @@ def _job_payload(job: Job | None) -> dict | None:
     return {
         "id": job.id,
         "kind": job.kind,
+        # The one scene an image job makes a photo for; None for every other job.
+        "scene_id": job.scene_id,
+        "image_provider": job.image_provider,
         "status": job.status,
         "error": job.error,
         "error_detail": job.error_detail,
@@ -317,6 +324,10 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "voice_url": f"{image}/voice.mp3?v={_version(scene.voice_key)}" if voice_seconds is not None else None,
         "fitted_seconds": fit_seconds(scene.seconds, voice_seconds),
         "has_image": bool(scene.image_key),
+        # An AI photo: the card offers "Tạo lại ảnh AI" instead of "Tạo ảnh AI".
+        "image_ai": bool(scene.image_key) and (scene.image_source or "").startswith("ai:"),
+        # Picked by "Tự tìm ảnh" and not yet changed by a member: the card says "Tự chọn, kiểm tra lại".
+        "image_auto": bool(scene.image_key) and scene.image_auto,
         "image_error": scene.image_error,
         "image_url": f"{image}/image?v={_version(scene.image_key)}" if scene.image_key else None,
         "video": {

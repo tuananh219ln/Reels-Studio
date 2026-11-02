@@ -6,12 +6,15 @@ import {
   DeleteOutlined,
   DownOutlined,
   DragOutlined,
+  GoogleOutlined,
   InboxOutlined,
   PictureOutlined,
   PlayCircleOutlined,
   RightOutlined,
+  RobotOutlined,
   ScissorOutlined,
   SearchOutlined,
+  SnippetsOutlined,
   SwapOutlined,
 } from "@ant-design/icons";
 import {
@@ -22,6 +25,8 @@ import {
   Col,
   Dropdown,
   Flex,
+  Input,
+  Modal,
   Popconfirm,
   Row,
   Space,
@@ -32,7 +37,9 @@ import {
 } from "antd";
 import { cloneElement, useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type StockSource, type VideoDetail } from "@/lib/api";
+import { fileFromDataUrl, googleImagesUrl, linkFromTransfer, looksLikeImageLink, unwrapLink } from "@/lib/imageLinks";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
+import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
 import StockPicker from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
@@ -73,10 +80,13 @@ export default function SceneCard({
   onMove,
   onDelete,
   onPreview,
+  generating = false,
 }: {
   scene: SceneData;
   label: string;
   voiceEnabled: boolean;
+  /** An image job is making this scene's photo ("Tạo ảnh AI" on this card). */
+  generating?: boolean;
   expanded: boolean;
   onToggle: () => void;
   /** "Xem từ cảnh này": the browser preview, starting at this scene. */
@@ -154,7 +164,7 @@ export default function SceneCard({
         <Col xs={24} sm={9} md={8}>
           {/* On a phone the column is the full width: keep the 9:16 frame a thumbnail, centred. */}
           <div style={{ maxWidth: 220, margin: "0 auto" }}>
-            <ScenePicture scene={scene} voiceEnabled={voiceEnabled} />
+            <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} />
           </div>
         </Col>
         <Col xs={24} sm={15} md={16}>
@@ -192,14 +202,17 @@ export default function SceneCard({
               placeholder="cụ thể nhất trước, cách nhau bằng dấu phẩy"
               save={(text) => patch({ keywords: parseKeywords(text) })}
             />
-            {!scene.is_title && (
-              <AutoSaveField
-                label="Prompt ảnh 9:16"
-                value={scene.image_prompt}
-                multiline
-                save={(text) => patch({ image_prompt: text })}
-              />
-            )}
+            <AutoSaveField
+              label="Prompt ảnh AI"
+              help={
+                "Tả thứ có trong ảnh (món, cách bày, góc chụp), nên viết tiếng Anh. Phong cách chung (ánh sáng, khung " +
+                "dọc, không chữ) được thêm tự động, sửa ở Cài đặt › Nguồn tư liệu." +
+                (scene.is_title ? " Để trống thì dùng dòng chữ đầu của cảnh tiêu đề." : "")
+              }
+              value={scene.image_prompt}
+              multiline
+              save={(text) => patch({ image_prompt: text })}
+            />
             {scene.blocking.map((reason) => (
               <Alert key={reason} type="error" showIcon title={reason} data-testid="scene-blocking" />
             ))}
@@ -292,11 +305,19 @@ function SceneHeader({
   );
 }
 
-type Busy = "upload" | "video" | "remove" | "find";
+type Busy = "upload" | "video" | "remove" | "find" | "link" | "ai" | "keep";
 
 const PIXABAY: StockSource = { id: "pixabay", label: "Pixabay", available: true };
 
-function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled: boolean }) {
+function ScenePicture({
+  scene,
+  voiceEnabled,
+  generating,
+}: {
+  scene: SceneData;
+  voiceEnabled: boolean;
+  generating: boolean;
+}) {
   const { message, modal } = App.useApp();
   const editor = useEditor();
   const input = useRef<HTMLInputElement>(null);
@@ -306,6 +327,8 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
   const [placing, setPlacing] = useState(false);
   const [framing, setFraming] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [pasting, setPasting] = useState(false);
+  const [pastedLink, setPastedLink] = useState("");
   // Where "Tìm ảnh khác" searches: Pixabay until the member picks another source from the arrow menu.
   const [findSource, setFindSource] = useState<StockSource>(PIXABAY);
   const [sources, setSources] = useState<StockSource[] | null>(null);
@@ -374,16 +397,104 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
     });
   }
 
+  /** A photo's link, pasted or dragged from another tab: a data: photo is uploaded, any other link the api fetches. */
+  async function fromLink(text: string) {
+    const link = unwrapLink(text.trim());
+    if (/^data:image\//i.test(link)) {
+      chosen(await fileFromDataUrl(link));
+      return;
+    }
+    const send = () => run("link", () => api<VideoDetail>(`/scenes/${scene.id}/image-from-url`, "POST", { url: link }));
+    if (scene.video === null) {
+      void send();
+      return;
+    }
+    modal.confirm({
+      title: "Ảnh sẽ thay video của cảnh này?",
+      okText: "Đổi",
+      cancelText: "Huỷ",
+      onOk: () => void send(),
+    });
+  }
+
+  /** What was pasted: a copied photo, or a photo's link. False when it was neither. */
+  function fromPaste(data: DataTransfer): boolean {
+    const file = Array.from(data.files).find((item) => item.type.startsWith("image/"));
+    if (file) {
+      chosen(file);
+      return true;
+    }
+    const text = data.getData("text/plain").trim();
+    if (looksLikeImageLink(text)) {
+      void fromLink(text);
+      return true;
+    }
+    return false;
+  }
+
+  /** "Dán ảnh/link": the clipboard read directly when the browser allows it, otherwise a box to paste into. */
+  async function pasteFromClipboard() {
+    try {
+      for (const item of await navigator.clipboard.read()) {
+        const type = item.types.find((name) => IMAGE_TYPES.includes(name));
+        if (type) {
+          const blob = await item.getType(type);
+          chosen(new File([blob], `anh-dan.${type.split("/")[1].replace("jpeg", "jpg")}`, { type }));
+          return;
+        }
+        if (item.types.includes("text/plain")) {
+          const text = (await (await item.getType("text/plain")).text()).trim();
+          if (looksLikeImageLink(text)) {
+            void fromLink(text);
+            return;
+          }
+        }
+      }
+    } catch {
+      // No clipboard permission, or a browser without clipboard.read: the box below takes the paste.
+    }
+    setPastedLink("");
+    setPasting(true);
+  }
+
+  /** "Tạo ảnh AI" for this scene; `provider` when picked from the arrow, the team's default otherwise. */
+  function generate(provider?: "cloudflare" | "gemini") {
+    return run("ai", async () => {
+      // The job reads the saved prompt: the one being typed is saved first.
+      await editor.flush();
+      return api<VideoDetail>(`/scenes/${scene.id}/image-ai${provider ? `?provider=${provider}` : ""}`, "POST");
+    });
+  }
+
   const frame = { width: "100%", aspectRatio: "9 / 16", borderRadius: 6 } as const;
   const hasPicture = scene.has_image || scene.video !== null;
   const reason = scene.text_problem && hasPicture ? scene.text_problem : null;
   const off = editor.locked || editor.readOnly || busy !== null;
   const which = scene.is_title ? "cảnh tiêu đề" : "cảnh";
   const canPlace = !!scene.preview_url && !reason && !!scene.textbox_url && !!scene.frame_url;
-  const uploading = busy === "upload" || busy === "video";
+  const uploading = busy === "upload" || busy === "video" || busy === "link";
+  const googleKeyword = scene.keywords[0] ?? scene.keywords_en[0] ?? "";
+  const replaceQuestion = scene.video
+    ? "Ảnh AI sẽ thay video của cảnh này?"
+    : scene.image_ai
+      ? "Tạo ảnh AI mới thay ảnh hiện tại?"
+      : "Ảnh AI sẽ thay ảnh hiện tại của cảnh này?";
 
   return (
-    <Flex vertical gap={8}>
+    <Flex
+      vertical
+      gap={8}
+      onPaste={(event) => {
+        // A paste into a text field stays text; elsewhere in this scene's picture column it may be a photo.
+        const target = event.target as HTMLElement;
+        if (off || target.closest("input, textarea, [contenteditable=true]")) {
+          return;
+        }
+        if (fromPaste(event.clipboardData)) {
+          event.preventDefault();
+        }
+      }}
+    >
       <div className="scene-media" style={{ position: "relative" }}>
         {scene.preview_url && !reason ? (
           // A plain <img>: the preview is drawn by the api with the renderer's own code.
@@ -473,6 +584,28 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
           </Flex>
         )}
       </div>
+      {scene.image_auto && (
+        // "Tự tìm ảnh" picked this photo from a stock library after the script: often the wrong dish for
+        // Vietnamese food, so a member looks before rendering. Never blocks the render.
+        <Flex wrap align="center" gap={4} data-testid="image-auto">
+          <Tag color="warning" style={{ marginInlineEnd: 0 }}>
+            Tự chọn, kiểm tra lại
+          </Tag>
+          {!editor.readOnly && (
+            <Button
+              size="small"
+              type="link"
+              loading={busy === "keep"}
+              disabled={off}
+              onClick={() =>
+                run("keep", () => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { image_checked: true }))
+              }
+            >
+              Giữ ảnh này
+            </Button>
+          )}
+        </Flex>
+      )}
       {scene.video && (
         // The clip as uploaded, without sound: the render never uses its sound either.
         <video
@@ -520,8 +653,20 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
             onDrop={(event) => {
               event.preventDefault();
               setDragging(false);
-              if (!off) {
-                chosen(event.dataTransfer.files[0]);
+              if (off) {
+                return;
+              }
+              const file = event.dataTransfer.files[0];
+              if (file) {
+                chosen(file);
+                return;
+              }
+              // A photo dragged from another tab (Google Ảnh, a shop) arrives as its address, not as a file.
+              const link = linkFromTransfer(event.dataTransfer);
+              if (link) {
+                void fromLink(link);
+              } else {
+                message.error("Không nhận ra ảnh vừa thả: hãy kéo chính tấm ảnh, hoặc sao chép ảnh rồi dán");
               }
             }}
             style={{
@@ -536,7 +681,7 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
           >
             {uploading ? <Spin size="small" /> : <InboxOutlined style={{ fontSize: 20, color: "#1677ff" }} />}
             <Typography.Text style={{ fontSize: 12 }}>
-              {uploading ? "Đang tải lên…" : "Kéo thả hoặc bấm để tải ảnh/video lên"}
+              {uploading ? "Đang tải lên…" : "Kéo thả, dán hoặc bấm để tải ảnh/video lên"}
             </Typography.Text>
           </Flex>
           <Switching
@@ -553,6 +698,24 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
               Chọn từ kho ảnh/video
             </Button>
           </Switching>
+          {/* One per row: the picture column is too narrow for two labelled buttons side by side. */}
+          <Button icon={<SnippetsOutlined />} disabled={off} block onClick={() => void pasteFromClipboard()}>
+            Dán ảnh/link
+          </Button>
+          <Tooltip title="Mở Google Ảnh với từ khóa của cảnh; sao chép ảnh ưng ý rồi quay lại dán vào đây">
+            <Button
+              icon={<GoogleOutlined />}
+              disabled={off}
+              block
+              onClick={async () => {
+                // The keyword being typed is saved first, like the other searches.
+                await editor.flush();
+                window.open(googleImagesUrl(googleKeyword), "_blank", "noopener");
+              }}
+            >
+              Tìm trên Google
+            </Button>
+          </Tooltip>
           <Space.Compact block>
             <Switching
               show={scene.video !== null}
@@ -585,6 +748,29 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
               <Button aria-label="Đổi nguồn ảnh" icon={<DownOutlined />} disabled={off} />
             </Dropdown>
           </Space.Compact>
+          {/* A job, like the bar's "Tạo ảnh AI cho cảnh thiếu", but for this scene only and replacing what it has. */}
+          <Space.Compact block>
+            <Switching show={hasPicture} title={replaceQuestion} disabled={off} onConfirm={() => void generate()}>
+              <Button icon={<RobotOutlined />} loading={generating || busy === "ai"} disabled={off} style={{ flex: 1 }}>
+                {generating ? "Đang tạo ảnh AI…" : scene.image_ai ? "Tạo lại ảnh AI" : "Tạo ảnh AI"}
+              </Button>
+            </Switching>
+            <ImageProviderMenu
+              disabled={off}
+              onPick={(provider) => {
+                if (!hasPicture) {
+                  void generate(provider);
+                  return;
+                }
+                modal.confirm({
+                  title: replaceQuestion,
+                  okText: "Đổi",
+                  cancelText: "Huỷ",
+                  onOk: () => void generate(provider),
+                });
+              }}
+            />
+          </Space.Compact>
         </>
       )}
       {error && (
@@ -596,6 +782,39 @@ function ScenePicture({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled:
         <Typography.Text type="secondary" data-testid="keywords-hint">
           Nhập từ khóa ở ô “Từ khóa tìm ảnh” của cảnh này rồi bấm lại.
         </Typography.Text>
+      )}
+      {pasting && (
+        <Modal
+          open
+          title={`Dán ảnh cho ${which}`}
+          okText="Lấy ảnh"
+          cancelText="Huỷ"
+          okButtonProps={{ disabled: !looksLikeImageLink(pastedLink.trim()) }}
+          onCancel={() => setPasting(false)}
+          onOk={() => {
+            setPasting(false);
+            void fromLink(pastedLink);
+          }}
+        >
+          <Typography.Paragraph type="secondary">
+            Nhấn Cmd/Ctrl+V để dán ảnh đã sao chép (chuột phải vào ảnh, chọn “Sao chép hình ảnh”), hoặc dán link ảnh.
+          </Typography.Paragraph>
+          <Input
+            autoFocus
+            aria-label="Link ảnh"
+            placeholder="https://… (chuột phải vào ảnh, chọn “Sao chép địa chỉ hình ảnh”)"
+            value={pastedLink}
+            onChange={(event) => setPastedLink(event.target.value)}
+            onPaste={(event) => {
+              const file = Array.from(event.clipboardData.files).find((item) => item.type.startsWith("image/"));
+              if (file) {
+                event.preventDefault();
+                setPasting(false);
+                chosen(file);
+              }
+            }}
+          />
+        </Modal>
       )}
       {placing && <TextPositionModal scene={scene} onClose={() => setPlacing(false)} onSaved={editor.onSaved} />}
       {framing && <MediaEditor scene={scene} voiceEnabled={voiceEnabled} onClose={() => setFraming(false)} />}

@@ -11,6 +11,80 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — "Tự tìm ảnh": jobs now pick stock photos after the script
+
+Reverses "jobs never pick photos" (2026-10-31, repeated in later entries), by the owner's choice:
+choosing photos by hand was the slowest step of making a video. The reason behind the old rule still
+holds: the photo is stored on the scene, shown in the editor and replaced at will before any render,
+and the render uses only stored photos. After a script or clone job, a separate `photos` job (so a
+search problem never fails the script) gives every scene without a photo or clip one free stock photo
+with the picker's rules (tall, big enough, never one another scene shows; Pixabay, Pexels, Openverse
+in that order, skipping sources turned off, without a key or failing). It never makes AI photos, which
+cost calls. Stock libraries often show the wrong dish for Vietnamese food, so each pick carries
+"Tự chọn, kiểm tra lại" (`scenes.image_auto`, migration 0018) until a member keeps or changes it; the
+tag never blocks the render. The team can turn the search off on Cài đặt › Nguồn tư liệu ("Tự tìm ảnh
+sau khi viết kịch bản", on by default). The E2E reset turns it off, since most E2E tests start from
+scenes without photos; one test turns it on.
+
+## 2026-11-02 — Picker filters, and a blocked Pixabay said as such
+
+Owner's choice of filters for "Chọn từ kho ảnh/video": "Hướng ảnh" (Dọc by default, Vuông, Tất cả),
+"Ẩn ảnh đã dùng trong video này" (on by default; "Tìm ảnh" also never takes a photo another scene
+shows), the scene's keywords as chips, and photos too small always left out. The size bar is a short
+side of 640 px of the file the app downloads, not the 1080 px first talked about: Pixabay's and
+Pexels' large files of a tall photo are about 720 px wide, so 1080 would hide every tall photo they
+have. Colour, sort order and illustration filters were left out as rarely useful. Pixabay answering
+through Cloudflare's bot check (an HTML page, seen when a network is blocked) now says the network is
+blocked and to switch network or source, instead of "giới hạn lượt tìm, thử lại sau 1 phút".
+
+## 2026-11-02 — AI photo prompts: English content from the script, one shared style from the app
+
+Owner's choice. The script now writes each scene's `image_prompt` in English and adds
+`title_image_prompt`, since the title scene used its first line of text (often a question, which
+draws nothing useful) and FLUX.1 schnell follows English far better than Vietnamese. These prompts
+describe only what is in the photo; how every photo looks (light, the vertical frame, no text, no
+logo) is one shared style the image job appends ("<prompt>. <style>"), so a video's scenes match and
+the look changes without a new script. The style is app data, edited on Cài đặt › Nguồn tư liệu
+(default in [image_style.py](../api/src/reels_api/image_style.py), empty adds nothing), the same
+split as prompt text versus output format. Older scripts keep their Vietnamese prompts. Every card,
+the title's included, shows "Prompt ảnh AI" to edit.
+
+## 2026-11-02 — The AI image provider is chosen in the app, Cloudflare first, never switched to Gemini by itself
+
+Replaces the 2026-11-01 entry's "the image job's provider is chosen with `IMAGE_GEN_PROVIDER`". Owner's
+choice: the team's default is picked on Cài đặt › Nguồn tư liệu ("Nguồn ảnh AI mặc định"); until it is,
+`IMAGE_GEN_PROVIDER` still applies (servers set up before keep working), and without it Cloudflare is
+used when it is set up (free, about 57 photos a day), else Gemini. Every "Tạo ảnh AI" button has an
+arrow to use the other provider for one press. The provider is stored on the job when it is queued
+(`jobs.image_provider`, migration 0017), so a retry uses the same one and the job log shows it. When
+Cloudflare's free photos for the day run out the job fails and says to choose Gemini from the arrow:
+Gemini costs money, so the app never moves to it without a member choosing it.
+
+## 2026-11-02 — An AI photo for one scene, from its card
+
+Owner's choice: usually only one or two AI photos come out wrong, so each scene card has "Tạo ảnh AI"
+("Tạo lại ảnh AI" for an AI photo) beside the batch "Tạo ảnh AI cho cảnh thiếu", which stays. It is
+the same `image` job with the new `jobs.scene_id` (migration 0016, no foreign key so a deleted scene
+keeps its job log row), so it goes through the queue and locks the video like every job. Unlike the
+batch it replaces the scene's photo or clip (the card asks first), and a refused prompt fails the job
+with the scene's name while the scene keeps its photo. Retrying a failed one keeps its scene. AI photos
+are not made when the script is written: many scenes get stock photos, so that would waste calls.
+
+## 2026-11-02 — Photos from any site: paste, drag or "Tìm trên Google"; no Google API
+
+Owner's request: finding a photo on Google, downloading it and uploading it again was slow. Google Images
+is not added as a stock source: its only API (Custom Search JSON) is closed to new customers and shuts
+down on 2027-01-01, scraping breaks Google's terms and gets blocked, and paid search APIs cost money.
+Most of its photos are also copyrighted, unlike the stock sources (free for commercial use, no
+attribution), so the app must not pick them by itself. Instead a member takes one by hand: "Tìm trên
+Google" opens Google Ảnh on the scene's keyword, and a copied photo, a photo's link or a photo dragged
+from another tab is put on the scene in one step. A link is downloaded by the api
+([remote_images.py](../api/src/reels_api/remote_images.py)): http(s) only, every connection (redirects
+included) must reach a public internet address, 15 MB and 15 seconds at most, then the upload checks.
+The link is kept as the photo's `image_source`, so a copyright claim can be traced back; this extends
+the 2026-10-31 "no source info" decision for these photos only. A copied photo (no link in the
+clipboard) is stored like an upload. Photos taken this way are the member's responsibility, like uploads.
+
 ## 2026-11-02 — Reading speed is applied with FFmpeg, not by ElevenLabs
 
 Replaces the speed part of the 2026-11-01 "Video presets" entry. The default model, `eleven_v3`,

@@ -30,13 +30,18 @@ Các trường:
 - "title_keywords_en": 2–4 từ khóa tiếng Anh tương ứng để tìm ở các kho ảnh phương Tây (Pixabay, Pexels —
   hai kho này đánh chỉ mục bằng tiếng Anh): dịch tên món/nguyên liệu sang tiếng Anh phổ thông, xếp từ cụ thể
   đến chung, không để tên riêng tiếng Việt.
+- "title_image_prompt": prompt tạo ảnh AI cho cảnh tiêu đề, viết bằng tiếng Anh: tả món hoặc cảnh tiêu biểu nhất của
+  chủ đề (đồ vật, cách bày, góc chụp) trong 1 câu; không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm
+  phong cách chung.
 - "scenes": 5–7 cảnh nội dung theo thứ tự. Mỗi cảnh có:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
   - "seconds": số giây của cảnh (3–5);
   - "voice": lời đọc của cảnh, câu nói tự nhiên nối tiếp chữ trên màn hình của cảnh đó và nói đủ một ý chi tiết (lý
     do, cách ăn hoặc mẹo nhỏ), 8–15 từ; không dùng *dấu sao*, viết số và đơn vị thành chữ khi cần đọc rõ;
-  - "image_prompt": prompt tạo ảnh 9:16 (ảnh thực, ánh sáng tự nhiên, bàn gỗ);
+  - "image_prompt": prompt tạo ảnh AI cho cảnh, viết bằng tiếng Anh, 1 câu tả đúng thứ trong ảnh (món/nguyên liệu
+    cụ thể của cảnh, cách bày, góc chụp); không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm phong cách
+    chung;
   - "keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh, xếp từ cụ thể đến chung
     (tên món/nguyên liệu cụ thể của cảnh trước, nhóm chung sau).
   - "keywords_en": 2–4 từ khóa tiếng Anh tương ứng cho các kho ảnh phương Tây: dịch tên món/nguyên liệu
@@ -60,30 +65,31 @@ Ví dụ đầy đủ:
   "title_voice": "Xương yếu dần theo năm tháng, bữa cơm đã đủ chưa?",
   "title_keywords": ["cá cơm chiên giòn", "món ăn giàu canxi"],
   "title_keywords_en": ["fried whitebait", "calcium rich food"],
+  "title_image_prompt": "Five calcium-rich Vietnamese dishes on one wooden table: fried anchovies, tofu, greens, yogurt and black sesame, top-down view",
   "scenes": [
     {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
      "voice": "Chiên giòn hay kho nhạt đều hợp bữa cơm, nhớ nhai kỹ cả phần xương.",
-     "image_prompt": "Đĩa cá cơm chiên giòn trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "image_prompt": "A plate of crispy fried anchovies on a wooden table, close-up from a 45-degree angle",
      "keywords": ["cá cơm chiên giòn", "cá nhỏ", "món cá"],
      "keywords_en": ["fried whitebait", "small fish", "fish dish"]},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
      "voice": "Mỗi ngày một hũ sau bữa ăn, vị dịu lại dễ tiêu.",
-     "image_prompt": "Hũ sữa chua trắng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "image_prompt": "A small glass jar of plain white yogurt with a spoon on a wooden table, eye-level close-up",
      "keywords": ["hũ sữa chua", "sữa chua"],
      "keywords_en": ["yogurt cup", "yogurt"]},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
      "voice": "Rán vàng hay nấu canh cà chua đều ngon, lại mềm và dễ nhai.",
-     "image_prompt": "Đĩa đậu phụ rán vàng trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "image_prompt": "A plate of golden pan-fried tofu cubes on a wooden table, top-down view",
      "keywords": ["đậu phụ rán", "đậu phụ", "món đậu"],
      "keywords_en": ["fried tofu", "tofu", "tofu dish"]},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
      "voice": "Luộc vừa chín hoặc xào nhanh để rau giữ màu xanh và bớt mất chất.",
-     "image_prompt": "Bó rau cải xanh tươi trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "image_prompt": "A bunch of fresh Vietnamese mustard greens on a wooden table, top-down view",
      "keywords": ["rau cải xanh", "rau xanh"],
      "keywords_en": ["green vegetables", "leafy greens"]},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
      "voice": "Chỉ một thìa nhỏ vừng rang giã dập là bữa sáng đã thơm hơn.",
-     "image_prompt": "Bát vừng đen rang trên bàn gỗ, ánh sáng tự nhiên, ảnh thực, khung dọc 9:16",
+     "image_prompt": "A small bowl of roasted black sesame seeds on a wooden table, close-up",
      "keywords": ["vừng đen rang", "vừng đen"],
      "keywords_en": ["black sesame seeds", "black sesame"]}
   ],
@@ -134,6 +140,7 @@ class GeneratedScript:
     self_review: list[str] = field(default_factory=list)
     music_suggestions: list[str] = field(default_factory=list)
     title_keywords_en: list[str] = field(default_factory=list)
+    title_image_prompt: str = ""
 
 
 def build_script_prompt(template: str, topic: str, banned_words: list[str]) -> str:
@@ -211,6 +218,7 @@ def parse_output(raw: str) -> GeneratedScript:
         self_review=_strings(data.get("self_review")),
         music_suggestions=_strings(data.get("music_suggestions")),
         title_keywords_en=_keywords(data.get("title_keywords_en")),
+        title_image_prompt=_text(data.get("title_image_prompt")),
     )
 
 
