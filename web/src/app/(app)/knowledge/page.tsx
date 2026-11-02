@@ -4,6 +4,7 @@ import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { App, Button, Card, Collapse, Flex, Input, Popconfirm, Spin, Tag, Tooltip, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, type Knowledge, type KnowledgeTopic } from "@/lib/api";
+import PageHeader from "@/components/PageHeader";
 
 export default function KnowledgePage() {
   const { message } = App.useApp();
@@ -41,26 +42,24 @@ export default function KnowledgePage() {
   // closing a line nor saving one box discards unsaved text in another.
   return (
     <>
-      <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
-        Kho kiến thức
-      </Typography.Title>
-      <Typography.Paragraph type="secondary">
-        Mỗi nhóm chủ đề có prompt viết kịch bản, prompt nhân bản và từ cấm riêng. Video dùng nhóm được chọn khi tạo
-        video; bản nhân bản dùng nhóm của video gốc.
-      </Typography.Paragraph>
-      <Flex gap={8} style={{ marginBottom: 16, maxWidth: 480 }}>
-        <Input
-          aria-label="Tên nhóm chủ đề mới"
-          placeholder="Tên nhóm chủ đề mới"
-          maxLength={100}
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onPressEnter={() => name.trim() && add()}
-        />
-        <Button icon={<PlusOutlined />} loading={busy} disabled={!name.trim()} onClick={add}>
-          Thêm nhóm
-        </Button>
-      </Flex>
+      <PageHeader
+        title="Kho kiến thức"
+        description="Mỗi nhóm chủ đề có prompt viết kịch bản, prompt nhân bản và từ cấm riêng. Video dùng nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
+      >
+        <Flex gap={8} style={{ width: 480, maxWidth: "100%" }}>
+          <Input
+            aria-label="Tên nhóm chủ đề mới"
+            placeholder="Tên nhóm chủ đề mới"
+            maxLength={100}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            onPressEnter={() => name.trim() && add()}
+          />
+          <Button icon={<PlusOutlined />} loading={busy} disabled={!name.trim()} onClick={add}>
+            Thêm nhóm
+          </Button>
+        </Flex>
+      </PageHeader>
       <Collapse
         items={data.topics.map((topic) => ({
           key: topic.id,

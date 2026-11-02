@@ -30,7 +30,7 @@ export type UserRow = {
 };
 
 export type VideoStatus =
-  "draft" | "queued" | "writing" | "imaging" | "finding" | "rendering" | "publishing" | "done" | "failed";
+  "draft" | "queued" | "writing" | "imaging" | "finding" | "voicing" | "rendering" | "publishing" | "done" | "failed";
 
 export type VideoRow = {
   id: number;
@@ -47,7 +47,7 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish" | "image" | "photos";
+  kind: "script" | "clone" | "render" | "publish" | "image" | "photos" | "voice";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";

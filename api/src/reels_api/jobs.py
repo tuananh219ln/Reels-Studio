@@ -84,6 +84,8 @@ def run_job(
                 run_image_job(db, job, storage)
             elif job.kind == "publish":
                 run_publish_job(db, job, storage)
+            elif job.kind == "voice":
+                run_voice_job(db, job, storage)
             elif job.kind == "photos":
                 auto_photos.run(db, job, storage)
             else:
@@ -267,6 +269,13 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         if old and old != key:
             storage.delete(old)
         log.info("Narration for video %s %s: %.1fs", video.id, label, seconds)
+
+
+def run_voice_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    """ "Tạo giọng thật" in the preview: only the narration a render would make, kept for that render to reuse."""
+    video = db.get(Video, job.video_id)
+    title, scenes = split_scenes(db, video)
+    make_voices(db, video, [scene for scene in (title, *scenes) if scene is not None], storage)
 
 
 def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:

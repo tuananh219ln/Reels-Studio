@@ -337,3 +337,57 @@ def test_narration_pushing_the_total_over_90_seconds_fails_but_keeps_what_was_ma
     with committed() as db:
         _, scenes = split_scenes(db, db.get(Video, video_id))
         assert all(scene.voice_key for scene in scenes[:2]), "a retry must not pay for these again"
+
+
+# --- ElevenLabs narration for the preview ("Tạo giọng thật") ---
+
+
+def test_making_the_narration_queues_a_voice_job_that_locks_the_video(an, db, me, storage):
+    video = make_video(db, storage, me)
+    first_scene(db, video).voice_text = TEN_WORDS
+    db.commit()
+    payload = an.post(f"/api/videos/{video.id}/voices").json()
+    assert (payload["active_job"]["kind"], payload["status_label"]) == ("voice", "Chờ thứ 1")
+    save = an.patch(f"/api/scenes/{first_scene(db, video).id}", json={"text": "B đang gõ"})
+    assert (save.status_code, save.json()["message"]) == (409, "Video đang tạo giọng đọc, chưa lưu")
+    assert an.post(f"/api/videos/{video.id}/voices").status_code == 409
+
+
+def test_making_the_narration_is_refused_when_there_is_nothing_to_make(an, db, me, storage):
+    video = make_video(db, storage, me, scene_text="")
+    response = an.post(f"/api/videos/{video.id}/voices")
+    assert (response.status_code, response.json()["message"]) == (409, "Mọi cảnh đã có giọng ElevenLabs")
+    first_scene(db, video).voice_text = TEN_WORDS
+    video.voice_enabled = False
+    db.commit()
+    response = an.post(f"/api/videos/{video.id}/voices")
+    assert (response.status_code, response.json()["message"]) == (409, "Video đang tắt giọng đọc")
+
+
+@needs_ffmpeg
+def test_a_voice_job_makes_only_the_narration_and_the_render_reuses_it(committed, voiced, fakes):
+    from reels_api import jobs
+
+    user, storage, video_id = voiced
+    job_id = add_job(committed, video_id, user.id, kind="voice", status="running")
+    jobs.run_job(job_id, committed, storage)
+    job = job_row(committed, job_id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert [request["text"] for request in fakes.tts_requests] == [TEN_WORDS]
+    with committed() as db:
+        video = db.get(Video, video_id)
+        assert video.mp4_key is None and storage.exists(first_scene(db, video).voice_key)
+    assert render(committed, storage, video_id, user.id).status == "done"
+    assert len(fakes.tts_requests) == 1
+
+
+@needs_ffmpeg
+def test_a_voice_job_fails_with_elevenlabs_reason(committed, voiced, fakes):
+    from reels_api import jobs
+
+    user, storage, video_id = voiced
+    fakes.tts_mode = "quota"
+    job_id = add_job(committed, video_id, user.id, kind="voice", status="running")
+    jobs.run_job(job_id, committed, storage)
+    job = job_row(committed, job_id)
+    assert (job.status, job.error) == ("failed", "Cảnh 1: Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm")

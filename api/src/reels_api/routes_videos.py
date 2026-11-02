@@ -51,6 +51,7 @@ from .videos import (
     list_payload,
     lock_scene,
     lock_video,
+    made_voice_seconds,
     new_key,
     publication_of,
     refresh_thumbnail,
@@ -58,6 +59,7 @@ from .videos import (
     run_checks,
     scene_still,
     split_scenes,
+    spoken,
     text_position,
     title_of,
     video_not_found,
@@ -304,6 +306,28 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
     ensure_unlocked(db, video)
     _ensure_renderable(db, video)
     _enqueue(db, video, "render", me)
+    return _saved(db, video)
+
+
+@router.post("/videos/{video_id}/voices")
+def make_narration(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Tạo giọng thật" in the preview: ElevenLabs reads the scenes whose narration is missing or out of date.
+    It costs credit once per text; the render reuses those MP3s, so a render after it pays nothing more."""
+    video = lock_video(db, video_id)
+    ensure_unlocked(db, video)
+    if not video.has_script:
+        raise ApiError(409, "no_script", "Video chưa có kịch bản")
+    if not video.voice_enabled:
+        raise ApiError(409, "voice_off", "Video đang tắt giọng đọc")
+    title, scenes = split_scenes(db, video)
+    missing = [
+        scene
+        for scene in (title, *scenes)
+        if scene is not None and spoken(video, scene) and made_voice_seconds(video, scene) is None
+    ]
+    if not missing:
+        raise ApiError(409, "voices_ready", "Mọi cảnh đã có giọng ElevenLabs")
+    _enqueue(db, video, "voice", me)
     return _saved(db, video)
 
 

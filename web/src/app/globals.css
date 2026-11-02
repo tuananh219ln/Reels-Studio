@@ -1,7 +1,8 @@
 html,
 body {
   margin: 0;
-  background: #f7f7f7;
+  /* theme.ts COLORS.layout */
+  background: #f6f6f7;
 }
 
 body {
@@ -70,4 +71,26 @@ body {
   to {
     width: 100%;
   }
+}
+
+/* Scene card: the picture column's actions read as one list, left-aligned, the same type, never wider than
+   the column (a long label such as "Tìm ảnh (Openverse)" ends in "…"). */
+.scene-action.ant-btn {
+  justify-content: flex-start;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.scene-action.ant-btn > span:not(.ant-btn-icon) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Stock picker: the tile under the pointer or keyboard focus is outlined in the brand colour. */
+.stock-tile:not(:disabled):hover,
+.stock-tile:focus-visible {
+  outline: 2px solid #c2410c;
+  outline-offset: 1px;
 }

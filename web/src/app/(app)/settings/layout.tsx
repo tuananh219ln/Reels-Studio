@@ -1,7 +1,8 @@
 "use client";
 
-import { Tabs, Typography } from "antd";
+import { Tabs } from "antd";
 import { usePathname, useRouter } from "next/navigation";
+import PageHeader from "@/components/PageHeader";
 
 /** The "Cấu hình" tabs; each tab is its own page, so a link or a reload opens the same tab. */
 const CONFIG_TABS = [
@@ -16,10 +17,8 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
   const active = CONFIG_TABS.find((tab) => pathname.startsWith(tab.key))?.key ?? CONFIG_TABS[0].key;
   return (
     <>
-      <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }}>
-        Cấu hình
-      </Typography.Title>
-      <Tabs activeKey={active} items={CONFIG_TABS} onChange={(key) => router.push(key)} style={{ marginTop: 8 }} />
+      <PageHeader title="Cấu hình" />
+      <Tabs activeKey={active} items={CONFIG_TABS} onChange={(key) => router.push(key)} style={{ marginTop: -8 }} />
       {children}
     </>
   );

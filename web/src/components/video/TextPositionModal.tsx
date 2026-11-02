@@ -3,6 +3,7 @@
 import { Button, Flex, Modal, Typography } from "antd";
 import { useRef, useState } from "react";
 import { api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
+import { COLORS } from "@/app/theme";
 
 // The renderer's frame and safe zone (reels_render.textbox): keep these in step with it.
 export const FRAME_WIDTH = 1080;
@@ -233,7 +234,7 @@ export default function TextPositionModal({
                 width: size ? scaled(size.width) : undefined,
                 visibility: corner ? "visible" : "hidden",
                 cursor: scene.is_title ? "ns-resize" : "move",
-                outline: "2px solid #1677ff",
+                outline: `2px solid ${COLORS.primary}`,
                 outlineOffset: 2,
               }}
             />

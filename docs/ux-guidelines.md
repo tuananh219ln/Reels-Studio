@@ -14,6 +14,23 @@ bản", "Render", "Tải MP4", "Thử lại", "Nhân bản".
 **Errors:** every refusal and failed job shows a plain Vietnamese reason where it happened (at the
 field, the scene, or the job banner); technical detail sits in a collapsed "Chi tiết lỗi".
 
+## App Look
+
+One theme for every screen, in [web/src/app/theme.ts](../web/src/app/theme.ts): Ant Design in the
+orange of the app's icon ([web/src/app/icon.svg](../web/src/app/icon.svg)), used as the icon uses
+it. Primary buttons and the selected menu item are filled with that orange (`#F5551F`) with white
+on it; wherever the brand colour is text or a thin mark on white (links, tabs, switches,
+checkboxes, the "Đang chỉnh sửa" tag and outline) it is a deeper orange of the same hue
+(`#C2410C`), since the icon's orange is too light for small text on white. Never antd's default
+blue. Components take colours from `COLORS` there (or antd's tokens), never a hex value of their
+own. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
+the login starts with the same header ([PageHeader](../web/src/components/PageHeader.tsx)): the
+title with the page's main action on its right ("Tạo video", "Tải nhạc lên", "Thêm Fanpage"…), a
+line saying what the page is for when it needs one, then its search and filters on one row;
+lists and tables sit in white cards. The interface
+font is Be Vietnam Pro (served by the app through `next/font`), radius 8 (12 on cards), controls
+36 px high.
+
 ## Screens
 
 Built:
@@ -22,13 +39,16 @@ Built:
 - **Tạo video** (on the video list): topic group, topic, and a line naming the provider and model
   that will write the script ("Viết bằng: … (đổi trong Cài đặt)"), in red with a link when that
   provider is not set up.
-- **Video list** (`/videos`): thumbnail (the title-scene preview, or a grey tile with the title or
-  topic), title, status (Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) with the labels "MP4
-  chưa cập nhật theo bản sửa" and "Render lại lỗi", creator, date, search by title or topic,
-  "Tạo video".
+- **Video list** (`/videos`): thumbnail (the title-scene preview, or a pale tile with the title
+  when there is none or it fails to load), title, status (Nháp / Chờ / Đang viết / Đang render /
+  Xong / Lỗi) with the labels "MP4 chưa cập nhật theo bản sửa" and "Render lại lỗi", creator,
+  date, search by title or topic, "Tạo video". Filters: status (Mọi trạng thái, Nháp, Đang xử lý,
+  Xong, Lỗi, MP4 cần render lại) and "Cả đội" / "Của tôi". Two views, remembered in the browser:
+  a grid of cards of equal height (the default) and a list, one row per video with a small
+  thumbnail, its topic, status, creator and date; a click opens the video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
-  and "Đăng Facebook"), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
+  as a small player beside its length and "Tải MP4", then "Đăng Facebook"), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
   đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
@@ -40,8 +60,8 @@ Built:
     and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
     previews and the MP4, "Tải MP4", "Nhân bản", "Xóa", "Render", the "Xuất bản" tab and the
     post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
-    "Nhân bản" unlocks the page, shown by a blue "Đang chỉnh sửa" tag by the title and a blue
-    outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
+    "Nhân bản" unlocks the page, shown by an orange "Đang chỉnh sửa" tag by the title and a light
+    orange outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
     "Xong" saves the field being typed in and locks the page again, unless a save was refused
     (then a message points to the field). A video never rendered opens in edit mode. The mode is
     chosen when the page opens and is not stored;
@@ -67,14 +87,19 @@ Built:
     counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
     on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
   - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
-    play the video in the browser before any render, in a 9:16 dialog: each scene for its
-    seconds (lengthened to fit its narration), the frame without text moving like the video's
-    motion setting with the exact text box on top where the render puts it, clips from their
-    start time, the video's transition (crossfade, cut or slide), the music from where that scene
-    falls in the video (lowered while narration plays when ducking is on). Narration: the MP3 a
-    render already made when the text has not changed since, else the browser's own Vietnamese
-    voice (free, at the video's speed); a browser without one says so and those scenes stay
-    silent. The video plays inside a phone with the chosen app's own screen drawn over it, "Khung ứng
+    play the video in the browser before any render, in a drawer from the right (the page stays
+    in sight beside it): each scene for its seconds (lengthened to fit its narration), the frame
+    without text moving like the video's motion setting with the exact text box on top where the
+    render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
+    the music from where that scene falls in the video (lowered while narration plays when ducking
+    is on). Narration: the ElevenLabs MP3 when one was made for the current text (by a render or
+    by "Tạo giọng thật"), else the browser's own Vietnamese voice (free, at the video's speed). While
+    some scenes lack the MP3, a "Giọng đọc" section lists the browser's Vietnamese voices, the most
+    natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser; suggests Edge
+    when only robotic ones exist; and offers "Tạo giọng thật (ElevenLabs)", which asks first (it
+    costs credit once) and queues a job reading only those scenes. A browser without a Vietnamese
+    voice says so and those scenes stay silent. The video plays inside a phone with the chosen app's own
+    screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and
     hashtags on one line, the music's name, the navigation bar; Shorts' red progress line), with
@@ -90,22 +115,23 @@ Built:
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red. Pointing at a picture
-    (always on a touch screen) shows quick actions over a dark gradient: "Chỉnh khung" for a
-    photo or "Cắt video" for a clip, "Vị trí chữ", "Thay" (opens the file chooser) and, for a
-    clip, a delete icon ("Xoá video", confirmed). Under the picture one dashed area, "Kéo thả, dán
-    hoặc bấm để tải ảnh/video lên", takes a photo (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM,
-    50 MB) dropped on it or chosen, and a photo dragged straight from another tab (its address is
-    read from the drop); a photo in place of a clip, or a clip in place of a photo, asks first
-    ("Đổi" / "Huỷ"). Then "Chọn từ kho ảnh/video", "Dán ảnh/link" (reads a copied photo or a photo's
-    link from the clipboard, or opens a box to paste into when the browser does not allow it; Cmd/
-    Ctrl+V anywhere in the picture column outside a text field does the same), "Tìm trên Google"
-    (opens Google Ảnh in a new tab on the scene's first keyword, tall photos only, to copy one and
-    paste it back), "Tìm ảnh" with its source arrow, then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the
-    photo is already an AI one): an image job for this scene only, from its saved prompt, that
-    replaces the scene's photo or clip, asking first when there is one; while it runs the button
-    reads "Đang tạo ảnh AI…" and the job bar says "Tạo ảnh AI (1 cảnh)". Its arrow, like the one
-    beside "Tạo ảnh AI cho cảnh thiếu", offers "Tạo bằng Cloudflare" / "Tạo bằng Gemini" for this
-    press (one without a key is greyed out); the button itself uses the team's default;
+    (always on a touch screen) shows quick actions over a dark gradient: "Chỉnh khung" for a photo
+    or "Cắt video" for a clip, "Vị trí chữ", "Thay" (opens the file chooser) and, for a clip, a
+    delete icon ("Xoá video", confirmed). Under the picture one row: a slim dashed area, "Tải lên",
+    beside two icon buttons, "Dán ảnh/link" and "Tìm trên Google". The dashed area takes a photo
+    (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM, 50 MB) dropped on it or chosen, and a photo
+    dragged straight from another tab (its address is read from the drop); a photo in place of a
+    clip, or a clip in place of a photo, asks first ("Đổi" / "Huỷ"). "Dán ảnh/link" reads a copied
+    photo or a photo's link from the clipboard, or opens a box to paste into when the browser does
+    not allow it; Cmd/ Ctrl+V anywhere in the picture column outside a text field does the same;
+    "Tìm trên Google" opens Google Ảnh in a new tab on the scene's first keyword, tall photos only,
+    to copy one and paste it back. Then "Chọn từ kho ảnh/video", "Tìm ảnh" with its source arrow,
+    then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the photo is already an AI one): an image job for this
+    scene only, from its saved prompt, that replaces the scene's photo or clip, asking first when
+    there is one; while it runs the button reads "Đang tạo ảnh AI…" and the job bar says "Tạo ảnh AI
+    (1 cảnh)". Its arrow, like the one beside "Tạo ảnh AI cho cảnh thiếu", offers "Tạo bằng
+    Cloudflare" / "Tạo bằng Gemini" for this press (one without a key is greyed out); the button
+    itself uses the team's default;
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
     (1–4×), "Xoay 90°" and "Lật ngang"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
@@ -134,9 +160,9 @@ Built:
     searches again), the scene's keywords as chips under the box (the source's language first; a tap
     searches it), the filters "Hướng ảnh" (Dọc, the default | Vuông | Tất cả) and "Ẩn ảnh đã dùng
     trong video này" (on by default; any change searches again; photos too small for the frame are
-    always left out), and every result as a thumbnail grid that fits the screen (two columns on a
-    phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
-    it first in the scene's keywords. "Tìm ảnh" ("Tìm ảnh khác" once the scene has a photo) takes
+    always left out), and every result as a grid of 9:16 tiles, each photo cropped as the render
+    will crop it, that fits the screen (two columns on a phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
+    it first in the scene's keywords. "Tìm ảnh" (with its source, e.g. "Tìm ảnh (Pixabay)") takes
     the next result for the saved keywords from the source named on the button (Pixabay until another
     is picked from the arrow menu beside it). The picker's source tab stays as chosen while the page
     polls. Each scene shows its own spinner and the api's
@@ -149,7 +175,8 @@ Built:
     keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
-  - the "Thiết lập" tab, every change saved at once: "Âm thanh" (narration on/off, the ElevenLabs
+  - the "Thiết lập" tab, every change saved at once, with a row of buttons on top (Âm thanh, Nhạc
+    nền, Hình ảnh, Chữ & phụ đề) that scrolls the panel to that group: "Âm thanh" (narration on/off, the ElevenLabs
     voice picked from the account's voices with "Nghe thử" playing ElevenLabs' free sample, speed
     Chậm/Vừa/Nhanh, voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
@@ -203,7 +230,9 @@ Built:
   reviews and posts a video from the "Đăng Facebook" card on its page.
   - **Bài đăng** (`/posts`): videos posted or scheduled, latest time first, with the Fanpage,
     "Đã hẹn lịch" or "Đã đăng", the time in Vietnam time, who posted it, and "Xem Reel" once public.
-    The title opens the video.
+    The title opens the video. A line counts the scheduled and published reels; filters by status
+    (Tất cả, Đã hẹn lịch, Đã đăng) and, with more than one, by Fanpage; "Xem dạng lịch" opens the
+    calendar, whose "Xem dạng danh sách" comes back.
   - **Lịch đăng bài** (`/calendar`): the same videos in a month view, coloured by status. A video
     opens its page. Everything is in Vietnam time whatever the browser's time zone: the day a video
     sits under, the month it opens on, and the "today" mark.
@@ -229,7 +258,7 @@ Built:
   - **Nguồn tư liệu** (`/settings/sources`): first the switch "Tự tìm ảnh sau khi viết kịch bản"
     (on by default: a stock photo for every scene once a script or clone is written); then one card per stock library (Pixabay, Pexels: photos
     and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
-    hộp chọn" that hides a source from the picker and "Tìm ảnh khác" for the whole team, and its API
+    hộp chọn" that hides a source from the picker and "Tìm ảnh" for the whole team, and its API
     key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
     của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
     ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, and
@@ -246,8 +275,9 @@ Built:
 
 Phones (below 992 px wide; built):
 
-- The menu collapses into a drawer opened from the header, which shows the logo and the avatar
-  only. On a wider screen the sidebar and the header stay in place while the page scrolls.
+- The menu collapses into a drawer opened from a header, which shows the logo and the avatar
+  only. On a wider screen there is no header: the sidebar stays in place while the page scrolls,
+  with the member's name and account menu (Đổi mật khẩu, Sửa tên, Đăng xuất) at its foot.
 - In the video editor the actions ("Nhân bản", "Xóa") wrap under the title, the tab panel sits
   under the scenes, the render bar stays at the bottom of the screen, and each scene's preview is
   a centred thumbnail at most 220 px wide.

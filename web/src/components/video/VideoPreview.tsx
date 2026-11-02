@@ -7,13 +7,16 @@ import {
   StepBackwardOutlined,
   StepForwardOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Flex, Modal, Segmented, Space, Switch, Typography } from "antd";
+import { Alert, Button, Drawer, Flex, Popconfirm, Segmented, Select, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { COLORS } from "@/app/theme";
 import type { SceneData, VideoDetail } from "@/lib/api";
+import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
 import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
 
 const PLATFORM_KEY = "reels-studio.preview-platform";
+const VOICE_KEY = "reels-studio.preview-voice";
 
 // The renderer's timing and motion (reels_render.timeline, options, graph): keep these in step with it.
 const XFADE_MS = 400;
@@ -26,6 +29,21 @@ const SPEECH_RATE = { slow: 0.85, normal: 1, fast: 1.15 } as const;
 const SENTENCE_ENDS = [".", "!", "?", "…", ":"];
 // A browser voice that never says it has finished must not hold the preview forever.
 const SPEECH_GRACE_MS = 15_000;
+
+// The phone's outer size over its screen (Stageshow's iPhone: a 402 × 874 pt screen, a 13 pt band each side).
+const PHONE_RATIO = (402 + 26) / (874 + 26);
+
+/** The phone's width: as tall as fits the drawer's height, never wider than a small screen. */
+function phoneWidth(): number {
+  const height = Math.min(window.innerHeight * 0.74, 760);
+  return Math.round(Math.min(height * PHONE_RATIO, window.innerWidth - 48));
+}
+
+/** The status bar shows the time in Vietnam, like everywhere else in the app. */
+const clockNow = () =>
+  new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh" }).format(
+    new Date(),
+  );
 
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
 const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
@@ -42,13 +60,23 @@ export function spokenText(video: VideoDetail, scene: SceneData): string {
   return `${screen}${SENTENCE_ENDS.some((end) => screen.endsWith(end)) ? "" : "."} ${scene.voice_text}`;
 }
 
-/** The browser's Vietnamese voice, preferring the natural-sounding online ones (Google, Microsoft). */
-function vietnameseVoice(): SpeechSynthesisVoice | null {
+// Edge's neural voices (HoaiMy, NamMinh) sound far more natural than Chrome's Google voice.
+const NATURAL = /natural|online/i;
+
+/** How natural a browser voice sounds: Microsoft's neural ones first, then Google's, then the system's own. */
+function rank(voice: SpeechSynthesisVoice): number {
+  return NATURAL.test(voice.name) ? 0 : /google/i.test(voice.name) ? 1 : 2;
+}
+
+/** The browser's Vietnamese voices, the most natural-sounding first. */
+function vietnameseVoices(): SpeechSynthesisVoice[] {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) {
-    return null;
+    return [];
   }
-  const voices = window.speechSynthesis.getVoices().filter((voice) => voice.lang.toLowerCase().startsWith("vi"));
-  return voices.find((voice) => /google|microsoft|online|natural/i.test(voice.name)) ?? voices[0] ?? null;
+  return window.speechSynthesis
+    .getVoices()
+    .filter((voice) => voice.lang.toLowerCase().startsWith("vi"))
+    .sort((a, b) => rank(a) - rank(b));
 }
 
 type Phase = { index: number; prev: number | null; run: number };
@@ -62,10 +90,13 @@ export default function VideoPreview({
   video,
   start,
   onClose,
+  onMakeVoices,
 }: {
   video: VideoDetail;
   start: number;
   onClose: () => void;
+  /** "Tạo giọng thật": queues the job that has ElevenLabs read the scenes still without its narration. */
+  onMakeVoices: () => void;
 }) {
   const scenes = useMemo(
     () => [video.title_scene, ...video.scenes].filter((scene): scene is SceneData => scene !== null),
@@ -84,7 +115,18 @@ export default function VideoPreview({
     }
   });
   const [guide, setGuide] = useState(false);
-  const [voice, setVoice] = useState<SpeechSynthesisVoice | null>(null);
+  const [width, setWidth] = useState(phoneWidth);
+  const [statusTime] = useState(clockNow);
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
+  // The browser voice each member picked, remembered in their browser; the most natural one otherwise.
+  const [voiceName, setVoiceName] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(VOICE_KEY);
+    } catch {
+      return null;
+    }
+  });
+  const voice = voices.find((item) => item.voiceURI === voiceName) ?? voices[0] ?? null;
   const [boxes, setBoxes] = useState<Record<string, { width: number; height: number }>>({});
   const stage = useRef<HTMLDivElement>(null);
   const music = useRef<HTMLAudioElement>(null);
@@ -98,14 +140,22 @@ export default function VideoPreview({
   const label = (index: number) =>
     scenes[index]?.is_title ? "Cảnh tiêu đề" : `Cảnh ${index + (scenes[0]?.is_title ? 0 : 1)}`;
   const durationMs = (scene?.fitted_seconds ?? 0) * 1000;
-  const missingVoice = video.voice_enabled && scenes.some((item) => spokenText(video, item) && !item.voice_url);
+  const unvoiced = video.voice_enabled ? scenes.filter((item) => spokenText(video, item) && !item.voice_url).length : 0;
+  const missingVoice = unvoiced > 0;
+  const voicing = video.active_job?.kind === "voice";
+
+  useEffect(() => {
+    const resize = () => setWidth(phoneWidth());
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
 
   // The browser lists its voices late (voiceschanged), so ask again when it does.
   useEffect(() => {
     if (!("speechSynthesis" in window)) {
       return;
     }
-    const pick = () => setVoice(vietnameseVoice());
+    const pick = () => setVoices(vietnameseVoices());
     const first = window.setTimeout(pick, 0);
     window.speechSynthesis.addEventListener("voiceschanged", pick);
     return () => {
@@ -224,9 +274,9 @@ export default function VideoPreview({
         window.speechSynthesis.cancel();
       }
     };
-    // A new scene, or a voice found late, starts the narration; pausing only pauses it (see `toggle`).
+    // A new scene, or a voice found late or picked, starts the narration; pausing only pauses it (see `toggle`).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.run, voice]);
+  }, [phase.run, voice?.voiceURI]);
 
   // The scene before the current one is shown only for the length of the transition.
   useEffect(() => {
@@ -275,6 +325,15 @@ export default function VideoPreview({
     }
   }
 
+  function chooseVoice(next: string) {
+    setVoiceName(next);
+    try {
+      window.localStorage.setItem(VOICE_KEY, next);
+    } catch {
+      // A browser that refuses storage just forgets the choice.
+    }
+  }
+
   function toggle() {
     if (ended) {
       goTo(0, false);
@@ -311,30 +370,29 @@ export default function VideoPreview({
   const total = scenes.reduce((sum, item) => sum + item.fitted_seconds, 0);
 
   return (
-    <Modal
+    // A drawer from the right, so the page it previews stays in sight beside it.
+    <Drawer
       open
+      placement="right"
       title="Xem trước video"
-      onCancel={onClose}
-      footer={null}
-      width={820}
+      aria-label="Xem trước video"
+      onClose={onClose}
+      size="min(820px, 100vw)"
       destroyOnHidden
       styles={{ body: { paddingTop: 8 } }}
     >
       <Flex wrap gap={24} justify="center">
         <Flex vertical gap={10} align="center">
-          {/* A phone around the frame, so the overlay reads like the app on a real screen. */}
-          <div
-            style={{ padding: 8, background: "#141414", borderRadius: 30, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}
-          >
+          {/* A real phone's geometry around the frame: the 9:16 video sits under the status bar, as the apps show it. */}
+          <Phone width={width} frame="pro" dark wallpaper="#000" time={statusTime}>
             <div
               ref={stage}
               data-testid="preview-stage"
               style={{
                 position: "relative",
-                height: "min(70vh, 620px)",
+                width: "100%",
                 aspectRatio: `${FRAME_WIDTH} / ${FRAME_HEIGHT}`,
                 overflow: "hidden",
-                borderRadius: 22,
                 background: "#000",
                 containerType: "inline-size",
               }}
@@ -367,7 +425,7 @@ export default function VideoPreview({
               )}
               {guide && <SafeZone />}
             </div>
-          </div>
+          </Phone>
           {/* One segment per scene, as long as the scene; the current one fills as it plays. Click to jump. */}
           <Flex gap={3} style={{ width: "100%" }} data-testid="preview-timeline">
             {scenes.map((item, index) => (
@@ -384,7 +442,7 @@ export default function VideoPreview({
                   borderRadius: 3,
                   cursor: "pointer",
                   overflow: "hidden",
-                  background: index < phase.index ? "#1677ff" : "#d9d9d9",
+                  background: index < phase.index ? COLORS.primary : COLORS.border,
                 }}
               >
                 {index === phase.index && (
@@ -393,7 +451,7 @@ export default function VideoPreview({
                     style={{
                       display: "block",
                       height: "100%",
-                      background: "#1677ff",
+                      background: COLORS.primary,
                       animationName: "preview-progress",
                       animationDuration: `${item.fitted_seconds}s`,
                       animationTimingFunction: "linear",
@@ -479,9 +537,9 @@ export default function VideoPreview({
                     gap: 8,
                     alignItems: "center",
                     padding: "6px 8px",
-                    border: `1px solid ${index === phase.index ? "#1677ff" : "#f0f0f0"}`,
+                    border: `1px solid ${index === phase.index ? COLORS.primary : COLORS.border}`,
                     borderRadius: 6,
-                    background: index === phase.index ? "#e6f4ff" : "#fff",
+                    background: index === phase.index ? COLORS.primaryBg : COLORS.surface,
                     cursor: "pointer",
                     textAlign: "left",
                   }}
@@ -499,23 +557,58 @@ export default function VideoPreview({
               ))}
             </Flex>
           </div>
-          {missingVoice && !voice && (
-            <Alert
-              type="warning"
-              showIcon
-              data-testid="preview-no-voice"
-              title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Chrome hoặc Edge để nghe thử."
-            />
+          {(missingVoice || voicing) && (
+            <Flex vertical gap={8} data-testid="preview-voice">
+              <Typography.Text strong>Giọng đọc</Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {voicing
+                  ? "ElevenLabs đang đọc các cảnh, xong sẽ tự dùng giọng thật."
+                  : `${unvoiced} cảnh chưa có giọng ElevenLabs nên đang đọc bằng giọng miễn phí của trình duyệt.`}
+              </Typography.Text>
+              {voices.length > 0 ? (
+                <Select
+                  aria-label="Giọng trình duyệt"
+                  value={voice?.voiceURI}
+                  onChange={chooseVoice}
+                  options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
+                />
+              ) : (
+                <Alert
+                  type="warning"
+                  showIcon
+                  data-testid="preview-no-voice"
+                  title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử."
+                />
+              )}
+              {voices.length > 0 && !voices.some((item) => NATURAL.test(item.name)) && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-edge-tip">
+                  Giọng tự nhiên hơn: mở trang này bằng Microsoft Edge để có giọng HoaiMy, NamMinh.
+                </Typography.Text>
+              )}
+              <Popconfirm
+                title="Tạo giọng thật bằng ElevenLabs?"
+                description={`ElevenLabs đọc ${unvoiced} cảnh, tốn credit một lần. Render sau đó dùng lại, không tốn thêm.`}
+                okText="Tạo giọng"
+                cancelText="Thôi"
+                onConfirm={onMakeVoices}
+                disabled={voicing || Boolean(video.active_job)}
+              >
+                <Button block loading={voicing} disabled={!voicing && Boolean(video.active_job)}>
+                  Tạo giọng thật (ElevenLabs)
+                </Button>
+              </Popconfirm>
+            </Flex>
           )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Bản xem trước gần đúng, chưa phải MP4. Cảnh đã render dùng giọng ElevenLabs thật, cảnh chưa render dùng
-            giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm chỉ có khi render.
+            Bản xem trước gần đúng, chưa phải MP4. Cảnh đã có giọng ElevenLabs (sau một lần render hoặc “Tạo giọng
+            thật”) dùng giọng đó, cảnh khác dùng giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm chỉ
+            có khi render.
           </Typography.Text>
         </Flex>
       </Flex>
       <audio ref={music} src={video.music?.url} loop preload="auto" />
       <audio ref={narration} preload="none" />
-    </Modal>
+    </Drawer>
   );
 }
 

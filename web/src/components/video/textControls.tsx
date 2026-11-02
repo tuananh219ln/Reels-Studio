@@ -2,6 +2,7 @@
 
 import { ColorPicker, Flex, Tooltip, Typography } from "antd";
 import { SWATCHES, toHex, type Drawn } from "./textPalette";
+import { COLORS } from "@/app/theme";
 
 /** A small 9:16 sample of a text box over a food-coloured background. */
 export function Sample({ drawn, scale = 1 }: { drawn: Drawn; scale?: number }) {
@@ -58,8 +59,8 @@ export function ColorChoice({
   const hex = toHex(value);
   const custom = hex !== null && !SWATCHES.some((swatch) => swatch.hex === hex);
   const ring = (checked: boolean) => ({
-    border: `1px solid ${checked ? "#1677ff" : "#d9d9d9"}`,
-    boxShadow: checked ? "0 0 0 1px #1677ff" : undefined,
+    border: `1px solid ${checked ? COLORS.primary : "#d9d9d9"}`,
+    boxShadow: checked ? `0 0 0 1px ${COLORS.primary}` : undefined,
     cursor: disabled ? "not-allowed" : "pointer",
   });
   return (

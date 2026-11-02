@@ -4,6 +4,7 @@ import { PlayCircleOutlined, RobotOutlined, VideoCameraOutlined } from "@ant-des
 import { Button, Flex, Space, Typography } from "antd";
 import type { VideoDetail } from "@/lib/api";
 import ImageProviderMenu from "./ImageProviderMenu";
+import { COLORS } from "@/app/theme";
 
 /** Scrolls to the first red reason on the page: a whole-video one, else a scene's. */
 export function showFirstBlocking() {
@@ -48,7 +49,7 @@ export default function RenderBar({
         marginTop: 16,
         padding: "10px 16px",
         background: "#fff",
-        border: "1px solid #EDEDED",
+        border: `1px solid ${COLORS.border}`,
         borderRadius: 8,
         boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.06)",
       }}

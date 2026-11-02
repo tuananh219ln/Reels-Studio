@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type TextBoxStyle, type VideoOptions } from "@/lib/api";
 import { ColorChoice, Sample } from "./textControls";
 import { OPACITIES, palette, warnings } from "./textPalette";
+import { COLORS } from "@/app/theme";
 
 type Look = Pick<VideoOptions, "text_style" | "text_color" | "box_color" | "accent_color" | "box_opacity">;
 type Draft = Omit<TextBoxStyle, "id">;
@@ -46,7 +47,7 @@ function useTextStyles() {
 const cardStyle = (checked: boolean, disabled?: boolean) => ({
   width: 64,
   padding: 0,
-  border: `2px solid ${checked ? "#1677ff" : "transparent"}`,
+  border: `2px solid ${checked ? COLORS.primary : "transparent"}`,
   borderRadius: 8,
   background: "none",
   cursor: disabled ? "not-allowed" : "pointer",

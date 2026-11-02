@@ -17,7 +17,8 @@ export default function TrackFilters({ value, onChange }: { value: Filters; onCh
         allowClear
         value={value.q}
         onChange={(event) => onChange({ ...value, q: event.target.value })}
-        style={{ maxWidth: 260 }}
+        // A set width: at 100% the box takes the whole row and pushes the two selects onto lines of their own.
+        style={{ width: 260, maxWidth: "100%" }}
       />
       <Select
         aria-label="Lọc theo chủ đề"

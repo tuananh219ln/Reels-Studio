@@ -7,7 +7,7 @@ export default function TrackTags({ track }: { track: MusicTrack }) {
   return (
     <Flex wrap gap={4}>
       {track.topics.map((topic) => (
-        <Tag key={topic} color="blue">
+        <Tag key={topic} color="processing">
           {topic}
         </Tag>
       ))}

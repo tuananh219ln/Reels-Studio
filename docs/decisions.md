@@ -11,6 +11,31 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — One app theme in the icon's orange, Be Vietnam Pro
+
+Owner's choice, the first step of a UI refactor that keeps Ant Design: `theme.ts` is the single
+source of colours, and the brand colour is the orange of the app's icon (`icon.svg`), replacing the
+teal (`#0F3B4C`) the app started with, the antd blue (`#1677ff`) hard-coded beside it, and the green
+"RS" badge, which the icon now replaces as the logo. The orange is a fill with white on it (primary
+buttons, the selected menu item), as in the icon; small text and thin marks on white (links, tabs,
+switches, focus) use a deeper orange of the same hue (`#C2410C`, about 5:1 on white). The interface
+font is Be Vietnam Pro, drawn for Vietnamese, loaded with `next/font` so the app serves it itself
+(the build downloads it once; browsers never call Google). The video template's font is a separate
+choice and does not change.
+
+## 2026-11-02 — The preview opens in a drawer and can ask ElevenLabs for the real voice
+
+Owner's choice: the browser's free Google voice sounds robotic, so the preview now (1) lists the
+browser's Vietnamese voices with Edge's neural ones (HoaiMy, NamMinh) first and suggests Edge when
+none is there, (2) lets each member pick a voice, remembered in their browser, and (3) offers
+"Tạo giọng thật (ElevenLabs)". This changes the entry "Xem trước plays the video in the browser, with a free voice", where ElevenLabs was never called for
+a preview: it is still never called just by opening or playing the preview, only by that button,
+after a confirmation, as a `voice` job in the queue. The job makes exactly the MP3s a render would
+(same text, voice, speed and signature) and stores them on the scenes, so the next render reuses
+them and the credit is spent once per text either way; it only moves the cost earlier, and adds
+cost only when the text is changed again before a render. The preview also opens as a drawer from
+the right instead of a centred dialog, so the page stays in sight beside it.
+
 ## 2026-11-02 — The video page shows who else has it open; edit mode stays without "Lưu"/"Huỷ"
 
 Owner's choice. "Lưu" and "Huỷ" for edit mode were considered and dropped: they would reverse the

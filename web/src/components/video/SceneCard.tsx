@@ -44,6 +44,7 @@ import MediaEditor from "./MediaEditor";
 import StockPicker from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
 import VoiceText from "./VoiceText";
+import { COLORS } from "@/app/theme";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -178,6 +179,7 @@ export default function SceneCard({
               words={{ max: scene.is_title ? MAX_TITLE_WORDS : MAX_SCENE_WORDS }}
             />
             {voiceEnabled && <VoiceText scene={scene} save={(voice_text) => patch({ voice_text })} />}
+            {/* Seconds (and a clip's start) beside the keywords: short fields, one row. */}
             <Flex wrap gap={16}>
               <AutoSaveField
                 label="Số giây"
@@ -195,13 +197,15 @@ export default function SceneCard({
                   save={async (text) => patch({ video_start: parseSeconds(text) })}
                 />
               )}
+              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                <AutoSaveField
+                  label="Từ khóa tìm ảnh"
+                  value={scene.keywords.join(", ")}
+                  placeholder="cụ thể nhất trước, cách nhau bằng dấu phẩy"
+                  save={(text) => patch({ keywords: parseKeywords(text) })}
+                />
+              </div>
             </Flex>
-            <AutoSaveField
-              label="Từ khóa tìm ảnh"
-              value={scene.keywords.join(", ")}
-              placeholder="cụ thể nhất trước, cách nhau bằng dấu phẩy"
-              save={(text) => patch({ keywords: parseKeywords(text) })}
-            />
             <AutoSaveField
               label="Prompt ảnh AI"
               help={
@@ -329,7 +333,7 @@ function ScenePicture({
   const [dragging, setDragging] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [pastedLink, setPastedLink] = useState("");
-  // Where "Tìm ảnh khác" searches: Pixabay until the member picks another source from the arrow menu.
+  // Where "Tìm ảnh" searches: Pixabay until the member picks another source from the arrow menu.
   const [findSource, setFindSource] = useState<StockSource>(PIXABAY);
   const [sources, setSources] = useState<StockSource[] | null>(null);
 
@@ -630,59 +634,84 @@ function ScenePicture({
       />
       {!editor.readOnly && (
         <>
-          <Flex
-            vertical
-            align="center"
-            justify="center"
-            role="button"
-            tabIndex={off ? -1 : 0}
-            aria-disabled={off}
-            data-testid="scene-dropzone"
-            onClick={() => !off && input.current?.click()}
-            onKeyDown={(event) => {
-              if (!off && (event.key === "Enter" || event.key === " ")) {
+          {/* Upload, paste and Google on one row: the picture column is narrow, and these are the quick ones. */}
+          <Flex gap={6}>
+            <Flex
+              align="center"
+              gap={8}
+              role="button"
+              title="Kéo thả, dán hoặc bấm để tải ảnh/video lên"
+              tabIndex={off ? -1 : 0}
+              aria-disabled={off}
+              data-testid="scene-dropzone"
+              onClick={() => !off && input.current?.click()}
+              onKeyDown={(event) => {
+                if (!off && (event.key === "Enter" || event.key === " ")) {
+                  event.preventDefault();
+                  input.current?.click();
+                }
+              }}
+              onDragOver={(event) => {
                 event.preventDefault();
-                input.current?.click();
-              }
-            }}
-            onDragOver={(event) => {
-              event.preventDefault();
-              setDragging(!off);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(event) => {
-              event.preventDefault();
-              setDragging(false);
-              if (off) {
-                return;
-              }
-              const file = event.dataTransfer.files[0];
-              if (file) {
-                chosen(file);
-                return;
-              }
-              // A photo dragged from another tab (Google Ảnh, a shop) arrives as its address, not as a file.
-              const link = linkFromTransfer(event.dataTransfer);
-              if (link) {
-                void fromLink(link);
-              } else {
-                message.error("Không nhận ra ảnh vừa thả: hãy kéo chính tấm ảnh, hoặc sao chép ảnh rồi dán");
-              }
-            }}
-            style={{
-              padding: "10px 8px",
-              textAlign: "center",
-              borderRadius: 6,
-              border: `1px dashed ${dragging ? "#1677ff" : "#d9d9d9"}`,
-              background: dragging ? "#e6f4ff" : "#fafafa",
-              cursor: off ? "not-allowed" : "pointer",
-              opacity: off && !uploading ? 0.6 : 1,
-            }}
-          >
-            {uploading ? <Spin size="small" /> : <InboxOutlined style={{ fontSize: 20, color: "#1677ff" }} />}
-            <Typography.Text style={{ fontSize: 12 }}>
-              {uploading ? "Đang tải lên…" : "Kéo thả, dán hoặc bấm để tải ảnh/video lên"}
-            </Typography.Text>
+                setDragging(!off);
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setDragging(false);
+                if (off) {
+                  return;
+                }
+                const file = event.dataTransfer.files[0];
+                if (file) {
+                  chosen(file);
+                  return;
+                }
+                // A photo dragged from another tab (Google Ảnh, a shop) arrives as its address, not as a file.
+                const link = linkFromTransfer(event.dataTransfer);
+                if (link) {
+                  void fromLink(link);
+                } else {
+                  message.error("Không nhận ra ảnh vừa thả: hãy kéo chính tấm ảnh, hoặc sao chép ảnh rồi dán");
+                }
+              }}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                height: 36,
+                padding: "0 14px",
+                borderRadius: 8,
+                border: `1px dashed ${dragging ? COLORS.primary : "#C9D0D5"}`,
+                background: dragging ? COLORS.primaryBg : COLORS.muted,
+                cursor: off ? "not-allowed" : "pointer",
+                opacity: off && !uploading ? 0.6 : 1,
+              }}
+            >
+              {uploading ? <Spin size="small" /> : <InboxOutlined style={{ fontSize: 14, color: COLORS.primary }} />}
+              <Typography.Text ellipsis style={{ fontSize: 13 }}>
+                {uploading ? "Đang tải lên…" : "Tải lên"}
+              </Typography.Text>
+            </Flex>
+            <Tooltip title="Dán ảnh/link đã sao chép">
+              <Button
+                aria-label="Dán ảnh/link"
+                icon={<SnippetsOutlined />}
+                disabled={off}
+                onClick={() => void pasteFromClipboard()}
+              />
+            </Tooltip>
+            <Tooltip title="Tìm trên Google: mở Google Ảnh với từ khóa của cảnh; sao chép ảnh ưng ý rồi quay lại dán vào đây">
+              <Button
+                aria-label="Tìm trên Google"
+                icon={<GoogleOutlined />}
+                disabled={off}
+                onClick={async () => {
+                  // The keyword being typed is saved first, like the other searches.
+                  await editor.flush();
+                  window.open(googleImagesUrl(googleKeyword), "_blank", "noopener");
+                }}
+              />
+            </Tooltip>
           </Flex>
           <Switching
             show={scene.video !== null}
@@ -694,28 +723,10 @@ function ScenePicture({
               setPicking(true);
             }}
           >
-            <Button icon={<PictureOutlined />} disabled={off} block>
+            <Button className="scene-action" icon={<PictureOutlined />} disabled={off} block>
               Chọn từ kho ảnh/video
             </Button>
           </Switching>
-          {/* One per row: the picture column is too narrow for two labelled buttons side by side. */}
-          <Button icon={<SnippetsOutlined />} disabled={off} block onClick={() => void pasteFromClipboard()}>
-            Dán ảnh/link
-          </Button>
-          <Tooltip title="Mở Google Ảnh với từ khóa của cảnh; sao chép ảnh ưng ý rồi quay lại dán vào đây">
-            <Button
-              icon={<GoogleOutlined />}
-              disabled={off}
-              block
-              onClick={async () => {
-                // The keyword being typed is saved first, like the other searches.
-                await editor.flush();
-                window.open(googleImagesUrl(googleKeyword), "_blank", "noopener");
-              }}
-            >
-              Tìm trên Google
-            </Button>
-          </Tooltip>
           <Space.Compact block>
             <Switching
               show={scene.video !== null}
@@ -730,8 +741,14 @@ function ScenePicture({
               }
             >
               {/* The api walks on from the photo in use, so a scene that has one gets a different one. */}
-              <Button icon={<SearchOutlined />} loading={busy === "find"} disabled={off} style={{ flex: 1 }}>
-                {scene.has_image ? "Tìm ảnh khác" : "Tìm ảnh"} ({findSource.label})
+              <Button
+                className="scene-action"
+                icon={<SearchOutlined />}
+                loading={busy === "find"}
+                disabled={off}
+                style={{ flex: 1 }}
+              >
+                Tìm ảnh ({findSource.label})
               </Button>
             </Switching>
             <Dropdown
@@ -751,7 +768,13 @@ function ScenePicture({
           {/* A job, like the bar's "Tạo ảnh AI cho cảnh thiếu", but for this scene only and replacing what it has. */}
           <Space.Compact block>
             <Switching show={hasPicture} title={replaceQuestion} disabled={off} onConfirm={() => void generate()}>
-              <Button icon={<RobotOutlined />} loading={generating || busy === "ai"} disabled={off} style={{ flex: 1 }}>
+              <Button
+                className="scene-action"
+                icon={<RobotOutlined />}
+                loading={generating || busy === "ai"}
+                disabled={off}
+                style={{ flex: 1 }}
+              >
                 {generating ? "Đang tạo ảnh AI…" : scene.image_ai ? "Tạo lại ảnh AI" : "Tạo ảnh AI"}
               </Button>
             </Switching>

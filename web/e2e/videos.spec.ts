@@ -213,6 +213,35 @@ async function newVideoWithScript(page: Page, topic: string) {
   await uploadPhotos(page);
 }
 
+test("video list: status and creator filters, grid or list view remembered", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "canxi cho người lớn tuổi");
+  await page.goto("/videos");
+  const cards = page.getByTestId("video-card");
+  await expect(cards).toHaveCount(1);
+
+  // A draft is under "Nháp", not under "Xong"; "Của tôi" keeps the member's own videos.
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Xong");
+  await expect(cards).toHaveCount(0);
+  await expect(page.getByText("Không có video nào khớp")).toBeVisible();
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Nháp");
+  await expect(cards).toHaveCount(1);
+  await page.getByText("Của tôi", { exact: true }).click();
+  await expect(cards).toHaveCount(1);
+
+  // The list view shows one row per video; the choice is remembered in this browser.
+  await page.getByTitle("Dạng danh sách").click();
+  await expect(page.getByTestId("video-row")).toHaveCount(1);
+  await page.reload();
+  await expect(page.getByTestId("video-row")).toHaveCount(1);
+  await page.getByTestId("video-row").first().click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+  await page.goto("/videos");
+  await page.getByTitle("Dạng lưới").click();
+  await expect(cards).toHaveCount(1);
+});
+
 test("phone width: the editor title keeps the full width and the actions sit below it", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loginAsSeed(page);
@@ -326,6 +355,14 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(preview.getByTestId("preview-scene")).toContainText("Cảnh 3");
   // The frame chosen last time is remembered in this browser.
   await expect(preview.getByTestId("platform-frame")).toHaveCount(0);
+
+  // "Tạo giọng thật": ElevenLabs (the fake) reads the scenes without narration, after a confirmation.
+  const voiceBox = preview.getByTestId("preview-voice");
+  await expect(voiceBox).toContainText("chưa có giọng ElevenLabs");
+  await voiceBox.getByRole("button", { name: "Tạo giọng thật (ElevenLabs)" }).click();
+  await page.getByRole("button", { name: "Tạo giọng", exact: true }).click();
+  // Once every scene has its narration, the section goes away.
+  await expect(voiceBox).toHaveCount(0, { timeout: 60_000 });
 });
 
 /** A rendered video with its Page connected, open on its own page. */
@@ -356,6 +393,11 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await expect(page).toHaveURL(/\/posts$/);
   await expect(page.getByRole("cell", { name: "Đã đăng", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Xem Reel" })).toBeVisible();
+  // The status filter: a published reel is not among the scheduled ones.
+  await page.getByText("Đã hẹn lịch", { exact: true }).click();
+  await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
+  await page.getByText("Tất cả", { exact: true }).click();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toBeVisible();
 
   await page.getByRole("menuitem", { name: "Lịch đăng bài" }).click();
@@ -539,7 +581,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await expect(picker).toBeHidden();
   // The chosen photo is served by the app, not linked from Pixabay.
   await expect(title.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
-  await expect(title.getByRole("button", { name: "Tìm ảnh khác" })).toBeVisible();
+  await expect(title.getByRole("button", { name: "Tìm ảnh (Pixabay)" })).toBeVisible();
 
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
@@ -566,7 +608,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await second.getByRole("button", { name: "Tìm ảnh" }).click();
   await expect(second.getByTestId("scene-preview")).toBeVisible();
   const before = await second.getByTestId("scene-preview").getAttribute("src");
-  await second.getByRole("button", { name: "Tìm ảnh khác" }).click();
+  await second.getByRole("button", { name: "Tìm ảnh" }).click();
   await expect(second.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
 
   // Without keywords the api's own message is shown, with a pointer to the keyword field.
@@ -735,15 +777,15 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await expect(picker).toBeHidden();
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 
-  // "Tìm ảnh khác" searches Pixabay until another source is picked from its arrow menu.
-  const find = scene.getByRole("button", { name: "Tìm ảnh khác (Pixabay)" });
+  // "Tìm ảnh" searches Pixabay until another source is picked from its arrow menu.
+  const find = scene.getByRole("button", { name: "Tìm ảnh (Pixabay)" });
   await expect(find).toBeVisible();
   await scene.getByRole("button", { name: "Đổi nguồn ảnh" }).click();
   await page.getByRole("menuitem", { name: "Openverse" }).click();
   const fromOpenverse = page.waitForRequest(
     (request) => request.method() === "POST" && /\/find-image\?source=openverse$/.test(request.url()),
   );
-  await scene.getByRole("button", { name: "Tìm ảnh khác (Openverse)" }).click();
+  await scene.getByRole("button", { name: "Tìm ảnh (Openverse)" }).click();
   await fromOpenverse;
   await expect(scene.getByTestId("image-error")).toHaveCount(0);
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
@@ -872,7 +914,7 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   // A member keeps a pick, or replaces it: either way its mark goes.
   await page.getByTestId("scene").nth(0).getByRole("button", { name: "Giữ ảnh này" }).click();
   await expect(page.getByTestId("image-auto")).toHaveCount(5);
-  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Tìm ảnh khác" }).click();
+  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Tìm ảnh" }).click();
   await expect(page.getByTestId("image-auto")).toHaveCount(4);
 
   await page.getByRole("menuitem", { name: "Job logs" }).click();

@@ -44,6 +44,7 @@ import SetupTab from "@/components/video/SetupTab";
 import VideoPreview from "@/components/video/VideoPreview";
 import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
 import { usePresence } from "@/lib/presence";
+import { COLORS } from "@/app/theme";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
@@ -54,16 +55,17 @@ const JOB_NAMES = {
   publish: "Đăng Facebook",
   image: "Tạo ảnh AI",
   photos: "Tự tìm ảnh",
+  voice: "Tạo giọng thật",
 } as const;
 
 /** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
 type SideTab = "publish" | "setup" | "post";
 
-// Below the sticky header (72 px) and above the render bar, so neither covers the panel.
+// Side by side only on a computer, which has no header bar: just under the top, above the render bar.
 const SIDE_PANEL_STYLE = {
   position: "sticky",
-  top: 88,
-  maxHeight: "calc(100vh - 88px - 96px)",
+  top: 16,
+  maxHeight: "calc(100vh - 16px - 96px)",
   overflowY: "auto",
   paddingRight: 4,
 } as const;
@@ -177,6 +179,12 @@ export default function VideoPage() {
     await act(() => api<VideoDetail>(`/videos/${id}/render`, "POST"));
   }
 
+  async function makeVoices() {
+    // The job reads the saved voice texts: flush first, like "Render".
+    await editor.flush();
+    await act(() => api<VideoDetail>(`/videos/${id}/voices`, "POST"));
+  }
+
   /** `provider`: the one picked from the button's arrow; the team's default otherwise. */
   async function generateImages(provider?: "cloudflare" | "gemini") {
     // The job reads the saved prompts: flush first, like "Render".
@@ -271,33 +279,36 @@ export default function VideoPage() {
 
   return (
     <EditorContext.Provider value={editor}>
-      <Link href="/videos">
+      <Link href="/videos" style={{ fontSize: 13 }}>
         <ArrowLeftOutlined /> Danh sách video
       </Link>
-      <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ margin: "12px 0 16px" }}>
+      <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ margin: "6px 0 16px" }}>
         {/* Grows beside the actions, but never below 320 px: on a phone the actions wrap under the title. */}
         <div style={{ minWidth: 0, flex: "1 1 320px" }}>
-          <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }} data-testid="video-title">
+          <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }} data-testid="video-title">
             {video.title || video.topic}
           </Typography.Title>
-          <Typography.Text type="secondary">
-            Chủ đề: {video.topic}
-            {video.knowledge_topic ? ` · Nhóm: ${video.knowledge_topic}` : ""} · {video.created_by}
-          </Typography.Text>
+          {/* Status, the topic and who is here on one line, so the scenes start high on the screen. */}
+          <Flex wrap align="center" gap={8} style={{ marginTop: 6 }}>
+            <Space size={4} wrap>
+              <VideoStatusTags video={video} />
+              {video.has_script && !viewing && (
+                <Tag color="processing" data-testid="editing-tag">
+                  Đang chỉnh sửa
+                </Tag>
+              )}
+            </Space>
+            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+              Chủ đề: {video.topic}
+              {video.knowledge_topic ? ` · Nhóm: ${video.knowledge_topic}` : ""} · {video.created_by}
+            </Typography.Text>
+            <PresenceAvatars others={others} />
+          </Flex>
           {video.clone_of && (
-            <Typography.Paragraph type="secondary" style={{ margin: 0 }} data-testid="clone-of">
+            <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="clone-of">
               Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
             </Typography.Paragraph>
           )}
-          <div style={{ marginTop: 6 }}>
-            <VideoStatusTags video={video} />
-            {video.has_script && !viewing && (
-              <Tag color="blue" data-testid="editing-tag">
-                Đang chỉnh sửa
-              </Tag>
-            )}
-          </div>
-          <PresenceAvatars others={others} />
         </div>
         <Space wrap>
           {video.has_script &&
@@ -346,9 +357,11 @@ export default function VideoPage() {
                   ? "Đang tạo ảnh AI cho các cảnh thiếu…"
                   : job.kind === "publish"
                     ? "Đang đăng lên Facebook…"
-                    : job.kind === "clone"
-                      ? "AI đang viết kịch bản nhân bản…"
-                      : "Đang viết kịch bản…"
+                    : job.kind === "voice"
+                      ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
+                      : job.kind === "clone"
+                        ? "AI đang viết kịch bản nhân bản…"
+                        : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
@@ -411,12 +424,16 @@ export default function VideoPage() {
       ) : (
         <Row gutter={[16, 16]}>
           <Col xs={24} xl={15}>
-            {/* A blue outline while editing, so the member sees at a glance that the page can be changed. */}
+            {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
             <Flex
               vertical
               gap={16}
               data-testid="editor-column"
-              style={viewing ? undefined : { outline: "2px solid #1677ff", outlineOffset: 6, borderRadius: 8 }}
+              style={
+                viewing
+                  ? undefined
+                  : { outline: `1px solid ${COLORS.primaryBorder}`, outlineOffset: 8, borderRadius: 12 }
+              }
             >
               {video.video_blocking.map((reason) => (
                 <Alert key={reason} type="error" showIcon title={reason} data-testid="video-blocking" />
@@ -427,17 +444,7 @@ export default function VideoPage() {
                   <Alert key={warning.message} type="warning" showIcon title={warning.message} />
                 ))}
               {video.title_scene && (
-                <Card
-                  title="Tiêu đề"
-                  size="small"
-                  extra={
-                    video.script_by && (
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="script-by">
-                        Kịch bản viết bởi {video.script_by}
-                      </Typography.Text>
-                    )
-                  }
-                >
+                <Card title="Tiêu đề" size="small">
                   <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
                   <Radio.Group
                     style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
@@ -449,6 +456,16 @@ export default function VideoPage() {
                     }}
                     options={video.title_options.map((option, index) => ({ value: index, label: option }))}
                   />
+                  {/* Under the options, not in the card's header, where on a phone it squeezed the title to "T…". */}
+                  {video.script_by && (
+                    <Typography.Text
+                      type="secondary"
+                      style={{ display: "block", marginTop: 10, fontSize: 12 }}
+                      data-testid="script-by"
+                    >
+                      Kịch bản viết bởi {video.script_by}
+                    </Typography.Text>
+                  )}
                 </Card>
               )}
               <Flex justify="flex-end" gap={4}>
@@ -498,7 +515,7 @@ export default function VideoPage() {
           </Col>
           <Col xs={24} xl={9}>
             {/* On a wide screen the side panel stays in view while the scenes scroll past it. */}
-            <div style={sideBySide ? SIDE_PANEL_STYLE : undefined}>
+            <div style={sideBySide ? SIDE_PANEL_STYLE : undefined} data-side-panel>
               <Tabs
                 activeKey={sideTab ?? (video.mp4 ? "publish" : "setup")}
                 onChange={(key) => setSideTab(key as SideTab)}
@@ -511,28 +528,31 @@ export default function VideoPage() {
                         {video.mp4 ? (
                           <>
                             <Card title="MP4" size="small">
-                              <video
-                                key={video.mp4.url}
-                                src={video.mp4.url}
-                                controls
-                                preload="metadata"
-                                data-testid="mp4-player"
-                                style={{
-                                  width: "100%",
-                                  maxWidth: 320,
-                                  aspectRatio: "9 / 16",
-                                  background: "#000",
-                                  borderRadius: 6,
-                                }}
-                              />
-                              <Flex wrap gap={8} align="center" style={{ marginTop: 8 }}>
-                                <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
-                                  Tải MP4
-                                </Button>
-                                <Typography.Text type="secondary" data-testid="render-time">
-                                  Dài {video.mp4.seconds.toFixed(1)} giây · render mất{" "}
-                                  {video.mp4.render_seconds.toFixed(1)} giây
-                                </Typography.Text>
+                              {/* The player small beside its facts, so posting stays in view under it. */}
+                              <Flex gap={14} align="flex-start">
+                                <video
+                                  key={video.mp4.url}
+                                  src={video.mp4.url}
+                                  controls
+                                  preload="metadata"
+                                  data-testid="mp4-player"
+                                  style={{
+                                    width: 150,
+                                    flex: "none",
+                                    aspectRatio: "9 / 16",
+                                    background: "#000",
+                                    borderRadius: 8,
+                                  }}
+                                />
+                                <Flex vertical gap={10} style={{ minWidth: 0 }}>
+                                  <Typography.Text type="secondary" data-testid="render-time">
+                                    Dài {video.mp4.seconds.toFixed(1)} giây · render mất{" "}
+                                    {video.mp4.render_seconds.toFixed(1)} giây
+                                  </Typography.Text>
+                                  <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
+                                    Tải MP4
+                                  </Button>
+                                </Flex>
                               </Flex>
                             </Card>
                             <PublishCard video={video} />
@@ -582,7 +602,14 @@ export default function VideoPage() {
           }}
         />
       )}
-      {previewFrom !== null && <VideoPreview video={video} start={previewFrom} onClose={() => setPreviewFrom(null)} />}
+      {previewFrom !== null && (
+        <VideoPreview
+          video={video}
+          start={previewFrom}
+          onClose={() => setPreviewFrom(null)}
+          onMakeVoices={() => void makeVoices()}
+        />
+      )}
       <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
     </EditorContext.Provider>
   );
