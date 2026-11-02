@@ -91,8 +91,8 @@ when set to an empty string. Containers use real environment variables only.
 | `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
 | `IMAGE_GEN_MODEL` | worker, optional: the image model; the default is `gemini-2.5-flash-image` |
 | `IMAGE_GEN_PROVIDER` | api + worker, optional and kept for older servers: the team's default AI photo provider until one is chosen on Cài đặt › Nguồn tư liệu (`gemini` or `cloudflare`; any other value means `gemini`). Unset: Cloudflare when it is set up, else Gemini |
-| `IMAGE_GEN_CF_API_KEY` | worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › Nguồn tư liệu wins over it |
-| `IMAGE_GEN_CF_ACCOUNT_ID` | worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare` |
+| `IMAGE_GEN_CF_API_KEY` | api + worker: Cloudflare Workers AI API token; a token pasted on Cài đặt › Nguồn tư liệu wins over it |
+| `IMAGE_GEN_CF_ACCOUNT_ID` | api + worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare`. Without it on the api, Cài đặt › Nguồn tư liệu shows Cloudflare as not set up even with a pasted token |
 | `IMAGE_GEN_CF_MODEL` | worker, optional: the Workers AI model; the default is `@cf/black-forest-labs/flux-1-schnell` |
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL` | api and worker, optional, same values on both (the api recognizes made narration and the MP4 fingerprint by them): the voice (default "Adam", `pNInz6obpgDQGcFmaJgB`) and model (default `eleven_v3`); changing either re-makes every narration on the next render |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable |
