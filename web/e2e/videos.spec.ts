@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { SEED, chooseOption, connectFacebook, loginAsSeed, resetDatabase } from "./helpers";
+import { SEED, addUser, chooseOption, connectFacebook, login, loginAsSeed, resetDatabase } from "./helpers";
 
 // The api, a real worker with FFmpeg, and fake Claude/stock sources (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
@@ -1350,4 +1350,43 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   await expect(titleBox).toHaveAttribute("aria-valuetext", `x ${centredX}, y ${centredY + 10}`);
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(title.getByTestId("scene-preview")).not.toHaveAttribute("src", titleBefore ?? "");
+});
+
+test("each member sees who else has the video open, and whether they are editing it", async ({ page, browser }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await addUser(page, "binh@doi.vn", "Trần Thị Bình", "tam-thoi-123");
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  // A draft opens in "Chỉnh sửa"; nobody else is here yet.
+  await expect(page.getByRole("button", { name: "Xong" })).toBeVisible();
+  await expect(page.getByTestId("presence")).toHaveCount(0);
+
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "tam-thoi-123");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  await binh.goto(new URL(page.url()).pathname);
+  await binh.getByRole("button", { name: "Xong" }).click();
+
+  // Each sees the other within one report (10 s); An is editing, Bình only looking.
+  const later = { timeout: 15_000 };
+  await expect(binh.getByLabel(`${SEED.name} đang chỉnh sửa`)).toBeVisible(later);
+  await expect(page.getByLabel("Trần Thị Bình đang xem")).toBeVisible(later);
+
+  // Bình starts editing too: told that An is already editing, but not stopped.
+  await binh.getByRole("button", { name: "Chỉnh sửa" }).click();
+  await expect(binh.getByText("An đang chỉnh sửa video này.", { exact: false })).toBeVisible();
+  await expect(binh.getByRole("button", { name: "Xong" })).toBeVisible();
+  await expect(page.getByLabel("Trần Thị Bình đang chỉnh sửa")).toBeVisible(later);
+
+  // Closing the tab leaves at once rather than after the 30 s time-out.
+  await binh.close();
+  await expect(page.getByTestId("presence")).toHaveCount(0, later);
 });

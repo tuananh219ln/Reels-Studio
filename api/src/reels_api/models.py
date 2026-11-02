@@ -330,3 +330,16 @@ class Setting(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class VideoPresence(Base):
+    """One open video page ("tab": a random id the page picks when it opens), so members see who else is on the
+    video and whether they are editing. Rows silent for longer than routes_presence.TIMEOUT are deleted."""
+
+    __tablename__ = "video_presence"
+
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), primary_key=True)
+    tab: Mapped[str] = mapped_column(String(40), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    editing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

@@ -36,12 +36,14 @@ import { flushSync } from "react-dom";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
+import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
 import PublishCard from "@/components/video/PublishCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
 import VideoPreview from "@/components/video/VideoPreview";
 import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
+import { usePresence } from "@/lib/presence";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
@@ -82,6 +84,8 @@ export default function VideoPage() {
   // "Xem" or "Chỉnh sửa", chosen when the page opens: a video already rendered or posted opens in "Xem", so a stray
   // click cannot change it; a draft opens in "Chỉnh sửa". Null until the video has loaded.
   const [editing, setEditing] = useState<boolean | null>(null);
+  // The other members with this video open, and whether they are editing it (information only, nothing locks).
+  const others = usePresence(id, editing);
   // Fields whose last save was refused; "Xong" waits until there are none.
   const failedSaves = useRef(new Set<string>());
   // Which scene cards are open, by scene id. A scene seen for the first time opens when the video is a draft or
@@ -179,6 +183,17 @@ export default function VideoPage() {
     await editor.flush();
     const query = provider ? `?provider=${provider}` : "";
     await act(() => api<VideoDetail>(`/videos/${id}/image${query}`, "POST"));
+  }
+
+  /** "Chỉnh sửa": unlocks the page; says so when someone else is editing, since the last field saved wins. */
+  function startEditing() {
+    const names = editorNames(others);
+    if (names) {
+      message.warning(
+        `${names} đang chỉnh sửa video này. Nếu hai người sửa cùng một ô, ô lưu sau sẽ thay ô lưu trước.`,
+      );
+    }
+    setEditing(true);
   }
 
   /** "Xong": saves the field being typed in, then locks the page again unless a save was refused. */
@@ -282,11 +297,12 @@ export default function VideoPage() {
               </Tag>
             )}
           </div>
+          <PresenceAvatars others={others} />
         </div>
         <Space wrap>
           {video.has_script &&
             (viewing ? (
-              <Button icon={<EditOutlined />} onClick={() => setEditing(true)}>
+              <Button icon={<EditOutlined />} onClick={startEditing}>
                 Chỉnh sửa
               </Button>
             ) : (

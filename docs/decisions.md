@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — The video page shows who else has it open; edit mode stays without "Lưu"/"Huỷ"
+
+Owner's choice. "Lưu" and "Huỷ" for edit mode were considered and dropped: they would reverse the
+decision below that fields save one by one, and photos, AI photos and scene changes are written at
+once and cannot be taken back. Instead the page shows the other members who have the video open and
+whether they are editing, and warns, without stopping, a member who starts editing while someone
+else is. Each open page reports every 10 s and drops out after 30 s of silence (table
+`video_presence`, migration 0019), polled like the rest of the app, since the web runs on Cloudflare
+Workers with no socket to the api. Showing it on the video list was left for later.
+
 ## 2026-11-02 — Local development starts with `scripts/dev.sh`, and uv builds the api venv
 
 Owner's choice. Setting up by hand broke in practice: a venv made with the wrong Python (3.14 instead
