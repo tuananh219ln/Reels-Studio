@@ -5,6 +5,7 @@ import { Alert, Checkbox, Empty, Flex, Input, Modal, Segmented, Spin, Tag, Typog
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage, type ClipHit, type PixabayHit, type StockSource, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
+import { COLORS } from "@/app/theme";
 
 const MAX_KEYWORDS = 10;
 
@@ -28,7 +29,7 @@ function fetchHits(sceneId: number, text: string, sourceId: string, filters: Fil
   return api<{ keyword: string; source: string; hits: PixabayHit[] }>(`/scenes/${sceneId}/stock?${params.toString()}`);
 }
 
-/** The scene's keywords with the one a photo was just chosen with put first, so "Tìm ảnh khác" starts from it. */
+/** The scene's keywords with the one a photo was just chosen with put first, so "Tìm ảnh" starts from it. */
 export function keywordsWithFirst(keywords: string[], keyword: string): string[] {
   return [keyword, ...keywords.filter((item) => item !== keyword)].slice(0, MAX_KEYWORDS);
 }
@@ -88,8 +89,12 @@ export default function StockPicker({
   const latest = useRef(0);
   // True while the picker is mounted: an answer that arrives after it closed changes nothing.
   const open = useRef(false);
+  // True once the member has typed or searched: the opening search, whose sources answer may arrive later,
+  // then leaves their keyword and their results alone.
+  const touched = useRef(false);
 
   function search(text: string, sourceId: string, using: Filters = filters) {
+    touched.current = true;
     setLoading(true);
     setError(null);
     void load(++latest.current, text, sourceId, using);
@@ -136,6 +141,10 @@ export default function StockPicker({
         const initial = offered.some((item) => item.id === "pixabay") ? "pixabay" : offered[0].id;
         setSource(initial);
         setSearchedSource(initial);
+        // The member was quicker than the sources answer: what they typed or searched stays.
+        if (touched.current) {
+          return;
+        }
         const opening = firstKeyword(initial, keywords, keywordsEn);
         setQuery(opening);
         // With no keyword there is nothing to search; `loading` already started false for that case.
@@ -189,7 +198,7 @@ export default function StockPicker({
       editor.onSaved(saved);
       // Keep the keyword that found the photo at the head of the list its source reads, so the
       // next search walks on through the same results: Openverse reads the Vietnamese list,
-      // "Tìm ảnh khác" reads the list of the source it searches.
+      // "Tìm ảnh" reads the list of the source it searches.
       const onOpenverse = searchedSource === "openverse";
       const list = onOpenverse ? liveKeywords : liveKeywordsEn;
       if (list[0] !== searchedFor) {
@@ -252,9 +261,13 @@ export default function StockPicker({
             placeholder="Nhập từ khóa rồi bấm Enter, ví dụ: cá cơm chiên"
             value={query}
             enterButton={<SearchOutlined aria-label="Tìm" />}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              touched.current = true;
+              setQuery(event.target.value);
+            }}
             onSearch={(text) => search(text, source)}
-            loading={loading}
+            // No `loading` here: antd ignores Enter while the box shows it, so a keyword typed during the
+            // opening search was never searched. The grid fades while loading, and the latest search wins.
             disabled={choosing !== null}
             style={{ marginBottom: 8 }}
           />
@@ -316,7 +329,8 @@ export default function StockPicker({
               <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
                 {hits.length} ảnh từ {sourceLabel} cho “{searchedFor}”. Bấm một ảnh để dùng cho cảnh này.
               </Typography.Text>
-              {/* Columns follow the dialog's width: two on a phone, more on a wide screen; never a sideways scroll. */}
+              {/* Columns follow the dialog's width: two on a phone, more on a wide screen; never a sideways scroll.
+                  Each tile is 9:16 and filled, cropped as the render will crop the photo. */}
               <div
                 style={{
                   display: "grid",
@@ -331,16 +345,17 @@ export default function StockPicker({
                     type="button"
                     aria-label={`Chọn ảnh ${index + 1}`}
                     data-testid="stock-hit"
+                    className="stock-tile"
                     disabled={choosing !== null || loading}
                     onClick={() => choose(hit)}
                     style={{
                       padding: 0,
-                      border: "1px solid #EDEDED",
-                      borderRadius: 6,
+                      border: `1px solid ${COLORS.border}`,
+                      borderRadius: 8,
                       cursor: choosing !== null || loading ? "default" : "pointer",
-                      background: "#F5F5F5",
+                      background: COLORS.muted,
                       position: "relative",
-                      aspectRatio: "1 / 1",
+                      aspectRatio: "9 / 16",
                       overflow: "hidden",
                     }}
                   >
@@ -350,7 +365,7 @@ export default function StockPicker({
                       src={hit.preview}
                       alt={`Ảnh ${sourceLabel} ${index + 1}`}
                       loading="lazy"
-                      style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                     />
                     {choosing === hit.url && (
                       <Flex
@@ -476,7 +491,7 @@ function ClipPicker({
         enterButton={<SearchOutlined aria-label="Tìm" />}
         onChange={(event) => setQuery(event.target.value)}
         onSearch={(text) => search(text, source)}
-        loading={loading}
+        // No `loading`: antd would ignore Enter while it shows; the latest search wins (see the photo box).
         disabled={choosing !== null}
         style={{ marginBottom: 12 }}
       />
@@ -511,11 +526,12 @@ function ClipPicker({
                 type="button"
                 aria-label={`Chọn video ${index + 1}`}
                 data-testid="clip-hit"
+                className="stock-tile"
                 disabled={choosing !== null || loading}
                 onClick={() => choose(hit)}
                 style={{
                   padding: 0,
-                  border: "1px solid #EDEDED",
+                  border: `1px solid ${COLORS.border}`,
                   borderRadius: 6,
                   background: "#000",
                   position: "relative",
