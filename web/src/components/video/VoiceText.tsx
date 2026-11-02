@@ -10,6 +10,8 @@ function seconds(value: number): string {
 
 /** A scene's voice text, and once a render has made it, the narration with its length. */
 export default function VoiceText({ scene, save }: { scene: SceneData; save: (text: string) => Promise<VideoDetail> }) {
+  // The script's lengths (docs/content.md): 8–12 words for the title's opening line, 8–15 for a scene.
+  const words = { min: 8, max: scene.is_title ? 12 : 15 };
   const lengthened = scene.fitted_seconds > scene.seconds;
   const hint = scene.voice_text.trim()
     ? [
@@ -28,6 +30,7 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
         placeholder="để trống nếu cảnh không cần đọc"
         save={save}
         hint={hint}
+        words={words}
       />
       {scene.voice_url && scene.voice_seconds !== null && (
         <Flex vertical gap={4} style={{ marginBottom: 8 }}>

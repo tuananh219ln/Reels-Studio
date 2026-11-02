@@ -359,6 +359,40 @@ def test_upload_accepts_jpg_png_webp_and_refuses_other_types_and_large_files(an,
     assert (big.status_code, big.json()["message"]) == (413, "Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn")
 
 
+@pytest.mark.parametrize("source", ["https://cdn.pixabay.com/a.jpg", "ai:gemini-2.5-flash-image", "upload"])
+def test_a_cropped_photo_replaces_the_old_one_and_keeps_where_it_came_from(an, db, me, storage, source):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    scene = db.get(Scene, target)
+    scene.image_source = source
+    db.commit()
+    old_key = scene.image_key
+    cropped = an.post(f"/api/scenes/{target}/image/crop", files={"file": ("crop.jpg", photo_bytes(size=(1080, 1920)))})
+    assert cropped.status_code == 200 and cropped.json()["scenes"][0]["has_image"] is True
+    db.expire_all()
+    scene = db.get(Scene, target)
+    # An AI photo stays labelled as AI after a crop; a stock photo keeps its credit.
+    assert scene.image_source == source
+    assert scene.image_key != old_key and not storage.path(old_key).exists()
+
+
+def test_a_crop_needs_a_photo_a_valid_image_and_an_unlocked_video(an, db, me, storage):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    refused = an.post(f"/api/scenes/{target}/image/crop", files={"file": ("crop.jpg", photo_bytes())})
+    assert (refused.status_code, refused.json()["message"]) == (409, "Cảnh này chưa có ảnh để chỉnh khung")
+
+    an.post(f"/api/scenes/{target}/image", files={"file": ("a.jpg", photo_bytes())})
+    gif = io.BytesIO()
+    Image.new("RGB", (10, 10)).save(gif, "GIF")
+    bad = an.post(f"/api/scenes/{target}/image/crop", files={"file": ("crop.jpg", gif.getvalue())})
+    assert bad.status_code == 415
+
+    add_job(db, video, me)
+    locked = an.post(f"/api/scenes/{target}/image/crop", files={"file": ("crop.jpg", photo_bytes())})
+    assert locked.status_code == 409
+
+
 def test_thumbnail_appears_with_the_title_photo_and_follows_its_text_and_photo(an, db, me, storage):
     video = make_video(db, storage, me, images=False)
     title = title_id(db, video)

@@ -34,7 +34,7 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
     });
   }
 
-  const disabled = editor.locked || busy;
+  const disabled = editor.locked || editor.readOnly || busy;
   return (
     <Flex vertical gap={16}>
       <AudioSettings values={values} onChange={change} disabled={disabled} />

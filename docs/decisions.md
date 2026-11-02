@@ -19,6 +19,46 @@ read. It is run by a person with SSH access, never by an agent (agents still nev
 production). The copy cancels production's unfinished jobs so a local worker cannot call real
 APIs for them, and the stored API keys and Fanpage tokens stay unreadable locally because their
 key file lives in production's storage folder, not in the database.
+## 2026-11-02 — Reading speed is applied with FFmpeg, not by ElevenLabs
+
+Replaces the speed part of the 2026-11-01 "Video presets" entry. The default model, `eleven_v3`,
+ignores ElevenLabs' `voice_settings.speed` ("Speed is not available for the Eleven v3 model"), so
+Chậm / Vừa / Nhanh made the same narration. Owner's choice: keep v3's voice and slow down or speed
+up the returned MP3 with FFmpeg `atempo` (0.9 / 1.0 / 1.1, pitch kept), which works with every
+model and costs no extra characters; ElevenLabs is no longer sent a speed. A non-normal speed now
+joins the narration's signature as `tempo:<speed>`, so slow or fast narration made before this fix
+(at normal speed) is made again on its next render; normal narration is untouched.
+
+## 2026-11-02 — "Xem trước" plays the video in the browser, with a free voice
+
+Owner's choice from issue #61: the editor previews the video before a render in the browser, not
+as a draft render job, so a preview costs no worker time and no API money. It is built from what
+the api already draws (each scene's frame without text and its exact text box, clips, music) and
+the render's timing, motion and transitions copied into the page, so it is close to the MP4 but
+not the MP4; captions and FFmpeg's audio mix are not reproduced. Narration uses the ElevenLabs MP3
+when a render already made one for the current text, and otherwise the browser's own Vietnamese
+voice (Web Speech API), which is free; ElevenLabs is never called for a preview. The online
+Google/Microsoft voices send the narration text to those services, as typing it into their
+translator would. The preview can start from any scene and draws a mock of each app's screen (Reels by default, TikTok, Shorts) with generic icons, not the apps' logos, to show what each covers.
+
+## 2026-11-02 — The video editor opens rendered videos read-only; photos are cropped in the browser
+
+Requested by the owner: a finished or posted video could be changed by a stray click (the "MP4
+chưa cập nhật theo bản sửa" tag then appears). The video page now has one view/edit mode for the
+whole page: a video with an MP4 or a Facebook post opens in "Xem", a draft in "Chỉnh sửa". The
+mode only guards the page in the browser; it is not a permission, and the api accepts changes as
+before. Fields keep saving one by one when left, as before, so edit mode has "Xong" but no
+"Huỷ": uploads and saved fields cannot be taken back, and saving the whole page at once would let
+two members overwrite each other. The post texts ("Nội dung đăng") and "Render" stay available in
+view mode.
+
+Photos are cropped, turned and flipped in the browser ("Chỉnh khung") and stored in place of the
+scene's photo, so the render core, its 9:16 cover crop and the database are unchanged. A cropped
+photo keeps its `image_source`: an AI photo stays labelled as AI (see "AI photos for missing
+scenes come from Gemini") and a stock photo keeps its URL, so "Tìm ảnh khác" still moves on from
+it. The original is not kept: cropping again starts from the cropped photo. A clip is trimmed by
+picking its start and end; its own sound stays out of the render (the toggle in the dialog plays
+it in the preview only).
 
 ## 2026-11-02 — Ideas, features and bugs live in GitHub Issues, not backlog.md
 

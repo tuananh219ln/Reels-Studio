@@ -13,6 +13,8 @@ import { useEditor } from "./AutoSaveField";
 export default function MusicCard({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const editor = useEditor();
+  // A running job or the page's view mode: the music cannot change.
+  const frozen = editor.locked || editor.readOnly;
   const input = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
@@ -106,10 +108,10 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
   const sources = (
     <>
       <Flex wrap gap={8}>
-        <Button icon={<CustomerServiceOutlined />} disabled={editor.locked || busy} onClick={() => setPicking(true)}>
+        <Button icon={<CustomerServiceOutlined />} disabled={frozen || busy} onClick={() => setPicking(true)}>
           Chọn từ thư viện
         </Button>
-        <Button icon={<UploadOutlined />} disabled={editor.locked || busy} onClick={() => input.current?.click()}>
+        <Button icon={<UploadOutlined />} disabled={frozen || busy} onClick={() => input.current?.click()}>
           {video.music ? "Thay nhạc" : "Tải nhạc MP3 lên"}
         </Button>
       </Flex>
@@ -141,7 +143,7 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
               cancelText="Huỷ"
               onConfirm={() => run(() => api<VideoDetail>(`/videos/${video.id}/music`, "DELETE"), "Đã gỡ nhạc")}
             >
-              <Button danger icon={<DeleteOutlined />} disabled={editor.locked || busy}>
+              <Button danger icon={<DeleteOutlined />} disabled={frozen || busy}>
                 Gỡ nhạc
               </Button>
             </Popconfirm>
@@ -152,7 +154,7 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
             min={0}
             max={100}
             value={volume}
-            disabled={editor.locked}
+            disabled={frozen}
             onChange={(value) => {
               touched.current = true;
               setVolume(value);
