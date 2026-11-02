@@ -42,6 +42,9 @@ export function PublishButton({ video }: { video: VideoDetail }) {
         await api<VideoDetail>(`/videos/${video.id}/publish`, "POST", { fanpage_id: fanpage, scheduled_at }),
       );
       setOpen(false);
+      // The next post starts fresh: a time kept from this one would schedule it by mistake.
+      setMode("now");
+      setWhen("");
     } catch (err) {
       message.error(errorMessage(err));
     } finally {

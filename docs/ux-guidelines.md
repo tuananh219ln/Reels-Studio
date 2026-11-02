@@ -206,7 +206,7 @@ Built:
     buttons, and Claude's self-review list;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
     có"), the Fanpage (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
-    ahead, within 29 days). Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
+    ahead, within 29 days; after a post it is back on "Đăng ngay"). Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
     very MP4, and it warns when the Page keeps an older post of the video. The pinned comment stays manual;
   - the "Bài đăng của video" card lists every post, newest first: its status, Fanpage, who posted it,
     the scheduled time or "Xem Reel", who cancelled or deleted it and when ("trên Facebook" when a check
