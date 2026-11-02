@@ -22,6 +22,7 @@ from reels_api.models import (
     Job,
     KnowledgeTopic,
     LlmProvider,
+    McpClient,
     MusicTrack,
     Scene,
     Session,
@@ -57,6 +58,7 @@ def main() -> int:
             Setting,
             AppSetting,
             LlmProvider,
+            McpClient,
             Session,
             User,
         ):

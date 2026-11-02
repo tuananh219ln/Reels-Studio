@@ -14,6 +14,15 @@ bản", "Render", "Tải MP4", "Thử lại", "Nhân bản".
 **Errors:** every refusal and failed job shows a plain Vietnamese reason where it happened (at the
 field, the scene, or the job banner); technical detail sits in a collapsed "Chi tiết lỗi".
 
+## ChatGPT connection
+
+Cài đặt › Kết nối ChatGPT (`/chatgpt`) shows the copyable server URL and the current member's
+connections, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
+opens the same page with a consent card naming the member and explaining read/write access,
+possible script/narration costs and expiry. “Cho phép kết nối” and “Từ chối” submit to the API
+and return to ChatGPT. No credentials are displayed. Missing configuration or expired consent
+shows the API's Vietnamese message; the page uses the existing Ant Design theme and PageHeader.
+
 ## App Look
 
 One theme for every screen, in [web/src/app/theme.ts](../web/src/app/theme.ts): Ant Design in the

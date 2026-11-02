@@ -351,6 +351,25 @@ Planned:
   503 `database_unavailable`. Login failures use one generic message, and "account disabled" is
   shown only after a correct password.
 
+### ChatGPT MCP connection
+
+The optional private MCP endpoint uses member-authorized OAuth delegation, stateless Streamable
+HTTP, and the official MCP Python SDK. The web forwards its two exact `.well-known` discovery
+paths; `/api/mcp` stays behind the same origin as browser consent. Its bearer credentials do not
+work on the normal cookie API, and cookies alone never authenticate MCP. Only the four exact
+server protocol POST paths bypass Origin checks; browser consent and revocation keep them.
+
+`mcp_clients` stores registered ChatGPT callback clients; `mcp_authorizations` holds short-lived
+session-bound consent tickets and single-use PKCE codes; `mcp_connections` holds scopes,
+resource binding, hashed rotating credentials and expiration. Session foreign keys cascade when
+the underlying browser login is revoked. Token validation also checks the user's active and
+password-change state on every request and tool call.
+
+The tools call the existing video handlers directly, with the authenticated member, storage and
+database session. They do not call the HTTP API with manufactured cookies or duplicate business
+rules. Long work still queues the existing script/render jobs. No publishing, deletion, secret
+or account-management tools are exposed. Setup, boundaries and verification: [chatgpt.md](chatgpt.md).
+
 ### Sensitive Data
 
 - API keys (Anthropic, Pixabay, Pexels, ElevenLabs, Gemini) live only in environment variables. They are never

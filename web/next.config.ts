@@ -35,8 +35,29 @@ const nextConfig: NextConfig = {
   // Keep module resolution inside web/: an old node_modules/ at the repo root must never be picked up.
   turbopack: { root: webDir },
   outputFileTracingRoot: webDir,
+  async headers() {
+    return [
+      {
+        source: "/chatgpt",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Frame-Options", value: "DENY" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${apiUrl}/api/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${apiUrl}/api/:path*` },
+      {
+        source: "/.well-known/oauth-protected-resource/api/mcp",
+        destination: `${apiUrl}/.well-known/oauth-protected-resource/api/mcp`,
+      },
+      {
+        source: "/.well-known/oauth-authorization-server/api/mcp/oauth",
+        destination: `${apiUrl}/.well-known/oauth-authorization-server/api/mcp/oauth`,
+      },
+    ];
   },
 };
 

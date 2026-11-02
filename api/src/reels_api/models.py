@@ -58,6 +58,43 @@ class Session(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
 
 
+class McpClient(Base):
+    __tablename__ = "mcp_clients"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    redirect_uri: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class McpAuthorization(Base):
+    __tablename__ = "mcp_authorizations"
+
+    ticket_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    client_id: Mapped[str] = mapped_column(ForeignKey("mcp_clients.id", ondelete="CASCADE"))
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"))
+    challenge: Mapped[str] = mapped_column(String(128))
+    resource: Mapped[str] = mapped_column(Text)
+    scopes: Mapped[str] = mapped_column(String(100))
+    state: Mapped[str] = mapped_column(Text)
+    code_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class McpConnection(Base):
+    __tablename__ = "mcp_connections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id", ondelete="CASCADE"), index=True)
+    client_id: Mapped[str] = mapped_column(ForeignKey("mcp_clients.id", ondelete="CASCADE"))
+    scopes: Mapped[str] = mapped_column(String(100))
+    resource: Mapped[str] = mapped_column(Text)
+    access_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    refresh_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 # A video is locked while it has one of these jobs; a partial unique index allows only one per video.
 ACTIVE_JOB_STATUSES = ("queued", "running")
 

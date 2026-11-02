@@ -1,5 +1,6 @@
 import importlib
 import pkgutil
+from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -8,6 +9,8 @@ from sqlalchemy.exc import OperationalError
 
 from . import config
 from .errors import ApiError, api_error_handler, database_error_handler, error_body, validation_error_handler
+from .mcp_auth import SERVER_POST_PATHS, OAuthError, oauth_error_handler
+from .mcp_server import create_mcp
 
 UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
@@ -20,13 +23,25 @@ def routers() -> list[APIRouter]:
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Reels Studio API", docs_url=None, redoc_url=None, openapi_url=None)
+    @asynccontextmanager
+    async def lifespan(app):
+        if mcp is None:
+            yield
+        else:
+            async with mcp.session_manager.run():
+                yield
+
+    app = FastAPI(title="Reels Studio API", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    mcp = create_mcp(app)
     allowed_origins = config.allowed_origins()
 
     @app.middleware("http")
     async def check_origin(request: Request, call_next):
         # CSRF guard: the web app proxies /api through Next.js, so browsers always send its Origin.
-        if request.method in UNSAFE_METHODS:
+        # Only bearer-authenticated MCP and public OAuth protocol endpoints accept server calls.
+        # Consent, connection management and every existing cookie endpoint still require Origin.
+        server_call = mcp is not None and request.url.path in SERVER_POST_PATHS
+        if request.method in UNSAFE_METHODS and not server_call:
             origin = (request.headers.get("origin") or "").rstrip("/")
             if origin not in allowed_origins:
                 return JSONResponse(
@@ -35,8 +50,11 @@ def create_app() -> FastAPI:
         return await call_next(request)
 
     app.add_exception_handler(ApiError, api_error_handler)
+    app.add_exception_handler(OAuthError, oauth_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)
     app.add_exception_handler(OperationalError, database_error_handler)
     for router in routers():
         app.include_router(router)
+    if mcp is not None:
+        app.mount("/", mcp.streamable_http_app())
     return app
