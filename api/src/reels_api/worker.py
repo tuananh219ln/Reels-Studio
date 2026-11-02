@@ -20,7 +20,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from . import config
-from .jobs import work_dir
+from .jobs import queue_post_checks, work_dir
 from .models import Job
 from .sessions import now
 
@@ -29,6 +29,8 @@ log = logging.getLogger("reels_api.worker")
 ADVISORY_LOCK_KEY = 2026_10_29_01
 POLL_SECONDS = 1.0
 WAIT_SECONDS = 5.0
+# How often scheduled reels whose time has passed are looked for, to be checked on Facebook.
+POST_CHECK_SECONDS = 60.0
 DEFAULT_JOB_TIMEOUT = 15 * 60
 RESTARTED = "Worker khởi động lại giữa chừng"
 
@@ -111,10 +113,24 @@ def claim_next(factory: sessionmaker) -> int | None:
         return job.id
 
 
+def queue_checks(factory: sessionmaker) -> None:
+    """A database hiccup here must not stop the queue: the next round tries again."""
+    try:
+        with factory() as db:
+            queue_post_checks(db)
+            db.commit()
+    except Exception:
+        log.exception("Could not queue the post checks")
+
+
 def serve(factory: sessionmaker, lock: Connection) -> None:
+    next_checks = 0.0
     while True:
         # Losing the lock connection would let a second worker start: exit and let Coolify restart us.
         lock.execute(text("SELECT 1"))
+        if time.monotonic() >= next_checks:
+            queue_checks(factory)
+            next_checks = time.monotonic() + POST_CHECK_SECONDS
         job_id = claim_next(factory)
         if job_id is None:
             time.sleep(POLL_SECONDS)

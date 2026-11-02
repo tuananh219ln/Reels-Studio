@@ -11,6 +11,40 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-02 — The app checks a scheduled post on Facebook after its time, and on "Kiểm tra"
+
+Requested by a member (tuananh219ln): a scheduled reel cancelled on Facebook still showed as "Đã đăng" once its
+time passed, because the app counts a scheduled post as published by the clock and never asked Facebook again. The
+worker now queues one `check` job per scheduled post, 10 minutes after its time, and a member can queue one with
+"Kiểm tra" on any post on Facebook. The check only reads the reel and records what Facebook says; it never posts or
+deletes. This is a timer for reading, not for posting: "Scheduling uses Facebook's own scheduling; the app has no
+posting timer" (2026-10-31) still holds. A reel found gone after its time ends as "Đã xóa", not "Đã hủy", keeping
+the rule that "Đã hủy" never stands for a reel people may have seen; who closed it is left empty ("Trên Facebook").
+The automatic check runs once per scheduled time, even if it fails, so a broken token never loops; "Thử lại" and
+"Kiểm tra" remain.
+
+## 2026-11-02 — A re-rendered video can be posted again; posts can be cancelled and deleted from the app
+
+Requested by a member (tuananh219ln). This replaces "A video is never posted to Facebook twice" for a post a member
+asks for on purpose: a video now has one `publications` row per post (migration 0020), so a reposted video keeps its
+history. The same MP4 still never goes to a Page that holds it: a Page can take a new render of the video, or the same
+MP4 once the earlier post was cancelled or deleted, and another Page can take it at any time. When the chosen Page
+keeps an older post of the video, the dialog warns that there will be two. What the old entry protects against stays
+exactly as it was: a retry of one post reads the reel's status first and never makes a second post.
+
+Taking a post down replaces "changing or cancelling one is done in Meta Business Suite". Facebook publishes a scheduled
+reel by itself, so "Hủy đăng" has to delete the reel there; only setting a status in the app would leave it to go live.
+A post Facebook never received is closed in the request, its queued job cancelled. Any other goes through a new
+`unpublish` job, since only the worker calls Facebook. A running job is never interrupted: the member waits for it. The
+job, not the button, decides the outcome from Facebook's status: "Đã xóa" if the reel was ever public, "Đã hủy" if not,
+so a cancelled post can never be one people saw. A failed delete leaves the post as it was. Both keep who and when
+(`closed_by_id`, `closed_at`) and stay on "Bài đăng", but leave the calendar and the affiliate list.
+
+Only Facebook is built. TikTok and YouTube show in the dialog as "sắp có": each needs an app review before it can post
+publicly and an OAuth flow the app does not have (see [project.md](project.md)), and no TikTok delete API was found, so
+"Xóa" may never work there. Whether Facebook's delete behaves the same on a scheduled reel could not be confirmed from
+Meta's docs and is only tested against the fake service, so a member should try it once on a test Page.
+
 ## 2026-11-02 — Pages poll one request at a time and links do not prefetch
 
 The video page loaded slowly in production: measured from Vietnam, any request through the
@@ -32,6 +66,7 @@ saved as presets read as the wider levels (Chậm 0.8, Vừa 1.0, Nhanh 1.2), wi
 narration signature now carries `tempo:<factor>`, so narration made at an old Chậm or Nhanh is made
 again on its next render (costing ElevenLabs characters once); narration at 1.0 is untouched. The
 browser preview reads at the same factor.
+
 ## 2026-11-02 — Narration reads the voice text; the on-screen text only stands in for an empty one
 
 Requested by a member (tuananh219ln): the on-screen text is a short label and the voice text explains it, so reading

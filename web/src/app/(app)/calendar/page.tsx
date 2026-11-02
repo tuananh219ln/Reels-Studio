@@ -39,7 +39,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     api<PostRow[]>("/posts")
-      .then(setPosts)
+      .then((rows) => setPosts(rows.filter((post) => post.status === "scheduled" || post.status === "published")))
       .catch((err) => message.error(errorMessage(err)));
   }, [message]);
 
@@ -50,7 +50,7 @@ export default function CalendarPage() {
   const chosenPosts = days.get(chosen.format("DD/MM/YYYY")) ?? [];
 
   const postTag = ({ post, clock }: { post: PostRow; clock: string }) => (
-    <Link prefetch={false} key={post.video_id} href={`/videos/${post.video_id}`}>
+    <Link prefetch={false} key={post.id} href={`/videos/${post.video_id}`}>
       <Tag color={POST_STATUS[post.status].color} style={{ whiteSpace: "normal", margin: 0 }}>
         {clock} {post.title}
       </Tag>
@@ -101,7 +101,7 @@ export default function CalendarPage() {
                 return day.length === 0 ? null : (
                   <Flex justify="center" gap={2} data-testid="calendar-dot">
                     {day.slice(0, 3).map(({ post }) => (
-                      <Badge key={post.video_id} status={post.status === "published" ? "success" : "processing"} />
+                      <Badge key={post.id} status={post.status === "published" ? "success" : "processing"} />
                     ))}
                   </Flex>
                 );

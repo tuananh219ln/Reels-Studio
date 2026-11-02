@@ -9,7 +9,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from pathlib import Path
 
-from sqlalchemy import update
+from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
@@ -36,9 +36,13 @@ from .tts import TtsError, synthesize, voice_signature
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .video_options import render_options, voice_id, voice_speed
 from .videos import (
+    LIVE_POST_STATUSES,
+    OPEN_POST_STATUSES,
+    active_job,
+    is_published,
     made_voice_seconds,
     new_key,
-    publication_of,
+    pending_publication,
     refresh_thumbnail,
     render_signature,
     run_checks,
@@ -84,6 +88,10 @@ def run_job(
                 run_image_job(db, job, storage)
             elif job.kind == "publish":
                 run_publish_job(db, job, storage)
+            elif job.kind == "unpublish":
+                run_unpublish_job(db, job)
+            elif job.kind == "check":
+                run_check_job(db, job)
             elif job.kind == "voice":
                 run_voice_job(db, job, storage)
             elif job.kind == "photos":
@@ -368,8 +376,8 @@ SETTLE_TIME = timedelta(minutes=30)
 
 def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     video = db.get(Video, job.video_id)
-    post = publication_of(db, video.id)
-    if post is None or post.status != "pending":
+    post = pending_publication(db, video.id)
+    if post is None:
         return
     try:
         # An attempt before this one may have reached Facebook whatever it reported, so its reel decides first.
@@ -401,6 +409,92 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     post.published_at = now()
     db.commit()
     log.info("Job %s posted video %s to Facebook as %s", job.id, video.id, post.remote_id)
+
+
+def run_unpublish_job(db: DbSession, job: Job) -> None:
+    """Facebook publishes a scheduled reel by itself, so stopping one means deleting it there. Facebook's own answer
+    says whether the post was ever public: "Đã hủy" must not stand for a reel people saw."""
+    post = db.get(Publication, job.publication_id)
+    if post is None or post.status not in OPEN_POST_STATUSES:
+        return
+    went_live = is_published(post)
+    try:
+        page = fanpages.load_page(db, post.fanpage_id)
+        status = facebook.reel_status(page, post.remote_id)
+        if status is not None:
+            went_live = went_live or (facebook.is_live(status) and not facebook.is_scheduled(status))
+            facebook.delete_reel(page, post.remote_id)
+    except FacebookError as err:
+        raise JobFailure(err.message, err.detail) from None
+    _close(post, went_live, job.created_by_id)
+    db.commit()
+    log.info("Job %s took reel %s off Facebook as %s", job.id, post.remote_id, post.status)
+
+
+def _close(post: Publication, went_live: bool, by: int | None) -> None:
+    """ "Đã hủy" must not stand for a reel people may have seen."""
+    post.status = "deleted" if went_live else "cancelled"
+    post.closed_at, post.closed_by_id = now(), by
+
+
+# Facebook publishes a scheduled reel by itself; the check after its time gives it this long.
+CHECK_DELAY = timedelta(minutes=10)
+
+
+def queue_post_checks(db: DbSession) -> None:
+    """Queue one check of each scheduled reel whose time has passed, so a reel cancelled, moved or dropped on Facebook
+    is not shown as posted. Once per scheduled time, failed or not: a member retries it or presses "Kiểm tra"."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.status == "scheduled",
+            Publication.remote_id.is_not(None),
+            Publication.scheduled_at <= now() - CHECK_DELAY,
+            or_(Publication.checked_at.is_(None), Publication.checked_at < Publication.scheduled_at),
+        )
+    ).all()
+    for post in due:
+        # One active job per video: the check waits for the next round.
+        if active_job(db, post.video_id) is not None:
+            continue
+        try:
+            with db.begin_nested():
+                db.add(
+                    Job(
+                        video_id=post.video_id,
+                        kind="check",
+                        status="queued",
+                        created_by_id=post.created_by_id,
+                        publication_id=post.id,
+                    )
+                )
+                post.checked_at = now()
+        except IntegrityError:
+            continue
+        log.info("Queued a check of post %s on Facebook", post.id)
+
+
+def run_check_job(db: DbSession, job: Job) -> None:
+    """Read the reel on Facebook and record what Facebook says. A member may have cancelled, moved or deleted it in
+    Meta Business Suite, or Facebook dropped it, and nothing else tells the app. Never changes anything on Facebook."""
+    post = db.get(Publication, job.publication_id)
+    if post is None or post.status not in LIVE_POST_STATUSES or post.remote_id is None:
+        return
+    try:
+        page = fanpages.load_page(db, post.fanpage_id)
+        status = facebook.reel_status(page, post.remote_id)
+    except FacebookError as err:
+        raise JobFailure(err.message, err.detail) from None
+    post.checked_at = now()
+    if status is not None and facebook.is_live(status):
+        if facebook.is_scheduled(status):
+            post.status = "scheduled"
+            post.scheduled_at = facebook.scheduled_time(status) or post.scheduled_at
+        else:
+            post.status = "published"
+    elif status is None or not facebook.is_busy(status):
+        _close(post, is_published(post), None)
+    db.commit()
+    log.info("Job %s found reel %s %s on Facebook", job.id, post.remote_id, post.status)
 
 
 def _finish_reel(db: DbSession, page: facebook.Page, video: Video, post: Publication) -> None:

@@ -126,6 +126,7 @@ class FakeServices:
         self.facebook_pages = [{"id": FACEBOOK_PAGE, "name": "Trang Dưỡng Sinh", "tasks": ["CREATE_CONTENT", "MANAGE"]}]
         self.facebook_processing = "ok"  # ok | error | rejected (the doc's shape: only the phase says so) | busy
         self.facebook_status_fails = 0  # that many status reads answer 400, as a rate limit may
+        self.facebook_delete_refusals = 0  # that many deletes are refused: 403 and the reel stays
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -594,6 +595,17 @@ class FakeServices:
             },
         }
 
+    def _delete_reel(self, video_id: str, query: dict) -> tuple[int, dict]:
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            if self.facebook_delete_refusals:
+                self.facebook_delete_refusals -= 1
+                return 403, {"error": {"message": "Permissions error", "code": 200}}
+            if self.reels.pop(video_id, None) is None:
+                return 404, {"error": {"message": "Unknown video", "code": 100}}
+        return 200, {"success": True}
+
     def _image(self, name: str) -> bytes:
         with self.lock:
             self.image_downloads.append(name)
@@ -657,6 +669,14 @@ class FakeServices:
                         path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
                     )
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
+                else:
+                    self._send(404, {"error": "not found"})
+
+            def do_DELETE(self):
+                parts = urllib.parse.urlsplit(self.path)
+                if parts.path.startswith("/facebook/"):
+                    query = dict(urllib.parse.parse_qsl(parts.query))
+                    self._send(*fake._delete_reel(parts.path.removeprefix("/facebook/"), query))
                 else:
                     self._send(404, {"error": "not found"})
 

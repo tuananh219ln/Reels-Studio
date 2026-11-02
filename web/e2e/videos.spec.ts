@@ -84,8 +84,8 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   expect(download.headers()["content-type"]).toBe("video/mp4");
   expect(download.headers()["content-disposition"]).toContain("attachment");
 
-  await page.getByRole("button", { name: "Đăng lên Facebook" }).click();
-  await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
+  await openPublish(page);
+  await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveAttribute("href", /facebook\.com\/reel\//);
 
@@ -111,10 +111,10 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   // datetime-local takes the browser's local time.
   const later = new Date(Date.now() + 2 * 3600 * 1000);
   later.setMinutes(later.getMinutes() - later.getTimezoneOffset());
+  await openPublish(page);
   await page.getByRole("radio", { name: "Hẹn giờ" }).click();
   await page.getByLabel("Giờ đăng").fill(later.toISOString().slice(0, 16));
-  await page.getByRole("button", { name: "Đăng lên Facebook" }).click();
-  await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
+  await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
   // Opened again, a rendered video is in view mode: scenes closed, nothing to change by a stray click.
@@ -385,14 +385,19 @@ async function renderedVideo(page: Page) {
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
 }
 
+async function openPublish(page: Page) {
+  // The button's name includes its icon's label.
+  await page.getByRole("button", { name: "send Đăng", exact: true }).click();
+}
+
 async function confirmPost(page: Page) {
-  await page.getByRole("button", { name: "Đăng lên Facebook" }).click();
-  await page.getByRole("tooltip").getByRole("button", { name: "Đăng", exact: true }).click();
+  await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
 }
 
 test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);
+  await openPublish(page);
   await confirmPost(page);
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
 
@@ -423,6 +428,7 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
 test("a scheduled video appears in Bài đăng and Lịch đăng bài without a link to the reel", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);
+  await openPublish(page);
   await page.getByLabel("Hẹn giờ").check();
   const when = new Date(Date.now() + 60 * 60 * 1000);
   const local = new Date(when.getTime() - when.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
@@ -440,10 +446,51 @@ test("a scheduled video appears in Bài đăng and Lịch đăng bài without a 
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
+test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài đăng with who did it", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  await openPublish(page);
+  await page.getByLabel("Hẹn giờ").check();
+  const when = new Date(Date.now() + 60 * 60 * 1000);
+  const local = new Date(when.getTime() - when.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
+  await page.getByLabel("Giờ đăng").fill(local);
+  await confirmPost(page);
+  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
+
+  // "Kiểm tra" reads the reel on Facebook; the fake still holds it for its time, so nothing changes.
+  await page.getByRole("button", { name: "Kiểm tra" }).click();
+  await expect(page.getByTestId("job-status")).toBeVisible();
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc");
+
+  await page.getByRole("button", { name: "Hủy đăng" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Hủy đăng" }).click();
+  await expect(page.getByTestId("publication-status")).toHaveText("Đã hủy", { timeout: 30_000 });
+
+  // Facebook no longer holds this MP4, so it can go out again.
+  await openPublish(page);
+  await confirmPost(page);
+  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+
+  await page.getByRole("menuitem", { name: "Bài đăng" }).click();
+  await page.getByRole("button", { name: "Xóa", exact: true }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Xóa", exact: true }).click();
+  await expect(page.getByRole("cell", { name: "Đã xóa", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
+
+  await page.getByText("Đã hủy", { exact: true }).first().click();
+  await expect(page.getByRole("cell", { name: "Đã hủy", exact: true })).toBeVisible();
+  await expect(page.getByRole("cell", { name: "Đã xóa", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("cell", { name: new RegExp(SEED.name) }).first()).toBeVisible();
+});
+
 test("a posted reel takes an approved product and its link goes in the pinned comment", async ({ page, context }) => {
   test.setTimeout(240_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await renderedVideo(page);
+  await openPublish(page);
   await confirmPost(page);
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
 

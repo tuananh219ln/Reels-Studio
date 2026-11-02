@@ -20,7 +20,7 @@ from .routes_music import like_pattern
 from .routes_videos import invalid
 from .script_rules import banned_hits
 from .sessions import current_member
-from .videos import is_published, publication_of, split_scenes, title_of
+from .videos import is_published, published_publication, split_scenes, title_of
 
 router = APIRouter(prefix="/api/affiliate-products")
 
@@ -222,9 +222,12 @@ def _video_payload(db: DbSession, video: Video, post: Publication) -> dict:
 
 @router.get("/videos")
 def list_videos(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
-    rows = db.execute(select(Video, Publication).join(Publication).where(Publication.platform == "facebook"))
-    posted = [(video, post) for video, post in rows if is_published(post)]
-    posted.sort(key=lambda row: _live_at(row[1]), reverse=True)
+    rows = db.execute(
+        select(Video, Publication).join(Publication).where(Publication.platform == "facebook").order_by(Publication.id)
+    )
+    # A video posted again has one comment to pin per reel in time, so it shows once, with its newest live post.
+    latest = {video.id: (video, post) for video, post in rows if is_published(post)}
+    posted = sorted(latest.values(), key=lambda row: _live_at(row[1]), reverse=True)
     return [_video_payload(db, video, post) for video, post in posted]
 
 
@@ -232,8 +235,8 @@ def list_videos(me: Session = Depends(current_member), db: DbSession = Depends(g
 def set_video_products(
     video_id: int, body: VideoProductsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    post = publication_of(db, video_id)
-    if post is None or not is_published(post):
+    post = published_publication(db, video_id)
+    if post is None:
         raise ApiError(404, "video_not_published", "Video này chưa đăng lên Facebook")
     chosen = set(body.product_ids)
     attached = set(
