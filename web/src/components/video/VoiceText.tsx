@@ -13,21 +13,20 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
   // The script's lengths (docs/content.md): 8–12 words for the title's opening line, 8–15 for a scene.
   const words = { min: 8, max: scene.is_title ? 12 : 15 };
   const lengthened = scene.fitted_seconds > scene.seconds;
-  const hint = scene.voice_text.trim()
-    ? [
-        scene.text.trim() && "Đọc chữ trên màn hình trước, rồi đến lời đọc",
-        !scene.voice_url && "Giọng đọc được tạo khi render",
-      ]
-        .filter(Boolean)
-        .join(" · ")
-    : undefined;
+  const hint =
+    [
+      !scene.voice_text.trim() && scene.spoken_text && `Sẽ đọc chữ trên màn hình: ${scene.spoken_text}`,
+      scene.spoken_text && !scene.voice_url && "Giọng đọc được tạo khi render",
+    ]
+      .filter(Boolean)
+      .join(" · ") || undefined;
   return (
     <Flex vertical gap={4}>
       <AutoSaveField
         label="Lời đọc"
         value={scene.voice_text}
         multiline
-        placeholder="để trống nếu cảnh không cần đọc"
+        placeholder="để trống thì đọc chữ trên màn hình; không có chữ thì cảnh im lặng"
         save={save}
         hint={hint}
         words={words}

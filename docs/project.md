@@ -50,8 +50,8 @@ app replaces CapCut, so the output is a finished MP4.
    Pixabay photo picked from a grid or found by the scene's keywords and stored with the scene; a
    scene without one blocks the render.
 5. **Templated render (built):** a fixed visual template, Ken Burns motion, rendered on the server.
-   Narration in the ElevenLabs "Adam" voice reads each scene's voice text (on by default, off per
-   video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
+   Narration in the ElevenLabs "Adam" voice reads each scene's voice text, or its on-screen text when
+   that is empty (on by default, off per video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
    tagged by fixed topics and a mood).
 6. **Affiliate Shopee (built, manual):** a product list entered by hand, ranked by expected
    commission and approved by a member, with products attached to each posted reel and a

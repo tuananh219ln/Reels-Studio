@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -45,7 +46,10 @@ JOB_KINDS = {
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
 }
-SENTENCE_ENDS = (".", "!", "?", "…", ":")
+# A line of on-screen text read aloud already pauses after one of these.
+PAUSE_ENDS = (".", "!", "?", "…", ":", ",", ";")
+# "2." or "2)" before a scene's text: read as "hai chấm". "2.5 lít" is a quantity, not a number in a list.
+LIST_NUMBER = re.compile(r"^\s*\d+[.)](?!\d)\s*")
 
 
 def new_key(video_id: int, name: str, extension: str) -> str:
@@ -111,15 +115,21 @@ def split_scenes(db: DbSession, video: Video) -> tuple[Scene | None, list[Scene]
     return title, [scene for scene in rows if not scene.is_title]
 
 
+def screen_speech(scene: Scene) -> str:
+    """The on-screen text as it is read when a scene has no voice text: the title whole; a content scene without its
+    list number, each line its own sentence, so the dish and its benefit do not run together."""
+    if scene.is_title:
+        return plain_title(scene.text)
+    lines = [plain_title(line) for line in LIST_NUMBER.sub("", scene.text.replace("*", "")).splitlines()]
+    return " ".join(line if line.endswith(PAUSE_ENDS) else f"{line}." for line in lines if line)
+
+
 def spoken(video: Video, scene: Scene) -> str:
-    """The narration this scene gets in the next render, its on-screen text then its voice text: empty when it has
-    no voice text or the video's narration is off."""
-    if not video.voice_enabled or not scene.voice_text.strip():
+    """The narration this scene gets in the next render: its voice text, else its on-screen text; empty when it has
+    neither or the video's narration is off."""
+    if not video.voice_enabled:
         return ""
-    screen_text = plain_title(scene.text)
-    if not screen_text:
-        return scene.voice_text
-    return f"{screen_text}{'' if screen_text.endswith(SENTENCE_ENDS) else '.'} {scene.voice_text}"
+    return scene.voice_text if scene.voice_text.strip() else screen_speech(scene)
 
 
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
@@ -327,6 +337,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "keywords_en": scene.keywords_en,
         "image_prompt": scene.image_prompt,
         "voice_text": scene.voice_text,
+        "spoken_text": spoken(video, scene),
         # Known once a render has made the narration for the current text; None until then.
         "voice_seconds": voice_seconds,
         "voice_url": f"{image}/voice.mp3?v={_version(scene.voice_key)}" if voice_seconds is not None else None,

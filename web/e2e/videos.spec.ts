@@ -55,13 +55,19 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
     "Cá nhỏ chiên\nGiàu *canxi*",
   );
 
-  await expect(first.getByText("Đọc chữ trên màn hình trước, rồi đến lời đọc")).toBeVisible();
+  // A scene with a voice text reads only that; emptied, it says it reads its on-screen text, cleaned for speech.
+  await expect(first.getByText("Sẽ đọc chữ trên màn hình")).toHaveCount(0);
+  const second = scenes.nth(1);
+  const voice = second.getByLabel("Lời đọc");
+  await voice.fill("");
+  await voice.blur();
+  await expect(second.getByText(/Sẽ đọc chữ trên màn hình: .+\. Giàu canxi\./)).toBeVisible();
 
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
-  // Each scene is lengthened to fit its fake narration of 0.3 s per word, on-screen text included, plus 0.6 s and the
-  // MP3 padding: title 15 words 5.2 s, first scene 9 words 3.4 s, the other four 8 words 3.1 s each.
-  await expect(page.getByTestId("render-time")).toContainText("Dài 21.0 giây");
+  // Each scene is lengthened to fit its fake narration of 0.3 s per word, plus 0.6 s and the MP3 padding, when that is
+  // longer: the title's 6 words fit its 3 s, the five scenes' 4 words take 1.9 s each.
+  await expect(page.getByTestId("render-time")).toContainText("Dài 12.5 giây");
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
