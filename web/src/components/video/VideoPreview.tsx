@@ -25,7 +25,6 @@ const VOICE_TAIL_MS = 400;
 const ZOOMS = { light: 1.06, medium: 1.12, strong: 1.18 } as const;
 // Ducking drops the music to about a quarter while narration plays.
 const DUCKED = 0.25;
-const SENTENCE_ENDS = [".", "!", "?", "…", ":"];
 // A browser voice that never says it has finished must not hold the preview forever.
 const SPEECH_GRACE_MS = 15_000;
 
@@ -46,18 +45,6 @@ const clockNow = () =>
 
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
 const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
-
-/** The narration a render would make for the scene (videos.spoken): its on-screen text, then its voice text. */
-export function spokenText(video: VideoDetail, scene: SceneData): string {
-  if (!video.voice_enabled || !scene.voice_text.trim()) {
-    return "";
-  }
-  const screen = scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
-  if (!screen) {
-    return scene.voice_text;
-  }
-  return `${screen}${SENTENCE_ENDS.some((end) => screen.endsWith(end)) ? "" : "."} ${scene.voice_text}`;
-}
 
 // Edge's neural voices (HoaiMy, NamMinh) sound far more natural than Chrome's Google voice.
 const NATURAL = /natural|online/i;
@@ -135,11 +122,11 @@ export default function VideoPreview({
   const done = useRef({ run: 0, time: false, voice: false });
 
   const scene = scenes[phase.index];
-  const text = scene ? spokenText(video, scene) : "";
+  const text = scene?.spoken_text ?? "";
   const label = (index: number) =>
     scenes[index]?.is_title ? "Cảnh tiêu đề" : `Cảnh ${index + (scenes[0]?.is_title ? 0 : 1)}`;
   const durationMs = (scene?.fitted_seconds ?? 0) * 1000;
-  const unvoiced = video.voice_enabled ? scenes.filter((item) => spokenText(video, item) && !item.voice_url).length : 0;
+  const unvoiced = scenes.filter((item) => item.spoken_text && !item.voice_url).length;
   const missingVoice = unvoiced > 0;
   const voicing = video.active_job?.kind === "voice";
 

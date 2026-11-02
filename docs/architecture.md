@@ -265,10 +265,12 @@ Planned:
   keeps the previous MP4.
 - **Narration** ([tts.py](../api/src/reels_api/tts.py)): Claude writes a voice text per
   scene (the title scene too); members edit it, and one switch per video turns narration off. A
-  scene with voice text is read as its on-screen text (without markup or line breaks), then its
-  voice text. The render job calls ElevenLabs only for a scene whose stored MP3 was made from a
+  scene reads its voice text only; with an empty voice text it reads its on-screen text, cleaned for
+  speech (`videos.screen_speech`: no markup or list number, each line a sentence; the title scene
+  whole), and with neither it is silent. The api sends this as `spoken_text`, which the preview reads
+  too. The render job calls ElevenLabs only for a scene whose stored MP3 was made from a
   different spoken text, voice, or model, and commits each MP3 at once, so a retry or re-render
-  pays only for what changed; editing the on-screen text of a voiced scene remakes its narration. Once made, the scene card plays it and shows the lengthened scene. Narration not made
+  pays only for what changed; editing the on-screen text remakes the narration only of a scene that reads it. Once made, the scene card plays it and shows the lengthened scene. Narration not made
   yet cannot be measured, so a total over 90 s is caught by the render job after it is made.
 - **Posting to Facebook ("Đăng lên Facebook"):**
   - The `publish` job uploads the current MP4 with the saved caption and hashtags. An MP4 out of date

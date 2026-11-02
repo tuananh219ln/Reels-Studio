@@ -55,14 +55,44 @@ def test_voice_text_and_switch_are_saved(an, db, me, storage):
 @pytest.mark.parametrize(
     ("text", "voice_text", "expected"),
     [
-        ("Cá nhỏ\nGiàu *canxi*", "Ăn cả xương", "Cá nhỏ Giàu canxi. Ăn cả xương"),
-        ("Ăn gì tốt cho xương?", "Xem ngay", "Ăn gì tốt cho xương? Xem ngay"),
+        ("2. Canh rau ngót\nMát gan, dễ tiêu", "Rau ngót nấu tôm dễ ăn", "Rau ngót nấu tôm dễ ăn"),
         ("", "Ăn cả xương", "Ăn cả xương"),
-        ("Cá nhỏ", "  ", ""),
+        ("2. Canh rau ngót\nMát gan, dễ tiêu", "  ", "Canh rau ngót. Mát gan, dễ tiêu."),
+        ("", "  ", ""),
     ],
 )
-def test_narration_reads_the_on_screen_text_then_the_voice_text(text, voice_text, expected):
+def test_narration_reads_the_voice_text_else_the_on_screen_text(text, voice_text, expected):
     assert spoken(Video(voice_enabled=True), Scene(text=text, voice_text=voice_text)) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("2) Canh rau ngót\nMát gan", "Canh rau ngót. Mát gan."),
+        ("2.Canh rau ngót", "Canh rau ngót."),
+        ("*2.* Giàu *canxi*\n\nRẻ, dễ tìm", "Giàu canxi. Rẻ, dễ tìm."),
+        ("2.\nCanh rau ngót", "Canh rau ngót."),
+        ("Ăn gì tốt cho xương?\nXem ngay!", "Ăn gì tốt cho xương? Xem ngay!"),
+        ("Rắc vào cháo,\nsữa hạt mỗi sáng", "Rắc vào cháo, sữa hạt mỗi sáng."),
+        ("2.5 lít nước mỗi ngày", "2.5 lít nước mỗi ngày."),
+        ("5 món tốt cho xương", "5 món tốt cho xương."),
+        ("2.", ""),
+    ],
+)
+def test_on_screen_text_is_cleaned_for_reading(text, expected):
+    assert spoken(Video(voice_enabled=True), Scene(text=text, voice_text="")) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [("5 MÓN TỐT\nCHO *XƯƠNG*", "5 MÓN TỐT CHO XƯƠNG"), ("1. MÓN ĐẦU TIÊN", "1. MÓN ĐẦU TIÊN")],
+)
+def test_the_title_scene_keeps_its_whole_sentence(text, expected):
+    assert spoken(Video(voice_enabled=True), Scene(is_title=True, text=text, voice_text="")) == expected
+
+
+def test_nothing_is_read_when_the_narration_is_off():
+    assert spoken(Video(voice_enabled=False), Scene(text="Cá nhỏ", voice_text="Ăn cả xương")) == ""
 
 
 def test_a_banned_word_in_the_on_screen_text_is_not_reported_as_narration(an, db, me, storage):
@@ -73,16 +103,27 @@ def test_a_banned_word_in_the_on_screen_text_is_not_reported_as_narration(an, db
     assert "Lời đọc có từ cấm: “chữa khỏi”" not in warnings
 
 
-def test_changing_the_on_screen_text_remakes_the_narration(an, db, me, storage):
+@pytest.mark.parametrize(("voice_text", "kept"), [("Ăn cả xương", 5.0), ("", None)])
+def test_only_a_scene_that_reads_its_on_screen_text_remakes_the_narration(an, db, me, storage, voice_text, kept):
     video = make_video(db, storage, me)
     scene = first_scene(db, video)
-    scene.voice_text, scene.voice_key = "Ăn cả xương", f"videos/{video.id}/voice-{scene.id}-x.mp3"
+    scene.voice_text, scene.voice_key = voice_text, f"videos/{video.id}/voice-{scene.id}-x.mp3"
     scene.voice_signature, scene.voice_seconds = voice_signature(spoken(video, scene)), 5.0
     storage.save_bytes(scene.voice_key, b"mp3")
     db.commit()
     assert an.get(f"/api/videos/{video.id}").json()["scenes"][0]["voice_seconds"] == 5.0
     payload = an.patch(f"/api/scenes/{scene.id}", json={"text": "Tôm nhỏ"}).json()
-    assert payload["scenes"][0]["voice_seconds"] is None
+    assert payload["scenes"][0]["voice_seconds"] == kept
+
+
+def test_the_payload_says_what_the_narration_reads(an, db, me, storage):
+    video = make_video(db, storage, me, scene_text="2. Cá nhỏ\nGiàu *canxi*")
+    scene = first_scene(db, video)
+    assert an.get(f"/api/videos/{video.id}").json()["scenes"][0]["spoken_text"] == "Cá nhỏ. Giàu canxi."
+    payload = an.patch(f"/api/scenes/{scene.id}", json={"voice_text": "Ăn cả xương"}).json()
+    assert payload["scenes"][0]["spoken_text"] == "Ăn cả xương"
+    payload = an.patch(f"/api/videos/{video.id}", json={"voice_enabled": False}).json()
+    assert payload["scenes"][0]["spoken_text"] == ""
 
 
 def test_banned_words_in_voice_text_warn(an, db, me, storage):
@@ -126,7 +167,7 @@ def test_narration_changes_mark_the_mp4_outdated(an, db, me, storage, change):
 
 
 def test_videos_without_narration_keep_their_fingerprint(db, me, storage):
-    video = make_video(db, storage, me)
+    video = make_video(db, storage, me, title_text="", scene_text="")
     title, scenes = split_scenes(db, video)
     before = render_signature(video, title, scenes)
     video.voice_enabled = False
@@ -172,7 +213,7 @@ def voiced(committed, tmp_path, fakes):
     user = add_user(committed)
     storage = DirectoryStorage(tmp_path / "storage")
     with committed() as db:
-        video = make_video(db, storage, user, scene_count=1, seconds=2, scene_text="")
+        video = make_video(db, storage, user, scene_count=1, seconds=2, title_text="", scene_text="")
         first_scene(db, video).voice_text = TEN_WORDS
         db.commit()
     return user, storage, video.id
@@ -238,7 +279,7 @@ def test_a_failure_partway_keeps_the_narration_already_paid_for(committed, tmp_p
     user = add_user(committed)
     storage = DirectoryStorage(tmp_path / "storage")
     with committed() as db:
-        video = make_video(db, storage, user, scene_count=2, seconds=2, scene_text="")
+        video = make_video(db, storage, user, scene_count=2, seconds=2, title_text="", scene_text="")
         _, scenes = split_scenes(db, video)
         scenes[0].voice_text, scenes[1].voice_text = "một hai ba", "bốn năm sáu"
         db.commit()
@@ -256,13 +297,25 @@ def test_a_failure_partway_keeps_the_narration_already_paid_for(committed, tmp_p
 
 
 @needs_ffmpeg
-def test_render_sends_the_on_screen_text_with_the_voice_text_to_elevenlabs(committed, voiced, fakes):
+def test_render_sends_only_the_voice_text_when_the_scene_has_both(committed, voiced, fakes):
     user, storage, video_id = voiced
     with committed() as db:
         first_scene(db, db.get(Video, video_id)).text = "Cá nhỏ\nGiàu *canxi*"
         db.commit()
     assert render(committed, storage, video_id, user.id).status == "done"
-    assert [request["text"] for request in fakes.tts_requests] == [f"Cá nhỏ Giàu canxi. {TEN_WORDS}"]
+    assert [request["text"] for request in fakes.tts_requests] == [TEN_WORDS]
+
+
+@needs_ffmpeg
+def test_render_reads_the_on_screen_text_of_a_scene_without_voice_text(committed, voiced, fakes):
+    user, storage, video_id = voiced
+    with committed() as db:
+        scene = first_scene(db, db.get(Video, video_id))
+        scene.text, scene.voice_text = "2. Cá nhỏ\nGiàu *canxi*", ""
+        db.commit()
+    job = render(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert [request["text"] for request in fakes.tts_requests] == ["Cá nhỏ. Giàu canxi."]
 
 
 @needs_ffmpeg
@@ -324,7 +377,7 @@ def test_narration_pushing_the_total_over_90_seconds_fails_but_keeps_what_was_ma
     storage = DirectoryStorage(tmp_path / "storage")
     long_text = " ".join(["chữ"] * 40)  # 12 s of fake narration: each of the two scenes becomes 12.7 s
     with committed() as db:
-        video = make_video(db, storage, user, scene_count=9, seconds=9, scene_text="")
+        video = make_video(db, storage, user, scene_count=9, seconds=9, title_text="", scene_text="")
         _, scenes = split_scenes(db, video)
         for scene in scenes[:2]:
             scene.voice_text = long_text
@@ -354,7 +407,7 @@ def test_making_the_narration_queues_a_voice_job_that_locks_the_video(an, db, me
 
 
 def test_making_the_narration_is_refused_when_there_is_nothing_to_make(an, db, me, storage):
-    video = make_video(db, storage, me, scene_text="")
+    video = make_video(db, storage, me, title_text="", scene_text="")
     response = an.post(f"/api/videos/{video.id}/voices")
     assert (response.status_code, response.json()["message"]) == (409, "Mọi cảnh đã có giọng ElevenLabs")
     first_scene(db, video).voice_text = TEN_WORDS

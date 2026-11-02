@@ -252,6 +252,7 @@ def test_music_file_needs_a_login(app, db, me, storage):
 def test_mp4s_rendered_before_music_existed_are_not_flagged_outdated(an, db, me, storage):
     """The fingerprint format part 1 stored: sha256 of the scene list alone."""
     video = make_video(db, storage, me)
+    video.voice_enabled = False  # with narration on the on-screen text is read, which joins the fingerprint
     title, scenes = split_scenes(db, video)
     parts = [[scene.text, scene.seconds, scene.image_key] for scene in [title, *scenes]]
     video.mp4_key = f"videos/{video.id}/v.mp4"

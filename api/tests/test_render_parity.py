@@ -46,7 +46,7 @@ def mean_difference(a: Image.Image, b: Image.Image) -> float:
 def load_sample(factory, storage: DirectoryStorage, user) -> int:
     data = json.loads(SAMPLE.read_text(encoding="utf-8"))
     with factory() as db:
-        video = Video(topic="xương khớp", has_script=True, created_by_id=user.id)
+        video = Video(topic="xương khớp", has_script=True, created_by_id=user.id, voice_enabled=False)
         db.add(video)
         db.flush()
         for position, item in enumerate([data["title"], *data["scenes"]]):

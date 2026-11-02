@@ -69,6 +69,8 @@ export type SceneData = {
   keywords_en: string[];
   image_prompt: string;
   voice_text: string;
+  /** What the narration reads (videos.spoken): the voice text, else the cleaned on-screen text; "" when silent. */
+  spoken_text: string;
   /** Length of the narration made for the current voice text; null until a render has made it. */
   voice_seconds: number | null;
   voice_url: string | null;

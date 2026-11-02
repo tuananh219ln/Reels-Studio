@@ -239,7 +239,7 @@ def _scene_label(scene: Scene, index: int) -> str:
 
 
 def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
-    """Narration for every scene that has voice text but no MP3 made from it yet. Each MP3 is committed at once,
+    """Narration for every scene that has something to read but no MP3 made from it yet. Each MP3 is committed at once,
     so a retry after a failure pays ElevenLabs only for the scenes still missing."""
     for index, scene in enumerate(scenes):
         text = spoken(video, scene)

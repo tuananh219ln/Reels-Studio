@@ -22,9 +22,8 @@ Các trường:
 - "titles": 5 tiêu đề viết hoa, mỗi tiêu đề tối đa 12 từ.
 - "title_voice": lời đọc cho cảnh tiêu đề: một câu mở đầu gây tò mò về chủ đề chung, hợp với cả 5 tiêu đề (không đọc lại
   nguyên văn tiêu đề nào), 8–12 từ.
-  Khi đọc, mỗi cảnh được đọc chữ trên màn hình trước rồi mới đến lời đọc của cảnh đó, nên lời đọc nói tiếp ý, không lặp
-  lại chữ trên màn hình. Tổng số từ của tiêu đề dài nhất, "title_voice", mọi "text" và mọi "voice" không quá 150 từ:
-  nhiều cảnh thì viết mỗi lời gần 8 từ, ít cảnh mới viết gần 15 từ.
+  Khi đọc, cảnh có lời đọc chỉ đọc lời đọc, không đọc chữ trên màn hình: chữ là nhãn ngắn, lời đọc là phần diễn giải.
+  Tổng số từ của "title_voice" và mọi "voice" không quá 150 từ.
 - "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh tiêu đề, xếp từ cụ thể đến chung
   (món tiêu biểu nhất của chủ đề trước, nhóm món sau).
 - "title_keywords_en": 2–4 từ khóa tiếng Anh tương ứng để tìm ở các kho ảnh phương Tây (Pixabay, Pexels —
@@ -37,7 +36,7 @@ Các trường:
   - "text": chữ trên màn hình, tối đa 10 từ; bọc từ khóa cần tô đỏ trong *dấu sao*; xuống dòng bằng \\n
     (không để dòng trống, không kết thúc bằng \\n);
   - "seconds": số giây của cảnh (3–5);
-  - "voice": lời đọc của cảnh, câu nói tự nhiên nối tiếp chữ trên màn hình của cảnh đó và nói đủ một ý chi tiết (lý
+  - "voice": lời đọc của cảnh, câu nói tự nhiên diễn giải chữ trên màn hình của cảnh đó và nói đủ một ý chi tiết (lý
     do, cách ăn hoặc mẹo nhỏ), 8–15 từ; không dùng *dấu sao*, viết số và đơn vị thành chữ khi cần đọc rõ;
   - "image_prompt": prompt tạo ảnh AI cho cảnh, viết bằng tiếng Anh, 1 câu tả đúng thứ trong ảnh (món/nguyên liệu
     cụ thể của cảnh, cách bày, góc chụp); không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm phong cách
@@ -68,27 +67,27 @@ Ví dụ đầy đủ:
   "title_image_prompt": "Five calcium-rich Vietnamese dishes on one wooden table: fried anchovies, tofu, greens, yogurt and black sesame, top-down view",
   "scenes": [
     {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
-     "voice": "Chiên giòn hay kho nhạt đều hợp bữa cơm, nhớ nhai kỹ cả phần xương.",
+     "voice": "Cá nhỏ chiên giòn hay kho nhạt đều ngon, nhớ nhai kỹ cả phần xương.",
      "image_prompt": "A plate of crispy fried anchovies on a wooden table, close-up from a 45-degree angle",
      "keywords": ["cá cơm chiên giòn", "cá nhỏ", "món cá"],
      "keywords_en": ["fried whitebait", "small fish", "fish dish"]},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
-     "voice": "Mỗi ngày một hũ sau bữa ăn, vị dịu lại dễ tiêu.",
+     "voice": "Sữa chua mỗi ngày một hũ sau bữa ăn, vị dịu lại dễ tiêu.",
      "image_prompt": "A small glass jar of plain white yogurt with a spoon on a wooden table, eye-level close-up",
      "keywords": ["hũ sữa chua", "sữa chua"],
      "keywords_en": ["yogurt cup", "yogurt"]},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
-     "voice": "Rán vàng hay nấu canh cà chua đều ngon, lại mềm và dễ nhai.",
+     "voice": "Đậu phụ rán vàng hay nấu canh cà chua đều ngon, mềm và dễ nhai.",
      "image_prompt": "A plate of golden pan-fried tofu cubes on a wooden table, top-down view",
      "keywords": ["đậu phụ rán", "đậu phụ", "món đậu"],
      "keywords_en": ["fried tofu", "tofu", "tofu dish"]},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
-     "voice": "Luộc vừa chín hoặc xào nhanh để rau giữ màu xanh và bớt mất chất.",
+     "voice": "Rau cải xanh luộc vừa chín hoặc xào nhanh để giữ màu, bớt mất chất.",
      "image_prompt": "A bunch of fresh Vietnamese mustard greens on a wooden table, top-down view",
      "keywords": ["rau cải xanh", "rau xanh"],
      "keywords_en": ["green vegetables", "leafy greens"]},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
-     "voice": "Chỉ một thìa nhỏ vừng rang giã dập là bữa sáng đã thơm hơn.",
+     "voice": "Vừng đen rang giã dập, một thìa nhỏ là bữa sáng đã thơm hơn.",
      "image_prompt": "A small bowl of roasted black sesame seeds on a wooden table, close-up",
      "keywords": ["vừng đen rang", "vừng đen"],
      "keywords_en": ["black sesame seeds", "black sesame"]}
