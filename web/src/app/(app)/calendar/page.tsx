@@ -1,13 +1,15 @@
 "use client";
 
 import dayjsGenerateConfig from "@rc-component/picker/generate/dayjs";
-import { App, Badge, Calendar, Card, Empty, Flex, Grid, Tag, Typography } from "antd";
+import { UnorderedListOutlined } from "@ant-design/icons";
+import { App, Badge, Button, Calendar, Card, Empty, Flex, Grid, Tag } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/vi";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
+import PageHeader from "@/components/PageHeader";
 
 dayjs.locale("vi");
 
@@ -57,16 +59,22 @@ export default function CalendarPage() {
 
   return (
     <>
-      <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
-        Lịch đăng bài
-      </Typography.Title>
-      <Flex gap={4} style={{ marginBottom: 12 }}>
-        {Object.values(POST_STATUS).map((status) => (
-          <Tag key={status.label} color={status.color}>
-            {status.label}
-          </Tag>
-        ))}
-      </Flex>
+      <PageHeader
+        title="Lịch đăng bài"
+        actions={
+          <Link href="/posts">
+            <Button icon={<UnorderedListOutlined />}>Xem dạng danh sách</Button>
+          </Link>
+        }
+      >
+        <Flex gap={4}>
+          {Object.values(POST_STATUS).map((status) => (
+            <Tag key={status.label} color={status.color}>
+              {status.label}
+            </Tag>
+          ))}
+        </Flex>
+      </PageHeader>
       {wide ? (
         <Card styles={{ body: { overflowX: "auto" } }}>
           <div style={{ minWidth: 760 }}>

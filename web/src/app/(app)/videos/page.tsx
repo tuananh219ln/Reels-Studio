@@ -1,10 +1,34 @@
 "use client";
 
-import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Col, Empty, Flex, Form, Input, Modal, Row, Select, Spin, Typography } from "antd";
+import {
+  AppstoreOutlined,
+  PlaySquareOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  UnorderedListOutlined,
+} from "@ant-design/icons";
+import {
+  App,
+  Button,
+  Card,
+  Col,
+  Empty,
+  Flex,
+  Form,
+  Input,
+  Modal,
+  Row,
+  Segmented,
+  Select,
+  Spin,
+  Table,
+  Typography,
+} from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { COLORS } from "@/app/theme";
+import { useMe } from "@/components/MeContext";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import {
   api,
@@ -16,14 +40,53 @@ import {
   type VideoDetail,
   type VideoRow,
 } from "@/lib/api";
+import PageHeader from "@/components/PageHeader";
 
 const REFRESH_MS = 5000;
+const VIEW_KEY = "reels-studio.videos-view";
+
+type View = "grid" | "list";
+type StatusFilter = "all" | "draft" | "working" | "done" | "failed" | "outdated";
+
+/** The status filter's groups: a job in any stage counts as "Đang xử lý". */
+const STATUS_FILTERS: { value: StatusFilter; label: string; match: (row: VideoRow) => boolean }[] = [
+  { value: "all", label: "Mọi trạng thái", match: () => true },
+  { value: "draft", label: "Nháp", match: (row) => row.status === "draft" },
+  {
+    value: "working",
+    label: "Đang xử lý",
+    match: (row) => !["draft", "done", "failed"].includes(row.status),
+  },
+  { value: "done", label: "Xong", match: (row) => row.status === "done" },
+  { value: "failed", label: "Lỗi", match: (row) => row.status === "failed" || row.rerender_failed },
+  { value: "outdated", label: "MP4 cần render lại", match: (row) => row.mp4_outdated },
+];
 
 export default function VideosPage() {
   const { message } = App.useApp();
   const [rows, setRows] = useState<VideoRow[] | null>(null);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  const { me } = useMe();
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const [mine, setMine] = useState(false);
+  // Grid or list, remembered in this browser.
+  const [view, setView] = useState<View>(() => {
+    try {
+      return window.localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
+    } catch {
+      return "grid";
+    }
+  });
+
+  function chooseView(next: View) {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // A browser that refuses storage just forgets the choice.
+    }
+  }
 
   const reload = useCallback(
     async (q: string, quiet = false) => {
@@ -48,12 +111,20 @@ export default function VideosPage() {
     };
   }, [query, reload]);
 
+  const match = STATUS_FILTERS.find((item) => item.value === status)!.match;
+  const shown = (rows ?? []).filter((row) => match(row) && (!mine || row.created_by === me.name));
+  const filtered = Boolean(query.trim()) || status !== "all" || mine;
+
   return (
     <>
-      <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
-        Video
-      </Typography.Title>
-      <Flex wrap gap={12} justify="space-between" style={{ marginBottom: 16 }}>
+      <PageHeader
+        title="Video"
+        actions={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+            Tạo video
+          </Button>
+        }
+      >
         <Input
           aria-label="Tìm theo tiêu đề hoặc chủ đề"
           prefix={<SearchOutlined />}
@@ -61,67 +132,161 @@ export default function VideosPage() {
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          style={{ maxWidth: 320 }}
+          style={{ width: 320, maxWidth: "100%" }}
         />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-          Tạo video
-        </Button>
-      </Flex>
+        <Select
+          aria-label="Lọc theo trạng thái"
+          value={status}
+          onChange={setStatus}
+          options={STATUS_FILTERS.map(({ value, label }) => ({ value, label }))}
+          style={{ width: 190 }}
+        />
+        <Segmented
+          aria-label="Người tạo"
+          value={mine ? "mine" : "all"}
+          onChange={(value) => setMine(value === "mine")}
+          options={[
+            { value: "all", label: "Cả đội" },
+            { value: "mine", label: "Của tôi" },
+          ]}
+        />
+        <Segmented
+          aria-label="Kiểu hiển thị"
+          value={view}
+          onChange={(value) => chooseView(value as View)}
+          style={{ marginLeft: "auto" }}
+          options={[
+            { value: "grid", icon: <AppstoreOutlined />, title: "Dạng lưới" },
+            { value: "list", icon: <UnorderedListOutlined />, title: "Dạng danh sách" },
+          ]}
+        />
+      </PageHeader>
       {rows === null ? (
         <Flex justify="center" style={{ padding: 48 }}>
           <Spin />
         </Flex>
-      ) : rows.length === 0 ? (
+      ) : shown.length === 0 ? (
         <Card>
-          <Empty description={query.trim() ? "Không có video nào khớp" : "Chưa có video nào"} />
+          <Empty description={filtered ? "Không có video nào khớp" : "Chưa có video nào"} />
         </Card>
-      ) : (
+      ) : view === "grid" ? (
         <Row gutter={[16, 16]}>
-          {rows.map((row) => (
-            <Col key={row.id} xs={12} sm={8} md={6} xl={4}>
+          {shown.map((row) => (
+            <Col key={row.id} xs={12} sm={8} md={6} xl={4} style={{ display: "flex" }}>
               <VideoCard row={row} />
             </Col>
           ))}
         </Row>
+      ) : (
+        <VideoTable rows={shown} />
       )}
       <NewVideoModal open={creating} onClose={() => setCreating(false)} />
     </>
   );
 }
 
+/** The title-scene thumbnail, or a tile with the title when there is none or it fails to load. */
+function Thumbnail({ row, width }: { row: VideoRow; width?: number }) {
+  const name = row.title || row.topic;
+  const [broken, setBroken] = useState(false);
+  const box = { width: width ?? "100%", aspectRatio: "9 / 16", borderRadius: width ? 6 : 0, flex: "none" } as const;
+  if (row.thumbnail_url && !broken) {
+    return (
+      // A plain <img>: thumbnails come from the api behind the session cookie, which next/image's optimizer
+      // would not send.
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={row.thumbnail_url} alt="" onError={() => setBroken(true)} style={{ ...box, objectFit: "cover" }} />
+    );
+  }
+  return (
+    <Flex
+      align="center"
+      justify="center"
+      style={{
+        ...box,
+        background: COLORS.primaryBg,
+        border: width ? `1px solid ${COLORS.primaryBorder}` : undefined,
+        padding: width ? 2 : 12,
+        textAlign: "center",
+      }}
+    >
+      {width ? (
+        <PlaySquareOutlined style={{ color: COLORS.primary, fontSize: 16 }} />
+      ) : (
+        <Typography.Text strong style={{ color: COLORS.primary }}>
+          {name}
+        </Typography.Text>
+      )}
+    </Flex>
+  );
+}
+
 function VideoCard({ row }: { row: VideoRow }) {
   const name = row.title || row.topic;
   return (
-    <Link href={`/videos/${row.id}`} aria-label={name} data-testid="video-card">
+    <Link href={`/videos/${row.id}`} aria-label={name} data-testid="video-card" style={{ display: "flex", flex: 1 }}>
+      {/* Every card in a row is as tall as the tallest, and its date sits at the bottom. */}
       <Card
         hoverable
-        styles={{ body: { padding: 12 } }}
-        cover={
-          row.thumbnail_url ? (
-            // A plain <img>: thumbnails come from the api behind the session cookie, which next/image's
-            // optimizer would not send.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={row.thumbnail_url} alt={name} style={{ aspectRatio: "9 / 16", objectFit: "cover" }} />
-          ) : (
-            <Flex
-              align="center"
-              justify="center"
-              style={{ aspectRatio: "9 / 16", background: "#E4E4E4", padding: 12, textAlign: "center" }}
-            >
-              <Typography.Text type="secondary">{name}</Typography.Text>
-            </Flex>
-          )
-        }
+        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+        styles={{ body: { padding: 12, flex: 1, display: "flex", flexDirection: "column", gap: 6 } }}
+        cover={<Thumbnail row={row} />}
       >
-        <Typography.Paragraph strong ellipsis={{ rows: 2 }} style={{ marginBottom: 6 }}>
+        <Typography.Paragraph strong ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
           {name}
         </Typography.Paragraph>
         <VideoStatusTags video={row} />
-        <Typography.Paragraph type="secondary" style={{ margin: "6px 0 0", fontSize: 12 }}>
+        <Typography.Text type="secondary" style={{ marginTop: "auto", fontSize: 12 }}>
           {row.created_by} · {formatDateTime(row.created_at)}
-        </Typography.Paragraph>
+        </Typography.Text>
       </Card>
     </Link>
+  );
+}
+
+/** "Dạng danh sách": one row per video, to scan many at once. */
+function VideoTable({ rows }: { rows: VideoRow[] }) {
+  const router = useRouter();
+  return (
+    <Card styles={{ body: { padding: 0 } }}>
+      <Table<VideoRow>
+        rowKey="id"
+        dataSource={rows}
+        pagination={{ pageSize: 50, hideOnSinglePage: true }}
+        scroll={{ x: 760 }}
+        onRow={(row) => ({
+          onClick: () => router.push(`/videos/${row.id}`),
+          style: { cursor: "pointer" },
+          "data-testid": "video-row",
+        })}
+        columns={[
+          {
+            title: "Video",
+            key: "video",
+            render: (_, row) => (
+              <Flex align="center" gap={12}>
+                <Thumbnail row={row} width={36} />
+                <Flex vertical style={{ minWidth: 0 }}>
+                  <Link href={`/videos/${row.id}`} onClick={(event) => event.stopPropagation()}>
+                    <Typography.Text strong ellipsis style={{ maxWidth: 520 }}>
+                      {row.title || row.topic}
+                    </Typography.Text>
+                  </Link>
+                  {row.title && (
+                    <Typography.Text type="secondary" ellipsis style={{ maxWidth: 520, fontSize: 12 }}>
+                      Chủ đề: {row.topic}
+                    </Typography.Text>
+                  )}
+                </Flex>
+              </Flex>
+            ),
+          },
+          { title: "Trạng thái", key: "status", width: 260, render: (_, row) => <VideoStatusTags video={row} /> },
+          { title: "Người tạo", dataIndex: "created_by", width: 160 },
+          { title: "Ngày tạo", key: "created", width: 160, render: (_, row) => formatDateTime(row.created_at) },
+        ]}
+      />
+    </Card>
   );
 }
 

@@ -1,15 +1,14 @@
 "use client";
 
-import { Tabs, Typography } from "antd";
+import { Tabs } from "antd";
 import PostedVideos from "@/components/affiliate/PostedVideos";
 import Products from "@/components/affiliate/Products";
+import PageHeader from "@/components/PageHeader";
 
 export default function AffiliatePage() {
   return (
     <>
-      <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
-        Affiliate Shopee
-      </Typography.Title>
+      <PageHeader title="Affiliate Shopee" />
       <Tabs
         destroyOnHidden
         items={[

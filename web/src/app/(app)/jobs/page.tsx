@@ -5,12 +5,13 @@ import type { ColumnsType } from "antd/es/table";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
+import PageHeader from "@/components/PageHeader";
 
 const REFRESH_MS = 5000;
 const PAGE_SIZE = 300; // JOB_LIST_LIMIT in the api
 
 const STATUS: Record<JobRow["status"], { label: string; color: string }> = {
-  queued: { label: "Chờ", color: "blue" },
+  queued: { label: "Chờ", color: "processing" },
   running: { label: "Đang chạy", color: "processing" },
   done: { label: "Xong", color: "success" },
   failed: { label: "Lỗi", color: "error" },
@@ -84,7 +85,17 @@ export default function JobsPage() {
   }, [reload]);
 
   const columns: ColumnsType<JobRow> = [
-    { title: "Video", key: "video", render: (_, row) => row.video_title },
+    {
+      title: "Video",
+      key: "video",
+      // A long title takes one line, in full on hover, instead of squeezing to a word per line.
+      width: 240,
+      render: (_, row) => (
+        <Typography.Text ellipsis={{ tooltip: row.video_title }} style={{ maxWidth: 220 }}>
+          {row.video_title}
+        </Typography.Text>
+      ),
+    },
     { title: "Loại", dataIndex: "kind_label", width: 130 },
     {
       title: "Trạng thái",
@@ -132,9 +143,7 @@ export default function JobsPage() {
 
   return (
     <>
-      <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
-        Nhật ký job
-      </Typography.Title>
+      <PageHeader title="Nhật ký job" />
       <Card styles={{ body: { padding: 0 } }}>
         <Table<JobRow>
           rowKey="id"
@@ -142,7 +151,7 @@ export default function JobsPage() {
           dataSource={shown}
           loading={loading}
           pagination={{ pageSize: 50, hideOnSinglePage: true }}
-          scroll={{ x: 1150 }}
+          scroll={{ x: 1300 }}
           locale={{ emptyText: "Chưa có job nào" }}
           onRow={(row) => ({ onClick: () => router.push(`/videos/${row.video_id}`), style: { cursor: "pointer" } })}
         />

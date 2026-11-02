@@ -27,6 +27,7 @@ import { ChangePasswordModal, RenameModal } from "./AccountModals";
 import Logo from "./Logo";
 import { MeContext } from "./MeContext";
 import UserAvatar from "./UserAvatar";
+import { COLORS } from "@/app/theme";
 
 const POST_GROUP = "group:posts";
 const SETTINGS_GROUP = "group:settings";
@@ -128,6 +129,51 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     />
   );
   const desktop = screens.lg ?? true;
+  const account = (
+    <Dropdown
+      trigger={["click"]}
+      placement={desktop ? "topLeft" : "bottomRight"}
+      menu={{
+        items: [
+          {
+            key: "password",
+            icon: <KeyOutlined />,
+            label: "Đổi mật khẩu",
+            onClick: () => setModal("password"),
+          },
+          { key: "name", icon: <EditOutlined />, label: "Sửa tên", onClick: () => setModal("name") },
+          { type: "divider" },
+          { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", onClick: logout },
+        ],
+      }}
+    >
+      <Button
+        type="text"
+        data-testid="account"
+        aria-label={screens.sm === false ? `Tài khoản ${me.name}` : undefined}
+        style={{
+          height: 48,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          width: desktop ? "100%" : undefined,
+          justifyContent: "flex-start",
+          paddingInline: desktop ? 12 : 8,
+        }}
+      >
+        <UserAvatar initial={me.initial} />
+        {/* A phone keeps only the avatar, so the logo and the menu button fit beside it. */}
+        {screens.sm !== false && (
+          <span
+            data-testid="header-name"
+            style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          >
+            {me.name}
+          </span>
+        )}
+      </Button>
+    </Dropdown>
+  );
 
   return (
     <MeContext.Provider value={{ me, setMe }}>
@@ -135,13 +181,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         {desktop && (
           // Sticky: on a long page (the video editor) the menu stays in reach while scrolling.
           <Layout.Sider
-            width={220}
-            style={{ borderRight: "1px solid #EDEDED", position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}
+            width={240}
+            style={{
+              borderRight: `1px solid ${COLORS.border}`,
+              position: "sticky",
+              top: 0,
+              height: "100vh",
+            }}
           >
-            <div style={{ padding: "20px 20px 24px" }}>
-              <Logo />
-            </div>
-            {menu}
+            {/* The menu on top, the member's account at the foot: on a computer there is no header bar. */}
+            <Flex vertical style={{ height: "100%" }}>
+              <div style={{ padding: "20px 20px 24px" }}>
+                <Logo />
+              </div>
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{menu}</div>
+              <div style={{ padding: 8, borderTop: `1px solid ${COLORS.border}` }}>{account}</div>
+            </Flex>
           </Layout.Sider>
         )}
         <Drawer
@@ -155,52 +210,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           {menu}
         </Drawer>
         <Layout style={{ minWidth: 0 }}>
-          <Layout.Header
-            style={{
-              height: desktop ? 72 : 60,
-              padding: desktop ? "0 24px" : "0 12px",
-              position: "sticky",
-              top: 0,
-              zIndex: 10,
-              borderBottom: "1px solid #EDEDED",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: desktop ? "flex-end" : "space-between",
-            }}
-          >
-            {!desktop && (
+          {/* A phone has no room for the menu: a header with the menu button, the logo and the account. */}
+          {!desktop && (
+            <Layout.Header
+              style={{
+                height: 60,
+                padding: "0 12px",
+                position: "sticky",
+                top: 0,
+                zIndex: 10,
+                borderBottom: `1px solid ${COLORS.border}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
               <Flex align="center" gap={12}>
                 <Button aria-label="Mở menu" icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)} />
                 <Logo />
               </Flex>
-            )}
-            <Dropdown
-              trigger={["click"]}
-              menu={{
-                items: [
-                  {
-                    key: "password",
-                    icon: <KeyOutlined />,
-                    label: "Đổi mật khẩu",
-                    onClick: () => setModal("password"),
-                  },
-                  { key: "name", icon: <EditOutlined />, label: "Sửa tên", onClick: () => setModal("name") },
-                  { type: "divider" },
-                  { key: "logout", icon: <LogoutOutlined />, label: "Đăng xuất", onClick: logout },
-                ],
-              }}
-            >
-              <Button
-                type="text"
-                aria-label={screens.sm === false ? `Tài khoản ${me.name}` : undefined}
-                style={{ height: 44, display: "flex", alignItems: "center", gap: 10 }}
-              >
-                <UserAvatar initial={me.initial} />
-                {/* A phone keeps only the avatar, so the logo and the menu button fit beside it. */}
-                {screens.sm !== false && <span data-testid="header-name">{me.name}</span>}
-              </Button>
-            </Dropdown>
-          </Layout.Header>
+              {account}
+            </Layout.Header>
+          )}
           <Layout.Content
             style={{
               padding: desktop ? "32px 32px 48px" : "20px 16px 40px",

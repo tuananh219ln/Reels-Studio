@@ -9,6 +9,7 @@ import TrackModal, { MAX_MUSIC_BYTES, type TrackTarget } from "@/components/musi
 import TrackTags from "@/components/music/TrackTags";
 import { useTracks, type TrackFilters as Filters } from "@/components/music/useTracks";
 import { api, errorMessage, formatDateTime, type MusicTrack } from "@/lib/api";
+import PageHeader from "@/components/PageHeader";
 
 export default function MusicPage() {
   const { message } = App.useApp();
@@ -88,9 +89,6 @@ export default function MusicPage() {
 
   return (
     <>
-      <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
-        Thư viện nhạc
-      </Typography.Title>
       <input
         ref={input}
         type="file"
@@ -99,12 +97,16 @@ export default function MusicPage() {
         aria-label="Chọn file MP3 cho thư viện"
         onChange={(event) => chosen(event.target.files?.[0])}
       />
-      <Flex wrap gap={12} justify="space-between" style={{ marginBottom: 16 }}>
+      <PageHeader
+        title="Thư viện nhạc"
+        actions={
+          <Button type="primary" icon={<UploadOutlined />} onClick={() => input.current?.click()}>
+            Tải nhạc lên
+          </Button>
+        }
+      >
         <TrackFilters value={filters} onChange={setFilters} />
-        <Button type="primary" icon={<UploadOutlined />} onClick={() => input.current?.click()}>
-          Tải nhạc lên
-        </Button>
-      </Flex>
+      </PageHeader>
       <Card styles={{ body: { padding: 0 } }}>
         <Table<MusicTrack>
           rowKey="id"

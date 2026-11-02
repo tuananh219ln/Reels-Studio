@@ -1,11 +1,12 @@
 "use client";
 
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Form, Input, Modal, Space, Table, Tag, Typography } from "antd";
+import { App, Button, Card, Form, Input, Modal, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";
 import UserAvatar from "@/components/UserAvatar";
 import { ApiError, api, formatLastLogin, type UserRow } from "@/lib/api";
+import PageHeader from "@/components/PageHeader";
 
 type NewUser = { email: string; name: string; password: string };
 
@@ -71,6 +72,7 @@ export default function UsersPage() {
       title: "Thao tác",
       key: "actions",
       width: 500,
+      // Small buttons: the three actions fit on one line of the row.
       render: (_, row) => {
         if (row.is_me) {
           return <Typography.Text type="secondary">Tài khoản của bạn</Typography.Text>;
@@ -78,6 +80,7 @@ export default function UsersPage() {
         if (!row.is_active) {
           return (
             <Button
+              size="small"
               onClick={() =>
                 confirm("Kích hoạt lại người dùng?", `${row.email} sẽ đăng nhập được trở lại.`, "Kích hoạt lại", () =>
                   act(`/users/${row.id}/enable`, "Đã kích hoạt lại"),
@@ -89,8 +92,9 @@ export default function UsersPage() {
           );
         }
         return (
-          <Space wrap>
+          <Space wrap size={6}>
             <Button
+              size="small"
               danger
               onClick={() =>
                 confirm(
@@ -104,8 +108,11 @@ export default function UsersPage() {
             >
               Vô hiệu hoá
             </Button>
-            <Button onClick={() => setTempFor(row)}>Đặt mật khẩu tạm</Button>
+            <Button size="small" onClick={() => setTempFor(row)}>
+              Đặt mật khẩu tạm
+            </Button>
             <Button
+              size="small"
               onClick={() =>
                 confirm(
                   "Đăng xuất khỏi mọi thiết bị?",
@@ -125,10 +132,14 @@ export default function UsersPage() {
 
   return (
     <>
-      <Typography.Title level={2} style={{ marginTop: 0, fontWeight: 600 }}>
-        Quản lý người dùng
-      </Typography.Title>
-      <Flex wrap gap={12} justify="space-between" style={{ marginBottom: 16 }}>
+      <PageHeader
+        title="Quản lý người dùng"
+        actions={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
+            Thêm người dùng
+          </Button>
+        }
+      >
         <Input
           aria-label="Tìm theo email hoặc tên"
           prefix={<SearchOutlined />}
@@ -136,12 +147,9 @@ export default function UsersPage() {
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          style={{ maxWidth: 320 }}
+          style={{ width: 320, maxWidth: "100%" }}
         />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
-          Thêm người dùng
-        </Button>
-      </Flex>
+      </PageHeader>
       <Card styles={{ body: { padding: 0 } }}>
         <Table<UserRow>
           rowKey="id"

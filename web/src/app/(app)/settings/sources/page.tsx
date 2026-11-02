@@ -134,7 +134,7 @@ function KeyField({
 const ready = (configured: boolean) =>
   configured ? <Tag color="success">Sẵn sàng</Tag> : <Tag color="warning">Chưa có key</Tag>;
 
-/** The stock libraries the picker and "Tìm ảnh khác" use, their keys, the AI image models' keys and ElevenLabs'. */
+/** The stock libraries the picker and "Tìm ảnh" use, their keys, the AI image models' keys and ElevenLabs'. */
 export default function SourcesPage() {
   const { message } = App.useApp();
   const [data, setData] = useState<Sources | null>(null);
@@ -207,8 +207,8 @@ export default function SourcesPage() {
   return (
     <>
       <Typography.Paragraph type="secondary" style={{ margin: "0 0 16px", maxWidth: 760 }}>
-        Các kho ảnh và video miễn phí mà hộp “Chọn từ kho ảnh/video” và nút “Tìm ảnh khác” dùng, cùng key tạo ảnh AI và
-        key giọng đọc. Tắt một nguồn thì nó biến khỏi hộp chọn của cả nhóm.
+        Các kho ảnh và video miễn phí mà hộp “Chọn từ kho ảnh/video” và nút “Tìm ảnh” dùng, cùng key tạo ảnh AI và key
+        giọng đọc. Tắt một nguồn thì nó biến khỏi hộp chọn của cả nhóm.
       </Typography.Paragraph>
       <Flex vertical gap={16} style={{ maxWidth: 900 }}>
         {data?.auto_photos !== undefined && (

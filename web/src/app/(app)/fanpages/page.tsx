@@ -1,9 +1,10 @@
 "use client";
 
 import { PlusOutlined } from "@ant-design/icons";
-import { App, Button, Checkbox, Flex, Input, Modal, Popconfirm, Space, Table, Tag, Typography } from "antd";
+import { App, Button, Card, Checkbox, Flex, Input, Modal, Popconfirm, Space, Table, Tag } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type Fanpage, type FanpageChoice } from "@/lib/api";
+import PageHeader from "@/components/PageHeader";
 
 const time = (value: string) => new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
 
@@ -175,67 +176,71 @@ export default function FanpagesPage() {
 
   return (
     <>
-      <Flex wrap gap={12} justify="space-between" align="center">
-        <Typography.Title level={2} style={{ margin: 0, fontWeight: 600 }}>
-          Kết nối Fanpage
-        </Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
-          Thêm Fanpage
-        </Button>
-      </Flex>
-      <Typography.Paragraph type="secondary" style={{ margin: "8px 0 16px" }}>
-        Dán token của một System User trong Business Manager, có quyền <code>pages_show_list</code>,{" "}
-        <code>pages_read_engagement</code> và <code>pages_manage_posts</code>, đã được gán Page. Khi lưu, tool kiểm tra
-        token với Meta rồi lưu mã hoá; token không bao giờ hiện lại.
-      </Typography.Paragraph>
-      <Table<Fanpage>
-        rowKey="id"
-        loading={rows === null}
-        dataSource={rows ?? []}
-        pagination={false}
-        scroll={{ x: "max-content" }}
-        locale={{ emptyText: "Chưa kết nối Fanpage nào" }}
-        columns={[
-          { title: "Page", render: (_, row) => `${row.name} (${row.page_id})` },
-          { title: "Token", render: (_, row) => `…${row.token_tail}` },
-          {
-            title: "Trạng thái",
-            render: (_, row) => (
-              <Tag color={row.active ? "success" : "default"}>{row.active ? "Đang dùng" : "Ngừng dùng"}</Tag>
-            ),
-          },
-          {
-            title: "Cập nhật",
-            render: (_, row) => `${time(row.updated_at)}${row.updated_by ? ` · ${row.updated_by}` : ""}`,
-          },
-          {
-            title: "",
-            render: (_, row) => (
-              <Space>
-                <Button size="small" onClick={() => setReplacing(row)}>
-                  Dán token mới
-                </Button>
-                {row.active ? (
-                  <Popconfirm
-                    title="Ngừng dùng Fanpage này?"
-                    okText="Ngừng dùng"
-                    cancelText="Huỷ"
-                    onConfirm={() => setActive(row, false)}
-                  >
-                    <Button size="small" danger>
-                      Ngừng dùng
-                    </Button>
-                  </Popconfirm>
-                ) : (
-                  <Button size="small" onClick={() => setActive(row, true)}>
-                    Dùng lại
-                  </Button>
-                )}
-              </Space>
-            ),
-          },
-        ]}
+      <PageHeader
+        title="Kết nối Fanpage"
+        actions={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
+            Thêm Fanpage
+          </Button>
+        }
+        description={
+          <>
+            Dán token của một System User trong Business Manager, có quyền <code>pages_show_list</code>,{" "}
+            <code>pages_read_engagement</code> và <code>pages_manage_posts</code>, đã được gán Page. Khi lưu, tool kiểm
+            tra token với Meta rồi lưu mã hoá; token không bao giờ hiện lại.
+          </>
+        }
       />
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<Fanpage>
+          rowKey="id"
+          loading={rows === null}
+          dataSource={rows ?? []}
+          pagination={false}
+          scroll={{ x: "max-content" }}
+          locale={{ emptyText: "Chưa kết nối Fanpage nào" }}
+          columns={[
+            { title: "Page", render: (_, row) => `${row.name} (${row.page_id})` },
+            { title: "Token", render: (_, row) => `…${row.token_tail}` },
+            {
+              title: "Trạng thái",
+              render: (_, row) => (
+                <Tag color={row.active ? "success" : "default"}>{row.active ? "Đang dùng" : "Ngừng dùng"}</Tag>
+              ),
+            },
+            {
+              title: "Cập nhật",
+              render: (_, row) => `${time(row.updated_at)}${row.updated_by ? ` · ${row.updated_by}` : ""}`,
+            },
+            {
+              title: "",
+              render: (_, row) => (
+                <Space>
+                  <Button size="small" onClick={() => setReplacing(row)}>
+                    Dán token mới
+                  </Button>
+                  {row.active ? (
+                    <Popconfirm
+                      title="Ngừng dùng Fanpage này?"
+                      okText="Ngừng dùng"
+                      cancelText="Huỷ"
+                      onConfirm={() => setActive(row, false)}
+                    >
+                      <Button size="small" danger>
+                        Ngừng dùng
+                      </Button>
+                    </Popconfirm>
+                  ) : (
+                    <Button size="small" onClick={() => setActive(row, true)}>
+                      Dùng lại
+                    </Button>
+                  )}
+                </Space>
+              ),
+            },
+          ]}
+        />
+      </Card>
       <AddModal open={adding} onClose={() => setAdding(false)} onSaved={setRows} />
       <TokenModal row={replacing} onClose={() => setReplacing(null)} onSaved={setRows} />
     </>

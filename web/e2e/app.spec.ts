@@ -95,7 +95,7 @@ test("login, empty video list, header and logout", async ({ page }) => {
   await expect(page).toHaveURL(/\/videos$/);
   await expect(page.getByText("Chưa có video nào")).toBeVisible();
   await expect(page.getByTestId("header-name")).toHaveText(SEED.name);
-  await expect(page.locator("header .ant-avatar")).toHaveText("A");
+  await expect(page.getByTestId("account").locator(".ant-avatar")).toHaveText("A");
 
   await openAccountMenu(page);
   await page.getByRole("menuitem", { name: "Đăng xuất" }).click();
@@ -209,7 +209,7 @@ test("a new user logs in with the temporary password and must change it", async 
   await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
   await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
   await expect(binh).toHaveURL(/\/videos$/);
-  await expect(binh.locator("header .ant-avatar")).toHaveText("B");
+  await expect(binh.getByTestId("account").locator(".ant-avatar")).toHaveText("B");
 });
 
 test("disable, re-enable, temporary password and sign out of all devices", async ({ page, browser }) => {
@@ -275,7 +275,7 @@ test("change password and rename from the account menu", async ({ page }) => {
   await renameDialog.getByLabel("Tên").fill("  Lê Minh Châu ");
   await renameDialog.getByRole("button", { name: "Lưu" }).click();
   await expect(page.getByTestId("header-name")).toHaveText("Lê Minh Châu");
-  await expect(page.locator("header .ant-avatar")).toHaveText("C");
+  await expect(page.getByTestId("account").locator(".ant-avatar")).toHaveText("C");
 
   await openAccountMenu(page);
   await page.getByRole("menuitem", { name: "Đổi mật khẩu" }).click();
