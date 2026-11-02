@@ -67,7 +67,11 @@ export function PublishButton({ video }: { video: VideoDetail }) {
       >
         {video.fanpages.length === 0 ? (
           <Typography.Text>
-            Chưa có Fanpage nào đang dùng. Vào <Link href="/fanpages">Kết nối Fanpage</Link> để thêm.
+            Chưa có Fanpage nào đang dùng. Vào{" "}
+            <Link prefetch={false} href="/fanpages">
+              Kết nối Fanpage
+            </Link>{" "}
+            để thêm.
           </Typography.Text>
         ) : (
           <Flex vertical gap={8}>

@@ -47,6 +47,9 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
 - **One origin is kept:** the worker forwards `/api/*` to `API_URL` (the Coolify api domain),
   baked in at build time. The browser only talks to the web domain, so the session cookie stays
   first-party. The api's own domain is public too; the `Origin` check still guards it.
+- **Static assets:** the worker does not run in front of them, so `next.config.ts` headers do not
+  apply; [web/public/_headers](../web/public/_headers) makes `/_next/static/*` immutable for a year
+  (Cloudflare's default is `max-age=0, must-revalidate`, one revalidation per file per page load).
 - **Delivery:** [.github/workflows/ci-cd.yml](../.github/workflows/ci-cd.yml). Every PR
   runs api pytest with FFmpeg (a skipped test fails the job), both Docker image builds and the
   render parity test inside the worker image, worker pytest with FFmpeg, and web typecheck + E2E

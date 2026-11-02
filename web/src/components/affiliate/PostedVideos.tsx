@@ -66,7 +66,9 @@ export default function PostedVideos() {
       key: "video",
       render: (_, video) => (
         <Flex vertical gap={2}>
-          <Link href={`/videos/${video.id}`}>{video.title}</Link>
+          <Link prefetch={false} href={`/videos/${video.id}`}>
+            {video.title}
+          </Link>
           <Typography.Text type="secondary">{formatDateTime(video.published_at)}</Typography.Text>
           {video.reel_url && (
             <a href={video.reel_url} target="_blank" rel="noreferrer">

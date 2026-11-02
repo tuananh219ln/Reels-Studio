@@ -41,6 +41,7 @@ import {
   type VideoRow,
 } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import { usePolling } from "@/lib/polling";
 
 const REFRESH_MS = 5000;
 const VIEW_KEY = "reels-studio.videos-view";
@@ -103,13 +104,10 @@ export default function VideosPage() {
 
   useEffect(() => {
     const timer = setTimeout(() => reload(query), 250);
-    // Statuses change in the worker: keep the list current without a reload.
-    const refresh = setInterval(() => reload(query, true), REFRESH_MS);
-    return () => {
-      clearTimeout(timer);
-      clearInterval(refresh);
-    };
+    return () => clearTimeout(timer);
   }, [query, reload]);
+  // Statuses change in the worker: keep the list current without a reload.
+  usePolling(() => reload(query, true), REFRESH_MS);
 
   const match = STATUS_FILTERS.find((item) => item.value === status)!.match;
   const shown = (rows ?? []).filter((row) => match(row) && (!mine || row.created_by === me.name));
@@ -224,7 +222,13 @@ function Thumbnail({ row, width }: { row: VideoRow; width?: number }) {
 function VideoCard({ row }: { row: VideoRow }) {
   const name = row.title || row.topic;
   return (
-    <Link href={`/videos/${row.id}`} aria-label={name} data-testid="video-card" style={{ display: "flex", flex: 1 }}>
+    <Link
+      prefetch={false}
+      href={`/videos/${row.id}`}
+      aria-label={name}
+      data-testid="video-card"
+      style={{ display: "flex", flex: 1 }}
+    >
       {/* Every card in a row is as tall as the tallest, and its date sits at the bottom. */}
       <Card
         hoverable
@@ -267,7 +271,7 @@ function VideoTable({ rows }: { rows: VideoRow[] }) {
               <Flex align="center" gap={12}>
                 <Thumbnail row={row} width={36} />
                 <Flex vertical style={{ minWidth: 0 }}>
-                  <Link href={`/videos/${row.id}`} onClick={(event) => event.stopPropagation()}>
+                  <Link prefetch={false} href={`/videos/${row.id}`} onClick={(event) => event.stopPropagation()}>
                     <Typography.Text strong ellipsis style={{ maxWidth: 520 }}>
                       {row.title || row.topic}
                     </Typography.Text>
@@ -376,11 +380,18 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
             >
               {llm.problem ? (
                 <>
-                  {llm.problem}. <Link href="/settings/ai">Mở Cài đặt › Mô hình AI</Link>
+                  {llm.problem}.{" "}
+                  <Link prefetch={false} href="/settings/ai">
+                    Mở Cài đặt › Mô hình AI
+                  </Link>
                 </>
               ) : (
                 <>
-                  Viết bằng: {llm.name} · {llm.model} (<Link href="/settings/ai">đổi trong Cài đặt</Link>)
+                  Viết bằng: {llm.name} · {llm.model} (
+                  <Link prefetch={false} href="/settings/ai">
+                    đổi trong Cài đặt
+                  </Link>
+                  )
                 </>
               )}
             </Typography.Paragraph>

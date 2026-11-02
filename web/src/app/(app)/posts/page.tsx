@@ -9,6 +9,7 @@ import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
 import PostActions from "@/components/video/PostActions";
+import { usePolling } from "@/lib/polling";
 
 /** The reels posted, scheduled, cancelled or deleted from their video page or here, latest time first. */
 export default function PostsPage() {
@@ -31,19 +32,19 @@ export default function PostsPage() {
     load();
   }, [load]);
 
-  // A cancel or delete runs in the worker, so its row changes a few seconds after the button.
+  // A check, cancel or delete runs in the worker, so its row changes a few seconds after the button.
   const busy = posts.some((post) => post.busy);
-  useEffect(() => {
-    if (!busy) return;
-    const timer = setInterval(load, 3000);
-    return () => clearInterval(timer);
-  }, [busy, load]);
+  usePolling(() => (busy ? load() : Promise.resolve()), 3000);
 
   const columns: ColumnsType<PostRow> = [
     {
       title: "Video",
       key: "video",
-      render: (_, post) => <Link href={`/videos/${post.video_id}`}>{post.title}</Link>,
+      render: (_, post) => (
+        <Link prefetch={false} href={`/videos/${post.video_id}`}>
+          {post.title}
+        </Link>
+      ),
     },
     { title: "Fanpage", key: "fanpage", width: 220, render: (_, post) => post.fanpage ?? "—" },
     {
@@ -94,7 +95,7 @@ export default function PostsPage() {
           `${count("scheduled")} bài đã hẹn lịch · ${count("published")} bài đã đăng, giờ mới nhất trước.`
         }
         actions={
-          <Link href="/calendar">
+          <Link prefetch={false} href="/calendar">
             <Button icon={<CalendarOutlined />}>Xem dạng lịch</Button>
           </Link>
         }

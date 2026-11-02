@@ -34,27 +34,27 @@ def spoken_text(voice_text: str) -> str:
     return " ".join(voice_text.split())
 
 
-# Tempo applied with FFmpeg to the MP3 ElevenLabs returns, for each speed preset (video_options.SPEEDS).
+# The reading speed is a tempo factor applied with FFmpeg to the MP3 ElevenLabs returns (the "Tốc độ đọc" slider).
 # ElevenLabs' own voice_settings.speed is not used: the default model, eleven_v3, ignores it.
-SPEEDS = {"slow": 0.9, "normal": 1.0, "fast": 1.1}
+MIN_SPEED, MAX_SPEED, SPEED_STEP = 0.7, 1.3, 0.05
 
 
-def voice_signature(voice_text: str, voice_id: str | None = None, speed: str = "normal") -> str:
-    """What one narration MP3 is made from. The speed joins only when it is not the normal one, so narration
-    made before speeds existed stays valid; it joins as "tempo:<speed>", so narration made while the speed was
-    left to ElevenLabs (and ignored by eleven_v3) is made again."""
+def voice_signature(voice_text: str, voice_id: str | None = None, speed: float = 1.0) -> str:
+    """What one narration MP3 is made from. The speed joins only when it is not 1, so narration made before
+    speeds existed stays valid; it joins as "tempo:<factor>", so narration made at an old preset ("tempo:fast")
+    or while the speed was left to ElevenLabs (and ignored by eleven_v3) is made again."""
     data = [voice_id or config.voice_id(), config.voice_model(), spoken_text(voice_text)]
-    if speed != "normal":
-        data.append(f"tempo:{speed}")
+    if speed != 1.0:
+        data.append(f"tempo:{speed:g}")
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
 NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › Nguồn tư liệu"
 
 
-def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: str = "normal") -> bytes:
-    """The narration as MP3 bytes, in the given voice (the server's default when None) and speed (applied here
-    with FFmpeg, see SPEEDS). `key` is the
+def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: float = 1.0) -> bytes:
+    """The narration as MP3 bytes, in the given voice (the server's default when None) and speed (a tempo
+    factor applied here with FFmpeg). `key` is the
     ElevenLabs key in use (source_keys: pasted on Cài đặt › Nguồn tư liệu, else the .env one)."""
     if not key:
         raise TtsError(NO_KEY.format("không tạo được lời đọc"))
@@ -85,9 +85,9 @@ def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: st
     return change_speed(data, speed)
 
 
-def change_speed(data: bytes, speed: str) -> bytes:
-    """The MP3 sped up or slowed down to the preset, keeping the pitch (FFmpeg atempo); unchanged when normal."""
-    if speed == "normal":
+def change_speed(data: bytes, speed: float) -> bytes:
+    """The MP3 sped up or slowed down by the factor, keeping the pitch (FFmpeg atempo); unchanged at 1."""
+    if speed == 1.0:
         return data
     with tempfile.TemporaryDirectory() as folder:
         source, output = Path(folder) / "voice.mp3", Path(folder) / "voice-tempo.mp3"
@@ -102,7 +102,7 @@ def change_speed(data: bytes, speed: str) -> bytes:
                     "-i",
                     str(source),
                     "-filter:a",
-                    f"atempo={SPEEDS[speed]}",
+                    f"atempo={speed:g}",
                     "-c:a",
                     "libmp3lame",
                     "-b:a",

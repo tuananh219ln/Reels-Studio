@@ -43,6 +43,7 @@ import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
 import VideoPreview from "@/components/video/VideoPreview";
 import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
+import { usePolling } from "@/lib/polling";
 import { usePresence } from "@/lib/presence";
 import { COLORS } from "@/app/theme";
 
@@ -130,9 +131,8 @@ export default function VideoPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
-    const timer = setInterval(load, REFRESH_MS);
-    return () => clearInterval(timer);
   }, [load]);
+  usePolling(load, REFRESH_MS);
 
   const reportFailed = useCallback((field: string, bad: boolean) => {
     if (bad) {
@@ -254,7 +254,17 @@ export default function VideoPage() {
   }
 
   if (loadError) {
-    return <Result status="404" title={loadError} extra={<Link href="/videos">Về danh sách video</Link>} />;
+    return (
+      <Result
+        status="404"
+        title={loadError}
+        extra={
+          <Link prefetch={false} href="/videos">
+            Về danh sách video
+          </Link>
+        }
+      />
+    );
   }
   if (!video) {
     return (
@@ -281,7 +291,7 @@ export default function VideoPage() {
 
   return (
     <EditorContext.Provider value={editor}>
-      <Link href="/videos" style={{ fontSize: 13 }}>
+      <Link prefetch={false} href="/videos" style={{ fontSize: 13 }}>
         <ArrowLeftOutlined /> Danh sách video
       </Link>
       <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ margin: "6px 0 16px" }}>
