@@ -1,0 +1,46 @@
+name: Claude ask
+
+# Ask Claude about the project from an issue or PR comment: write `@claude` followed by the question.
+# Only someone with write access to the repo can call it, because each run is a paid API call. It
+# only reads the repo and answers in a comment: the token cannot push, and Edit/Write are denied.
+# Uses the same secret as claude-review.yml (ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN).
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: claude-ask-${{ github.event.comment.id }}
+
+jobs:
+  answer:
+    # A comment that mentions @claude (and is not an /ai-review request), from the owner, a member
+    # or a collaborator.
+    if: >-
+      contains(github.event.comment.body, '@claude') &&
+      !startsWith(github.event.comment.body, '/ai-review') &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+      id-token: write
+    env:
+      HAS_CREDENTIAL: ${{ secrets.ANTHROPIC_API_KEY != '' || secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
+    steps:
+      - if: env.HAS_CREDENTIAL != 'true'
+        run: echo "::error::No ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN secret, so Claude cannot answer." && exit 1
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          trigger_phrase: "@claude"
+          claude_args: |
+            --max-turns 20
+            --disallowedTools "Edit,Write,MultiEdit,NotebookEdit"
+            --append-system-prompt "You answer questions about Reels Studio in an issue or PR comment. Always reply in Vietnamese. The project rules are in AGENTS.md and the docs in docs/ (start with docs/decisions.md, docs/architecture.md, docs/project.md); read the docs and code the question touches before answering, and cite files as path:line. You only read and answer: never edit files, commit, push, open branches or PRs, or start other workflows. If the question asks for a code change, describe the change and where it goes instead. Say plainly when you are not sure or the repo does not say. Keep the answer short."

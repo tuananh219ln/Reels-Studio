@@ -44,8 +44,9 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
 | Environment, Docker, deployment | [docs/deployment.md](docs/deployment.md) |
 | Why an early feature was built a certain way | [docs/specs/](docs/specs/) (history, not kept up to date) |
 
-Ideas and known bugs go in [backlog.md](backlog.md) (in Vietnamese, with the date added). Remove an
-item when it ships.
+Ideas, features and known bugs are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues), opened from the forms in
+[.github/ISSUE_TEMPLATE/](.github/ISSUE_TEMPLATE/) (Lỗi, Tính năng, Ý tưởng), written in Vietnamese.
+A PR that ships one says `Closes #<number>` in its description.
 
 ## Layout
 
@@ -127,3 +128,6 @@ a push to `main` deploys only after everything passes.
 - An AI review runs on a PR only when someone with write access comments `/ai-review`
   ([claude-review.yml](.github/workflows/claude-review.yml)); each run costs API tokens. Agents
   never post that comment themselves. Answer or fix each point it raises.
+- A comment mentioning `@claude` on an issue or PR, from someone with write access, gets a read-only
+  answer about the project ([claude-ask.yml](.github/workflows/claude-ask.yml)); each run costs
+  API tokens. Agents never post such a comment themselves.

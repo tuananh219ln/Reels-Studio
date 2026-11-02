@@ -19,7 +19,7 @@ from .uploads import MAX_MUSIC_BYTES, UploadRejected, check_mp3, file_label, rea
 
 router = APIRouter(prefix="/api/music")
 
-# Fixed lists: the topics follow the channel's topic matrix (backlog), "chung" fits any topic.
+# Fixed lists: the topics follow the channel's topic matrix (issue #42), "chung" fits any topic.
 TOPICS = ["tuổi thọ", "tim mạch", "máu não", "xương khớp", "gan", "da tóc", "giấc ngủ", "giảm cân", "chung"]
 MOODS = ["nhẹ nhàng", "piano", "thư giãn", "truyền cảm hứng", "vui tươi", "trầm lắng"]
 MAX_NAME_LENGTH = 200

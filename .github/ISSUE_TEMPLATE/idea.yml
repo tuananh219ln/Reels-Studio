@@ -1,0 +1,23 @@
+name: Ý tưởng
+description: Ý tưởng chưa chín, cần bàn trước khi thành tính năng.
+title: "[Ý tưởng] "
+labels: ["idea"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Ý tưởng
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Vì sao đáng làm
+      description: Lợi gì cho kênh hoặc cho đội.
+    validations:
+      required: true
+  - type: textarea
+    id: questions
+    attributes:
+      label: Câu hỏi còn mở
+      description: Cần trả lời gì trước khi quyết định làm.

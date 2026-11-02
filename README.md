@@ -20,7 +20,6 @@ api/              # FastAPI: đăng nhập, phiên, quản lý người dùng (P
 web/              # Next.js + Ant Design: giao diện web
 docker-compose.yml  # Postgres cho máy dev
 
-backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
 ```
 
 ## Cách làm việc với AI
@@ -28,7 +27,8 @@ backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
 - Mọi AI agent đọc `AGENTS.md`: cách làm (gọn, không subagent), lệnh lint/test, quy tắc dễ sai,
   quy trình git. Sửa rules thì sửa ở đó, không tạo bản riêng cho từng AI.
 - Tài liệu dự án trong `docs/` được cập nhật cùng PR khi hành vi thay đổi.
-- Tính năng lớn ghi kế hoạch ngắn trong mô tả PR. Ý tưởng và lỗi đã biết ghi trong `backlog.md`.
+- Tính năng lớn ghi kế hoạch ngắn trong mô tả PR. Ý tưởng, tính năng và lỗi
+  ghi thành [Issue](https://github.com/tuananh219ln/Reels-Studio/issues) theo mẫu có sẵn (Lỗi, Tính năng, Ý tưởng).
 
 **Kiểm soát code do AI viết:**
 
@@ -41,6 +41,10 @@ backlog.md        # Ý tưởng tính năng và lỗi (làm sau)
   comment `/ai-review` trên PR đó (mỗi lần chạy tốn phí API); kết quả là comment tiếng Việt. Cần
   secret `ANTHROPIC_API_KEY` (hoặc `CLAUDE_CODE_OAUTH_TOKEN` từ `claude setup-token`) trong
   Settings → Secrets and variables → Actions. Workflow kiểu này chỉ chạy khi file đã nằm trên `main`.
+- `.github/workflows/claude-ask.yml`: hỏi AI về dự án ngay trong issue hoặc PR bằng comment có
+  `@claude` (ví dụ `@claude lỗi này nằm ở file nào?`). Chỉ người có quyền ghi gọi được, mỗi lần
+  tốn phí API. Claude chỉ đọc repo và trả lời bằng comment tiếng Việt, không sửa code hay tạo PR.
+  Dùng chung secret với `claude-review.yml`.
 
 ## Chạy web app trên máy (localhost)
 
