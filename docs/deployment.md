@@ -110,6 +110,15 @@ themselves). The Graph API version is the default in `config.facebook_api_url()`
   jobs, one line per Claude call with token counts, and every job failure with its detail. A worker
   that starts while the database is unreachable waits and logs `Database unavailable`; once it holds
   the lock, losing the database or its lock connection makes it exit, and Coolify restarts it.
+- **Production data on a dev machine:** `docker/pull-prod-db.sh <ssh-target> <postgres-container>`
+  (bash; on Windows use Git Bash or WSL) dumps the production database over SSH (read only) into
+  `data/prod-dumps/` and, after you type `reels` to confirm, replaces the local dev database
+  `reels` with it; `--yes` skips the question. The container name is on the Coolify database page.
+  Then run `alembic upgrade head` in `api/`. The copy has production's accounts and passwords;
+  it cancels production's unfinished jobs; saved API keys and Fanpage tokens show as unreadable,
+  because their key file stays in production's storage folder; video files and images are not
+  copied. Only a person runs it, never an agent. The dump holds real member data: keep it on your
+  machine.
 - **Stuck or failed jobs** need no server action: jobs over the time limit are killed automatically
   (see [architecture.md](architecture.md#video-pipeline)),
   and members retry failed jobs from the video page. `/jobs` lists every job with its error and
