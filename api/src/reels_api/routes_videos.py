@@ -47,13 +47,17 @@ from .uploads import (
 )
 from .videos import (
     JOB_KINDS,
+    OPEN_POST_STATUSES,
+    active_job,
     ensure_unlocked,
     list_payload,
     lock_scene,
     lock_video,
     made_voice_seconds,
     new_key,
-    publication_of,
+    pending_publication,
+    posted_fanpage_ids,
+    publications_of,
     refresh_thumbnail,
     render_signature,
     run_checks,
@@ -158,6 +162,7 @@ def _enqueue(
     retry_of: Job | None = None,
     scene_id: int | None = None,
     image_provider: str | None = None,
+    publication_id: int | None = None,
 ) -> None:
     """Callers hold the video lock; the partial unique index is the last guard against a second job."""
     ensure_unlocked(db, video)
@@ -170,6 +175,7 @@ def _enqueue(
             retry_of_id=retry_of.id if retry_of else None,
             scene_id=scene_id,
             image_provider=image_provider,
+            publication_id=publication_id,
         )
     )
     try:
@@ -376,9 +382,6 @@ def publish(
     title, scenes = split_scenes(db, video)
     if video.rendered_signature != render_signature(video, title, scenes):
         raise ApiError(409, "mp4_outdated", "MP4 chưa cập nhật theo bản sửa, hãy render lại rồi đăng")
-    post = publication_of(db, video.id)
-    if post is not None and post.status != "pending":
-        raise ApiError(409, "already_published", "Video này đã đăng hoặc đã hẹn giờ trên Facebook")
     when = body.scheduled_at
     if when is not None:
         if when.tzinfo is None:
@@ -388,6 +391,11 @@ def publish(
     fanpage = db.get(Fanpage, body.fanpage_id)
     if fanpage is None or not fanpage.active:
         raise invalid("Hãy chọn một Fanpage đang dùng")
+    if fanpage.id in posted_fanpage_ids(video, publications_of(db, video.id)):
+        raise ApiError(
+            409, "already_published", "Bản MP4 này đang có trên Fanpage đó, hãy render bản mới hoặc xóa bài cũ"
+        )
+    post = pending_publication(db, video.id)
     if post is None:
         post = Publication(video_id=video.id, platform="facebook", created_by_id=me.user_id)
         db.add(post)
@@ -396,6 +404,30 @@ def publish(
         raise ApiError(409, "other_fanpage", "Video đã tải lên Fanpage khác, hãy đăng lại trên Fanpage đó")
     post.fanpage_id, post.scheduled_at, post.created_by_id = fanpage.id, when, me.user_id
     _enqueue(db, video, "publish", me)
+    return _saved(db, video)
+
+
+@router.post("/posts/{post_id}/take-down")
+def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Hủy đăng" and "Xóa". A post Facebook never received ends here; any other goes through the worker, which alone
+    calls Facebook. Which of the two it ends as is decided there, by whether the reel really went live."""
+    video_id = db.scalar(select(Publication.video_id).where(Publication.id == post_id))
+    if video_id is None:
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
+    video = lock_video(db, video_id)
+    post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
+    if post.status not in OPEN_POST_STATUSES:
+        raise ApiError(409, "post_closed", "Bài này đã hủy hoặc đã xóa")
+    job = active_job(db, video.id)
+    if job is not None and job.kind == "publish" and job.status == "queued":
+        job.status, job.finished_at = "cancelled", now()
+        db.flush()  # before the insert below: one active job per video
+    elif job is not None:
+        raise ApiError(409, "video_locked", "Video đang có job chạy, hãy đợi xong rồi hủy hoặc xóa bài")
+    if post.remote_id is None:
+        post.status, post.closed_at, post.closed_by_id = "cancelled", now(), me.user_id
+    else:
+        _enqueue(db, video, "unpublish", me, publication_id=post.id)
     return _saved(db, video)
 
 
@@ -1211,7 +1243,16 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
     ensure_unlocked(db, video)
     if job.kind == "render":
         _ensure_renderable(db, video)
-    _enqueue(db, video, job.kind, me, retry_of=job, scene_id=job.scene_id, image_provider=job.image_provider)
+    _enqueue(
+        db,
+        video,
+        job.kind,
+        me,
+        retry_of=job,
+        scene_id=job.scene_id,
+        image_provider=job.image_provider,
+        publication_id=job.publication_id,
+    )
     return _saved(db, video)
 
 

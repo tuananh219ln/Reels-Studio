@@ -60,8 +60,10 @@ app replaces CapCut, so the output is a finished MP4.
    script, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
 8. **Facebook posting (built):** members connect Fanpages by pasting a Page token, then post a
-   rendered video as a Reel now or at a set time. "Bài đăng" lists posted and scheduled videos and
-   "Lịch đăng bài" shows them in a month view, both in Vietnam time.
+   rendered video as a Reel now or at a set time, post a new render again, cancel a post not yet
+   public and delete a public one from Facebook. "Bài đăng" lists posted, scheduled, cancelled and
+   deleted videos, and "Lịch đăng bài" shows the posted and scheduled ones in a month view, both in
+   Vietnam time.
 
 ---
 

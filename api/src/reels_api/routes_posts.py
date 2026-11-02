@@ -1,5 +1,5 @@
-"""The reels on Facebook and those waiting for their time, for the "Bài đăng" list and the "Lịch đăng bài" calendar.
-Read only: a video is reviewed and posted from its own page."""
+"""The reels on Facebook, those waiting for their time, and those cancelled or deleted, for the "Bài đăng" list and
+the "Lịch đăng bài" calendar. Read only: a video is reviewed and posted from its own page."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session as DbSession
 from .db import get_db
 from .models import Publication, Session, Video
 from .sessions import current_member
-from .videos import live_at, publication_payload, split_scenes, title_of
+from .videos import active_job, live_at, publication_payload, split_scenes, title_of
 
 router = APIRouter(prefix="/api/posts")
 
@@ -19,8 +19,7 @@ def _payload(db: DbSession, video: Video, post: Publication) -> dict:
         **publication_payload(post),
         "video_id": video.id,
         "title": title_of(video, title) or video.topic,
-        "at": live_at(post).isoformat(),
-        "created_by": post.created_by.name,
+        "busy": active_job(db, video.id) is not None,
     }
 
 
@@ -29,6 +28,9 @@ def list_posts(me: Session = Depends(current_member), db: DbSession = Depends(ge
     rows = db.execute(
         select(Video, Publication)
         .join(Publication)
-        .where(Publication.platform == "facebook", Publication.status.in_(("scheduled", "published")))
+        .where(
+            Publication.platform == "facebook",
+            Publication.status.in_(("scheduled", "published", "cancelled", "deleted")),
+        )
     )
     return [_payload(db, video, post) for video, post in sorted(rows, key=lambda row: live_at(row[1]), reverse=True)]

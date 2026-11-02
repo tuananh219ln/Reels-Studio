@@ -30,7 +30,17 @@ export type UserRow = {
 };
 
 export type VideoStatus =
-  "draft" | "queued" | "writing" | "imaging" | "finding" | "voicing" | "rendering" | "publishing" | "done" | "failed";
+  | "draft"
+  | "queued"
+  | "writing"
+  | "imaging"
+  | "finding"
+  | "voicing"
+  | "rendering"
+  | "publishing"
+  | "unpublishing"
+  | "done"
+  | "failed";
 
 export type VideoRow = {
   id: number;
@@ -47,7 +57,7 @@ export type VideoRow = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish" | "image" | "photos" | "voice";
+  kind: "script" | "clone" | "render" | "publish" | "unpublish" | "image" | "photos" | "voice";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";
@@ -118,13 +128,12 @@ export type VideoDetail = VideoRow & {
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages. */
   fanpages: { id: number; name: string }[];
-  /** The post to the Facebook Page; `pending` until the publish job has finished. */
-  publication: {
-    status: "pending" | "scheduled" | "published";
-    fanpage: string | null;
-    scheduled_at: string | null;
-    url: string | null;
-  } | null;
+  /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
+  publication: Post | null;
+  /** Every post of the video, newest first, cancelled and deleted ones included. */
+  publications: Post[];
+  /** The Pages that already hold the current MP4. */
+  posted_fanpage_ids: number[];
   knowledge_topic: string | null;
   /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
   script_by: string | null;
@@ -294,17 +303,25 @@ export type AffiliateVideo = {
   products: Pick<AffiliateProduct, "id" | "name" | "url" | "status" | "problems">[];
 };
 
-/** A reel on Facebook, or waiting there for its time. */
-export type PostRow = {
-  video_id: number;
-  title: string;
-  status: "scheduled" | "published";
+export type PostStatus = "pending" | "scheduled" | "published" | "cancelled" | "deleted";
+
+/** One post of a video to a Fanpage. */
+export type Post = {
+  id: number;
+  status: PostStatus;
   fanpage: string | null;
+  scheduled_at: string | null;
   /** When it went live, or goes live. */
   at: string;
   url: string | null;
   created_by: string;
+  /** When and by whom it was cancelled or deleted. */
+  closed_at: string | null;
+  closed_by: string | null;
 };
+
+/** A post in the "Bài đăng" list; `busy`: its video has a job queued or running. */
+export type PostRow = Post & { video_id: number; title: string; busy: boolean };
 
 export type JobRow = {
   id: number;

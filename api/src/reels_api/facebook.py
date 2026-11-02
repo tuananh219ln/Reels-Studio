@@ -160,6 +160,25 @@ def reel_status(page: Page, video_id: str) -> dict | None:
     return reply["status"]
 
 
+def delete_reel(page: Page, video_id: str) -> None:
+    """Take a reel off the Page, live or waiting for its time. A reel Facebook no longer has is already gone."""
+    query = urllib.parse.urlencode({"access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(video_id, safe='')}?{query}"
+    try:
+        reply = _send(urllib.request.Request(url, method="DELETE"), REQUEST_TIMEOUT)
+    except FacebookError as err:
+        if err.status == 404:
+            return
+        if 400 <= err.status < 500 and err.status != 429:
+            raise FacebookError(
+                "Facebook từ chối xóa bài này, hãy kiểm tra token trong Kết nối Fanpage hoặc xóa trong Meta Business Suite",
+                err.detail,
+            ) from None
+        raise
+    if not reply.get("success"):
+        raise FacebookError("Facebook chưa xóa bài này, hãy xem Page rồi thử lại", str(reply))
+
+
 def is_live(status: dict) -> bool:
     """Published, or accepted for the scheduled time."""
     return status.get("publishing_phase", {}).get("publish_status") in ("published", "scheduled")

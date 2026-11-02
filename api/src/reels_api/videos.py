@@ -33,6 +33,7 @@ STATUS_LABELS = {
     "voicing": "Đang tạo giọng",
     "rendering": "Đang render",
     "publishing": "Đang đăng",
+    "unpublishing": "Đang gỡ bài",
     "done": "Xong",
     "failed": "Lỗi",
 }
@@ -42,10 +43,14 @@ JOB_KINDS = {
     "clone": "Nhân bản",
     "render": "Render",
     "publish": "Đăng Facebook",
+    "unpublish": "Gỡ bài Facebook",
     "image": "Tạo ảnh AI",
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
 }
+# What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
+LIVE_POST_STATUSES = ("scheduled", "published")
+OPEN_POST_STATUSES = ("pending", *LIVE_POST_STATUSES)
 # A line of on-screen text read aloud already pauses after one of these.
 PAUSE_ENDS = (".", "!", "?", "…", ":", ",", ";")
 # "2." or "2)" before a scene's text: read as "hai chấm". "2.5 lít" is a quantity, not a number in a list.
@@ -87,6 +92,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang render, chưa lưu")
     if job.kind == "publish":
         raise ApiError(409, "video_locked", "Video đang đăng lên Facebook, chưa lưu")
+    if job.kind == "unpublish":
+        raise ApiError(409, "video_locked", "Video đang gỡ bài trên Facebook, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
     raise ApiError(409, "video_locked", "Video đang viết kịch bản, chưa lưu")
@@ -255,6 +262,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
         code = {
             "render": "rendering",
             "publish": "publishing",
+            "unpublish": "unpublishing",
             "image": "imaging",
             "photos": "finding",
             "voice": "voicing",
@@ -287,8 +295,29 @@ def _job_payload(job: Job | None) -> dict | None:
     }
 
 
+def publications_of(db: DbSession, video_id: int) -> list[Publication]:
+    """Every post of the video, newest first, cancelled and deleted ones included."""
+    return list(
+        db.scalars(
+            select(Publication)
+            .where(Publication.video_id == video_id, Publication.platform == "facebook")
+            .order_by(Publication.id.desc())
+        )
+    )
+
+
 def publication_of(db: DbSession, video_id: int) -> Publication | None:
-    return db.scalar(select(Publication).where(Publication.video_id == video_id, Publication.platform == "facebook"))
+    """The newest post still on its way or on the platform."""
+    return next((post for post in publications_of(db, video_id) if post.status in OPEN_POST_STATUSES), None)
+
+
+def pending_publication(db: DbSession, video_id: int) -> Publication | None:
+    """The post the publish job works on; at most one, by the partial unique index."""
+    return next((post for post in publications_of(db, video_id) if post.status == "pending"), None)
+
+
+def published_publication(db: DbSession, video_id: int) -> Publication | None:
+    return next((post for post in publications_of(db, video_id) if is_published(post)), None)
 
 
 def is_published(post: Publication) -> bool:
@@ -300,7 +329,8 @@ def is_published(post: Publication) -> bool:
 
 def live_at(post: Publication) -> datetime:
     # The publish job stamps published_at when the upload ends, which for a scheduled reel is before it goes live.
-    return post.scheduled_at or post.published_at
+    # A post cancelled before its upload has neither.
+    return post.scheduled_at or post.published_at or post.created_at
 
 
 def publication_payload(post: Publication | None) -> dict | None:
@@ -308,11 +338,25 @@ def publication_payload(post: Publication | None) -> dict | None:
         return None
     published = is_published(post)
     return {
+        "id": post.id,
         "status": "published" if published else post.status,
         "fanpage": post.fanpage.name if post.fanpage else None,
         "scheduled_at": post.scheduled_at.isoformat() if post.scheduled_at else None,
+        "at": live_at(post).isoformat(),
         "url": facebook.reel_url(post.remote_id) if published and post.remote_id else None,
+        "created_by": post.created_by.name,
+        "closed_at": post.closed_at.isoformat() if post.closed_at else None,
+        "closed_by": post.closed_by.name if post.closed_by else None,
     }
+
+
+def posted_fanpage_ids(video: Video, posts: list[Publication]) -> list[int]:
+    """The Pages that hold the current MP4, so the same file is not posted to them again."""
+    return [
+        post.fanpage_id
+        for post in posts
+        if post.status in LIVE_POST_STATUSES and post.remote_mp4_key == video.mp4_key and post.fanpage_id is not None
+    ]
 
 
 def _version(*parts: object) -> str:
@@ -408,6 +452,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
     failed = _last_failed(db, video.id)
     checks = run_checks(db, video, title, scenes) if video.has_script else Checks()
     topic = knowledge.topic_of(db, video)
+    posts = publications_of(db, video.id)
     payload = {
         "id": video.id,
         "topic": video.topic,
@@ -449,6 +494,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "voice_enabled": video.voice_enabled,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id)),
+        "publications": [publication_payload(post) for post in posts],
+        "posted_fanpage_ids": posted_fanpage_ids(video, posts),
         "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,
         "script_by": script_writer(db, video.id) if video.has_script else None,

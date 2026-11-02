@@ -36,9 +36,11 @@ from .tts import TtsError, synthesize, voice_signature
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .video_options import render_options, voice_id, voice_speed
 from .videos import (
+    OPEN_POST_STATUSES,
+    is_published,
     made_voice_seconds,
     new_key,
-    publication_of,
+    pending_publication,
     refresh_thumbnail,
     render_signature,
     run_checks,
@@ -84,6 +86,8 @@ def run_job(
                 run_image_job(db, job, storage)
             elif job.kind == "publish":
                 run_publish_job(db, job, storage)
+            elif job.kind == "unpublish":
+                run_unpublish_job(db, job)
             elif job.kind == "voice":
                 run_voice_job(db, job, storage)
             elif job.kind == "photos":
@@ -368,8 +372,8 @@ SETTLE_TIME = timedelta(minutes=30)
 
 def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     video = db.get(Video, job.video_id)
-    post = publication_of(db, video.id)
-    if post is None or post.status != "pending":
+    post = pending_publication(db, video.id)
+    if post is None:
         return
     try:
         # An attempt before this one may have reached Facebook whatever it reported, so its reel decides first.
@@ -401,6 +405,27 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     post.published_at = now()
     db.commit()
     log.info("Job %s posted video %s to Facebook as %s", job.id, video.id, post.remote_id)
+
+
+def run_unpublish_job(db: DbSession, job: Job) -> None:
+    """Facebook publishes a scheduled reel by itself, so stopping one means deleting it there. Facebook's own answer
+    says whether the post was ever public: "Đã hủy" must not stand for a reel people saw."""
+    post = db.get(Publication, job.publication_id)
+    if post is None or post.status not in OPEN_POST_STATUSES:
+        return
+    went_live = is_published(post)
+    try:
+        page = fanpages.load_page(db, post.fanpage_id)
+        status = facebook.reel_status(page, post.remote_id)
+        if status is not None:
+            went_live = went_live or (facebook.is_live(status) and not facebook.is_scheduled(status))
+            facebook.delete_reel(page, post.remote_id)
+    except FacebookError as err:
+        raise JobFailure(err.message, err.detail) from None
+    post.status = "deleted" if went_live else "cancelled"
+    post.closed_at, post.closed_by_id = now(), job.created_by_id
+    db.commit()
+    log.info("Job %s took reel %s off Facebook as %s", job.id, post.remote_id, post.status)
 
 
 def _finish_reel(db: DbSession, page: facebook.Page, video: Video, post: Publication) -> None:

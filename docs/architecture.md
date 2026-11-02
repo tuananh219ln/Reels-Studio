@@ -49,7 +49,7 @@ Workers (see [deployment.md](deployment.md#production)).
 |---|---|
 | `web` | Next.js UI. Calls the API only. |
 | `api` | FastAPI app ([api/](../api/)). Auth, videos, scenes, photo and MP3 uploads, the music library, stock search and picker for scene photos (Pixabay, Pexels, Openverse), previews, file serving, `/knowledge` settings, the job log. Enqueues jobs. |
-| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude), AI photos for scenes that have none (Gemini), renders (ElevenLabs narration, then FFmpeg), narration alone for the preview ("Tạo giọng thật", reused by the next render), and posting to the Facebook Page. |
+| worker | Same `reels_api` package, started as `python -m reels_api worker`. Runs jobs: script writing and cloning (Claude), AI photos for scenes that have none (Gemini), renders (ElevenLabs narration, then FFmpeg), narration alone for the preview ("Tạo giọng thật", reused by the next render), and posting to the Facebook Page and taking posts off it. |
 | `postgres` | Relational data and the job queue. |
 | storage | One folder of uploaded photos, MP3s (music, narration, and library tracks under `music/`), thumbnails, and MP4s, shared by the api and the worker (`STORAGE_DIR`). |
 
@@ -208,8 +208,8 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from, and where a member dragged its text box (`text_x`, `text_y`, the box centre; null: the video's place in `videos.options.text_position`, else the template's). Whether its photo is the app's unchecked pick (`image_auto`). |
 | `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last. |
-| `publications` | A video posted to a platform, one row per video and platform (only `facebook` today): the Fanpage, pending, scheduled, or published, the scheduled time, the platform's id of the post, who started it. |
-| `jobs` | Belongs to a video; kind (script, clone, render, publish, image, photos: the "Tự tìm ảnh" queued after a script or clone; voice: "Tạo giọng thật" in the preview, the narration a render would make and nothing else; an image job may name one scene, `scene_id`, and its provider, `image_provider`), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of LLM calls (`claude_calls`, named for the first provider) and of Gemini image calls, the provider and model a script or clone job wrote with, the job it retries. At most one queued or running job per video. |
+| `publications` | One post of a video to a platform (only `facebook` today); a video posted again has one row per post, at most one of them pending: the Fanpage, pending, scheduled, published, cancelled (never public) or deleted (taken off the platform after going public), the scheduled time, the platform's id of the post and the MP4 sent, who started it, who cancelled or deleted it and when. |
+| `jobs` | Belongs to a video; kind (script, clone, render, publish, unpublish: takes the post `publication_id` off Facebook; image, photos: the "Tự tìm ảnh" queued after a script or clone; voice: "Tạo giọng thật" in the preview, the narration a render would make and nothing else; an image job may name one scene, `scene_id`, and its provider, `image_provider`), status (queued, running, done, failed, cancelled), who started it, timings, Vietnamese error plus technical detail, number of LLM calls (`claude_calls`, named for the first provider) and of Gemini image calls, the provider and model a script or clone job wrote with, the job it retries. At most one queued or running job per video. |
 | `settings` | The prompts and banned words before `knowledge_topics`; no longer read. |
 | `llm_providers` | One row per provider set up on `/settings/ai` (the list itself is fixed in [llm.py](../api/src/reels_api/llm.py)): base URL and model (empty means the provider's default), the API key encrypted like a Fanpage token ([crypto.py](../api/src/reels_api/crypto.py)) and its last characters, who changed it last. |
 | `app_settings` | Team-wide settings from the Cài đặt pages by key: `llm_provider` (the provider that writes scripts; Claude when unset), `video_defaults` (what a new video's settings, narration switch and music level start as), `stock_sources_off` (stock sources the team turned off). |
@@ -274,12 +274,19 @@ Planned:
   yet cannot be measured, so a total over 90 s is caught by the render job after it is made.
 - **Posting to Facebook ("Đăng lên Facebook"):**
   - The `publish` job uploads the current MP4 with the saved caption and hashtags. An MP4 out of date
-    with the edits is refused. A video is posted once: a scheduled or published one is refused.
+    with the edits is refused, and so is an MP4 the chosen Page already holds. A new render, or the
+    same MP4 after its post was cancelled or deleted, makes a new `publications` row.
   - Scheduling uses Facebook's own scheduling, so the file is uploaded at once, the worker has no
     timer, and a later re-render never changes what was scheduled. Facebook then publishes by itself,
-    so the app counts a scheduled post as published once its time has passed. Changing or cancelling
-    one is done in Meta Business Suite.
-  - **Never a second post.** The reel's id and its MP4 are saved before the upload, and the moment
+    so the app counts a scheduled post as published once its time has passed. Changing the time is
+    done in Meta Business Suite.
+  - **"Hủy đăng" and "Xóa"** are one endpoint, `POST /api/posts/{id}/take-down`. A post Facebook never
+    received (no `remote_id`) becomes cancelled in the request, its queued `publish` job cancelled.
+    Any other queues an `unpublish` job, also replacing a queued `publish` job; a running job refuses
+    with 409. The job reads the reel's status and deletes it (`DELETE /{video-id}`), and ends the post
+    as deleted if the reel was ever public, else cancelled. A reel Facebook no longer has counts as
+    gone. A status read or delete that fails fails the job and leaves the post as it was.
+  - **Never a second post by accident.** The reel's id and its MP4 are saved before the upload, and the moment
     Facebook is asked to publish is saved before asking. A retry reads the reel's status first,
     because an attempt may have reached Facebook whatever it reported. A live reel needs nothing,
     and the app records what Facebook says. One Facebook was asked to publish and is still
@@ -291,8 +298,9 @@ Planned:
   - The job repeats the MP4 and time checks, because "Thử lại" skips the endpoint.
   - The job locks the video like a render, for the minute or so it takes.
   - `GET /api/posts` ([routes_posts.py](../api/src/reels_api/routes_posts.py)) reads
-    scheduled and published rows for `/posts` and `/calendar`. Pending posts are left out. The
-    calendar loads every row and groups them in the browser, which is enough at 1–3 videos a day.
+    scheduled, published, cancelled and deleted rows for `/posts` and `/calendar`, with `busy` while
+    the video has an active job. Pending posts are left out. The calendar loads every row, keeps the
+    scheduled and published ones and groups them in the browser, which is enough at 1–3 videos a day.
 - **Clone ("Nhân bản"):** stores a snapshot of the source as edited at that moment plus the change
   request on the new draft, and copies the source's MP3 as the draft's own file. The source is not
   locked. Cancelling and writing the draft again reruns the same clone.

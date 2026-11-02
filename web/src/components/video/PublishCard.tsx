@@ -1,24 +1,36 @@
 "use client";
 
 import { SendOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Flex, Input, Popconfirm, Radio, Select, Typography } from "antd";
+import { Alert, App, Button, Card, Flex, Input, Modal, Radio, Select, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
-import { api, errorMessage, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, formatDateTime, type Post, type VideoDetail } from "@/lib/api";
+import { POST_STATUS } from "@/lib/postStatus";
 import { useEditor } from "./AutoSaveField";
+import PostActions from "./PostActions";
 
-const time = (value: string) => new Date(value).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" });
+// TikTok and YouTube need their own app review first (docs/project.md), so they are shown but cannot be picked yet.
+const PLATFORMS = [
+  { value: "facebook", label: "Facebook" },
+  { value: "tiktok", label: "TikTok (sắp có)", disabled: true },
+  { value: "youtube", label: "YouTube (sắp có)", disabled: true },
+];
 
-/** Posts the current MP4 with the saved caption and hashtags to one of the team's Fanpages, once per video. */
-export default function PublishCard({ video }: { video: VideoDetail }) {
+/** "Đăng" in the MP4 block: posts the current MP4 with the saved caption and hashtags to one of the team's Fanpages. */
+export function PublishButton({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const editor = useEditor();
+  const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"now" | "later">("now");
   const [when, setWhen] = useState("");
   const [picked, setPicked] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const posted = video.publication;
   const fanpage = picked ?? (video.fanpages.length === 1 ? video.fanpages[0].id : null);
+  const name = video.fanpages.find((page) => page.id === fanpage)?.name;
+  const sameMp4 = fanpage !== null && video.posted_fanpage_ids.includes(fanpage);
+  const oldPost = video.publications.some(
+    (post) => post.fanpage === name && (post.status === "scheduled" || post.status === "published"),
+  );
 
   async function publish() {
     setBusy(true);
@@ -29,6 +41,7 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
       editor.onSaved(
         await api<VideoDetail>(`/videos/${video.id}/publish`, "POST", { fanpage_id: fanpage, scheduled_at }),
       );
+      setOpen(false);
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -36,100 +49,109 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
     }
   }
 
-  if (posted?.status === "published") {
-    return (
-      <Card title="Đăng Facebook" size="small">
-        <Typography.Text type="success" data-testid="publication-status">
-          Đã đăng lên Facebook
-        </Typography.Text>{" "}
-        {posted.url && (
-          <a href={posted.url} target="_blank" rel="noreferrer">
-            Xem Reel
-          </a>
-        )}
-        {posted.fanpage && (
-          <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-            {posted.fanpage}
-          </Typography.Paragraph>
-        )}
-      </Card>
-    );
-  }
-  if (posted?.status === "scheduled") {
-    return (
-      <Card title="Đăng Facebook" size="small">
-        <Typography.Text data-testid="publication-status">
-          {posted.scheduled_at ? `Đã hẹn đăng lúc ${time(posted.scheduled_at)}` : "Đã hẹn đăng trên Facebook"}
-        </Typography.Text>
-        <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0" }}>
-          Muốn đổi giờ hoặc huỷ, hãy làm trong Meta Business Suite.
-        </Typography.Paragraph>
-      </Card>
-    );
-  }
-
-  if (video.fanpages.length === 0) {
-    return (
-      <Card title="Đăng Facebook" size="small">
-        <Typography.Text>
-          Chưa có Fanpage nào đang dùng. Vào <Link href="/fanpages">Kết nối Fanpage</Link> để thêm.
-        </Typography.Text>
-      </Card>
-    );
-  }
-
-  const waiting = !fanpage || (mode === "later" && !when);
+  const waiting = !fanpage || (mode === "later" && !when) || sameMp4 || video.mp4_outdated || video.locked;
   return (
-    <Card title="Đăng Facebook" size="small">
-      <Flex vertical gap={8}>
-        {video.mp4_outdated && <Alert type="warning" showIcon title="Hãy render lại trước khi đăng" />}
-        <Select
-          aria-label="Fanpage"
-          value={fanpage}
-          disabled={video.locked}
-          placeholder="Chọn Fanpage"
-          onChange={setPicked}
-          style={{ maxWidth: 320 }}
-          options={video.fanpages.map((page) => ({ value: page.id, label: page.name }))}
-        />
-        <Radio.Group
-          value={mode}
-          disabled={video.locked}
-          onChange={(event) => setMode(event.target.value)}
-          options={[
-            { value: "now", label: "Đăng ngay" },
-            { value: "later", label: "Hẹn giờ" },
-          ]}
-        />
-        {mode === "later" && (
-          <Input
-            type="datetime-local"
-            aria-label="Giờ đăng"
-            value={when}
-            style={{ maxWidth: 240 }}
-            disabled={video.locked}
-            onChange={(event) => setWhen(event.target.value)}
-          />
+    <>
+      <Button type="primary" icon={<SendOutlined />} disabled={video.locked} onClick={() => setOpen(true)}>
+        Đăng
+      </Button>
+      <Modal
+        title="Đăng video"
+        open={open}
+        onCancel={() => setOpen(false)}
+        okText="Đăng"
+        cancelText="Huỷ"
+        onOk={publish}
+        confirmLoading={busy}
+        okButtonProps={{ disabled: waiting }}
+      >
+        {video.fanpages.length === 0 ? (
+          <Typography.Text>
+            Chưa có Fanpage nào đang dùng. Vào <Link href="/fanpages">Kết nối Fanpage</Link> để thêm.
+          </Typography.Text>
+        ) : (
+          <Flex vertical gap={8}>
+            {video.mp4_outdated && <Alert type="warning" showIcon title="Hãy render lại trước khi đăng" />}
+            {sameMp4 && (
+              <Alert
+                type="error"
+                showIcon
+                title="Bản MP4 này đang có trên Fanpage đó. Hãy render bản mới hoặc xóa bài cũ."
+              />
+            )}
+            {oldPost && !sameMp4 && (
+              <Alert type="warning" showIcon title="Fanpage này vẫn còn bài cũ của video. Đăng thêm sẽ có hai bài." />
+            )}
+            <Select aria-label="Nền tảng" value="facebook" options={PLATFORMS} style={{ maxWidth: 320 }} />
+            <Select
+              aria-label="Fanpage"
+              value={fanpage}
+              placeholder="Chọn Fanpage"
+              onChange={setPicked}
+              style={{ maxWidth: 320 }}
+              options={video.fanpages.map((page) => ({ value: page.id, label: page.name }))}
+            />
+            <Radio.Group
+              value={mode}
+              onChange={(event) => setMode(event.target.value)}
+              options={[
+                { value: "now", label: "Đăng ngay" },
+                { value: "later", label: "Hẹn giờ" },
+              ]}
+            />
+            {mode === "later" && (
+              <Input
+                type="datetime-local"
+                aria-label="Giờ đăng"
+                value={when}
+                style={{ maxWidth: 240 }}
+                onChange={(event) => setWhen(event.target.value)}
+              />
+            )}
+            <Typography.Text type="secondary">
+              Đăng bản MP4 mới nhất kèm caption và hashtag đã lưu. Bình luận ghim vẫn làm tay trên Facebook.
+            </Typography.Text>
+          </Flex>
         )}
-        <Typography.Text type="secondary">
-          Đăng MP4 hiện tại kèm caption và hashtag đã lưu. Bình luận ghim vẫn làm tay trên Facebook.
-        </Typography.Text>
-        <Popconfirm
-          title="Đăng công khai lên Fanpage này?"
-          okText="Đăng"
-          cancelText="Huỷ"
-          onConfirm={publish}
-          disabled={video.locked || video.mp4_outdated || waiting || busy}
-        >
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            loading={busy}
-            disabled={video.locked || video.mp4_outdated || waiting}
-          >
-            Đăng lên Facebook
-          </Button>
-        </Popconfirm>
+      </Modal>
+    </>
+  );
+}
+
+function statusText(post: Post): string {
+  if (post.status === "published") return "Đã đăng lên Facebook";
+  if (post.status === "scheduled" && post.scheduled_at) return `Đã hẹn đăng lúc ${formatDateTime(post.scheduled_at)}`;
+  return POST_STATUS[post.status].label;
+}
+
+/** Every post of this video, newest first; those cancelled or deleted stay, with who did it and when. */
+export default function PublishCard({ video }: { video: VideoDetail }) {
+  const editor = useEditor();
+  if (video.publications.length === 0) return null;
+  return (
+    <Card title="Bài đăng của video" size="small">
+      <Flex vertical gap={12}>
+        {video.publications.map((post, index) => (
+          <Flex key={post.id} justify="space-between" align="center" gap={8} wrap data-testid="video-post">
+            <div style={{ minWidth: 0 }}>
+              <Tag color={POST_STATUS[post.status].color}>{POST_STATUS[post.status].label}</Tag>
+              <Typography.Text data-testid={index === 0 ? "publication-status" : undefined}>
+                {statusText(post)}
+              </Typography.Text>{" "}
+              {post.url && (
+                <a href={post.url} target="_blank" rel="noreferrer">
+                  Xem Reel
+                </a>
+              )}
+              <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+                {[post.fanpage, post.created_by].filter(Boolean).join(" · ")}
+                {post.closed_at &&
+                  ` · ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} bởi ${post.closed_by}`}
+              </Typography.Paragraph>
+            </div>
+            <PostActions post={post} disabled={video.locked} onDone={editor.onSaved} />
+          </Flex>
+        ))}
       </Flex>
     </Card>
   );

@@ -37,7 +37,7 @@ import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
-import PublishCard from "@/components/video/PublishCard";
+import PublishCard, { PublishButton } from "@/components/video/PublishCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
@@ -53,6 +53,7 @@ const JOB_NAMES = {
   clone: "Nhân bản",
   render: "Render",
   publish: "Đăng Facebook",
+  unpublish: "Gỡ bài Facebook",
   image: "Tạo ảnh AI",
   photos: "Tự tìm ảnh",
   voice: "Tạo giọng thật",
@@ -357,11 +358,13 @@ export default function VideoPage() {
                   ? "Đang tạo ảnh AI cho các cảnh thiếu…"
                   : job.kind === "publish"
                     ? "Đang đăng lên Facebook…"
-                    : job.kind === "voice"
-                      ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
-                      : job.kind === "clone"
-                        ? "AI đang viết kịch bản nhân bản…"
-                        : "Đang viết kịch bản…"
+                    : job.kind === "unpublish"
+                      ? "Đang gỡ bài trên Facebook…"
+                      : job.kind === "voice"
+                        ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
+                        : job.kind === "clone"
+                          ? "AI đang viết kịch bản nhân bản…"
+                          : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
@@ -552,6 +555,7 @@ export default function VideoPage() {
                                   <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
                                     Tải MP4
                                   </Button>
+                                  <PublishButton video={video} />
                                 </Flex>
                               </Flex>
                             </Card>

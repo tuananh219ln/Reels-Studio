@@ -50,12 +50,15 @@ def test_publish_queues_a_job_and_locks_the_video(an, db, me, storage):
     payload = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me)}).json()
     assert payload["active_job"]["kind"] == "publish"
     assert payload["status_label"] == "Chờ thứ 1"
-    assert payload["publication"] == {
-        "status": "pending",
-        "fanpage": "Trang Dưỡng Sinh",
-        "scheduled_at": None,
-        "url": None,
-    }
+    post = payload["publication"]
+    assert (post["status"], post["fanpage"], post["scheduled_at"], post["url"], post["closed_at"]) == (
+        "pending",
+        "Trang Dưỡng Sinh",
+        None,
+        None,
+        None,
+    )
+    assert payload["publications"] == [post]
     refused = an.patch(f"/api/videos/{video.id}", json={"caption": "khác"})
     assert (refused.status_code, refused.json()["message"]) == (409, "Video đang đăng lên Facebook, chưa lưu")
 
@@ -117,23 +120,119 @@ def test_scheduled_time_needs_a_time_zone(an, db, me, storage):
 
 
 @pytest.mark.parametrize("status", ["scheduled", "published"])
-def test_a_video_is_posted_only_once(an, db, me, storage, status):
+def test_the_same_mp4_goes_to_a_fanpage_only_once(an, db, me, storage, status):
     video = make_video(db, storage, me)
     add_mp4(db, storage, video)
     scheduled_at = datetime.now(UTC) + timedelta(days=1)
+    page = fanpage_id(db, me)
     db.add(
         Publication(
             video_id=video.id,
             platform="facebook",
             status=status,
             remote_id="1000",
+            remote_mp4_key=video.mp4_key,
+            fanpage_id=page,
             scheduled_at=scheduled_at if status == "scheduled" else None,
             created_by_id=me.id,
         )
     )
     db.commit()
-    refused = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me)})
+    assert an.get(f"/api/videos/{video.id}").json()["posted_fanpage_ids"] == [page]
+    refused = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": page})
     assert (refused.status_code, refused.json()["code"]) == (409, "already_published")
+
+
+def add_post(db, video, user, page, **fields) -> Publication:
+    fields = {"status": "published", "remote_id": "1000", "remote_mp4_key": video.mp4_key} | fields
+    post = Publication(video_id=video.id, platform="facebook", fanpage_id=page, created_by_id=user.id, **fields)
+    db.add(post)
+    db.commit()
+    return post
+
+
+def test_a_new_render_can_be_posted_again_and_keeps_the_old_post(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    page = fanpage_id(db, me)
+    old = add_post(db, video, me, page, remote_mp4_key="videos/1/video-old.mp4")
+    payload = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": page}).json()
+    assert [post["status"] for post in payload["publications"]] == ["pending", "published"]
+    assert payload["publications"][1]["id"] == old.id
+    assert payload["publication"]["status"] == "pending"
+
+
+def test_the_same_mp4_can_go_to_another_fanpage(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    add_post(db, video, me, fanpage_id(db, me))
+    other = fanpages.save(db, "222", "Trang Hai", FACEBOOK_TOKEN, me.id)
+    db.commit()
+    assert an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": other.id}).status_code == 200
+
+
+def test_an_mp4_taken_off_a_fanpage_can_go_there_again(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    page = fanpage_id(db, me)
+    add_post(db, video, me, page, status="deleted")
+    assert an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": page}).status_code == 200
+
+
+def test_cancelling_a_post_facebook_never_received_stops_its_job(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    payload = an.post(f"/api/videos/{video.id}/publish", json={"fanpage_id": fanpage_id(db, me)}).json()
+    done = an.post(f"/api/posts/{payload['publication']['id']}/take-down").json()
+    assert done["active_job"] is None
+    (post,) = done["publications"]
+    assert (post["status"], post["closed_by"]) == ("cancelled", "Nguyễn Văn An")
+    assert post["closed_at"] and done["publication"] is None
+    assert db.scalar(select(Job).where(Job.video_id == video.id)).status == "cancelled"
+
+
+def test_taking_down_a_post_on_facebook_queues_a_job_for_it(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    post = add_post(db, video, me, fanpage_id(db, me))
+    payload = an.post(f"/api/posts/{post.id}/take-down").json()
+    assert payload["active_job"]["kind"] == "unpublish"
+    assert payload["status_label"] == "Chờ thứ 1"
+    assert db.scalar(select(Job).where(Job.video_id == video.id)).publication_id == post.id
+    assert payload["publication"]["status"] == "published", "still on Facebook until the job has run"
+
+
+def test_a_queued_retry_of_a_reel_on_facebook_gives_way_to_taking_it_down(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    post = add_post(db, video, me, fanpage_id(db, me), status="pending")
+    db.add(Job(video_id=video.id, kind="publish", status="queued", created_by_id=me.id))
+    db.commit()
+    assert an.post(f"/api/posts/{post.id}/take-down").json()["active_job"]["kind"] == "unpublish"
+
+
+def test_a_running_job_must_finish_before_taking_a_post_down(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    post = add_post(db, video, me, fanpage_id(db, me), status="pending")
+    db.add(Job(video_id=video.id, kind="publish", status="running", created_by_id=me.id))
+    db.commit()
+    refused = an.post(f"/api/posts/{post.id}/take-down")
+    assert (refused.status_code, refused.json()["code"]) == (409, "video_locked")
+
+
+@pytest.mark.parametrize("status", ["cancelled", "deleted"])
+def test_a_closed_post_cannot_be_taken_down_again(an, db, me, storage, status):
+    video = make_video(db, storage, me)
+    post = add_post(db, video, me, fanpage_id(db, me), status=status)
+    refused = an.post(f"/api/posts/{post.id}/take-down")
+    assert (refused.status_code, refused.json()["code"]) == (409, "post_closed")
+
+
+def test_taking_down_needs_a_post_and_a_login(client, an):
+    assert an.post("/api/posts/999/take-down").status_code == 404
+    an.post("/api/auth/logout")
+    assert client.post("/api/posts/999/take-down").status_code == 401
 
 
 def test_a_scheduled_post_counts_as_published_once_its_time_has_passed(an, db, me, storage):
@@ -638,3 +737,132 @@ def test_a_missing_mp4_file_fails_before_anything_is_sent(committed, ready, fake
     job = run_publish(committed, storage, video_id, user.id)
     assert (job.status, job.error) == ("failed", "Không thấy file MP4 trong storage, hãy render lại rồi đăng")
     assert fakes.reels == {}
+
+
+# --- Taking a post down, in process ---
+
+
+def run_unpublish(factory, storage, post_id, video_id, user_id) -> Job:
+    from reels_api import jobs
+
+    job_id = add_job(factory, video_id, user_id, kind="unpublish", status="running")
+    with factory() as db:
+        db.get(Job, job_id).publication_id = post_id
+        db.commit()
+    jobs.run_job(job_id, factory, storage)
+    return job_row(factory, job_id)
+
+
+def schedule(factory, video_id, hours: float) -> None:
+    with factory() as db:
+        post = db.scalar(select(Publication).where(Publication.video_id == video_id))
+        post.scheduled_at = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=hours)
+        db.commit()
+
+
+def test_cancelling_a_scheduled_reel_deletes_it_so_facebook_never_publishes_it(committed, ready, fakes):
+    user, storage, video_id = ready
+    schedule(committed, video_id, 2)
+    run_publish(committed, storage, video_id, user.id)
+    post = post_of(committed, video_id)
+    job = run_unpublish(committed, storage, post.id, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert fakes.reels == {}
+    post = post_of(committed, video_id)
+    assert (post.status, post.closed_by_id) == ("cancelled", user.id)
+    assert post.closed_at and post.remote_id, "the history keeps the reel's id"
+
+
+def test_deleting_a_live_reel_ends_as_deleted(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert fakes.reels == {}
+    assert post_of(committed, video_id).status == "deleted"
+
+
+def test_a_scheduled_reel_past_its_time_ends_as_deleted(committed, ready, fakes):
+    user, storage, video_id = ready
+    schedule(committed, video_id, 2)
+    run_publish(committed, storage, video_id, user.id)
+    schedule(committed, video_id, -1)
+    run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert post_of(committed, video_id).status == "deleted"
+
+
+def test_a_pending_post_that_reached_facebook_ends_as_deleted(committed, ready, fakes):
+    """The answer to the publish was lost, so the app still has it pending, but people saw it."""
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    with committed() as db:
+        db.scalar(select(Publication).where(Publication.video_id == video_id)).status = "pending"
+        db.commit()
+    run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert post_of(committed, video_id).status == "deleted"
+
+
+def test_a_reel_already_gone_from_facebook_still_closes_the_post(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    fakes.reels.clear()
+    job = run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "done"
+    assert post_of(committed, video_id).status == "deleted"
+
+
+def test_a_refused_delete_fails_the_job_and_leaves_the_post(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    fakes.facebook_delete_refusals = 1
+    job = run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "failed"
+    assert job.error.startswith("Facebook từ chối xóa bài này")
+    post = post_of(committed, video_id)
+    assert (post.status, post.closed_at) == ("published", None)
+    assert len(fakes.reels) == 1
+
+
+def test_an_unknown_status_deletes_nothing(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    fakes.facebook_status_fails = 1
+    job = run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "failed"
+    assert len(fakes.reels) == 1
+
+
+def test_retrying_a_failed_take_down_keeps_its_post(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    post = add_post(db, video, me, fanpage_id(db, me))
+    job = Job(video_id=video.id, kind="unpublish", status="failed", publication_id=post.id, created_by_id=me.id)
+    db.add(job)
+    db.commit()
+    assert an.post(f"/api/jobs/{job.id}/retry").status_code == 200
+    queued = db.scalar(select(Job).where(Job.video_id == video.id, Job.status == "queued"))
+    assert queued.publication_id == post.id
+
+
+def test_retrying_a_publish_job_after_the_post_was_cancelled_posts_nothing(committed, ready, fakes):
+    user, storage, video_id = ready
+    with committed() as db:
+        db.scalar(select(Publication).where(Publication.video_id == video_id)).status = "cancelled"
+        db.commit()
+    assert run_publish(committed, storage, video_id, user.id).status == "done"
+    assert fakes.reels == {}
+
+
+def test_the_post_list_shows_who_cancelled_or_deleted_and_when(an, db, me, storage):
+    video = make_video(db, storage, me)
+    moment = datetime.now(UTC).replace(microsecond=0)
+    add_post(db, video, me, None, status="cancelled", closed_at=moment, closed_by_id=me.id, remote_id=None)
+    (row,) = an.get("/api/posts").json()
+    assert (row["status"], row["closed_by"], row["url"], row["busy"]) == ("cancelled", "Nguyễn Văn An", None, False)
+    assert datetime.fromisoformat(row["closed_at"]) == moment
+    assert row["at"], "a post cancelled before its upload has no posting time of its own"
+
+
+def test_a_deleted_reel_loses_its_link(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_post(db, video, me, None, status="deleted", published_at=datetime.now(UTC))
+    assert an.get("/api/posts").json()[0]["url"] is None

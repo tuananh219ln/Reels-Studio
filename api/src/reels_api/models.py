@@ -10,7 +10,6 @@ from sqlalchemy import (
     MetaData,
     String,
     Text,
-    UniqueConstraint,
     false,
     func,
     text,
@@ -165,7 +164,8 @@ class Job(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    kind: Mapped[str] = mapped_column(String(16))  # script | clone | render | publish | image | photos | voice
+    # script | clone | render | publish | unpublish | image | photos | voice
+    kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     retry_of_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))
@@ -173,6 +173,7 @@ class Job(Base):
     scene_id: Mapped[int | None] = mapped_column(Integer)
     # The AI image provider of an image job ("cloudflare" | "gemini"), fixed when it is queued.
     image_provider: Mapped[str | None] = mapped_column(String(16))
+    publication_id: Mapped[int | None] = mapped_column(Integer)  # The post an unpublish job takes down.
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -241,16 +242,22 @@ class AppSetting(Base):
 
 
 class Publication(Base):
-    """A video posted to a platform, once per platform. The publish job reads what to do from here."""
+    """One post of a video to a platform; a video posted again has one row per post, kept after it is cancelled or
+    deleted. The publish job reads what to do from the video's one pending row."""
 
     __tablename__ = "publications"
-    __table_args__ = (UniqueConstraint("video_id", "platform"),)
+    __table_args__ = (
+        Index(
+            "uq_publications_pending", "video_id", "platform", unique=True, postgresql_where=text("status = 'pending'")
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
     platform: Mapped[str] = mapped_column(String(16))  # facebook
     fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id"))
-    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | scheduled | published
+    # pending | scheduled | published | cancelled (never went live) | deleted (taken off the platform after going live)
+    status: Mapped[str] = mapped_column(String(16), default="pending")
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The platform's id, saved before the upload, so "Thử lại" continues this reel instead of posting a second one.
     remote_id: Mapped[str | None] = mapped_column(String(64))
@@ -260,9 +267,12 @@ class Publication(Base):
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when it was cancelled or deleted
+    closed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
     fanpage: Mapped[Fanpage | None] = relationship()
-    created_by: Mapped[User] = relationship()
+    created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
+    closed_by: Mapped[User | None] = relationship(foreign_keys=[closed_by_id])
 
 
 class MusicTrack(Base):
