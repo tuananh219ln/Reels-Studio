@@ -92,7 +92,8 @@ How the prompt is built (built, compact version):
   written. Narration reads only the voice text of a scene that has one
   ([rules](architecture.md#video-pipeline)), so the opening line and every voice text together stay
   within 150 words; at these lengths a script reaches at most 117 words, about 40 seconds of speech
-  at about 2.9 words per second. Whether the voice text names the dish is up to the topic's prompt.
+  at about 2.9 words per second. The worked example opens each voice text with the dish, so a
+  listener hears what the scene is about; a topic's prompt can ask for something else.
   Banned words cover the voice text too.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1

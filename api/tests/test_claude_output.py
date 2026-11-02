@@ -164,6 +164,13 @@ def test_the_format_and_its_example_give_narration_room_for_detail():
     assert count_words(example.title_voice) + sum(voices) <= 150
 
 
+def test_the_example_names_the_dish_in_every_voice_text():
+    # Only the voice text is read, and the model copies the example, so a listener must hear what the scene is about.
+    for scene in parse_output(OUTPUT_FORMAT).scenes:
+        dish = " ".join(scene.text.split()[:2])
+        assert scene.voice.startswith(dish), scene.voice
+
+
 def test_the_format_says_a_voiced_scene_reads_only_its_voice_text():
     assert "không đọc chữ trên màn hình" in OUTPUT_FORMAT
     assert "chữ trên màn hình trước" not in OUTPUT_FORMAT

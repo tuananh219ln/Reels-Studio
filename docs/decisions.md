@@ -40,8 +40,9 @@ Consequences:
   an ElevenLabs key even when no scene has a voice text.
 - The 150-word budget now counts the title scene's voice text and the scenes' voice texts only. At 8–15 words (kept
   as they are) a script reaches at most 117 words, about 40 seconds of speech, so the cap no longer binds.
-- Naming the dish in the voice text is a topic's choice, made in its prompt on `/knowledge`: the output format and its
-  example do not ask for it.
+- The output format's worked example now opens every voice text with the dish, because only the voice text is read
+  and the model copies the example. The format's rules do not require it, since not every topic has dishes: a topic's
+  prompt on `/knowledge` can still ask for something else.
 
 ## 2026-11-02 — One app theme in the icon's orange, Be Vietnam Pro
 
