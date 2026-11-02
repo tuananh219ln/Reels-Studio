@@ -36,7 +36,17 @@ const nextConfig: NextConfig = {
   turbopack: { root: webDir },
   outputFileTracingRoot: webDir,
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${apiUrl}/api/:path*` }];
+    return [
+      { source: "/api/:path*", destination: `${apiUrl}/api/:path*` },
+      {
+        source: "/.well-known/oauth-protected-resource/api/mcp",
+        destination: `${apiUrl}/.well-known/oauth-protected-resource/api/mcp`,
+      },
+      {
+        source: "/.well-known/oauth-authorization-server/api/mcp/oauth",
+        destination: `${apiUrl}/.well-known/oauth-authorization-server/api/mcp/oauth`,
+      },
+    ];
   },
 };
 

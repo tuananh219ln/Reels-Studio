@@ -123,6 +123,7 @@ def isolated_files(tmp_path, monkeypatch):
     monkeypatch.setenv("STORAGE_DIR", str(tmp_path / "storage"))
     monkeypatch.setattr(_stock, "default_cache_dir", lambda: tmp_path / "search-cache")
     for name in (
+        "MCP_PUBLIC_URL",
         "PIXABAY_API_KEY",
         "PIXABAY_API_URL",
         "PEXELS_API_KEY",

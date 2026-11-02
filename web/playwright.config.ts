@@ -17,6 +17,7 @@ export const API_PYTHON = path.join(
 const FAKES_URL = "http://127.0.0.1:8199";
 const BACKEND_ENV = {
   DATABASE_URL: E2E_DATABASE_URL,
+  MCP_PUBLIC_URL: "http://localhost:3100/api/mcp",
   STORAGE_DIR: path.resolve(__dirname, ".e2e-data/storage"),
   // Own temp folder: the Pixabay search cache never mixes fake results into the developer's real cache.
   TMP: path.resolve(__dirname, ".e2e-data/tmp"),

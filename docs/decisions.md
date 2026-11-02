@@ -11,6 +11,23 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — ChatGPT controls drafts through private MCP and member-authorized OAuth
+
+Requested by the owner. The private connection searches/reads videos and topic-group names, edits
+scene text/voice text and posting text, creates a video with a script job, and queues a render.
+It calls the same editor handlers, so validation, locks, pre-render checks and job attribution
+stay in one place. It has no publishing, deletion, credential or user-management tools. Creating
+scripts and narration uses the team's existing paid services; no OpenAI API key is needed for the
+MCP layer itself.
+
+The implementation uses the official MCP Python SDK with stateless Streamable HTTP behind the
+existing web origin. An opt-in `MCP_PUBLIC_URL` enables it; unset keeps it disabled. OAuth is for
+delegating an existing member session to ChatGPT, not a new way to sign in or create accounts.
+ChatGPT registers a public OAuth client, uses S256 PKCE, and receives opaque rotating tokens
+stored hashed in Postgres (migration 0021). Consent is shown in the existing app theme at
+`/chatgpt`, and members revoke their own connections there. Connections last at most 30 days;
+revoking the originating session or disabling the member also invalidates them. See [chatgpt.md](chatgpt.md).
+
 ## 2026-11-02 — The app checks a scheduled post on Facebook after its time, and on "Kiểm tra"
 
 Requested by a member (tuananh219ln): a scheduled reel cancelled on Facebook still showed as "Đã đăng" once its
