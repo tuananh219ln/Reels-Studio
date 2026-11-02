@@ -67,14 +67,15 @@ Built:
     counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
     on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
   - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
-    play the video in the browser before any render, in a 9:16 dialog: each scene for its
-    seconds (lengthened to fit its narration), the frame without text moving like the video's
-    motion setting with the exact text box on top where the render puts it, clips from their
-    start time, the video's transition (crossfade, cut or slide), the music from where that scene
-    falls in the video (lowered while narration plays when ducking is on). Narration: the MP3 a
-    render already made when the text has not changed since, else the browser's own Vietnamese
-    voice (free, at the video's speed); a browser without one says so and those scenes stay
-    silent. The video plays inside a phone with the chosen app's own screen drawn over it, "Khung ứng
+    play the video in the browser before any render, in a drawer from the right (the page stays
+    in sight beside it): each scene for its seconds (lengthened to fit its narration), the frame
+    without text moving like the video's motion setting with the exact text box on top where the
+    render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
+    the music from where that scene falls in the video (lowered while narration plays when ducking
+    is on). Narration: the MP3 a render already made when the text has not changed since, else
+    the browser's own Vietnamese voice (free, at the video's speed); a browser without one says
+    so and those scenes stay silent. The video plays inside a phone with the chosen app's own
+    screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and
     hashtags on one line, the music's name, the navigation bar; Shorts' red progress line), with

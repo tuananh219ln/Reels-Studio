@@ -7,7 +7,7 @@ import {
   StepBackwardOutlined,
   StepForwardOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Flex, Modal, Segmented, Space, Switch, Typography } from "antd";
+import { Alert, Button, Drawer, Flex, Segmented, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { SceneData, VideoDetail } from "@/lib/api";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
@@ -311,12 +311,14 @@ export default function VideoPreview({
   const total = scenes.reduce((sum, item) => sum + item.fitted_seconds, 0);
 
   return (
-    <Modal
+    // A drawer from the right, so the page it previews stays in sight beside it.
+    <Drawer
       open
+      placement="right"
       title="Xem trước video"
-      onCancel={onClose}
-      footer={null}
-      width={820}
+      aria-label="Xem trước video"
+      onClose={onClose}
+      size="min(820px, 100vw)"
       destroyOnHidden
       styles={{ body: { paddingTop: 8 } }}
     >
@@ -515,7 +517,7 @@ export default function VideoPreview({
       </Flex>
       <audio ref={music} src={video.music?.url} loop preload="auto" />
       <audio ref={narration} preload="none" />
-    </Modal>
+    </Drawer>
   );
 }
 
