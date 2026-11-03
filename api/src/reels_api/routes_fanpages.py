@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 from . import affiliate, facebook, fanpages
 from .db import get_db
 from .errors import ApiError
-from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session, User
+from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -29,10 +29,6 @@ class AddBody(TokenBody):
 
 class ActiveBody(BaseModel):
     active: bool
-
-
-class OwnerBody(BaseModel):
-    user_id: int
 
 
 class ShopeeAccountBody(BaseModel):
@@ -163,22 +159,13 @@ def set_active(
     return _rows(db, me)
 
 
-@router.put("/{fanpage_id}/owner")
-def set_owner(
-    fanpage_id: int, body: OwnerBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
-) -> list[dict]:
-    """ "Nhận làm chủ" a Page nobody owns, or hand one's own Page to another member. Its Shopee account is the old
-    owner's, so it is unset."""
+@router.post("/{fanpage_id}/owner")
+def claim(fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+    """ "Nhận Page này": a Page that belongs to nobody becomes the member's. A Page that has an owner keeps it."""
     row = _fanpage(db, fanpage_id)
     if row.owner_id is not None and row.owner_id != me.user_id:
-        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được chủ")
-    if row.owner_id is None and body.user_id != me.user_id:
-        raise invalid("Fanpage chưa có chủ: chỉ nhận làm chủ cho chính mình được")
-    user = db.get(User, body.user_id)
-    if user is None or not user.is_active:
-        raise invalid("Không tìm thấy thành viên này")
-    if row.owner_id != user.id:
-        row.owner_id, row.shopee_account_id = user.id, None
+        raise ApiError(409, "page_has_owner", f"Fanpage “{row.name}” đã thuộc một thành viên khác")
+    row.owner_id = me.user_id
     db.commit()
     return _rows(db, me)
 

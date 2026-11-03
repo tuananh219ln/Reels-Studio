@@ -38,7 +38,6 @@ import {
   type Fanpage,
   type FanpageChoice,
   type FanpageDay,
-  type UserRow,
 } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import { COLORS } from "@/app/theme";
@@ -89,25 +88,22 @@ function Gain({ gain }: { gain: number | null }) {
   );
 }
 
-/** Whose Page it is and, for its owner, the Shopee account whose links its comments carry. Only the owner hands the
- * Page over or sets its account; a Page nobody owns is claimed with "Nhận làm chủ". */
+/** Whose Page it is and, for its owner, the Shopee account whose links its comments carry (one of their own). A Page
+ * that belongs to nobody is taken with "Nhận Page này". */
 function OwnerLine({
   row,
   accounts,
-  members,
   onRows,
 }: {
   row: Fanpage;
   accounts: AffiliateAccount[];
-  members: UserRow[];
   onRows: (rows: Fanpage[]) => void;
 }) {
   const { message } = App.useApp();
-  const me = members.find((member) => member.is_me);
 
-  async function put(path: string, body: object) {
+  async function call(path: string, method: "POST" | "PUT", body?: object) {
     try {
-      onRows(await api<Fanpage[]>(path, "PUT", body));
+      onRows(await api<Fanpage[]>(path, method, body));
     } catch (err) {
       message.error(errorMessage(err));
     }
@@ -117,42 +113,27 @@ function OwnerLine({
     return (
       <Flex justify="space-between" align="center" gap={8} data-testid="fanpage-owner">
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Chưa có chủ
+          Chưa thuộc ai
         </Typography.Text>
-        {me && (
-          <Button size="small" onClick={() => put(`/fanpages/${row.id}/owner`, { user_id: me.id })}>
-            Nhận làm chủ
-          </Button>
-        )}
+        <Button size="small" onClick={() => call(`/fanpages/${row.id}/owner`, "POST")}>
+          Nhận Page này
+        </Button>
       </Flex>
     );
   }
   if (!row.mine) {
     return (
       <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="fanpage-owner">
-        Chủ: {row.owner.name}
+        Thuộc: {row.owner.name}
       </Typography.Text>
     );
   }
   const shopee = accounts.filter((account) => account.platform === "shopee" && account.active);
   return (
     <Flex vertical gap={6} data-testid="fanpage-owner">
-      <Flex justify="space-between" align="center" gap={8}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Chủ: bạn
-        </Typography.Text>
-        <Select
-          size="small"
-          aria-label={`Giao ${row.name} cho`}
-          placeholder="Giao cho…"
-          value={null}
-          style={{ width: 150 }}
-          options={members
-            .filter((member) => member.is_active && !member.is_me)
-            .map((member) => ({ value: member.id, label: member.name }))}
-          onChange={(userId: number) => put(`/fanpages/${row.id}/owner`, { user_id: userId })}
-        />
-      </Flex>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Thuộc: bạn
+      </Typography.Text>
       <Select
         size="small"
         aria-label={`Tài khoản Shopee của ${row.name}`}
@@ -161,7 +142,7 @@ function OwnerLine({
         value={row.shopee_account?.id ?? null}
         options={shopee.map((account) => ({ value: account.id, label: `Shopee: ${account.name}` }))}
         onChange={(accountId: number | undefined) =>
-          put(`/fanpages/${row.id}/shopee-account`, { account_id: accountId ?? null })
+          call(`/fanpages/${row.id}/shopee-account`, "PUT", { account_id: accountId ?? null })
         }
         notFoundContent={
           <Typography.Text type="secondary">Thêm tài khoản ở Cấu hình › Tài khoản affiliate</Typography.Text>
@@ -180,14 +161,12 @@ function OwnerLine({
 function PageCard({
   row,
   accounts,
-  members,
   onRows,
   onDays,
   onToken,
 }: {
   row: Fanpage;
   accounts: AffiliateAccount[];
-  members: UserRow[];
   onRows: (rows: Fanpage[]) => void;
   onDays: (row: Fanpage) => void;
   onToken: (row: Fanpage) => void;
@@ -277,7 +256,7 @@ function PageCard({
           {insights.error}
         </Typography.Text>
       )}
-      <OwnerLine row={row} accounts={accounts} members={members} onRows={onRows} />
+      <OwnerLine row={row} accounts={accounts} onRows={onRows} />
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
@@ -577,12 +556,10 @@ export default function FanpagesPage() {
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
   const [days, setDays] = useState<Fanpage | null>(null);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
-  const [members, setMembers] = useState<UserRow[]>([]);
 
   useEffect(() => {
-    // Without them a Page shows its owner but offers no account or member to choose.
+    // Without them a Page shows its owner but offers no account to choose.
     api<AffiliateAccount[]>("/affiliate-accounts").then(setAccounts, () => undefined);
-    api<UserRow[]>("/users").then(setMembers, () => undefined);
   }, []);
 
   const load = useCallback(async () => {
@@ -661,7 +638,6 @@ export default function FanpagesPage() {
                 key={row.id}
                 row={row}
                 accounts={accounts}
-                members={members}
                 onRows={setRows}
                 onDays={setDays}
                 onToken={setReplacing}

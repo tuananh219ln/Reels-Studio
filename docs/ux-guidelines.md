@@ -309,8 +309,9 @@ Built:
 - **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
   accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
   link), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá".
-- **Kết nối Fanpage**: each Page card names its owner. The owner sees "Chủ: bạn", "Giao cho…" (another
-  member) and the Page's Shopee account, picked from their own; a Page nobody owns has "Nhận làm chủ".
+- **Kết nối Fanpage**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
+  and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
+  này". A Page is not handed to another member from the app.
 - **Đăng bài**, a menu group of two screens. Nothing is posted or approved here: a member reviews
   and posts a video from "Đăng" on its page.
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or

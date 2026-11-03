@@ -32,8 +32,9 @@ true for everything else.
 - **Shopee's App ID and Secret** are a new kind of key stored encrypted in the database, like a Fanpage token: they
   only go in, and only the last characters of the Secret are shown.
 - **Pages have an owner** (`fanpages.owner_id`): the member who connected it, the one who last touched it for Pages
-  already there. Only the owner hands the Page over or sets its Shopee account (one of their own); a Page nobody owns
-  is claimed by a member for themself. Handing it over unsets its account.
+  already there. Only the owner sets its Shopee account (one of their own); a Page that belongs to nobody is
+  taken by a member for themself ("Nhận Page này"). There is no handing a Page to another member: the owner found it
+  unneeded, and a Page with an owner keeps it.
 - **Orders** read from Shopee are shown only to the account's owner ("Doanh thu" on `/affiliate`).
 - The product list stays the team's: what Shopee says about a product is not private.
 

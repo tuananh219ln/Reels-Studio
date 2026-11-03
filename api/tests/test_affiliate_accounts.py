@@ -154,18 +154,13 @@ def test_the_member_who_connects_a_page_owns_it_and_a_new_token_keeps_the_owner(
     assert page.owner_id == me.id
 
 
-def test_only_the_owner_hands_a_page_over_and_its_shopee_account_goes_with_the_old_owner(an, binh, db, me, other):
+def test_only_the_owner_sets_the_pages_shopee_account_and_others_do_not_see_it(an, binh, db, me):
     page = page_of(db, me)
     account = shopee_account(an)
     assert an.put(f"/api/fanpages/{page.id}/shopee-account", json={"account_id": account["id"]}).status_code == 200
-    assert binh.put(f"/api/fanpages/{page.id}/owner", json={"user_id": other.id}).status_code == 403
     assert binh.put(f"/api/fanpages/{page.id}/shopee-account", json={"account_id": None}).status_code == 403
     (row,) = binh.get("/api/fanpages").json()
-    assert row["owner"]["name"] == me.name and row["shopee_account"] is None, "the owner's account stays private"
-
-    assert an.put(f"/api/fanpages/{page.id}/owner", json={"user_id": other.id}).status_code == 200
-    db.expire_all()
-    assert (page.owner_id, page.shopee_account_id) == (other.id, None)
+    assert row["owner"]["name"] == me.name and row["shopee_account"] is None
 
 
 def test_a_page_takes_only_its_owners_own_shopee_account(an, binh, db, me):
@@ -176,12 +171,13 @@ def test_a_page_takes_only_its_owners_own_shopee_account(an, binh, db, me):
     assert an.put(f"/api/fanpages/{page.id}/shopee-account", json={"account_id": theirs["id"]}).status_code == 422
 
 
-def test_a_page_nobody_owns_is_claimed_only_for_oneself(an, db, me, other):
+def test_a_page_that_belongs_to_nobody_is_taken_and_one_with_an_owner_keeps_it(an, binh, db, me):
     page = page_of(db, me)
+    assert binh.post(f"/api/fanpages/{page.id}/owner").status_code == 409
     page.owner_id = None
     db.commit()
-    assert an.put(f"/api/fanpages/{page.id}/owner", json={"user_id": other.id}).status_code == 422
-    assert an.put(f"/api/fanpages/{page.id}/owner", json={"user_id": me.id}).json()[0]["mine"] is True
+    assert binh.post(f"/api/fanpages/{page.id}/owner").json()[0]["mine"] is True
+    assert an.post(f"/api/fanpages/{page.id}/owner").status_code == 409
 
 
 # Links in the comment

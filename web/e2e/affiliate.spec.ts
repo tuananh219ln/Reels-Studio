@@ -30,7 +30,7 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
-  await expect(owner).toContainText("Chủ: bạn");
+  await expect(owner).toContainText("Thuộc: bạn");
   await chooseOption(page, owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh"), "Shopee: Shopee của An");
   await expect(owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh")).toBeVisible();
   await page.reload();
@@ -46,7 +46,7 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await binh.goto("/settings/affiliate-accounts");
   await expect(binh.getByText("Chưa có tài khoản nào")).toBeVisible();
   await binh.goto("/fanpages");
-  await expect(binh.getByTestId("fanpage-owner")).toHaveText("Chủ: Nguyễn Văn An");
+  await expect(binh.getByTestId("fanpage-owner")).toHaveText("Thuộc: Nguyễn Văn An");
   await binh.goto("/affiliate");
   await binh.getByRole("tab", { name: "Doanh thu" }).click();
   await expect(binh.getByText("Chưa có tài khoản Shopee nào của bạn")).toBeVisible();
