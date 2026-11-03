@@ -99,6 +99,11 @@ How the prompt is built (built, compact version):
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
   become 4, keywords are cut to 100 characters, missing parts stay empty. Everything then goes
   through the pre-render checks like a member's edits.
+- **Ideas from the 30-day plan:** a video made from a plan idea fills `[Nhóm nỗi đau]`,
+  `[Nỗi đau]` and `[Góc hook]` with that idea's pain group, the viewer's pain and the hook angle;
+  each one the idea has and the prompt lacks is appended after the topic. Other videos get none of
+  them. The default script prompt does not use them yet; the pain-first script prompt (the plan's
+  task 4.3) is written by members on `/knowledge`.
 - **Clone ("Nhân bản", one variant):** the "Prompt nhân bản" on `/knowledge` fills `[tiêu đề]`,
   `[chủ đề]`, `[kịch bản đã sửa của video gốc]`, and `[yêu cầu đổi]` from the source as edited and
   the member's change request, appending any placeholder that was removed. It returns the same
@@ -130,6 +135,29 @@ prompts and the banned words.
 
 A topic calendar (themes, seasonal topics such as flu season, humid season, Tết) arrives together
 with scheduling.
+
+### 30-Day Topic Plan (built)
+
+Each topic group has a plan of 30 days with 3–5 video ideas a day (owner's plan, 2026-11-03). An idea
+has a topic (used as the video's Chủ đề), a pain group, the viewer's pain (what they fear, have tried
+or get wrong), and a hook angle for the first 3 seconds. Researching real pains (TikTok, Facebook,
+YouTube comments, health forums) happens outside the app; its result comes in as a file.
+
+- **Import:** JSON (`{"days": [{"day": 1, "ideas": [{"topic", "pain_group", "pain", "hook"}]}]}`, a
+  flat list of ideas with their `day`, or days as keys) or CSV with a header row (`,`, `;` or tab).
+  Column and key names may be Vietnamese (`ngày`, `chủ đề`, `nhóm nỗi đau`, `nỗi đau`, `góc hook`).
+  Every unreadable row is reported by its line; duplicate topics and more than 5 ideas in a day block
+  saving, missing days and days with fewer than 3 ideas only warn.
+- **"Tạo bằng AI":** the "Prompt kế hoạch" (app data, default from the owner's plan, in
+  [plan_default.txt](../api/src/reels_api/prompts/plan_default.txt)) with `[Chủ đề nhóm]` and
+  `[Số video mỗi ngày]` filled, the banned words, the days of this call that fall on a weekend (once a
+  start date is set), the topics already chosen, and the fixed JSON format (code, in
+  [plans.py](../api/src/reels_api/plans.py)). The month is written 10 days per call, three calls,
+  because one answer for 120 ideas would pass the output limit. Repairs: long text is cut, extra
+  ideas, other days and repeated topics are dropped; a day left empty asks once more, then the job
+  fails with the raw answer.
+- **Status** comes from the linked video, never stored: Ý tưởng (no video), Đã tạo video, Đã viết
+  kịch bản, Xong (the video has an MP4). Deleting the video returns the idea to Ý tưởng.
 
 **AI drafting:** every document has an "AI draft" action. Food bank rows are researched by Claude
 with web search and must include source URLs. Preferred sources are Viện Dinh dưỡng Quốc gia, Bộ Y
