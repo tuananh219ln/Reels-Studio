@@ -7,10 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import facebook, fanpages
+from . import affiliate, facebook, fanpages
 from .db import get_db
 from .errors import ApiError
-from .models import Fanpage, FanpageFollowers, Session
+from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session, User
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -29,6 +29,14 @@ class AddBody(TokenBody):
 
 class ActiveBody(BaseModel):
     active: bool
+
+
+class OwnerBody(BaseModel):
+    user_id: int
+
+
+class ShopeeAccountBody(BaseModel):
+    account_id: int | None
 
 
 def _clean_token(token: str) -> str:
@@ -54,8 +62,24 @@ def _pages_of(token: str) -> list[dict]:
     return pages
 
 
-def _rows(db: DbSession) -> list[dict]:
-    rows = list(db.scalars(select(Fanpage).options(joinedload(Fanpage.updated_by)).order_by(Fanpage.name, Fanpage.id)))
+def _shopee_account(db: DbSession, row: Fanpage, me: Session) -> dict | None:
+    """The Page's Shopee account, shown only to the Page's owner: a member's affiliate accounts are their own."""
+    if row.owner_id != me.user_id or row.shopee_account_id is None:
+        return None
+    account = db.get(AffiliateAccount, row.shopee_account_id)
+    if account is None or account.owner_id != me.user_id:
+        return None
+    return {"id": account.id, "name": account.name, "usable": affiliate.credentials(account) is not None}
+
+
+def _rows(db: DbSession, me: Session) -> list[dict]:
+    rows = list(
+        db.scalars(
+            select(Fanpage)
+            .options(joinedload(Fanpage.updated_by), joinedload(Fanpage.owner))
+            .order_by(Fanpage.name, Fanpage.id)
+        )
+    )
     checks = fanpages.check_payload(db, rows)
     insights = fanpages.insights_summary(db, rows)
     scheduled = fanpages.scheduled_counts(db)
@@ -69,6 +93,9 @@ def _rows(db: DbSession) -> list[dict]:
             "active": row.active,
             "updated_at": row.updated_at.isoformat(),
             "updated_by": row.updated_by.email if row.updated_by else None,
+            "owner": {"id": row.owner.id, "name": row.owner.name} if row.owner else None,
+            "mine": row.owner_id == me.user_id,
+            "shopee_account": _shopee_account(db, row, me),
             "check": checks[row.id],
             "insights": insights[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),
@@ -88,7 +115,7 @@ def _fanpage(db: DbSession, fanpage_id: int) -> Fanpage:
 
 @router.get("")
 def list_fanpages(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
-    return _rows(db)
+    return _rows(db, me)
 
 
 @router.post("/lookup")
@@ -109,7 +136,7 @@ def add(body: AddBody, me: Session = Depends(current_member), db: DbSession = De
     for page_id in dict.fromkeys(body.page_ids):
         fanpages.save(db, page_id, usable[page_id]["name"], usable[page_id]["token"], me.user_id)
     db.commit()
-    return _rows(db)
+    return _rows(db, me)
 
 
 @router.put("/{fanpage_id}/token")
@@ -123,7 +150,7 @@ def replace_token(
         raise invalid(f"Token mới không có quyền đăng lên Page “{row.name}”")
     fanpages.save(db, row.page_id, page["name"], page["token"], me.user_id)
     db.commit()
-    return _rows(db)
+    return _rows(db, me)
 
 
 @router.patch("/{fanpage_id}")
@@ -133,7 +160,46 @@ def set_active(
     row = _fanpage(db, fanpage_id)
     row.active, row.updated_by_id = body.active, me.user_id
     db.commit()
-    return _rows(db)
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/owner")
+def set_owner(
+    fanpage_id: int, body: OwnerBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """ "Nhận làm chủ" a Page nobody owns, or hand one's own Page to another member. Its Shopee account is the old
+    owner's, so it is unset."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id is not None and row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được chủ")
+    if row.owner_id is None and body.user_id != me.user_id:
+        raise invalid("Fanpage chưa có chủ: chỉ nhận làm chủ cho chính mình được")
+    user = db.get(User, body.user_id)
+    if user is None or not user.is_active:
+        raise invalid("Không tìm thấy thành viên này")
+    if row.owner_id != user.id:
+        row.owner_id, row.shopee_account_id = user.id, None
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/shopee-account")
+def set_shopee_account(
+    fanpage_id: int, body: ShopeeAccountBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """The Shopee account whose links the Page's comments carry: one of its owner's own."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới gắn được tài khoản Shopee")
+    if body.account_id is not None:
+        account = db.get(AffiliateAccount, body.account_id)
+        if account is None or account.owner_id != me.user_id or account.platform != "shopee":
+            raise invalid("Hãy chọn một tài khoản Shopee của bạn")
+        if not account.active:
+            raise invalid(f"Tài khoản “{account.name}” đang ngừng dùng")
+    row.shopee_account_id = body.account_id
+    db.commit()
+    return _rows(db, me)
 
 
 @router.post("/freshen")
@@ -152,7 +218,7 @@ def check_now(fanpage_id: int, me: Session = Depends(current_member), db: DbSess
         raise invalid(f"Fanpage “{row.name}” đang ngừng dùng, hãy dùng lại trước khi kiểm tra")
     fanpages.request_check(row)
     db.commit()
-    return _rows(db)
+    return _rows(db, me)
 
 
 @router.get("/{fanpage_id}/insights")
@@ -196,4 +262,4 @@ def delete_page(fanpage_id: int, me: Session = Depends(current_member), db: DbSe
         )
     db.delete(row)
     db.commit()
-    return _rows(db)
+    return _rows(db, me)

@@ -1,8 +1,9 @@
 """Local stand-ins for the Claude Messages API, an OpenAI-compatible chat API, the stock sources (Pixabay, Pexels, Openverse),
-ElevenLabs TTS, Gemini and Cloudflare Workers AI image generation and Facebook Reels, for pytest and E2E.
+ElevenLabs TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels and Shopee Affiliate, for pytest and E2E.
 
 The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
-OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL and FACEBOOK_API_URL,
+OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL and
+SHOPEE_AFFILIATE_API_URL,
 so production code has no test switches. The OpenAI-compatible API (at <url>/openai/v1) is reached the way a
 member sets any provider up, through its base URL on /settings/ai. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
@@ -36,6 +37,36 @@ OPENAI_MODELS = ["fake-gpt-mini", "models/fake-gemini-flash"]
 FACEBOOK_PAGE = "1234567"
 FACEBOOK_TOKEN = "fake-facebook-token"  # the Page's own token, the only one that can post
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
+SHOPEE_APP_ID = "1000001"
+SHOPEE_SECRET = "fake-shopee-secret"
+
+
+def shopee_offer(item_id: int, name: str, **fields) -> dict:
+    """A productOfferV2 node as Shopee sends it: numbers as strings, the rate as a fraction, times in seconds."""
+    return {
+        "itemId": item_id,
+        "productName": name,
+        "shopName": "Shop Sức Khỏe",
+        "shopType": [1],
+        "ratingStar": "4.9",
+        "sales": 1500,
+        "priceMin": "250000",
+        "commissionRate": "0.08",
+        "productLink": f"https://shopee.vn/product/1/{item_id}",
+        "imageUrl": f"https://cf.shopee.vn/file/{item_id}",
+        "periodEndTime": 0,
+        **fields,
+    }
+
+
+def default_offers(keyword: str) -> list[dict]:
+    """Three products per keyword: two meet the app's rules, the third has too few stars."""
+    base = int(hashlib.sha1(keyword.encode()).hexdigest()[:6], 16) * 10
+    return [
+        shopee_offer(base + 1, f"{keyword} loại 1"),
+        shopee_offer(base + 2, f"{keyword} loại 2", shopType=[2], priceMin="120000", commissionRate="0.05"),
+        shopee_offer(base + 3, f"{keyword} loại 3", ratingStar="4.2"),
+    ]
 
 
 def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
@@ -195,6 +226,14 @@ class FakeServices:
             "page_post_engagements": {"2026-11-02T08:00:00+0000": 40, "2026-11-03T08:00:00+0000": 55},
         }
         self.facebook_page_metrics_dropped: set[str] = set()
+        # Shopee Affiliate: the apps it knows (App ID -> Secret, checked in the signature), its answers and its calls.
+        self.shopee_apps = {SHOPEE_APP_ID: SHOPEE_SECRET}
+        self.shopee_mode = "ok"  # ok | rate_limit | error500
+        self.shopee_offers: dict[str, list[dict]] = {}  # keyword -> nodes; a missing keyword gets default_offers
+        self.shopee_items: dict[int, dict | None] = {}  # itemId -> node now; None: no longer offered
+        self.shopee_conversions: list[dict] = []  # conversionReport nodes
+        self.shopee_queries: list[str] = []
+        self.shopee_links: list[dict] = []  # {"origin", "sub_ids", "link"}
         self.facebook_page_insights_refused = False
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
@@ -230,6 +269,7 @@ class FakeServices:
             "IMAGE_GEN_CF_ACCOUNT_ID": "test-account",
             "IMAGE_GEN_CF_API_KEY": IMAGE_GEN_CF_KEY,
             "FACEBOOK_API_URL": f"{self.url}/facebook",
+            "SHOPEE_AFFILIATE_API_URL": f"{self.url}/shopee/graphql",
         }
 
     def image_url(self, name: str) -> str:
@@ -851,6 +891,51 @@ class FakeServices:
                 return 404, {"error": {"message": "Unknown video", "code": 100}}
         return 200, {"success": True}
 
+    def _shopee(self, authorization: str | None, raw: bytes) -> tuple[int, dict]:
+        def failed(code: int, message: str) -> tuple[int, dict]:
+            return 200, {"errors": [{"message": message, "extensions": {"code": code}}]}
+
+        match = re.fullmatch(r"SHA256 Credential=(\w+), Timestamp=(\d+), Signature=(\w+)", authorization or "")
+        if not match or match.group(1) not in self.shopee_apps:
+            return failed(10020, "Invalid Authorization Header")
+        app_id, timestamp, signature = match.groups()
+        payload = raw.decode()
+        expected = hashlib.sha256(f"{app_id}{timestamp}{payload}{self.shopee_apps[app_id]}".encode()).hexdigest()
+        if signature != expected or abs(time.time() - int(timestamp)) > 600:
+            return failed(10020, "Invalid Signature")
+        query = json.loads(payload)["query"]
+        with self.lock:
+            self.shopee_queries.append(query)
+        if self.shopee_mode == "rate_limit":
+            return failed(10030, "Rate limit exceeded")
+        if self.shopee_mode == "error500":
+            return 500, {"error": "server"}
+        if "productOfferV2" in query:
+            item = re.search(r"itemId: (\d+)", query)
+            if item:
+                item_id = int(item.group(1))
+                if item_id in self.shopee_items:
+                    node = self.shopee_items[item_id]
+                else:
+                    node = next(
+                        (n for nodes in self.shopee_offers.values() for n in nodes if n["itemId"] == item_id), None
+                    )
+                return 200, {"data": {"productOfferV2": {"nodes": [node] if node else []}}}
+            keyword = json.loads(re.search(r'keyword: ("(?:[^"\\]|\\.)*")', query).group(1))
+            nodes = self.shopee_offers.get(keyword)
+            return 200, {"data": {"productOfferV2": {"nodes": default_offers(keyword) if nodes is None else nodes}}}
+        if "generateShortLink" in query:
+            origin = json.loads(re.search(r'originUrl: ("(?:[^"\\]|\\.)*")', query).group(1))
+            sub_ids = json.loads(re.search(r"subIds: (\[[^\]]*\])", query).group(1))
+            link = f"https://s.shopee.vn/fake{len(self.shopee_links) + 1}"
+            with self.lock:
+                self.shopee_links.append({"origin": origin, "sub_ids": sub_ids, "link": link})
+            return 200, {"data": {"generateShortLink": {"shortLink": link}}}
+        if "conversionReport" in query:
+            nodes = self.shopee_conversions
+            return 200, {"data": {"conversionReport": {"nodes": nodes, "pageInfo": {"hasNextPage": False}}}}
+        return failed(10010, "Unknown query")
+
     def _image(self, name: str) -> bytes:
         with self.lock:
             self.image_downloads.append(name)
@@ -911,6 +996,9 @@ class FakeServices:
                 if path == "/openverse/v1/auth_tokens/token/":
                     form = dict(urllib.parse.parse_qsl(raw.decode()))
                     self._send(*fake._openverse_token(form))
+                    return
+                if path == "/shopee/graphql":
+                    self._send(*fake._shopee(self.headers.get("Authorization"), raw))
                     return
                 body = json.loads(raw or b"{}")
                 if path == "/v1/messages":

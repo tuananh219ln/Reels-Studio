@@ -1,5 +1,6 @@
 """The affiliate comment under a posted reel: the video's pinned comment, then one link per usable product attached to
-it (affiliate.comment_text), written by the Page once the reel is live. Members still pin it on Facebook: the API
+it (affiliate.comment_text, which makes the Page owner's Shopee links first when needed), written by the Page once the
+reel is live. Members still pin it on Facebook: the API
 cannot pin a comment.
 
 Like reading a post's numbers (metrics.py) it is not a job: the worker writes a few due comments between jobs, and a
@@ -21,8 +22,9 @@ from sqlalchemy.orm import sessionmaker
 
 from . import affiliate, facebook, fanpages
 from .facebook import FacebookError
-from .models import Publication, Video
+from .models import Publication
 from .sessions import now
+from .shopee import ShopeeError
 
 log = logging.getLogger("reels_api.post_comments")
 
@@ -69,8 +71,15 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
 
 def write(db: DbSession, post: Publication) -> None:
     """Write or edit the post's comment once and record what happened. Commits."""
-    text = affiliate.comment_text(db, db.get(Video, post.video_id))
     may_exist = post.comment_sent_at is not None and post.comment_id is None
+    try:
+        text = affiliate.comment_text(db, post)
+    except ShopeeError as err:
+        # Stamped like any attempt, so a Shopee that keeps failing is not asked again every round.
+        post.comment_sent_at, post.comment_error = now(), f"Không tạo được link Shopee: {err.message}"
+        db.commit()
+        log.warning("Could not make Shopee links for post %s: %s %s", post.id, err.message, err.detail)
+        return
     post.comment_sent_at = now()
     if not text:
         post.comment_error = NOTHING_TO_SAY

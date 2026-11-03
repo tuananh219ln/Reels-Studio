@@ -606,6 +606,8 @@ def remove_music(
 
 class CloneBody(BaseModel):
     request: str
+    # "tiktok": the TikTok version of a Facebook video ("Tạo bản TikTok"), linked to it; empty: the same platform.
+    platform: str | None = None
 
 
 def _one_line(text: str) -> str:
@@ -661,6 +663,9 @@ def clone_video(
         raise video_not_found()
     if not source.has_script:
         raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
+    platform = body.platform or source.platform
+    if platform not in ("facebook", "tiktok"):
+        raise invalid("Nền tảng không có trong danh sách")
     group = knowledge.topic_of(db, source)
     if group is None or not group.clone_prompt:
         raise invalid(f"Nhóm chủ đề “{group.name if group else ''}” chưa có prompt nhân bản")
@@ -673,6 +678,9 @@ def clone_video(
         voice_enabled=source.voice_enabled,
         options=video_options.effective(source),
         clone_source=clone_snapshot(db, source, request),
+        platform=platform,
+        # A version for another platform keeps a link to the video it was made from.
+        variant_of_id=source.id if platform != source.platform else None,
     )
     db.add(draft)
     db.flush()

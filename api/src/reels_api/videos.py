@@ -336,6 +336,34 @@ def pending_publication(db: DbSession, video_id: int) -> Publication | None:
     return next((post for post in publications_of(db, video_id) if post.status == "pending"), None)
 
 
+def tiktok_posts_of(db: DbSession, video_id: int) -> list[Publication]:
+    """The video's TikTok posts, made by hand in TikTok's app and recorded with their link, newest first."""
+    return list(
+        db.scalars(
+            select(Publication)
+            .where(Publication.video_id == video_id, Publication.platform == "tiktok")
+            .order_by(Publication.id.desc())
+        )
+    )
+
+
+def tiktok_post_payload(post: Publication) -> dict:
+    return {
+        "id": post.id,
+        "url": post.post_url,
+        "account": post.affiliate_account.name if post.affiliate_account else None,
+        "at": live_at(post).isoformat(),
+        "created_by": post.created_by.name,
+    }
+
+
+def _video_link(db: DbSession, video: Video | None) -> dict | None:
+    if video is None:
+        return None
+    title, _ = split_scenes(db, video)
+    return {"id": video.id, "title": title_of(video, title) or video.topic, "platform": video.platform}
+
+
 def published_publication(db: DbSession, video_id: int) -> Publication | None:
     return next((post for post in publications_of(db, video_id) if is_published(post)), None)
 
@@ -496,6 +524,18 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # What a post sends: the caption, then the hashtags it does not already hold.
         "post_text": hashtags.post_text(video.caption, video.hashtags),
         "affiliates": video.affiliates,
+        "platform": video.platform,
+        "variant_of": _video_link(db, db.get(Video, video.variant_of_id)) if video.variant_of_id else None,
+        "variants": [
+            _video_link(db, variant)
+            for variant in db.scalars(select(Video).where(Video.variant_of_id == video.id).order_by(Video.id))
+        ],
+        "tiktok_posts": [tiktok_post_payload(post) for post in tiktok_posts_of(db, video.id)],
+        "suggest": {
+            "state": "pending" if video.suggest_requested_at else ("failed" if video.suggest_error else "idle"),
+            "error": video.suggest_error,
+            "at": video.suggested_at.isoformat() if video.suggested_at else None,
+        },
         # The products whose links go in the comment under the video's reels (post_comments.py).
         "affiliate_product_ids": [product.id for product in affiliate.products_of(db, video.id)],
         "pinned_comment": video.pinned_comment,
@@ -534,7 +574,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
             {
                 "id": page.id,
                 "name": page.name,
-                "owner": page.updated_by.name if page.updated_by else None,
+                "owner": page.owner.name if page.owner else None,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)
@@ -583,6 +623,7 @@ def list_payload(db: DbSession, video: Video) -> dict:
         "id": video.id,
         "topic": video.topic,
         "title": title_of(video, title),
+        "platform": video.platform,
         "created_by": video.created_by.name,
         "created_at": video.created_at.isoformat(),
         **_status(db, video, job, failed),

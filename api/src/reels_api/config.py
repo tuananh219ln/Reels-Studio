@@ -136,6 +136,11 @@ def facebook_api_url() -> str:
     return (read_env("FACEBOOK_API_URL") or "https://graph.facebook.com/v26.0").rstrip("/")
 
 
+def shopee_affiliate_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return (read_env("SHOPEE_AFFILIATE_API_URL") or "https://open-api.affiliate.shopee.vn/graphql").rstrip("/")
+
+
 def elevenlabs_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("ELEVENLABS_API_URL") or "https://api.elevenlabs.io").rstrip("/")

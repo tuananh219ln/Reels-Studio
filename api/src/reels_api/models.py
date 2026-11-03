@@ -13,6 +13,7 @@ from sqlalchemy import (
     MetaData,
     String,
     Text,
+    UniqueConstraint,
     false,
     func,
     text,
@@ -177,10 +178,19 @@ class Video(Base):
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
+    # Where the video is made for: facebook (a Reel, Shopee links) or tiktok (posted by hand, TikTok Shop's cart). A
+    # TikTok version is its own video, cloned from the Facebook one it names in `variant_of_id`.
+    platform: Mapped[str] = mapped_column(String(16), default="facebook", server_default="facebook")
+    variant_of_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
+    # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
+    suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    suggest_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    suggested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    suggest_error: Mapped[str | None] = mapped_column(Text)
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
-    created_by: Mapped[User] = relationship()
+    created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
     scenes: Mapped[list["Scene"]] = relationship(
         back_populates="video", order_by="(Scene.is_title.desc(), Scene.position, Scene.id)", passive_deletes=True
     )
@@ -293,8 +303,12 @@ class Fanpage(Base):
     followers_count: Mapped[int | None] = mapped_column(Integer)
     # What went wrong reading the Page's daily numbers at the last check (fanpages.read_insights), None when it worked.
     insights_error: Mapped[str | None] = mapped_column(Text)
+    # The member whose Page it is: only they set its Shopee account, whose links its comments carry.
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    shopee_account_id: Mapped[int | None] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="SET NULL"))
 
-    updated_by: Mapped[User | None] = relationship()
+    updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
+    owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
 
 
 class FanpageFollowers(Base):
@@ -407,10 +421,14 @@ class Publication(Base):
     # Where each scene starts and ends in the MP4 sent as `remote_id` ({label, start, end} in seconds), taken when it
     # was uploaded, so the retention curve is read against the scenes that were posted, not later edits.
     scene_marks: Mapped[list | None] = mapped_column(JSONB)
+    # A TikTok post, made by hand in TikTok's app and recorded with its link: the member's TikTok account and the link.
+    affiliate_account_id: Mapped[int | None] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="SET NULL"))
+    post_url: Mapped[str | None] = mapped_column(Text)
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
     closed_by: Mapped[User | None] = relationship(foreign_keys=[closed_by_id])
+    affiliate_account: Mapped["AffiliateAccount | None"] = relationship()
     metrics: Mapped[list["PostMetrics"]] = relationship(lazy="selectin", passive_deletes=True)
 
 
@@ -487,16 +505,45 @@ class MusicTrack(Base):
     created_by: Mapped[User] = relationship()
 
 
+class AffiliateAccount(Base):
+    """A member's own account on an affiliate platform: Shopee (with the Open API's App ID and Secret, which only ever
+    go in) or TikTok (the TikTok account itself, whose cart is TikTok Shop's). Only its owner sees or changes it."""
+
+    __tablename__ = "affiliate_accounts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[str] = mapped_column(String(16))  # shopee | tiktok
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    app_id: Mapped[str | None] = mapped_column(String(64))
+    secret_encrypted: Mapped[str | None] = mapped_column(Text)
+    secret_tail: Mapped[str | None] = mapped_column(String(8))
+    profile_url: Mapped[str | None] = mapped_column(Text)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The worker's last reading of the account's orders (affiliate_rounds.py), and what went wrong then.
+    report_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    report_error: Mapped[str | None] = mapped_column(Text)
+
+
 class AffiliateProduct(Base):
-    """A Shopee product the team may promote, with the figures a member copied from the affiliate dashboard.
-    Rows start as drafts; only a member's approval makes one usable, and changing an approved row undoes that."""
+    """A product the team may promote, on Shopee or TikTok Shop: typed in by a member or found through Shopee's API
+    (`shopee_item_id`). Rows start as drafts; only a member's approval makes one usable, and changing an approved row
+    undoes that."""
 
     __tablename__ = "affiliate_products"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     knowledge_topic_id: Mapped[int] = mapped_column(ForeignKey("knowledge_topics.id"))
     name: Mapped[str] = mapped_column(String(300))
-    url: Mapped[str] = mapped_column(Text)  # the affiliate link
+    platform: Mapped[str] = mapped_column(String(16), default="shopee", server_default="shopee")  # | tiktok_shop
+    # The affiliate link a member pasted. Products found through the API have none: each Page gets its own link.
+    url: Mapped[str | None] = mapped_column(Text)
+    page_url: Mapped[str | None] = mapped_column(Text)  # the product's own page, from the API
+    image_url: Mapped[str | None] = mapped_column(Text)
+    shopee_item_id: Mapped[int | None] = mapped_column(BigInteger)
+    commission_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    offer_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the daily check, last done
     shop_name: Mapped[str] = mapped_column(String(200))
     shop_type: Mapped[str] = mapped_column(String(16))  # a key of routes_affiliate.SHOP_TYPES
     rating: Mapped[float] = mapped_column(Float)
@@ -521,6 +568,55 @@ class VideoAffiliateProduct(Base):
 
     video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
+
+
+class AffiliateLink(Base):
+    """A Shopee short link made with a Page's account for one video on that Page, so an order names both."""
+
+    __tablename__ = "affiliate_links"
+    __table_args__ = (
+        UniqueConstraint("product_id", "account_id", "video_id", "fanpage_id", name="uq_affiliate_links_target"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"))
+    account_id: Mapped[int] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="CASCADE"))
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
+    url: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AffiliateSuggestion(Base):
+    """A product Shopee's search gave for one of the video's product ideas, best first."""
+
+    __tablename__ = "affiliate_suggestions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    keyword: Mapped[str] = mapped_column(String(200))
+    product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"))
+    rank: Mapped[int] = mapped_column(Integer)
+
+    product: Mapped[AffiliateProduct] = relationship()
+
+
+class AffiliateConversion(Base):
+    """One item of an order Shopee credits to a member's account, with the video and Page its link was made for."""
+
+    __tablename__ = "affiliate_conversions"
+    __table_args__ = (UniqueConstraint("account_id", "external_id", name="uq_affiliate_conversions_order"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="CASCADE"))
+    external_id: Mapped[str] = mapped_column(String(100))  # Shopee's order and item
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
+    fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id", ondelete="SET NULL"))
+    purchased_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    item_name: Mapped[str] = mapped_column(String(300))
+    commission: Mapped[int] = mapped_column(Integer)  # VND
+    status: Mapped[str] = mapped_column(String(32))
+    read_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class Setting(Base):

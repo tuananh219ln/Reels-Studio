@@ -44,6 +44,9 @@ def save(db: DbSession, page_id: str, name: str, token: str, user_id: int) -> Fa
         row = Fanpage(page_id=page_id)
         db.add(row)
     row.name, row.active, row.updated_by_id = name, True, user_id
+    # The member who connects a Page owns it; a new token from someone else does not take it from its owner.
+    if row.owner_id is None:
+        row.owner_id = user_id
     row.token_encrypted = crypto.encrypt(token)
     row.token_tail = token[-TOKEN_TAIL:]
     row.checked_at = row.check_error = None
