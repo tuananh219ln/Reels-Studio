@@ -445,8 +445,10 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   // The views stay on one line: the details sit in a tooltip.
   await expect(posts.getByText("3 share · 5 bình luận · 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();
-  await expect(page.getByRole("tooltip")).toContainText("3 share · 5 bình luận · 40 cảm xúc");
-  await expect(page.getByRole("tooltip")).toContainText("Xem TB 8,4 giây");
+  // The "Cập nhật view" button's tooltip may still be fading out, so pick the views tooltip by its text.
+  const viewsTip = page.getByRole("tooltip").filter({ hasText: "3 share · 5 bình luận · 40 cảm xúc" });
+  await expect(viewsTip).toBeVisible();
+  await expect(viewsTip).toContainText("Xem TB 8,4 giây");
   // "Phân tích": every number, and the retention curve split by the posted MP4's scenes.
   await posts.getByRole("button", { name: "Phân tích bài đăng" }).click();
   const insights = page.getByTestId("post-insights");
