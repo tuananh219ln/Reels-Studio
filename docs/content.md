@@ -87,13 +87,20 @@ How the prompt is built (built, compact version):
   `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
 - **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
   are code, not editable (see [patterns.md](patterns.md)). It asks for a voice text per scene
-  (8–15 words, explaining that scene's on-screen text, no `*` markup) and an opening line for the
-  title scene (8–12 words) that fits all 5 titles, since members choose among them after it is
+  (8–15 words, no `*` markup) that explains that scene's on-screen text through the food's
+  benefit: what it contains, which part of the body it is good for, and who it suits, without
+  reading the on-screen text back word for word. When there is room it adds one short eating tip
+  (when to eat it, how much), never cooking steps, and it keeps the soft wording ("tốt cho",
+  "hỗ trợ") with no promise to cure (see [Safety Rules](#safety-rules)). It also asks for an
+  opening line for the title scene (8–12 words) that fits all 5 titles, since members choose among them after it is
   written. Narration reads only the voice text of a scene that has one
   ([rules](architecture.md#video-pipeline)), so the opening line and every voice text together stay
   within 150 words; at these lengths a script reaches at most 117 words, about 40 seconds of speech
   at about 2.9 words per second. The worked example opens each voice text with the dish, so a
-  listener hears what the scene is about; a topic's prompt can ask for something else.
+  listener hears what the scene is about, then tells its benefit; the model copies the example
+  closely, so none of its voice texts describes cooking. A topic's prompt can ask for something
+  else. Only scripts and clones written after a change to these rules follow them; existing
+  videos keep their voice texts until their script is written again.
   Banned words cover the voice text too.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
