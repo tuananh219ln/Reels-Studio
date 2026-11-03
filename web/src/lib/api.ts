@@ -320,6 +320,25 @@ export type Post = {
   /** When and by whom it was cancelled or deleted; `closed_by` is null when a check found it so on Facebook. */
   closed_at: string | null;
   closed_by: string | null;
+  metrics: PostMetrics;
+};
+
+/** A post's numbers on Facebook as of `measured_at`; a number is null when Facebook does not give it. */
+export type PostNumbers = {
+  views: number | null;
+  shares: number | null;
+  comments: number | null;
+  reactions: number | null;
+  measured_at: string;
+};
+
+/** `latest` is rewritten by every reading; `at_48h` is the first reading 48 hours after the post went live, kept as it
+ * is. `pending`: "Cập nhật view" was pressed and the worker has not read it yet. */
+export type PostMetrics = {
+  latest: PostNumbers | null;
+  at_48h: PostNumbers | null;
+  error: string | null;
+  pending: boolean;
 };
 
 /** A post in the "Bài đăng" list; `busy`: its video has a job queued or running. */

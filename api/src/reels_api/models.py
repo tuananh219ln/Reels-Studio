@@ -310,10 +310,34 @@ class Publication(Base):
     closed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     # When a check last read the reel on Facebook, or was queued to: one automatic check per scheduled time.
     checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The worker's last reading of the reel's numbers (metrics.py), and what went wrong with it; None once one works.
+    metrics_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metrics_error: Mapped[str | None] = mapped_column(Text)
+    # "Cập nhật view": the worker reads the numbers in its next round, even for a post past the days it follows.
+    metrics_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
     closed_by: Mapped[User | None] = relationship(foreign_keys=[closed_by_id])
+    metrics: Mapped[list["PostMetrics"]] = relationship(lazy="selectin", passive_deletes=True)
+
+
+class PostMetrics(Base):
+    """A post's numbers on Facebook: `latest`, rewritten by every reading, and `48h`, the first reading at least 48 hours
+    after the post went live, kept as it is so posts are compared at the same age (docs/decisions.md). A number is None
+    when Facebook does not give it."""
+
+    __tablename__ = "post_metrics"
+    __table_args__ = (Index("uq_post_metrics_publication_id_window", "publication_id", "window", unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id", ondelete="CASCADE"))
+    window: Mapped[str] = mapped_column(String(8))  # latest | 48h
+    views: Mapped[int | None] = mapped_column(Integer)
+    shares: Mapped[int | None] = mapped_column(Integer)
+    comments: Mapped[int | None] = mapped_column(Integer)
+    reactions: Mapped[int | None] = mapped_column(Integer)
+    measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class MusicTrack(Base):

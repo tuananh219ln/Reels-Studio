@@ -19,7 +19,7 @@ from sqlalchemy import Connection, Engine, create_engine, inspect, select, text,
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
-from . import config
+from . import config, metrics
 from .jobs import queue_post_checks, work_dir
 from .models import Job
 from .sessions import now
@@ -31,6 +31,8 @@ POLL_SECONDS = 1.0
 WAIT_SECONDS = 5.0
 # How often scheduled reels whose time has passed are looked for, to be checked on Facebook.
 POST_CHECK_SECONDS = 60.0
+# How often posts whose numbers are due are looked for (metrics.py): often, so "Cập nhật view" answers in seconds.
+METRICS_SECONDS = 5.0
 DEFAULT_JOB_TIMEOUT = 15 * 60
 RESTARTED = "Worker khởi động lại giữa chừng"
 
@@ -124,13 +126,16 @@ def queue_checks(factory: sessionmaker) -> None:
 
 
 def serve(factory: sessionmaker, lock: Connection) -> None:
-    next_checks = 0.0
+    next_checks = next_metrics = 0.0
     while True:
         # Losing the lock connection would let a second worker start: exit and let Coolify restart us.
         lock.execute(text("SELECT 1"))
         if time.monotonic() >= next_checks:
             queue_checks(factory)
             next_checks = time.monotonic() + POST_CHECK_SECONDS
+        if time.monotonic() >= next_metrics:
+            metrics.measure_due(factory)
+            next_metrics = time.monotonic() + METRICS_SECONDS
         job_id = claim_next(factory)
         if job_id is None:
             time.sleep(POLL_SECONDS)

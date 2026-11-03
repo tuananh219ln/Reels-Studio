@@ -20,6 +20,31 @@ browser over the list the api already returns whole, because the team has at mos
 posts; the api gains only `thumbnail_url`. A video with several posts has several cards, one per
 post, since each post has its own Page, time and actions.
 
+## 2026-11-03 — Post numbers: the worker reads them between jobs, daily for 14 days, and keeps the 48-hour mark
+
+Part 3 of issue #74, agreed by a member (namtc07) on the issue's open questions. "Metrics and analytics in the MVP" is
+taken out of Out of Scope in `docs/project.md`: the team's KPIs and its winner rule (`docs/content.md`) need the numbers,
+and "Nhân bản" has no way to know which video won without them.
+
+- **Per post, not per video.** Since a video can have several posts (2026-11-02), numbers belong to a `publications`
+  row (table `post_metrics`, migration 0023).
+- **Two readings kept.** `latest`, rewritten by every reading, which "Bài đăng" sorts by; and `48h`, the first reading
+  at least 48 hours after the post went live, never rewritten, so the median and the winner flag (next PR) compare
+  posts at the same age. A post more than a day past its 48-hour mark when first read (older posts at deploy) gets no
+  mark rather than a wrong one. This replaces the performance-loop brief's "only 48h, a manual re-reading overwrites
+  it": a member wants the current views too, and overwriting the mark would break the comparison.
+- **Not a job.** The brief's `metrics` job would lock the video (one active job per video) for every reading and fill
+  the Jobs list; a reading only writes numbers, so the worker reads due posts itself between jobs, at most 3 every 5
+  seconds with a 10-second timeout per call. A request never calls Facebook: "Cập nhật view" only asks the worker. A
+  failed reading is recorded on the post and waits a day (or another "Cập nhật view"), never looping.
+- **When.** An hour after a post went live, then daily for 14 days; after that only on "Cập nhật view". Video Insights
+  is free to read, and at 1–3 posts a day this stays far under Facebook's limits.
+- **Which numbers.** Views are Video Insights' lifetime `fb_reels_total_plays` (every play, replays included); shares and
+  comments from `post_video_social_actions`; reactions are `post_video_likes_by_reaction_type` summed. These names are
+  from Meta's docs and tested only against the fake service; a member must check them against Meta Business Suite on a
+  real Page, and `facebook.reel_insights` is the one place to change. The Page token needs `read_insights`; without it
+  the post says so in Vietnamese and the member pastes a new token.
+
 ## 2026-11-03 — A reel posted by the app gets the title scene as its cover
 
 Requested by a member (tuananh219ln): Facebook picked a frame from the middle of a reel ("1. Canh bí đao…") as its
