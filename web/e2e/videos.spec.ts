@@ -420,7 +420,8 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   // The views stay on one line: the details sit in a tooltip.
   await expect(posts.getByText("3 share · 5 bình luận · 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();
-  await expect(page.getByRole("tooltip")).toContainText("3 share · 5 bình luận · 40 cảm xúc");
+  // The "Cập nhật view" button's tooltip may still be fading out, so pick the views tooltip by its text.
+  await expect(page.getByRole("tooltip").filter({ hasText: "3 share · 5 bình luận · 40 cảm xúc" })).toBeVisible();
   await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
   await expect(groups).toHaveCount(1);
   // The KPIs: each figure on its own card, named plainly, with last week under it. The reel just went out, so
