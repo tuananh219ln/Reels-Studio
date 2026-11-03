@@ -2,8 +2,9 @@
 
 import { PlayCircleOutlined, RedoOutlined, SwapOutlined } from "@ant-design/icons";
 import { Alert, Button, Flex, Modal, Slider, Switch, Typography } from "antd";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
+import ListenVolume, { useListen } from "@/components/ListenVolume";
 import { api, errorMessage, upload, type SceneData, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 
@@ -212,6 +213,11 @@ function ClipTrim({
     round(clip.start + (scene.seconds + sides) * clip.speed, 2),
   ]);
   const [sound, setSound] = useState(false);
+  // "Nghe tiếng gốc" turns the clip's sound on; the listener's level sets how loud.
+  const { factor: listen } = useListen();
+  useEffect(() => {
+    if (player.current) player.current.volume = listen;
+  }, [listen]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [start, end] = range;
@@ -351,6 +357,7 @@ function ClipTrim({
         <Flex align="center" gap={8} wrap>
           <Switch checked={sound} onChange={setSound} aria-label="Nghe tiếng gốc" />
           <Typography.Text>Nghe tiếng gốc khi xem thử</Typography.Text>
+          {sound && <ListenVolume width={100} />}
           <Typography.Text type="secondary">(video xuất ra không dùng tiếng gốc)</Typography.Text>
         </Flex>
         <Typography.Text type="secondary">

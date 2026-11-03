@@ -63,7 +63,7 @@ Built:
   with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
-  as a small player beside its length, "Tải MP4" and "Đăng", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
+  as a small player beside its length, with the listening volume under it, "Tải MP4" and "Đăng", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
   đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
@@ -147,6 +147,14 @@ Built:
     (1 cảnh)". Its arrow, like the one beside "Tạo ảnh AI cho cảnh thiếu", offers "Tạo bằng
     Cloudflare" / "Tạo bằng Gemini" for this press (one without a key is greyed out); the button
     itself uses the team's default;
+  - **listening volume** ("Âm lượng nghe"): a speaker button that mutes ("Tắt tiếng" / "Bật tiếng")
+    and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Xuất bản",
+    and in "Cắt video" once "Nghe tiếng gốc" is on. It is how loud this browser plays, never part of
+    the video: it multiplies the video's own mix (music, narration, ducking keep their proportions),
+    changes nothing rendered or posted, and is remembered per browser, the same level for every
+    player. The MP4's own mute button moves it too. The browser's free voice takes a new level from
+    its next scene. The plain audio players (narration of a scene, music, the music library) keep
+    the browser's own volume control.
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
     (1–4×), "Xoay 90°" and "Lật ngang"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping

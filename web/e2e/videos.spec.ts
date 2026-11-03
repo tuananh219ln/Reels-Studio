@@ -72,6 +72,12 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
   await page.getByRole("tab", { name: "Xuất bản" }).click();
+  // The MP4 plays at the listener's volume, set under it: the player is too narrow for the browser's slider.
+  const mp4 = page.getByTestId("mp4-player");
+  await page.getByTestId("listen-volume").getByRole("button", { name: "Tắt tiếng" }).click();
+  await expect.poll(() => mp4.evaluate((element: HTMLVideoElement) => element.muted)).toBe(true);
+  await page.getByTestId("listen-volume").getByRole("button", { name: "Bật tiếng" }).click();
+  await expect.poll(() => mp4.evaluate((element: HTMLVideoElement) => element.muted)).toBe(false);
   // Seeking needs Range answers (206) through the web app's /api proxy.
   const src = await page.getByTestId("mp4-player").getAttribute("src");
   const range = await page.request.get(src ?? "", { headers: { Range: "bytes=100-199" } });
@@ -369,6 +375,25 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await page.getByRole("button", { name: "Tạo giọng", exact: true }).click();
   // Once every scene has its narration, the section goes away.
   await expect(voiceBox).toHaveCount(0, { timeout: 60_000 });
+
+  // The listener's own volume: muting and the slider change what plays here, never the video's settings.
+  const narration = preview.locator("audio").nth(1);
+  const volume = () => narration.evaluate((element: HTMLAudioElement) => element.volume);
+  await expect.poll(volume).toBe(1);
+  await preview.getByRole("button", { name: "Tắt tiếng" }).click();
+  await expect.poll(volume).toBe(0);
+  await preview.getByRole("button", { name: "Bật tiếng" }).click();
+  await expect.poll(volume).toBe(1);
+  const slider = preview.getByRole("slider", { name: "Âm lượng nghe" });
+  await slider.focus();
+  for (let step = 0; step < 50; step += 1) await page.keyboard.press("ArrowLeft");
+  await expect(slider).toHaveAttribute("aria-valuenow", "50");
+  await expect.poll(volume).toBeCloseTo(0.5);
+  // Remembered in this browser, for every player.
+  await page.reload();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  preview = page.getByRole("dialog", { name: "Xem trước video" });
+  await expect(preview.getByRole("slider", { name: "Âm lượng nghe" })).toHaveAttribute("aria-valuenow", "50");
 });
 
 /** A rendered video with its Page connected, open on its own page. */
