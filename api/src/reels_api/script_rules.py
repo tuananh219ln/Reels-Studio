@@ -37,6 +37,7 @@ class SceneInput:
     voice_seconds: float | None = None  # length of the narration already made for the current voice text
     clip_seconds: float | None = None  # what is left of the scene's clip after its start time
     has_keywords: bool = True  # Vietnamese or English photo keywords, for "Tìm ảnh" and the picker
+    clip_speed: float = 1.0  # a scene takes this many seconds of clip for each second it lasts
 
 
 @dataclass(frozen=True)
@@ -106,9 +107,11 @@ def check_script(
         if not MIN_SECONDS <= scene.seconds <= MAX_SECONDS:
             block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
         neighbours = (index > 0) + (index < len(every) - 1)
-        needed = fit_seconds(scene.seconds, scene.voice_seconds) + neighbours * CROSSFADE_SIDE_SECONDS
-        if scene.clip_seconds is not None and needed > scene.clip_seconds + 0.01:
-            warn(Issue("Video ngắn hơn cảnh, khung cuối sẽ đứng yên", scene.id, "video"))
+        played = fit_seconds(scene.seconds, scene.voice_seconds) + neighbours * CROSSFADE_SIDE_SECONDS
+        if scene.clip_seconds is not None and played * scene.clip_speed > scene.clip_seconds + 0.01:
+            speed = f"{scene.clip_speed:g}".replace(".", ",")
+            at_speed = "Video" if scene.clip_speed == 1 else f"Ở tốc độ {speed}× video"
+            warn(Issue(f"{at_speed} ngắn hơn cảnh, khung cuối sẽ đứng yên", scene.id, "video"))
         words, limit = count_words(scene.text), MAX_TITLE_WORDS if scene.is_title else MAX_SCENE_WORDS
         if words > limit:
             warn(Issue(f"Chữ có {words} từ, nên tối đa {limit} từ", scene.id))

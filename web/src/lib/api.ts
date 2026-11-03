@@ -95,7 +95,7 @@ export type SceneData = {
   image_error: string | null;
   image_url: string | null;
   /** A clip shown instead of the photo; the scene has one or the other. */
-  video: { url: string; seconds: number; start: number } | null;
+  video: { url: string; seconds: number; start: number; speed: number } | null;
   preview_url: string | null;
   /** Where a member dragged this scene's text box (its centre in the 1080×1920 frame); null: not moved. */
   text_position: [number, number] | null;

@@ -762,6 +762,34 @@ def test_start_time_is_checked_and_a_short_clip_only_warns(an, db, me, storage, 
     assert scene["blocking"] == [] and saved["can_render"] is True
 
 
+def test_video_speed_needs_a_clip(an, db, me, storage):
+    video = make_video(db, storage, me)
+    response = an.patch(f"/api/scenes/{scene_ids(db, video)[0]}", json={"video_speed": 2})
+    assert (response.status_code, response.json()["message"]) == (422, "Cảnh này chưa có video")
+
+
+@needs_ffmpeg
+def test_a_clip_speed_is_checked_warns_on_a_short_clip_and_goes_with_the_clip(an, db, me, storage, tmp_path):
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    clip = clip_bytes(tmp_path, seconds=3)
+    first = an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip)}).json()["scenes"][0]
+    assert first["video"]["speed"] == 1
+
+    for speed in (0.4, 2.1):
+        refused = an.patch(f"/api/scenes/{target}", json={"video_speed": speed})
+        assert (refused.status_code, refused.json()["message"]) == (422, "Tốc độ clip phải từ 0,5 đến 2")
+
+    saved = an.patch(f"/api/scenes/{target}", json={"video_speed": 2}).json()
+    scene = saved["scenes"][0]
+    assert (scene["video"]["speed"], scene["seconds"]) == (2, first["seconds"]), "the scene keeps its seconds"
+    assert "Ở tốc độ 2× video ngắn hơn cảnh, khung cuối sẽ đứng yên" in scene["warnings"]
+    assert scene["blocking"] == [] and saved["can_render"] is True
+
+    again = an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip)}).json()["scenes"][0]
+    assert again["video"]["speed"] == 1, "a new clip starts at 1×"
+
+
 @needs_ffmpeg
 def test_title_clip_draws_the_thumbnail_from_its_start_frame(an, db, me, storage, tmp_path):
     video = make_video(db, storage, me)
@@ -779,7 +807,7 @@ def test_title_clip_draws_the_thumbnail_from_its_start_frame(an, db, me, storage
 
 
 @needs_ffmpeg
-def test_changing_the_clip_or_its_start_marks_the_mp4_outdated(an, db, me, storage, tmp_path):
+def test_changing_the_clip_its_start_or_its_speed_marks_the_mp4_outdated(an, db, me, storage, tmp_path):
     video = make_video(db, storage, me)
     target = scene_ids(db, video)[0]
     an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip_bytes(tmp_path, seconds=3))})
@@ -789,6 +817,9 @@ def test_changing_the_clip_or_its_start_marks_the_mp4_outdated(an, db, me, stora
     row.mp4_key, row.rendered_signature = "videos/x/video.mp4", render_signature(row, *split_scenes(db, row))
     db.commit()
     assert an.get(f"/api/videos/{video.id}").json()["mp4_outdated"] is False
+    assert an.patch(f"/api/scenes/{target}", json={"video_speed": 1}).json()["mp4_outdated"] is False
+    assert an.patch(f"/api/scenes/{target}", json={"video_speed": 1.5}).json()["mp4_outdated"] is True
+    assert an.patch(f"/api/scenes/{target}", json={"video_speed": 1}).json()["mp4_outdated"] is False
     assert an.patch(f"/api/scenes/{target}", json={"video_start": 1}).json()["mp4_outdated"] is True
 
 

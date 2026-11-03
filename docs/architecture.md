@@ -135,15 +135,19 @@ A scene may hold an uploaded video clip instead of a photo
   the render pass `-max_pixels` (4096×2304) before the clip's `-i`. The decoder then refuses larger
   frames instead of allocating gigabytes.
 - **Stored data:** the scene's `video_key`, `video_seconds` (the video stream's own length,
-  because the container's is the longest stream, often a longer audio track), and `video_start`.
+  because the container's is the longest stream, often a longer audio track), `video_start` and
+  `video_speed` (0.5–2, migration 0022; every older scene is 1).
   Uploading a clip clears the photo, uploading or choosing a photo clears the clip, and the
-  replaced file is deleted after the commit. A new clip sets the scene's seconds to its length
+  replaced file is deleted after the commit. A new clip starts at 1× and sets the scene's seconds to its length
   minus the 0.2 s it plays into each crossfade (one for the title, two for a content scene), in
   tenths, between 1 and 10 s. The start time must leave at least 1 s of clip. A clone rewrites every scene, so it
   starts without the source's clips.
-- **Trim:** the editor's "Cắt video" dialog picks a start and an end on the clip and saves
-  `video_start` and `seconds` in one `PATCH /scenes/{id}`, with the end at most the clip's length
-  and the seconds the part less its crossfades; the api checks both as for typed values.
+- **Trim:** the editor's "Cắt video" dialog picks a start, an end and a speed on the clip and saves
+  `video_start`, `video_speed` and `seconds` in one `PATCH /scenes/{id}`, with the seconds the part
+  divided by the speed, less its crossfades; the api checks them as for typed values.
+- **Speed:** `seconds` stays the scene's length on screen. The scene takes
+  (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
+  start time's limit does not change with the speed: a part past the clip's end only warns.
 - **Preview:** the scene preview and, for the title scene, the thumbnail are drawn from the
   clip's frame at the start time, taken with the same input seeking as the render. The editor
   plays the stored clip through the login-protected `/api/scenes/{id}/video` endpoint.
@@ -151,22 +155,26 @@ A scene may hold an uploaded video clip instead of a photo
   centres the box there inside `SAFE_ZONE` (the title only moves up and down), and without it the box
   sits where the template puts it. The api writes each scene's effective place (its own, else the
   video's for content scenes) into the script and into the MP4 signature only when there is one.
-- **Script input:** a scene has `video` (path relative to the JSON) and `video_start` instead of
-  `image`. A scene with both is a validation error, and stock search never runs for a clip scene.
+- **Script input:** a scene has `video` (path relative to the JSON), `video_start` and optionally
+  `video_speed` (0.5–2, default 1) instead of `image`. A scene with both is a validation error, and
+  stock search never runs for a clip scene.
 - **Filter graph:** the clip is passed with `-ss <start>` before its `-i`. Its chain replaces the
   photo chain: `setpts=PTS-STARTPTS,fps=30,scale=1080:1920:force_original_aspect_ratio=increase:out_range=tv,
   crop=1080:1920,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=<clip seconds>,
   trim=end_frame=<clip frames>,setpts=PTS-STARTPTS`.
   - It has no `zoompan` and no prescale.
-  - `fps` comes first, so variable-frame-rate phone footage becomes constant 30 fps.
+  - At a speed other than 1× the first filter is `setpts=(PTS-STARTPTS)/<speed>`; at 1× the graph
+    is unchanged. The clip's sound is never used, so no audio filter is needed.
+  - `fps` comes right after it, so variable-frame-rate phone footage, and a clip at any speed,
+    becomes constant 30 fps.
   - `tpad` holds the last frame when the clip ends early, and `trim` cuts the clip to the
     timeline's exact frame count, so crossfade offsets stay frame-exact.
   - The clip's audio stream is never referenced.
 - **Checks:** a missing clip blocks the render, as a missing photo does. A scene that needs more
   than the clip left after its start only warns. The scene's length counts its narration plus
-  0.2 s for each crossfade next to it.
+  0.2 s for each crossfade next to it, times its speed.
 - **Fingerprint:** the clip's key and start time join the MP4 fingerprint only for a scene with a
-  clip, so MP4s rendered before clips existed stay current.
+  clip, and its speed only when not 1×, so MP4s rendered before clips or speeds existed stay current.
 - **Not handled:** HDR footage (iPhone HEVC HLG) is converted without tone mapping, so it looks
   washed out. Members should film in SDR.
 

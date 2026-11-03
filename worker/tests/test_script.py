@@ -192,8 +192,15 @@ def test_video_resolves_relative_to_json_with_its_start(folder):
     script = load(folder, {"title": scene(image="", video="vuon.mp4", video_start=1.5), "scenes": [scene()]})
     assert script.title.video == folder / "vuon.mp4"
     assert script.title.video_start == 1.5
+    assert script.title.video_speed == 1
     assert script.title.image is None
     assert script.scenes[0].video is None
+
+
+def test_video_speed_is_read_with_the_clip(folder):
+    (folder / "vuon.mp4").write_bytes(b"clip")
+    script = load(folder, {"title": scene(image="", video="vuon.mp4", video_speed=0.5), "scenes": [scene()]})
+    assert script.title.video_speed == 0.5
 
 
 @pytest.mark.parametrize(
@@ -204,6 +211,9 @@ def test_video_resolves_relative_to_json_with_its_start(folder):
         ({"image": "", "video": 3}, 'Cảnh 1: "video" phải là chuỗi'),
         ({"image": "", "video": "vuon.mp4", "video_start": -1}, 'Cảnh 1: "video_start" phải là số giây từ 0'),
         ({"image": "", "video": "vuon.mp4", "video_start": True}, 'Cảnh 1: "video_start" phải là số giây từ 0'),
+        ({"image": "", "video": "vuon.mp4", "video_speed": 0.4}, 'Cảnh 1: "video_speed" phải là số từ 0.5 đến 2'),
+        ({"image": "", "video": "vuon.mp4", "video_speed": 2.5}, 'Cảnh 1: "video_speed" phải là số từ 0.5 đến 2'),
+        ({"image": "", "video": "vuon.mp4", "video_speed": True}, 'Cảnh 1: "video_speed" phải là số từ 0.5 đến 2'),
     ],
 )
 def test_bad_video_is_named(folder, override, message):

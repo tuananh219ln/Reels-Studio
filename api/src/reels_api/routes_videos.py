@@ -13,6 +13,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.textbox import FRAME_WIDTH
 
 from . import clips, frames, image_providers, knowledge, llm, remote_images, source_keys, stock_clips, video_options
@@ -118,6 +119,7 @@ class ScenePatchBody(BaseModel):
     image_prompt: str | None = None
     voice_text: str | None = None
     video_start: float | None = None
+    video_speed: float | None = None
     text_position: object = None  # the text box centre [x, y]; null: back to the video's (or template's)
     image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
 
@@ -680,6 +682,12 @@ def patch_scene(
         start = round(body.video_start, 2)
         start_changed = start != scene.video_start
         scene.video_start = start
+    if "video_speed" in fields and body.video_speed is not None:
+        if not scene.video_key:
+            raise invalid("Cảnh này chưa có video")
+        if not math.isfinite(body.video_speed) or not MIN_VIDEO_SPEED <= body.video_speed <= MAX_VIDEO_SPEED:
+            raise invalid("Tốc độ clip phải từ 0,5 đến 2")
+        scene.video_speed = round(body.video_speed, 2)
     moved = False
     if "text_position" in fields:
         try:
@@ -734,7 +742,7 @@ def _store_photo(
     # A member chose, uploaded or cropped this photo: it is no longer the app's unchecked pick.
     scene.image_auto = False
     # A photo replaces the scene's clip: a scene shows one or the other.
-    scene.video_key, scene.video_seconds, scene.video_start = None, None, 0
+    scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
@@ -840,7 +848,7 @@ def _attach_clip(db: DbSession, storage: DirectoryStorage, scene_id: int, upload
     old = [scene.image_key, scene.video_key]
     key = new_key(video.id, f"clip-{scene.id}", clip.extension)
     storage.save_file(key, upload)
-    scene.video_key, scene.video_seconds, scene.video_start = key, round(clip.seconds, 3), 0
+    scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1
     # A clip replaces the scene's photo, and the scene lasts as long as the clip minus the crossfades around it
     # (one for the title, at most two for a content scene), in tenths, so the clip never ends on a held frame.
     scene.image_key, scene.image_source, scene.image_error = None, None, None
@@ -866,6 +874,7 @@ def remove_scene_video(
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     old, scene.video_key, scene.video_seconds, scene.video_start = scene.video_key, None, None, 0
+    scene.video_speed = 1
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)

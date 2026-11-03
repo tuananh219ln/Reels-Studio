@@ -110,7 +110,15 @@ def render_video(
             scene_start += timeline.scene_frames[index]
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(
-                SceneInput(image=image, text_box=box, box_x=box_x, box_y=box_y, voice=voice, video_start=video_start)
+                SceneInput(
+                    image=image,
+                    text_box=box,
+                    box_x=box_x,
+                    box_y=box_y,
+                    voice=voice,
+                    video_start=video_start,
+                    video_speed=scene.video_speed,
+                )
             )
 
         try:

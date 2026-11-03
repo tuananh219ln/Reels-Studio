@@ -31,6 +31,7 @@ class SceneInput:
     box_y: int
     voice: Path | None = None
     video_start: float | None = None
+    video_speed: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -79,12 +80,14 @@ def _photo_chain(source: int, frames: int, label: str, options: RenderOptions = 
     )
 
 
-def _clip_chain(source: int, frames: int, label: str, options: RenderOptions = DEFAULT_OPTIONS) -> str:
-    """A clip already moves, so it gets no zoom. `fps` first turns phone footage with a variable frame rate into
-    constant 30 fps; `tpad` holds the last frame when the clip ends before the scene, and `trim` cuts it to the
-    timeline's exact frame count so the crossfade offsets stay frame-exact."""
+def _clip_chain(source: int, frames: int, label: str, speed: float = 1.0) -> str:
+    """A clip already moves, so it gets no zoom. `setpts` first plays it at its speed, then `fps` turns it, like
+    phone footage with a variable frame rate, into constant 30 fps; `tpad` holds the last frame when the clip ends
+    before the scene, and `trim` cuts it to the timeline's exact frame count so the crossfade offsets stay
+    frame-exact."""
+    timing = "PTS-STARTPTS" if speed == 1 else f"(PTS-STARTPTS)/{speed:g}"
     return (
-        f"[{source}:v]setpts=PTS-STARTPTS,fps={FPS},"
+        f"[{source}:v]setpts={timing},fps={FPS},"
         f"scale={FRAME_WIDTH}:{FRAME_HEIGHT}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={FRAME_WIDTH}:{FRAME_HEIGHT},format=yuv420p,setsar=1,"
         f"tpad=stop_mode=clone:stop_duration={_seconds(frames)},trim=end_frame={frames},setpts=PTS-STARTPTS"
@@ -100,11 +103,13 @@ def build_filter_graph(
     clips: list[bool] | None = None,
     options: RenderOptions = DEFAULT_OPTIONS,
     captions: list[CaptionInput] | None = None,
+    speeds: list[float] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
-    marks has a video clip in its image's place; the clip's own sound is never used."""
+    marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is never used."""
     clips = clips or [False] * len(box_positions)
+    speeds = speeds or [1.0] * len(box_positions)
     captions = captions or []
     # A hard cut joins the scenes end to end, so each clip is exactly its scene; a crossfade or slide overlaps
     # half a transition on each side of a boundary instead.
@@ -113,8 +118,10 @@ def build_filter_graph(
     chains: list[str] = []
     for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, lengths)):
         image, box = 2 * index, 2 * index + 1
-        chain = _clip_chain if clips[index] else _photo_chain
-        chains.append(chain(image, frames, f"bg{index}", options))
+        if clips[index]:
+            chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index]))
+        else:
+            chains.append(_photo_chain(image, frames, f"bg{index}", options))
         chains.append(f"[bg{index}][{box}:v]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
 
     if cut:
@@ -220,6 +227,7 @@ def build_ffmpeg_args(
         [scene.video_start is not None for scene in scenes],
         options,
         captions,
+        [scene.video_speed for scene in scenes],
     )
     argv += [
         "-filter_complex",
