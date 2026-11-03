@@ -461,6 +461,7 @@ test("a scheduled video appears in Bài đăng and Lịch đăng bài without a 
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
+  await page.getByTitle("Dạng danh sách").click();
   await expect(page.getByRole("cell", { name: "Đã hẹn lịch" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
 
@@ -499,12 +500,13 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
+  await page.getByTitle("Dạng danh sách").click();
   await page.getByRole("button", { name: "Xóa", exact: true }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Xóa", exact: true }).click();
   await expect(page.getByRole("cell", { name: "Đã xóa", exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
 
-  await page.getByText("Đã hủy", { exact: true }).first().click();
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Đã hủy");
   await expect(page.getByRole("cell", { name: "Đã hủy", exact: true })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Đã xóa", exact: true })).toHaveCount(0);
   await expect(page.getByRole("cell", { name: new RegExp(SEED.name) }).first()).toBeVisible();
