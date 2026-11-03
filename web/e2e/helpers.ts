@@ -16,7 +16,8 @@ export function resetDatabase() {
 /** Connects the fake Facebook Page (api/scripts/fake_services.py). */
 export async function connectFacebook(page: Page) {
   await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
-  await page.getByRole("button", { name: "Thêm Fanpage" }).click();
+  // The header button is always there; with no Page yet the empty state adds a second one once the list loads.
+  await page.getByRole("button", { name: "Thêm Fanpage" }).first().click();
   const dialog = page.getByRole("dialog", { name: "Thêm Fanpage" });
   await dialog.getByLabel("Token", { exact: true }).fill("fake-facebook-user-token");
   await dialog.getByRole("button", { name: "Kiểm tra token" }).click();
