@@ -18,7 +18,10 @@ async function addShopeeAccount(page: Page) {
   await expect(page.getByText("Secret …cret")).toBeVisible();
 }
 
-test("a member's Shopee account: added, checked, set on their Page, and hidden from others", async ({ page }) => {
+test("a member's Shopee account: added, checked, set on their Page, and hidden from others", async ({
+  page,
+  browser,
+}) => {
   await loginAsSeed(page);
   await addShopeeAccount(page);
   await page.getByRole("button", { name: "Kiểm tra kết nối" }).click();
@@ -34,14 +37,19 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await expect(page.getByTestId("fanpage-owner")).toContainText("Shopee: Shopee của An");
 
   await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
-  await login(page, "binh@doi.vn", "mat-khau-tam-1");
-  await page.goto("/settings/affiliate-accounts");
-  await expect(page.getByText("Chưa có tài khoản nào")).toBeVisible();
-  await page.goto("/fanpages");
-  await expect(page.getByTestId("fanpage-owner")).toHaveText("Chủ: Nguyễn Văn An");
-  await page.goto("/affiliate");
-  await page.getByRole("tab", { name: "Doanh thu" }).click();
-  await expect(page.getByText("Chưa có tài khoản Shopee nào của bạn")).toBeVisible();
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  await binh.goto("/settings/affiliate-accounts");
+  await expect(binh.getByText("Chưa có tài khoản nào")).toBeVisible();
+  await binh.goto("/fanpages");
+  await expect(binh.getByTestId("fanpage-owner")).toHaveText("Chủ: Nguyễn Văn An");
+  await binh.goto("/affiliate");
+  await binh.getByRole("tab", { name: "Doanh thu" }).click();
+  await expect(binh.getByText("Chưa có tài khoản Shopee nào của bạn")).toBeVisible();
 });
 
 test("a new script finds Shopee products with the writer's account, and one is chosen", async ({ page }) => {

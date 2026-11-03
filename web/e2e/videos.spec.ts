@@ -638,7 +638,7 @@ test("a posted reel takes an approved product and its link goes in the pinned co
     await send(`/${tea.id}/approve`, "POST");
   });
 
-  await page.getByRole("menuitem", { name: "Affiliate", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Affiliate" }).click();
   const picker = page.getByLabel(/^Sản phẩm của video/);
   await chooseOption(page, picker, "Vừng đen rang (~10.000đ)");
   await expect(page.getByRole("button", { name: "Sao chép" })).toBeVisible();
