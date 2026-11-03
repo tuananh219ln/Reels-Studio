@@ -456,7 +456,7 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await expect(insights.getByTestId("retention-chart")).toBeVisible();
   await expect(insights.getByTestId("scene-drop-off").getByRole("row")).toHaveCount(7); // header, title, 5 scenes
   await expect(insights.getByText("mất nhiều nhất")).toHaveCount(1);
-  await page.getByRole("dialog", { name: "Phân tích bài đăng" }).getByRole("button", { name: "Close" }).click();
+  await page.getByRole("dialog", { name: "Phân tích bài đăng" }).getByRole("button", { name: "Đóng" }).click(); // antd's vi_VN label for the X
   await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
   await expect(groups).toHaveCount(1);
   // The KPIs: each figure on its own card, named plainly, with last week under it. The reel just went out, so
