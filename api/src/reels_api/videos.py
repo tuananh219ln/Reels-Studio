@@ -152,6 +152,18 @@ def made_voice_seconds(video: Video, scene: Scene) -> float | None:
     return scene.voice_seconds
 
 
+def scene_marks(video: Video, title: Scene | None, scenes: list[Scene]) -> list[dict]:
+    """Where each scene starts and ends in a render of the current scenes, in seconds: each lasts its fitted seconds,
+    as in the render's timeline, whose crossfades straddle the boundaries without changing them."""
+    marks, start = [], 0.0
+    for index, scene in enumerate([title, *scenes] if title else scenes):
+        end = start + fit_seconds(scene.seconds, made_voice_seconds(video, scene))
+        label = "Tiêu đề" if scene.is_title else f"Cảnh {index if title else index + 1}"
+        marks.append({"label": label, "start": round(start, 2), "end": round(end, 2)})
+        start = end
+    return marks
+
+
 def _voice(video: Video) -> tuple[str, str]:
     return voice_id(video), voice_speed(video)
 
@@ -477,6 +489,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "topic": video.topic,
         "title": title_of(video, title),
         "has_script": video.has_script,
+        "hand_written": video.hand_written,
         "title_options": video.title_options,
         "caption": video.caption,
         "hashtags": video.hashtags,

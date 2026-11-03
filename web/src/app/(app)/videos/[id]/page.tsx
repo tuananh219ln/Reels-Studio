@@ -33,6 +33,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
@@ -492,6 +493,15 @@ export default function VideoPage() {
                     options={video.title_options.map((option, index) => ({ value: index, label: option }))}
                   />
                   {/* Under the options, not in the card's header, where on a phone it squeezed the title to "T…". */}
+                  {video.hand_written && (
+                    <Typography.Text
+                      type="secondary"
+                      style={{ display: "block", marginTop: 10, fontSize: 12 }}
+                      data-testid="script-by"
+                    >
+                      Kịch bản tự viết, không qua AI
+                    </Typography.Text>
+                  )}
                   {video.script_by && (
                     <Typography.Text
                       type="secondary"
@@ -565,20 +575,7 @@ export default function VideoPage() {
                             <Card title="MP4" size="small">
                               {/* The player small beside its facts, so posting stays in view under it. */}
                               <Flex gap={14} align="flex-start">
-                                <video
-                                  key={video.mp4.url}
-                                  src={video.mp4.url}
-                                  controls
-                                  preload="metadata"
-                                  data-testid="mp4-player"
-                                  style={{
-                                    width: 150,
-                                    flex: "none",
-                                    aspectRatio: "9 / 16",
-                                    background: "#000",
-                                    borderRadius: 8,
-                                  }}
-                                />
+                                <Mp4Player key={video.mp4.url} url={video.mp4.url} />
                                 <Flex vertical gap={10} style={{ minWidth: 0 }}>
                                   <Typography.Text type="secondary" data-testid="render-time">
                                     Dài {video.mp4.seconds.toFixed(1)} giây · render mất{" "}
@@ -700,5 +697,36 @@ function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean
         onChange={(event) => setRequest(event.target.value)}
       />
     </Modal>
+  );
+}
+
+/** The MP4 small beside its facts, with the listener's volume under it: at this width the browser's own controls
+ * keep only a mute button. */
+function Mp4Player({ url }: { url: string }) {
+  const player = useRef<HTMLVideoElement>(null);
+  const { level, muted } = useListen();
+  useEffect(() => {
+    if (!player.current) return;
+    player.current.volume = level;
+    player.current.muted = muted;
+  }, [level, muted]);
+  return (
+    <Flex vertical gap={4} style={{ flex: "none", width: 150 }}>
+      <video
+        ref={player}
+        src={url}
+        controls
+        preload="metadata"
+        data-testid="mp4-player"
+        // The browser's own mute button moves the shared level too, so every player stays in step.
+        onVolumeChange={(event) => {
+          const { volume, muted: silent } = event.currentTarget;
+          const now = listenNow();
+          if (Math.abs(volume - now.level) > 0.001 || silent !== now.muted) setListen({ level: volume, muted: silent });
+        }}
+        style={{ width: 150, aspectRatio: "9 / 16", background: "#000", borderRadius: 8 }}
+      />
+      <ListenVolume width={90} />
+    </Flex>
   );
 }

@@ -9,6 +9,7 @@ import {
 } from "@ant-design/icons";
 import { Alert, Button, Drawer, Flex, Popconfirm, Segmented, Select, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
+import ListenVolume, { useListen } from "@/components/ListenVolume";
 import { COLORS } from "@/app/theme";
 import type { SceneData, VideoDetail } from "@/lib/api";
 import { Phone } from "./phone/Phone";
@@ -120,6 +121,10 @@ export default function VideoPreview({
   // How long the current scene has played, across pauses, and which parts of it have finished.
   const clock = useRef({ run: 0, playedMs: 0 });
   const done = useRef({ run: 0, time: false, voice: false });
+  // The listener's own level multiplies the video's mix, and the narration lowers the music while it plays.
+  const { factor: listen } = useListen();
+  const listenRef = useRef(listen);
+  const ducked = useRef(false);
 
   const scene = scenes[phase.index];
   const text = scene?.spoken_text ?? "";
@@ -206,14 +211,31 @@ export default function VideoPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.run, playing, ended]);
 
+  function musicLevel(duckedNow: boolean, factor: number) {
+    return (video.music_volume / 100) * (duckedNow && video.options.ducking ? DUCKED : 1) * factor;
+  }
+
+  // A new listening level applies at once to what is playing; the browser's voice takes it from its next scene.
+  useEffect(() => {
+    listenRef.current = listen;
+    if (music.current && video.music) {
+      music.current.volume = musicLevel(ducked.current, listen);
+    }
+    if (narration.current) {
+      narration.current.volume = Math.min(1, video.options.voice_volume) * listen;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only the listener's level changes the players here
+  }, [listen]);
+
   // The scene's narration: the MP3 a render already made, else the browser's free Vietnamese voice.
   useEffect(() => {
     const run = phase.run;
     const player = narration.current;
     done.current = { run, time: false, voice: false };
     const duck = (on: boolean) => {
+      ducked.current = on;
       if (music.current && video.music) {
-        music.current.volume = (video.music_volume / 100) * (on && video.options.ducking ? DUCKED : 1);
+        music.current.volume = musicLevel(on, listenRef.current);
       }
     };
     duck(false);
@@ -225,7 +247,7 @@ export default function VideoPreview({
     if (scene?.voice_url && player) {
       const audio = player;
       audio.src = scene.voice_url;
-      audio.volume = Math.min(1, video.options.voice_volume);
+      audio.volume = Math.min(1, video.options.voice_volume) * listenRef.current;
       audio.onended = voiceDone;
       audio.onerror = voiceDone;
       timers.push(
@@ -239,7 +261,7 @@ export default function VideoPreview({
       utterance.voice = voice;
       utterance.lang = voice.lang;
       utterance.rate = video.options.voice_speed;
-      utterance.volume = Math.min(1, video.options.voice_volume);
+      utterance.volume = Math.min(1, video.options.voice_volume) * listenRef.current;
       utterance.onend = voiceDone;
       utterance.onerror = voiceDone;
       timers.push(
@@ -283,7 +305,7 @@ export default function VideoPreview({
     if (!audio || !video.music) {
       return;
     }
-    audio.volume = video.music_volume / 100;
+    audio.volume = musicLevel(false, listenRef.current);
     const offset = scenes.slice(0, start).reduce((sum, item) => sum + item.fitted_seconds, 0);
     const begin = () => {
       audio.currentTime = audio.duration > 0 ? offset % audio.duration : 0;
@@ -479,6 +501,7 @@ export default function VideoPreview({
               onClick={() => goTo(phase.index + 1, false)}
             />
             <Button aria-label="Từ đầu" icon={<ReloadOutlined />} onClick={() => goTo(0, false)} />
+            <ListenVolume />
           </Space>
         </Flex>
 

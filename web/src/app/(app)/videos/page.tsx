@@ -309,7 +309,17 @@ function PlanBanners({ today, onContinue }: { today: PlanToday[]; onContinue: (i
   );
 }
 
-type NewVideo = { topic: string; knowledge_topic_id: number };
+type NewVideo = { topic: string; knowledge_topic_id: number; script?: string };
+
+type Mode = "ai" | "manual";
+
+const SCRIPT_HINT = `Mỗi đoạn (cách nhau một dòng trống) là một cảnh. Dòng bắt đầu bằng “Đọc:” là lời đọc của cảnh.
+
+Vừng đen *giàu canxi*
+Đọc: Vừng đen giàu canxi, giúp xương chắc khỏe hơn.
+
+Cá hồi giảm đau khớp
+Đọc: Omega 3 trong cá hồi giúp khớp bớt đau.`;
 
 /** Topics compare like the api's: case, spacing and Unicode form do not count. */
 function sameTopic(a: string, b: string): boolean {
@@ -336,6 +346,9 @@ function NewVideoModal({
   const [llm, setLlm] = useState<ActiveLlm | null>(null);
   // The plan idea the video is made from; typing a topic by hand works as before.
   const [picked, setPicked] = useState<PlanItem | null>(startItem);
+  // "Tự viết": no AI call, so any group can be used and the script is pasted or left for the video page.
+  const [mode, setMode] = useState<Mode>("ai");
+  const manual = mode === "manual";
   const groupId = Form.useWatch("knowledge_topic_id", form);
   const typed = Form.useWatch("topic", form) ?? "";
   const plan = today.find((group) => group.topic_id === groupId);
@@ -362,7 +375,13 @@ function NewVideoModal({
   async function submit(values: NewVideo) {
     setBusy(true);
     try {
-      const video = await api<VideoDetail>("/videos", "POST", { ...values, plan_item_id: picked?.id });
+      const video = await api<VideoDetail>("/videos", "POST", {
+        topic: values.topic,
+        knowledge_topic_id: values.knowledge_topic_id,
+        plan_item_id: picked?.id,
+        mode,
+        script: manual ? (values.script ?? "") : "",
+      });
       router.push(`/videos/${video.id}`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -376,7 +395,7 @@ function NewVideoModal({
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
-      okText="Viết kịch bản"
+      okText={manual ? "Tạo video" : "Viết kịch bản"}
       cancelText="Huỷ"
       confirmLoading={busy}
       destroyOnHidden
@@ -386,117 +405,165 @@ function NewVideoModal({
           <Spin />
         </Flex>
       ) : (
-        <Form
-          form={form}
-          layout="vertical"
-          requiredMark={false}
-          onFinish={submit}
-          initialValues={{
-            knowledge_topic_id: startItem?.knowledge_topic_id ?? topics.find((topic) => topic.script_prompt)?.id,
-            topic: startItem?.topic,
-          }}
-          onValuesChange={(changed: Partial<NewVideo>) => {
-            const group = changed.knowledge_topic_id;
-            if (picked && group !== undefined && group !== picked.knowledge_topic_id) {
-              setPicked(null);
-            }
-          }}
-        >
-          <Form.Item
-            label="Nhóm chủ đề"
-            name="knowledge_topic_id"
-            rules={[{ required: true, message: "Hãy chọn nhóm chủ đề" }]}
-            extra="Quyết định prompt và từ cấm dùng cho video, sửa trong Kho kiến thức"
-          >
-            <Select
-              options={topics.map((topic) => ({
-                value: topic.id,
-                label: topic.script_prompt ? topic.name : `${topic.name} (chưa có prompt)`,
-                disabled: !topic.script_prompt,
-              }))}
-            />
-          </Form.Item>
-          <Form.Item
-            label="Chủ đề"
-            name="topic"
-            rules={[{ required: true, whitespace: true, message: "Hãy nhập chủ đề" }]}
-            extra="VD: thực phẩm tốt cho xương khớp người sau 50 tuổi"
-          >
-            <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
-          </Form.Item>
-          {picked ? (
-            <Alert
-              type="info"
-              style={{ marginBottom: 16 }}
-              data-testid="picked-idea"
-              title={`Theo kế hoạch · Ngày ${picked.day}${picked.pain_group ? ` · ${picked.pain_group}` : ""}`}
-              description={
-                <>
-                  {picked.pain && <div>Nỗi đau: {picked.pain}</div>}
-                  {picked.hook && <div>Hook: {picked.hook}</div>}
-                  <div style={{ marginTop: 4, fontSize: 12 }}>Nỗi đau và hook được gửi kèm prompt viết kịch bản.</div>
-                </>
+        <>
+          <Segmented
+            block
+            aria-label="Cách viết kịch bản"
+            value={mode}
+            onChange={(value) => setMode(value as Mode)}
+            options={[
+              { value: "ai", label: "AI viết kịch bản" },
+              { value: "manual", label: "Tự viết" },
+            ]}
+            style={{ marginBottom: 16 }}
+          />
+          <Form
+            form={form}
+            layout="vertical"
+            requiredMark={false}
+            onFinish={submit}
+            initialValues={{
+              knowledge_topic_id: startItem?.knowledge_topic_id ?? topics.find((topic) => topic.script_prompt)?.id,
+              topic: startItem?.topic,
+            }}
+            onValuesChange={(changed: Partial<NewVideo>) => {
+              const group = changed.knowledge_topic_id;
+              if (picked && group !== undefined && group !== picked.knowledge_topic_id) {
+                setPicked(null);
               }
-              action={
-                <Button size="small" type="text" onClick={() => setPicked(null)}>
-                  Bỏ chọn
-                </Button>
+            }}
+          >
+            <Form.Item
+              label="Nhóm chủ đề"
+              name="knowledge_topic_id"
+              rules={[{ required: true, message: "Hãy chọn nhóm chủ đề" }]}
+              extra={
+                manual
+                  ? "Quyết định từ cấm và mặc định của video, sửa trong Kho kiến thức"
+                  : "Quyết định prompt và từ cấm dùng cho video, sửa trong Kho kiến thức"
               }
-            />
-          ) : (
-            suggestions.length > 0 && (
-              <Form.Item label={`Ý tưởng hôm nay (ngày ${plan!.day}) chưa làm`}>
-                <Flex vertical gap={6} data-testid="plan-suggestions">
-                  {suggestions.map((idea) => (
-                    <Card
-                      key={idea.id}
-                      size="small"
-                      hoverable
-                      onClick={() => pick(idea)}
-                      styles={{ body: { padding: "6px 10px" } }}
-                    >
-                      <Typography.Text>{idea.topic}</Typography.Text>
-                      {idea.pain_group && <Tag style={{ marginInlineStart: 8 }}>{idea.pain_group}</Tag>}
-                    </Card>
-                  ))}
-                </Flex>
-              </Form.Item>
-            )
-          )}
-          {outsidePlan && (
-            <Alert
-              type="warning"
-              showIcon
-              style={{ marginBottom: 16 }}
-              data-testid="outside-plan"
-              title="Chủ đề này không có trong kế hoạch 30 ngày của nhóm. Vẫn tạo được bình thường."
-            />
-          )}
-          {llm && (
-            <Typography.Paragraph
-              type={llm.problem ? "danger" : "secondary"}
-              style={{ margin: 0 }}
-              data-testid="llm-line"
             >
-              {llm.problem ? (
-                <>
-                  {llm.problem}.{" "}
-                  <Link prefetch={false} href="/settings/ai">
-                    Mở Cài đặt › Mô hình AI
-                  </Link>
-                </>
-              ) : (
-                <>
-                  Viết bằng: {llm.name} · {llm.model} (
-                  <Link prefetch={false} href="/settings/ai">
-                    đổi trong Cài đặt
-                  </Link>
-                  )
-                </>
-              )}
-            </Typography.Paragraph>
-          )}
-        </Form>
+              <Select
+                options={topics.map((topic) => ({
+                  value: topic.id,
+                  label: topic.script_prompt || manual ? topic.name : `${topic.name} (chưa có prompt)`,
+                  disabled: !topic.script_prompt && !manual,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item
+              label="Chủ đề"
+              name="topic"
+              rules={[{ required: true, whitespace: true, message: "Hãy nhập chủ đề" }]}
+              extra={
+                manual
+                  ? "Cũng là chữ cảnh tiêu đề, sửa được sau. VD: 6 món *bổ xương* cho người sau 50"
+                  : "VD: thực phẩm tốt cho xương khớp người sau 50 tuổi"
+              }
+            >
+              <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
+            </Form.Item>
+            {manual && (
+              <>
+                <Form.Item
+                  label="Kịch bản (không bắt buộc)"
+                  name="script"
+                  extra="Để trống thì video có cảnh tiêu đề và một cảnh trống để viết trên trang video."
+                >
+                  <Input.TextArea
+                    autoSize={{ minRows: 6, maxRows: 14 }}
+                    maxLength={5000}
+                    placeholder={SCRIPT_HINT}
+                    aria-label="Kịch bản"
+                  />
+                </Form.Item>
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  data-testid="hand-written-note"
+                  title="Không gọi AI: không có tiêu đề gợi ý, caption, hashtag, từ khoá ảnh và tự rà soát an toàn. Hãy tự kiểm tra nội dung theo luật an toàn của kênh."
+                />
+              </>
+            )}
+            {picked ? (
+              <Alert
+                type="info"
+                style={{ marginBottom: 16 }}
+                data-testid="picked-idea"
+                title={`Theo kế hoạch · Ngày ${picked.day}${picked.pain_group ? ` · ${picked.pain_group}` : ""}`}
+                description={
+                  <>
+                    {picked.pain && <div>Nỗi đau: {picked.pain}</div>}
+                    {picked.hook && <div>Hook: {picked.hook}</div>}
+                    {!manual && (
+                      <div style={{ marginTop: 4, fontSize: 12 }}>
+                        Nỗi đau và hook được gửi kèm prompt viết kịch bản.
+                      </div>
+                    )}
+                  </>
+                }
+                action={
+                  <Button size="small" type="text" onClick={() => setPicked(null)}>
+                    Bỏ chọn
+                  </Button>
+                }
+              />
+            ) : (
+              suggestions.length > 0 && (
+                <Form.Item label={`Ý tưởng hôm nay (ngày ${plan!.day}) chưa làm`}>
+                  <Flex vertical gap={6} data-testid="plan-suggestions">
+                    {suggestions.map((idea) => (
+                      <Card
+                        key={idea.id}
+                        size="small"
+                        hoverable
+                        onClick={() => pick(idea)}
+                        styles={{ body: { padding: "6px 10px" } }}
+                      >
+                        <Typography.Text>{idea.topic}</Typography.Text>
+                        {idea.pain_group && <Tag style={{ marginInlineStart: 8 }}>{idea.pain_group}</Tag>}
+                      </Card>
+                    ))}
+                  </Flex>
+                </Form.Item>
+              )
+            )}
+            {outsidePlan && (
+              <Alert
+                type="warning"
+                showIcon
+                style={{ marginBottom: 16 }}
+                data-testid="outside-plan"
+                title="Chủ đề này không có trong kế hoạch 30 ngày của nhóm. Vẫn tạo được bình thường."
+              />
+            )}
+            {llm && !manual && (
+              <Typography.Paragraph
+                type={llm.problem ? "danger" : "secondary"}
+                style={{ margin: 0 }}
+                data-testid="llm-line"
+              >
+                {llm.problem ? (
+                  <>
+                    {llm.problem}.{" "}
+                    <Link prefetch={false} href="/settings/ai">
+                      Mở Cài đặt › Mô hình AI
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    Viết bằng: {llm.name} · {llm.model} (
+                    <Link prefetch={false} href="/settings/ai">
+                      đổi trong Cài đặt
+                    </Link>
+                    )
+                  </>
+                )}
+              </Typography.Paragraph>
+            )}
+          </Form>
+        </>
       )}
     </Modal>
   );

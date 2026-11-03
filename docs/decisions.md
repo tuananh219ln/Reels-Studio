@@ -11,6 +11,48 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — "Tự viết": a video without the AI, which then has no AI safety review
+
+Owner's request ("tạo video mà không cần theo prompt"). "Tạo video" can make a video with no LLM call: the member pastes a
+script or writes it on the video page. Choices, as proposed to the owner and taken while the owner had not answered them
+yet (open to change):
+
+- **Paste and blank in one** ("A + B"): the script field is optional. Each paragraph is a scene, and "Đọc:" lines are its
+  voice text, a plain-text format with no AI and no hidden parsing. An empty field gives one empty scene.
+- **The topic group is still required** (banned words, team defaults, the 30-day plan), but not its script prompt.
+- **No AI safety review, said plainly.** A hand-written video has no self-review. The app shows "chưa được AI rà soát an
+  toàn" on the video page instead of an empty list, which would read as "nothing to fix". It does not block posting,
+  just as banned words only warn (2026-10-31).
+- `videos.hand_written` (migration 0030) marks such a video. It is stored, not derived from the jobs, because a video
+  with no job and one whose jobs were pruned look alike.
+
+Nothing logged is reversed: the AI path, "Prompt text is app data; the output format is code" and the clone stay as
+they were.
+
+## 2026-11-03 — The listener's volume is per browser and never part of the video
+
+Owner's request ("tăng giảm âm lượng ở các chỗ phát video"). The preview had no volume control at all, and the MP4 player
+in "Xuất bản" is too narrow for the browser's own slider. One control ("Tắt tiếng" and a 0–100 % slider) now sits in
+the preview, under the MP4 and in "Cắt video". It multiplies the video's own mix, so the music, narration and ducking keep
+their proportions, and it changes nothing that is rendered or posted. It is kept in `localStorage`, a per-viewer
+convenience, the same level for every player. The video's own levels stay on "Thiết lập".
+
+## 2026-11-03 — Post analysis: watch time, reach and a retention curve read against the posted scenes
+
+Owner's request ("thời gian xem trung bình, kiểu các chi tiết phân tích video"). The same Video Insights call (no extra
+request) now also asks for `blue_reels_play_count`, `fb_reels_replay_count`, `post_impressions_unique`,
+`post_video_avg_time_watched`, `post_video_view_time`, `post_video_followers` and `post_video_retention_graph`. All of them
+are documented by Meta for Reels, lifetime only (migration 0029, new columns on `post_metrics`).
+
+- **The curve is read against the scenes that were posted.** The publish job keeps `publications.scene_marks` (where each
+  scene starts and ends in the MP4 it uploads), so later edits never move them. "Phân tích bài đăng" names the scene
+  that loses the most viewers. Posts from before have no marks and show the curve alone.
+- **Shapes not yet seen on a real Page.** The retention graph is documented as percentages by segment, with no segment
+  count for Reels. The app keeps fractions in segment order (values above 1.5 are read as percent) and spreads them
+  evenly over the reel. As with the first numbers (2026-11-03, post numbers), a member checks them against Meta Business
+  Suite, and `facebook.reel_insights` is the one place to fix.
+- **Not taken:** audience age, gender, country and traffic source. Meta lists them only for regular videos, so whether
+  Reels give them must be tried on a real Page first.
 ## 2026-11-03 — CI runs in parallel; draft PRs skip E2E, docs-only PRs skip CI
 
 A full run took about 16 minutes: E2E alone was 13 (one test after another, each render-heavy one

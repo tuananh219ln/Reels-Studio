@@ -239,14 +239,25 @@ def set_cover(page: Page, video_id: str, image: bytes) -> None:
 
 
 # Video Insights metrics of a reel (lifetime). "Views" is every play, replays included, as Meta counts a reel's plays.
+# The rest are kept under the app's own names; all come in the one call, so they cost nothing more to read.
 REEL_METRICS = ("fb_reels_total_plays", "post_video_social_actions", "post_video_likes_by_reaction_type")
+REEL_NUMBERS = {
+    "plays": "blue_reels_play_count",
+    "replays": "fb_reels_replay_count",
+    "reach": "post_impressions_unique",
+    "avg_watch_ms": "post_video_avg_time_watched",
+    "view_time_ms": "post_video_view_time",
+    "followers": "post_video_followers",
+}
+REEL_RETENTION = "post_video_retention_graph"
 
 
-def reel_insights(page: Page, video_id: str) -> dict[str, int | None]:
-    """The reel's `views`, `shares`, `comments` and `reactions`, each None when Facebook leaves it out. This is the one
-    place that knows Meta's metric names and shapes, so a change on their side is fixed here alone. Needs the
-    `read_insights` permission on the Page's token."""
-    query = urllib.parse.urlencode({"metric": ",".join(REEL_METRICS), "period": "lifetime", "access_token": page.token})
+def reel_insights(page: Page, video_id: str) -> dict:
+    """The reel's `views`, `shares`, `comments`, `reactions`, the REEL_NUMBERS and `retention`, each None when Facebook
+    leaves it out. This is the one place that knows Meta's metric names and shapes, so a change on their side is fixed
+    here alone. Needs the `read_insights` permission on the Page's token."""
+    names = [*REEL_METRICS, *REEL_NUMBERS.values(), REEL_RETENTION]
+    query = urllib.parse.urlencode({"metric": ",".join(names), "period": "lifetime", "access_token": page.token})
     url = f"{config.facebook_api_url()}/{urllib.parse.quote(video_id, safe='')}/video_insights?{query}"
     try:
         reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
@@ -273,7 +284,37 @@ def reel_insights(page: Page, video_id: str) -> dict[str, int | None]:
         "shares": _part(social, "share"),
         "comments": _part(social, "comment"),
         "reactions": _count(values.get("post_video_likes_by_reaction_type")),
+        **{key: _number(values.get(name)) for key, name in REEL_NUMBERS.items()},
+        "retention": _curve(values.get(REEL_RETENTION)),
     }
+
+
+def _number(value: object) -> int | None:
+    """A plain number; a breakdown here is not one Meta documents, so it is left out rather than guessed at."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    return int(value)
+
+
+def _curve(value: object) -> list[float] | None:
+    """The retention graph as fractions in segment order. Meta documents it as percentages keyed by segment; its
+    videos give fractions of 1, so values above 1.5 are read as percent."""
+    if isinstance(value, list):
+        points = list(enumerate(value))
+    elif isinstance(value, dict):
+        points = []
+        for key, part in value.items():
+            try:
+                points.append((int(key), part))
+            except (TypeError, ValueError):
+                return None
+    else:
+        return None
+    parts = [part for _, part in sorted(points)]
+    if not parts or any(isinstance(part, bool) or not isinstance(part, int | float) for part in parts):
+        return None
+    scale = 100 if max(parts) > 1.5 else 1
+    return [round(min(max(part / scale, 0.0), 1.0), 4) for part in parts]
 
 
 def _count(value: object) -> int | None:

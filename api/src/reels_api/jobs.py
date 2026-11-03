@@ -60,6 +60,7 @@ from .videos import (
     refresh_thumbnail,
     render_signature,
     run_checks,
+    scene_marks,
     split_scenes,
     spoken,
     text_position,
@@ -447,6 +448,8 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     raise JobFailure("Facebook có thể vẫn đang đăng bản trước, hãy xem Page, đợi 30 phút rồi Thử lại")
                 post.remote_id, upload_url = facebook.start_upload(page)
                 post.remote_mp4_key, post.finish_sent_at = video.mp4_key, None
+                # _check_publishable made sure the MP4 is a render of the current scenes.
+                post.scene_marks = scene_marks(video, *split_scenes(db, video))
                 db.commit()
                 facebook.upload(page, upload_url, storage.path(video.mp4_key))
             post.finish_sent_at = now()

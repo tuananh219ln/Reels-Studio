@@ -72,6 +72,12 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
   await page.getByRole("tab", { name: "Xuất bản" }).click();
+  // The MP4 plays at the listener's volume, set under it: the player is too narrow for the browser's slider.
+  const mp4 = page.getByTestId("mp4-player");
+  await page.getByTestId("listen-volume").getByRole("button", { name: "Tắt tiếng" }).click();
+  await expect.poll(() => mp4.evaluate((element: HTMLVideoElement) => element.muted)).toBe(true);
+  await page.getByTestId("listen-volume").getByRole("button", { name: "Bật tiếng" }).click();
+  await expect.poll(() => mp4.evaluate((element: HTMLVideoElement) => element.muted)).toBe(false);
   // Seeking needs Range answers (206) through the web app's /api proxy.
   const src = await page.getByTestId("mp4-player").getAttribute("src");
   const range = await page.request.get(src ?? "", { headers: { Range: "bytes=100-199" } });
@@ -369,6 +375,25 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await page.getByRole("button", { name: "Tạo giọng", exact: true }).click();
   // Once every scene has its narration, the section goes away.
   await expect(voiceBox).toHaveCount(0, { timeout: 60_000 });
+
+  // The listener's own volume: muting and the slider change what plays here, never the video's settings.
+  const narration = preview.locator("audio").nth(1);
+  const volume = () => narration.evaluate((element: HTMLAudioElement) => element.volume);
+  await expect.poll(volume).toBe(1);
+  await preview.getByRole("button", { name: "Tắt tiếng" }).click();
+  await expect.poll(volume).toBe(0);
+  await preview.getByRole("button", { name: "Bật tiếng" }).click();
+  await expect.poll(volume).toBe(1);
+  const slider = preview.getByRole("slider", { name: "Âm lượng nghe" });
+  await slider.focus();
+  for (let step = 0; step < 50; step += 1) await page.keyboard.press("ArrowLeft");
+  await expect(slider).toHaveAttribute("aria-valuenow", "50");
+  await expect.poll(volume).toBeCloseTo(0.5);
+  // Remembered in this browser, for every player.
+  await page.reload();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  preview = page.getByRole("dialog", { name: "Xem trước video" });
+  await expect(preview.getByRole("slider", { name: "Âm lượng nghe" })).toHaveAttribute("aria-valuenow", "50");
 });
 
 /** A rendered video with its Page connected, open on its own page. */
@@ -421,7 +446,17 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await expect(posts.getByText("3 share · 5 bình luận · 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();
   // The "Cập nhật view" button's tooltip may still be fading out, so pick the views tooltip by its text.
-  await expect(page.getByRole("tooltip").filter({ hasText: "3 share · 5 bình luận · 40 cảm xúc" })).toBeVisible();
+  const viewsTip = page.getByRole("tooltip").filter({ hasText: "3 share · 5 bình luận · 40 cảm xúc" });
+  await expect(viewsTip).toBeVisible();
+  await expect(viewsTip).toContainText("Xem TB 8,4 giây");
+  // "Phân tích": every number, and the retention curve split by the posted MP4's scenes.
+  await posts.getByRole("button", { name: "Phân tích bài đăng" }).click();
+  const insights = page.getByTestId("post-insights");
+  await expect(insights.getByTestId("insight-avg-watch")).toContainText("8,4 giây");
+  await expect(insights.getByTestId("retention-chart")).toBeVisible();
+  await expect(insights.getByTestId("scene-drop-off").getByRole("row")).toHaveCount(7); // header, title, 5 scenes
+  await expect(insights.getByText("mất nhiều nhất")).toHaveCount(1);
+  await page.getByRole("dialog", { name: "Phân tích bài đăng" }).getByRole("button", { name: "Close" }).click();
   await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
   await expect(groups).toHaveCount(1);
   // The KPIs: each figure on its own card, named plainly, with last week under it. The reel just went out, so

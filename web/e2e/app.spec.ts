@@ -114,6 +114,32 @@ test("login, empty video list, header and logout", async ({ page }) => {
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("Tự viết: a pasted script becomes scenes at once, with no AI and a safety reminder", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByText("Tự viết", { exact: true }).click();
+  await expect(dialog.getByTestId("llm-line")).toHaveCount(0);
+  await expect(dialog.getByTestId("hand-written-note")).toBeVisible();
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("6 món *bổ xương*");
+  await dialog
+    .getByLabel("Kịch bản", { exact: true })
+    .fill("Vừng đen *giàu canxi*\nĐọc: Vừng đen giàu canxi, giúp xương chắc khỏe hơn.\n\nCá hồi giảm đau khớp");
+  await dialog.getByRole("button", { name: "Tạo video" }).click();
+
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+  // No job: the scenes are there at once, editable.
+  await expect(page.getByTestId("scene")).toHaveCount(2);
+  await expect(page.getByTestId("script-by")).toHaveText("Kịch bản tự viết, không qua AI");
+  await expect(page.getByTestId("scene").first().getByLabel("Lời đọc")).toHaveValue(
+    "Vừng đen giàu canxi, giúp xương chắc khỏe hơn.",
+  );
+  await page.getByRole("button", { name: "Thêm cảnh" }).click();
+  await expect(page.getByTestId("scene")).toHaveCount(3);
+  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
+  await expect(page.getByTestId("hand-written-review")).toBeVisible();
+});
+
 test("music library page from the menu", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Thư viện nhạc" }).click();

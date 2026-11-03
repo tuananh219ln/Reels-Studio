@@ -139,6 +139,67 @@ def test_a_number_facebook_leaves_out_is_none_not_zero(db, me, storage, fakes):
     assert (latest.views, latest.shares, latest.comments, latest.reactions) == (10, None, None, None)
 
 
+def test_a_reading_keeps_watch_time_reach_replays_follows_and_the_retention_curve(db, me, storage, fakes):
+    post = add_post(db, storage, me, 5)
+    fakes.facebook_insights["1000"] = {
+        "views": 1500,
+        "plays": 1200,
+        "replays": 300,
+        "reach": 900,
+        "avg_watch_ms": 8450,
+        "view_time_ms": 12675000,
+        "followers": 7,
+        "retention": {"0": 1, "1": 0.8, "2": 0.55, "3": 0.4},
+    }
+    metrics.measure(db, post)
+    latest = windows(post)["latest"]
+    assert (latest.plays, latest.replays, latest.reach, latest.followers) == (1200, 300, 900, 7)
+    assert (latest.avg_watch_ms, latest.view_time_ms) == (8450, 12675000)
+    assert latest.retention == [1.0, 0.8, 0.55, 0.4]
+
+
+def test_a_retention_curve_in_percent_or_out_of_order_is_kept_as_fractions_in_order(db, me, storage, fakes):
+    post = add_post(db, storage, me, 5)
+    fakes.facebook_insights["1000"] = {"views": 10, "retention": {"2": 50, "0": 100, "10": 5, "1": 75}}
+    metrics.measure(db, post)
+    assert windows(post)["latest"].retention == [1.0, 0.75, 0.5, 0.05]
+
+
+def test_numbers_facebook_does_not_give_for_an_older_reel_stay_none(db, me, storage, fakes):
+    post = add_post(db, storage, me, 5)
+    fakes.facebook_insights["1000"] = {"views": 10}
+    metrics.measure(db, post)
+    latest = windows(post)["latest"]
+    assert (latest.plays, latest.replays, latest.reach, latest.avg_watch_ms, latest.retention) == (
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
+
+
+def test_the_list_shows_watch_time_against_the_posted_length_and_the_scenes(an, db, me, storage, fakes):
+    marks = [{"label": "Tiêu đề", "start": 0.0, "end": 3.0}, {"label": "Cảnh 1", "start": 3.0, "end": 20.0}]
+    post = add_post(db, storage, me, 5, scene_marks=marks)
+    fakes.facebook_insights["1000"] = {"views": 100, "avg_watch_ms": 8000, "retention": {"0": 1, "1": 0.5}}
+    metrics.measure(db, post)
+    shown = an.get("/api/posts").json()[0]["metrics"]
+    assert shown["latest"]["avg_watch_seconds"] == 8.0
+    assert shown["latest"]["watch_ratio"] == 0.4, "8 of the 20 seconds posted"
+    assert shown["latest"]["retention"] == [1.0, 0.5]
+    assert (shown["length_seconds"], shown["scenes"]) == (20.0, marks)
+
+
+def test_a_post_from_before_scene_marks_has_no_watch_ratio(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, 5)
+    fakes.facebook_insights["1000"] = {"views": 100, "avg_watch_ms": 8000}
+    metrics.measure(db, post)
+    shown = an.get("/api/posts").json()[0]["metrics"]
+    assert (shown["latest"]["avg_watch_seconds"], shown["latest"]["watch_ratio"]) == (8.0, None)
+    assert (shown["length_seconds"], shown["scenes"]) == (None, [])
+
+
 def test_a_new_reading_rewrites_latest(db, me, storage, fakes):
     post = add_post(db, storage, me, 5)
     metrics.measure(db, post)

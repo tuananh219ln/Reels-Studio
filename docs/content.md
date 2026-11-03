@@ -82,6 +82,11 @@ One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Cla
 The title scene starts with the first title option and lasts 3 seconds; choosing another option
 copies its text into the title scene.
 
+A video made with "Tự viết" skips this call entirely: a member writes or pastes the script, so it has
+no title options beyond its topic, no caption or hashtags, and **no safety self-review**. The app
+says so on the video page, and the member checks the content against the safety rules above
+before posting. Banned words still warn, as for any video.
+
 How the prompt is built (built, compact version):
 
 - **Editable content:** per topic group, the "Prompt viết kịch bản" on `/knowledge` (default: the owner's Custom

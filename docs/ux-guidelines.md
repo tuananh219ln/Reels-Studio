@@ -51,7 +51,15 @@ Built:
   under the topic; picking one fills the topic and shows its day, pain group, pain and hook ("Bỏ
   chọn" drops it). A typed topic that is nowhere in the plan gets a yellow note that does not block.
   "Tạo video" on an idea in Kho kiến thức (`/videos?plan_item=<id>`) and "Làm tiếp" open the dialog
-  with that idea picked.
+  with that idea picked. A switch at the top chooses "AI viết kịch bản" (the default) or "Tự viết".
+  "Tự viết" makes no AI call: every group can be picked (no "(chưa có prompt)"), the topic is also
+  the title scene's text, and "Kịch bản (không bắt buộc)" takes a pasted script. Its placeholder
+  shows the format: a paragraph per scene, "Đọc:" lines for the voice text. A yellow note says that
+  no title options, caption, hashtags, photo keywords or safety self-review will come and that the
+  member checks the content against the channel's safety rules. The provider line is hidden and
+  the button reads "Tạo video". The video page opens with the scenes ready to edit. The title card
+  says "Kịch bản tự viết, không qua AI", and "Nội dung đăng" shows a yellow warning in place of the
+  AI's self-review.
 - **Video list** (`/videos`): thumbnail (the title-scene preview, or a pale tile with the title
   when there is none or it fails to load), title, status (Nháp / Chờ / Đang viết / Đang render /
   Xong / Lỗi) with the labels "MP4 chưa cập nhật theo bản sửa" and "Render lại lỗi", creator,
@@ -63,7 +71,7 @@ Built:
   with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
-  as a small player beside its length, "Tải MP4" and "Đăng", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
+  as a small player beside its length, with the listening volume under it, "Tải MP4" and "Đăng", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
   đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
@@ -147,6 +155,14 @@ Built:
     (1 cảnh)". Its arrow, like the one beside "Tạo ảnh AI cho cảnh thiếu", offers "Tạo bằng
     Cloudflare" / "Tạo bằng Gemini" for this press (one without a key is greyed out); the button
     itself uses the team's default;
+  - **listening volume** ("Âm lượng nghe"): a speaker button that mutes ("Tắt tiếng" / "Bật tiếng")
+    and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Xuất bản",
+    and in "Cắt video" once "Nghe tiếng gốc" is on. It is how loud this browser plays, never part of
+    the video: it multiplies the video's own mix (music, narration, ducking keep their proportions),
+    changes nothing rendered or posted, and is remembered per browser, the same level for every
+    player. The MP4's own mute button moves it too. The browser's free voice takes a new level from
+    its next scene. The plain audio players (narration of a scene, music, the music library) keep
+    the browser's own volume control.
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
     (1–4×), "Xoay 90°" and "Lật ngang"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
@@ -280,8 +296,16 @@ Built:
     one Facebook does not give), when they were read ("Đo lúc", Vietnam time), the 48-hour views
     with "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị" and the share/view, the
     "Chưa có số view, app tự đo sau khi đăng 1 giờ" note and the failed reading's reason sit in
-    tooltips. The video's page shows the same numbers in full, with share/view green at 0,2 % or
-    more, yellow under it. Above the table, "Hiệu quả tuần này (từ T2 dd/mm)" (weeks start on Monday, Vietnam
+    tooltips, with "Xem TB N giây (N %) · tiếp cận N" when Facebook gives them. The video's page
+    shows the same numbers in full, with share/view green at 0,2 % or more, yellow under it. A post
+    with numbers has "Phân tích" (an icon button on "Bài đăng", a button on the video's page). It
+    opens "Phân tích bài đăng": views, average watch with its share of the posted length, reach,
+    first plays, replays, total watch time, follows, shares, comments and reactions ("—" for one
+    Facebook does not give); the retention curve ("Giữ chân người xem") over the reel, with a band
+    and label per scene of the posted MP4; and a table per scene (time, share still watching when
+    it starts, share lost during it), the scene losing most marked "mất nhiều nhất" in red. A post
+    made before scene marks were kept shows the curve without the table, saying why. A reel with no
+    curve yet says Facebook has none yet. Above the table, "Hiệu quả tuần này (từ T2 dd/mm)" (weeks start on Monday, Vietnam
     time) with an ⓘ whose tooltip says every figure is taken 48 hours after posting, so posts are
     compared at the same age. Then three cards with a light border and shadow (stacked on a
     phone), each with an icon in a pale orange square, its name and a grey line saying what it

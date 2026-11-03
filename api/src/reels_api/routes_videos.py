@@ -1,10 +1,12 @@
 import io
 import math
+import re
 import tempfile
 import time
 import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Response, UploadFile
 from fastapi.responses import FileResponse
@@ -94,6 +96,11 @@ MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
 MAX_LIST_ITEMS = 20
 NEW_SCENE_SECONDS = 4
+TITLE_SECONDS = 3  # as the script job gives the title scene
+# "Tự viết": a pasted script's limits, well past what a 90-second video can hold.
+MAX_SCRIPT_LENGTH = 5000
+MAX_HAND_SCENES = 20
+VOICE_LINE = re.compile(r"^đọc\s*:\s*(.*)$", re.IGNORECASE)
 # "Tìm lại ảnh" runs inside the request, so Pixabay gets about 10 seconds in total.
 FIND_IMAGE_SECONDS = 10
 IMAGE_TYPES = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}
@@ -110,6 +117,9 @@ class NewVideoBody(BaseModel):
     topic: str
     knowledge_topic_id: int | None = None
     plan_item_id: int | None = None  # the 30-day plan idea the video is made from
+    # "ai": the script job writes it; "manual" ("Tự viết"): no AI, the scenes come from `script`, or one empty scene.
+    mode: Literal["ai", "manual"] = "ai"
+    script: str = ""
 
 
 class VideoPatchBody(BaseModel):
@@ -237,17 +247,66 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
     group = db.get(KnowledgeTopic, body.knowledge_topic_id) if body.knowledge_topic_id else None
     if group is None:
         raise invalid("Hãy chọn nhóm chủ đề")
-    if not group.script_prompt:
+    manual = body.mode == "manual"
+    if not manual and not group.script_prompt:
         raise invalid(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
+    scenes = hand_written_scenes(body.script) if manual else []
     idea = _free_idea(db, body.plan_item_id, group) if body.plan_item_id is not None else None
-    video = Video(topic=topic, knowledge_topic_id=group.id, has_script=False, created_by_id=me.user_id)
+    video = Video(topic=topic, knowledge_topic_id=group.id, has_script=manual, created_by_id=me.user_id)
     video_options.apply_team_defaults(db, video)
     db.add(video)
     db.flush()
     if idea is not None:
         idea.video_id = video.id
-    _enqueue(db, video, "script", me)
+    if manual:
+        _write_by_hand(db, video, topic, scenes)
+    else:
+        _enqueue(db, video, "script", me)
     return _saved(db, video)
+
+
+def hand_written_scenes(script: str) -> list[tuple[str, str]]:
+    """A pasted script as (on-screen text, voice text) per scene: one scene per paragraph (blank lines between), its
+    lines starting with "Đọc:" its voice text, the rest its text with the line breaks kept. No paragraph: one empty
+    scene, to fill in on the video page."""
+    text = unicodedata.normalize("NFC", script).replace("\r\n", "\n")
+    if len(text) > MAX_SCRIPT_LENGTH:
+        raise invalid(f"Kịch bản dài quá {MAX_SCRIPT_LENGTH} ký tự")
+    scenes = []
+    for paragraph in re.split(r"\n\s*\n", text):
+        shown, spoken = [], []
+        for line in paragraph.split("\n"):
+            line = " ".join(line.split())
+            voice = VOICE_LINE.match(line)
+            if voice:
+                spoken.append(voice.group(1).strip())
+            elif line:
+                shown.append(line)
+        if shown or spoken:
+            scenes.append(("\n".join(shown), " ".join(part for part in spoken if part)))
+    if len(scenes) > MAX_HAND_SCENES:
+        raise invalid(f"Kịch bản có quá {MAX_HAND_SCENES} cảnh")
+    return scenes or [("", "")]
+
+
+def _write_by_hand(db: DbSession, video: Video, topic: str, scenes: list[tuple[str, str]]) -> None:
+    video.hand_written = True
+    video.title_options = [topic]
+    db.add(Scene(video_id=video.id, is_title=True, position=0, text=topic, seconds=TITLE_SECONDS, keywords=[]))
+    for position, (text, voice) in enumerate(scenes, start=1):
+        db.add(
+            Scene(
+                video_id=video.id,
+                is_title=False,
+                position=position,
+                text=text,
+                voice_text=voice,
+                seconds=NEW_SCENE_SECONDS,
+                keywords=[],
+                keywords_en=[],
+                image_prompt="",
+            )
+        )
 
 
 def _free_idea(db: DbSession, item_id: int, group: KnowledgeTopic) -> TopicPlanItem:

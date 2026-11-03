@@ -1,4 +1,4 @@
-"""A post's views, shares, comments and reactions, read from Facebook by the worker between jobs.
+"""A post's views, shares, comments, reactions, watch time, reach and retention curve, read from Facebook by the worker between jobs.
 
 Not a job: a reading only writes numbers, so it never locks the video, and it is not listed among the jobs. The worker
 reads a few due posts per round (`measure_due`); a request never calls Facebook, "Cập nhật view" only asks for a reading.
@@ -114,6 +114,9 @@ def _save(post: Publication, row: PostMetrics | None, window: str, numbers: dict
         post.metrics.append(row)
     row.views, row.shares = numbers["views"], numbers["shares"]
     row.comments, row.reactions = numbers["comments"], numbers["reactions"]
+    for key in facebook.REEL_NUMBERS:
+        setattr(row, key, numbers.get(key))
+    row.retention = numbers.get("retention")
     row.measured_at = at
 
 
@@ -139,15 +142,27 @@ def payload(post: Publication, by_page: dict[int | None, analytics.Median]) -> d
     """The numbers shown with a post: `latest` and `48h` (each null until read), the last error, `pending` while a
     reading asked for has not run yet, and what its 48-hour numbers mean against its Page's median (analytics.py)."""
     windows = {row.window: row for row in post.metrics}
+    scenes = post.scene_marks or []
+    length = scenes[-1]["end"] if scenes else None
 
     def numbers(row: PostMetrics | None) -> dict | None:
         if row is None:
             return None
+        watched = row.avg_watch_ms / 1000 if row.avg_watch_ms is not None else None
         return {
             "views": row.views,
             "shares": row.shares,
             "comments": row.comments,
             "reactions": row.reactions,
+            "plays": row.plays,
+            "replays": row.replays,
+            "reach": row.reach,
+            "followers": row.followers,
+            "avg_watch_seconds": round(watched, 2) if watched is not None else None,
+            "view_time_seconds": round(row.view_time_ms / 1000) if row.view_time_ms is not None else None,
+            # Replays count in the average, so it can pass the reel's length.
+            "watch_ratio": round(watched / length, 3) if watched is not None and length else None,
+            "retention": row.retention,
             "measured_at": row.measured_at.isoformat(),
         }
 
@@ -159,5 +174,8 @@ def payload(post: Publication, by_page: dict[int | None, analytics.Median]) -> d
         "at_48h": numbers(windows.get("48h")),
         "error": post.metrics_error,
         "pending": asked is not None and (tried is None or tried < asked),
+        # The posted MP4's length and scenes, for the retention curve; empty for a post made before they were kept.
+        "length_seconds": length,
+        "scenes": scenes,
         "analysis": analytics.of_post(post, mark.views if mark else None, mark.shares if mark else None, by_page),
     }
