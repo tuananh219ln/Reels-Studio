@@ -178,7 +178,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await cloneCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt nhân bản")).toBeVisible();
-  await health.getByLabel("Từ cấm").fill("thần dược\nđặc trị");
+  await health.getByLabel("Từ cấm", { exact: true }).fill("thần dược\nđặc trị");
   await health.getByRole("button", { name: "Lưu từ cấm" }).click();
   await expect(page.getByText("Đã lưu danh sách từ cấm")).toBeVisible();
 
@@ -187,7 +187,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
   const beauty = page.locator('[data-topic="Làm đẹp"]');
   await expect(beauty.getByLabel("Prompt viết kịch bản", { exact: true })).toHaveValue("");
-  await expect(beauty.getByLabel("Từ cấm")).toHaveValue("");
+  await expect(beauty.getByLabel("Từ cấm", { exact: true })).toHaveValue("");
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
 
   await page.goto("/videos");
@@ -202,7 +202,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
-  await expect(health.getByLabel("Từ cấm")).toHaveValue("thần dược\nđặc trị");
+  await expect(health.getByLabel("Từ cấm", { exact: true })).toHaveValue("thần dược\nđặc trị");
   await scriptCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
   await expect(prompt).toHaveValue(/^Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40\+\./);
