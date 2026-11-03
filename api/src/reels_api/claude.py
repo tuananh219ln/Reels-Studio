@@ -13,6 +13,11 @@ from dataclasses import dataclass, field
 log = logging.getLogger(__name__)
 
 TOPIC_PLACEHOLDER = "[Chủ đề]"
+IDEA_PLACEHOLDERS = (
+    ("[Nhóm nỗi đau]", "Nhóm nỗi đau"),
+    ("[Nỗi đau]", "Nỗi đau người xem"),
+    ("[Góc hook]", "Góc hook"),
+)
 MAX_KEYWORD_LENGTH = 100
 FALLBACK_SECONDS = 4
 
@@ -144,14 +149,25 @@ class GeneratedScript:
     title_image_prompt: str = ""
 
 
-def build_script_prompt(template: str, topic: str, banned_words: list[str]) -> str:
-    return _assemble(_fill(template, [(TOPIC_PLACEHOLDER, "Chủ đề", topic)]), banned_words)
+def build_script_prompt(
+    template: str, topic: str, banned_words: list[str], idea: tuple[str, str, str] | None = None
+) -> str:
+    """`idea`: the pain group, viewer's pain and hook angle of the 30-day plan idea the video was made from; each one
+    the plan has fills its placeholder, or is appended when the prompt has none."""
+    placeholders = [(TOPIC_PLACEHOLDER, "Chủ đề", topic)]
+    if idea:
+        placeholders += [
+            (placeholder, label, value)
+            for (placeholder, label), value in zip(IDEA_PLACEHOLDERS, idea, strict=True)
+            if value
+        ]
+    return _assemble(fill_placeholders(template, placeholders), banned_words)
 
 
 def build_clone_prompt(template: str, source: dict, banned_words: list[str]) -> str:
     """`source` is the snapshot taken when "Nhân bản" was pressed (see routes_videos.clone_snapshot)."""
     return _assemble(
-        _fill(
+        fill_placeholders(
             template,
             [
                 ("[tiêu đề]", "Tiêu đề video gốc", source["title"]),
@@ -164,7 +180,7 @@ def build_clone_prompt(template: str, source: dict, banned_words: list[str]) -> 
     )
 
 
-def _fill(template: str, placeholders: list[tuple[str, str, str]]) -> str:
+def fill_placeholders(template: str, placeholders: list[tuple[str, str, str]]) -> str:
     """Replace each placeholder; one a member deleted from the prompt is appended at the end instead."""
     body, missing = template, []
     for placeholder, label, value in placeholders:

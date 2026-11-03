@@ -8,6 +8,7 @@ import {
   UnorderedListOutlined,
 } from "@ant-design/icons";
 import {
+  Alert,
   App,
   Button,
   Card,
@@ -22,6 +23,7 @@ import {
   Select,
   Spin,
   Table,
+  Tag,
   Typography,
 } from "antd";
 import Link from "next/link";
@@ -37,6 +39,8 @@ import {
   type ActiveLlm,
   type Knowledge,
   type KnowledgeTopic,
+  type PlanItem,
+  type PlanToday,
   type VideoDetail,
   type VideoRow,
 } from "@/lib/api";
@@ -68,6 +72,12 @@ export default function VideosPage() {
   const [rows, setRows] = useState<VideoRow[] | null>(null);
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  // The 30-day plan idea "Tạo video" starts from: "Làm tiếp" here, or "Tạo video" on an idea in Kho kiến thức.
+  const [startItem, setStartItem] = useState<PlanItem | null>(null);
+  // A new dialog each time it opens, so it starts from `startItem` and nothing picked before.
+  const [opened, setOpened] = useState(0);
+  const [today, setToday] = useState<PlanToday[]>([]);
+  const router = useRouter();
   const { me } = useMe();
   const [status, setStatus] = useState<StatusFilter>("all");
   const [mine, setMine] = useState(false);
@@ -87,6 +97,12 @@ export default function VideosPage() {
     } catch {
       // A browser that refuses storage just forgets the choice.
     }
+  }
+
+  function startFrom(item: PlanItem | null) {
+    setStartItem(item);
+    setOpened((count) => count + 1);
+    setCreating(true);
   }
 
   const reload = useCallback(
@@ -109,6 +125,27 @@ export default function VideosPage() {
   // Statuses change in the worker: keep the list current without a reload.
   usePolling(() => reload(query, true), REFRESH_MS);
 
+  useEffect(() => {
+    api<PlanToday[]>("/plans/today")
+      .then(setToday)
+      // Only a suggestion: without it the page works as before.
+      .catch(() => setToday([]));
+  }, []);
+
+  // /videos?plan_item=<id>: opened from an idea's "Tạo video" in Kho kiến thức.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("plan_item");
+    if (!id) {
+      return;
+    }
+    router.replace("/videos");
+    api<PlanItem>(`/plans/items/${id}`)
+      .then((item) => {
+        startFrom(item);
+      })
+      .catch((err) => message.error(errorMessage(err)));
+  }, [router, message]);
+
   const match = STATUS_FILTERS.find((item) => item.value === status)!.match;
   const shown = (rows ?? []).filter((row) => match(row) && (!mine || row.created_by === me.name));
   const filtered = Boolean(query.trim()) || status !== "all" || mine;
@@ -118,7 +155,7 @@ export default function VideosPage() {
       <PageHeader
         title="Video"
         actions={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => startFrom(null)}>
             Tạo video
           </Button>
         }
@@ -159,6 +196,7 @@ export default function VideosPage() {
           ]}
         />
       </PageHeader>
+      <PlanBanners today={today} onContinue={startFrom} />
       {rows === null ? (
         <Flex justify="center" style={{ padding: 48 }}>
           <Spin />
@@ -178,7 +216,16 @@ export default function VideosPage() {
       ) : (
         <VideoTable rows={shown} />
       )}
-      <NewVideoModal open={creating} onClose={() => setCreating(false)} />
+      <NewVideoModal
+        key={opened}
+        open={creating}
+        startItem={startItem}
+        today={today}
+        onClose={() => {
+          setCreating(false);
+          setStartItem(null);
+        }}
+      />
     </>
   );
 }
@@ -294,15 +341,77 @@ function VideoTable({ rows }: { rows: VideoRow[] }) {
   );
 }
 
+/** "Hôm nay còn X/Y video" for every topic group whose 30-day plan has a today. */
+function PlanBanners({ today, onContinue }: { today: PlanToday[]; onContinue: (item: PlanItem) => void }) {
+  return (
+    <>
+      {today
+        .filter((group) => group.ideas.length > 0)
+        .map((group) => {
+          const left = group.ideas.filter((idea) => idea.status === "idea");
+          return (
+            <Alert
+              key={group.topic_id}
+              type={left.length ? "info" : "success"}
+              showIcon
+              style={{ marginBottom: 16 }}
+              data-testid="plan-banner"
+              title={
+                left.length
+                  ? `Kế hoạch ${group.name} · Ngày ${group.day}: hôm nay còn ${left.length}/${group.ideas.length} video`
+                  : `Kế hoạch ${group.name} · Ngày ${group.day}: đã làm đủ ${group.ideas.length} video hôm nay`
+              }
+              action={
+                left.length > 0 && (
+                  <Button size="small" type="primary" onClick={() => onContinue(left[0])}>
+                    Làm tiếp
+                  </Button>
+                )
+              }
+            />
+          );
+        })}
+    </>
+  );
+}
+
 type NewVideo = { topic: string; knowledge_topic_id: number };
 
-function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+/** Topics compare like the api's: case, spacing and Unicode form do not count. */
+function sameTopic(a: string, b: string): boolean {
+  const key = (text: string) => text.normalize("NFC").split(/\s+/).filter(Boolean).join(" ").toLowerCase();
+  return key(a) === key(b);
+}
+
+function NewVideoModal({
+  open,
+  startItem,
+  today,
+  onClose,
+}: {
+  open: boolean;
+  startItem: PlanItem | null;
+  today: PlanToday[];
+  onClose: () => void;
+}) {
   const { message } = App.useApp();
   const router = useRouter();
   const [form] = Form.useForm<NewVideo>();
   const [busy, setBusy] = useState(false);
   const [topics, setTopics] = useState<KnowledgeTopic[] | null>(null);
   const [llm, setLlm] = useState<ActiveLlm | null>(null);
+  // The plan idea the video is made from; typing a topic by hand works as before.
+  const [picked, setPicked] = useState<PlanItem | null>(startItem);
+  const groupId = Form.useWatch("knowledge_topic_id", form);
+  const typed = Form.useWatch("topic", form) ?? "";
+  const plan = today.find((group) => group.topic_id === groupId);
+  const suggestions = plan?.ideas.filter((idea) => idea.status === "idea") ?? [];
+  const outsidePlan = !picked && plan && typed.trim() && !plan.topics.some((topic) => sameTopic(topic, typed));
+
+  function pick(item: PlanItem) {
+    setPicked(item);
+    form.setFieldsValue({ topic: item.topic });
+  }
 
   useEffect(() => {
     if (open) {
@@ -319,7 +428,7 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
   async function submit(values: NewVideo) {
     setBusy(true);
     try {
-      const video = await api<VideoDetail>("/videos", "POST", values);
+      const video = await api<VideoDetail>("/videos", "POST", { ...values, plan_item_id: picked?.id });
       router.push(`/videos/${video.id}`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -348,7 +457,16 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
           layout="vertical"
           requiredMark={false}
           onFinish={submit}
-          initialValues={{ knowledge_topic_id: topics.find((topic) => topic.script_prompt)?.id }}
+          initialValues={{
+            knowledge_topic_id: startItem?.knowledge_topic_id ?? topics.find((topic) => topic.script_prompt)?.id,
+            topic: startItem?.topic,
+          }}
+          onValuesChange={(changed: Partial<NewVideo>) => {
+            const group = changed.knowledge_topic_id;
+            if (picked && group !== undefined && group !== picked.knowledge_topic_id) {
+              setPicked(null);
+            }
+          }}
         >
           <Form.Item
             label="Nhóm chủ đề"
@@ -372,6 +490,54 @@ function NewVideoModal({ open, onClose }: { open: boolean; onClose: () => void }
           >
             <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
           </Form.Item>
+          {picked ? (
+            <Alert
+              type="info"
+              style={{ marginBottom: 16 }}
+              data-testid="picked-idea"
+              title={`Theo kế hoạch · Ngày ${picked.day}${picked.pain_group ? ` · ${picked.pain_group}` : ""}`}
+              description={
+                <>
+                  {picked.pain && <div>Nỗi đau: {picked.pain}</div>}
+                  {picked.hook && <div>Hook: {picked.hook}</div>}
+                  <div style={{ marginTop: 4, fontSize: 12 }}>Nỗi đau và hook được gửi kèm prompt viết kịch bản.</div>
+                </>
+              }
+              action={
+                <Button size="small" type="text" onClick={() => setPicked(null)}>
+                  Bỏ chọn
+                </Button>
+              }
+            />
+          ) : (
+            suggestions.length > 0 && (
+              <Form.Item label={`Ý tưởng hôm nay (ngày ${plan!.day}) chưa làm`}>
+                <Flex vertical gap={6} data-testid="plan-suggestions">
+                  {suggestions.map((idea) => (
+                    <Card
+                      key={idea.id}
+                      size="small"
+                      hoverable
+                      onClick={() => pick(idea)}
+                      styles={{ body: { padding: "6px 10px" } }}
+                    >
+                      <Typography.Text>{idea.topic}</Typography.Text>
+                      {idea.pain_group && <Tag style={{ marginInlineStart: 8 }}>{idea.pain_group}</Tag>}
+                    </Card>
+                  ))}
+                </Flex>
+              </Form.Item>
+            )
+          )}
+          {outsidePlan && (
+            <Alert
+              type="warning"
+              showIcon
+              style={{ marginBottom: 16 }}
+              data-testid="outside-plan"
+              title="Chủ đề này không có trong kế hoạch 30 ngày của nhóm. Vẫn tạo được bình thường."
+            />
+          )}
           {llm && (
             <Typography.Paragraph
               type={llm.problem ? "danger" : "secondary"}
