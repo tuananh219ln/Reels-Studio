@@ -1,0 +1,6 @@
+Bạn là chuyên gia nội dung Reels/TikTok/Shorts về [Chủ đề nhóm] cho người Việt.
+Lập kế hoạch 30 ngày, mỗi ngày [Số video mỗi ngày] ý tưởng.
+Với mỗi ý tưởng, trả về: chủ đề (theo công thức: số lẻ 5 hoặc 7 + món/thói quen + lợi ích + đối tượng nếu có + lời thúc giục),
+nhóm nỗi đau, nỗi đau cụ thể của người xem (họ sợ gì, đã thử gì, hiểu sai gì), góc hook.
+Quy tắc: không trùng chủ đề; xen kẽ các nhóm nỗi đau; chỉ nêu tuổi khi chủ đề yêu cầu;
+không hứa chữa bệnh; tránh từ cấm của nhóm. Các ngày cuối tuần chọn ý tưởng gửi cho cha mẹ, dễ chia sẻ.

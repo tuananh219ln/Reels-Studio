@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, update
 from sqlalchemy.orm import sessionmaker
 
 from reels_api.models import (
@@ -20,6 +20,7 @@ from reels_api.models import (
     Scene,
     Session,
     Setting,
+    TopicPlanItem,
     User,
     Video,
 )
@@ -32,9 +33,10 @@ def committed(engine):
     factory = sessionmaker(engine, expire_on_commit=False)
     yield factory
     with factory() as db:
-        for model in (Job, Scene, Video, Fanpage, Setting, AppSetting, LlmProvider, Session, User):
+        for model in (TopicPlanItem, Job, Scene, Video, Fanpage, Setting, AppSetting, LlmProvider, Session, User):
             db.execute(delete(model))
         db.execute(delete(KnowledgeTopic).where(KnowledgeTopic.name != "Sức khỏe"))
+        db.execute(update(KnowledgeTopic).values(plan_prompt="", plan_start_date=None, plan_per_day=4, plan_draft=None))
         db.commit()
 
 
