@@ -8,6 +8,7 @@ import { api, errorMessage, formatDateTime, type Post, type VideoDetail } from "
 import { POST_STATUS } from "@/lib/postStatus";
 import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
+import PostMetrics from "@/components/PostMetrics";
 
 // TikTok and YouTube need their own app review first (docs/project.md), so they are shown but cannot be picked yet.
 const PLATFORMS = [
@@ -155,6 +156,7 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
                 {post.closed_at &&
                   ` · ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
               </Typography.Paragraph>
+              <PostMetrics post={post} />
             </div>
             <PostActions post={post} disabled={video.locked} onDone={editor.onSaved} />
           </Flex>

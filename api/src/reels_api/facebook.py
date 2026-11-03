@@ -1,4 +1,5 @@
-"""Publishing a reel to the team's one Facebook Page (Reels Publishing API), called only from the publish job."""
+"""Posting reels to the team's Facebook Pages (Reels Publishing API) and reading them back, called only from the worker
+and from "Kết nối Fanpage"."""
 
 import json
 import time
@@ -14,6 +15,8 @@ from . import config
 
 REQUEST_TIMEOUT = 60
 UPLOAD_TIMEOUT = 300
+# The worker reads numbers between jobs, so a slow Facebook must not hold the queue for long.
+INSIGHTS_TIMEOUT = 10
 POLL_SECONDS = 5
 PROCESSING_SECONDS = 180
 FAILED_STATUSES = {"error", "expired", "upload_failed"}
@@ -25,11 +28,12 @@ RATE_LIMIT_ERRORS = {4, 17, 32, 613}
 class FacebookError(Exception):
     """`message` is shown to members, `detail` is diagnostic."""
 
-    def __init__(self, message: str, detail: str = "", status: int = 0):
+    def __init__(self, message: str, detail: str = "", status: int = 0, code: int | None = None):
         super().__init__(message)
         self.message = message
         self.detail = detail
         self.status = status
+        self.code = code  # Facebook's error code, when its answer had one
 
 
 @dataclass(frozen=True)
@@ -74,7 +78,7 @@ def _http_error(status: int, body: str) -> FacebookError:
         message = f"Facebook đang lỗi (HTTP {status}), thử lại sau"
     else:
         message = "Facebook từ chối đăng video này"
-    return FacebookError(message, detail, status)
+    return FacebookError(message, detail, status, code)
 
 
 def _publish_call(page: Page, fields: dict[str, str]) -> dict:
@@ -161,6 +165,66 @@ def set_cover(page: Page, video_id: str, image: bytes) -> None:
     url = f"{config.facebook_api_url()}/{urllib.parse.quote(video_id, safe='')}/thumbnails"
     headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
     _send(urllib.request.Request(url, data=b"".join(parts), method="POST", headers=headers), REQUEST_TIMEOUT)
+
+
+# Video Insights metrics of a reel (lifetime). "Views" is every play, replays included, as Meta counts a reel's plays.
+REEL_METRICS = ("fb_reels_total_plays", "post_video_social_actions", "post_video_likes_by_reaction_type")
+
+
+def reel_insights(page: Page, video_id: str) -> dict[str, int | None]:
+    """The reel's `views`, `shares`, `comments` and `reactions`, each None when Facebook leaves it out. This is the one
+    place that knows Meta's metric names and shapes, so a change on their side is fixed here alone. Needs the
+    `read_insights` permission on the Page's token."""
+    query = urllib.parse.urlencode({"metric": ",".join(REEL_METRICS), "period": "lifetime", "access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(video_id, safe='')}/video_insights?{query}"
+    try:
+        reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
+    except FacebookError as err:
+        if err.code in PERMISSION_ERRORS:
+            raise FacebookError(
+                "Token Facebook chưa có quyền đọc chỉ số (read_insights), hãy dán token mới trong Kết nối Fanpage",
+                err.detail,
+                err.status,
+                err.code,
+            ) from None
+        if err.status == 404 or err.code == 100:
+            raise FacebookError(
+                "Facebook không còn reel này hoặc chưa có chỉ số", err.detail, err.status, err.code
+            ) from None
+        raise
+    values = {}
+    for item in reply.get("data") or []:
+        if isinstance(item, dict) and item.get("values"):
+            values[item.get("name")] = item["values"][-1].get("value")
+    social = values.get("post_video_social_actions")
+    return {
+        "views": _count(values.get("fb_reels_total_plays")),
+        "shares": _part(social, "share"),
+        "comments": _part(social, "comment"),
+        "reactions": _count(values.get("post_video_likes_by_reaction_type")),
+    }
+
+
+def _count(value: object) -> int | None:
+    """A number, or the sum of a breakdown such as reactions by type."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return int(value)
+    if isinstance(value, dict):
+        parts = [part for part in value.values() if isinstance(part, int | float) and not isinstance(part, bool)]
+        return int(sum(parts)) if parts else None
+    return None
+
+
+def _part(value: object, key: str) -> int | None:
+    """One entry of a breakdown such as {"SHARE": 3, "COMMENT": 5}; Meta's case is not documented."""
+    if not isinstance(value, dict):
+        return None
+    for name, part in value.items():
+        if str(name).lower() == key:
+            return _count(part)
+    return 0
 
 
 def reel_status(page: Page, video_id: str) -> dict | None:

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import facebook, fanpages, knowledge, llm
+from . import facebook, fanpages, knowledge, llm, metrics
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -360,6 +360,7 @@ def publication_payload(post: Publication | None) -> dict | None:
         "created_by": post.created_by.name,
         "closed_at": post.closed_at.isoformat() if post.closed_at else None,
         "closed_by": post.closed_by.name if post.closed_by else None,
+        "metrics": metrics.payload(post),
     }
 
 

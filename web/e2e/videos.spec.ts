@@ -409,6 +409,13 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await expect(cards.getByText("Đã đăng", { exact: true })).toBeVisible();
   await expect(cards.locator("img")).toHaveAttribute("src", /\/thumbnail\.jpg/);
   await expect(page.getByRole("link", { name: "Xem Reel" })).toBeVisible();
+  // Numbers come from the worker: a fresh reel has none until "Cập nhật view" asks for them.
+  await expect(cards.getByText("Chưa có số view", { exact: false })).toBeVisible();
+  await cards.getByRole("button", { name: "Cập nhật view" }).click();
+  await expect(cards.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
+  await expect(cards.getByText("3 share · 5 bình luận · 40 cảm xúc")).toBeVisible();
+  await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
+  await expect(cards).toHaveCount(1);
   // The status filter: a published reel is not among the scheduled ones.
   await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Đã hẹn lịch");
   await expect(cards).toHaveCount(0);
