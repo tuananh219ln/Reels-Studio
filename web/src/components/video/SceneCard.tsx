@@ -35,13 +35,13 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { cloneElement, useRef, useState } from "react";
+import { cloneElement, useEffect, useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type StockSource, type VideoDetail } from "@/lib/api";
 import { fileFromDataUrl, googleImagesUrl, linkFromTransfer, looksLikeImageLink, unwrapLink } from "@/lib/imageLinks";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
-import StockPicker from "./StockPicker";
+import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
 import VoiceText from "./VoiceText";
 import { COLORS } from "@/app/theme";
@@ -318,7 +318,26 @@ function SceneHeader({
 
 type Busy = "upload" | "video" | "remove" | "find" | "link" | "ai" | "keep";
 
-const PIXABAY: StockSource = { id: "pixabay", label: "Pixabay", available: true };
+const PEXELS: StockSource = { id: DEFAULT_SOURCE, label: "Pexels", available: true };
+
+/** The sources "Tìm ảnh" offers, asked once for every scene of the page and again after half a minute. */
+let offeredSources: { at: number; list: Promise<StockSource[]> } | null = null;
+
+function stockSources(): Promise<StockSource[]> {
+  if (offeredSources === null || Date.now() - offeredSources.at > 30_000) {
+    offeredSources = {
+      at: Date.now(),
+      list: api<StockSource[]>("/stock/sources").then(
+        (all) => {
+          const offered = all.filter((item) => item.available);
+          return offered.length > 0 ? offered : [PEXELS];
+        },
+        () => [PEXELS],
+      ),
+    };
+  }
+  return offeredSources.list;
+}
 
 function ScenePicture({
   scene,
@@ -340,21 +359,27 @@ function ScenePicture({
   const [dragging, setDragging] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [pastedLink, setPastedLink] = useState("");
-  // Where "Tìm ảnh" searches: Pixabay until the member picks another source from the arrow menu.
-  const [findSource, setFindSource] = useState<StockSource>(PIXABAY);
+  // Where "Tìm ảnh" searches: Pexels (or the first source offered without it) until the member picks another
+  // source from the arrow menu.
+  const [findSource, setFindSource] = useState<StockSource>(PEXELS);
   const [sources, setSources] = useState<StockSource[] | null>(null);
+  const picked = useRef(false);
 
-  async function loadSources() {
-    if (sources !== null) {
-      return;
-    }
-    try {
-      const offered = (await api<StockSource[]>("/stock/sources")).filter((item) => item.available);
-      setSources(offered.length > 0 ? offered : [PIXABAY]);
-    } catch {
-      setSources([PIXABAY]);
-    }
-  }
+  useEffect(() => {
+    let open = true;
+    void stockSources().then((offered) => {
+      if (!open) {
+        return;
+      }
+      setSources(offered);
+      if (!picked.current) {
+        setFindSource(offered.find((item) => item.id === DEFAULT_SOURCE) ?? offered[0]);
+      }
+    });
+    return () => {
+      open = false;
+    };
+  }, []);
 
   // Busy and errors are this scene's own: working on one scene never blocks the others.
   async function run(kind: Busy, action: () => Promise<VideoDetail>) {
@@ -761,12 +786,14 @@ function ScenePicture({
             <Dropdown
               trigger={["click"]}
               disabled={off}
-              onOpenChange={(open) => open && void loadSources()}
               menu={{
                 selectable: true,
                 selectedKeys: [findSource.id],
                 items: (sources ?? [findSource]).map((item) => ({ key: item.id, label: item.label })),
-                onClick: ({ key }) => setFindSource(sources?.find((item) => item.id === key) ?? findSource),
+                onClick: ({ key }) => {
+                  picked.current = true;
+                  setFindSource(sources?.find((item) => item.id === key) ?? findSource);
+                },
               }}
             >
               <Button aria-label="Đổi nguồn ảnh" icon={<DownOutlined />} disabled={off} />

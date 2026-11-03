@@ -1,7 +1,23 @@
 "use client";
 
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { App, Button, Card, Collapse, Flex, Input, Popconfirm, Spin, Tabs, Tag, Tooltip, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Col,
+  Empty,
+  Flex,
+  Input,
+  Popconfirm,
+  Row,
+  Spin,
+  Tabs,
+  Tag,
+  theme,
+  Tooltip,
+  Typography,
+} from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, type Knowledge, type KnowledgeTopic } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
@@ -9,9 +25,13 @@ import PlanTab from "@/components/plan/PlanTab";
 
 export default function KnowledgePage() {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [data, setData] = useState<Knowledge | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
+  const [chosen, setChosen] = useState<number | null>(null);
+  // Topics opened so far stay mounted (hidden when another is chosen): each box keeps its own unsaved text.
+  const [opened, setOpened] = useState<number[]>([]);
 
   useEffect(() => {
     api<Knowledge>("/knowledge")
@@ -27,11 +47,26 @@ export default function KnowledgePage() {
     );
   }
 
+  // The chosen topic, or the first one while none is chosen or the chosen one was deleted.
+  const current = data.topics.find((topic) => topic.id === chosen) ?? data.topics[0] ?? null;
+  const mounted = data.topics.filter((topic) => topic.id === current?.id || opened.includes(topic.id));
+
+  function choose(id: number) {
+    setChosen(id);
+    setOpened((ids) => (ids.includes(id) ? ids : [...ids, id]));
+  }
+
   async function add() {
     setBusy(true);
     try {
-      setData(await api<Knowledge>("/knowledge/topics", "POST", { name }));
+      const before = new Set(data?.topics.map((topic) => topic.id));
+      const saved = await api<Knowledge>("/knowledge/topics", "POST", { name });
+      setData(saved);
       setName("");
+      const added = saved.topics.find((topic) => !before.has(topic.id));
+      if (added) {
+        choose(added.id);
+      }
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -39,41 +74,79 @@ export default function KnowledgePage() {
     }
   }
 
-  // Panels stay mounted once opened, and each box keeps its own text and saves on its own, so neither
-  // closing a line nor saving one box discards unsaved text in another.
   return (
     <>
       <PageHeader
         title="Kho kiến thức"
         description="Mỗi nhóm chủ đề có prompt viết kịch bản, prompt nhân bản, từ cấm và kế hoạch 30 ngày riêng. Video dùng nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
-      >
-        <Flex gap={8} style={{ width: 480, maxWidth: "100%" }}>
-          <Input
-            aria-label="Tên nhóm chủ đề mới"
-            placeholder="Tên nhóm chủ đề mới"
-            maxLength={100}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onPressEnter={() => name.trim() && add()}
-          />
-          <Button icon={<PlusOutlined />} loading={busy} disabled={!name.trim()} onClick={add}>
-            Thêm nhóm
-          </Button>
-        </Flex>
-      </PageHeader>
-      <Collapse
-        items={data.topics.map((topic) => ({
-          key: topic.id,
-          label: (
-            <Flex wrap align="center" gap={8}>
-              <Typography.Text strong>{topic.name}</Typography.Text>
-              <Typography.Text type="secondary">{topic.video_count} video</Typography.Text>
-              {!topic.script_prompt && <Tag color="gold">Chưa có prompt</Tag>}
-            </Flex>
-          ),
-          children: <TopicBody topic={topic} defaults={data} onSaved={setData} />,
-        }))}
       />
+      <Row gutter={[16, 16]} align="top">
+        <Col xs={24} lg={7} xxl={6}>
+          <Card size="small" title="Nhóm chủ đề" styles={{ body: { padding: 8 } }}>
+            <Flex gap={8} style={{ padding: 4, marginBottom: 8 }}>
+              <Input
+                aria-label="Tên nhóm chủ đề mới"
+                placeholder="Tên nhóm chủ đề mới"
+                maxLength={100}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onPressEnter={() => name.trim() && add()}
+              />
+              <Button icon={<PlusOutlined />} loading={busy} disabled={!name.trim()} onClick={add}>
+                Thêm nhóm
+              </Button>
+            </Flex>
+            <Flex vertical gap={2} data-testid="topic-list">
+              {data.topics.map((topic) => {
+                const active = topic.id === current?.id;
+                return (
+                  <button
+                    key={topic.id}
+                    type="button"
+                    aria-current={active ? "true" : undefined}
+                    onClick={() => choose(topic.id)}
+                    style={{
+                      width: "100%",
+                      border: "none",
+                      textAlign: "left",
+                      font: "inherit",
+                      cursor: "pointer",
+                      padding: "10px 12px",
+                      borderRadius: token.borderRadius,
+                      background: active ? token.colorPrimaryBg : "transparent",
+                    }}
+                  >
+                    <Flex justify="space-between" align="center" gap={8}>
+                      <Flex vertical style={{ minWidth: 0 }}>
+                        <Typography.Text strong ellipsis style={{ color: active ? token.colorPrimaryText : undefined }}>
+                          {topic.name}
+                        </Typography.Text>
+                        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                          {topic.video_count} video
+                        </Typography.Text>
+                      </Flex>
+                      {!topic.script_prompt && <Tag color="gold">Chưa có prompt</Tag>}
+                    </Flex>
+                  </button>
+                );
+              })}
+            </Flex>
+          </Card>
+        </Col>
+        <Col xs={24} lg={17} xxl={18}>
+          {current === null ? (
+            <Card>
+              <Empty description="Chưa có nhóm chủ đề nào. Thêm một nhóm ở bên trái." />
+            </Card>
+          ) : (
+            mounted.map((topic) => (
+              <div key={topic.id} hidden={topic.id !== current.id}>
+                <TopicBody topic={topic} defaults={data} onSaved={setData} />
+              </div>
+            ))
+          )}
+        </Col>
+      </Row>
     </>
   );
 }
@@ -88,6 +161,7 @@ function TopicBody({
   onSaved: (data: Knowledge) => void;
 }) {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const path = `/knowledge/topics/${topic.id}`;
   const update = async (body: Partial<KnowledgeTopic>) => {
     const saved = await api<Knowledge>(path, "PATCH", body);
@@ -103,73 +177,102 @@ function TopicBody({
     }
   }
 
+  // Not a Card itself: the prompt cards inside are found by their own title.
   return (
-    <Flex vertical gap={16} data-topic={topic.name}>
-      <NameCard name={topic.name} update={update} />
+    <Flex
+      vertical
+      gap={8}
+      data-topic={topic.name}
+      style={{
+        background: token.colorBgContainer,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        borderRadius: token.borderRadiusLG,
+        padding: "16px 20px 20px",
+      }}
+    >
+      <Flex wrap gap={12} justify="space-between" align="center">
+        <Flex vertical gap={2}>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            {topic.name}
+          </Typography.Title>
+          <Typography.Text type="secondary">
+            {topic.video_count} video dùng nhóm này
+            {!topic.script_prompt && " · chưa có prompt viết kịch bản nên chưa tạo video được"}
+          </Typography.Text>
+        </Flex>
+        <Flex wrap gap={8} align="center">
+          <NameCard name={topic.name} update={update} />
+          <Tooltip title={topic.video_count > 0 ? "Nhóm còn video nên chưa xoá được" : undefined}>
+            <span>
+              <Popconfirm
+                title="Xoá nhóm chủ đề này?"
+                okText="Xoá"
+                cancelText="Huỷ"
+                okButtonProps={{ danger: true }}
+                disabled={topic.video_count > 0}
+                onConfirm={remove}
+              >
+                <Button danger icon={<DeleteOutlined />} disabled={topic.video_count > 0}>
+                  Xoá nhóm
+                </Button>
+              </Popconfirm>
+            </span>
+          </Tooltip>
+        </Flex>
+      </Flex>
       <Tabs
         items={[
           {
             key: "prompts",
-            label: "Prompt",
+            label: "Prompt và từ cấm",
             children: (
-              <Flex vertical gap={16}>
-                <PromptCard
-                  title="Prompt viết kịch bản"
-                  field="script_prompt"
-                  initial={topic.script_prompt}
-                  fallback={defaults.default_script_prompt}
-                  update={update}
-                  help={
-                    <>
-                      Chỗ điền <Typography.Text code>[Chủ đề]</Typography.Text> được thay bằng chủ đề của video; nếu xóa
-                      chỗ điền này, chủ đề được nối vào cuối prompt. Video tạo từ kế hoạch 30 ngày còn điền{" "}
-                      <Typography.Text code>[Nhóm nỗi đau]</Typography.Text>,{" "}
-                      <Typography.Text code>[Nỗi đau]</Typography.Text> và{" "}
-                      <Typography.Text code>[Góc hook]</Typography.Text> của ý tưởng (thiếu chỗ điền thì nối vào cuối).
-                    </>
-                  }
-                />
-                <PromptCard
-                  title="Prompt nhân bản"
-                  field="clone_prompt"
-                  initial={topic.clone_prompt}
-                  fallback={defaults.default_clone_prompt}
-                  update={update}
-                  help={
-                    <>
-                      Dùng khi bấm “Nhân bản”. Các chỗ điền <Typography.Text code>[tiêu đề]</Typography.Text>,{" "}
-                      <Typography.Text code>[chủ đề]</Typography.Text>,{" "}
-                      <Typography.Text code>[kịch bản đã sửa của video gốc]</Typography.Text> và{" "}
-                      <Typography.Text code>[yêu cầu đổi]</Typography.Text> được thay bằng dữ liệu của video gốc; chỗ
-                      điền nào bị xóa thì thông tin đó được nối vào cuối prompt.
-                    </>
-                  }
-                />
-                <BannedWordsCard initial={topic.banned_words} update={update} />
-              </Flex>
+              <Row gutter={[16, 16]}>
+                <Col xs={24} xl={16}>
+                  <Flex vertical gap={16}>
+                    <PromptCard
+                      title="Prompt viết kịch bản"
+                      field="script_prompt"
+                      initial={topic.script_prompt}
+                      fallback={defaults.default_script_prompt}
+                      update={update}
+                      help={
+                        <>
+                          Chỗ điền <Typography.Text code>[Chủ đề]</Typography.Text> được thay bằng chủ đề của video; nếu
+                          xóa chỗ điền này, chủ đề được nối vào cuối prompt. Video tạo từ kế hoạch 30 ngày còn điền{" "}
+                          <Typography.Text code>[Nhóm nỗi đau]</Typography.Text>,{" "}
+                          <Typography.Text code>[Nỗi đau]</Typography.Text> và{" "}
+                          <Typography.Text code>[Góc hook]</Typography.Text> của ý tưởng (thiếu chỗ điền thì nối vào
+                          cuối).
+                        </>
+                      }
+                    />
+                    <PromptCard
+                      title="Prompt nhân bản"
+                      field="clone_prompt"
+                      initial={topic.clone_prompt}
+                      fallback={defaults.default_clone_prompt}
+                      update={update}
+                      help={
+                        <>
+                          Dùng khi bấm “Nhân bản”. Các chỗ điền <Typography.Text code>[tiêu đề]</Typography.Text>,{" "}
+                          <Typography.Text code>[chủ đề]</Typography.Text>,{" "}
+                          <Typography.Text code>[kịch bản đã sửa của video gốc]</Typography.Text> và{" "}
+                          <Typography.Text code>[yêu cầu đổi]</Typography.Text> được thay bằng dữ liệu của video gốc;
+                          chỗ điền nào bị xóa thì thông tin đó được nối vào cuối prompt.
+                        </>
+                      }
+                    />
+                  </Flex>
+                </Col>
+                <Col xs={24} xl={8}>
+                  <BannedWordsCard initial={topic.banned_words} update={update} />
+                </Col>
+              </Row>
             ),
           },
           { key: "plan", label: "Kế hoạch 30 ngày", children: <PlanTab topicId={topic.id} /> },
         ]}
       />
-      <Flex justify="flex-end">
-        <Tooltip title={topic.video_count > 0 ? "Nhóm còn video nên chưa xoá được" : undefined}>
-          <span>
-            <Popconfirm
-              title="Xoá nhóm chủ đề này?"
-              okText="Xoá"
-              cancelText="Huỷ"
-              okButtonProps={{ danger: true }}
-              disabled={topic.video_count > 0}
-              onConfirm={remove}
-            >
-              <Button danger icon={<DeleteOutlined />} disabled={topic.video_count > 0}>
-                Xoá nhóm
-              </Button>
-            </Popconfirm>
-          </span>
-        </Tooltip>
-      </Flex>
     </Flex>
   );
 }
@@ -194,9 +297,10 @@ function NameCard({ name, update }: { name: string; update: Update }) {
   }
 
   return (
-    <Flex gap={8} style={{ maxWidth: 480 }}>
+    <Flex gap={8}>
       <Input
         aria-label="Tên nhóm chủ đề"
+        style={{ width: 220 }}
         maxLength={100}
         value={value}
         onChange={(event) => setValue(event.target.value)}

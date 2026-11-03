@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — Pexels is the default stock library; team defaults are edited, then saved
+
+Owner's request. Pexels comes first everywhere a stock photo is looked for: the picker opens on it,
+"Tìm ảnh" searches it (the api's default `source`), and "Tự tìm ảnh" asks Pexels, then Pixabay, then
+Openverse. Without a Pexels key the first source offered is used. This replaces the Pixabay default of
+"“Tìm ảnh khác” can search any stock source", "The picker offers three stock sources" and the order in
+"“Tự tìm ảnh”: jobs now pick stock photos after the script" (below).
+
+"Thiết lập mặc định" is no longer saved at each change: it is read-only until "Chỉnh sửa", and "Lưu"
+sends every change together ("Huỷ" drops them), so a half-done change never reaches new videos. A
+video's own "Thiết lập" tab still saves at once.
+
 ## 2026-11-03 — "Bài đăng" no longer suggests posting a video to another Page
 
 Owner's call: the "Đăng thêm lên Page khác" card is gone. It suggested sending the same MP4 to a second Page, which

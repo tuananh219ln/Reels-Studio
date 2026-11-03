@@ -1000,7 +1000,7 @@ def _used_photos(db: DbSession, video_id: int, except_scene: int | None = None) 
 @router.post("/scenes/{scene_id}/find-image")
 def find_other_image(
     scene_id: int,
-    source: str = "pixabay",
+    source: str = "pexels",
     orientation: str = "vertical",
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
@@ -1092,7 +1092,8 @@ def choose_pixabay(
 
 # --- Stock sources for the picker ---
 
-STOCK_SOURCES = ("pixabay", "pexels", "openverse")
+# Pexels first: the default of the picker, "Tìm ảnh" and "Tự tìm ảnh".
+STOCK_SOURCES = ("pexels", "pixabay", "openverse")
 STOCK_LABELS = {"pixabay": "Pixabay", "pexels": "Pexels", "openverse": "Openverse"}
 STOCK_OFF_KEY = "stock_sources_off"
 CLIP_DOWNLOAD_SECONDS = 60
@@ -1222,7 +1223,7 @@ def choose_stock_clip(
 def search_stock(
     scene_id: int,
     q: str = "",
-    source: str = "pixabay",
+    source: str = "pexels",
     orientation: str = "vertical",
     hide_used: bool = True,
     me: Session = Depends(current_member),

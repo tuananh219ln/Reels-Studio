@@ -109,7 +109,7 @@ def test_a_key_pasted_on_the_sources_page_is_used_and_never_sent_back(an, db, me
     pexels = next(item for item in saved.json()["sources"] if item["id"] == "pexels")
     assert (pexels["configured"], pexels["key"]["origin"], pexels["key"]["hint"]) == (True, "saved", "-key")
     assert an.get(f"/api/scenes/{scene.id}/stock-clips", params=search).status_code == 200
-    assert an.get("/api/stock/sources").json()[1] == {
+    assert an.get("/api/stock/sources").json()[0] == {
         "id": "pexels",
         "label": "Pexels",
         "available": True,

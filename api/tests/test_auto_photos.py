@@ -112,28 +112,38 @@ def test_scenes_with_a_photo_or_clip_are_left_alone(committed, fakes, storage):
     assert all(scene.image_key and scene.image_auto for scene_id, scene in scenes.items() if scene_id != first_id)
 
 
-def test_a_blocked_source_moves_on_to_the_next(committed, fakes, storage):
+def test_pexels_is_asked_first(committed, fakes, storage):
     user = add_user(committed)
     video_id = scripted(committed, storage, user)
-    fakes.pixabay_mode = "cloudflare_block"
+
+    run_photos(committed, storage, video_id)
+
+    assert all(scene.image_key for scene in scenes_of(committed, video_id))
+    assert fakes.stock_searches and all(name == "pexels" for name, _ in fakes.stock_searches)
+
+
+def test_a_failing_source_moves_on_to_the_next(committed, fakes, storage):
+    user = add_user(committed)
+    video_id = scripted(committed, storage, user)
+    fakes.pexels_mode = "error500"
 
     job = run_photos(committed, storage, video_id)
 
     assert job.status == "done"
     scenes = scenes_of(committed, video_id)
     assert all(scene.image_key for scene in scenes)
-    assert fakes.pexels_queries, "Pexels, the next source, was asked"
-    assert len(fakes.pixabay_queries) == 1, "a source that failed is not asked again in the same job"
+    assert fakes.pixabay_queries, "Pixabay, the next source, was asked"
+    assert len(fakes.pexels_queries) == 1, "a source that failed is not asked again in the same job"
 
 
 def test_a_turned_off_source_is_skipped(committed, fakes, storage):
     user = add_user(committed)
     video_id = scripted(committed, storage, user)
     with committed() as db:
-        db.add(AppSetting(key="stock_sources_off", value=["pixabay"]))
+        db.add(AppSetting(key="stock_sources_off", value=["pexels"]))
         db.commit()
     run_photos(committed, storage, video_id)
-    assert fakes.pixabay_queries == [] and all(scene.image_key for scene in scenes_of(committed, video_id))
+    assert fakes.pexels_queries == [] and all(scene.image_key for scene in scenes_of(committed, video_id))
 
 
 def test_when_every_source_fails_the_job_says_so_and_the_script_stays(committed, fakes, storage):

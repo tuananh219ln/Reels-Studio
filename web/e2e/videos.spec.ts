@@ -748,13 +748,13 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await picker.getByTestId("stock-hit").nth(1).click();
   // The full-size address goes back with the source and the keyword it was found with.
   const body = (await chosen).postDataJSON() as { source: string; keyword: string; url: string };
-  expect(body.source).toBe("pixabay");
+  expect(body.source).toBe("pexels");
   expect(body.keyword).toBe("calcium rich food");
   expect(body.url).toMatch(/\/img\/\w+\.jpg$/);
   await expect(picker).toBeHidden();
-  // The chosen photo is served by the app, not linked from Pixabay.
+  // The chosen photo is served by the app, not linked from Pexels.
   await expect(title.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
-  await expect(title.getByRole("button", { name: "Tìm ảnh (Pixabay)" })).toBeVisible();
+  await expect(title.getByRole("button", { name: "Tìm ảnh (Pexels)" })).toBeVisible();
 
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
@@ -772,7 +772,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await picker.getByTestId("stock-hit").nth(2).click();
   await expect(picker).toBeHidden();
   await expect(first.getByTestId("scene-preview")).toBeVisible();
-  // The typed keyword was searched on Pixabay, so it now leads the English list (not shown on the
+  // The typed keyword was searched on Pexels, so it now leads the English list (not shown on the
   // card); the card's field is the Vietnamese list, unchanged.
   await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá nhỏ, món ăn");
 
@@ -925,23 +925,24 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   const scene = page.getByTestId("scene").first();
   await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
-  // Pixabay is the default source: its three fake photos show first.
-  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
-  await picker.getByText("Pexels", { exact: true }).click();
+  // Pexels is the default source: its three fake photos show first.
   await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
-  // The page polls the video every 2.5 s; a poll must not send the picker back to Pixabay.
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByText("Pixabay", { exact: true }).click();
+  await expect(picker.getByText(/ảnh từ Pixabay cho/)).toBeVisible();
+  // The page polls the video every 2.5 s; a poll must not send the picker back to Pexels.
   const poll = (response: { url(): string; request(): { method(): string } }) =>
     /\/api\/videos\/\d+$/.test(response.url()) && response.request().method() === "GET";
   await page.waitForResponse(poll);
   await page.waitForResponse(poll);
-  await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
-  await expect(picker.getByRole("radio", { name: "Pexels" })).toBeChecked();
+  await expect(picker.getByText(/ảnh từ Pixabay cho/)).toBeVisible();
+  await expect(picker.getByRole("radio", { name: "Pixabay" })).toBeChecked();
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
   await picker.getByTestId("stock-hit").first().click();
   await expect(picker).toBeHidden();
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 
-  // Reopen and take a photo from Openverse instead; the picker starts on Pixabay again.
+  // Reopen and take a photo from Openverse instead; the picker starts on Pexels again.
   await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
   await picker.getByText("Openverse", { exact: true }).click();
   await expect(picker.getByText(/ảnh từ Openverse cho/)).toBeVisible();
@@ -950,8 +951,8 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await expect(picker).toBeHidden();
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 
-  // "Tìm ảnh" searches Pixabay until another source is picked from its arrow menu.
-  const find = scene.getByRole("button", { name: "Tìm ảnh (Pixabay)" });
+  // "Tìm ảnh" searches Pexels until another source is picked from its arrow menu.
+  const find = scene.getByRole("button", { name: "Tìm ảnh (Pexels)" });
   await expect(find).toBeVisible();
   await scene.getByRole("button", { name: "Đổi nguồn ảnh" }).click();
   await page.getByRole("menuitem", { name: "Openverse" }).click();
@@ -1353,9 +1354,15 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();
   await page.getByRole("tab", { name: "Thiết lập mặc định" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
+  // Read-only until "Chỉnh sửa"; "Huỷ" drops what was changed.
+  await expect(page.getByRole("slider", { name: "Tốc độ đọc" })).toHaveAttribute("aria-disabled", "true");
+  await page.getByRole("button", { name: "Chỉnh sửa" }).click();
+  await page.getByLabel("Chuyển cảnh").getByText("Trượt").click();
+  await page.getByRole("button", { name: "Huỷ" }).click();
+  await expect(page.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).not.toHaveText("Trượt");
+  await page.getByRole("button", { name: "Chỉnh sửa" }).click();
   await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
-  await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
-  // The reading speed slider: each step is saved (the page is busy meanwhile), three steps up from 1 make 1.15.
+  // The reading speed slider: three steps up from 1 make 1.15.
   const speed = page.getByRole("slider", { name: "Tốc độ đọc" });
   for (const shown of ["1,05", "1,10", "1,15"]) {
     await expect(speed).not.toHaveAttribute("aria-disabled", "true");
@@ -1376,6 +1383,8 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await expect(page.getByText("Âm lượng giọng: 50%")).toBeVisible();
   await page.mouse.up();
   await expect(volume).toHaveAttribute("aria-valuenow", "50");
+  await page.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
 
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");

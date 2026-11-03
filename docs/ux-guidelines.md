@@ -209,9 +209,10 @@ Built:
     trong video này" (on by default; any change searches again; photos too small for the frame are
     always left out), and every result as a grid of 9:16 tiles, each photo cropped as the render
     will crop it, that fits the screen (two columns on a phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
-    it first in the scene's keywords. "Tìm ảnh" (with its source, e.g. "Tìm ảnh (Pixabay)") takes
-    the next result for the saved keywords from the source named on the button (Pixabay until another
-    is picked from the arrow menu beside it). The picker's source tab stays as chosen while the page
+    it first in the scene's keywords. "Tìm ảnh" (with its source, e.g. "Tìm ảnh (Pexels)") takes
+    the next result for the saved keywords from the source named on the button (Pexels, or the first
+    source offered when Pexels is not, until another is picked from the arrow menu beside it). The
+    picker opens on Pexels the same way. The picker's source tab stays as chosen while the page
     polls. Each scene shows its own spinner and the api's
     message word for word; without keywords it also points to the keyword field. The dialog (now
     "Chọn từ kho ảnh/video") has an "Ảnh | Video" switch when a source offers clips: "Video" lists
@@ -270,12 +271,16 @@ Built:
     Suite), "Hủy đăng" for a post not yet public and "Xóa" for a public one, each with a confirmation,
     and a public post's numbers as on "Bài đăng" (without "Cập nhật view");
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
-- **Kho kiến thức** (`/knowledge`): one collapsible line per topic group ("Nhóm chủ đề"), added,
-  renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
-  prompt, the clone prompt (each with "Khôi phục mặc định"), and the banned words. A new group starts
+- **Kho kiến thức** (`/knowledge`): two columns (stacked on a phone). On the left, the card "Nhóm
+  chủ đề": a field and "Thêm nhóm" (the new group is opened), then one line per topic group with its
+  video count and "Chưa có prompt" when it has none; the chosen line is highlighted, the first group
+  is chosen on arrival. On the right, the chosen group: its name as a heading with how many videos use
+  it, the name field with "Đổi tên", and "Xoá nhóm" (disabled while the group has videos). Groups
+  opened once stay loaded, so unsaved text in one survives opening another. A new group starts
   empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
-  video"; a clone keeps its source's group. Below the name, two tabs: "Prompt" (the prompts and banned words) and "Kế
-  hoạch 30 ngày":
+  video"; a clone keeps its source's group. Two tabs: "Prompt và từ cấm" (the script prompt and the
+  clone prompt, each with "Lưu" and "Khôi phục mặc định", and beside them on a wide screen the banned
+  words with "Lưu từ cấm") and "Kế hoạch 30 ngày":
   - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Đã làm X/Y ý tưởng" with a bar;
   - "Nhập file JSON/CSV" and "Tạo bằng AI", both ending in a preview table with errors (which block
     saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as a draft
@@ -385,8 +390,9 @@ Built:
   Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with three tabs, each
   its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all three:
   - **Thiết lập mặc định** (`/settings/defaults`, the first tab): the same three cards as
-    a video's "Thiết lập" tab plus the music level, saved at once ("Đã lưu mặc định"). They apply
-    only to videos created afterwards.
+    a video's "Thiết lập" tab plus the music level, read-only until "Chỉnh sửa". While editing, the
+    changes stay on the page ("Có thay đổi chưa lưu") until "Lưu" sends them together ("Đã lưu mặc
+    định") or "Huỷ" drops them. They apply only to videos created afterwards.
   - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
     provider not set up yet is greyed out, "chưa cấu hình"). Below, one collapsible line per
     provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
@@ -395,17 +401,21 @@ Built:
     "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
-  - **Nguồn tư liệu** (`/settings/sources`): first the switch "Tự tìm ảnh sau khi viết kịch bản"
-    (on by default: a stock photo for every scene once a script or clone is written); then one card per stock library (Pixabay, Pexels: photos
-    and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
-    hộp chọn" that hides a source from the picker and "Tìm ảnh" for the whole team, and its API
+  - **Nguồn tư liệu** (`/settings/sources`): three sections, each a heading with a line on what it
+    is for. "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
+    (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
+    tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side
+    (Pexels, marked "Mặc định", and Pixabay: photos and clips; Openverse: photos, no key), each
+    with "Sẵn sàng" or "Chưa có key", a switch (titled "Hiện trong hộp chọn") that hides a source
+    from the picker and "Tìm ảnh" for the whole team, and its API
     key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
     của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
     ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, and
     "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
-    định" once edited; empty adds nothing) in one "Ảnh AI" card, then one
-    card per AI photo provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its
-    model, its key and "Mặc định" on the default one; last, "Giọng đọc (ElevenLabs)" with the narration key. A
+    định" once edited; empty adds nothing) in one card of the "Ảnh AI" section, then one
+    card per AI photo provider side by side (Cloudflare, whose key is a Workers AI API token; Gemini)
+    with its model, its key and "Mặc định" on the default one; last, the "Giọng đọc" section with
+    the ElevenLabs card and its narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
   - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid
