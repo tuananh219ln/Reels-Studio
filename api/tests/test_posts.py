@@ -5,7 +5,7 @@ from conftest import login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
 
 from reels_api import fanpages
-from reels_api.models import Publication
+from reels_api.models import Publication, Video
 from reels_api.videos import render_signature, split_scenes
 
 
@@ -95,3 +95,13 @@ def test_the_latest_time_comes_first(an, db, me, storage):
     )
     new = add_post(db, storage, me, status="published", remote_id="3", published_at=in_hours(-1))
     assert [row["video_id"] for row in an.get("/api/posts").json()] == [waiting.video_id, new.video_id, old.video_id]
+
+
+def test_a_post_shows_its_videos_thumbnail(an, db, me, storage):
+    with_frame = add_post(db, storage, me, status="published", remote_id="1000", published_at=in_hours(-2))
+    db.get(Video, with_frame.video_id).thumbnail_key = "videos/1/thumbnail.jpg"
+    add_post(db, storage, me, status="published", remote_id="1001", published_at=in_hours(-3))
+    db.commit()
+    first, second = an.get("/api/posts").json()
+    assert first["thumbnail_url"].startswith(f"/api/videos/{with_frame.video_id}/thumbnail.jpg?v=")
+    assert second["thumbnail_url"] is None

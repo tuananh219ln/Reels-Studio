@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — "Bài đăng" looks like "Video": thumbnails, grid or list, search by title
+
+Part 2 of issue #74. `/posts` shows one card per post with its video's title-scene thumbnail, so a
+member recognises the video at a glance, and switches between grid and list like `/videos`; the
+choice is remembered per page, in the browser only. The search by title and the filters run in the
+browser over the list the api already returns whole, because the team has at most a few hundred
+posts; the api gains only `thumbnail_url`. A video with several posts has several cards, one per
+post, since each post has its own Page, time and actions.
+
 ## 2026-11-03 — A reel posted by the app gets the title scene as its cover
 
 Requested by a member (tuananh219ln): Facebook picked a frame from the middle of a reel ("1. Canh bí đao…") as its

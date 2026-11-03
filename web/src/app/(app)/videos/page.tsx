@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  AppstoreOutlined,
-  PlaySquareOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  UnorderedListOutlined,
-} from "@ant-design/icons";
+import { AppstoreOutlined, PlusOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import {
   App,
   Button,
@@ -27,9 +21,9 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { COLORS } from "@/app/theme";
 import { useMe } from "@/components/MeContext";
 import VideoStatusTags from "@/components/VideoStatusTags";
+import VideoThumbnail from "@/components/VideoThumbnail";
 import {
   api,
   errorMessage,
@@ -42,11 +36,11 @@ import {
 } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
+import { useRememberedView, type View } from "@/lib/view";
 
 const REFRESH_MS = 5000;
 const VIEW_KEY = "reels-studio.videos-view";
 
-type View = "grid" | "list";
 type StatusFilter = "all" | "draft" | "working" | "done" | "failed" | "outdated";
 
 /** The status filter's groups: a job in any stage counts as "Đang xử lý". */
@@ -71,23 +65,7 @@ export default function VideosPage() {
   const { me } = useMe();
   const [status, setStatus] = useState<StatusFilter>("all");
   const [mine, setMine] = useState(false);
-  // Grid or list, remembered in this browser.
-  const [view, setView] = useState<View>(() => {
-    try {
-      return window.localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
-    } catch {
-      return "grid";
-    }
-  });
-
-  function chooseView(next: View) {
-    setView(next);
-    try {
-      window.localStorage.setItem(VIEW_KEY, next);
-    } catch {
-      // A browser that refuses storage just forgets the choice.
-    }
-  }
+  const [view, chooseView] = useRememberedView(VIEW_KEY);
 
   const reload = useCallback(
     async (q: string, quiet = false) => {
@@ -183,42 +161,6 @@ export default function VideosPage() {
   );
 }
 
-/** The title-scene thumbnail, or a tile with the title when there is none or it fails to load. */
-function Thumbnail({ row, width }: { row: VideoRow; width?: number }) {
-  const name = row.title || row.topic;
-  const [broken, setBroken] = useState(false);
-  const box = { width: width ?? "100%", aspectRatio: "9 / 16", borderRadius: width ? 6 : 0, flex: "none" } as const;
-  if (row.thumbnail_url && !broken) {
-    return (
-      // A plain <img>: thumbnails come from the api behind the session cookie, which next/image's optimizer
-      // would not send.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={row.thumbnail_url} alt="" onError={() => setBroken(true)} style={{ ...box, objectFit: "cover" }} />
-    );
-  }
-  return (
-    <Flex
-      align="center"
-      justify="center"
-      style={{
-        ...box,
-        background: COLORS.primaryBg,
-        border: width ? `1px solid ${COLORS.primaryBorder}` : undefined,
-        padding: width ? 2 : 12,
-        textAlign: "center",
-      }}
-    >
-      {width ? (
-        <PlaySquareOutlined style={{ color: COLORS.primary, fontSize: 16 }} />
-      ) : (
-        <Typography.Text strong style={{ color: COLORS.primary }}>
-          {name}
-        </Typography.Text>
-      )}
-    </Flex>
-  );
-}
-
 function VideoCard({ row }: { row: VideoRow }) {
   const name = row.title || row.topic;
   return (
@@ -234,7 +176,7 @@ function VideoCard({ row }: { row: VideoRow }) {
         hoverable
         style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
         styles={{ body: { padding: 12, flex: 1, display: "flex", flexDirection: "column", gap: 6 } }}
-        cover={<Thumbnail row={row} />}
+        cover={<VideoThumbnail name={name} url={row.thumbnail_url} />}
       >
         <Typography.Paragraph strong ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
           {name}
@@ -269,7 +211,7 @@ function VideoTable({ rows }: { rows: VideoRow[] }) {
             key: "video",
             render: (_, row) => (
               <Flex align="center" gap={12}>
-                <Thumbnail row={row} width={36} />
+                <VideoThumbnail name={row.title || row.topic} url={row.thumbnail_url} width={36} />
                 <Flex vertical style={{ minWidth: 0 }}>
                   <Link prefetch={false} href={`/videos/${row.id}`} onClick={(event) => event.stopPropagation()}>
                     <Typography.Text strong ellipsis style={{ maxWidth: 520 }}>

@@ -340,6 +340,11 @@ def live_at(post: Publication) -> datetime:
     return post.scheduled_at or post.published_at or post.created_at
 
 
+def thumbnail_url(video: Video) -> str | None:
+    """The title-scene frame of the last render, versioned so a new render is not served from the cache."""
+    return f"/api/videos/{video.id}/thumbnail.jpg?v={_version(video.thumbnail_key)}" if video.thumbnail_key else None
+
+
 def publication_payload(post: Publication | None) -> dict | None:
     if post is None:
         return None
@@ -489,9 +494,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         }
         if video.mp4_key
         else None,
-        "thumbnail_url": (
-            f"/api/videos/{video.id}/thumbnail.jpg?v={_version(video.thumbnail_key)}" if video.thumbnail_key else None
-        ),
+        "thumbnail_url": thumbnail_url(video),
         "music": {
             "url": f"/api/videos/{video.id}/music.mp3?v={_version(video.music_key)}",
             "name": video.music_name,
@@ -536,7 +539,5 @@ def list_payload(db: DbSession, video: Video) -> dict:
         "created_at": video.created_at.isoformat(),
         **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),
-        "thumbnail_url": (
-            f"/api/videos/{video.id}/thumbnail.jpg?v={_version(video.thumbnail_key)}" if video.thumbnail_key else None
-        ),
+        "thumbnail_url": thumbnail_url(video),
     }

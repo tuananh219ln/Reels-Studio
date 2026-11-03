@@ -403,13 +403,30 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await expect(page).toHaveURL(/\/posts$/);
-  await expect(page.getByRole("cell", { name: "Đã đăng", exact: true })).toBeVisible();
+  // A card per post, with the video's thumbnail, like "Video".
+  const cards = page.getByTestId("post-card");
+  await expect(cards).toHaveCount(1);
+  await expect(cards.getByText("Đã đăng", { exact: true })).toBeVisible();
+  await expect(cards.locator("img")).toHaveAttribute("src", /\/thumbnail\.jpg/);
   await expect(page.getByRole("link", { name: "Xem Reel" })).toBeVisible();
   // The status filter: a published reel is not among the scheduled ones.
-  await page.getByText("Đã hẹn lịch", { exact: true }).click();
-  await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
-  await page.getByText("Tất cả", { exact: true }).click();
-  await expect(page.getByRole("link", { name: "Xem Reel" })).toBeVisible();
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Đã hẹn lịch");
+  await expect(cards).toHaveCount(0);
+  await expect(page.getByText("Không có bài đăng nào khớp")).toBeVisible();
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Mọi trạng thái");
+  await expect(cards).toHaveCount(1);
+  // The search keeps posts whose title has the words.
+  await page.getByLabel("Tìm theo tiêu đề").fill("không có tiêu đề này");
+  await expect(cards).toHaveCount(0);
+  await page.getByLabel("Tìm theo tiêu đề").fill("");
+  await expect(cards).toHaveCount(1);
+  // The list view is remembered in this browser.
+  await page.getByTitle("Dạng danh sách").click();
+  await expect(page.getByRole("cell", { name: "Đã đăng", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("cell", { name: "Đã đăng", exact: true })).toBeVisible();
+  await page.getByTitle("Dạng lưới").click();
+  await expect(cards).toHaveCount(1);
 
   await page.getByRole("menuitem", { name: "Lịch đăng bài" }).click();
   await expect(page).toHaveURL(/\/calendar$/);

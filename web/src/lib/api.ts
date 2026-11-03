@@ -323,7 +323,7 @@ export type Post = {
 };
 
 /** A post in the "Bài đăng" list; `busy`: its video has a job queued or running. */
-export type PostRow = Post & { video_id: number; title: string; busy: boolean };
+export type PostRow = Post & { video_id: number; title: string; thumbnail_url: string | null; busy: boolean };
 
 export type JobRow = {
   id: number;

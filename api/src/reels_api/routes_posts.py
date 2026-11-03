@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session as DbSession
 from .db import get_db
 from .models import Publication, Session, Video
 from .sessions import current_member
-from .videos import active_job, live_at, publication_payload, split_scenes, title_of
+from .videos import active_job, live_at, publication_payload, split_scenes, thumbnail_url, title_of
 
 router = APIRouter(prefix="/api/posts")
 
@@ -19,6 +19,7 @@ def _payload(db: DbSession, video: Video, post: Publication) -> dict:
         **publication_payload(post),
         "video_id": video.id,
         "title": title_of(video, title) or video.topic,
+        "thumbnail_url": thumbnail_url(video),
         "busy": active_job(db, video.id) is not None,
     }
 

@@ -314,8 +314,8 @@ Planned:
   - The job repeats the MP4 and time checks, because "Thử lại" skips the endpoint.
   - The job locks the video like a render, for the minute or so it takes.
   - `GET /api/posts` ([routes_posts.py](../api/src/reels_api/routes_posts.py)) reads
-    scheduled, published, cancelled and deleted rows for `/posts` and `/calendar`, with `busy` while
-    the video has an active job. Pending posts are left out. The calendar loads every row, keeps the
+    scheduled, published, cancelled and deleted rows for `/posts` and `/calendar`, with the video's
+    `thumbnail_url` and `busy` while the video has an active job. Pending posts are left out. The calendar loads every row, keeps the
     scheduled and published ones and groups them in the browser, which is enough at 1–3 videos a day.
 - **Clone ("Nhân bản"):** stores a snapshot of the source as edited at that moment plus the change
   request on the new draft, and copies the source's MP3 as the draft's own file. The source is not
