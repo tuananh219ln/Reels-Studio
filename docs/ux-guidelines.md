@@ -147,10 +147,13 @@ Built:
     where it came from (Pixabay, an AI model…); a crop narrower than 1080 px warns that the photo
     will look soft. Cropping again starts from the cropped photo: picking the photo again is the
     way back. **"Cắt video"** (clip): a muted 9:16 player and a two-handle slider over the clip;
-    dragging a handle shows its frame, "Xem thử" plays the chosen part only, and the scene's
-    length is the part less the crossfades (0.2 s on each side with a neighbour). A part shorter
-    than 1 s or longer than 10 s cannot be applied. "Áp dụng" saves the start and the seconds
-    together. A switch plays the clip's sound in the preview only, saying the MP4 never uses it;
+    dragging a handle shows its frame, "Xem thử" plays the chosen part only at the chosen speed,
+    and the scene's length is the part divided by the speed, less the crossfades (0.2 s on each
+    side with a neighbour). "Tốc độ clip" goes from 0,5× to 2× in steps of 0,25 (1× by default);
+    changing it keeps the scene's seconds and moves the end of the part. A part longer than the
+    clip left after the start warns that the last frame will hold, and can still be applied. A part
+    shorter than 1 s or longer than 10 s cannot be applied. "Áp dụng" saves the start, the speed and
+    the seconds together. A switch plays the clip's sound in the preview only, saying the MP4 never uses it;
     with narration on, a note says the scene may last longer to fit it;
   - per scene with text and a picture, "Vị trí chữ" ("Vị trí chữ (riêng)" once the scene has a place
     of its own) opens a dialog: the frame without text at a quarter size, the platforms' covered

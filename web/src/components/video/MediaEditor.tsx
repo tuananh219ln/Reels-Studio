@@ -15,9 +15,13 @@ const FRAME_HEIGHT = 1920;
 const MIN_SCENE_SECONDS = 1;
 const MAX_CLIP_SCENE_SECONDS = 10;
 const CROSSFADE_SIDE_SECONDS = 0.2;
+// reels_render/script.py: MIN_VIDEO_SPEED, MAX_VIDEO_SPEED.
+const MIN_CLIP_SPEED = 0.5;
+const MAX_CLIP_SPEED = 2;
 
 const round = (value: number, digits: number) => Number(value.toFixed(digits));
 const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+const speedText = (value: number) => `${value.toLocaleString("vi-VN")}×`;
 
 /** "Chỉnh khung": a photo is cropped to 9:16, turned or flipped; a clip is trimmed to the part the scene plays. */
 export default function MediaEditor({
@@ -197,24 +201,32 @@ function ClipTrim({
 }) {
   const editor = useEditor();
   const player = useRef<HTMLVideoElement>(null);
-  // The scene plays `seconds` of the clip, plus a crossfade's worth on each side that has a neighbour.
+  // The scene lasts `seconds`, plus a crossfade's worth on each side that has a neighbour; at a speed, each of those
+  // seconds takes `speed` seconds of the clip.
   const sides = (scene.is_title ? 1 : 2) * CROSSFADE_SIDE_SECONDS;
   const total = clip.seconds;
+  const [speed, setSpeed] = useState(clip.speed);
+  // The end may lie past the clip: the scene keeps its seconds, its last frame holds, and the dialog warns.
   const [range, setRange] = useState<[number, number]>([
     clip.start,
-    Math.min(total, round(clip.start + scene.seconds + sides, 2)),
+    round(clip.start + (scene.seconds + sides) * clip.speed, 2),
   ]);
   const [sound, setSound] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [start, end] = range;
-  const length = round(end - start - sides, 1);
+  const shownEnd = Math.min(end, total);
+  const length = round((end - start) / speed - sides, 1);
   const problem =
     length < MIN_SCENE_SECONDS
       ? `Cảnh cần ít nhất ${seconds(MIN_SCENE_SECONDS)} giây: kéo hai đầu xa nhau hơn`
       : length > MAX_CLIP_SCENE_SECONDS
         ? `Cảnh dùng video dài tối đa ${MAX_CLIP_SCENE_SECONDS} giây: kéo hai đầu gần nhau hơn`
         : null;
+  const short =
+    end > total + 0.01
+      ? `Ở tốc độ ${speedText(speed)} cảnh cần ${seconds(end - start)} giây clip nhưng từ điểm bắt đầu chỉ còn ${seconds(total - start)} giây: khung cuối sẽ đứng yên. Giảm tốc độ, rút ngắn cảnh hoặc lùi điểm bắt đầu.`
+      : null;
 
   function change(next: number[]) {
     const [nextStart, nextEnd] = next as [number, number];
@@ -223,7 +235,16 @@ function ClipTrim({
       player.current.pause();
       player.current.currentTime = nextStart !== start ? nextStart : nextEnd;
     }
-    setRange([nextStart, nextEnd]);
+    setRange([nextStart, nextEnd === shownEnd ? end : nextEnd]);
+  }
+
+  // The scene keeps its seconds: a new speed moves the end of the part it takes from the clip.
+  function changeSpeed(next: number) {
+    setSpeed(next);
+    setRange([start, round(start + (length + sides) * next, 2)]);
+    if (player.current) {
+      player.current.playbackRate = next;
+    }
   }
 
   function preview() {
@@ -232,6 +253,7 @@ function ClipTrim({
       return;
     }
     video.currentTime = start;
+    video.playbackRate = speed;
     void video.play();
   }
 
@@ -240,7 +262,11 @@ function ClipTrim({
     setError(null);
     try {
       editor.onSaved(
-        await api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { video_start: round(start, 2), seconds: length }),
+        await api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", {
+          video_start: round(start, 2),
+          video_speed: speed,
+          seconds: length,
+        }),
       );
       onClose();
     } catch (err) {
@@ -274,7 +300,7 @@ function ClipTrim({
           data-testid="trim-player"
           // "Xem thử" plays the chosen part only.
           onTimeUpdate={(event) => {
-            if (event.currentTarget.currentTime >= end) {
+            if (event.currentTarget.currentTime >= shownEnd) {
               event.currentTarget.pause();
             }
           }}
@@ -294,26 +320,41 @@ function ClipTrim({
           min={0}
           max={total}
           step={0.1}
-          value={range}
+          value={[start, shownEnd]}
           onChange={change}
           tooltip={{ formatter: (value) => `${seconds(value ?? 0)} giây` }}
         />
         <Flex justify="space-between" wrap gap={8}>
           <Typography.Text data-testid="trim-range">
-            Từ giây {seconds(start)} đến {seconds(end)} · cảnh dài {seconds(length)} giây
+            Từ giây {seconds(start)} đến {seconds(shownEnd)} · cảnh dài {seconds(length)} giây
           </Typography.Text>
           <Button icon={<PlayCircleOutlined />} onClick={preview}>
             Xem thử
           </Button>
         </Flex>
+        <Flex align="center" gap={12}>
+          <Typography.Text>Tốc độ clip</Typography.Text>
+          <Slider
+            aria-label="Tốc độ clip"
+            min={MIN_CLIP_SPEED}
+            max={MAX_CLIP_SPEED}
+            step={0.25}
+            value={speed}
+            onChange={changeSpeed}
+            style={{ flex: 1 }}
+            tooltip={{ formatter: (value) => speedText(value ?? 1) }}
+          />
+          <Typography.Text data-testid="trim-speed">{speedText(speed)}</Typography.Text>
+        </Flex>
         {problem && <Alert type="error" showIcon title={problem} data-testid="trim-problem" />}
+        {short && <Alert type="warning" showIcon title={short} data-testid="trim-short" />}
         <Flex align="center" gap={8} wrap>
           <Switch checked={sound} onChange={setSound} aria-label="Nghe tiếng gốc" />
           <Typography.Text>Nghe tiếng gốc khi xem thử</Typography.Text>
           <Typography.Text type="secondary">(video xuất ra không dùng tiếng gốc)</Typography.Text>
         </Flex>
         <Typography.Text type="secondary">
-          Hai đầu đã chừa {seconds(sides)} giây cho chuyển cảnh.
+          Hai đầu đã chừa {seconds(sides * speed)} giây cho chuyển cảnh.
           {voiceEnabled && " Cảnh có thể dài hơn để khớp lời đọc."}
         </Typography.Text>
         {error && (

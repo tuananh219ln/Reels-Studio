@@ -197,6 +197,22 @@ def test_a_scene_longer_than_its_clip_only_warns(seconds, voice_seconds, warned)
     assert messages(checks.blocking, 9) == []
 
 
+@pytest.mark.parametrize(
+    ("speed", "seconds", "message"),
+    [
+        # A middle scene takes (seconds + 0.4) × speed of its 2 s of clip.
+        (2, 0.6, None),
+        (2, 0.7, "Ở tốc độ 2× video ngắn hơn cảnh, khung cuối sẽ đứng yên"),
+        (1.5, 1.0, "Ở tốc độ 1,5× video ngắn hơn cảnh, khung cuối sẽ đứng yên"),
+        (0.5, 3.6, None),
+    ],
+)
+def test_a_clip_speed_counts_towards_the_clip_it_needs(speed, seconds, message):
+    clip = SceneInput(9, False, SCENE_TEXT, seconds, True, clip_seconds=2.0, clip_speed=speed)
+    checks = run(title(), scenes(2) + [clip] + scenes(2))
+    assert [text for text in messages(checks.warnings, 9) if "khung cuối" in text] == ([message] if message else [])
+
+
 @pytest.mark.parametrize("place", ["title", "last"])
 @pytest.mark.parametrize(("seconds", "warned"), [(1.8, False), (1.9, True)])
 def test_the_title_and_the_last_scene_have_one_crossfade_to_cover(place, seconds, warned):

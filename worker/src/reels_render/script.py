@@ -11,6 +11,8 @@ from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 MIN_SCENE_SECONDS = 1
 MAX_KEYWORD_LENGTH = 100
+MIN_VIDEO_SPEED = 0.5
+MAX_VIDEO_SPEED = 2.0
 
 
 @dataclass(frozen=True)
@@ -26,6 +28,7 @@ class Scene:
     voice: Path | None = None  # narration audio, read over the scene
     video: Path | None = None  # a clip shown instead of a photo
     video_start: float = 0.0  # seconds into the clip where the scene starts
+    video_speed: float = 1.0  # how fast the clip plays; the scene's seconds stay its length on screen
     voice_text: str = ""  # what the narration says, for captions
     text_position: tuple[int, int] | None = None  # the text box's centre in the frame; None: the template's place
 
@@ -105,7 +108,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f'{label}: "voice_text" phải là chuỗi')
     if voice.strip() and not (base_dir / voice).is_file():
         raise InputError(f"{label}: không tìm thấy file lời đọc {voice}")
-    video, video_start = _parse_video(item, label, base_dir)
+    video, video_start, video_speed = _parse_video(item, label, base_dir)
     text_position = _parse_position(item.get("text_position"), label)
     if video is not None and image.strip():
         raise InputError(f'{label}: chỉ dùng một trong "image" hoặc "video"')
@@ -141,6 +144,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         voice=base_dir / voice if voice.strip() else None,
         video=video,
         video_start=video_start,
+        video_speed=video_speed,
         voice_text=voice_text,
         text_position=text_position,
     )
@@ -159,17 +163,23 @@ def _parse_position(value: object, label: str) -> tuple[int, int] | None:
     return value[0], value[1]
 
 
-def _parse_video(item: dict, label: str, base_dir: Path) -> tuple[Path | None, float]:
-    video, start = item.get("video", ""), item.get("video_start", 0)
+def _parse_video(item: dict, label: str, base_dir: Path) -> tuple[Path | None, float, float]:
+    video, start, speed = item.get("video", ""), item.get("video_start", 0), item.get("video_speed", 1)
     if not isinstance(video, str):
         raise InputError(f'{label}: "video" phải là chuỗi đường dẫn video')
     if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start) or start < 0:
         raise InputError(f'{label}: "video_start" phải là số giây từ 0 trở lên')
+    if (
+        isinstance(speed, bool)
+        or not isinstance(speed, (int, float))
+        or not MIN_VIDEO_SPEED <= speed <= MAX_VIDEO_SPEED
+    ):
+        raise InputError(f'{label}: "video_speed" phải là số từ {MIN_VIDEO_SPEED:g} đến {MAX_VIDEO_SPEED:g}')
     if not video.strip():
-        return None, 0.0
+        return None, 0.0, 1.0
     if not (base_dir / video).is_file():
         raise InputError(f"{label}: không tìm thấy file video {video}")
-    return base_dir / video, float(start)
+    return base_dir / video, float(start), float(speed)
 
 
 def _parse_keywords(value: object, label: str) -> tuple[str, ...]:

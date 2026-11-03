@@ -40,6 +40,15 @@ the rule that "Đã hủy" never stands for a reel people may have seen; who clo
 The automatic check runs once per scheduled time, even if it fails, so a broken token never loops; "Thử lại" and
 "Kiểm tra" remain.
 
+## 2026-11-03 — A clip's speed is set per scene; the scene keeps its seconds
+
+Requested by a member (tuananh219ln). "Cắt video" has "Tốc độ clip", 0,5× to 2×, stored as `scenes.video_speed`
+(migration 0022; older scenes are 1×, and their MP4s stay current). "Số giây" remains the scene's length on screen, so
+the scene takes (seconds + crossfades) × speed of the clip: the crossfades play at the clip's speed too. A part longer
+than the clip only warns and holds the last frame, as a short clip already did; the render never fails on it, and the
+limit on "Bắt đầu từ giây" stays "1 s of clip left", so changing the speed never makes a saved start invalid. A new clip
+starts at 1×. "Xem trước" plays the clip at its speed; the scene card's own player shows the clip as uploaded.
+
 ## 2026-11-02 — A re-rendered video can be posted again; posts can be cancelled and deleted from the app
 
 Requested by a member (tuananh219ln). This replaces "A video is never posted to Facebook twice" for a post a member

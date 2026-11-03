@@ -317,6 +317,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     "seconds": scene.seconds,
                     "video": clip.name,
                     "video_start": scene.video_start,
+                    "video_speed": scene.video_speed,
                 }
             else:
                 if not scene.image_key or not storage.exists(scene.image_key):
@@ -586,7 +587,7 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         scene.image_key, scene.image_source, scene.image_error = key, f"ai:{_image_model(provider)}", None
         scene.image_auto = False
         # A photo replaces the scene's clip: a scene shows one or the other.
-        scene.video_key, scene.video_seconds, scene.video_start = None, None, 0
+        scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
         if scene.is_title:
             refresh_thumbnail(db, storage, video, scene)
         db.commit()

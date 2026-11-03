@@ -235,6 +235,22 @@ class TestVideoScene:
         last = [extract_frame(output, seconds, tmp_path / f"last-{seconds}.png") for seconds in (3.4, 3.6)]
         assert difference(*last) > 1, "a clip starting at 0 moves like footage"
 
+    def test_clip_at_double_speed_ends_twice_as_early_and_the_scene_keeps_its_seconds(self, tmp_path):
+        make_clip(tmp_path / "vuon.mp4", 2, rate=25)
+        short_script(tmp_path)  # writes the images
+        data = script_data(scene_count=1, image="", video="vuon.mp4", video_speed=2, seconds=2)
+        data["scenes"][0].update(image="vuong.jpg", seconds=1)
+        output = render_video(load_script(write_script(tmp_path, data)), tmp_path / "video.mp4")
+
+        info = probe("ffprobe", output)
+        (video,) = streams(info, "video")
+        assert Fraction(video["avg_frame_rate"]) == 30
+        assert float(info["format"]["duration"]) == pytest.approx(3.0, abs=0.05)
+        # 2 s of clip last 1 s at 2×; the scene's other second holds the last frame.
+        moving = [extract_frame(output, seconds, tmp_path / f"moving-{seconds}.png") for seconds in (0.3, 0.5)]
+        held = [extract_frame(output, seconds, tmp_path / f"held-{seconds}.png") for seconds in (1.2, 1.5)]
+        assert difference(*held) < 1 < difference(*moving)
+
 
 @needs_ffmpeg
 class TestOutputFile:

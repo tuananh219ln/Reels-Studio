@@ -1152,6 +1152,25 @@ test("a title clip with a start time renders, and removing it asks for a photo a
   await start.blur();
   await expect(title.getByText("Video ngắn hơn cảnh, khung cuối sẽ đứng yên")).toBeVisible();
 
+  // "Tốc độ clip": the scene keeps its seconds, and a clip too short at that speed warns instead of refusing.
+  await title.getByRole("button", { name: "Cắt video" }).click();
+  const speed = trim.getByRole("slider").last();
+  await speed.focus();
+  for (let step = 0; step < 4; step++) {
+    await speed.press("ArrowRight");
+  }
+  await expect(trim.getByTestId("trim-speed")).toHaveText("2×");
+  await expect(trim.getByTestId("trim-range")).toContainText("cảnh dài 2,3 giây");
+  await expect(trim.getByTestId("trim-short")).toContainText("cảnh cần 5 giây clip");
+  await trim.getByRole("button", { name: "Xem thử" }).click();
+  await expect
+    .poll(() => trim.getByTestId("trim-player").evaluate((video: HTMLVideoElement) => video.playbackRate))
+    .toBe(2);
+  await trim.getByRole("button", { name: "Áp dụng" }).click();
+  await expect(trim).toHaveCount(0);
+  await expect(title.getByLabel("Số giây")).toHaveValue("2.3");
+  await expect(title.getByText("Ở tốc độ 2× video ngắn hơn cảnh, khung cuối sẽ đứng yên")).toBeVisible();
+
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
 

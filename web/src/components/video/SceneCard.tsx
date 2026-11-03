@@ -65,6 +65,12 @@ function parseSeconds(text: string): number {
   return seconds;
 }
 
+/** At a speed other than 1×, what the start field counts from; a clip at 1× needs no explaining. */
+function clipSpeedHelp(speed: number): string | undefined {
+  const shown = speed.toLocaleString("vi-VN");
+  return speed === 1 ? undefined : `Clip chạy ${shown}×: mỗi giây của cảnh lấy ${shown} giây clip tính từ đây.`;
+}
+
 function parseKeywords(text: string): string[] {
   return text
     .split(",")
@@ -192,6 +198,7 @@ export default function SceneCard({
                 <AutoSaveField
                   label="Bắt đầu từ giây"
                   value={String(scene.video.start)}
+                  help={clipSpeedHelp(scene.video.speed)}
                   inputMode="decimal"
                   width={130}
                   save={async (text) => patch({ video_start: parseSeconds(text) })}

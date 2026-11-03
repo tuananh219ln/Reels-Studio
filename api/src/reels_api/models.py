@@ -182,6 +182,7 @@ class Scene(Base):
     video_key: Mapped[str | None] = mapped_column(String(200))
     video_seconds: Mapped[float | None] = mapped_column(Float)  # the clip's probed length
     video_start: Mapped[float] = mapped_column(Float, default=0)
+    video_speed: Mapped[float] = mapped_column(Float, default=1)
     # Where a member dragged the text box (its centre in the 1080×1920 frame); None: the video's place for its
     # scenes, else the template's. The renderer keeps the box inside the platforms' safe zone.
     text_x: Mapped[int | None] = mapped_column(Integer)

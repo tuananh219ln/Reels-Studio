@@ -170,13 +170,14 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     keywords are left out."""
     every = ([title] if title else []) + scenes
     # A clip joins its scene's part only when there is one, so MP4s rendered before clips existed stay current.
-    # So does a moved text box, so a box in the template's place keeps the fingerprint from before.
+    # So does a clip speed other than 1×, and a moved text box, so a box in the template's place keeps the fingerprint from before.
     parts = [
         [
             scene.text,
             scene.seconds,
             scene.image_key,
             *([scene.video_key, scene.video_start] if scene.video_key else []),
+            *([["video_speed", scene.video_speed]] if scene.video_speed not in (None, 1) else []),
             *([["text_position", *position]] if (position := text_position(video, scene)) else []),
         ]
         for scene in every
@@ -236,6 +237,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             made_voice_seconds(video, scene),
             clip_seconds,
             bool(scene.keywords or scene.keywords_en),
+            scene.video_speed,
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -402,6 +404,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
             "url": f"{image}/video?v={_version(scene.video_key)}",
             "seconds": scene.video_seconds,
             "start": scene.video_start,
+            "speed": scene.video_speed,
         }
         if scene.video_key
         else None,

@@ -122,6 +122,16 @@ def test_clip_is_seeked_to_its_start_before_its_input():
     assert "[2:v]setpts=PTS-STARTPTS,fps=30" in argv[argv.index("-filter_complex") + 1]
 
 
+def test_a_clip_speed_changes_only_that_clip_before_its_frame_rate():
+    scenes = [SceneInput(Path(f"scene{i}.jpg"), Path(f"text{i}.png"), x, y) for i, (x, y) in enumerate(POSITIONS)]
+    scenes[1] = SceneInput(Path("vuon.mp4"), Path("text1.png"), 60, 1100, video_start=1.5, video_speed=1.5)
+    scenes[2] = SceneInput(Path("ca.mp4"), Path("text2.png"), 60, 1100, video_start=0.0)
+    argv = build_ffmpeg_args("ffmpeg", scenes, TIMELINE, None, 0.25, Path("out.mp4"))
+    graph = argv[argv.index("-filter_complex") + 1]
+    assert "[2:v]setpts=(PTS-STARTPTS)/1.5,fps=30" in graph
+    assert "[4:v]setpts=PTS-STARTPTS,fps=30" in graph, "a clip at 1× keeps the graph it always had"
+
+
 def test_a_clip_starting_at_zero_is_still_a_clip():
     """0 is every new clip's start: it must not read as "no clip"."""
     scenes = [SceneInput(Path(f"scene{i}.jpg"), Path(f"text{i}.png"), x, y) for i, (x, y) in enumerate(POSITIONS)]
