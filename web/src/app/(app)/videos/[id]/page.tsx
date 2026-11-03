@@ -82,7 +82,15 @@ export default function VideoPage() {
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [cloning, setCloning] = useState<"same" | "tiktok" | null>(null);
+  // /videos/<id>?clone=tiktok|page: a suggestion on "Bài đăng" opens the clone drawer with its request filled in.
+  const [cloning, setCloning] = useState<CloneTarget | null>(() => {
+    const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("clone");
+    return asked === "tiktok" || asked === "page" ? asked : null;
+  });
+  // Drop the request from the address, so a reload does not open the drawer again.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("clone")) router.replace(`/videos/${id}`);
+  }, [id, router]);
   // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Xuất bản".
   const [sideTab, setSideTab] = useState<SideTab | null>(null);
   // The two columns sit side by side from xl up; only then does the side panel stick.
@@ -683,6 +691,11 @@ export default function VideoPage() {
  * hook from the Facebook reel, so neither platform sees a copy (docs/specs/multi-platform/plan.md). */
 const TIKTOK_REQUEST =
   "Viết lại cho TikTok: mở đầu bằng một câu hỏi khơi bình luận, caption ngắn, ít hashtag, đổi 1–2 cảnh và ảnh khác bản Facebook";
+/** What "Nhân bản cho Page khác" on "Bài đăng" asks for: a real variant, never the same file on a second Page. */
+const PAGE_REQUEST = "Viết biến thể cho Page khác: đổi câu mở đầu, đổi 1–2 cảnh và ảnh, giữ chủ đề";
+
+/** "same": "Nhân bản" with an empty request; "page": a variant for another Page; "tiktok": the TikTok version. */
+type CloneTarget = "same" | "page" | "tiktok";
 
 /** "Nhân bản": the team's LLM writes a new draft from this video as it is now, changed as the member asks.
  * "Tạo bản TikTok" is the same clone, made as the TikTok version of this video. */
@@ -692,7 +705,7 @@ function CloneModal({
   onClose,
 }: {
   videoId: number;
-  target: "same" | "tiktok" | null;
+  target: CloneTarget | null;
   onClose: () => void;
 }) {
   const { message } = App.useApp();
@@ -703,9 +716,9 @@ function CloneModal({
   const tiktok = target === "tiktok";
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- the TikTok request is prefilled each time it opens
-    if (tiktok) setRequest(TIKTOK_REQUEST);
-  }, [tiktok]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a suggested request is prefilled each time it opens
+    if (target === "tiktok" || target === "page") setRequest(target === "tiktok" ? TIKTOK_REQUEST : PAGE_REQUEST);
+  }, [target]);
 
   async function submit() {
     setBusy(true);

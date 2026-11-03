@@ -69,6 +69,7 @@ from .videos import (
     list_payload,
     lock_scene,
     lock_video,
+    made_from,
     made_voice_seconds,
     new_key,
     pending_publication,
@@ -234,7 +235,8 @@ def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSessio
         plain = func.replace(func.replace(Scene.text, "*", ""), "\n", " ")
         title_match = select(Scene.video_id).where(Scene.is_title, plain.ilike(pattern, escape="\\"))
         query = query.where(or_(Video.topic.ilike(pattern, escape="\\"), Video.id.in_(title_match)))
-    return [list_payload(db, video) for video in db.scalars(query).all()]
+    family = made_from(db)
+    return [list_payload(db, video, family) for video in db.scalars(query).all()]
 
 
 @router.post("/videos", status_code=201)

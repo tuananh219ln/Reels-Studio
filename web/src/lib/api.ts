@@ -51,6 +51,9 @@ export type VideoRow = {
   topic: string;
   title: string;
   platform: VideoPlatform;
+  /** A TikTok version was made from it; a Facebook clone ("Nhân bản", a version for another Page) was made from it. */
+  has_tiktok_version: boolean;
+  cloned: boolean;
   created_by: string;
   created_at: string;
   status: VideoStatus;

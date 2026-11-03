@@ -15,7 +15,11 @@ in the MVP and described across `docs/`; this log gathers them in one place.
 
 Owner's call: the "Đăng thêm lên Page khác" card is gone. It suggested sending the same MP4 to a second Page, which
 docs/specs/multi-platform/plan.md warns against: Meta shows a copy less and can stop paying a Page that repeats
-content. "Sẵn sàng đăng" stays, alone above the table.
+content. In its place, from the same "did well" reading (a post reached its Page's usual 48-hour views, or the
+Page has too few measured posts), two cards beside "Sẵn sàng đăng": "Nên làm bản TikTok" (no TikTok version yet,
+opens "Tạo bản TikTok") and "Nhân bản cho Page khác" (no Facebook clone yet and missing from a working Page, opens
+"Nhân bản" with a request for a real variant). Both make the member's choice one click; each costs one LLM call
+only when the member confirms.
 
 ## 2026-11-03 — Forms open in a drawer, not a centred dialog
 

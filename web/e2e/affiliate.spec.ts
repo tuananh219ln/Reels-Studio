@@ -92,6 +92,14 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
   const source = page.url();
 
+  // "Nhân bản cho Page khác" on "Bài đăng" opens the drawer with a variant request, and drops it from the address.
+  await page.goto(`${source}?clone=page`);
+  const variant = page.getByRole("dialog", { name: "Nhân bản video" });
+  await expect(variant.getByLabel("Yêu cầu đổi")).toHaveValue(/Viết biến thể cho Page khác/);
+  await expect(page).toHaveURL(source);
+  await variant.getByRole("button", { name: "Huỷ" }).click();
+  await expect(variant).toBeHidden();
+
   await page.getByRole("button", { name: "Tạo bản TikTok" }).click();
   const clone = page.getByRole("dialog", { name: "Tạo bản TikTok" });
   await expect(clone.getByLabel("Yêu cầu đổi")).toHaveValue(/Viết lại cho TikTok/);

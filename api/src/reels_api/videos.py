@@ -615,7 +615,20 @@ def _plan_idea(db: DbSession, video: Video) -> dict | None:
     }
 
 
-def list_payload(db: DbSession, video: Video) -> dict:
+def made_from(db: DbSession) -> tuple[set[int], set[int]]:
+    """The videos that have a TikTok version, and those a Facebook clone was made from ("Nhân bản", a version for
+    another Page), for the list's suggestions on "Bài đăng"; read once per list."""
+    tiktok = set(db.scalars(select(Video.variant_of_id).where(Video.variant_of_id.is_not(None))))
+    sources = db.scalars(
+        select(Video.clone_source["video_id"].as_integer()).where(
+            Video.clone_source.is_not(None), Video.platform == "facebook"
+        )
+    )
+    return tiktok, {source for source in sources if source is not None}
+
+
+def list_payload(db: DbSession, video: Video, family: tuple[set[int], set[int]] = (set(), set())) -> dict:
+    """`family`: made_from, read once per list."""
     title, scenes = split_scenes(db, video)
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
@@ -624,6 +637,8 @@ def list_payload(db: DbSession, video: Video) -> dict:
         "topic": video.topic,
         "title": title_of(video, title),
         "platform": video.platform,
+        "has_tiktok_version": video.id in family[0],
+        "cloned": video.id in family[1],
         "created_by": video.created_by.name,
         "created_at": video.created_at.isoformat(),
         **_status(db, video, job, failed),

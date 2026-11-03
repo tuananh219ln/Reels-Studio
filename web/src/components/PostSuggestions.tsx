@@ -1,13 +1,16 @@
 "use client";
 
-import { SendOutlined } from "@ant-design/icons";
-import { Button, Card, Flex, Typography } from "antd";
+import { CopyOutlined, SendOutlined } from "@ant-design/icons";
+import { Button, Card, Col, Flex, Row, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, formatDateTime, type PostRow, type VideoRow } from "@/lib/api";
+import { api, formatDateTime, type Fanpage, type PostRow, type VideoRow } from "@/lib/api";
+import { formatCount } from "@/components/PostMetrics";
 import VideoTitleCell from "@/components/VideoTitleCell";
 
-/** How many videos show before "Xem thêm". */
+/** A Page's median means something from this many measured posts (api analytics.MIN_SAMPLES). */
+const MIN_SAMPLES = 5;
+/** How many of each list show before "Xem thêm". */
 const SHORT = 5;
 
 const isActive = (post: PostRow) => post.status === "scheduled" || post.status === "published";
@@ -28,40 +31,121 @@ export function readyToPost(videos: VideoRow[], posts: PostRow[]): VideoRow[] {
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
-/** The list above "Bài đăng" of what is made and waiting to go out; each opens the video's "Đăng" dialog. `posts`
- * (every post) changes when the list is reloaded, so the videos are read again with it. A failure leaves the list
- * out: the table below still works. Posting the same MP4 to another Page is not suggested: Facebook shows a copy less
- * and can stop paying a Page that repeats content (docs/specs/multi-platform/plan.md). */
+type Winner = { video: VideoRow; views: number; from: string; on: Set<string> };
+
+/** Facebook videos that did well, most viewed first: a post's views reach its Page's usual (median) views at 48
+ * hours, or the Page has too few measured posts to say. `on`: the Pages the video is live or scheduled on. */
+export function doingWell(videos: VideoRow[], posts: PostRow[]): Winner[] {
+  const byId = new Map(videos.filter((video) => video.platform === "facebook").map((video) => [video.id, video]));
+  const best = new Map<number, { views: number; from: string }>();
+  for (const post of posts) {
+    const views = post.metrics.at_48h?.views ?? post.metrics.latest?.views;
+    if (post.status !== "published" || views === null || views === undefined || !post.fanpage) continue;
+    const { median_views: median, samples } = post.metrics.analysis;
+    if (samples >= MIN_SAMPLES && median !== null && views < median) continue;
+    if (views > (best.get(post.video_id)?.views ?? -1)) best.set(post.video_id, { views, from: post.fanpage });
+  }
+  const winners: Winner[] = [];
+  for (const [videoId, { views, from }] of best) {
+    const video = byId.get(videoId);
+    if (!video) continue;
+    const on = new Set(
+      posts.filter((post) => post.video_id === videoId && isActive(post) && post.fanpage).map((post) => post.fanpage!),
+    );
+    winners.push({ video, views, from, on });
+  }
+  return winners.sort((a, b) => b.views - a.views);
+}
+
+/** Three short lists above "Bài đăng": what is made and waiting to go out, and what did well on Facebook and could be
+ * made again, as a TikTok version or as a variant for another of the team's Pages. Never the same MP4 on a second
+ * Page: Facebook shows a copy less and can stop paying a Page that repeats content (docs/specs/multi-platform/plan.md).
+ * `posts` (every post) changes when the list is reloaded, so the videos and Pages are read again with it. A failure
+ * leaves the lists out: the table below still works. */
 export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) {
   const [videos, setVideos] = useState<VideoRow[] | null>(null);
+  const [pages, setPages] = useState<Fanpage[] | null>(null);
 
   useEffect(() => {
-    api<VideoRow[]>("/videos").then(setVideos, () => setVideos(null));
+    Promise.all([api<VideoRow[]>("/videos"), api<Fanpage[]>("/fanpages")])
+      .then(([loadedVideos, loadedPages]) => {
+        setVideos(loadedVideos);
+        setPages(loadedPages);
+      })
+      .catch(() => setVideos(null));
   }, [posts]);
 
-  if (!posts || !videos) return null;
+  if (!posts || !videos || !pages) return null;
   const ready = readyToPost(videos, posts);
+  const winners = doingWell(videos, posts);
+  const working = pages.filter((page) => page.active && !page.check.error).map((page) => page.name);
+  const forTikTok = winners.filter((winner) => !winner.video.has_tiktok_version);
+  const forPages = winners
+    .filter((winner) => !winner.video.cloned)
+    .map((winner) => ({ ...winner, missing: working.filter((name) => !winner.on.has(name)) }))
+    .filter((winner) => winner.missing.length > 0);
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <SuggestionCard
-        testId="ready-to-post"
-        title="Sẵn sàng đăng"
-        help="Video đã render xong nhưng chưa có bài nào đang đăng hoặc hẹn lịch, video cũ nhất trước."
-        empty="Không có video nào đang chờ đăng."
-        items={ready.map((video) => ({
-          key: String(video.id),
-          video,
-          sub: `${video.created_by} · tạo ${formatDateTime(video.created_at)}`,
-          href: publishHref(video.id),
-          action: "Đăng",
-        }))}
-      />
-    </div>
+    <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
+      <Col xs={24} lg={8} style={{ display: "flex" }}>
+        <SuggestionCard
+          testId="ready-to-post"
+          title="Sẵn sàng đăng"
+          help="Video đã render xong nhưng chưa có bài nào đang đăng hoặc hẹn lịch, video cũ nhất trước."
+          empty="Không có video nào đang chờ đăng."
+          items={ready.map((video) => ({
+            key: String(video.id),
+            video,
+            sub: `${video.created_by} · tạo ${formatDateTime(video.created_at)}`,
+            href: publishHref(video.id),
+            action: "Đăng",
+          }))}
+        />
+      </Col>
+      <Col xs={24} lg={8} style={{ display: "flex" }}>
+        <SuggestionCard
+          testId="make-tiktok"
+          title="Nên làm bản TikTok"
+          help="Video chạy tốt trên Facebook (từ mức view phổ biến của Page trở lên) mà chưa có bản TikTok."
+          empty="Chưa có video nào cần làm bản TikTok."
+          items={forTikTok.map((winner) => ({
+            key: String(winner.video.id),
+            video: winner.video,
+            sub: `${formatCount(winner.views)} view trên ${winner.from}`,
+            href: `/videos/${winner.video.id}?clone=tiktok`,
+            action: "Tạo bản TikTok",
+            icon: <CopyOutlined />,
+          }))}
+        />
+      </Col>
+      <Col xs={24} lg={8} style={{ display: "flex" }}>
+        <SuggestionCard
+          testId="clone-for-pages"
+          title="Nhân bản cho Page khác"
+          help="Video chạy tốt trên một Page mà Page khác chưa có: AI viết một bản khác cho Page đó, không đăng lại cùng file."
+          empty={working.length < 2 ? "Cần ít nhất 2 Fanpage đang dùng để có gợi ý." : "Chưa có video nào để nhân bản."}
+          items={forPages.map((winner) => ({
+            key: String(winner.video.id),
+            video: winner.video,
+            sub: `${formatCount(winner.views)} view trên ${winner.from} · chưa có trên ${winner.missing.join(", ")}`,
+            href: `/videos/${winner.video.id}?clone=page`,
+            action: "Nhân bản",
+            icon: <CopyOutlined />,
+          }))}
+        />
+      </Col>
+    </Row>
   );
 }
 
-type Suggestion = { key: string; video: VideoRow; sub: string; href: string; action: string };
+type Suggestion = {
+  key: string;
+  video: VideoRow;
+  sub: string;
+  href: string;
+  action: string;
+  icon?: React.ReactNode;
+};
 
 function SuggestionCard({
   testId,
@@ -112,7 +196,7 @@ function SuggestionCard({
                 />
               </div>
               <Link prefetch={false} href={item.href}>
-                <Button size="small" icon={<SendOutlined />} title={item.action} style={{ maxWidth: 240 }}>
+                <Button size="small" icon={item.icon ?? <SendOutlined />} title={item.action} style={{ maxWidth: 240 }}>
                   <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.action}</span>
                 </Button>
               </Link>

@@ -435,3 +435,13 @@ def test_a_facebook_video_cannot_record_a_tiktok_post(an, db, me, storage):
         json={"account_id": account["id"], "url": "https://www.tiktok.com/@a/video/1"},
     )
     assert response.status_code == 422
+
+
+def test_the_list_says_which_videos_have_a_tiktok_version_or_a_clone(an, db, me, storage):
+    source = make_video(db, storage, me, scene_count=1)
+    other = make_video(db, storage, me, scene_count=1)
+    an.post(f"/api/videos/{source.id}/clone", json={"request": "Viết lại cho TikTok", "platform": "tiktok"})
+    an.post(f"/api/videos/{other.id}/clone", json={"request": "Đổi hook"})
+    rows = {row["id"]: row for row in an.get("/api/videos").json()}
+    assert (rows[source.id]["has_tiktok_version"], rows[source.id]["cloned"]) == (True, False)
+    assert (rows[other.id]["has_tiktok_version"], rows[other.id]["cloned"]) == (False, True)
