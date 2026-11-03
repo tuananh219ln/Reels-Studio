@@ -321,6 +321,25 @@ export default function VideoPage() {
               Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
             </Typography.Paragraph>
           )}
+          {video.plan_idea && (
+            <Alert
+              type="info"
+              style={{ marginTop: 8, padding: "6px 12px" }}
+              data-testid="plan-idea-card"
+              title={
+                <>
+                  Theo kế hoạch 30 ngày · Ngày {video.plan_idea.day}
+                  {video.plan_idea.pain_group ? ` · ${video.plan_idea.pain_group}` : ""}
+                </>
+              }
+              description={
+                <div style={{ fontSize: 13 }}>
+                  {video.plan_idea.pain && <div>Nỗi đau: {video.plan_idea.pain}</div>}
+                  {video.plan_idea.hook && <div>Hook: {video.plan_idea.hook}</div>}
+                </div>
+              }
+            />
+          )}
         </div>
         <Space wrap>
           {video.has_script &&

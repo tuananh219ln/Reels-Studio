@@ -19,7 +19,7 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import auto_photos, config, facebook, fanpages, image_providers, image_style, knowledge, llm, source_keys
+from . import auto_photos, config, facebook, fanpages, image_providers, image_style, knowledge, llm, plans, source_keys
 from .claude import (
     ClaudeError,
     GeneratedScript,
@@ -29,7 +29,7 @@ from .claude import (
 )
 from .facebook import FacebookError
 from .imagegen import ImageGenError, generate_image
-from .models import Job, Publication, Scene, Video
+from .models import Job, KnowledgeTopic, Publication, Scene, Video
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
@@ -78,10 +78,13 @@ def run_job(
         if job is None or job.status != "running":
             log.warning("Job %s is not running (%s), skipped", job_id, job.status if job else "deleted")
             return
-        log.info("Job %s (%s) for video %s started", job.id, job.kind, job.video_id)
+        owner = f"video {job.video_id}" if job.video_id else f"topic group {job.knowledge_topic_id}"
+        log.info("Job %s (%s) for %s started", job.id, job.kind, owner)
         try:
             if job.kind in ("script", "clone"):
                 run_script_job(db, job, call)
+            elif job.kind == "plan":
+                run_plan_job(db, job, call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
             elif job.kind == "image":
@@ -155,27 +158,61 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
             # The snapshot from the moment "Nhân bản" was pressed: later edits of the source do not count.
             prompt = build_clone_prompt(topic.clone_prompt, video.clone_source, topic.banned_words)
         else:
-            prompt = build_script_prompt(topic.script_prompt, video.topic, topic.banned_words)
+            # A video made from a 30-day plan idea writes to that idea's pain and hook.
+            idea = plans.idea_of_video(db, video.id)
+            prompt = build_script_prompt(
+                topic.script_prompt,
+                video.topic,
+                topic.banned_words,
+                (idea.pain_group, idea.pain, idea.hook) if idea else None,
+            )
 
-        if call is None:
-            # The provider chosen on /settings/ai when the job starts; the job remembers which one wrote the script.
-            target = llm.active_target(db)
-            db.execute(update(Job).where(Job.id == job.id).values(llm_provider=target.provider, llm_model=target.model))
-            db.commit()
-
-            def call(prompt: str, label: str) -> str:
-                return llm.complete(target, prompt, label)
-
-        def count_call() -> None:
-            db.execute(update(Job).where(Job.id == job.id).values(claude_calls=Job.claude_calls + 1))
-            db.commit()
-
+        call, count_call = _llm(db, job, call)
         try:
             script = generate_script(prompt, f"job {job.id}", count_call, call)
         except ClaudeError as err:
             raise JobFailure(err.message, err.detail) from None
         save_script(db, video, script)
         db.commit()
+
+
+def _llm(
+    db: DbSession, job: Job, call: Callable[[str, str], str] | None
+) -> tuple[Callable[[str, str], str], Callable[[], None]]:
+    """The LLM call of a script, clone or plan job, and what counts each call on the job."""
+    if call is None:
+        # The provider chosen on /settings/ai when the job starts; the job remembers which one wrote.
+        target = llm.active_target(db)
+        db.execute(update(Job).where(Job.id == job.id).values(llm_provider=target.provider, llm_model=target.model))
+        db.commit()
+
+        def call(prompt: str, label: str) -> str:
+            return llm.complete(target, prompt, label)
+
+    def count_call() -> None:
+        db.execute(update(Job).where(Job.id == job.id).values(claude_calls=Job.claude_calls + 1))
+        db.commit()
+
+    return call, count_call
+
+
+# --- Plan ---
+
+
+def run_plan_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
+    """ "Tạo bằng AI" on /knowledge: the whole 30-day plan, kept as a draft for a member to look at; the saved plan
+    is replaced only when a member saves the draft."""
+    topic = db.get(KnowledgeTopic, job.knowledge_topic_id)
+    if topic is None:
+        raise JobFailure("Nhóm chủ đề đã bị xoá")
+    call, count_call = _llm(db, job, call)
+    try:
+        ideas = plans.generate(topic, f"job {job.id}", count_call, call)
+    except ClaudeError as err:
+        raise JobFailure(err.message, err.detail) from None
+    topic = db.get(KnowledgeTopic, job.knowledge_topic_id, with_for_update=True, populate_existing=True)
+    topic.plan_draft = plans.draft_payload(job.id, ideas)
+    db.commit()
 
 
 def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:

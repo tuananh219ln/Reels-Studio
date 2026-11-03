@@ -1,0 +1,277 @@
+"""The 30-day topic plan of each topic group ("Kế hoạch 30 ngày" on /knowledge) and today's ideas for "Tạo video"."""
+
+from dataclasses import asdict
+from datetime import date
+
+from fastapi import APIRouter, Depends, File, UploadFile
+from pydantic import BaseModel
+from sqlalchemy import select
+from sqlalchemy.orm import Session as DbSession
+
+from . import plans
+from .db import get_db
+from .errors import ApiError
+from .models import KnowledgeTopic, Session, TopicPlanItem
+from .plans import MAX_PER_DAY, PLAN_DAYS, Idea, PlanError
+from .routes_videos import invalid
+from .sessions import current_member
+from .uploads import read_limited
+
+router = APIRouter(prefix="/api/plans")
+
+MAX_PROMPT_LENGTH = 20000
+
+
+class PlanPatchBody(BaseModel):
+    start_date: date | None = None  # null clears it
+    per_day: int | None = None
+    prompt: str | None = None
+
+
+class IdeaBody(BaseModel):
+    day: int
+    topic: str
+    pain_group: str = ""
+    pain: str = ""
+    hook: str = ""
+
+
+class IdeaPatchBody(BaseModel):
+    day: int | None = None
+    position: int | None = None  # 1-based place within the day; the end of the day when moved without one
+    topic: str | None = None
+    pain_group: str | None = None
+    pain: str | None = None
+    hook: str | None = None
+
+
+class ReplaceBody(BaseModel):
+    ideas: list[IdeaBody]
+
+
+def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
+    """Locked: changes to one plan happen one after another, so the 5-a-day limit holds."""
+    topic = db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == topic_id).with_for_update())
+    if topic is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    return topic
+
+
+def _item(db: DbSession, item_id: int) -> tuple[KnowledgeTopic, TopicPlanItem]:
+    topic_id = db.scalar(select(TopicPlanItem.knowledge_topic_id).where(TopicPlanItem.id == item_id))
+    if topic_id is None:
+        raise _item_not_found()
+    topic = _topic(db, topic_id)
+    item = db.get(TopicPlanItem, item_id, populate_existing=True)
+    if item is None:
+        raise _item_not_found()
+    return topic, item
+
+
+def _item_not_found() -> ApiError:
+    return ApiError(404, "plan_item_not_found", "Không tìm thấy ý tưởng (có thể đã bị xoá)")
+
+
+def _idea(body: IdeaBody) -> Idea:
+    try:
+        return plans.make_idea(body.day, body.topic, body.pain_group, body.pain, body.hook)
+    except PlanError as err:
+        raise invalid(str(err)) from None
+
+
+def _check_day(day: int) -> None:
+    if not 1 <= day <= PLAN_DAYS:
+        raise invalid(f"Ngày phải từ 1 đến {PLAN_DAYS}")
+
+
+def _room(db: DbSession, topic_id: int, day: int) -> None:
+    if plans.day_count(db, topic_id, day) >= MAX_PER_DAY:
+        raise ApiError(409, "plan_day_full", f"Ngày {day} đã đủ {MAX_PER_DAY} ý tưởng")
+
+
+def _unique(db: DbSession, topic_id: int, topic: str, own_id: int | None = None) -> None:
+    key = plans.topic_key(topic)
+    for item in plans.items_of(db, topic_id):
+        if item.id != own_id and plans.topic_key(item.topic) == key:
+            raise ApiError(409, "plan_topic_taken", f"Kế hoạch đã có chủ đề này (ngày {item.day})")
+
+
+def _saved(db: DbSession, topic: KnowledgeTopic) -> dict:
+    db.commit()
+    return plans.plan_payload(db, topic)
+
+
+# Fixed paths first: "/today" and "/items/..." must not be read as a topic id.
+
+
+@router.get("/today")
+def get_today(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+    return plans.today_payload(db)
+
+
+@router.get("/items/{item_id}")
+def get_item(item_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    item = db.get(TopicPlanItem, item_id)
+    if item is None:
+        raise _item_not_found()
+    return plans.payloads(db, [item])[0]
+
+
+@router.patch("/items/{item_id}")
+def patch_item(
+    item_id: int, body: IdeaPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    topic, item = _item(db, item_id)
+    try:
+        if body.topic is not None:
+            item.topic = plans.clean(body.topic, plans.MAX_TOPIC_LENGTH, "Chủ đề")
+            if not item.topic:
+                raise PlanError("Thiếu chủ đề")
+            _unique(db, topic.id, item.topic, item.id)
+        if body.pain_group is not None:
+            item.pain_group = plans.clean(body.pain_group, plans.MAX_PAIN_GROUP_LENGTH, "Nhóm nỗi đau")
+        if body.pain is not None:
+            item.pain = plans.clean(body.pain, plans.MAX_PAIN_LENGTH, "Nỗi đau")
+        if body.hook is not None:
+            item.hook = plans.clean(body.hook, plans.MAX_HOOK_LENGTH, "Góc hook")
+    except PlanError as err:
+        raise invalid(str(err)) from None
+    if body.day is not None or body.position is not None:
+        _move(db, topic, item, body.day if body.day is not None else item.day, body.position)
+    item.updated_by_id = me.user_id
+    return _saved(db, topic)
+
+
+def _move(db: DbSession, topic: KnowledgeTopic, item: TopicPlanItem, day: int, position: int | None) -> None:
+    _check_day(day)
+    old_day = item.day
+    if day != old_day:
+        _room(db, topic.id, day)
+    others = [row for row in plans.items_of(db, topic.id) if row.day == day and row.id != item.id]
+    place = len(others) if position is None else max(0, min(position - 1, len(others)))
+    others.insert(place, item)
+    item.day = day
+    for number, row in enumerate(others, start=1):
+        row.position = number
+    if day != old_day:
+        plans.renumber(db, topic.id, old_day)
+
+
+@router.delete("/items/{item_id}")
+def delete_item(item_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """The idea only: a video made from it stays."""
+    topic, item = _item(db, item_id)
+    db.delete(item)
+    plans.renumber(db, topic.id, item.day)
+    return _saved(db, topic)
+
+
+@router.get("/{topic_id}")
+def get_plan(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    topic = db.get(KnowledgeTopic, topic_id)
+    if topic is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    return plans.plan_payload(db, topic)
+
+
+@router.patch("/{topic_id}")
+def patch_plan(
+    topic_id: int, body: PlanPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    topic = _topic(db, topic_id)
+    if "start_date" in body.model_fields_set:
+        topic.plan_start_date = body.start_date
+    if body.per_day is not None:
+        if not plans.MIN_PER_DAY <= body.per_day <= MAX_PER_DAY:
+            raise invalid(f"Số ý tưởng mỗi ngày phải từ {plans.MIN_PER_DAY} đến {MAX_PER_DAY}")
+        topic.plan_per_day = body.per_day
+    if body.prompt is not None:
+        prompt = body.prompt.replace("\r\n", "\n").strip()
+        if not prompt:
+            raise invalid("Prompt không được để trống")
+        if len(prompt) > MAX_PROMPT_LENGTH:
+            raise invalid(f"Prompt dài quá {MAX_PROMPT_LENGTH} ký tự")
+        # The default text is stored as empty, so a later change of the default reaches this group too.
+        topic.plan_prompt = "" if prompt == plans.default_prompt() else prompt
+    topic.updated_by_id = me.user_id
+    return _saved(db, topic)
+
+
+@router.post("/{topic_id}/items", status_code=201)
+def add_item(
+    topic_id: int, body: IdeaBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    topic = _topic(db, topic_id)
+    idea = _idea(body)
+    _room(db, topic.id, idea.day)
+    _unique(db, topic.id, idea.topic)
+    position = plans.day_count(db, topic.id, idea.day) + 1
+    db.add(
+        TopicPlanItem(
+            knowledge_topic_id=topic.id,
+            position=position,
+            updated_by_id=me.user_id,
+            day=idea.day,
+            topic=idea.topic,
+            pain_group=idea.pain_group,
+            pain=idea.pain,
+            hook=idea.hook,
+        )
+    )
+    return _saved(db, topic)
+
+
+@router.put("/{topic_id}/items")
+def replace_items(
+    topic_id: int, body: ReplaceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """Save an imported file or the AI's draft as the whole plan, after a member looked at it."""
+    topic = _topic(db, topic_id)
+    if len(body.ideas) > plans.MAX_IDEAS:
+        raise invalid(f"Tối đa {plans.MAX_IDEAS} ý tưởng")
+    ideas = [_idea(idea) for idea in body.ideas]
+    errors, _ = plans.check_plan(ideas)
+    if errors:
+        raise invalid(errors[0])
+    plans.replace_plan(db, topic, ideas, me.user_id)
+    return _saved(db, topic)
+
+
+@router.post("/{topic_id}/import")
+def preview_import(
+    topic_id: int,
+    file: UploadFile = File(...),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """What the file holds, without saving anything: the plan is replaced only by "Lưu kế hoạch" (PUT .../items)."""
+    if db.get(KnowledgeTopic, topic_id) is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    data = read_limited(file, plans.MAX_FILE_BYTES, "File lớn quá 1 MB")
+    try:
+        ideas, row_errors = plans.parse_file(file.filename or "", data)
+    except PlanError as err:
+        raise invalid(str(err)) from None
+    errors, warnings = plans.check_plan(ideas)
+    return {
+        "ideas": [asdict(idea) for idea in ideas],
+        "errors": row_errors + errors,
+        "warnings": warnings,
+    }
+
+
+@router.post("/{topic_id}/generate")
+def generate(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Tạo bằng AI": a plan job; what it writes waits as a draft and never replaces the plan by itself."""
+    topic = _topic(db, topic_id)
+    if not plans.enqueue(db, topic.id, me.user_id):
+        raise ApiError(409, "plan_busy", "Nhóm chủ đề đang có kế hoạch chờ hoặc đang tạo")
+    db.commit()
+    return plans.plan_payload(db, db.get(KnowledgeTopic, topic_id))
+
+
+@router.delete("/{topic_id}/draft")
+def drop_draft(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    topic = _topic(db, topic_id)
+    topic.plan_draft = None
+    return _saved(db, topic)

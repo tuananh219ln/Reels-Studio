@@ -16,7 +16,18 @@ from sqlalchemy.orm import Session as DbSession
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.textbox import FRAME_WIDTH
 
-from . import clips, frames, image_providers, knowledge, llm, remote_images, source_keys, stock_clips, video_options
+from . import (
+    clips,
+    frames,
+    image_providers,
+    knowledge,
+    llm,
+    plans,
+    remote_images,
+    source_keys,
+    stock_clips,
+    video_options,
+)
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -29,6 +40,7 @@ from .models import (
     Publication,
     Scene,
     Session,
+    TopicPlanItem,
     Video,
 )
 from .openverse import Openverse, OpenverseError
@@ -97,6 +109,7 @@ MAX_SCHEDULE_DELAY = timedelta(days=29)
 class NewVideoBody(BaseModel):
     topic: str
     knowledge_topic_id: int | None = None
+    plan_item_id: int | None = None  # the 30-day plan idea the video is made from
 
 
 class VideoPatchBody(BaseModel):
@@ -224,12 +237,27 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         raise invalid("Hãy chọn nhóm chủ đề")
     if not group.script_prompt:
         raise invalid(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
+    idea = _free_idea(db, body.plan_item_id, group) if body.plan_item_id is not None else None
     video = Video(topic=topic, knowledge_topic_id=group.id, has_script=False, created_by_id=me.user_id)
     video_options.apply_team_defaults(db, video)
     db.add(video)
     db.flush()
+    if idea is not None:
+        idea.video_id = video.id
     _enqueue(db, video, "script", me)
     return _saved(db, video)
+
+
+def _free_idea(db: DbSession, item_id: int, group: KnowledgeTopic) -> TopicPlanItem:
+    """The plan idea a new video is made from, locked so two members cannot both make it."""
+    idea = db.scalar(select(TopicPlanItem).where(TopicPlanItem.id == item_id).with_for_update())
+    if idea is None:
+        raise ApiError(404, "plan_item_not_found", "Không tìm thấy ý tưởng trong kế hoạch (có thể đã bị xoá)")
+    if idea.knowledge_topic_id != group.id:
+        raise invalid("Ý tưởng này thuộc nhóm chủ đề khác")
+    if idea.video_id is not None:
+        raise ApiError(409, "plan_item_used", "Ý tưởng này đã có video")
+    return idea
 
 
 @router.get("/videos/{video_id}")
@@ -1210,16 +1238,23 @@ def list_jobs(
     titles = {}
     rows = []
     for job in jobs:
-        if job.video_id not in titles:
-            video = db.get(Video, job.video_id)
-            title, _ = split_scenes(db, video)
-            titles[job.video_id] = title_of(video, title) or video.topic
+        # A plan job has no video: it is named after its topic group.
+        owner = job.video_id or f"topic-{job.knowledge_topic_id}"
+        if owner not in titles:
+            if job.video_id is None:
+                group = db.get(KnowledgeTopic, job.knowledge_topic_id)
+                titles[owner] = f"Kế hoạch 30 ngày · {group.name}"
+            else:
+                video = db.get(Video, job.video_id)
+                title, _ = split_scenes(db, video)
+                titles[owner] = title_of(video, title) or video.topic
         ended = job.finished_at
         rows.append(
             {
                 "id": job.id,
                 "video_id": job.video_id,
-                "video_title": titles[job.video_id],
+                "knowledge_topic_id": job.knowledge_topic_id,
+                "video_title": titles[owner],
                 "kind": job.kind,
                 "kind_label": JOB_KINDS.get(job.kind, job.kind) + (" (1 cảnh)" if job.scene_id is not None else ""),
                 "status": job.status,
@@ -1254,14 +1289,19 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
         raise ApiError(409, "job_not_queued", "Job đã bắt đầu chạy hoặc đã xong, không hủy được")
     job.status, job.finished_at = "cancelled", now()
     db.commit()
+    if job.video_id is None:
+        return plans.plan_payload(db, db.get(KnowledgeTopic, job.knowledge_topic_id))
     return video_payload(db, db.get(Video, job.video_id))
 
 
 @router.post("/jobs/{job_id}/retry")
 def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    video_id = db.scalar(select(Job.video_id).where(Job.id == job_id))
-    if video_id is None:
+    owner = db.execute(select(Job.video_id, Job.knowledge_topic_id).where(Job.id == job_id)).first()
+    if owner is None:
         raise ApiError(404, "job_not_found", "Không tìm thấy job")
+    video_id, topic_id = owner
+    if video_id is None:
+        return _retry_plan(db, job_id, topic_id, me)
     video = lock_video(db, video_id)
     job = db.get(Job, job_id)
     if job.status != "failed":
@@ -1280,6 +1320,15 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
         publication_id=job.publication_id,
     )
     return _saved(db, video)
+
+
+def _retry_plan(db: DbSession, job_id: int, topic_id: int, me: Session) -> dict:
+    if db.get(Job, job_id).status != "failed":
+        raise ApiError(409, "job_not_failed", "Chỉ thử lại được job bị lỗi")
+    if not plans.enqueue(db, topic_id, me.user_id, retry_of_id=job_id):
+        raise ApiError(409, "plan_busy", "Nhóm chủ đề đang có kế hoạch chờ hoặc đang tạo")
+    db.commit()
+    return plans.plan_payload(db, db.get(KnowledgeTopic, topic_id))
 
 
 # --- Files (all behind login) ---
@@ -1538,6 +1587,9 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     )
     if products:
         raise ApiError(409, "topic_in_use", f"Nhóm chủ đề còn {products} sản phẩm affiliate nên chưa xoá được")
+    job = plans.plan_job(db, topic.id)
+    if job is not None and job.status != "failed":
+        raise ApiError(409, "topic_in_use", "Nhóm chủ đề đang tạo kế hoạch bằng AI nên chưa xoá được")
     db.delete(topic)
     db.commit()
     return _knowledge_payload(db)
