@@ -235,7 +235,7 @@ Built:
   renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
   prompt, the clone prompt (each with "Khôi phục mặc định"), and the banned words. A new group starts
   empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
-  video"; a clone keeps its source's group. Below the name, two tabs: "Prompt và từ cấm" and "Kế
+  video"; a clone keeps its source's group. Below the name, two tabs: "Prompt" (the prompts and banned words) and "Kế
   hoạch 30 ngày":
   - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Đã làm X/Y ý tưởng" with a bar;
   - "Nhập file JSON/CSV" and "Tạo bằng AI", both ending in a preview table with errors (which block

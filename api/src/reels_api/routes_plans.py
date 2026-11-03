@@ -122,20 +122,27 @@ def patch_item(
     item_id: int, body: IdeaPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     topic, item = _item(db, item_id)
+    # Everything is checked before anything changes: a refused edit leaves the idea as it was.
+    limits = {
+        "topic": (plans.MAX_TOPIC_LENGTH, "Chủ đề"),
+        "pain_group": (plans.MAX_PAIN_GROUP_LENGTH, "Nhóm nỗi đau"),
+        "pain": (plans.MAX_PAIN_LENGTH, "Nỗi đau"),
+        "hook": (plans.MAX_HOOK_LENGTH, "Góc hook"),
+    }
+    changes = {}
     try:
-        if body.topic is not None:
-            item.topic = plans.clean(body.topic, plans.MAX_TOPIC_LENGTH, "Chủ đề")
-            if not item.topic:
-                raise PlanError("Thiếu chủ đề")
-            _unique(db, topic.id, item.topic, item.id)
-        if body.pain_group is not None:
-            item.pain_group = plans.clean(body.pain_group, plans.MAX_PAIN_GROUP_LENGTH, "Nhóm nỗi đau")
-        if body.pain is not None:
-            item.pain = plans.clean(body.pain, plans.MAX_PAIN_LENGTH, "Nỗi đau")
-        if body.hook is not None:
-            item.hook = plans.clean(body.hook, plans.MAX_HOOK_LENGTH, "Góc hook")
+        for field, (limit, label) in limits.items():
+            value = getattr(body, field)
+            if value is not None:
+                changes[field] = plans.clean(value, limit, label)
+        if "topic" in changes and not changes["topic"]:
+            raise PlanError("Thiếu chủ đề")
     except PlanError as err:
         raise invalid(str(err)) from None
+    if "topic" in changes:
+        _unique(db, topic.id, changes["topic"], item.id)
+    for field, value in changes.items():
+        setattr(item, field, value)
     if body.day is not None or body.position is not None:
         _move(db, topic, item, body.day if body.day is not None else item.day, body.position)
     item.updated_by_id = me.user_id

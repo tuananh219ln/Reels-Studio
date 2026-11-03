@@ -110,7 +110,7 @@ function TopicBody({
         items={[
           {
             key: "prompts",
-            label: "Prompt và từ cấm",
+            label: "Prompt",
             children: (
               <Flex vertical gap={16}>
                 <PromptCard
