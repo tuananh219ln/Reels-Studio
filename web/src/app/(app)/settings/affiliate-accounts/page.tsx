@@ -96,7 +96,7 @@ export default function AffiliateAccountsPage() {
       <Alert
         type="info"
         showIcon
-        title="Tài khoản affiliate là của riêng bạn: thành viên khác không thấy, không sửa được, và không thấy doanh thu."
+        title="Tài khoản affiliate là của riêng bạn."
         description={
           <>
             Shopee: App ID và Secret lấy trong trang Shopee Affiliate › Open API (mỗi người tự đăng ký). Có chúng, app
