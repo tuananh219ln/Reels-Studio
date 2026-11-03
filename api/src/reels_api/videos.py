@@ -17,7 +17,7 @@ from . import analytics, facebook, fanpages, knowledge, llm, metrics
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
-from .models import ACTIVE_JOB_STATUSES, Job, Publication, Scene, Video
+from .models import ACTIVE_JOB_STATUSES, Job, Publication, Scene, TopicPlanItem, Video
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
 from .storage import DirectoryStorage
@@ -49,6 +49,7 @@ JOB_KINDS = {
     "image": "Tạo ảnh AI",
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
+    "plan": "Tạo kế hoạch 30 ngày",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -513,6 +514,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
         "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,
+        "plan_idea": _plan_idea(db, video),
         "script_by": script_writer(db, video.id) if video.has_script else None,
         "clone_of": {
             "title": video.clone_source["title"],
@@ -529,6 +531,22 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "can_render": video.has_script and not checks.blocking and job is None,
     }
     return payload
+
+
+def _plan_idea(db: DbSession, video: Video) -> dict | None:
+    """The 30-day plan idea the video was made from, to compare against while editing."""
+    idea = db.scalar(select(TopicPlanItem).where(TopicPlanItem.video_id == video.id))
+    if idea is None:
+        return None
+    return {
+        "id": idea.id,
+        "knowledge_topic_id": idea.knowledge_topic_id,
+        "day": idea.day,
+        "topic": idea.topic,
+        "pain_group": idea.pain_group,
+        "pain": idea.pain,
+        "hook": idea.hook,
+    }
 
 
 def list_payload(db: DbSession, video: Video) -> dict:

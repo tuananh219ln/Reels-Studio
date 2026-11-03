@@ -1,10 +1,11 @@
 "use client";
 
 import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
-import { App, Button, Card, Collapse, Flex, Input, Popconfirm, Spin, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Collapse, Flex, Input, Popconfirm, Spin, Tabs, Tag, Tooltip, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, type Knowledge, type KnowledgeTopic } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import PlanTab from "@/components/plan/PlanTab";
 
 export default function KnowledgePage() {
   const { message } = App.useApp();
@@ -44,7 +45,7 @@ export default function KnowledgePage() {
     <>
       <PageHeader
         title="Kho kiến thức"
-        description="Mỗi nhóm chủ đề có prompt viết kịch bản, prompt nhân bản và từ cấm riêng. Video dùng nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
+        description="Mỗi nhóm chủ đề có prompt viết kịch bản, prompt nhân bản, từ cấm và kế hoạch 30 ngày riêng. Video dùng nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
       >
         <Flex gap={8} style={{ width: 480, maxWidth: "100%" }}>
           <Input
@@ -105,36 +106,52 @@ function TopicBody({
   return (
     <Flex vertical gap={16} data-topic={topic.name}>
       <NameCard name={topic.name} update={update} />
-      <PromptCard
-        title="Prompt viết kịch bản"
-        field="script_prompt"
-        initial={topic.script_prompt}
-        fallback={defaults.default_script_prompt}
-        update={update}
-        help={
-          <>
-            Chỗ điền <Typography.Text code>[Chủ đề]</Typography.Text> được thay bằng chủ đề của video; nếu xóa chỗ điền
-            này, chủ đề được nối vào cuối prompt.
-          </>
-        }
+      <Tabs
+        items={[
+          {
+            key: "prompts",
+            label: "Prompt",
+            children: (
+              <Flex vertical gap={16}>
+                <PromptCard
+                  title="Prompt viết kịch bản"
+                  field="script_prompt"
+                  initial={topic.script_prompt}
+                  fallback={defaults.default_script_prompt}
+                  update={update}
+                  help={
+                    <>
+                      Chỗ điền <Typography.Text code>[Chủ đề]</Typography.Text> được thay bằng chủ đề của video; nếu xóa
+                      chỗ điền này, chủ đề được nối vào cuối prompt. Video tạo từ kế hoạch 30 ngày còn điền{" "}
+                      <Typography.Text code>[Nhóm nỗi đau]</Typography.Text>,{" "}
+                      <Typography.Text code>[Nỗi đau]</Typography.Text> và{" "}
+                      <Typography.Text code>[Góc hook]</Typography.Text> của ý tưởng (thiếu chỗ điền thì nối vào cuối).
+                    </>
+                  }
+                />
+                <PromptCard
+                  title="Prompt nhân bản"
+                  field="clone_prompt"
+                  initial={topic.clone_prompt}
+                  fallback={defaults.default_clone_prompt}
+                  update={update}
+                  help={
+                    <>
+                      Dùng khi bấm “Nhân bản”. Các chỗ điền <Typography.Text code>[tiêu đề]</Typography.Text>,{" "}
+                      <Typography.Text code>[chủ đề]</Typography.Text>,{" "}
+                      <Typography.Text code>[kịch bản đã sửa của video gốc]</Typography.Text> và{" "}
+                      <Typography.Text code>[yêu cầu đổi]</Typography.Text> được thay bằng dữ liệu của video gốc; chỗ
+                      điền nào bị xóa thì thông tin đó được nối vào cuối prompt.
+                    </>
+                  }
+                />
+                <BannedWordsCard initial={topic.banned_words} update={update} />
+              </Flex>
+            ),
+          },
+          { key: "plan", label: "Kế hoạch 30 ngày", children: <PlanTab topicId={topic.id} /> },
+        ]}
       />
-      <PromptCard
-        title="Prompt nhân bản"
-        field="clone_prompt"
-        initial={topic.clone_prompt}
-        fallback={defaults.default_clone_prompt}
-        update={update}
-        help={
-          <>
-            Dùng khi bấm “Nhân bản”. Các chỗ điền <Typography.Text code>[tiêu đề]</Typography.Text>,{" "}
-            <Typography.Text code>[chủ đề]</Typography.Text>,{" "}
-            <Typography.Text code>[kịch bản đã sửa của video gốc]</Typography.Text> và{" "}
-            <Typography.Text code>[yêu cầu đổi]</Typography.Text> được thay bằng dữ liệu của video gốc; chỗ điền nào bị
-            xóa thì thông tin đó được nối vào cuối prompt.
-          </>
-        }
-      />
-      <BannedWordsCard initial={topic.banned_words} update={update} />
       <Flex justify="flex-end">
         <Tooltip title={topic.video_count > 0 ? "Nhóm còn video nên chưa xoá được" : undefined}>
           <span>

@@ -11,6 +11,7 @@ import base64
 import hashlib
 import io
 import json
+import re
 import subprocess
 import sys
 import threading
@@ -72,6 +73,30 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
         "pinned_comment": "Link sản phẩm ở đây nhé",
         "self_review": ['"chữa khỏi" → "tốt cho"'],
         "music_suggestions": ["Windy Hill", "Morning Coffee"],
+    }
+
+
+PAIN_GROUPS = ["Huyết áp và tim mạch", "Đường huyết", "Xương khớp", "Mất ngủ", "Tiêu hóa và gan", "Da và tóc"]
+
+
+def plan_json(first: int, last: int, per_day: int = 4) -> dict:
+    """A 30-day plan answer for days `first` to `last`, every topic different."""
+    return {
+        "days": [
+            {
+                "day": day,
+                "ideas": [
+                    {
+                        "topic": f"{5 + 2 * (n % 2)} món tốt cho sức khỏe ngày {day} ý {n}",
+                        "pain_group": PAIN_GROUPS[(day + n) % len(PAIN_GROUPS)],
+                        "pain": f"Nỗi đau ngày {day} ý {n}",
+                        "hook": f"Hook ngày {day} ý {n}",
+                    }
+                    for n in range(1, per_day + 1)
+                ],
+            }
+            for day in range(first, last + 1)
+        ]
     }
 
 
@@ -183,7 +208,10 @@ class FakeServices:
             reply = self.claude_replies.pop(0) if self.claude_replies else None
         while self.claude_hang:
             time.sleep(0.2)
-        if reply is None:
+        plan = re.search(r"chỉ lập ngày (\d+) đến ngày (\d+), mỗi ngày đúng (\d+) ý tưởng", prompt)
+        if reply is None and plan:
+            reply = plan_json(*(int(number) for number in plan.groups()))
+        elif reply is None:
             topic = prompt.split("Chủ đề: ", 1)[-1].split("\n", 1)[0].strip() or "sức khỏe"
             reply = script_json(topic, self.default_seconds)
         text = reply if isinstance(reply, str) else json.dumps(reply, ensure_ascii=False)

@@ -1609,3 +1609,50 @@ test("video page: one poll at a time, none while the tab is hidden, and the menu
     setHidden(false),
   ]);
 });
+
+test("30-day plan: an idea added for today becomes a video, linked both ways", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  const plan = health.getByTestId("plan-tab");
+  await expect(plan.getByLabel("Prompt kế hoạch")).toHaveCount(0);
+
+  // Day 1 is today in Vietnam.
+  const today = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Ho_Chi_Minh" }).format(new Date());
+  await plan.getByPlaceholder("Chọn ngày 1").fill(today);
+  await page.keyboard.press("Enter");
+  await expect(plan.getByTestId("plan-today")).toHaveText("Hôm nay là ngày 1/30");
+
+  await plan.getByRole("button", { name: "Thêm ý tưởng ngày 1", exact: true }).click();
+  const add = page.getByRole("dialog", { name: "Thêm ý tưởng ngày 1" });
+  await add.getByLabel("Chủ đề").fill("5 món sáng giúp ổn định huyết áp");
+  await add.getByLabel("Nỗi đau người xem").fill("Sợ tai biến khi huyết áp lên xuống");
+  await add.getByLabel("Góc hook").fill("Bỏ muối rồi vẫn chóng mặt?");
+  await add.getByRole("button", { name: "Thêm" }).click();
+  const idea = plan.getByTestId("plan-day-1").getByTestId("plan-idea");
+  await expect(idea).toContainText("5 món sáng giúp ổn định huyết áp");
+  await expect(idea).toContainText("Ý tưởng");
+
+  await page.goto("/videos");
+  await expect(page.getByTestId("plan-banner")).toHaveText(/Ngày 1: hôm nay còn 1\/1 video/);
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  await idea.getByRole("button", { name: "Tạo video" }).click();
+
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch · Ngày 1");
+  await expect(dialog.getByLabel("Chủ đề", { exact: true })).toHaveValue("5 món sáng giúp ổn định huyết áp");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page.getByTestId("plan-idea-card")).toContainText("Nỗi đau: Sợ tai biến khi huyết áp lên xuống");
+
+  await page.goto("/videos");
+  await expect(page.getByTestId("plan-banner")).toHaveText(/đã làm đủ 1 video hôm nay/);
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  await expect(idea).toContainText(/Đã tạo video|Đã viết kịch bản/);
+  await expect(idea.getByRole("link", { name: /Mở video/ })).toBeVisible();
+});

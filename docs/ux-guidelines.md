@@ -47,14 +47,20 @@ Built:
 - **Login** and **user management**.
 - **Tạo video** (on the video list): topic group, topic, and a line naming the provider and model
   that will write the script ("Viết bằng: … (đổi trong Cài đặt)"), in red with a link when that
-  provider is not set up.
+  provider is not set up. When the group's 30-day plan has a today, its ideas not made yet are listed
+  under the topic; picking one fills the topic and shows its day, pain group, pain and hook ("Bỏ
+  chọn" drops it). A typed topic that is nowhere in the plan gets a yellow note that does not block.
+  "Tạo video" on an idea in Kho kiến thức (`/videos?plan_item=<id>`) and "Làm tiếp" open the dialog
+  with that idea picked.
 - **Video list** (`/videos`): thumbnail (the title-scene preview, or a pale tile with the title
   when there is none or it fails to load), title, status (Nháp / Chờ / Đang viết / Đang render /
   Xong / Lỗi) with the labels "MP4 chưa cập nhật theo bản sửa" and "Render lại lỗi", creator,
   date, search by title or topic, "Tạo video". Filters: status (Mọi trạng thái, Nháp, Đang xử lý,
   Xong, Lỗi, MP4 cần render lại) and "Cả đội" / "Của tôi". Two views, remembered in the browser:
   a grid of cards of equal height (the default) and a list, one row per video with a small
-  thumbnail, its topic, status, creator and date; a click opens the video.
+  thumbnail, its topic, status, creator and date; a click opens the video. Above the videos, one
+  banner per topic group whose plan has a today: "Kế hoạch <nhóm> · Ngày N: hôm nay còn X/Y video"
+  with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
   as a small player beside its length, "Tải MP4" and "Đăng", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
@@ -230,7 +236,20 @@ Built:
   renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
   prompt, the clone prompt (each with "Khôi phục mặc định"), and the banned words. A new group starts
   empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
-  video"; a clone keeps its source's group.
+  video"; a clone keeps its source's group. Below the name, two tabs: "Prompt" (the prompts and banned words) and "Kế
+  hoạch 30 ngày":
+  - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Đã làm X/Y ý tưởng" with a bar;
+  - "Nhập file JSON/CSV" and "Tạo bằng AI", both ending in a preview table with errors (which block
+    saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as a draft
+    ("Xem trước" / "Bỏ") until then; a failed one shows its error;
+  - "Prompt kế hoạch", folded, with "Lưu" and "Khôi phục mặc định";
+  - the 30 days on one page, one card each (its date and weekday once a start date is set, "Hôm nay"
+    on today's), each idea with its topic, pain group, pain and hook editable in place (saved when
+    the edit ends), a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong), "Tạo video" or
+    "Mở video", and "Xoá". "+" adds an idea (greyed out at 5); dragging an idea onto another day
+    moves it there. A day with 1–2 ideas says it should have 3–5.
+- **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày · Ngày N"
+  with its pain group, pain and hook under the title.
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
