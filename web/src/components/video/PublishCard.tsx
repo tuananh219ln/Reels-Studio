@@ -121,7 +121,10 @@ export function PublishButton({ video }: { video: VideoDetail }) {
               placeholder="Chọn Fanpage"
               onChange={setPicked}
               style={{ maxWidth: 320 }}
-              options={video.fanpages.map((page) => ({ value: page.id, label: page.name }))}
+              options={video.fanpages.map((page) => ({
+                value: page.id,
+                label: page.owner ? `${page.name} · ${page.owner}` : page.name,
+              }))}
             />
             <Radio.Group
               value={mode}

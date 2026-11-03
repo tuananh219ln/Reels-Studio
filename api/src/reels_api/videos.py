@@ -530,7 +530,15 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "publication": publication_payload(publication_of(db, video.id), by_page),
         "publications": [publication_payload(post, by_page) for post in posts],
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
-        "fanpages": [{"id": page.id, "name": page.name, "error": page.check_error} for page in fanpages.in_use(db)],
+        "fanpages": [
+            {
+                "id": page.id,
+                "name": page.name,
+                "owner": page.updated_by.name if page.updated_by else None,
+                "error": page.check_error,
+            }
+            for page in fanpages.in_use(db)
+        ],
         "knowledge_topic": topic.name if topic else None,
         "plan_idea": _plan_idea(db, video),
         "script_by": script_writer(db, video.id) if video.has_script else None,

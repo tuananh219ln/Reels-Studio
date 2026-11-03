@@ -230,6 +230,27 @@ def test_check_now_asks_the_worker_and_the_check_answers_it(an, db, me, fakes):
     assert row["check"]["pending"] is False
 
 
+def test_opening_the_page_asks_for_a_check_only_when_the_last_one_is_old(an, db, me, fakes):
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    assert an.post(f"{URL}/freshen").json() == {"asked": 0}, "checked a moment ago"
+    assert due(db) == []
+
+    page.checked_at = datetime.now(UTC) - timedelta(hours=1)
+    db.commit()
+    assert an.post(f"{URL}/freshen").json() == {"asked": 1}
+    assert due(db) == [page.id]
+    assert an.post(f"{URL}/freshen").json() == {"asked": 0}, "a check already asked for is not asked again"
+
+
+def test_opening_the_page_never_asks_for_a_stopped_page(an, db, me, fakes):
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    page.active, page.checked_at = False, datetime.now(UTC) - timedelta(hours=1)
+    db.commit()
+    assert an.post(f"{URL}/freshen").json() == {"asked": 0}
+
+
 def test_check_now_needs_a_login(client):
     assert client.post(f"{URL}/1/check").status_code == 401
 
@@ -254,7 +275,7 @@ def test_the_publish_dialog_knows_a_page_with_a_broken_token(an, db, me, storage
     fanpages.check(db, page)
     video = make_video(db, storage, me, scene_count=1)
     (listed,) = an.get(f"/api/videos/{video.id}").json()["fanpages"]
-    assert listed == {"id": page.id, "name": "Trang Dưỡng Sinh", "error": page.check_error}
+    assert listed == {"id": page.id, "name": "Trang Dưỡng Sinh", "owner": me.name, "error": page.check_error}
 
 
 def test_connecting_with_a_user_token_keeps_the_pages_token_only(an, db, me, fakes):

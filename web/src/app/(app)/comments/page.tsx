@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type PageCommentRow, type PageComments } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 
 const REFRESH_MS = 10_000;
@@ -139,6 +140,8 @@ export default function CommentsPage() {
     void load();
   }, [load]);
   usePolling(load, REFRESH_MS);
+  // Reels not read lately are read again on opening, without pressing "Tải bình luận mới".
+  useFreshenOnOpen("/comments/freshen", load);
 
   async function refresh() {
     setRefreshing(true);

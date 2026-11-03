@@ -45,13 +45,17 @@ font is Be Vietnam Pro (served by the app through `next/font`), radius 8 (12 on 
 Built:
 
 - **Login** and **user management**.
-- **Tạo video** (on the video list): topic group, topic, and a line naming the provider and model
-  that will write the script ("Viết bằng: … (đổi trong Cài đặt)"), in red with a link when that
-  provider is not set up. When the group's 30-day plan has a today, its ideas not made yet are listed
-  under the topic; picking one fills the topic and shows its day, pain group, pain and hook ("Bỏ
-  chọn" drops it). A typed topic that is nowhere in the plan gets a yellow note that does not block.
+- **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, "Cách
+  viết" ("AI viết kịch bản" or "Tự viết") and the topic group; below it the topic. The footer has a
+  line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
+  đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
+  button on the right. When the group's 30-day plan has a today, the dialog widens: its ideas not
+  made yet are a numbered list on the left (day and pain group under each) and the topic and its
+  details sit in a bordered panel on the right (stacked on a phone). Picking an idea marks it
+  "Đã chọn" in orange, fills the topic and shows its day, pain group, pain and hook; picking it
+  again or "Bỏ chọn" drops it. A typed topic that is nowhere in the plan gets a yellow note that does not block.
   "Tạo video" on an idea in Kho kiến thức (`/videos?plan_item=<id>`) and "Làm tiếp" open the dialog
-  with that idea picked. A switch at the top chooses "AI viết kịch bản" (the default) or "Tự viết".
+  with that idea picked. "Cách viết" chooses "AI viết kịch bản" (the default) or "Tự viết".
   "Tự viết" makes no AI call: every group can be picked (no "(chưa có prompt)"), the topic is also
   the title scene's text, and "Kịch bản (không bắt buộc)" takes a pasted script. Its placeholder
   shows the format: a paragraph per scene, "Đọc:" lines for the voice text. A yellow note says that
@@ -240,7 +244,7 @@ Built:
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
-    có"), the Fanpage (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
+    có"), the Fanpage, each shown as "<Page> · <member who connected it>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
     ahead, within 29 days; after a post it is back on "Đăng ngay"). Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
     very MP4, and it warns when the Page keeps an older post of the video. The pinned comment stays manual;
   - the "Bài đăng của video" card lists every post, newest first: its status, Fanpage, who posted it,
@@ -292,7 +296,8 @@ Built:
     as numbers, and "Video" keeps the grid for working on videos.
     A post's views stay on one line so rows stay short: the views (or "Chưa có view"), a yellow
     warning icon when the last reading failed, and an icon-only "Cập nhật view" button, which asks
-    for a new reading and spins until the numbers arrive. Shares, comments and reactions ("—" for
+    for a new reading and spins until the numbers arrive. Opening the page asks the same by itself for
+    the posts of the last 14 days not read in 15 minutes, so their buttons spin without a click. Shares, comments and reactions ("—" for
     one Facebook does not give), when they were read ("Đo lúc", Vietnam time), the 48-hour views
     with "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị" and the share/view, the
     "Chưa có số view, app tự đo sau khi đăng 1 giờ" note and the failed reading's reason sit in
@@ -375,7 +380,8 @@ Built:
     pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers
     in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
     then a footer line with when it was last checked and two icon buttons, "Số liệu 30 ngày" (a
-    dialog with the numbers day by day) and "Kiểm tra ngay". The "⋯" menu has
+    dialog with the numbers day by day) and "Kiểm tra ngay". Opening the page checks by itself the
+    Pages not checked in 15 minutes. The "⋯" menu has
     "Dán token mới", which must reach that Page, and "Ngừng dùng" (confirmed). Stopped Pages are
     folded into "Đã ngừng dùng (N)" at the bottom, each with its post count, "Dùng lại", and "Xóa"
     for one that never had a post (confirmed; it removes the token and the numbers); for one with

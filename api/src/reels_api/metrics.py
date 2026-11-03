@@ -29,6 +29,8 @@ log = logging.getLogger("reels_api.metrics")
 FIRST_READING = timedelta(hours=1)
 EVERY = timedelta(days=1)
 FOLLOW_DAYS = 14
+# Opening "Bài đăng" asks for a reading of a followed post whose last one is older than this.
+ON_OPEN = timedelta(minutes=15)
 SNAPSHOT = timedelta(hours=48)
 SNAPSHOT_GRACE = timedelta(hours=24)
 # Posts read per round of the worker (every few seconds); with INSIGHTS_TIMEOUT a dead Facebook holds the queue ~30 s.
@@ -52,15 +54,43 @@ def _has_snapshot():
     return exists().where(PostMetrics.publication_id == Publication.id, PostMetrics.window == "48h")
 
 
+def _asked():
+    tried = Publication.metrics_tried_at
+    return and_(
+        Publication.metrics_requested_at.is_not(None),
+        or_(tried.is_(None), tried < Publication.metrics_requested_at),
+    )
+
+
+def ask_if_stale(db: DbSession) -> int:
+    """Opening "Bài đăng": ask for a reading of each post still followed (an hour to `FOLLOW_DAYS` live) whose last
+    reading is older than `ON_OPEN`, unless one is already asked for. Older posts stay on "Cập nhật view". Returns how
+    many were asked; the caller commits."""
+    at = now()
+    live = _live_at()
+    tried = Publication.metrics_tried_at
+    rows = db.scalars(
+        select(Publication).where(
+            Publication.platform == "facebook",
+            Publication.remote_id.is_not(None),
+            _is_published(at),
+            live <= at - FIRST_READING,
+            live > at - timedelta(days=FOLLOW_DAYS),
+            or_(tried.is_(None), tried <= at - ON_OPEN),
+            ~_asked(),
+        )
+    ).all()
+    for post in rows:
+        post.metrics_requested_at = at
+    return len(rows)
+
+
 def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
     """The posts to read now: asked for first, then the longest unread."""
     at = now()
     live = _live_at()
     tried = Publication.metrics_tried_at
-    asked = and_(
-        Publication.metrics_requested_at.is_not(None),
-        or_(tried.is_(None), tried < Publication.metrics_requested_at),
-    )
+    asked = _asked()
     snapshot = and_(
         live <= at - SNAPSHOT,
         live > at - SNAPSHOT - SNAPSHOT_GRACE,

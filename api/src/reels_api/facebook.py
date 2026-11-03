@@ -416,7 +416,7 @@ def visitor_comments(page: Page, object_id: str) -> list[dict]:
                 err.code,
             ) from None
         if err.status == 404 or err.code == 100:
-            raise FacebookError("Facebook không còn reel này", err.detail, err.status, err.code) from None
+            raise _unreadable_comments(page, object_id, err) from None
         raise
     found = []
     for item in reply.get("data") or []:
@@ -435,6 +435,31 @@ def visitor_comments(page: Page, object_id: str) -> list[dict]:
             }
         )
     return found
+
+
+def _unreadable_comments(page: Page, object_id: str, err: FacebookError) -> FacebookError:
+    """Facebook answers code 100 both for a reel it no longer has and for one this token may not read the comments
+    of, so the reel's own status tells which."""
+    if err.status != 404:
+        try:
+            alive = reel_status(page, object_id) is not None
+        except FacebookError:
+            return FacebookError(
+                "Facebook không cho đọc bình luận reel này: reel đã bị xóa hoặc token thiếu quyền, hãy xem reel trên "
+                "Page và token trong Kết nối Fanpage",
+                err.detail,
+                err.status,
+                err.code,
+            )
+        if alive:
+            return FacebookError(
+                "Reel vẫn còn nhưng token không đọc được bình luận (cần quyền pages_read_engagement và "
+                "pages_read_user_content), hãy dán token mới trong Kết nối Fanpage",
+                err.detail,
+                err.status,
+                err.code,
+            )
+    return FacebookError("Facebook không còn reel này", err.detail, err.status, err.code)
 
 
 def _time(value: object) -> datetime:

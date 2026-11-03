@@ -28,6 +28,8 @@ log = logging.getLogger("reels_api.comments_inbox")
 
 READ_EVERY = timedelta(minutes=30)
 FOLLOW_DAYS = 14
+# Opening "Bình luận" asks for a reading of a reel whose last one is older than this.
+ON_OPEN = timedelta(minutes=15)
 BATCH = 3
 
 
@@ -68,6 +70,18 @@ def ask_for_reading(db: DbSession) -> None:
         .values(comments_read_at=None)
         .execution_options(synchronize_session=False)
     )
+
+
+def ask_if_stale(db: DbSession) -> int:
+    """Opening "Bình luận": every followed post read more than `ON_OPEN` ago is due at once. Returns how many."""
+    at = now()
+    result = db.execute(
+        update(Publication)
+        .where(_followed(at), Publication.comments_read_at <= at - ON_OPEN)
+        .values(comments_read_at=None)
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount
 
 
 def read(db: DbSession, post: Publication) -> None:

@@ -114,6 +114,14 @@ def refresh(me: Session = Depends(current_member), db: DbSession = Depends(get_d
     return {"ok": True}
 
 
+@router.post("/freshen")
+def freshen(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Opening the page: the worker reads the reels not read lately, within seconds."""
+    asked = comments_inbox.ask_if_stale(db)
+    db.commit()
+    return {"asked": asked}
+
+
 @router.post("/{comment_id}/reply")
 def reply(
     comment_id: int, body: ReplyBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)

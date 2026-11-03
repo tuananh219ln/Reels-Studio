@@ -103,6 +103,34 @@ def test_a_reading_refused_is_recorded_and_shown(an, db, me, storage, fakes):
     assert an.get(URL).json()["read_errors"] == [{"fanpage": "Trang Dưỡng Sinh", "error": post.comments_error}]
 
 
+def test_a_live_reel_whose_comments_cannot_be_read_blames_the_token_not_the_reel(db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    fakes.facebook_comments_unreadable.add(post.remote_id)
+    comments_inbox.read(db, post)
+    assert "không còn reel" not in post.comments_error
+    assert "token" in post.comments_error and "Kết nối Fanpage" in post.comments_error
+
+
+def test_a_reel_facebook_no_longer_has_is_named_gone(db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    fakes.reels[post.remote_id]["lost"] = True
+    comments_inbox.read(db, post)
+    assert post.comments_error == "Facebook không còn reel này"
+
+
+def test_opening_the_comments_page_asks_for_reels_not_read_lately(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    comments_inbox.read(db, post)
+    assert an.post(f"{URL}/freshen").json() == {"asked": 0}, "read a moment ago"
+
+    post.comments_read_at = datetime.now(UTC) - timedelta(minutes=20)
+    db.commit()
+    assert reads(db) == []
+    assert an.post(f"{URL}/freshen").json() == {"asked": 1}
+    assert reads(db) == [post.id]
+    assert an.post(f"{URL}/freshen").json() == {"asked": 0}, "a reading already asked for is not asked again"
+
+
 def test_load_new_comments_makes_every_followed_post_due(an, db, me, storage, fakes):
     post = add_post(db, storage, me, fakes)
     comments_inbox.read(db, post)

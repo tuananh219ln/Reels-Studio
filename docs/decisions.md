@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — Pages showing Facebook data ask for a fresh reading when opened
+
+Requested by a member (namtc): "Kết nối Fanpage", "Bài đăng" and "Bình luận" should not wait for "Kiểm tra ngay",
+"Cập nhật view" or "Tải bình luận mới" to be pressed. Opening one of them calls its `POST .../freshen`, which asks the
+worker for what has not been read in the last 15 minutes: the Pages in use, the posts still followed (an hour to 14
+days live), the reels followed for comments. This keeps the earlier rules: a request still never calls Facebook,
+nothing already asked for or read minutes ago is asked again (so five members opening the page add nothing), and posts
+older than 14 days are still read only on "Cập nhật view". The buttons stay for asking at once.
+
 ## 2026-11-03 — "Tự viết": a video without the AI, which then has no AI safety review
 
 Owner's request ("tạo video mà không cần theo prompt"). "Tạo video" can make a video with no LLM call: the member pastes a

@@ -133,8 +133,8 @@ export type VideoDetail = VideoRow & {
   voice_enabled: boolean;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
-  /** The Pages in use, connected on /fanpages. */
-  fanpages: { id: number; name: string; error: string | null }[];
+  /** The Pages in use, connected on /fanpages; `owner` is the member who connected (or last turned on) the Page. */
+  fanpages: { id: number; name: string; owner: string | null; error: string | null }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
   publication: Post | null;
   /** Every post of the video, newest first, cancelled and deleted ones included. */

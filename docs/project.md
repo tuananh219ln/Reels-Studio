@@ -72,7 +72,8 @@ app replaces CapCut, so the output is a finished MP4.
    broken one shows on "Kết nối Fanpage" and in "Đăng" before a post fails, and keeps the Page's
    followers with this week's gain, and its views, reach and engagements by day from Page Insights.
    "Bình luận" gathers visitors' comments under the app's reels on every Page, to answer as the
-   Page, hide or set aside.
+   Page, hide or set aside. Opening "Kết nối Fanpage", "Bài đăng" or "Bình luận" asks the worker
+   to read again what it has not read in 15 minutes, so nobody has to press a button first.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections

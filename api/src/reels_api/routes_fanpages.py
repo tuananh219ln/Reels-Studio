@@ -136,6 +136,14 @@ def set_active(
     return _rows(db)
 
 
+@router.post("/freshen")
+def freshen(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Opening the page: the worker checks the Pages not checked lately; a request never calls Facebook."""
+    asked = fanpages.ask_if_stale(db)
+    db.commit()
+    return {"asked": asked}
+
+
 @router.post("/{fanpage_id}/check")
 def check_now(fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
     """ "Kiểm tra ngay": the worker checks the Page within seconds; a request never calls Facebook."""

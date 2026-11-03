@@ -32,6 +32,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type Fanpage, type FanpageChoice, type FanpageDay } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import { COLORS } from "@/app/theme";
+import { useFreshenOnOpen } from "@/lib/freshen";
 
 const number = (value: number) => value.toLocaleString("vi-VN");
 const count = (value: number | null) => (value === null ? "—" : number(value));
@@ -485,6 +486,8 @@ export default function FanpagesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
   }, [load]);
+  // Pages not checked lately are checked again on opening, without pressing "Kiểm tra ngay" on each.
+  useFreshenOnOpen("/fanpages/freshen", load);
 
   // While a check waits for the worker, ask again every few seconds until it has answered.
   const pending = rows?.some((row) => row.active && row.check.pending) ?? false;

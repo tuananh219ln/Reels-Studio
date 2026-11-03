@@ -328,6 +328,17 @@ def test_only_a_public_post_can_be_asked_for_numbers(an, db, me, storage, fakes,
     assert (reply.status_code, reply.json()["message"]) == (409, "Chỉ cập nhật view được cho bài đã đăng lên Facebook")
 
 
+def test_opening_the_posts_page_asks_for_followed_posts_not_read_lately(an, db, me, storage, fakes):
+    stale = add_post(db, storage, me, 30, metrics_tried_at=hours_ago(2))
+    add_post(db, storage, me, 30, remote_id="1001", metrics_tried_at=hours_ago(0.1))
+    add_post(db, storage, me, 0.5, remote_id="1002")
+    add_post(db, storage, me, 24 * 20, remote_id="1003", metrics_tried_at=hours_ago(48))
+    assert due(db) == []
+    assert an.post("/api/posts/freshen").json() == {"asked": 1}, "not one read minutes ago, too new or past 14 days"
+    assert due(db) == [stale.id]
+    assert an.post("/api/posts/freshen").json() == {"asked": 0}, "a reading already asked for is not asked again"
+
+
 def test_asking_for_a_missing_post_is_404(an):
     assert an.post("/api/posts/999999/metrics").status_code == 404
 

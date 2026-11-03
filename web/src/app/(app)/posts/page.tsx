@@ -13,6 +13,7 @@ import PostActions from "@/components/video/PostActions";
 import PostKpis from "@/components/PostKpis";
 import PostSuggestions from "@/components/PostSuggestions";
 import PostMetrics, { formatCount, viewsOf } from "@/components/PostMetrics";
+import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 
 const STATUSES: PostStatus[] = ["scheduled", "published", "cancelled", "deleted"];
@@ -59,6 +60,8 @@ export default function PostsPage() {
   useEffect(() => {
     load();
   }, [load]);
+  // Followed posts not read lately are read again on opening, without pressing "Cập nhật view" on each.
+  useFreshenOnOpen("/posts/freshen", load);
 
   // A check, cancel, delete or "Cập nhật view" runs in the worker, so its post changes a while after the button.
   const busy = (posts ?? []).some((post) => post.busy || post.metrics.pending);

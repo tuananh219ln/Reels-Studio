@@ -184,6 +184,9 @@ class FakeServices:
         self.facebook_comments: dict[str, dict] = {}
         self.facebook_comment_refused = False  # the token lacks pages_manage_engagement: 403, code 200
         self.facebook_comment_replies_lost = 0  # that many comments are written, then answer 500
+        # Reels whose comments the token cannot read: 400, code 100, subcode 33, as Facebook answers for a reel it
+        # will not show this token and for one it no longer has (a lost reel's comments answer the same).
+        self.facebook_comments_unreadable: set[str] = set()
         # Page Insights by metric name: {end_time: value}; a metric in `facebook_page_metrics_dropped` is refused as
         # Meta refuses a retired one, and `facebook_page_insights_refused` refuses them all (no read_insights).
         self.facebook_page_insights: dict[str, dict[str, int]] = {
@@ -714,6 +717,15 @@ class FakeServices:
         with self.lock:
             if self.facebook_comment_refused:
                 return 403, {"error": {"message": "(#200) Permissions error", "code": 200}}
+            if object_id in self.facebook_comments_unreadable or (self.reels.get(object_id) or {}).get("lost"):
+                return 400, {
+                    "error": {
+                        "message": f"Unsupported get request. Object with ID '{object_id}' does not exist, cannot be "
+                        "loaded due to missing permissions, or does not support this operation.",
+                        "code": 100,
+                        "error_subcode": 33,
+                    }
+                }
 
             def shown(comment_id: str, comment: dict) -> dict:
                 replies = [

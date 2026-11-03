@@ -139,7 +139,8 @@ function SuggestionCard({
     <Card
       size="small"
       data-testid={testId}
-      style={{ flex: 1 }}
+      // min-width 0: a long Page name in a button must not push the card past its column.
+      style={{ flex: 1, minWidth: 0 }}
       title={
         <Flex vertical style={{ padding: "8px 0" }}>
           <span>
@@ -157,8 +158,8 @@ function SuggestionCard({
       ) : (
         <Flex vertical gap={10}>
           {shown.map((item) => (
-            <Flex key={item.key} align="center" justify="space-between" gap={12} data-testid="suggestion">
-              <div style={{ minWidth: 0, flex: 1 }}>
+            <Flex key={item.key} align="center" justify="space-between" gap={12} wrap data-testid="suggestion">
+              <div style={{ minWidth: 220, flex: 1 }}>
                 <VideoTitleCell
                   id={item.video.id}
                   title={item.video.title || item.video.topic}
@@ -168,8 +169,8 @@ function SuggestionCard({
                 />
               </div>
               <Link prefetch={false} href={item.href}>
-                <Button size="small" icon={<SendOutlined />}>
-                  {item.action}
+                <Button size="small" icon={<SendOutlined />} title={item.action} style={{ maxWidth: 240 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.action}</span>
                 </Button>
               </Link>
             </Flex>

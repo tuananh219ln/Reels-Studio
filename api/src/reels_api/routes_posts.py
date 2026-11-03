@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import analytics
+from . import analytics, metrics
 from .db import get_db
 from .errors import ApiError
 from .models import Publication, Session, Video
@@ -48,6 +48,14 @@ def list_posts(me: Session = Depends(current_member), db: DbSession = Depends(ge
 def weekly_kpis(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """The KPI strip of "Bài đăng": this week and last, Monday to Sunday in Vietnam time, from the 48-hour numbers."""
     return analytics.kpis(db)
+
+
+@router.post("/freshen")
+def freshen(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Opening "Bài đăng": the worker reads the followed posts not read lately. The request never calls Facebook."""
+    asked = metrics.ask_if_stale(db)
+    db.commit()
+    return {"asked": asked}
 
 
 @router.post("/{post_id}/comment")
