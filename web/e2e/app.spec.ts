@@ -221,7 +221,7 @@ test("Cấu hình holds the defaults, AI model and sources as tabs, each with it
 
 test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and approve", async ({ page }) => {
   await loginAsSeed(page);
-  await page.getByRole("menuitem", { name: "Affiliate Shopee" }).click();
+  await page.getByRole("menuitem", { name: "Affiliate", exact: true }).click();
   await expect(page).toHaveURL(/\/affiliate$/);
   await expect(page.getByText("Chưa có video nào đã đăng")).toBeVisible();
 

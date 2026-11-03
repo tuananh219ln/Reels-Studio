@@ -11,6 +11,66 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — Affiliate accounts, links and revenue belong to one member
+
+Owner's call on issue #47 ("tài khoản aff dùng mỗi người một tài khoản riêng"; "thành viên có được xem hoặc sửa tài
+khoản aff và doanh thu của người khác không? Không"). This is the first data in the app that belongs to one member,
+next to "There is no self-signup and there are no roles: every member can manage users" (2026-10-31), which stays
+true for everything else.
+
+- **Accounts** (`affiliate_accounts`, migration 0031): each member adds their own Shopee accounts (with the Open
+  API's App ID and Secret) and TikTok accounts on Cấu hình › Tài khoản affiliate. Every query is narrowed to the
+  signed-in member; someone else's account answers as if it did not exist.
+- **Shopee's App ID and Secret** are a new kind of key stored encrypted in the database, like a Fanpage token: they
+  only go in, and only the last characters of the Secret are shown.
+- **Pages have an owner** (`fanpages.owner_id`): the member who connected it, the one who last touched it for Pages
+  already there. Only the owner hands the Page over or sets its Shopee account (one of their own); a Page nobody owns
+  is claimed by a member for themself. Handing it over unsets its account.
+- **Orders** read from Shopee are shown only to the account's owner ("Doanh thu" on `/affiliate`).
+- The product list stays the team's: what Shopee says about a product is not private.
+
+## 2026-11-03 — Products per platform; Shopee suggestions and links through its API, never by scraping
+
+Owner's request on issue #47 ("tôi không thể tự tìm thủ công được"). Replaces "Affiliate products are approved by
+fixed rules" (2026-10-31) only in that the rules now depend on the platform.
+
+- **Two platforms.** A product is Shopee's or TikTok Shop's (`affiliate_products.platform`). Shopee keeps its rules
+  (Mall / Yêu Thích+ / Yêu Thích, 4.7 stars, 100 sales, no banned word) and adds "the commission has not expired".
+  TikTok Shop's are the proposal in the issue, still waiting for the owner: TikTok Shop Mall or a shop scoring at
+  least 4.0, 4.7 stars, 100 sales, a commission above 0, no banned word. They live in `affiliate.py` alone.
+- **Shopee's Affiliate Open API, not scraping.** Scraping Shopee breaks its terms, is blocked by its bot checks, and
+  gives no affiliate link anyway. The worker searches `productOfferV2` with the script's product ideas, using the
+  asking member's own account, keeps up to 5 products per idea that meet the rules, best first (money per sale,
+  weighed by stars and sales), and a member presses "Chọn". Without an account, each idea opens Shopee Affiliate's
+  own search.
+- **Each Page gets its own link.** When the worker writes a reel's comment on a Page whose owner set a Shopee account,
+  it makes that account's short link once per product, video and Page (`generateShortLink`, sub ids `v<video>` and
+  `p<page>`, kept in `affiliate_links`), so an order names the video and Page. A Page without one keeps the link a
+  member pasted. A Shopee failure is recorded on the post like a Facebook one and waits for a member.
+- **Not jobs.** Suggestions, the daily check of approved API products (back to draft when Shopee no longer offers one
+  or it fails the rules) and the daily reading of orders are worker rounds between jobs, like the post numbers: a
+  request never calls Shopee (except "Kiểm tra kết nối", one search, like the AI providers' check), and nothing
+  loops. A suggestion job would also have fought the photo search for the video's one active job.
+- Shopee publishes its API documentation only inside the affiliate dashboard. The signature, field names, sort and
+  shop type codes follow third-party clients and are tested only against the fake service; `shopee.py` is the one
+  place to change them, and a member with an App ID should try it once for real.
+
+## 2026-11-03 — A TikTok version is its own video, cloned from the Facebook one, and posted by hand
+
+Owner's choice on issue #47, following docs/specs/multi-platform/plan.md: one file must not go to two platforms,
+and TikTok's money comes from TikTok Shop's cart, set only in TikTok's app.
+
+- **A video has one platform** (`videos.platform`, Facebook for every video before). "Tạo bản TikTok" is "Nhân bản"
+  with a request filled in (a question as the hook, a short caption, few hashtags, 1–2 other scenes and photos) that
+  the member may change; the new video names its source (`variant_of_id`) and both pages link to each other. It
+  costs one LLM call, like any clone.
+- **Products follow the video's platform**: a Facebook video takes Shopee products (links in the comment), a TikTok
+  version TikTok Shop products (the cart).
+- **Posted by hand.** The TikTok version's "Xuất bản" has the MP4, the caption, the cart's products and a checklist
+  (AIGC label, cart, disclaimer, TikTok's own music); "Đã đăng tay" records the post with its link on one of the
+  member's own TikTok accounts (`publications` with `platform = tiktok`, no `remote_id`, so no Facebook reading
+  touches it). Posting through TikTok's API, and reading its numbers, stay with issue #46.
+
 ## 2026-11-03 — Pages showing Facebook data ask for a fresh reading when opened
 
 Requested by a member (namtc): "Kết nối Fanpage", "Bài đăng" and "Bình luận" should not wait for "Kiểm tra ngay",

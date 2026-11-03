@@ -9,6 +9,7 @@ const CONFIG_TABS = [
   { key: "/settings/defaults", label: "Thiết lập mặc định" },
   { key: "/settings/ai", label: "Mô hình AI" },
   { key: "/settings/sources", label: "Nguồn tư liệu" },
+  { key: "/settings/affiliate-accounts", label: "Tài khoản affiliate" },
 ];
 
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {

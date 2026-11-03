@@ -48,7 +48,7 @@ const NAV = [
   },
   { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
   { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
-  { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate Shopee" },
+  { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate" },
   { key: "/users", icon: <TeamOutlined />, label: "Quản lý người dùng" },
   { key: "/jobs", icon: <ClockCircleOutlined />, label: "Job logs" },
   {

@@ -21,6 +21,11 @@ const COLORS: Record<VideoRow["status"], string> = {
 export default function VideoStatusTags({ video }: { video: VideoRow }) {
   return (
     <Space size={4} wrap>
+      {video.platform === "tiktok" && (
+        <Tag color="magenta" data-testid="video-platform">
+          TikTok
+        </Tag>
+      )}
       <Tag color={COLORS[video.status]} data-testid="video-status">
         {video.status_label}
       </Tag>

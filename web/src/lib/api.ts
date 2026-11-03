@@ -43,10 +43,14 @@ export type VideoStatus =
   | "done"
   | "failed";
 
+/** Where a video is made for: a Facebook reel (Shopee links), or TikTok (posted by hand, TikTok Shop's cart). */
+export type VideoPlatform = "facebook" | "tiktok";
+
 export type VideoRow = {
   id: number;
   topic: string;
   title: string;
+  platform: VideoPlatform;
   created_by: string;
   created_at: string;
   status: VideoStatus;
@@ -119,8 +123,15 @@ export type VideoDetail = VideoRow & {
   /** What a post sends: the caption, then the hashtags it does not already hold. */
   post_text: string;
   affiliates: string[];
-  /** The Shopee products whose links go in the comment under the video's reels. */
+  /** The products attached to the video: Shopee links in the reel's comment, or TikTok Shop's cart. */
   affiliate_product_ids: number[];
+  /** The Facebook video this TikTok version was made from, and the versions made from this one. */
+  variant_of: VideoLink | null;
+  variants: VideoLink[];
+  /** TikTok posts made by hand and recorded with their link, newest first. */
+  tiktok_posts: TikTokPost[];
+  /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
+  suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
   pinned_comment: string;
   self_review: string[];
   music_suggestions: string[];
@@ -133,7 +144,7 @@ export type VideoDetail = VideoRow & {
   voice_enabled: boolean;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
-  /** The Pages in use, connected on /fanpages; `owner` is the member who connected (or last turned on) the Page. */
+  /** The Pages in use, connected on /fanpages; `owner` is the member whose Page it is. */
   fanpages: { id: number; name: string; owner: string | null; error: string | null }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
   publication: Post | null;
@@ -154,6 +165,10 @@ export type VideoDetail = VideoRow & {
   can_render: boolean;
 };
 
+export type VideoLink = { id: number; title: string; platform: VideoPlatform };
+
+export type TikTokPost = { id: number; url: string; account: string | null; at: string; created_by: string };
+
 export type KnowledgeTopic = {
   id: number;
   name: string;
@@ -171,6 +186,11 @@ export type Fanpage = {
   active: boolean;
   updated_at: string;
   updated_by: string | null;
+  /** The member whose Page it is; `mine` when that is the signed-in member. */
+  owner: { id: number; name: string } | null;
+  mine: boolean;
+  /** The Shopee account whose links its comments carry, shown only to its owner. */
+  shopee_account: { id: number; name: string; usable: boolean } | null;
   /** The worker's last check of the token (api fanpages.check). */
   check: {
     checked_at: string | null;
@@ -368,12 +388,21 @@ export type PageComments = {
   read_at: string | null;
 };
 
+export type ProductPlatform = "shopee" | "tiktok_shop";
+
 export type AffiliateProduct = {
   id: number;
   knowledge_topic_id: number;
   topic: string;
+  platform: ProductPlatform;
+  platform_label: string;
   name: string;
-  url: string;
+  /** The link a member pasted; products found through Shopee's API have none (each Page gets its own). */
+  url: string | null;
+  page_url: string | null;
+  image_url: string | null;
+  from_shopee_api: boolean;
+  commission_end_at: string | null;
   shop_name: string;
   shop_type: string;
   shop_type_label: string;
@@ -390,7 +419,8 @@ export type AffiliateProduct = {
 };
 
 export type AffiliateOptions = {
-  shop_types: { value: string; label: string }[];
+  platforms: { value: ProductPlatform; label: string }[];
+  shop_types: Record<ProductPlatform, { value: string; label: string }[]>;
   topics: { id: number; name: string }[];
 };
 
@@ -398,11 +428,50 @@ export type AffiliateOptions = {
 export type AffiliateVideo = {
   id: number;
   title: string;
+  platform: VideoPlatform;
   reel_url: string | null;
   published_at: string;
   suggestions: string[];
   pinned_comment: string;
   products: Pick<AffiliateProduct, "id" | "name" | "url" | "status" | "problems">[];
+};
+
+/** Shopee's suggestions for a video, grouped by its product ideas. */
+export type AffiliateSuggestions = {
+  state: "idle" | "pending" | "failed";
+  error: string | null;
+  at: string | null;
+  keywords: { keyword: string; products: AffiliateProduct[] }[];
+  attached_ids: number[];
+};
+
+/** A member's own affiliate account; nobody else sees it, and the Secret never comes back. */
+export type AffiliateAccount = {
+  id: number;
+  platform: "shopee" | "tiktok";
+  platform_label: string;
+  name: string;
+  app_id: string | null;
+  secret_tail: string | null;
+  profile_url: string | null;
+  active: boolean;
+  report_read_at: string | null;
+  report_error: string | null;
+};
+
+/** The member's own Shopee orders, by video and Page. */
+export type AffiliateRevenue = {
+  days: number;
+  orders: number;
+  commission: number;
+  lines: {
+    video_id: number | null;
+    title: string | null;
+    fanpage: string | null;
+    orders: number;
+    commission: number;
+  }[];
+  accounts: AffiliateAccount[];
 };
 
 export type PostStatus = "pending" | "scheduled" | "published" | "cancelled" | "deleted";

@@ -242,9 +242,17 @@ Built:
     theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
     with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
-    buttons, and Claude's self-review list;
+    buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
+    Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and
+    money per order) with "Chọn", "Tìm sản phẩm" / "Tìm lại", and links to Shopee Affiliate's own
+    search when there is nothing yet; the products picker shows only the video's platform's products;
+  - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
+    new video is tagged "TikTok" (on the list too, which filters by platform) and both pages link
+    to each other. A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
+    copy buttons, the cart's products, a checklist, and "Đã đăng tay" (one of the member's TikTok
+    accounts and the post's link), with the recorded posts below;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
-    có"), the Fanpage, each shown as "<Page> · <member who connected it>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
+    có"), the Fanpage, each shown as "<Page> · <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
     ahead, within 29 days; after a post it is back on "Đăng ngay"). Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
     very MP4, and it warns when the Page keeps an older post of the video. The pinned comment stays manual;
   - the "Bài đăng của video" card lists every post, newest first: its status, Fanpage, who posted it,
@@ -275,14 +283,25 @@ Built:
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
   used the track keep their copy).
-- **Affiliate Shopee** (`/affiliate`), two tabs:
-  - "Video đã đăng": reels on the Facebook Page, newest first, with the script's suggestions, a
-    picker of approved products (labelled with the expected commission per order), and a copy button
-    for the pinned comment with one link per product. A product that lost its approval or no longer
-    meets the rules stays attached with a yellow tag, and its link is left out of the copied text;
-  - "Sản phẩm": products ranked by expected commission per order, with shop, type, rating, sales,
-    price, and status; filters by name or shop, topic group, and status; "Thêm sản phẩm", "Sửa",
-    "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows why, in yellow.
+- **Affiliate** (`/affiliate`), three tabs:
+  - "Video đã đăng": Facebook reels and TikTok posts made by hand, newest first, each tagged with its
+    platform, with the script's suggestions, a picker of approved products of the video's platform
+    (labelled with the expected commission per order), and for a reel a copy button for the pinned
+    comment with one link per product ("Gắn giỏ trong app TikTok" for TikTok). A product that lost its
+    approval or no longer meets the rules stays attached with a yellow tag, and its link is left out of
+    the copied text;
+  - "Sản phẩm": products ranked by expected commission per order, with their platform tag ("Tìm qua
+    API" for those Shopee's search found), shop, type, rating, sales, price, and status; filters by name
+    or shop, topic group, platform and status; "Thêm sản phẩm" (platform first; the link is optional
+    for TikTok Shop), "Sửa", "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows
+    why, in yellow;
+  - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
+    row per video and Page; nobody else's.
+- **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
+  accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
+  link), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá".
+- **Kết nối Fanpage**: each Page card names its owner. The owner sees "Chủ: bạn", "Giao cho…" (another
+  member) and the Page's Shopee account, picked from their own; a Page nobody owns has "Nhận làm chủ".
 - **Đăng bài**, a menu group of two screens. Nothing is posted or approved here: a member reviews
   and posts a video from "Đăng" on its page.
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or

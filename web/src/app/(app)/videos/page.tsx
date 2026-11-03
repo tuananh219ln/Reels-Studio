@@ -77,6 +77,7 @@ export default function VideosPage() {
   const { me } = useMe();
   const [status, setStatus] = useState<StatusFilter>("all");
   const [mine, setMine] = useState(false);
+  const [platform, setPlatform] = useState<"all" | "facebook" | "tiktok">("all");
   const [view, chooseView] = useRememberedView(VIEW_KEY);
 
   function startFrom(item: PlanItem | null) {
@@ -127,8 +128,10 @@ export default function VideosPage() {
   }, [router, message]);
 
   const match = STATUS_FILTERS.find((item) => item.value === status)!.match;
-  const shown = (rows ?? []).filter((row) => match(row) && (!mine || row.created_by === me.name));
-  const filtered = Boolean(query.trim()) || status !== "all" || mine;
+  const shown = (rows ?? []).filter(
+    (row) => match(row) && (!mine || row.created_by === me.name) && (platform === "all" || row.platform === platform),
+  );
+  const filtered = Boolean(query.trim()) || status !== "all" || mine || platform !== "all";
 
   return (
     <>
@@ -155,6 +158,17 @@ export default function VideosPage() {
           onChange={setStatus}
           options={STATUS_FILTERS.map(({ value, label }) => ({ value, label }))}
           style={{ width: 190 }}
+        />
+        <Select
+          aria-label="Lọc theo nền tảng"
+          value={platform}
+          onChange={setPlatform}
+          options={[
+            { value: "all", label: "Mọi nền tảng" },
+            { value: "facebook", label: "Facebook" },
+            { value: "tiktok", label: "TikTok" },
+          ]}
+          style={{ width: 150 }}
         />
         <Segmented
           aria-label="Người tạo"

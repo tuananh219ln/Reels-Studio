@@ -12,11 +12,13 @@ function usable(product: AffiliateVideo["products"][number]): boolean {
 }
 
 function pinnedText(video: AffiliateVideo): string {
-  const links = video.products.filter(usable).map((product) => `${product.name}: ${product.url}`);
+  const links = video.products
+    .filter((product) => usable(product) && product.url)
+    .map((product) => `${product.name}: ${product.url}`);
   return [video.pinned_comment, ...links].filter(Boolean).join("\n");
 }
 
-/** The reels on the Facebook Page, each with the products attached to it. */
+/** The posted videos (Facebook reels, TikTok posts made by hand), each with the products attached to it. */
 export default function PostedVideos() {
   const { message } = App.useApp();
   const [videos, setVideos] = useState<AffiliateVideo[]>([]);
@@ -69,10 +71,15 @@ export default function PostedVideos() {
           <Link prefetch={false} href={`/videos/${video.id}`}>
             {video.title}
           </Link>
-          <Typography.Text type="secondary">{formatDateTime(video.published_at)}</Typography.Text>
+          <Typography.Text type="secondary">
+            <Tag color={video.platform === "tiktok" ? "magenta" : "blue"}>
+              {video.platform === "tiktok" ? "TikTok" : "Facebook"}
+            </Tag>
+            {formatDateTime(video.published_at)}
+          </Typography.Text>
           {video.reel_url && (
             <a href={video.reel_url} target="_blank" rel="noreferrer">
-              Xem Reel
+              {video.platform === "tiktok" ? "Xem bài TikTok" : "Xem Reel"}
             </a>
           )}
         </Flex>
@@ -90,10 +97,13 @@ export default function PostedVideos() {
       width: 380,
       render: (_, video) => {
         const attached = new Set(video.products.map((product) => product.id));
+        const wanted = video.platform === "tiktok" ? "tiktok_shop" : "shopee";
         const choices = [
           ...video.products.map((product) => ({ value: product.id, label: product.name })),
           ...approved
-            .filter((product) => !attached.has(product.id) && product.problems.length === 0)
+            .filter(
+              (product) => !attached.has(product.id) && product.problems.length === 0 && product.platform === wanted,
+            )
             .map((product) => ({
               value: product.id,
               label: `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)`,
@@ -128,7 +138,9 @@ export default function PostedVideos() {
       key: "comment",
       width: 150,
       render: (_, video) =>
-        video.products.some(usable) ? (
+        video.platform === "tiktok" ? (
+          <Typography.Text type="secondary">Gắn giỏ trong app TikTok</Typography.Text>
+        ) : video.products.some(usable) ? (
           <Typography.Text copyable={{ text: pinnedText(video), tooltips: ["Sao chép", "Đã sao chép"] }}>
             Sao chép
           </Typography.Text>
