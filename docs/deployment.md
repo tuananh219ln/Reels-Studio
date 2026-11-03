@@ -51,10 +51,13 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   apply; [web/public/_headers](../web/public/_headers) makes `/_next/static/*` immutable for a year
   (Cloudflare's default is `max-age=0, must-revalidate`, one revalidation per file per page load).
 - **Delivery:** [.github/workflows/ci-cd.yml](../.github/workflows/ci-cd.yml). Every PR
-  runs api pytest with FFmpeg (a skipped test fails the job), both Docker image builds and the
-  render parity test inside the worker image, worker pytest with FFmpeg, and web typecheck + E2E
-  (with a real worker and fake Claude/Pixabay) + Cloudflare build. A push to `main` that passes all
-  of them deploys in order, each waiting for Coolify to report `finished`: the api (it runs the
+  runs api pytest with FFmpeg in 4 processes (`-n 4`; a skipped test fails the job), both Docker
+  image builds and the render parity test inside the worker image, worker pytest with FFmpeg, web
+  typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on four
+  machines at once, each taking every 4th test of `playwright test --list`. A draft PR runs only the
+  quick jobs (api, worker, web); E2E and the image job run once it is ready for review. A PR that
+  changes only `docs/` or `.md` files runs no CI. A push to `main` runs every job and, if all of them
+  pass, deploys in order, each waiting for Coolify to report `finished`: the api (it runs the
   migrations), then the worker, then `npm run deploy` in `web/`. Coolify auto-deploy must stay off,
   or a push deploys before the tests pass.
 - **Database URL:** the api's `DATABASE_URL` is the Postgres internal URL Coolify shows

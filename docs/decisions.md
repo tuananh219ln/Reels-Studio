@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — CI runs in parallel; draft PRs skip E2E, docs-only PRs skip CI
+
+A full run took about 16 minutes: E2E alone was 13 (one test after another, each render-heavy one
+30–60 s) and api pytest 10. E2E now runs on four machines, each taking every 4th test (Playwright's
+own `--shard` splits in file order and would put all of `videos.spec.ts` on two of them), and api
+pytest runs in 4 processes, each on its own database. A draft PR runs lint, typecheck, pytest and
+the Cloudflare build only, so members who push often without testing locally get feedback in a few
+minutes; E2E and the Docker image job run when the PR is marked ready for review. A PR that changes
+only `docs/` or `.md` files runs no CI. A push to `main` still runs every job before it deploys, so
+the 2026-10-31 rule that only CI deploys, after every test passes, is unchanged. Cost: more runner
+minutes per run, since each machine sets itself up.
+
 ## 2026-11-03 — "Video thắng" is dropped from the app
 
 Owner's call, replacing the "Video thắng" part of the earlier 2026-11-03 entry ("Video thắng" is 10× the median of its

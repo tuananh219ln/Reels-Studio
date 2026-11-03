@@ -3,9 +3,13 @@ name: CI/CD
 # Every PR and push to main runs the checks. A push to main then deploys, only after every check
 # passes: the api on Coolify first (it runs the migrations), then the worker on Coolify, then the web
 # app on Cloudflare, so the new web never talks to an old API. Setup steps are in the README.
+# A draft PR runs the quick checks only (lint, typecheck, pytest); E2E and the image builds run once
+# it is marked ready for review, and on every push to main. A PR that changes only docs runs nothing.
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ["docs/**", "**/*.md"]
   push:
     branches: [main]
   workflow_dispatch:
@@ -52,15 +56,33 @@ jobs:
       # A skip here means Postgres or FFmpeg was not there, so it fails the job instead of hiding the
       # integration, worker and render parity tests.
       # pipefail: without it the pipe reports tee's status and failing tests would pass the step.
-      - run: set -o pipefail; python -m pytest -q -rs | tee pytest.log && ! grep -q "SKIPPED" pytest.log
+      # -n 4: four pytest processes, each on its own database (tests/conftest.py).
+      - run: set -o pipefail; python -m pytest -q -rs -n 4 | tee pytest.log && ! grep -q "SKIPPED" pytest.log
+
+  # The production images and the render parity test inside the worker image, beside the api tests.
+  api-image:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: reels
+          POSTGRES_PASSWORD: reels
+          POSTGRES_DB: reels_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U reels -d reels_test" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://reels:reels@127.0.0.1:5432/reels_test
+    steps:
+      - uses: actions/checkout@v4
       # Both images build from the repo root (the api and the worker install ../worker too).
       - name: Build production images
-        working-directory: .
         run: |
           docker build -t reels-api:ci -f api/Dockerfile .
           docker build -t reels-worker:ci -f api/Dockerfile.worker .
       - name: Render parity test inside the worker image (its own FFmpeg)
-        working-directory: .
         run: |
           docker run --rm --network host --user root -v "$PWD:/src" -w /src/api \
             -e TEST_DATABASE_URL="$TEST_DATABASE_URL" -e PYTHONDONTWRITEBYTECODE=1 reels-worker:ci \
@@ -88,6 +110,32 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint && npm run format:check
+      - name: Cloudflare build
+        env:
+          API_URL: https://api.invalid
+        run: npx opennextjs-cloudflare build
+
+  # E2E on four machines at once, each with its own Postgres, api, worker and web build.
+  e2e:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:17
@@ -110,6 +158,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            api/pyproject.toml
+            worker/pyproject.toml
       # E2E runs a real worker, which renders with FFmpeg.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       # Playwright starts the api, the worker and the fake Claude/Pixabay from api/.venv (see web/playwright.config.ts).
@@ -119,22 +171,19 @@ jobs:
       - working-directory: web
         run: npm ci
       - working-directory: web
-        run: npm run typecheck
-      - working-directory: web
-        run: npm run lint && npm run format:check
-      - working-directory: web
         run: npx playwright install --with-deps chromium
-      - working-directory: web
-        run: npm run e2e
-      - name: Cloudflare build
+      # Every 4th test, not --shard: that splits in file order and puts all the render-heavy videos.spec.ts tests
+      # on the last two machines.
+      - name: E2E (shard ${{ matrix.shard }}/4)
         working-directory: web
-        env:
-          API_URL: https://api.invalid
-        run: npx opennextjs-cloudflare build
+        run: |
+          npx playwright test --list | grep '›' | awk -v n=4 -v i=${{ matrix.shard }} 'NR % n == i - 1' > e2e-shard.txt
+          test -s e2e-shard.txt
+          npm run e2e -- --test-list e2e-shard.txt
 
   deploy-api:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [api, worker, web]
+    needs: [api, api-image, worker, web, e2e]
     runs-on: ubuntu-latest
     environment: production
     concurrency:

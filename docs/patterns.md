@@ -58,9 +58,13 @@ all of them pass.
   rolled-back transaction; worker tests commit for real and start real `python -m reels_api worker`
   processes, with fake Claude/Pixabay over HTTP and stand-in `ffmpeg` scripts for hangs and
   failures. They need `TEST_DATABASE_URL` and FFmpeg; CI fails if any of them is skipped.
+  `pytest -n 4` (pytest-xdist) runs them in parallel: each process migrates its own database,
+  `TEST_DATABASE_URL`'s name plus `_gw0`, `_gw1`..., created on first use.
 - **Frontend:** Playwright E2E covers the main flows; it starts the api, a real worker, and the fake
   Claude/Pixabay ([web/playwright.config.ts](../web/playwright.config.ts)), so FFmpeg is
-  needed there too.
+  needed there too. Every test resets `reels_e2e` first, so any subset runs on its own: CI splits
+  them over four machines, and locally `-g "<title>"`, a single spec file or `--last-failed` runs
+  just the tests a change touches.
 - **Visual template check:** a person watches a rendered MP4 against the template in
   [ux-guidelines.md](ux-guidelines.md#video-template). An agent cannot judge the visual result.
 
