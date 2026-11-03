@@ -330,6 +330,15 @@ Planned:
     looping. "Cập nhật view", `POST /api/posts/{id}/metrics`, only sets `metrics_requested_at` for a
     public post (409 otherwise), so a request never calls Facebook; the worker reads it within
     seconds, even past the 14 days. Every post payload has `metrics`: `latest` and `at_48h` (each
+    null until read), `error`, `pending` while an asked reading has not run, and `analysis`.
+  - **What the numbers mean** ([analytics.py](../api/src/reels_api/analytics.py)) is worked out from
+    the `48h` rows when asked, never stored. Each Page's median views is taken over its posts that
+    went live in the last 60 days; a post wins ("Video thắng") when its 48-hour views are at least
+    10× its Page's median and the Page has at least 5 measured posts. `analysis` gives the Page's
+    median and sample count, the post's multiple of it, the flag and its share/view at 48 hours.
+    `GET /api/posts/kpis` gives this week and last, Monday to Sunday in Vietnam time (a fixed UTC+7,
+    which has no daylight saving): posts measured, median views, winners, and how many reached
+    share/view ≥ 0.2 % of those with both numbers.
     null until read), `error`, and `pending` while an asked reading has not run.
 - **30-day plan:** `/api/plans/{group}` reads and changes a group's plan (start date, ideas per
   day, prompt; ideas added, edited, moved and deleted under `/api/plans/items/{id}`; `PUT .../items`
