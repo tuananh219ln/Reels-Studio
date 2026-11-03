@@ -1,8 +1,10 @@
+import io
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import login, make_user, make_video
+from conftest import clip_bytes, login, make_user, make_video, needs_ffmpeg
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
+from PIL import Image
 from sqlalchemy import select, update
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
@@ -370,6 +372,38 @@ def test_publishing_sends_the_mp4_with_the_caption_and_hashtags(committed, ready
     assert reel["video_state"] == "PUBLISHED"
     post = post_of(committed, video_id)
     assert post.status == "published" and post.remote_id and post.published_at
+
+
+def test_an_mp4_without_a_readable_frame_posts_with_facebooks_own_cover(committed, ready, fakes):
+    user, storage, video_id = ready
+    job = run_publish(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert "cover" not in only_reel(fakes)
+
+
+@needs_ffmpeg
+def test_the_reel_cover_is_the_mp4s_first_frame(committed, ready, fakes, tmp_path):
+    user, storage, video_id = ready
+    with committed() as db:
+        storage.save_bytes(db.get(Video, video_id).mp4_key, clip_bytes(tmp_path, seconds=2, size="1080x1920"))
+    job = run_publish(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    reel = only_reel(fakes)
+    assert reel["cover_preferred"] == "true"
+    with Image.open(io.BytesIO(reel["cover"])) as cover:
+        assert (cover.format, cover.size) == ("JPEG", (1080, 1920))
+
+
+@needs_ffmpeg
+def test_a_cover_facebook_refuses_still_posts_the_reel(committed, ready, fakes, tmp_path):
+    user, storage, video_id = ready
+    fakes.facebook_cover_refusals = 1
+    with committed() as db:
+        storage.save_bytes(db.get(Video, video_id).mp4_key, clip_bytes(tmp_path, seconds=2, size="1080x1920"))
+    job = run_publish(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert "cover" not in only_reel(fakes)
+    assert post_of(committed, video_id).status == "published"
 
 
 def test_a_page_facebook_refuses_gets_a_reason_a_member_can_act_on():

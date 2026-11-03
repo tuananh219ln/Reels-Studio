@@ -16,6 +16,8 @@ import sys
 import threading
 import time
 import urllib.parse
+from email import policy as email_policy
+from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from PIL import Image
@@ -127,6 +129,7 @@ class FakeServices:
         self.facebook_processing = "ok"  # ok | error | rejected (the doc's shape: only the phase says so) | busy
         self.facebook_status_fails = 0  # that many status reads answer 400, as a rate limit may
         self.facebook_delete_refusals = 0  # that many deletes are refused: 403 and the reel stays
+        self.facebook_cover_refusals = 0  # that many covers are refused: 400 and the reel keeps its own
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -547,6 +550,26 @@ class FakeServices:
                 return 500, {"error": {"message": "Service unavailable", "code": 2}}
         return 200, {"success": True}
 
+    def _reel_cover(self, video_id: str, content_type: str, raw: bytes) -> tuple[int, dict]:
+        """Video Thumbnails: a multipart form with the image as `source`."""
+        message = BytesParser(policy=email_policy.default).parsebytes(
+            f"Content-Type: {content_type}\r\n\r\n".encode() + raw
+        )
+        fields = {part.get_param("name", header="content-disposition"): part for part in message.iter_parts()}
+        token = fields["access_token"].get_content() if "access_token" in fields else None
+        if token != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            reel = self.reels.get(video_id)
+            if reel is None:
+                return 404, {"error": {"message": "Unknown video", "code": 100}}
+            if self.facebook_cover_refusals:
+                self.facebook_cover_refusals -= 1
+                return 400, {"error": {"message": "Invalid parameter", "code": 100}}
+            reel["cover"] = fields["source"].get_payload(decode=True)
+            reel["cover_preferred"] = fields["is_preferred"].get_content()
+        return 200, {"success": True}
+
     def _me(self, path: str, query: dict) -> tuple[int, dict]:
         token = query.get("access_token")
         if token not in (FACEBOOK_TOKEN, FACEBOOK_USER_TOKEN):
@@ -646,6 +669,10 @@ class FakeServices:
                         return
                     reel["uploaded"], reel["bytes"] = True, len(raw)
                     self._send(200, {"success": True})
+                    return
+                if path.startswith("/facebook/") and path.endswith("/thumbnails"):
+                    video_id = path.removeprefix("/facebook/").removesuffix("/thumbnails")
+                    self._send(*fake._reel_cover(video_id, self.headers.get("Content-Type", ""), raw))
                     return
                 if path.startswith("/facebook/"):
                     form = dict(urllib.parse.parse_qsl(raw.decode()))

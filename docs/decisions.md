@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — A reel posted by the app gets the title scene as its cover
+
+Requested by a member (tuananh219ln): Facebook picked a frame from the middle of a reel ("1. Canh bí đao…") as its
+cover instead of the title. After the reel is live or scheduled, the publish job sends the first frame of the MP4 the
+reel holds, which is the title scene with no fade-in, as its preferred cover (Video Thumbnails edge, which Meta's Reels
+guide links for a custom cover). It is taken from that MP4, not from the app's thumbnail, so the cover matches the
+posted video even if the title changed after the render. A cover is cosmetic, so one Facebook refuses never fails the
+post or makes it retry; Facebook then keeps its own pick and the worker logs why. Meta's docs do not say the edge
+works on reels, so this is tested only against the fake service, and a member should check the cover on the Page
+after the first post. Reels posted before this keep the cover they have.
+
 ## 2026-11-03 — ChatGPT controls drafts through private MCP and member-authorized OAuth
 
 Requested by the owner. The private connection searches/reads videos and topic-group names, edits
