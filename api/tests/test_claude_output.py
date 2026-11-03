@@ -42,6 +42,28 @@ def test_a_valid_answer_keeps_every_part():
     assert script.self_review == ["x → y"] and script.music_suggestions == ["Windy Hill"]
 
 
+def test_hashtags_written_at_the_end_of_the_caption_move_to_the_hashtags():
+    script = parse_output(
+        json.dumps(
+            valid(
+                caption="7 loại canh tốt!\nNhà bạn hay nấu canh nào?\n#suckhoe #DinhDuong #fyp", hashtags=["#suckhoe"]
+            ),
+            ensure_ascii=False,
+        )
+    )
+    assert script.caption == "7 loại canh tốt!\nNhà bạn hay nấu canh nào?"
+    assert script.hashtags == ["#suckhoe", "#DinhDuong", "#fyp"]
+
+
+def test_a_hashtag_inside_a_sentence_stays_in_the_caption():
+    script = parse_output(json.dumps(valid(caption="Món #1 cho người lớn tuổi", hashtags=["#a"]), ensure_ascii=False))
+    assert script.caption == "Món #1 cho người lớn tuổi" and script.hashtags == ["#a"]
+
+
+def test_the_format_keeps_hashtags_out_of_the_caption():
+    assert "không ghi hashtag trong caption" in OUTPUT_FORMAT
+
+
 @pytest.mark.parametrize(
     ("raw", "reason"),
     [

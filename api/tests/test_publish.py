@@ -362,6 +362,19 @@ def only_reel(fakes) -> dict:
     return reel
 
 
+def test_hashtags_already_in_the_caption_are_not_posted_twice(committed, ready, fakes):
+    """Scripts often end the caption with the same hashtags the Hashtag field holds (issue #71's screenshot)."""
+    user, storage, video_id = ready
+    with committed() as db:
+        video = db.get(Video, video_id)
+        video.caption = "Ăn vừng đen mỗi sáng\n#VungDen #suckhoe"
+        video.hashtags = ["#vungden", "#suckhoe", "#reels"]
+        db.commit()
+    job = run_publish(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert only_reel(fakes)["description"] == "Ăn vừng đen mỗi sáng\n#VungDen #suckhoe\n\n#reels"
+
+
 def test_publishing_sends_the_mp4_with_the_caption_and_hashtags(committed, ready, fakes):
     user, storage, video_id = ready
     job = run_publish(committed, storage, video_id, user.id)

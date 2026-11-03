@@ -71,7 +71,9 @@ One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Cla
    Scripts from before keep their Vietnamese prompts, and a title scene without a prompt uses its
    first line of text.
 3. A caption as the prompt asks (the default prompt asks for about 3 short lines), short when it
-   does not say, plus 5 hashtags.
+   does not say, plus 5 hashtags kept apart from it. Hashtag-only lines a script still puts at the
+   end of the caption move to the hashtags, and a post adds only the hashtags its caption does not
+   already hold ([hashtags.py](../api/src/reels_api/hashtags.py)), so none is posted twice.
 4. 2 affiliate product suggestions plus the pinned-comment text.
 5. A safety self-review that lists the sentences it changed.
 6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
