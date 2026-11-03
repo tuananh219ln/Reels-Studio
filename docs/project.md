@@ -54,9 +54,11 @@ app replaces CapCut, so the output is a finished MP4.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text, or its on-screen text when
    that is empty (on by default, off per video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
    tagged by fixed topics and a mood).
-6. **Affiliate Shopee (built, manual):** a product list entered by hand, ranked by expected
-   commission and approved by a member, with products attached to each posted reel and a
-   ready pinned comment. There is no Shopee API call yet, and members still pin the comment.
+6. **Affiliate Shopee (built):** a product list entered by hand, ranked by expected
+   commission and approved by a member. Products are chosen on the video page (or on
+   "Affiliate Shopee" after posting), and once a reel is live the worker writes the pinned
+   comment with their links under it. There is no Shopee API call yet, and members still pin
+   the comment: Facebook's API cannot.
 7. **Job log (built):** every job with status, duration, AI call count, the model that wrote a
    script, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
@@ -64,15 +66,19 @@ app replaces CapCut, so the output is a finished MP4.
    rendered video as a Reel now or at a set time, post a new render again, cancel a post not yet
    public and delete a public one from Facebook. "Bài đăng" lists posted, scheduled, cancelled and
    deleted videos, and "Lịch đăng bài" shows the posted and scheduled ones in a month view, both in
-   Vietnam time.
+   Vietnam time. The worker checks each Page's token twice a day (and on "Kiểm tra ngay"), so a
+   broken one shows on "Kết nối Fanpage" and in "Đăng" before a post fails, and keeps the Page's
+   followers with this week's gain, and its views, reach and engagements by day from Page Insights.
+   "Bình luận" gathers visitors' comments under the app's reels on every Page, to answer as the
+   Page, hide or set aside.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections
    on Cài đặt › Kết nối ChatGPT; see [chatgpt.md](chatgpt.md).
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
     comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài
-    đăng" shows them, sorts by views, flags "Video thắng" (10× its Page's median at 48 hours) and
-    shows the weekly KPIs.
+    đăng" shows them, sorts by views, compares each with its Page's median at 48 hours and shows the
+    weekly KPIs.
 
 ---
 
@@ -82,7 +88,7 @@ app replaces CapCut, so the output is a finished MP4.
 2. **Assisted publishing for Reels and TikTok** (Facebook Reels posting and its calendar are built): a schedule, a reminder at the posting windows (see
    [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
    comment manually.
-3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking (built), winner variants, API
+3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking (built), API
    auto-posting beyond Facebook Pages (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
    AI image generation. Concrete items are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues).
 

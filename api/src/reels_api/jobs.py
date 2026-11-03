@@ -19,7 +19,19 @@ from reels_render.errors import FFmpegError
 from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
-from . import auto_photos, config, facebook, fanpages, image_providers, image_style, knowledge, llm, plans, source_keys
+from . import (
+    auto_photos,
+    config,
+    facebook,
+    fanpages,
+    hashtags,
+    image_providers,
+    image_style,
+    knowledge,
+    llm,
+    plans,
+    source_keys,
+)
 from .claude import (
     ClaudeError,
     GeneratedScript,
@@ -552,7 +564,7 @@ def run_check_job(db: DbSession, job: Job) -> None:
 
 
 def _finish_reel(db: DbSession, page: facebook.Page, video: Video, post: Publication) -> None:
-    description = f"{video.caption}\n\n{' '.join(video.hashtags)}".strip()
+    description = hashtags.post_text(video.caption, video.hashtags)
     try:
         facebook.finish(page, post.remote_id, description, post.scheduled_at)
     except FacebookError as err:

@@ -12,14 +12,13 @@ from pydantic import BaseModel
 from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import facebook, knowledge
+from . import affiliate, facebook, knowledge
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateProduct, KnowledgeTopic, Publication, Session, Video, VideoAffiliateProduct
 from .routes_music import like_pattern
 from .routes_videos import invalid
-from .script_rules import banned_hits
-from .sessions import current_member
+from .sessions import current_member, now
 from .videos import is_published, published_publication, split_scenes, title_of
 
 router = APIRouter(prefix="/api/affiliate-products")
@@ -30,10 +29,6 @@ SHOP_TYPES = {
     "preferred": "Shop Yêu Thích",
     "other": "Shop thường",
 }
-# A high commission does not make up for a poor shop: below these a product cannot be approved.
-TRUSTED_SHOP_TYPES = {"mall", "preferred_plus", "preferred"}
-MIN_RATING = 4.7
-MIN_SOLD = 100
 
 MAX_NAME_LENGTH = 300
 MAX_SHOP_NAME_LENGTH = 200
@@ -107,21 +102,6 @@ def _fields(db: DbSession, body: ProductBody) -> dict:
     }
 
 
-def _problems(product: AffiliateProduct) -> list[str]:
-    """Why a member may not approve this product."""
-    problems = []
-    if product.shop_type not in TRUSTED_SHOP_TYPES:
-        problems.append("Shop phải là Shopee Mall, Yêu Thích hoặc Yêu Thích+")
-    if product.rating < MIN_RATING:
-        problems.append(f"Đánh giá dưới {MIN_RATING} sao")
-    if product.sold < MIN_SOLD:
-        problems.append(f"Lượt bán dưới {MIN_SOLD}")
-    hits = banned_hits(product.name, product.topic.banned_words)
-    if hits:
-        problems.append(f"Tên có từ cấm: {', '.join(hits)}")
-    return problems
-
-
 def _expected_commission(product: AffiliateProduct) -> int:
     return round(product.price * product.commission_rate / 100)
 
@@ -144,7 +124,7 @@ def _payload(product: AffiliateProduct) -> dict:
         "status": product.status,
         "checked_at": product.checked_at.isoformat() if product.checked_at else None,
         "checked_by": product.checked_by.name if product.checked_by else None,
-        "problems": _problems(product),
+        "problems": affiliate.problems(product),
     }
 
 
@@ -213,7 +193,7 @@ def _video_payload(db: DbSession, video: Video, post: Publication) -> dict:
                 "name": product.name,
                 "url": product.url,
                 "status": product.status,
-                "problems": _problems(product),
+                "problems": affiliate.problems(product),
             }
             for product in products
         ],
@@ -235,9 +215,11 @@ def list_videos(me: Session = Depends(current_member), db: DbSession = Depends(g
 def set_video_products(
     video_id: int, body: VideoProductsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    post = published_publication(db, video_id)
-    if post is None:
-        raise ApiError(404, "video_not_published", "Video này chưa đăng lên Facebook")
+    """The products whose links go in the video's comment. Set on the video page before posting, so the first comment
+    already holds them, or on /affiliate afterwards; a comment the worker already wrote is then edited to match."""
+    video = db.get(Video, video_id)
+    if video is None:
+        raise ApiError(404, "video_not_found", "Không tìm thấy video")
     chosen = set(body.product_ids)
     attached = set(
         db.scalars(select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == video_id))
@@ -246,7 +228,7 @@ def set_video_products(
     if len(products) != len(chosen):
         raise ApiError(404, "product_not_found", "Không tìm thấy sản phẩm (có thể đã bị xóa)")
     # A product that stopped qualifying stays until a member removes it, so saving another change is not refused.
-    if any((product.status != "approved" or _problems(product)) and product.id not in attached for product in products):
+    if any(not affiliate.usable(product) and product.id not in attached for product in products):
         raise ApiError(409, "product_not_approved", "Chỉ gắn được sản phẩm đã duyệt và còn đạt tiêu chí")
     db.execute(
         delete(VideoAffiliateProduct).where(
@@ -254,8 +236,15 @@ def set_video_products(
         )
     )
     db.add_all(VideoAffiliateProduct(video_id=video_id, product_id=product_id) for product_id in chosen - attached)
+    if chosen != attached:
+        for post in db.scalars(
+            select(Publication).where(Publication.video_id == video_id, Publication.comment_id.is_not(None))
+        ):
+            if is_published(post):
+                post.comment_requested_at = now()
     db.commit()
-    return _video_payload(db, db.get(Video, video_id), post)
+    post = published_publication(db, video_id)
+    return _video_payload(db, video, post) if post else {"id": video.id, "product_ids": sorted(chosen)}
 
 
 @router.get("")
@@ -357,7 +346,7 @@ def update_product(
 @router.post("/{product_id}/approve")
 def approve_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     product = _get(db, product_id)
-    problems = _problems(product)
+    problems = affiliate.problems(product)
     if problems:
         raise ApiError(409, "product_not_approvable", f"Chưa duyệt được: {'; '.join(problems)}")
     product.status, product.checked_at, product.checked_by_id = "approved", datetime.now(UTC), me.user_id

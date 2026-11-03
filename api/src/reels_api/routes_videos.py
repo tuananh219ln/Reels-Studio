@@ -140,6 +140,8 @@ class ScenePatchBody(BaseModel):
 class PublishBody(BaseModel):
     fanpage_id: int
     scheduled_at: datetime | None = None
+    # "Tự bình luận": the worker writes the affiliate comment under the reel once it is live (post_comments.py).
+    auto_comment: bool = True
 
 
 class SceneOrderBody(BaseModel):
@@ -434,6 +436,7 @@ def publish(
     elif post.remote_id and post.fanpage_id != fanpage.id:
         raise ApiError(409, "other_fanpage", "Video đã tải lên Fanpage khác, hãy đăng lại trên Fanpage đó")
     post.fanpage_id, post.scheduled_at, post.created_by_id = fanpage.id, when, me.user_id
+    post.auto_comment = body.auto_comment
     _enqueue(db, video, "publish", me)
     return _saved(db, video)
 

@@ -44,14 +44,31 @@ function useTextStyles() {
   return { styles, error, reload };
 }
 
+// Every tile is the same width, with its preview on top and a one-line name under it, so the row lines up.
+const CARD_WIDTH = 72;
+
 const cardStyle = (checked: boolean, disabled?: boolean) => ({
-  width: 64,
-  padding: 0,
+  width: CARD_WIDTH,
+  padding: 3,
   border: `2px solid ${checked ? COLORS.primary : "transparent"}`,
-  borderRadius: 8,
+  borderRadius: 10,
   background: "none",
   cursor: disabled ? "not-allowed" : "pointer",
+  display: "flex",
+  flexDirection: "column" as const,
+  alignItems: "stretch",
+  justifyContent: "flex-start",
+  gap: 4,
 });
+
+/** The name under a tile: one line, cut with "…", whole in the tooltip. */
+function CardName({ children }: { children: string }) {
+  return (
+    <Typography.Text ellipsis={{ tooltip: children }} style={{ fontSize: 12, display: "block", textAlign: "center" }}>
+      {children}
+    </Typography.Text>
+  );
+}
 
 /** Create or edit one team style, with a live sample and the readability warnings. */
 function StyleEditor({
@@ -189,7 +206,7 @@ export function TextStyleCards({
 
   return (
     <Flex vertical gap={8}>
-      <Flex wrap gap={10} role="radiogroup" aria-label="Kiểu hộp chữ">
+      <Flex wrap gap={8} align="flex-start" role="radiogroup" aria-label="Kiểu hộp chữ">
         <button
           type="button"
           role="radio"
@@ -201,7 +218,7 @@ export function TextStyleCards({
           style={cardStyle(noBox, disabled)}
         >
           <Sample drawn={palette("none", values.text_color, "auto", values.accent_color)} />
-          <Typography.Text style={{ fontSize: 12 }}>Không hộp</Typography.Text>
+          <CardName>Không hộp</CardName>
         </button>
         {styles?.map((style) => {
           const checked = style === chosen;
@@ -219,9 +236,7 @@ export function TextStyleCards({
               <Sample
                 drawn={palette("box", style.text_color, style.box_color, style.accent_color, style.box_opacity)}
               />
-              <Typography.Text ellipsis style={{ fontSize: 12, maxWidth: 60 }}>
-                {style.name}
-              </Typography.Text>
+              <CardName>{style.name}</CardName>
             </button>
           );
         })}
@@ -230,20 +245,23 @@ export function TextStyleCards({
           aria-label="Thêm kiểu"
           disabled={disabled}
           onClick={() => setEditing("new")}
-          style={{
-            ...cardStyle(false, disabled),
-            border: "2px dashed #d9d9d9",
-            aspectRatio: "9 / 16",
-            alignSelf: "flex-start",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-          }}
+          style={cardStyle(false, disabled)}
         >
-          <PlusOutlined />
-          <Typography.Text style={{ fontSize: 12 }}>Thêm kiểu</Typography.Text>
+          <div
+            style={{
+              aspectRatio: "9 / 16",
+              borderRadius: 6,
+              border: `2px dashed ${COLORS.border}`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: COLORS.textSecondary,
+              fontSize: 18,
+            }}
+          >
+            <PlusOutlined />
+          </div>
+          <CardName>Thêm kiểu</CardName>
         </button>
       </Flex>
       {error && <Typography.Text type="danger">{error}</Typography.Text>}

@@ -391,7 +391,7 @@ def test_an_approved_product_with_a_new_banned_word_is_flagged_and_not_attachabl
 
 
 @pytest.mark.parametrize("post", [None, {"status": "pending"}, {"status": "scheduled", "ahead": 1}])
-def test_a_video_that_is_not_live_takes_no_products(an, db, me, storage, post):
+def test_a_video_not_live_yet_takes_products_for_its_first_comment(an, db, me, storage, post):
     if post is None:
         video = make_video(db, storage, me)
     else:
@@ -405,7 +405,11 @@ def test_a_video_that_is_not_live_takes_no_products(an, db, me, storage, post):
         )
     product = add_approved(an, db)
     response = an.put(f"{URL}/videos/{video.id}", json={"product_ids": [product["id"]]})
-    assert response.status_code == 404 and response.json()["code"] == "video_not_published"
+    # Products are chosen before posting now, so the first comment under the reel already holds their links;
+    # the video is listed under "Video đã đăng" only once it is live.
+    assert response.status_code == 200 and response.json() == {"id": video.id, "product_ids": [product["id"]]}
+    assert an.get(f"{URL}/videos").json() == []
+    assert an.get(f"/api/videos/{video.id}").json()["affiliate_product_ids"] == [product["id"]]
 
 
 def test_a_scheduled_reel_takes_products_once_its_time_has_passed(an, db, me, storage):

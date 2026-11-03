@@ -160,6 +160,21 @@ class FakeServices:
         self.facebook_insights_calls = 0
         self.facebook_insights_refused = False  # the token lacks read_insights: 403, code 200
         self.facebook_insights_gone: set[str] = set()  # reels Facebook no longer has
+        self.facebook_followers: int | None = 1200  # a Page's followers_count; None leaves it out of the answer
+        self.facebook_page_info_refused = False  # the token cannot read the Page: 403, code 200
+        # Comments by id: {"object": reel id, "message", "from": {"id", "name"}, "edits"}
+        self.facebook_comments: dict[str, dict] = {}
+        self.facebook_comment_refused = False  # the token lacks pages_manage_engagement: 403, code 200
+        self.facebook_comment_replies_lost = 0  # that many comments are written, then answer 500
+        # Page Insights by metric name: {end_time: value}; a metric in `facebook_page_metrics_dropped` is refused as
+        # Meta refuses a retired one, and `facebook_page_insights_refused` refuses them all (no read_insights).
+        self.facebook_page_insights: dict[str, dict[str, int]] = {
+            "page_media_view": {"2026-11-02T08:00:00+0000": 900, "2026-11-03T08:00:00+0000": 1100},
+            "page_total_media_view_unique": {"2026-11-02T08:00:00+0000": 600, "2026-11-03T08:00:00+0000": 700},
+            "page_post_engagements": {"2026-11-02T08:00:00+0000": 40, "2026-11-03T08:00:00+0000": 55},
+        }
+        self.facebook_page_metrics_dropped: set[str] = set()
+        self.facebook_page_insights_refused = False
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -616,6 +631,108 @@ class FakeServices:
             return 400, {"error": {"message": "(#100) Tried accessing nonexisting field (accounts)", "code": 100}}
         return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
 
+    def _page_info(self, page_id: str, query: dict) -> tuple[int, dict]:
+        """GET /{page-id}?fields=name,followers_count with the Page's own token."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if self.facebook_page_info_refused:
+            return 403, {"error": {"message": "(#200) Requires pages_read_engagement permission", "code": 200}}
+        page = next(page for page in self.facebook_pages if page["id"] == page_id)
+        reply = {"id": page_id, "name": page["name"]}
+        if self.facebook_followers is not None:
+            reply["followers_count"] = self.facebook_followers
+        return 200, reply
+
+    def add_visitor_comment(self, object_id: str, message: str, author: str = "Cô Lan", **fields) -> str:
+        """A comment a visitor wrote under a reel (or under a comment, as a reply)."""
+        with self.lock:
+            comment_id = f"{object_id}_{len(self.facebook_comments) + 1}"
+            self.facebook_comments[comment_id] = {
+                "object": object_id,
+                "message": message,
+                "from": {"id": f"user-{len(self.facebook_comments)}", "name": author},
+                "edits": 0,
+                "hidden": False,
+                "created_time": "2026-11-03T07:00:00+0000",
+                **fields,
+            }
+        return comment_id
+
+    def _comment(self, object_id: str, form: dict, create: bool) -> tuple[int, dict]:
+        """POST /{reel-id}/comments or /{comment-id}/comments as the Page; POST /{comment-id} edits or hides one."""
+        if form.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            if self.facebook_comment_refused:
+                return 403, {"error": {"message": "(#200) Permissions error", "code": 200}}
+            if not create:
+                comment = self.facebook_comments[object_id]
+                if form.get("is_hidden") == "true":
+                    comment["hidden"] = True
+                else:
+                    comment["message"], comment["edits"] = form["message"], comment["edits"] + 1
+                return 200, {"success": True}
+            if object_id not in self.reels and object_id not in self.facebook_comments:
+                return 400, {"error": {"message": "Unsupported post request", "code": 100, "error_subcode": 33}}
+            comment_id = f"{object_id}_{len(self.facebook_comments) + 1}"
+            page = self.facebook_pages[0]
+            self.facebook_comments[comment_id] = {
+                "object": object_id,
+                "message": form["message"],
+                "from": {"id": page["id"], "name": page["name"]},
+                "edits": 0,
+                "hidden": False,
+                "created_time": "2026-11-03T07:00:00+0000",
+            }
+            if self.facebook_comment_replies_lost:
+                self.facebook_comment_replies_lost -= 1
+                return 500, {"error": {"message": "An unknown error occurred", "code": 1}}
+        return 200, {"id": comment_id}
+
+    def _comments(self, object_id: str, query: dict) -> tuple[int, dict]:
+        """GET /{id}/comments, newest first, each with its replies' authors as `comments`."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            if self.facebook_comment_refused:
+                return 403, {"error": {"message": "(#200) Permissions error", "code": 200}}
+
+            def shown(comment_id: str, comment: dict) -> dict:
+                replies = [
+                    {"id": reply_id, "from": {"id": reply["from"]["id"]}}
+                    for reply_id, reply in self.facebook_comments.items()
+                    if reply["object"] == comment_id
+                ]
+                return {
+                    "id": comment_id,
+                    "message": comment["message"],
+                    "from": comment["from"],
+                    "created_time": comment["created_time"],
+                    "is_hidden": comment["hidden"],
+                    "comments": {"data": replies},
+                }
+
+            found = [
+                shown(comment_id, comment)
+                for comment_id, comment in reversed(self.facebook_comments.items())
+                if comment["object"] == object_id
+            ]
+        return 200, {"data": found}
+
+    def _page_insights(self, page_id: str, query: dict) -> tuple[int, dict]:
+        """GET /{page-id}/insights?metric=...&period=day, in the shape Meta documents."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        metric = query.get("metric", "")
+        if self.facebook_page_insights_refused:
+            return 403, {"error": {"message": "(#200) Requires read_insights permission", "code": 200}}
+        if metric in self.facebook_page_metrics_dropped or metric not in self.facebook_page_insights:
+            return 400, {"error": {"message": "(#100) The value must be a valid insights metric", "code": 100}}
+        values = [{"value": value, "end_time": end} for end, value in self.facebook_page_insights[metric].items()]
+        return 200, {
+            "data": [{"name": metric, "period": "day", "values": values, "id": f"{page_id}/insights/{metric}"}]
+        }
+
     def _reel_insights(self, video_id: str, query: dict) -> tuple[int, dict]:
         """Video Insights in the shape Meta documents: one entry per metric, its lifetime value in `values`."""
         if query.get("access_token") != FACEBOOK_TOKEN:
@@ -737,6 +854,14 @@ class FakeServices:
                     video_id = path.removeprefix("/facebook/").removesuffix("/thumbnails")
                     self._send(*fake._reel_cover(video_id, self.headers.get("Content-Type", ""), raw))
                     return
+                if path.startswith("/facebook/") and path.endswith("/comments"):
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*fake._comment(path.removeprefix("/facebook/").removesuffix("/comments"), form, True))
+                    return
+                if path.startswith("/facebook/") and path.removeprefix("/facebook/") in fake.facebook_comments:
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*fake._comment(path.removeprefix("/facebook/"), form, False))
+                    return
                 if path.startswith("/facebook/"):
                     form = dict(urllib.parse.parse_qsl(raw.decode()))
                     self._send(*fake._reels_call(path.split("/")[2], form))
@@ -787,6 +912,12 @@ class FakeServices:
                     target = parts.path.removeprefix("/facebook/")
                     if target in ("me", "me/accounts"):
                         self._send(*fake._me(target, query))
+                    elif target in {page["id"] for page in fake.facebook_pages}:
+                        self._send(*fake._page_info(target, query))
+                    elif target.endswith("/insights"):
+                        self._send(*fake._page_insights(target.removesuffix("/insights"), query))
+                    elif target.endswith("/comments"):
+                        self._send(*fake._comments(target.removesuffix("/comments"), query))
                     elif target.endswith("/video_insights"):
                         self._send(*fake._reel_insights(target.removesuffix("/video_insights"), query))
                     else:

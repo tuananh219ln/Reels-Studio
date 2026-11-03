@@ -8,7 +8,7 @@ import urllib.parse
 import urllib.request
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from . import config
@@ -23,6 +23,8 @@ FAILED_STATUSES = {"error", "expired", "upload_failed"}
 TOKEN_ERRORS = {102, 190}
 PERMISSION_ERRORS = {10, 200}
 RATE_LIMIT_ERRORS = {4, 17, 32, 613}
+# _http_error's message for a refusal it cannot name; it speaks of posting, so a read replaces it.
+REFUSED = "Facebook từ chối đăng video này"
 
 
 class FacebookError(Exception):
@@ -77,7 +79,7 @@ def _http_error(status: int, body: str) -> FacebookError:
     elif status >= 500:
         message = f"Facebook đang lỗi (HTTP {status}), thử lại sau"
     else:
-        message = "Facebook từ chối đăng video này"
+        message = REFUSED
     return FacebookError(message, detail, status, code)
 
 
@@ -110,6 +112,75 @@ def managed_pages(token: str) -> list[dict]:
         }
         for account in accounts
     ]
+
+
+def page_info(page: Page) -> dict:
+    """The Page's `name` and `followers` (None when Facebook leaves it out), read with the Page's own token: the
+    worker's check that the token still works (fanpages.check). Reading the Page needs `pages_read_engagement`."""
+    query = urllib.parse.urlencode({"fields": "name,followers_count", "access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}?{query}"
+    try:
+        reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
+    except FacebookError as err:
+        if err.code in PERMISSION_ERRORS:
+            raise FacebookError(
+                "Token Facebook chưa có quyền đọc Page (pages_read_engagement), hãy dán token mới trong Kết nối Fanpage",
+                err.detail,
+                err.status,
+                err.code,
+            ) from None
+        if err.message == REFUSED:
+            raise FacebookError("Facebook không cho đọc Page này", err.detail, err.status, err.code) from None
+        raise
+    return {"name": str(reply.get("name") or ""), "followers": _count(reply.get("followers_count"))}
+
+
+# Page Insights metrics by the name the app keeps them under; daily values. Meta replaced `page_impressions` with
+# `page_media_view` and `page_impressions_unique` with `page_total_media_view_unique` (Nov 2025). This is the one place
+# that knows the names, so a change on Meta's side is fixed here alone.
+PAGE_METRICS = {
+    "views": "page_media_view",
+    "reach": "page_total_media_view_unique",
+    "engagements": "page_post_engagements",
+}
+
+
+def page_insights(page: Page, since: datetime, until: datetime) -> tuple[dict, list[str]]:
+    """The Page's daily numbers between `since` and `until`, as {day: {"views", "reach", "engagements"}}, and what
+    went wrong for the metrics Facebook refused. Each metric is asked alone, so one Meta drops does not lose the
+    others. Facebook's day is the Page's own (Pacific time for most), given by the end of the day. Needs
+    `read_insights`."""
+    days: dict = {}
+    problems: list[str] = []
+    for key, metric in PAGE_METRICS.items():
+        query = urllib.parse.urlencode(
+            {
+                "metric": metric,
+                "period": "day",
+                "since": str(int(since.timestamp())),
+                "until": str(int(until.timestamp())),
+                "access_token": page.token,
+            }
+        )
+        url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}/insights?{query}"
+        try:
+            reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
+        except FacebookError as err:
+            if err.code in PERMISSION_ERRORS:
+                problems.append("Token chưa có quyền đọc số liệu Page (read_insights)")
+            elif err.code in TOKEN_ERRORS or err.code in RATE_LIMIT_ERRORS:
+                problems.append(err.message)
+            else:
+                problems.append(f"Facebook không trả số liệu {metric}")
+            continue
+        for item in reply.get("data") or []:
+            for value in item.get("values") or [] if isinstance(item, dict) else []:
+                end = _time(value.get("end_time"))
+                day = (end - timedelta(days=1)).date()
+                days.setdefault(day, {"views": None, "reach": None, "engagements": None})[key] = _count(
+                    value.get("value")
+                )
+    return days, list(dict.fromkeys(problems))
 
 
 def start_upload(page: Page) -> tuple[str, str]:
@@ -225,6 +296,121 @@ def _part(value: object, key: str) -> int | None:
         if str(name).lower() == key:
             return _count(part)
     return 0
+
+
+def _comment_error(err: FacebookError) -> FacebookError:
+    if err.code in PERMISSION_ERRORS:
+        return FacebookError(
+            "Token Facebook chưa có quyền bình luận (pages_manage_engagement), hãy dán token mới trong Kết nối Fanpage",
+            err.detail,
+            err.status,
+            err.code,
+        )
+    if err.message == REFUSED:
+        return FacebookError("Facebook từ chối bình luận này", err.detail, err.status, err.code)
+    return err
+
+
+def post_comment(page: Page, object_id: str, message: str) -> str:
+    """Comment as the Page on a reel, or reply to a comment; returns the new comment's id. Needs
+    `pages_manage_engagement`."""
+    body = urllib.parse.urlencode({"message": message, "access_token": page.token}).encode()
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(object_id, safe='')}/comments"
+    try:
+        reply = _send(urllib.request.Request(url, data=body, method="POST"), REQUEST_TIMEOUT)
+    except FacebookError as err:
+        raise _comment_error(err) from None
+    return str(reply.get("id") or "")
+
+
+def edit_comment(page: Page, comment_id: str, message: str) -> None:
+    body = urllib.parse.urlencode({"message": message, "access_token": page.token}).encode()
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(comment_id, safe='')}"
+    try:
+        _send(urllib.request.Request(url, data=body, method="POST"), REQUEST_TIMEOUT)
+    except FacebookError as err:
+        raise _comment_error(err) from None
+
+
+def page_comment(page: Page, object_id: str, message: str) -> str | None:
+    """The id of a comment the Page already wrote under the reel with this message, if any: an attempt whose answer was
+    lost may still have reached Facebook. Reads the newest 100 comments; needs `pages_read_user_content`."""
+    query = urllib.parse.urlencode(
+        {"fields": "id,message,from", "order": "reverse_chronological", "limit": "100", "access_token": page.token}
+    )
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(object_id, safe='')}/comments?{query}"
+    try:
+        reply = _send(urllib.request.Request(url), REQUEST_TIMEOUT)
+    except FacebookError as err:
+        raise _comment_error(err) from None
+    for comment in reply.get("data") or []:
+        author = comment.get("from") or {}
+        if str(author.get("id")) == page.id and (comment.get("message") or "").strip() == message.strip():
+            return str(comment.get("id"))
+    return None
+
+
+def visitor_comments(page: Page, object_id: str) -> list[dict]:
+    """The newest 100 top-level comments under the reel that are not the Page's own: each `id`, `message`, `author`,
+    `created` (UTC), `hidden`, and `answered` when the Page replied under it. Needs `pages_read_user_content`."""
+    query = urllib.parse.urlencode(
+        {
+            "fields": "id,message,from{id,name},created_time,is_hidden,comments.limit(25){from{id}}",
+            "filter": "toplevel",
+            "order": "reverse_chronological",
+            "limit": "100",
+            "access_token": page.token,
+        }
+    )
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(object_id, safe='')}/comments?{query}"
+    try:
+        reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
+    except FacebookError as err:
+        if err.code in PERMISSION_ERRORS:
+            raise FacebookError(
+                "Token Facebook chưa có quyền đọc bình luận (pages_read_user_content), hãy dán token mới trong Kết nối "
+                "Fanpage",
+                err.detail,
+                err.status,
+                err.code,
+            ) from None
+        if err.status == 404 or err.code == 100:
+            raise FacebookError("Facebook không còn reel này", err.detail, err.status, err.code) from None
+        raise
+    found = []
+    for item in reply.get("data") or []:
+        author = item.get("from") or {}
+        if not isinstance(item, dict) or not item.get("id") or str(author.get("id")) == page.id:
+            continue
+        replies = (item.get("comments") or {}).get("data") or []
+        found.append(
+            {
+                "id": str(item["id"]),
+                "message": str(item.get("message") or ""),
+                "author": str(author.get("name") or ""),
+                "created": _time(item.get("created_time")),
+                "hidden": bool(item.get("is_hidden")),
+                "answered": any(str((one.get("from") or {}).get("id")) == page.id for one in replies),
+            }
+        )
+    return found
+
+
+def _time(value: object) -> datetime:
+    """Graph API's "2026-11-03T07:00:00+0000"; now when it is missing or unreadable."""
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%dT%H:%M:%S%z").astimezone(UTC)
+    except ValueError:
+        return datetime.now(UTC)
+
+
+def hide_comment(page: Page, comment_id: str) -> None:
+    body = urllib.parse.urlencode({"is_hidden": "true", "access_token": page.token}).encode()
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(comment_id, safe='')}"
+    try:
+        _send(urllib.request.Request(url, data=body, method="POST"), REQUEST_TIMEOUT)
+    except FacebookError as err:
+        raise _comment_error(err) from None
 
 
 def reel_status(page: Page, video_id: str) -> dict | None:

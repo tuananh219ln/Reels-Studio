@@ -10,6 +10,8 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
+from . import hashtags
+
 log = logging.getLogger(__name__)
 
 TOPIC_PLACEHOLDER = "[Chủ đề]"
@@ -52,7 +54,7 @@ Các trường:
     (tên món/nguyên liệu cụ thể của cảnh trước, nhóm chung sau).
   - "keywords_en": 2–4 từ khóa tiếng Anh tương ứng cho các kho ảnh phương Tây: dịch tên món/nguyên liệu
     sang tiếng Anh phổ thông, xếp từ cụ thể đến chung, không để tên riêng tiếng Việt.
-- "caption": caption theo yêu cầu trong prompt; không có yêu cầu thì viết ngắn gọn.
+- "caption": caption theo yêu cầu trong prompt; không có yêu cầu thì viết ngắn gọn; không ghi hashtag trong caption.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
 - "affiliates": 2 sản phẩm affiliate phù hợp, mỗi sản phẩm một chuỗi.
 - "pinned_comment": câu bình luận ghim.
@@ -223,13 +225,14 @@ def parse_output(raw: str) -> GeneratedScript:
     )
     if not scenes:
         raise ScriptOutputError("không có cảnh nội dung nào")
+    caption, caption_tags = hashtags.split_trailing(_text(data.get("caption")))
     return GeneratedScript(
         titles=titles,
         title_keywords=_keywords(data.get("title_keywords")),
         scenes=scenes,
         title_voice=_voice(data.get("title_voice")),
-        caption=_text(data.get("caption")),
-        hashtags=_strings(data.get("hashtags")),
+        caption=caption,
+        hashtags=hashtags.merge(_strings(data.get("hashtags")), caption_tags),
         affiliates=_strings(data.get("affiliates")),
         pinned_comment=_text(data.get("pinned_comment")),
         self_review=_strings(data.get("self_review")),

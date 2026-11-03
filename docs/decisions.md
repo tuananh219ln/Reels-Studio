@@ -11,6 +11,32 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — "Video thắng" is dropped from the app
+
+Owner's call, replacing the "Video thắng" part of the earlier 2026-11-03 entry ("Video thắng" is 10× the median of its
+own Page over 60 days). At 1–3 posts a day a 10× outlier is rare, so the tag, the "Chỉ video thắng" filter and the KPI
+card were almost always empty and gave no signal. Gone: the `is_winner` flag, the weekly `winners` count and the
+`winner_factor` rule in the api, and everything showing them. Kept: each Page's 60-day median at 48 hours, a post's
+multiple of it ("Gấp N× trung vị Page", from 5 measured posts), the share/view goal and the weekly KPIs. The team's
+winner rule and the planned "Winner variants" go from docs/content.md and docs/project.md too, on the same call; issue
+#44 (variants of a winner) needs a new trigger if it is picked up.
+
+## 2026-11-03 — "Bài đăng" hides cancelled and deleted posts by default
+
+Cancelled and deleted posts still stay on "Bài đăng" (2026-11-02): they are the only record of who took a post down
+and when, or that Facebook did, with the views read before. But day to day the team looks at live and scheduled posts,
+so the status filter now starts at "Đang hoạt động" (scheduled and published) and a line under the table counts what it
+hides, with "Xem" to show everything. Only the default view changes; no post is removed.
+
+## 2026-11-03 — "Bài đăng" is one table grouped by video, with no grid
+
+Replaces the "one card per post, grid or list" part of the earlier 2026-11-03 entry ("Bài đăng" looks like "Video"),
+on the owner's call. With a card per post, "Bài đăng" and "Video" looked the same, a video posted three times showed
+its title three times, and the list needed nine columns and a sideways scroll. Now each video is one row (thumbnail,
+title, how many posts on which Pages, their statuses, total views, latest time) that opens to its posts, each with its
+own Page, time, status, views and actions. The grid is dropped here only: posts are read as numbers, while "Video"
+keeps grid and list for working on videos. The api is unchanged; the grouping and filters still run in the browser.
+
 ## 2026-11-03 — The post metrics migration is 0024, not 0023
 
 The topic plan (#79) and post metrics (#84) branches each added a migration `0023` after `0022`, and both
@@ -32,6 +58,78 @@ wording "tốt cho" / "hỗ trợ", no promise to cure, and no word-for-word rep
 voice texts are rewritten that way and still open with the dish (2026-11-02 holds: the rule itself still does not
 require the dish name, since not every topic has dishes). It is code, not app data, so it applies to "Tạo kịch bản" and
 "Nhân bản" alike; existing videos keep their voice texts until their script is written again.
+## 2026-11-03 — "Kết nối Fanpage" is a card per Page; only a Page never posted to can be deleted
+
+Requested by a member (namtc07): some Pages are no longer used and cluttered the table. The screen now shows one card
+per Page in use, broken ones first, and folds stopped Pages away. "Xóa" removes a Page with its token and numbers, but
+only once it is stopped (so a slip cannot remove a Page in use) and only if it never had a post: "Bài đăng", the
+per-Page medians and who posted what point to its row, as users are disabled, never deleted (2026-10-31). A Page with
+posts stays stopped and folded away.
+
+## 2026-11-03 — "Bình luận" answers visitors as the Page; Page Insights are read at each check
+
+Requested by a member (namtc07) on issue #71, with the Page token's `pages_read_user_content`,
+`pages_manage_engagement` and `read_insights`.
+
+- **"Bình luận"** is a page under "Đăng bài" with the visitors' comments under the reels the app posted in the last 14
+  days, read by the worker every 30 minutes between jobs (not a job, as with the post numbers). Members answer as the
+  Page, hide spam, or set a comment aside. Replies are written by members only: no AI reply, since every Claude call
+  costs money and a wrong answer goes out under the Page's name; a suggestion a member approves can come later.
+  Comments on posts made outside the app are not read. Commenters' names and words are stored, as they are public on
+  the Page.
+- **Never sent twice**, by the same rule as reels and the affiliate comment: stamped before Facebook is asked, a
+  failure waits for a member, and a retried reply first looks for the Page's reply with the same text.
+- **Page Insights** (views, reach, engagements per day) are read with each token check, the last 7 days rewritten
+  since Facebook revises them, one metric per call so a retired one loses only its number. Meta retired
+  `page_impressions` on 15 November 2025; the names used (`page_media_view`, `page_total_media_view_unique`,
+  `page_post_engagements`) are from Meta's deprecation notes, tested only against the fake service, and
+  `facebook.PAGE_METRICS` is the one place to change. A day is Facebook's (Pacific time), not Vietnam's. A token
+  without `read_insights` is not a broken connection: the numbers say why they are missing.
+- **Not built from the same list:** photo and text posts (`pages_manage_posts`) wait, for the "unoriginal content"
+  risk above; editing the Page's details (`pages_manage_metadata`) is a one-off per Page; finding new Pages in Business
+  Manager (`business_management`) would mean keeping a user token, which the app does not (2026-10-31).
+
+## 2026-11-03 — The app writes the affiliate comment under a posted reel; products are chosen before posting
+
+Requested by a member (namtc07) on issue #71, with the Page token's `pages_manage_engagement`: the pinned comment and
+its Shopee links were copied and pasted by hand under every reel.
+
+- **What.** Once a reel is live, the worker writes the video's pinned comment followed by "name: link" for each
+  attached product that is approved and still meets the rules, as the Page. Pinning stays manual: Graph API cannot pin.
+- **Who decides.** "Đăng" has "Tự bình luận", on by default; posts made before this have it off and get a comment
+  only when a member presses "Bình luận ngay".
+- **Never two comments.** Like a reel (2026-10-31), the attempt is recorded before Facebook is asked, Facebook's
+  comment id is kept and a later change edits that comment. An attempt whose answer was lost is not retried by itself;
+  a member's retry first looks for the Page's comment with the same text (`pages_read_user_content`).
+- **Not a job**, as with the post numbers: the worker writes up to 3 due comments between jobs, 2 minutes after a
+  reel goes live; a request never calls Facebook, and a failed comment waits for a member, never looping.
+- **Products before posting.** This replaces "products attached to each posted reel": a video takes products at any
+  time, on its own page, so the first comment already holds their links. Changing them later edits the comments
+  already written. `/affiliate` still lists only posted videos.
+- Meta's docs name `/{object-id}/comments` for Page posts; that a reel's video id takes comments the same way is
+  tested only against the fake service, so a member should look at the first comment on a real Page.
+
+## 2026-11-03 — The worker checks each Page's token twice a day and keeps its followers
+
+Part of issue #71, agreed by a member (namtc07). The issue's weekly "Bộ nhiệm vụ" (a playbook of Facebook's Page
+tasks, counted and done by the app) is not built: Graph API does not give Facebook's task list, a tracker alone would
+copy the Professional Dashboard with a different percentage, and posting photo or text posts by itself risks
+"unoriginal content" with stock photos. What the team needs first, with more Pages, is to know when one breaks.
+
+- **What is checked.** The worker reads `GET /{page-id}?fields=name,followers_count` with the Page's token, 12 hours
+  after the last check, at once for a Page just connected or given a new token, and on "Kiểm tra ngay". A token that
+  no longer works (its maker changed their password or lost the Page) shows on "Kết nối Fanpage" with what to do, and
+  "Đăng" warns before posting to it. Only a dead or refused token is found this way: which permissions a Page token
+  has needs a user or app token the app does not keep, so a missing `read_insights` still shows on the post.
+- **Not a job**, for the reasons the post numbers are not one (below): the worker checks up to 3 due Pages between
+  jobs, a request never calls Facebook, and a failed check waits for the next one instead of looping.
+- **Followers** are kept once per day (Vietnam time) in `fanpage_followers` (migration 0025), so "Người theo dõi" shows
+  the gain since the last number before this week's Monday. The week runs Monday to Sunday like the KPIs on "Bài
+  đăng", not Sunday to Saturday like Facebook's weekly tasks: one kind of week in the app.
+- **The Page's name** follows Facebook: a Page renamed there is renamed in the app at its next check.
+- **No new menu yet.** The status lives on "Kết nối Fanpage"; a "Quản lý Page" menu waits until there is more than
+  this to show.
+
 ## 2026-11-03 — "Bài đăng" looks like "Video": thumbnails, grid or list, search by title
 
 Part 2 of issue #74. `/posts` shows one card per post with its video's title-scene thumbnail, so a

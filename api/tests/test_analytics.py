@@ -1,4 +1,6 @@
-"""The median views, the "Video thắng" flag and the weekly KPIs (analytics.py), from the posts' 48-hour numbers."""
+"""The median views, how far a post is from it and the weekly KPIs (analytics.py), from the posts' 48-hour numbers.
+
+There is no "Video thắng" flag: it was dropped on 2026-11-03 (docs/decisions.md)."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -62,39 +64,29 @@ def analysis_of(an, post: Publication) -> dict:
     return rows[post.id]["metrics"]["analysis"]
 
 
-def test_a_video_ten_times_its_pages_median_wins(an, db, me, storage, frozen):
+def test_a_post_is_measured_against_its_pages_median(an, db, me, storage, frozen):
     fanpage = page(db, me)
     for views in (900, 1000, 1000, 1100):
         marked(db, storage, me, fanpage, views)
-    winner = marked(db, storage, me, fanpage, 12000)
+    high = marked(db, storage, me, fanpage, 12000)
     usual = marked(db, storage, me, fanpage, 1000)
     assert analytics.medians(db)[fanpage] == analytics.Median(1000, 6)
-    assert analysis_of(an, winner) | {"share_rate": None} == {
+    assert analysis_of(an, high) | {"share_rate": None} == {
         "median_views": 1000,
         "samples": 6,
         "times_median": 12.0,
-        "is_winner": True,
         "share_rate": None,
     }
-    assert (analysis_of(an, usual)["is_winner"], analysis_of(an, usual)["times_median"]) == (False, 1.0)
+    assert analysis_of(an, usual)["times_median"] == 1.0
 
 
-def test_just_under_ten_times_does_not_win(db, me, storage, frozen):
-    fanpage = page(db, me)
-    for views in (100, 100, 100, 100, 100):
-        marked(db, storage, me, fanpage, views)
-    median = analytics.medians(db)[fanpage]
-    assert analytics.is_winner(999, median) is False
-    assert analytics.is_winner(1000, median) is True
-
-
-def test_under_five_measured_posts_no_one_wins(an, db, me, storage, frozen):
+def test_under_five_measured_posts_nothing_is_compared(an, db, me, storage, frozen):
     fanpage = page(db, me)
     for views in (100, 100, 100):
         marked(db, storage, me, fanpage, views)
     huge = marked(db, storage, me, fanpage, 1_000_000)
     analysis = analysis_of(an, huge)
-    assert (analysis["samples"], analysis["is_winner"], analysis["times_median"]) == (4, False, None)
+    assert (analysis["samples"], analysis["times_median"]) == (4, None)
     assert an.get("/api/posts/kpis").json()["enough_data"] is False
 
 
@@ -104,7 +96,7 @@ def test_each_page_is_compared_with_its_own_median(an, db, me, storage, frozen):
         marked(db, storage, me, big, 100_000)
         marked(db, storage, me, small, 1_000)
     star = marked(db, storage, me, small, 20_000)
-    assert analysis_of(an, star)["is_winner"] is True, "a winner on a small Page, though under the big Page's usual"
+    assert analysis_of(an, star)["times_median"] == 20.0, "20× its small Page, though under the big Page's usual"
     assert analytics.medians(db)[big].views == 100_000
 
 
@@ -145,7 +137,6 @@ def test_a_post_not_measured_at_48_hours_yet_shows_its_pages_median_only(an, db,
         "median_views": 300,
         "samples": 5,
         "times_median": None,
-        "is_winner": False,
         "share_rate": None,
     }
 
@@ -171,14 +162,13 @@ def test_the_kpis_of_this_week_and_last(an, db, me, storage, frozen):
     for views in (1000, 1000, 1000, 1000):
         marked(db, storage, me, fanpage, views, shares=1, live=sunday)  # 0.1 %: under the goal
     marked(db, storage, me, fanpage, 1000, shares=3, live=monday)  # 0.3 %
-    marked(db, storage, me, fanpage, 15000, shares=60, live=monday)  # 0.4 %, a winner
+    marked(db, storage, me, fanpage, 15000, shares=60, live=monday)  # 0.4 %
     marked(db, storage, me, fanpage, 2000, shares=None, live=monday)  # no share number: not rated
     kpis = an.get("/api/posts/kpis").json()
     assert kpis["this_week"] == {
         "start": "2026-11-02",
         "measured": 3,
         "median_views": 2000,
-        "winners": 1,
         "share_goal_met": 2,
         "share_goal_rate": 1.0,
     }
@@ -186,11 +176,10 @@ def test_the_kpis_of_this_week_and_last(an, db, me, storage, frozen):
         "start": "2026-10-26",
         "measured": 4,
         "median_views": 1000,
-        "winners": 0,
         "share_goal_met": 0,
         "share_goal_rate": 0.0,
     }
-    assert kpis["rules"] == {"median_days": 60, "min_samples": 5, "winner_factor": 10, "share_goal": 0.002}
+    assert kpis["rules"] == {"median_days": 60, "min_samples": 5, "share_goal": 0.002}
     assert kpis["enough_data"] is True
 
 
@@ -200,7 +189,6 @@ def test_an_empty_week_has_no_median(an, frozen):
         "start": "2026-11-02",
         "measured": 0,
         "median_views": None,
-        "winners": 0,
         "share_goal_met": 0,
         "share_goal_rate": None,
     }
@@ -214,6 +202,7 @@ def test_the_video_page_shows_the_same_analysis(an, db, me, storage, frozen):
     fanpage = page(db, me)
     for _ in range(5):
         marked(db, storage, me, fanpage, 100)
-    winner = marked(db, storage, me, fanpage, 5000)
-    (post,) = an.get(f"/api/videos/{winner.video_id}").json()["publications"]
-    assert post["metrics"]["analysis"]["is_winner"] is True
+    high = marked(db, storage, me, fanpage, 5000)
+    (post,) = an.get(f"/api/videos/{high.video_id}").json()["publications"]
+    assert post["metrics"]["analysis"] == analysis_of(an, high)
+    assert post["metrics"]["analysis"]["times_median"] == 50.0

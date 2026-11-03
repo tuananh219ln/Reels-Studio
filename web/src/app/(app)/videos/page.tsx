@@ -26,6 +26,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import VideoThumbnail from "@/components/VideoThumbnail";
+import VideoTitleCell from "@/components/VideoTitleCell";
 import {
   api,
   errorMessage,
@@ -257,21 +258,12 @@ function VideoTable({ rows }: { rows: VideoRow[] }) {
             title: "Video",
             key: "video",
             render: (_, row) => (
-              <Flex align="center" gap={12}>
-                <VideoThumbnail name={row.title || row.topic} url={row.thumbnail_url} width={36} />
-                <Flex vertical style={{ minWidth: 0 }}>
-                  <Link prefetch={false} href={`/videos/${row.id}`} onClick={(event) => event.stopPropagation()}>
-                    <Typography.Text strong ellipsis style={{ maxWidth: 520 }}>
-                      {row.title || row.topic}
-                    </Typography.Text>
-                  </Link>
-                  {row.title && (
-                    <Typography.Text type="secondary" ellipsis style={{ maxWidth: 520, fontSize: 12 }}>
-                      Chủ đề: {row.topic}
-                    </Typography.Text>
-                  )}
-                </Flex>
-              </Flex>
+              <VideoTitleCell
+                id={row.id}
+                title={row.title || row.topic}
+                thumbnailUrl={row.thumbnail_url}
+                sub={row.title && `Chủ đề: ${row.topic}`}
+              />
             ),
           },
           { title: "Trạng thái", key: "status", width: 260, render: (_, row) => <VideoStatusTags video={row} /> },

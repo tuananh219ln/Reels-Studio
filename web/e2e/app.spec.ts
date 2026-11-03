@@ -1,7 +1,17 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Browser } from "@playwright/test";
-import { SEED, addUser, chooseOption, login, loginAsSeed, openAccountMenu, resetDatabase, row } from "./helpers";
+import {
+  SEED,
+  addUser,
+  chooseOption,
+  connectFacebook,
+  login,
+  loginAsSeed,
+  openAccountMenu,
+  resetDatabase,
+  row,
+} from "./helpers";
 
 test.beforeEach(() => resetDatabase());
 
@@ -122,6 +132,47 @@ test("Kết nối Fanpage opens from inside the Cài đặt menu group", async (
   await fanpages.click();
   await expect(page).toHaveURL(/\/fanpages$/);
   await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toBeVisible();
+});
+
+test("the worker checks a connected Page's token and shows its followers", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  const card = page.getByTestId("fanpage-card");
+  // The worker checks a newly connected Page within seconds; the page asks again until it has.
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(card.getByText("1.200", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Kiểm tra ngay" }).click();
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await card.getByRole("button", { name: "30 ngày" }).click();
+  await expect(page.getByRole("dialog", { name: /Số liệu 30 ngày/ })).toBeVisible();
+});
+
+test("a Page stopped and never posted to can be deleted", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  await page.getByRole("button", { name: "Thao tác với Trang Dưỡng Sinh" }).click();
+  await page.getByRole("menuitem", { name: "Ngừng dùng" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Ngừng dùng" }).click();
+  await expect(page.getByText("Không có Fanpage nào đang dùng")).toBeVisible();
+  await page.getByText("Đã ngừng dùng (1)").click();
+  const stopped = page.getByTestId("stopped-fanpage");
+  await expect(stopped.getByText(/chưa đăng bài nào/)).toBeVisible();
+  await stopped.getByRole("button", { name: "Xóa" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Xóa" }).click();
+  await expect(page.getByText("Chưa kết nối Fanpage nào")).toBeVisible();
+});
+
+test("Bình luận opens from the Đăng bài menu and starts empty", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Bình luận" }).click();
+  await expect(page).toHaveURL(/\/comments$/);
+  await expect(page.getByText("Không còn bình luận nào chờ trả lời")).toBeVisible();
+  await page.getByText("Tất cả", { exact: true }).click();
+  await expect(page.getByText("Chưa có bình luận nào")).toBeVisible();
+  await page.getByRole("button", { name: "Tải bình luận mới" }).click();
+  await expect(page.getByText("Đã nhờ worker tải bình luận mới", { exact: false })).toBeVisible();
 });
 
 test("Cấu hình holds the defaults, AI model and sources as tabs, each with its own address", async ({ page }) => {
