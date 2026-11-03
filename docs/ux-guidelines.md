@@ -151,17 +151,22 @@ Built:
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red. Pointing at a picture
-    (always on a touch screen) shows quick actions over a dark gradient: "Chỉnh khung" for a photo
-    or "Cắt video" for a clip, "Vị trí chữ", "Thay" (opens the file chooser) and, for a clip, a
-    delete icon ("Xoá video", confirmed). Under the picture one row: a slim dashed area, "Tải lên",
-    beside two icon buttons, "Dán ảnh/link" and "Tìm trên Google". The dashed area takes a photo
+    (always on a touch screen) dims it and stacks its tools in its middle, all the same width: "Xem"
+    (the only tool in view mode: a centred dialog with the scene large in its 9:16 frame, the photo
+    as the render crops it or the clip looping the part the scene plays, muted, at its speed, and
+    the exact text box where the render puts it, with a "Chữ trên màn hình" switch to hide it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Vị trí chữ" and, for a
+    clip, "Xoá video" (confirmed). Under the picture one row: a slim
+    dashed area, "Tải lên", beside three icon buttons, "Dán ảnh/link", "Tìm trên Google" and "Tìm
+    trên TikTok". The dashed area takes a photo
     (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM, 50 MB) dropped on it or chosen, and a photo
     dragged straight from another tab (its address is read from the drop); a photo in place of a
     clip, or a clip in place of a photo, asks first ("Đổi" / "Huỷ"). "Dán ảnh/link" reads a copied
-    photo or a photo's link from the clipboard, or opens a box to paste into when the browser does
-    not allow it; Cmd/ Ctrl+V anywhere in the picture column outside a text field does the same;
-    "Tìm trên Google" opens Google Ảnh in a new tab on the scene's first keyword, tall photos only,
-    to copy one and paste it back. Then "Chọn từ kho ảnh/video", "Tìm ảnh" with its source arrow,
+    photo or a link from the clipboard, or opens a box to paste into ("Dán ảnh hoặc video cho …",
+    "Lấy về") when the browser does not allow it; Cmd/ Ctrl+V anywhere in the picture column outside
+    a text field does the same. A link may be a photo's, a video file's or a TikTok video's; a video
+    longer than 60 s keeps its first 60 s. "Tìm trên Google" opens Google Ảnh in a new tab on the
+    scene's first keyword, tall photos only, and "Tìm trên TikTok" TikTok's video search on the same
+    keyword, to copy a photo or a video's link and paste it back. Then "Chọn từ kho ảnh/video", "Tìm ảnh" with its source arrow,
     then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the photo is already an AI one): an image job for this
     scene only, from its saved prompt, that replaces the scene's photo or clip, asking first when
     there is one; while it runs the button reads "Đang tạo ảnh AI…" and the job bar says "Tạo ảnh AI
@@ -176,8 +181,11 @@ Built:
     player. The MP4's own mute button moves it too. The browser's free voice takes a new level from
     its next scene. The plain audio players (narration of a scene, music, the music library) keep
     the browser's own volume control.
+  - "Chỉnh khung" and "Cắt video" open in the middle of the screen, the picture on the left and its
+    controls in labelled groups beside it (under it on a phone), so "Áp dụng" needs no scrolling; the
+    other picture dialogs (Vị trí chữ, the paste box, Chọn từ kho) are centred too.
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
-    (1–4×), "Xoay 90°" and "Lật ngang"; dragging moves the photo under the frame. "Áp dụng" cuts
+    (1–4×), "Xoay 90°", "Lật ngang" and "Đặt lại"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
     where it came from (Pixabay, an AI model…); a crop narrower than 1080 px warns that the photo
     will look soft. Cropping again starts from the cropped photo: picking the photo again is the

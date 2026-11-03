@@ -6,6 +6,7 @@ import {
   DeleteOutlined,
   DownOutlined,
   DragOutlined,
+  EyeOutlined,
   GoogleOutlined,
   InboxOutlined,
   PictureOutlined,
@@ -15,7 +16,7 @@ import {
   ScissorOutlined,
   SearchOutlined,
   SnippetsOutlined,
-  SwapOutlined,
+  TikTokOutlined,
 } from "@ant-design/icons";
 import {
   App,
@@ -37,10 +38,19 @@ import {
 } from "antd";
 import { cloneElement, useEffect, useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type StockSource, type VideoDetail } from "@/lib/api";
-import { fileFromDataUrl, googleImagesUrl, linkFromTransfer, looksLikeImageLink, unwrapLink } from "@/lib/imageLinks";
+import {
+  fileFromDataUrl,
+  googleImagesUrl,
+  linkFromTransfer,
+  looksLikeClipLink,
+  looksLikeLink,
+  tiktokSearchUrl,
+  unwrapLink,
+} from "@/lib/mediaLinks";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
+import SceneViewer from "./SceneViewer";
 import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
 import VoiceText from "./VoiceText";
@@ -356,6 +366,7 @@ function ScenePicture({
   const [picking, setPicking] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [framing, setFraming] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [pastedLink, setPastedLink] = useState("");
@@ -433,20 +444,24 @@ function ScenePicture({
     });
   }
 
-  /** A photo's link, pasted or dragged from another tab: a data: photo is uploaded, any other link the api fetches. */
+  /**
+   * A link pasted or dragged from another tab: a data: photo is uploaded, any other link (a photo, a video file, a
+   * TikTok video) the api fetches.
+   */
   async function fromLink(text: string) {
     const link = unwrapLink(text.trim());
     if (/^data:image\//i.test(link)) {
       chosen(await fileFromDataUrl(link));
       return;
     }
-    const send = () => run("link", () => api<VideoDetail>(`/scenes/${scene.id}/image-from-url`, "POST", { url: link }));
-    if (scene.video === null) {
+    const send = () => run("link", () => api<VideoDetail>(`/scenes/${scene.id}/media-from-url`, "POST", { url: link }));
+    const clip = looksLikeClipLink(link);
+    if (clip ? !scene.has_image : scene.video === null) {
       void send();
       return;
     }
     modal.confirm({
-      title: "Ảnh sẽ thay video của cảnh này?",
+      title: clip ? "Video sẽ thay ảnh của cảnh này?" : "Ảnh sẽ thay video của cảnh này?",
       okText: "Đổi",
       cancelText: "Huỷ",
       onOk: () => void send(),
@@ -461,11 +476,17 @@ function ScenePicture({
       return true;
     }
     const text = data.getData("text/plain").trim();
-    if (looksLikeImageLink(text)) {
+    if (looksLikeLink(text)) {
       void fromLink(text);
       return true;
     }
     return false;
+  }
+
+  /** "Tìm trên Google" / "Tìm trên TikTok": the keyword being typed is saved first, then the site opens in a tab. */
+  async function search(url: (keyword: string) => string) {
+    await editor.flush();
+    window.open(url(searchKeyword), "_blank", "noopener");
   }
 
   /** "Dán ảnh/link": the clipboard read directly when the browser allows it, otherwise a box to paste into. */
@@ -480,7 +501,7 @@ function ScenePicture({
         }
         if (item.types.includes("text/plain")) {
           const text = (await (await item.getType("text/plain")).text()).trim();
-          if (looksLikeImageLink(text)) {
+          if (looksLikeLink(text)) {
             void fromLink(text);
             return;
           }
@@ -509,7 +530,7 @@ function ScenePicture({
   const which = scene.is_title ? "cảnh tiêu đề" : "cảnh";
   const canPlace = !!scene.preview_url && !reason && !!scene.textbox_url && !!scene.frame_url;
   const uploading = busy === "upload" || busy === "video" || busy === "link";
-  const googleKeyword = scene.keywords[0] ?? scene.keywords_en[0] ?? "";
+  const searchKeyword = scene.keywords[0] ?? scene.keywords_en[0] ?? "";
   const replaceQuestion = scene.video
     ? "Ảnh AI sẽ thay video của cảnh này?"
     : scene.image_ai
@@ -531,7 +552,7 @@ function ScenePicture({
         }
       }}
     >
-      <div className="scene-media" style={{ position: "relative" }}>
+      <div className="scene-media">
         {scene.preview_url && !reason ? (
           // A plain <img>: the preview is drawn by the api with the renderer's own code.
           // eslint-disable-next-line @next/next/no-img-element
@@ -558,66 +579,65 @@ function ScenePicture({
             <Typography.Text type="danger">{reason ?? scene.image_error ?? "Chưa có ảnh"}</Typography.Text>
           </Flex>
         )}
-        {/* Quick actions over the picture, shown on hover (always on touch screens); none in view mode. */}
-        {hasPicture && !editor.readOnly && (
-          <Flex vertical gap={6} className="scene-media__overlay" data-testid="scene-media-actions">
-            <Button
-              size="small"
-              icon={<ScissorOutlined />}
-              disabled={off}
-              onClick={async () => {
-                // The trim starts from the saved seconds and start: the one being typed is saved first.
-                await editor.flush();
-                setFraming(true);
-              }}
-            >
-              {scene.video ? "Cắt video" : "Chỉnh khung"}
+        {/* Over the picture on hover (always on touch screens), stacked in its middle: look at the scene large
+            ("Xem"), then edit it; only the look in view mode. */}
+        {hasPicture && (
+          <div className="scene-media__overlay" data-testid="scene-media-actions">
+            <Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(true)}>
+              Xem
             </Button>
-            {canPlace && (
-              <Button
-                size="small"
-                icon={<DragOutlined />}
-                disabled={off}
-                onClick={async () => {
-                  // The box is drawn from the saved text: the text being typed is saved first.
-                  await editor.flush();
-                  setPlacing(true);
-                }}
-              >
-                {scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
-              </Button>
-            )}
-            <Flex gap={6}>
-              <Button
-                size="small"
-                icon={<SwapOutlined />}
-                disabled={off}
-                style={{ flex: 1 }}
-                onClick={() => input.current?.click()}
-              >
-                Thay
-              </Button>
-              {scene.video && (
-                <Popconfirm
-                  title="Xoá video của cảnh này?"
-                  okText="Xoá"
-                  cancelText="Huỷ"
-                  okButtonProps={{ danger: true }}
+            {!editor.readOnly && (
+              <>
+                <Button
+                  size="small"
+                  icon={<ScissorOutlined />}
                   disabled={off}
-                  onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
+                  onClick={async () => {
+                    // The trim starts from the saved seconds and start: the one being typed is saved first.
+                    await editor.flush();
+                    setFraming(true);
+                  }}
                 >
+                  {scene.video ? "Cắt video" : "Chỉnh khung"}
+                </Button>
+                {canPlace && (
                   <Button
                     size="small"
-                    danger
-                    aria-label="Xoá video"
-                    icon={<DeleteOutlined />}
-                    loading={busy === "remove"}
+                    icon={<DragOutlined />}
                     disabled={off}
-                  />
-                </Popconfirm>
-              )}
-            </Flex>
-          </Flex>
+                    onClick={async () => {
+                      // The box is drawn from the saved text: the text being typed is saved first.
+                      await editor.flush();
+                      setPlacing(true);
+                    }}
+                  >
+                    {scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
+                  </Button>
+                )}
+                {scene.video && (
+                  <Popconfirm
+                    title="Xoá video của cảnh này?"
+                    okText="Xoá"
+                    cancelText="Huỷ"
+                    okButtonProps={{ danger: true }}
+                    disabled={off}
+                    onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
+                  >
+                    <Button
+                      size="small"
+                      danger
+                      aria-label="Xoá video"
+                      icon={<DeleteOutlined />}
+                      loading={busy === "remove"}
+                      disabled={off}
+                    >
+                      Xoá video
+                    </Button>
+                  </Popconfirm>
+                )}
+              </>
+            )}
+          </div>
         )}
       </div>
       {scene.image_auto && (
@@ -724,7 +744,7 @@ function ScenePicture({
                 {uploading ? "Đang tải lên…" : "Tải lên"}
               </Typography.Text>
             </Flex>
-            <Tooltip title="Dán ảnh/link đã sao chép">
+            <Tooltip title="Dán ảnh, link ảnh, link video hoặc link TikTok đã sao chép">
               <Button
                 aria-label="Dán ảnh/link"
                 icon={<SnippetsOutlined />}
@@ -732,16 +752,20 @@ function ScenePicture({
                 onClick={() => void pasteFromClipboard()}
               />
             </Tooltip>
-            <Tooltip title="Tìm trên Google: mở Google Ảnh với từ khóa của cảnh; sao chép ảnh ưng ý rồi quay lại dán vào đây">
+            <Tooltip title="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa của cảnh; sao chép ảnh ưng ý rồi quay lại dán vào đây">
               <Button
                 aria-label="Tìm trên Google"
                 icon={<GoogleOutlined />}
                 disabled={off}
-                onClick={async () => {
-                  // The keyword being typed is saved first, like the other searches.
-                  await editor.flush();
-                  window.open(googleImagesUrl(googleKeyword), "_blank", "noopener");
-                }}
+                onClick={() => void search(googleImagesUrl)}
+              />
+            </Tooltip>
+            <Tooltip title="Tìm trên TikTok: mở video TikTok với từ khóa của cảnh; sao chép link video ưng ý rồi quay lại dán vào đây">
+              <Button
+                aria-label="Tìm trên TikTok"
+                icon={<TikTokOutlined />}
+                disabled={off}
+                onClick={() => void search(tiktokSearchUrl)}
               />
             </Tooltip>
           </Flex>
@@ -843,10 +867,11 @@ function ScenePicture({
       {pasting && (
         <Modal
           open
-          title={`Dán ảnh cho ${which}`}
-          okText="Lấy ảnh"
+          centered
+          title={`Dán ảnh hoặc video cho ${which}`}
+          okText="Lấy về"
           cancelText="Huỷ"
-          okButtonProps={{ disabled: !looksLikeImageLink(pastedLink.trim()) }}
+          okButtonProps={{ disabled: !looksLikeLink(pastedLink.trim()) }}
           onCancel={() => setPasting(false)}
           onOk={() => {
             setPasting(false);
@@ -854,12 +879,13 @@ function ScenePicture({
           }}
         >
           <Typography.Paragraph type="secondary">
-            Nhấn Cmd/Ctrl+V để dán ảnh đã sao chép (chuột phải vào ảnh, chọn “Sao chép hình ảnh”), hoặc dán link ảnh.
+            Nhấn Cmd/Ctrl+V để dán ảnh đã sao chép (chuột phải vào ảnh, chọn “Sao chép hình ảnh”), hoặc dán link ảnh,
+            link video (MP4, MOV, WebM) hay link video TikTok. Video dài hơn 60 giây chỉ lấy 60 giây đầu.
           </Typography.Paragraph>
           <Input
             autoFocus
-            aria-label="Link ảnh"
-            placeholder="https://… (chuột phải vào ảnh, chọn “Sao chép địa chỉ hình ảnh”)"
+            aria-label="Link ảnh hoặc video"
+            placeholder="https://… (link ảnh, link video hoặc link TikTok)"
             value={pastedLink}
             onChange={(event) => setPastedLink(event.target.value)}
             onPaste={(event) => {
@@ -873,6 +899,7 @@ function ScenePicture({
           />
         </Modal>
       )}
+      {viewing && <SceneViewer scene={scene} onClose={() => setViewing(false)} />}
       {placing && <TextPositionModal scene={scene} onClose={() => setPlacing(false)} onSaved={editor.onSaved} />}
       {framing && <MediaEditor scene={scene} voiceEnabled={voiceEnabled} onClose={() => setFraming(false)} />}
       {picking && (

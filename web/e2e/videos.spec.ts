@@ -853,20 +853,28 @@ test("photos from other sites: paste a photo or its link, drag one from another 
   expect(google.searchParams.get("udm")).toBe("2");
   expect(google.searchParams.get("tbs")).toBe("iar:t");
 
+  // "Tìm trên TikTok" opens TikTok's video search on the same keyword.
+  await page.context().route("https://www.tiktok.com/**", (route) => route.fulfill({ body: "TikTok" }));
+  const tiktokOpened = page.waitForEvent("popup");
+  await scenes.nth(0).getByRole("button", { name: "Tìm trên TikTok" }).click();
+  const tiktok = new URL((await tiktokOpened).url());
+  expect(tiktok.pathname).toBe("/search/video");
+  expect(tiktok.searchParams.get("q")).toBe(google.searchParams.get("q"));
+
   // "Dán ảnh/link" without clipboard permission opens a box; a copied thumbnail's data: address is uploaded.
   await scenes.nth(0).getByRole("button", { name: "Dán ảnh/link" }).click();
-  let paste = page.getByRole("dialog", { name: /Dán ảnh cho/ });
+  let paste = page.getByRole("dialog", { name: /Dán ảnh hoặc video cho/ });
   await paste.getByLabel("Link ảnh").fill(PNG_DATA_URL);
   const uploaded = page.waitForRequest((request) => request.method() === "POST" && /\/image$/.test(request.url()));
-  await paste.getByRole("button", { name: "Lấy ảnh" }).click();
+  await paste.getByRole("button", { name: "Lấy về" }).click();
   await uploaded;
   await expect(scenes.nth(0).getByTestId("scene-preview")).toBeVisible();
 
   // A link is fetched by the api, which only reaches the public internet: this machine's address is refused.
   await scenes.nth(1).getByRole("button", { name: "Dán ảnh/link" }).click();
-  paste = page.getByRole("dialog", { name: /Dán ảnh cho/ });
+  paste = page.getByRole("dialog", { name: /Dán ảnh hoặc video cho/ });
   await paste.getByLabel("Link ảnh").fill("http://127.0.0.1:9/anh.jpg");
-  await paste.getByRole("button", { name: "Lấy ảnh" }).click();
+  await paste.getByRole("button", { name: "Lấy về" }).click();
   await expect(scenes.nth(1).getByTestId("image-error")).toContainText("địa chỉ nội bộ");
 
   // A photo dragged from another tab arrives as its <img>, not as a file.

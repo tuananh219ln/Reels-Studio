@@ -25,7 +25,7 @@ from . import (
     knowledge,
     llm,
     plans,
-    remote_images,
+    remote_media,
     source_keys,
     stock_clips,
     video_options,
@@ -868,29 +868,39 @@ def upload_scene_image(
     return _store_photo(db, storage, scene_id, data, extension, "upload")
 
 
-class ImageLinkBody(BaseModel):
+class MediaLinkBody(BaseModel):
     url: str
 
 
-@router.post("/scenes/{scene_id}/image-from-url")
-def image_from_url(
+@router.post("/scenes/{scene_id}/media-from-url")
+def media_from_url(
     scene_id: int,
-    body: ImageLinkBody,
+    body: MediaLinkBody,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    """A photo pasted as a link or dragged from another tab (Google Ảnh, a shop, a news site): downloaded here and
-    stored like an upload, its link kept as the source so a copyright claim can be traced back."""
+    """A photo or clip pasted as a link or dragged from another tab (Google Ảnh, a shop, a video file, a TikTok
+    video): downloaded here and stored like an upload. A photo keeps its link as the source so a copyright claim can
+    be traced back; a clip longer than a minute keeps its first minute."""
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
-    # No row lock may be held while the other site answers; _store_photo locks and re-checks everything.
+    # No row lock may be held while the other site answers; the saves lock and re-check everything.
     db.rollback()
-    try:
-        data, extension = remote_images.download(body.url)
-    except remote_images.RemoteImageError as err:
-        raise invalid(str(err)) from None
-    return _store_photo(db, storage, scene_id, data, extension, body.url.strip())
+    with tempfile.TemporaryDirectory(prefix="reels_link_") as folder:
+        try:
+            media = remote_media.download(body.url, Path(folder))
+        except remote_media.RemoteMediaError as err:
+            raise invalid(str(err)) from None
+        if media.photo is not None:
+            data, extension = media.photo
+            return _store_photo(db, storage, scene_id, data, extension, body.url.strip())
+        assert media.clip is not None
+        try:
+            clip = clips.first_part(media.clip, Path(folder))
+        except UploadRejected as err:
+            raise ApiError(415, "invalid_video", str(err)) from None
+        return _attach_clip(db, storage, scene_id, clip)
 
 
 @router.post("/scenes/{scene_id}/image/crop")

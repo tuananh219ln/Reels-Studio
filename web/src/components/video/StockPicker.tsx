@@ -226,7 +226,16 @@ export default function StockPicker({
   const clipSources = (sources ?? []).filter((item) => item.clips);
 
   return (
-    <Modal title="Chọn từ kho ảnh/video" open onCancel={onClose} footer={null} width={880}>
+    <Modal
+      title="Chọn từ kho ảnh/video"
+      open
+      centered
+      onCancel={onClose}
+      footer={null}
+      width={880}
+      // In the middle of the screen, the grid scrolling inside it rather than the page.
+      styles={{ body: { maxHeight: "calc(100vh - 140px)", overflowY: "auto", overflowX: "hidden" } }}
+    >
       {clipSources.length > 0 && (
         <Segmented
           aria-label="Loại tư liệu"

@@ -11,6 +11,33 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — Clips from a pasted link, TikTok included; picture tools under the picture
+
+Owner's request: taking a photo from Google by its link worked well, and should work for videos and TikTok too.
+Google and TikTok are still not stock sources in "Chọn từ kho ảnh/video" (the owner dropped that idea; the
+2026-11-02 reasons stand: no usable API, scraping breaks their terms). Instead:
+
+- **One link endpoint for photos and clips.** `POST /scenes/{id}/media-from-url` replaces `image-from-url`
+  (`remote_images.py` is now [remote_media.py](../api/src/reels_api/remote_media.py)) and takes a photo's link, a
+  video file's link (MP4, MOV, WebM) or a TikTok video's link; what was downloaded decides whether it is a photo or
+  a clip. Same public-internet-only rules; the download may be a clip's 50 MB and take up to 60 s, still inside the
+  request (like the photo link, not a job: the member waits for it on the scene).
+- **TikTok through yt-dlp.** A link on `tiktok.com` (any subdomain, short `vt.`/`vm.` links included) is handed to
+  [yt-dlp](https://github.com/yt-dlp/yt-dlp), which reads the page and fetches the video from TikTok, the largest
+  size offered, H.264 before HEVC. Photo posts, profiles and other lists are refused. The owner accepts the risk of
+  reusing other people's TikTok videos (copyright, "unoriginal content" on Facebook and YouTube): the member who
+  pastes the link chooses the video and is responsible for it, as for an upload. A clip's link is not stored (the
+  scene has no column for a clip's source).
+- **A linked clip over 60 s keeps its first minute** (cut without re-encoding), since TikTok videos often run longer
+  than a scene's clip may be; an uploaded file still has to be 60 s at most.
+- **"Tìm trên TikTok"** beside "Tìm trên Google" opens TikTok's video search on the scene's first keyword, to copy a
+  video's link and paste it back; Google Ảnh still opens on tall photos.
+- **Picture tools in the picture's middle.** On hover, "Xem" (new: the scene large in its 9:16 frame, photo or
+  clip, with its text switchable on and off), "Chỉnh khung"/"Cắt video", "Vị trí chữ" and "Xoá video" are stacked in the middle of the scene's picture
+  instead of along its bottom edge; "Thay" is gone ("Tải lên" does the same). The crop, trim, text
+  position, paste and stock dialogs open in the middle of the screen; crop and trim put the picture on the left and
+  their controls beside it, so "Áp dụng" is reached without scrolling.
+
 ## 2026-11-03 — Pexels is the default stock library; team defaults are edited, then saved
 
 Owner's request. Pexels comes first everywhere a stock photo is looked for: the picker opens on it,
