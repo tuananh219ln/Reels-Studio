@@ -155,6 +155,11 @@ class FakeServices:
         self.facebook_status_fails = 0  # that many status reads answer 400, as a rate limit may
         self.facebook_delete_refusals = 0  # that many deletes are refused: 403 and the reel stays
         self.facebook_cover_refusals = 0  # that many covers are refused: 400 and the reel keeps its own
+        # A reel's numbers by video_id: views, shares, comments, reactions; a missing one is left out of the answer.
+        self.facebook_insights: dict[str, dict[str, int]] = {}
+        self.facebook_insights_calls = 0
+        self.facebook_insights_refused = False  # the token lacks read_insights: 403, code 200
+        self.facebook_insights_gone: set[str] = set()  # reels Facebook no longer has
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -611,6 +616,36 @@ class FakeServices:
             return 400, {"error": {"message": "(#100) Tried accessing nonexisting field (accounts)", "code": 100}}
         return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
 
+    def _reel_insights(self, video_id: str, query: dict) -> tuple[int, dict]:
+        """Video Insights in the shape Meta documents: one entry per metric, its lifetime value in `values`."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        with self.lock:
+            self.facebook_insights_calls += 1
+            if self.facebook_insights_refused:
+                return 403, {"error": {"message": "(#200) Requires read_insights permission", "code": 200}}
+            if video_id in self.facebook_insights_gone or self.reels.get(video_id, {}).get("lost"):
+                return 400, {"error": {"message": "Unsupported get request", "code": 100, "error_subcode": 33}}
+            numbers = self.facebook_insights.get(video_id, {"views": 1200, "shares": 3, "comments": 5, "reactions": 40})
+
+        def metric(name: str, value: object) -> dict:
+            return {
+                "name": name,
+                "period": "lifetime",
+                "values": [{"value": value}],
+                "id": f"{video_id}/insights/{name}",
+            }
+
+        data = []
+        if "views" in numbers:
+            data.append(metric("fb_reels_total_plays", numbers["views"]))
+        social = {key.upper(): numbers[key + "s"] for key in ("share", "comment") if key + "s" in numbers}
+        if social:
+            data.append(metric("post_video_social_actions", social))
+        if "reactions" in numbers:
+            data.append(metric("post_video_likes_by_reaction_type", {"REACTION_LIKE": numbers["reactions"]}))
+        return 200, {"data": data}
+
     def _reel_status(self, video_id: str, query: dict) -> tuple[int, dict]:
         if query.get("access_token") != FACEBOOK_TOKEN:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
@@ -752,6 +787,8 @@ class FakeServices:
                     target = parts.path.removeprefix("/facebook/")
                     if target in ("me", "me/accounts"):
                         self._send(*fake._me(target, query))
+                    elif target.endswith("/video_insights"):
+                        self._send(*fake._reel_insights(target.removesuffix("/video_insights"), query))
                     else:
                         self._send(*fake._reel_status(target, query))
                 elif parts.path == "/api/videos/":
