@@ -8,7 +8,7 @@ import { api, errorMessage, formatDateTime, type Post, type VideoDetail } from "
 import { POST_STATUS } from "@/lib/postStatus";
 import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
-import PostMetrics from "@/components/PostMetrics";
+import PostMetrics, { WinnerTag } from "@/components/PostMetrics";
 
 // TikTok and YouTube need their own app review first (docs/project.md), so they are shown but cannot be picked yet.
 const PLATFORMS = [
@@ -143,6 +143,7 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
           <Flex key={post.id} justify="space-between" align="center" gap={8} wrap data-testid="video-post">
             <div style={{ minWidth: 0 }}>
               <Tag color={POST_STATUS[post.status].color}>{POST_STATUS[post.status].label}</Tag>
+              <WinnerTag post={post} />{" "}
               <Typography.Text data-testid={index === 0 ? "publication-status" : undefined}>
                 {statusText(post)}
               </Typography.Text>{" "}

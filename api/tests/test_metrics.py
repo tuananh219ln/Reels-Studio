@@ -237,7 +237,9 @@ def test_the_list_shows_each_posts_numbers_and_when_they_were_read(an, db, me, s
     assert (latest["views"], latest["shares"], latest["comments"], latest["reactions"]) == (1200, 3, 5, 40)
     assert datetime.fromisoformat(latest["measured_at"]) == post.metrics_tried_at
     assert rows[post.id]["at_48h"] is None
-    assert rows[unread.id] == {"latest": None, "at_48h": None, "error": None, "pending": False}
+    unread_metrics = rows[unread.id]
+    assert (unread_metrics["latest"], unread_metrics["at_48h"], unread_metrics["error"]) == (None, None, None)
+    assert unread_metrics["pending"] is False
 
 
 def test_asking_for_new_numbers_only_marks_the_post(an, db, me, storage, fakes):

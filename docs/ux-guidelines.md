@@ -224,7 +224,7 @@ Built:
     the scheduled time or "Xem Reel", who cancelled or deleted it and when ("trên Facebook" when a check
     found it so), with "Kiểm tra" for a post on Facebook (reads it again after a change in Meta Business
     Suite), "Hủy đăng" for a post not yet public and "Xóa" for a public one, each with a confirmation,
-    and a public post's numbers as on "Bài đăng" (without "Cập nhật view");
+    and a public post's numbers and "Video thắng" tag as on "Bài đăng" (without "Cập nhật view");
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): one collapsible line per topic group ("Nhóm chủ đề"), added,
   renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
@@ -255,11 +255,17 @@ Built:
     when they were read ("Đo lúc", Vietnam time) and, once taken, its views at the 48-hour mark;
     before the first reading, "Chưa có số view, app tự đo sau khi đăng 1 giờ". A failed reading
     shows its reason in yellow ("Lần đo gần nhất lỗi: …") under the last numbers. "Cập nhật view"
-    asks for a new reading and shows "Đang đo view" until the numbers arrive. A video
+    asks for a new reading and shows "Đang đo view" until the numbers arrive. Once a post has its
+    48-hour numbers it shows "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị", and its
+    share/view, green at 0,2 % or more, yellow under it; a winner has a gold "Video thắng" tag beside
+    its status, whose tooltip suggests 3 variants with "Nhân bản". Above the posts, a KPI strip for
+    this week (from Monday, Vietnam time) with last week under each figure: "Video đã đo", "View
+    trung vị", "Video thắng" and "Share/view ≥ 0,2 %", then the winner rule, or why nothing is
+    compared yet. A video
     posted to two Pages, or posted again, has one card per post, told apart by Page and time. A post
     updates by itself once the worker has done it. The thumbnail and the title open the video. A
     line counts the scheduled and published reels; "Tìm theo tiêu đề", "Sắp xếp" ("Giờ đăng mới
-    nhất", the default, or "Nhiều view nhất", posts not read yet last), a status filter (Mọi trạng
+    nhất", the default, or "Nhiều view nhất", posts not read yet last), "Chỉ video thắng", a status filter (Mọi trạng
     thái, Đã hẹn lịch, Đã đăng, Đã hủy, Đã xóa) and, with more than one, a Fanpage filter; "Không có
     bài đăng nào khớp" when nothing matches. "Xem dạng lịch" opens the calendar, whose "Xem dạng
     danh sách" comes back.

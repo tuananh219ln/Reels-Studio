@@ -70,8 +70,8 @@ app replaces CapCut, so the output is a finished MP4.
    on Cài đặt › Kết nối ChatGPT; see [chatgpt.md](chatgpt.md).
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
     comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài
-    đăng" shows them and sorts by views. The median, the "video thắng" flag and the weekly KPIs
-    come next, from the same numbers.
+    đăng" shows them, sorts by views, flags "Video thắng" (10× its Page's median at 48 hours) and
+    shows the weekly KPIs.
 
 ---
 
@@ -81,7 +81,7 @@ app replaces CapCut, so the output is a finished MP4.
 2. **Assisted publishing for Reels and TikTok** (Facebook Reels posting and its calendar are built): a schedule, a reminder at the posting windows (see
    [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
    comment manually.
-3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking (numbers built; median, winners and KPIs next), winner variants, API
+3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking (built), winner variants, API
    auto-posting beyond Facebook Pages (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
    AI image generation. Concrete items are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues).
 

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from . import analytics
 from .db import get_db
 from .errors import ApiError
 from .models import Publication, Session, Video
@@ -15,10 +16,10 @@ from .videos import active_job, is_published, live_at, publication_payload, spli
 router = APIRouter(prefix="/api/posts")
 
 
-def _payload(db: DbSession, video: Video, post: Publication) -> dict:
+def _payload(db: DbSession, video: Video, post: Publication, by_page: dict) -> dict:
     title, _ = split_scenes(db, video)
     return {
-        **publication_payload(post),
+        **publication_payload(post, by_page),
         "video_id": video.id,
         "title": title_of(video, title) or video.topic,
         "thumbnail_url": thumbnail_url(video),
@@ -36,7 +37,17 @@ def list_posts(me: Session = Depends(current_member), db: DbSession = Depends(ge
             Publication.status.in_(("scheduled", "published", "cancelled", "deleted")),
         )
     )
-    return [_payload(db, video, post) for video, post in sorted(rows, key=lambda row: live_at(row[1]), reverse=True)]
+    by_page = analytics.medians(db)
+    return [
+        _payload(db, video, post, by_page)
+        for video, post in sorted(rows, key=lambda row: live_at(row[1]), reverse=True)
+    ]
+
+
+@router.get("/kpis")
+def weekly_kpis(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """The KPI strip of "Bài đăng": this week and last, Monday to Sunday in Vietnam time, from the 48-hour numbers."""
+    return analytics.kpis(db)
 
 
 @router.post("/{post_id}/metrics")
@@ -50,4 +61,4 @@ def refresh_metrics(post_id: int, me: Session = Depends(current_member), db: DbS
         raise ApiError(409, "post_not_measurable", "Chỉ cập nhật view được cho bài đã đăng lên Facebook")
     post.metrics_requested_at = now()
     db.commit()
-    return _payload(db, db.get(Video, post.video_id), post)
+    return _payload(db, db.get(Video, post.video_id), post, analytics.medians(db))

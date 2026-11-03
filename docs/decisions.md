@@ -20,6 +20,23 @@ browser over the list the api already returns whole, because the team has at mos
 posts; the api gains only `thumbnail_url`. A video with several posts has several cards, one per
 post, since each post has its own Page, time and actions.
 
+## 2026-11-03 — "Video thắng" is 10× the median of its own Page over 60 days; KPI weeks run Monday to Sunday
+
+Part 3b of issue #74, agreed by a member (namtc07) on the proposals in the issue. The team's rules (docs/content.md) stay
+as they are: a winner is at least 10× the median views, the share/view goal is 0.2 %. What they are measured against:
+
+- **The 48-hour numbers only**, so every post is compared at the same age.
+- **Per Page, over the last 60 days.** The performance-loop brief took every post ever made; against a growing Page's
+  first weeks, or a large Page's numbers, almost every video of a small or newer Page would win, or none would.
+- **At least 5 measured posts on the Page** before any of its posts is flagged, as the brief said; under that the page
+  says "Chưa đủ dữ liệu để so trung vị".
+- **A KPI week is Monday to Sunday in Vietnam time**, this week shown against last, counting the posts that went live in
+  it and have their 48-hour numbers. The share/view figure counts posts with both numbers.
+- **Nothing is stored**: the median, the flag and the KPIs are worked out from `post_metrics` on each request, which
+  is cheap at 1–3 posts a day.
+
+The brief's "Đề xuất biến thể" (Claude proposes 10 variants of a winner) is not part of this and stays open in #44.
+
 ## 2026-11-03 — Post numbers: the worker reads them between jobs, daily for 14 days, and keeps the 48-hour mark
 
 Part 3 of issue #74, agreed by a member (namtc07) on the issue's open questions. "Metrics and analytics in the MVP" is
