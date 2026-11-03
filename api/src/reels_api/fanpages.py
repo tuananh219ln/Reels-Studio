@@ -243,5 +243,10 @@ def scheduled_counts(db: DbSession) -> dict[int, int]:
     return {fanpage_id: count for fanpage_id, count in db.execute(query) if fanpage_id is not None}
 
 
+def post_counts(db: DbSession) -> dict[int, int]:
+    query = select(Publication.fanpage_id, func.count()).group_by(Publication.fanpage_id)
+    return {fanpage_id: count for fanpage_id, count in db.execute(query) if fanpage_id is not None}
+
+
 def request_check(row: Fanpage) -> None:
     row.check_requested_at = now()

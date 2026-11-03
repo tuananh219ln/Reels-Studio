@@ -179,6 +179,8 @@ export type Fanpage = {
   };
   /** Posts still waiting for their time on Facebook. */
   scheduled_posts: number;
+  /** Every post ever made to the Page; a Page with any cannot be deleted, only stopped. */
+  posts: number;
   /** Page Insights summed over the last 7 days, and what went wrong at the last reading. */
   insights: {
     last_7_days: { views: number | null; reach: number | null; engagements: number | null };

@@ -322,11 +322,20 @@ Built:
     card per AI photo provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its
     model, its key and "Mặc định" on the default one; last, "Giọng đọc (ElevenLabs)" with the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
-  - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a table of Pages with the name and id, the token's last four
-    characters, "Đang dùng" or "Ngừng dùng", and who changed it when. "Thêm Fanpage" takes a token,
-    "Kiểm tra token" lists the Pages it manages (a sole Page is ticked, one it cannot post to is
-    greyed out), and "Lưu" keeps the chosen ones. Each row has "Dán token mới", which must reach
-    that Page, and "Ngừng dùng" or "Dùng lại". A stopped Page cannot be posted to.
+  - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a line of counts (đang
+    dùng, lỗi kết nối, ngừng dùng), then one card per Page in use, broken ones first (one column on a
+    phone, two on a laptop, three on a wide screen). A card shows the Page's initial, its name
+    linking to the Page on Facebook, its id and the token's last four characters, and a tag:
+    "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a red alert
+    with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers: followers
+    (with this week's gain), views, reach and engagements of the last 7 days; then when it was last
+    checked, "30 ngày" (a dialog with the numbers day by day) and "Kiểm tra ngay". The "⋯" menu has
+    "Dán token mới", which must reach that Page, and "Ngừng dùng" (confirmed). Stopped Pages are
+    folded into "Đã ngừng dùng (N)" at the bottom, each with its post count, "Dùng lại", and "Xóa"
+    for one that never had a post (confirmed; it removes the token and the numbers); for one with
+    posts "Xóa" is greyed out with why. "Thêm Fanpage" takes a token, "Kiểm tra token" lists the
+    Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
+    the chosen ones. A stopped Page cannot be posted to.
 
 Phones (below 992 px wide; built):
 

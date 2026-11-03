@@ -23,8 +23,8 @@ export async function connectFacebook(page: Page) {
   // The token manages one Page, so it is already ticked.
   await expect(dialog.getByRole("checkbox", { name: /Trang Dưỡng Sinh/ })).toBeChecked();
   await dialog.getByRole("button", { name: "Lưu" }).click();
-  await expect(page.getByRole("cell", { name: "Trang Dưỡng Sinh (1234567)" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "…oken" })).toBeVisible();
+  const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
+  await expect(card.getByText("ID 1234567 · token …oken")).toBeVisible();
   await page.getByRole("menuitem", { name: "Video" }).click();
 }
 

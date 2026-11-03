@@ -373,6 +373,8 @@ Planned:
     `read_insights`, a retired metric) is kept as `insights_error`, never as a broken connection.
     The list gives each Page `insights` (`last_7_days` sums and `error`), and
     `GET /api/fanpages/{id}/insights` its last 30 days with the followers of each day.
+    `DELETE /api/fanpages/{id}` removes a stopped Page with no post at all (409 otherwise), its
+    followers and numbers going with it; each listed Page carries `posts`, its count of posts.
   - **What the numbers mean** ([analytics.py](../api/src/reels_api/analytics.py)) is worked out from
     the `48h` rows when asked, never stored. Each Page's median views is taken over its posts that
     went live in the last 60 days; a post wins ("Video thắng") when its 48-hour views are at least

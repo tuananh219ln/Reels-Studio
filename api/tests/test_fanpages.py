@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from reels_api import config, crypto, fanpages
 from reels_api.facebook import FacebookError
-from reels_api.models import Fanpage
+from reels_api.models import Fanpage, FanpageFollowers, FanpageInsights, Publication
 
 URL = "/api/fanpages"
 PAGE = {"id": FACEBOOK_PAGE, "name": "Trang Dưỡng Sinh"}
@@ -159,3 +159,42 @@ def test_the_key_stays_the_same_between_saves(an, fakes):
     first = (config.storage_dir() / crypto.KEY_FILE).read_bytes()
     connect(an)
     assert (config.storage_dir() / crypto.KEY_FILE).read_bytes() == first
+
+
+# Deleting a Page
+
+
+def test_a_stopped_page_never_posted_to_can_be_deleted_with_its_numbers(an, db, fakes):
+    (row,) = connect(an).json()
+    assert row["posts"] == 0
+    page = db.get(Fanpage, row["id"])
+    fanpages.check(db, page)
+    an.patch(f"{URL}/{row['id']}", json={"active": False})
+    assert an.delete(f"{URL}/{row['id']}").json() == []
+    db.expire_all()
+    assert db.scalars(select(Fanpage)).all() == []
+    assert db.scalars(select(FanpageFollowers)).all() == [] and db.scalars(select(FanpageInsights)).all() == []
+
+
+def test_a_page_in_use_must_be_stopped_before_it_is_deleted(an, fakes):
+    (row,) = connect(an).json()
+    refused = an.delete(f"{URL}/{row['id']}")
+    assert (refused.status_code, refused.json()["message"]) == (409, "Hãy ngừng dùng Fanpage trước khi xóa")
+
+
+def test_a_page_with_posts_is_kept_for_their_history(an, db, me, storage, fakes):
+    (row,) = connect(an).json()
+    video = make_video(db, storage, me)
+    db.add(
+        Publication(video_id=video.id, platform="facebook", created_by_id=me.id, fanpage_id=row["id"], status="deleted")
+    )
+    db.commit()
+    (stopped,) = an.patch(f"{URL}/{row['id']}", json={"active": False}).json()
+    assert stopped["posts"] == 1
+    refused = an.delete(f"{URL}/{row['id']}")
+    assert refused.status_code == 409
+    assert refused.json()["message"] == "Fanpage đã có 1 bài đăng nên được giữ lại để xem lịch sử; cứ để ngừng dùng"
+
+
+def test_deleting_an_unknown_page(an):
+    assert an.delete(f"{URL}/999").status_code == 404

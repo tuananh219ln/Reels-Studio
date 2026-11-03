@@ -138,12 +138,30 @@ test("the worker checks a connected Page's token and shows its followers", async
   await loginAsSeed(page);
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  const card = page.getByTestId("fanpage-card");
   // The worker checks a newly connected Page within seconds; the page asks again until it has.
-  await expect(page.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByRole("cell", { name: "1.200" })).toBeVisible();
-  await page.getByRole("button", { name: "Kiểm tra ngay" }).click();
-  await expect(page.getByText("Đang kiểm tra…")).toBeHidden({ timeout: 20_000 });
-  await expect(page.getByText("Hoạt động", { exact: true })).toBeVisible();
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(card.getByText("1.200", { exact: true })).toBeVisible();
+  await card.getByRole("button", { name: "Kiểm tra ngay" }).click();
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await card.getByRole("button", { name: "30 ngày" }).click();
+  await expect(page.getByRole("dialog", { name: /Số liệu 30 ngày/ })).toBeVisible();
+});
+
+test("a Page stopped and never posted to can be deleted", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  await page.getByRole("button", { name: "Thao tác với Trang Dưỡng Sinh" }).click();
+  await page.getByRole("menuitem", { name: "Ngừng dùng" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Ngừng dùng" }).click();
+  await expect(page.getByText("Không có Fanpage nào đang dùng")).toBeVisible();
+  await page.getByText("Đã ngừng dùng (1)").click();
+  const stopped = page.getByTestId("stopped-fanpage");
+  await expect(stopped.getByText(/chưa đăng bài nào/)).toBeVisible();
+  await stopped.getByRole("button", { name: "Xóa" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Xóa" }).click();
+  await expect(page.getByText("Chưa kết nối Fanpage nào")).toBeVisible();
 });
 
 test("Bình luận opens from the Đăng bài menu and starts empty", async ({ page }) => {

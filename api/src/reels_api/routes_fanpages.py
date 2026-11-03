@@ -59,6 +59,7 @@ def _rows(db: DbSession) -> list[dict]:
     checks = fanpages.check_payload(db, rows)
     insights = fanpages.insights_summary(db, rows)
     scheduled = fanpages.scheduled_counts(db)
+    posts = fanpages.post_counts(db)
     return [
         {
             "id": row.id,
@@ -71,6 +72,8 @@ def _rows(db: DbSession) -> list[dict]:
             "check": checks[row.id],
             "insights": insights[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),
+            # Every post ever made to the Page, cancelled and deleted ones too: a Page with any is kept for history.
+            "posts": posts.get(row.id, 0),
         }
         for row in rows
     ]
@@ -166,3 +169,23 @@ def page_insights(
         }
         for row in fanpages.insights_of(db, fanpage_id)
     ]
+
+
+@router.delete("/{fanpage_id}")
+def delete_page(fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+    """Remove a Page connected by mistake or never used, with its token and numbers. A Page in use is stopped first, so
+    a slip of the mouse cannot remove it; a Page with posts is kept, since "Bài đăng", the medians and who posted what
+    point to it."""
+    row = _fanpage(db, fanpage_id)
+    if row.active:
+        raise ApiError(409, "fanpage_in_use", "Hãy ngừng dùng Fanpage trước khi xóa")
+    posts = fanpages.post_counts(db).get(row.id, 0)
+    if posts:
+        raise ApiError(
+            409,
+            "fanpage_has_posts",
+            f"Fanpage đã có {posts} bài đăng nên được giữ lại để xem lịch sử; cứ để ngừng dùng",
+        )
+    db.delete(row)
+    db.commit()
+    return _rows(db)

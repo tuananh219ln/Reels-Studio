@@ -41,6 +41,14 @@ wording "tốt cho" / "hỗ trợ", no promise to cure, and no word-for-word rep
 voice texts are rewritten that way and still open with the dish (2026-11-02 holds: the rule itself still does not
 require the dish name, since not every topic has dishes). It is code, not app data, so it applies to "Tạo kịch bản" and
 "Nhân bản" alike; existing videos keep their voice texts until their script is written again.
+## 2026-11-03 — "Kết nối Fanpage" is a card per Page; only a Page never posted to can be deleted
+
+Requested by a member (namtc07): some Pages are no longer used and cluttered the table. The screen now shows one card
+per Page in use, broken ones first, and folds stopped Pages away. "Xóa" removes a Page with its token and numbers, but
+only once it is stopped (so a slip cannot remove a Page in use) and only if it never had a post: "Bài đăng", the
+per-Page medians and who posted what point to its row, as users are disabled, never deleted (2026-10-31). A Page with
+posts stays stopped and folded away.
+
 ## 2026-11-03 — "Bình luận" answers visitors as the Page; Page Insights are read at each check
 
 Requested by a member (namtc07) on issue #71, with the Page token's `pages_read_user_content`,
