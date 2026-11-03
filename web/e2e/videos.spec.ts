@@ -507,8 +507,8 @@ test("a rendered video waits in Sẵn sàng đăng until its Đăng there posts 
   const ready = page.getByTestId("ready-to-post");
   await expect(ready.getByTestId("suggestion")).toHaveCount(1);
   await expect(ready).toContainText("Sẵn sàng đăng (1)");
-  // One Page only: nothing to spread to, and the card says why.
-  await expect(page.getByTestId("spread-to-pages")).toContainText("Cần ít nhất 2 Fanpage đang dùng để có gợi ý.");
+  // The same MP4 is never suggested for another Page.
+  await expect(page.getByTestId("spread-to-pages")).toHaveCount(0);
 
   // "Đăng" opens the video with its dialog open and the only Page picked; the address drops the request.
   await ready.getByRole("link", { name: "Đăng" }).click();

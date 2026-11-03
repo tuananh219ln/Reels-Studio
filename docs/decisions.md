@@ -11,6 +11,12 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — "Bài đăng" no longer suggests posting a video to another Page
+
+Owner's call: the "Đăng thêm lên Page khác" card is gone. It suggested sending the same MP4 to a second Page, which
+docs/specs/multi-platform/plan.md warns against: Meta shows a copy less and can stop paying a Page that repeats
+content. "Sẵn sàng đăng" stays, alone above the table.
+
 ## 2026-11-03 — Forms open in a drawer, not a centred dialog
 
 Owner's request ("chuyển tất cả các modal sang drawer"), narrowed with the owner to the dialogs holding a form: a

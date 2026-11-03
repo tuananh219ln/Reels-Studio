@@ -350,14 +350,11 @@ Built:
     bài đang chờ đủ 48 giờ, sớm nhất …", "Chưa có bài nào đủ 48 giờ"), and the first card adds the posts still on their way. Under the cards, while a
     Page has fewer than 5 measured posts in 60 days, a line per such Page with a 5-step bar ("2/5
     bài") says how far it is from a median its posts can be compared with ("Gấp N× trung vị Page").
-    Between the KPIs and the table, two cards side by side (stacked on a phone), each listing up to
-    5 videos with "Xem thêm": "Sẵn sàng đăng (N)", rendered videos whose MP4 is current and that
-    have no live or scheduled post, oldest first, each with "Đăng"; and "Đăng thêm lên Page khác
-    (N)", a video whose post reached its Page's usual (median) 48-hour views, or whose Page has too
-    few measured posts to say, and is not live or scheduled on another working Page (on, token
-    fine), most viewed first, each with "Đăng lên <Page>". Either button opens the video with its
-    "Đăng video" dialog already open (`?publish=<fanpage id>`, dropped from the address at once) and
-    that Page picked. An empty card says so, or that it needs at least two Pages in use. A post updates
+    Between the KPIs and the table, "Sẵn sàng đăng (N)" lists up to 5 videos with "Xem thêm":
+    rendered videos whose MP4 is current and that have no live or scheduled post, oldest first,
+    each with "Đăng", which opens the video with its "Đăng video" dialog already open
+    (`?publish=`, dropped from the address at once). The same MP4 is never suggested for another
+    Page. An empty card says so. A post updates
     by itself once the worker has done it. A line counts the scheduled and published reels; "Tìm
     theo tiêu đề", "Sắp xếp" ("Giờ đăng mới nhất", the default, or "Nhiều view nhất", posts not
     read yet last; videos follow their first post), a status filter (Đang hoạt động,
