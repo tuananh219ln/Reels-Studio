@@ -323,13 +323,14 @@ Built:
     model, its key and "Mặc định" on the default one; last, "Giọng đọc (ElevenLabs)" with the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
   - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a line of counts (đang
-    dùng, lỗi kết nối, ngừng dùng), then one card per Page in use, broken ones first (one column on a
-    phone, two on a laptop, three on a wide screen). A card shows the Page's initial, its name
-    linking to the Page on Facebook, its id and the token's last four characters, and a tag:
-    "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a red alert
-    with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers: followers
-    (with this week's gain), views, reach and engagements of the last 7 days; then when it was last
-    checked, "30 ngày" (a dialog with the numbers day by day) and "Kiểm tra ngay". The "⋯" menu has
+    dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid
+    that fits as many cards of at least 320 px as the width allows. A card shows the Page's initial,
+    its name linking to the Page on Facebook, its id and the token's last four characters, and a tag:
+    "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line
+    pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers
+    in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
+    then a footer line with when it was last checked and two icon buttons, "Số liệu 30 ngày" (a
+    dialog with the numbers day by day) and "Kiểm tra ngay". The "⋯" menu has
     "Dán token mới", which must reach that Page, and "Ngừng dùng" (confirmed). Stopped Pages are
     folded into "Đã ngừng dùng (N)" at the bottom, each with its post count, "Dùng lại", and "Xóa"
     for one that never had a post (confirmed; it removes the token and the numbers); for one with

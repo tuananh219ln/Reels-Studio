@@ -10,13 +10,11 @@ import {
   StopOutlined,
 } from "@ant-design/icons";
 import {
-  Alert,
   App,
   Avatar,
   Button,
   Card,
   Checkbox,
-  Col,
   Collapse,
   Dropdown,
   Empty,
@@ -24,7 +22,6 @@ import {
   Input,
   Modal,
   Popconfirm,
-  Row,
   Space,
   Table,
   Tag,
@@ -54,32 +51,33 @@ function StatusTag({ row }: { row: Fanpage }) {
   return <Tag>Chưa kiểm tra</Tag>;
 }
 
-/** One number of a Page: a label, the value, and a small line under it. */
+/** One number of a Page, small: the value over its label. */
 function Figure({ label, value, note }: { label: string; value: string; note?: React.ReactNode }) {
   return (
     <Flex vertical gap={0} style={{ minWidth: 0 }}>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+      <Typography.Text strong style={{ fontSize: 15, lineHeight: "22px" }}>
+        {value}
+        {note}
+      </Typography.Text>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
         {label}
       </Typography.Text>
-      <Typography.Text strong style={{ fontSize: 18, lineHeight: "26px" }}>
-        {value}
-      </Typography.Text>
-      {note && <span style={{ fontSize: 12 }}>{note}</span>}
     </Flex>
   );
 }
 
-function FollowersNote({ gain }: { gain: number | null }) {
-  if (gain === null) return <Typography.Text type="secondary">tuần này: chưa đủ dữ liệu</Typography.Text>;
+/** "+12" after the followers, this week's gain; nothing until there is a number from last week. */
+function Gain({ gain }: { gain: number | null }) {
+  if (!gain) return null;
   return (
-    <Typography.Text type={gain > 0 ? "success" : "secondary"}>
+    <Typography.Text type={gain > 0 ? "success" : "secondary"} style={{ fontSize: 12, fontWeight: 400, marginLeft: 4 }}>
       {gain > 0 ? "+" : ""}
-      {number(gain)} tuần này
+      {number(gain)}
     </Typography.Text>
   );
 }
 
-/** A Page in use: who it is, whether its token works, its numbers, and what a member can do with it. */
+/** A Page in use, compact: who it is, whether its token works, its numbers, and what a member can do with it. */
 function PageCard({
   row,
   onRows,
@@ -117,12 +115,13 @@ function PageCard({
 
   return (
     <Card
+      size="small"
       data-testid="fanpage-card"
       style={{ height: "100%", borderColor: check.error ? COLORS.primaryBorder : undefined }}
-      styles={{ body: { display: "flex", flexDirection: "column", gap: 14, height: "100%" } }}
+      styles={{ body: { display: "flex", flexDirection: "column", gap: 10, height: "100%" } }}
     >
-      <Flex gap={12} align="center">
-        <Avatar size={44} style={{ background: COLORS.primaryBg, color: COLORS.primary, flex: "none" }}>
+      <Flex gap={10} align="center">
+        <Avatar size={32} style={{ background: COLORS.primaryBg, color: COLORS.primary, flex: "none" }}>
           {row.name.trim().charAt(0).toUpperCase() || <FacebookOutlined />}
         </Avatar>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
@@ -148,64 +147,59 @@ function PageCard({
       </Flex>
 
       {check.error && (
-        <Alert
-          type="error"
-          showIcon
-          title={check.error}
-          description={
-            row.scheduled_posts > 0
-              ? `${row.scheduled_posts} bài đang hẹn giờ sẽ không kiểm tra hay hủy được cho đến khi có token mới.`
-              : undefined
-          }
-          action={
-            <Button size="small" onClick={() => onToken(row)}>
-              Dán token mới
-            </Button>
-          }
-        />
+        <Flex
+          gap={8}
+          align="center"
+          style={{ background: COLORS.primaryBg, borderRadius: 8, padding: "6px 10px" }}
+          data-testid="fanpage-error"
+        >
+          <Typography.Text type="danger" style={{ fontSize: 12, flex: 1 }}>
+            {check.error}
+            {row.scheduled_posts > 0 && ` · ${row.scheduled_posts} bài hẹn giờ bị ảnh hưởng`}
+          </Typography.Text>
+          <Button size="small" onClick={() => onToken(row)}>
+            Dán token mới
+          </Button>
+        </Flex>
       )}
 
-      <Row gutter={[12, 12]}>
-        <Col span={12}>
-          <Figure
-            label="Người theo dõi"
-            value={count(check.followers)}
-            note={check.followers !== null && <FollowersNote gain={check.followers_this_week} />}
-          />
-        </Col>
-        <Col span={12}>
-          <Figure label="Lượt xem 7 ngày" value={count(week.views)} />
-        </Col>
-        <Col span={12}>
-          <Figure label="Tiếp cận 7 ngày" value={count(week.reach)} />
-        </Col>
-        <Col span={12}>
-          <Figure label="Tương tác 7 ngày" value={count(week.engagements)} />
-        </Col>
-      </Row>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+        <Figure label="Theo dõi" value={count(check.followers)} note={<Gain gain={check.followers_this_week} />} />
+        <Figure label="Lượt xem" value={count(week.views)} />
+        <Figure label="Tiếp cận" value={count(week.reach)} />
+        <Figure label="Tương tác" value={count(week.engagements)} />
+      </div>
       {insights.error && (
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
           {insights.error}
         </Typography.Text>
       )}
 
-      <Flex justify="space-between" align="center" gap={8} wrap style={{ marginTop: "auto" }}>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {check.checked_at ? `Kiểm tra lúc ${formatDateTime(check.checked_at)}` : "Chưa kiểm tra"}
+      <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
+          Số liệu 7 ngày · {check.checked_at ? `kiểm tra ${formatDateTime(check.checked_at)}` : "chưa kiểm tra"}
           {row.scheduled_posts > 0 && !check.error && ` · ${row.scheduled_posts} bài hẹn giờ`}
         </Typography.Text>
-        <Space size={4}>
-          <Button size="small" icon={<BarChartOutlined />} onClick={() => onDays(row)}>
-            30 ngày
-          </Button>
-          <Button
-            size="small"
-            icon={<ReloadOutlined />}
-            disabled={check.pending}
-            onClick={() => call(`/fanpages/${row.id}/check`, "POST")}
-          >
-            Kiểm tra ngay
-          </Button>
+        <Space size={0}>
+          <Tooltip title="Số liệu 30 ngày">
+            <Button
+              size="small"
+              type="text"
+              icon={<BarChartOutlined />}
+              aria-label="30 ngày"
+              onClick={() => onDays(row)}
+            />
+          </Tooltip>
+          <Tooltip title="Kiểm tra ngay">
+            <Button
+              size="small"
+              type="text"
+              icon={<ReloadOutlined spin={check.pending} />}
+              aria-label="Kiểm tra ngay"
+              disabled={check.pending}
+              onClick={() => call(`/fanpages/${row.id}/check`, "POST")}
+            />
+          </Tooltip>
         </Space>
       </Flex>
     </Card>
@@ -541,13 +535,17 @@ export default function FanpagesPage() {
             </Empty>
           </Card>
         ) : (
-          <Row gutter={[16, 16]}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))",
+              gap: 12,
+            }}
+          >
             {inUse.map((row) => (
-              <Col key={row.id} xs={24} lg={12} xxl={8}>
-                <PageCard row={row} onRows={setRows} onDays={setDays} onToken={setReplacing} />
-              </Col>
+              <PageCard key={row.id} row={row} onRows={setRows} onDays={setDays} onToken={setReplacing} />
             ))}
-          </Row>
+          </div>
         )}
         <StoppedPages rows={stopped} onRows={setRows} />
       </Flex>
