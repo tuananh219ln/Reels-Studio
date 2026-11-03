@@ -131,7 +131,9 @@ test("Kết nối Fanpage opens from inside the Cài đặt menu group", async (
   await settings.click();
   await fanpages.click();
   await expect(page).toHaveURL(/\/fanpages$/);
-  await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toBeVisible();
+  // Once the list has loaded with no Page yet, "Thêm Fanpage" is both in the header and in the empty state.
+  await expect(page.getByText("Chưa kết nối Fanpage nào")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toHaveCount(2);
 });
 
 test("the worker checks a connected Page's token and shows its followers", async ({ page }) => {

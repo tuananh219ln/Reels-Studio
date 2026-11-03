@@ -88,14 +88,25 @@ chạy từ thư mục gốc repo, trong PowerShell.
 `.venv\Scripts\python -m reels_api create-user` trong `api/` với email đã có. Lệnh hỏi xác nhận rồi
 đặt mật khẩu mới, kích hoạt lại và đăng xuất mọi phiên cũ.
 
-**Kiểm thử:** `cd api; .venv\Scripts\python -m pytest` (cần Postgres đang chạy; các test worker và
-so khớp render cần FFmpeg trên PATH) và `cd web; npm run e2e` (tự bật api, worker, Claude/Pixabay giả
-ở cổng 8199 và web riêng ở cổng 8100/3100 trên `reels_e2e`; chạy được cả khi server dev đang bật).
+**Kiểm thử:** `cd api; .venv\Scripts\python -m pytest -n 4` (cần Postgres đang chạy; các test worker và
+so khớp render cần FFmpeg trên PATH; `-n 4` chạy 4 tiến trình song song, mỗi tiến trình một database
+`reels_test_gw0`... tự tạo, cần cài lại `pip install -e ".[dev]"` để có `pytest-xdist`) và `cd web; npm run e2e`
+(tự bật api, worker, Claude/Pixabay giả ở cổng 8199 và web riêng ở cổng 8100/3100 trên `reels_e2e`; chạy được cả
+khi server dev đang bật).
+
+**Chạy nhanh trước khi đẩy lên:** chỉ chạy phần mình sửa, để CI chạy đủ bộ test.
+
+- api: `python -m pytest tests/test_publish.py` (một file), `-k "ten_test"` (theo tên), `--lf -x` (chỉ
+  các test lỗi lần trước, dừng ở lỗi đầu tiên).
+- web: `npx playwright test -g "tên test"` (theo tên), `npx playwright test e2e/app.spec.ts` (một file),
+  `npx playwright test --last-failed` (chỉ các test lỗi lần trước).
 
 ## Triển khai (CI/CD)
 
 Workflow `.github/workflows/ci-cd.yml` chạy kiểm thử (api, worker, web + E2E, build Cloudflare)
-trên mọi PR. Khi merge vào `main` và mọi kiểm thử đều qua, workflow mới triển khai:
+trên mọi PR. pytest của api và E2E đều chia ra 4 máy chạy song song. PR còn **Draft** chỉ chạy kiểm tra nhanh (lint,
+typecheck, pytest); E2E và build Docker image chạy khi bấm **Ready for review**. PR chỉ sửa `docs/`
+hoặc file `.md` không chạy CI. Khi merge vào `main` và mọi kiểm thử đều qua, workflow mới triển khai:
 
 1. **api → Coolify:** gọi deploy webhook, Coolify tự build `api/Dockerfile` từ git, container
    chạy migration khi khởi động. Workflow chờ Coolify báo `finished`. Postgres là một database

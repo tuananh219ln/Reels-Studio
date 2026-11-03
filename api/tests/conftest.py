@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import pytest
@@ -29,7 +30,27 @@ def _test_engine():
             pass
     except OperationalError:
         pytest.skip("Không kết nối được Postgres test: chạy docker compose up -d postgres")
-    return engine
+    worker = os.environ.get("PYTEST_XDIST_WORKER")
+    if not worker:
+        return engine
+    # pytest -n: each xdist process gets its own database (reels_test_gw0, ...), since worker tests commit for real.
+    name = f"{engine.url.database}_{worker}"
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        if not connection.scalar(text("SELECT 1 FROM pg_database WHERE datname = :name"), {"name": name}):
+            connection.execute(text(f'CREATE DATABASE "{name}"'))
+    engine.dispose()
+    return create_engine(engine.url.set(database=name), connect_args={"connect_timeout": 3})
+
+
+def pytest_collection_modifyitems(config, items):
+    """PYTEST_SHARD=i/n (CI): keep every n-th test, starting at the i-th, so n machines split the suite evenly."""
+    shard = os.environ.get("PYTEST_SHARD")
+    if not shard:
+        return
+    index, total = (int(part) for part in shard.split("/"))
+    kept = [item for position, item in enumerate(items) if position % total == index - 1]
+    config.hook.pytest_deselected(items=[item for position, item in enumerate(items) if position % total != index - 1])
+    items[:] = kept
 
 
 @pytest.fixture(scope="session")
