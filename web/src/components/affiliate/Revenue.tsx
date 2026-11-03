@@ -50,7 +50,6 @@ export default function Revenue() {
             { value: 90, label: "90 ngày" },
           ]}
         />
-        <Typography.Text type="secondary">Chỉ bạn thấy doanh thu của tài khoản mình.</Typography.Text>
       </Flex>
       {data?.accounts
         .filter((account) => account.report_error)
