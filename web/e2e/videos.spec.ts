@@ -1593,7 +1593,7 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await page.keyboard.press("Enter");
   await expect(plan.getByTestId("plan-today")).toHaveText("Hôm nay là ngày 1/30");
 
-  await plan.getByRole("button", { name: "Thêm ý tưởng ngày 1" }).click();
+  await plan.getByRole("button", { name: "Thêm ý tưởng ngày 1", exact: true }).click();
   const add = page.getByRole("dialog", { name: "Thêm ý tưởng ngày 1" });
   await add.getByLabel("Chủ đề").fill("5 món sáng giúp ổn định huyết áp");
   await add.getByLabel("Nỗi đau người xem").fill("Sợ tai biến khi huyết áp lên xuống");
