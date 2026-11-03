@@ -435,8 +435,25 @@ export type PostNumbers = {
   shares: number | null;
   comments: number | null;
   reactions: number | null;
+  /** Plays without replays, and the replays. */
+  plays: number | null;
+  replays: number | null;
+  /** People who saw the reel, as Facebook estimates them. */
+  reach: number | null;
+  /** Follows of the Page the reel brought. */
+  followers: number | null;
+  /** Average watch per play, replays included (so it can pass the reel's length). */
+  avg_watch_seconds: number | null;
+  view_time_seconds: number | null;
+  /** `avg_watch_seconds` over the posted MP4's length; null when the length is not known. */
+  watch_ratio: number | null;
+  /** Share of plays still watching at evenly spaced points of the reel, from 1 at the start. */
+  retention: number[] | null;
   measured_at: string;
 };
+
+/** Where a scene starts and ends in the posted MP4, in seconds. */
+export type SceneMark = { label: string; start: number; end: number };
 
 /** `latest` is rewritten by every reading; `at_48h` is the first reading 48 hours after the post went live, kept as it
  * is. `pending`: "Cập nhật view" was pressed and the worker has not read it yet. */
@@ -446,6 +463,9 @@ export type PostMetrics = {
   error: string | null;
   pending: boolean;
   analysis: PostAnalysis;
+  /** The posted MP4's length and scenes; null and empty for a post made before the app kept them. */
+  length_seconds: number | null;
+  scenes: SceneMark[];
 };
 
 /** The post's 48-hour views against its Page's median of the last 60 days; `times_median` and the flag stay empty

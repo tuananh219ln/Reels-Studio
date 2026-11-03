@@ -387,6 +387,17 @@ def test_publishing_sends_the_mp4_with_the_caption_and_hashtags(committed, ready
     assert post.status == "published" and post.remote_id and post.published_at
 
 
+def test_a_post_keeps_where_each_scene_falls_in_the_mp4_it_sent(committed, ready, fakes):
+    """The retention curve is drawn against the posted render's scenes, which later edits must not move."""
+    user, storage, video_id = ready
+    job = run_publish(committed, storage, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert post_of(committed, video_id).scene_marks == [
+        {"label": "Tiêu đề", "start": 0.0, "end": 3.0},
+        {"label": "Cảnh 1", "start": 3.0, "end": 7.0},
+    ]
+
+
 def test_an_mp4_without_a_readable_frame_posts_with_facebooks_own_cover(committed, ready, fakes):
     user, storage, video_id = ready
     job = run_publish(committed, storage, video_id, user.id)

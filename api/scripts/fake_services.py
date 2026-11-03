@@ -100,6 +100,24 @@ def plan_json(first: int, last: int, per_day: int = 4) -> dict:
     }
 
 
+# A reel's numbers when a test sets none: what a fresh, ordinary reel gives.
+DEFAULT_REEL_NUMBERS = {
+    "views": 1200,
+    "shares": 3,
+    "comments": 5,
+    "reactions": 40,
+    "plays": 1000,
+    "replays": 200,
+    "reach": 900,
+    "avg_watch_ms": 8400,
+    "view_time_ms": 10080000,
+    "followers": 4,
+    "retention": {
+        str(index): share for index, share in enumerate((1, 0.82, 0.7, 0.6, 0.52, 0.45, 0.4, 0.36, 0.33, 0.3))
+    },
+}
+
+
 class FakeServices:
     def __init__(self, port: int = 0):
         self.lock = threading.Lock()
@@ -156,7 +174,7 @@ class FakeServices:
         self.facebook_delete_refusals = 0  # that many deletes are refused: 403 and the reel stays
         self.facebook_cover_refusals = 0  # that many covers are refused: 400 and the reel keeps its own
         # A reel's numbers by video_id: views, shares, comments, reactions; a missing one is left out of the answer.
-        self.facebook_insights: dict[str, dict[str, int]] = {}
+        self.facebook_insights: dict[str, dict] = {}
         self.facebook_insights_calls = 0
         self.facebook_insights_refused = False  # the token lacks read_insights: 403, code 200
         self.facebook_insights_gone: set[str] = set()  # reels Facebook no longer has
@@ -743,7 +761,7 @@ class FakeServices:
                 return 403, {"error": {"message": "(#200) Requires read_insights permission", "code": 200}}
             if video_id in self.facebook_insights_gone or self.reels.get(video_id, {}).get("lost"):
                 return 400, {"error": {"message": "Unsupported get request", "code": 100, "error_subcode": 33}}
-            numbers = self.facebook_insights.get(video_id, {"views": 1200, "shares": 3, "comments": 5, "reactions": 40})
+            numbers = self.facebook_insights.get(video_id, DEFAULT_REEL_NUMBERS)
 
         def metric(name: str, value: object) -> dict:
             return {
@@ -761,6 +779,18 @@ class FakeServices:
             data.append(metric("post_video_social_actions", social))
         if "reactions" in numbers:
             data.append(metric("post_video_likes_by_reaction_type", {"REACTION_LIKE": numbers["reactions"]}))
+        # Meta's names for the rest of the reel's numbers; the retention curve is a breakdown by segment.
+        for key, name in (
+            ("plays", "blue_reels_play_count"),
+            ("replays", "fb_reels_replay_count"),
+            ("reach", "post_impressions_unique"),
+            ("avg_watch_ms", "post_video_avg_time_watched"),
+            ("view_time_ms", "post_video_view_time"),
+            ("followers", "post_video_followers"),
+            ("retention", "post_video_retention_graph"),
+        ):
+            if key in numbers:
+                data.append(metric(name, numbers[key]))
         return 200, {"data": data}
 
     def _reel_status(self, video_id: str, query: dict) -> tuple[int, dict]:

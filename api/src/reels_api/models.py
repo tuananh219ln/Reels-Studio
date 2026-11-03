@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -401,6 +402,9 @@ class Publication(Base):
     # When the worker last read the visitors' comments under the reel (comments_inbox.py), and what went wrong then.
     comments_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     comments_error: Mapped[str | None] = mapped_column(Text)
+    # Where each scene starts and ends in the MP4 sent as `remote_id` ({label, start, end} in seconds), taken when it
+    # was uploaded, so the retention curve is read against the scenes that were posted, not later edits.
+    scene_marks: Mapped[list | None] = mapped_column(JSONB)
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
@@ -423,6 +427,14 @@ class PostMetrics(Base):
     shares: Mapped[int | None] = mapped_column(Integer)
     comments: Mapped[int | None] = mapped_column(Integer)
     reactions: Mapped[int | None] = mapped_column(Integer)
+    plays: Mapped[int | None] = mapped_column(BigInteger)  # plays without replays
+    replays: Mapped[int | None] = mapped_column(BigInteger)
+    reach: Mapped[int | None] = mapped_column(BigInteger)  # people who saw the reel, estimated by Facebook
+    avg_watch_ms: Mapped[int | None] = mapped_column(BigInteger)  # per play, replays included
+    view_time_ms: Mapped[int | None] = mapped_column(BigInteger)  # all plays together
+    followers: Mapped[int | None] = mapped_column(BigInteger)  # follows the reel brought the Page
+    # Share of plays still watching at each evenly spaced point of the reel, from 1.0 at the start.
+    retention: Mapped[list | None] = mapped_column(JSONB)
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

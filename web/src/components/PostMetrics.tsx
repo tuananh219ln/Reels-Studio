@@ -3,6 +3,7 @@
 import { EyeOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
 import { App, Button, Flex, Tooltip, Typography } from "antd";
 import { useState } from "react";
+import PostInsights from "@/components/PostInsights";
 import { api, errorMessage, formatDateTime, type Post, type PostNumbers } from "@/lib/api";
 
 const count = new Intl.NumberFormat("vi-VN");
@@ -37,6 +38,19 @@ function details(numbers: PostNumbers): string {
     `${formatCount(numbers.comments)} bình luận`,
     `${formatCount(numbers.reactions)} cảm xúc`,
   ].join(" · ");
+}
+
+const seconds = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
+
+/** "Xem TB 8,4 giây (42%) · tiếp cận 900", or "" when Facebook gave neither. */
+function watching(numbers: PostNumbers): string {
+  const parts = [];
+  if (numbers.avg_watch_seconds !== null) {
+    const ratio = numbers.watch_ratio !== null ? ` (${formatRate(numbers.watch_ratio)})` : "";
+    parts.push(`Xem TB ${seconds.format(numbers.avg_watch_seconds)} giây${ratio}`);
+  }
+  if (numbers.reach !== null) parts.push(`tiếp cận ${formatCount(numbers.reach)}`);
+  return parts.join(" · ");
 }
 
 /** A post's numbers on Facebook and when they were read; nothing for a post never public. With `onAsked`, a
@@ -77,6 +91,7 @@ export default function PostMetrics({
         {latest ? (
           <>
             <span>{details(latest)}</span>
+            {watching(latest) && <span>{watching(latest)}</span>}
             <span>
               Đo lúc {formatDateTime(latest.measured_at)}
               {mark && ` · mốc 48 giờ: ${formatCount(mark.views)} view`}
@@ -109,6 +124,7 @@ export default function PostMetrics({
             </Typography.Text>
           </Tooltip>
         )}
+        <PostInsights post={post} compact />
         {onAsked && isPublic && (
           <Tooltip title={pending ? "Đang đo view" : `Cập nhật view: ${askTip.toLowerCase()}`}>
             <Button
@@ -136,6 +152,11 @@ export default function PostMetrics({
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {details(latest)}
           </Typography.Text>
+          {watching(latest) && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="post-watching">
+              {watching(latest)}
+            </Typography.Text>
+          )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Đo lúc {formatDateTime(latest.measured_at)}
             {mark && ` · mốc 48 giờ: ${formatCount(mark.views)} view`}
@@ -154,14 +175,23 @@ export default function PostMetrics({
           Lần đo gần nhất lỗi: {error}
         </Typography.Text>
       )}
-      {onAsked && isPublic && (
-        <div>
-          <Tooltip title={askTip}>
-            <Button size="small" icon={<ReloadOutlined />} loading={asking || pending} disabled={pending} onClick={ask}>
-              {pending ? "Đang đo view" : "Cập nhật view"}
-            </Button>
-          </Tooltip>
-        </div>
+      {(latest || (onAsked && isPublic)) && (
+        <Flex gap={8} wrap>
+          <PostInsights post={post} />
+          {onAsked && isPublic && (
+            <Tooltip title={askTip}>
+              <Button
+                size="small"
+                icon={<ReloadOutlined />}
+                loading={asking || pending}
+                disabled={pending}
+                onClick={ask}
+              >
+                {pending ? "Đang đo view" : "Cập nhật view"}
+              </Button>
+            </Tooltip>
+          )}
+        </Flex>
       )}
     </Flex>
   );

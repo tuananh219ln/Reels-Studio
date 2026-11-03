@@ -280,8 +280,16 @@ Built:
     one Facebook does not give), when they were read ("Đo lúc", Vietnam time), the 48-hour views
     with "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị" and the share/view, the
     "Chưa có số view, app tự đo sau khi đăng 1 giờ" note and the failed reading's reason sit in
-    tooltips. The video's page shows the same numbers in full, with share/view green at 0,2 % or
-    more, yellow under it. Above the table, "Hiệu quả tuần này (từ T2 dd/mm)" (weeks start on Monday, Vietnam
+    tooltips, with "Xem TB N giây (N %) · tiếp cận N" when Facebook gives them. The video's page
+    shows the same numbers in full, with share/view green at 0,2 % or more, yellow under it. A post
+    with numbers has "Phân tích" (an icon button on "Bài đăng", a button on the video's page). It
+    opens "Phân tích bài đăng": views, average watch with its share of the posted length, reach,
+    first plays, replays, total watch time, follows, shares, comments and reactions ("—" for one
+    Facebook does not give); the retention curve ("Giữ chân người xem") over the reel, with a band
+    and label per scene of the posted MP4; and a table per scene (time, share still watching when
+    it starts, share lost during it), the scene losing most marked "mất nhiều nhất" in red. A post
+    made before scene marks were kept shows the curve without the table, saying why. A reel with no
+    curve yet says Facebook has none yet. Above the table, "Hiệu quả tuần này (từ T2 dd/mm)" (weeks start on Monday, Vietnam
     time) with an ⓘ whose tooltip says every figure is taken 48 hours after posting, so posts are
     compared at the same age. Then three cards with a light border and shadow (stacked on a
     phone), each with an icon in a pale orange square, its name and a grey line saying what it
