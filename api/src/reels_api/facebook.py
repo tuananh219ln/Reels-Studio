@@ -5,6 +5,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -140,6 +141,26 @@ def finish(page: Page, video_id: str, description: str, scheduled_at: datetime |
     if scheduled_at is not None:
         fields |= {"video_state": "SCHEDULED", "scheduled_publish_time": str(int(scheduled_at.timestamp()))}
     _publish_call(page, fields)
+
+
+def set_cover(page: Page, video_id: str, image: bytes) -> None:
+    """The reel's cover (Video Thumbnails, `is_preferred`), a JPEG of at most 10 MB. Without one Facebook picks a
+    frame itself, often one from the middle of the video."""
+    boundary = uuid.uuid4().hex
+    fields = {"is_preferred": "true", "access_token": page.token}
+    parts = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode()
+        for name, value in fields.items()
+    ]
+    parts += [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="source"; filename="cover.jpg"\r\n'
+        "Content-Type: image/jpeg\r\n\r\n".encode(),
+        image,
+        f"\r\n--{boundary}--\r\n".encode(),
+    ]
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(video_id, safe='')}/thumbnails"
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+    _send(urllib.request.Request(url, data=b"".join(parts), method="POST", headers=headers), REQUEST_TIMEOUT)
 
 
 def reel_status(page: Page, video_id: str) -> dict | None:
