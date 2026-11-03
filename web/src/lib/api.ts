@@ -111,6 +111,8 @@ export type SceneData = {
 
 export type VideoDetail = VideoRow & {
   has_script: boolean;
+  /** "Tự viết": a member wrote the script; no AI wrote it or reviewed its safety. */
+  hand_written: boolean;
   title_options: string[];
   caption: string;
   hashtags: string[];

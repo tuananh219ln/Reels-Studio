@@ -82,7 +82,14 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           </Button>
         </Flex>
         <Typography.Text strong>Tự rà soát an toàn của AI</Typography.Text>
-        {video.self_review.length ? (
+        {video.hand_written ? (
+          <Alert
+            type="warning"
+            showIcon
+            data-testid="hand-written-review"
+            title="Video tự viết nên chưa được AI rà soát an toàn. Hãy tự kiểm tra nội dung theo luật an toàn của kênh trước khi đăng."
+          />
+        ) : video.self_review.length ? (
           <ul style={{ margin: "4px 0 0", paddingLeft: 20 }} data-testid="self-review">
             {video.self_review.map((item) => (
               <li key={item}>{item}</li>

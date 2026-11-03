@@ -46,7 +46,9 @@ app replaces CapCut, so the output is a finished MP4.
    on Cài đặt › Mô hình AI) turns a topic into 5 title options, a 5–7 scene
    script, a caption with hashtags, per-scene image prompts, affiliate
    suggestions, a safety self-review, and music suggestions. Every part is editable. "Nhân bản"
-   writes one variant of an existing video from a change request.
+   writes one variant of an existing video from a change request. "Tự viết" makes a video without
+   the AI: a member pastes a script (one scene per paragraph) or writes it on the video page, with
+   no AI cost and no AI safety review.
 4. **Scene images (built):** members give every scene a photo or clip: their own upload, or a
    Pixabay photo picked from a grid or found by the scene's keywords and stored with the scene; a
    scene without one blocks the render.
@@ -78,7 +80,8 @@ app replaces CapCut, so the output is a finished MP4.
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
     comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài
     đăng" shows them, sorts by views, compares each with its Page's median at 48 hours and shows the
-    weekly KPIs.
+    weekly KPIs. "Phân tích bài đăng" adds watch time, reach, replays, follows and the retention
+    curve, split by the scenes of the posted MP4.
 
 ---
 

@@ -51,7 +51,15 @@ Built:
   under the topic; picking one fills the topic and shows its day, pain group, pain and hook ("Bỏ
   chọn" drops it). A typed topic that is nowhere in the plan gets a yellow note that does not block.
   "Tạo video" on an idea in Kho kiến thức (`/videos?plan_item=<id>`) and "Làm tiếp" open the dialog
-  with that idea picked.
+  with that idea picked. A switch at the top chooses "AI viết kịch bản" (the default) or "Tự viết".
+  "Tự viết" makes no AI call: every group can be picked (no "(chưa có prompt)"), the topic is also
+  the title scene's text, and "Kịch bản (không bắt buộc)" takes a pasted script. Its placeholder
+  shows the format: a paragraph per scene, "Đọc:" lines for the voice text. A yellow note says that
+  no title options, caption, hashtags, photo keywords or safety self-review will come and that the
+  member checks the content against the channel's safety rules. The provider line is hidden and
+  the button reads "Tạo video". The video page opens with the scenes ready to edit. The title card
+  says "Kịch bản tự viết, không qua AI", and "Nội dung đăng" shows a yellow warning in place of the
+  AI's self-review.
 - **Video list** (`/videos`): thumbnail (the title-scene preview, or a pale tile with the title
   when there is none or it fails to load), title, status (Nháp / Chờ / Đang viết / Đang render /
   Xong / Lỗi) with the labels "MP4 chưa cập nhật theo bản sửa" and "Render lại lỗi", creator,

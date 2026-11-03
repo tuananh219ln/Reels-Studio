@@ -212,7 +212,7 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | Table | Key contents |
 |---|---|
 | `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
-| `videos` | Topic, whether the script exists, narration on/off, its own settings (`options`: voice, reading speed as a tempo factor, voice level, ducking, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, thumbnail, the clone snapshot for a cloned draft, creator. |
+| `videos` | Topic, whether the script exists, narration on/off, its own settings (`options`: voice, reading speed as a tempo factor, voice level, ducking, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, whether a member wrote the script by hand (`hand_written`), thumbnail, the clone snapshot for a cloned draft, creator. |
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words; its 30-day plan's prompt (empty: the default), start date (day 1, Vietnam time), ideas per day for the AI (3–5), and the AI's last plan as a draft (`plan_draft`) until a member saves or drops it. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
 | `topic_plan_items` | One idea of a topic group's 30-day plan ([plans.py](../api/src/reels_api/plans.py), [routes_plans.py](../api/src/reels_api/routes_plans.py)): day (1–30), place in the day, topic, pain group, pain, hook, the video made from it (unique; `SET NULL` when the video is deleted), who changed it. At most 5 a day and no topic twice, checked by the api under a lock on the topic group. Its status is read from the video. Deleted with the group. Saving an imported or AI plan replaces every idea, and an idea with the topic of one that had a video keeps that video. |
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from, and where a member dragged its text box (`text_x`, `text_y`, the box centre; null: the video's place in `videos.options.text_position`, else the template's). Whether its photo is the app's unchecked pick (`image_auto`). |
@@ -405,6 +405,16 @@ Planned:
   group; the script job then passes the idea's pain and hook to the prompt
   ([content.md](content.md#script-generation-contract)). The job log names a plan job "Kế hoạch 30
   ngày · <nhóm>".
+- **"Tự viết" (hand-written video):** `POST /api/videos` with `mode: "manual"` queues no job and
+  makes no LLM call. The group is still required (banned words, team defaults, the plan), but not
+  its script prompt. The video is saved with its script at once (`has_script`, `hand_written`):
+  the title scene's text is the topic (also the only title option, 3 s), and `script` (at most 5000
+  characters) gives one content scene per paragraph, split at blank lines. In a paragraph, lines
+  starting with "Đọc:" are its voice text and the other lines its on-screen text, with the line
+  breaks kept. Each scene lasts 4 s, at most 20 scenes. An empty script gives one empty scene.
+  Keywords, image prompts, caption, hashtags, affiliates and the self-review stay empty, and no
+  "Tự tìm ảnh" runs. Everything else is as for any video: pre-render checks, banned-word warnings,
+  render and posting. `hand_written` is in the video payload.
 - **Clone ("Nhân bản"):** stores a snapshot of the source as edited at that moment plus the change
   request on the new draft, and copies the source's MP3 as the draft's own file. The source is not
   locked. Cancelling and writing the draft again reruns the same clone.

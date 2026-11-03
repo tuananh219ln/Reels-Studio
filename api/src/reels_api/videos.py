@@ -489,6 +489,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "topic": video.topic,
         "title": title_of(video, title),
         "has_script": video.has_script,
+        "hand_written": video.hand_written,
         "title_options": video.title_options,
         "caption": video.caption,
         "hashtags": video.hashtags,

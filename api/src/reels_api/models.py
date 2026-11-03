@@ -152,6 +152,8 @@ class Video(Base):
     topic: Mapped[str] = mapped_column(Text)
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id"))
     has_script: Mapped[bool] = mapped_column(Boolean, default=False)
+    # "Tự viết": a member wrote the script, so no AI wrote it and none reviewed its safety.
+    hand_written: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     title_options: Mapped[list] = mapped_column(JSONB, default=list)
     caption: Mapped[str] = mapped_column(Text, default="")
     hashtags: Mapped[list] = mapped_column(JSONB, default=list)

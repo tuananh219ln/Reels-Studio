@@ -493,6 +493,15 @@ export default function VideoPage() {
                     options={video.title_options.map((option, index) => ({ value: index, label: option }))}
                   />
                   {/* Under the options, not in the card's header, where on a phone it squeezed the title to "T…". */}
+                  {video.hand_written && (
+                    <Typography.Text
+                      type="secondary"
+                      style={{ display: "block", marginTop: 10, fontSize: 12 }}
+                      data-testid="script-by"
+                    >
+                      Kịch bản tự viết, không qua AI
+                    </Typography.Text>
+                  )}
                   {video.script_by && (
                     <Typography.Text
                       type="secondary"
