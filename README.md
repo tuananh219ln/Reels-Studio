@@ -104,7 +104,7 @@ khi server dev đang bật).
 ## Triển khai (CI/CD)
 
 Workflow `.github/workflows/ci-cd.yml` chạy kiểm thử (api, worker, web + E2E, build Cloudflare)
-trên mọi PR. E2E chia ra 4 máy chạy song song. PR còn **Draft** chỉ chạy kiểm tra nhanh (lint,
+trên mọi PR. pytest của api và E2E đều chia ra 4 máy chạy song song. PR còn **Draft** chỉ chạy kiểm tra nhanh (lint,
 typecheck, pytest); E2E và build Docker image chạy khi bấm **Ready for review**. PR chỉ sửa `docs/`
 hoặc file `.md` không chạy CI. Khi merge vào `main` và mọi kiểm thử đều qua, workflow mới triển khai:
 

@@ -42,6 +42,17 @@ def _test_engine():
     return create_engine(engine.url.set(database=name), connect_args={"connect_timeout": 3})
 
 
+def pytest_collection_modifyitems(config, items):
+    """PYTEST_SHARD=i/n (CI): keep every n-th test, starting at the i-th, so n machines split the suite evenly."""
+    shard = os.environ.get("PYTEST_SHARD")
+    if not shard:
+        return
+    index, total = (int(part) for part in shard.split("/"))
+    kept = [item for position, item in enumerate(items) if position % total == index - 1]
+    config.hook.pytest_deselected(items=[item for position, item in enumerate(items) if position % total != index - 1])
+    items[:] = kept
+
+
 @pytest.fixture(scope="session")
 def engine():
     engine = _test_engine()

@@ -14,9 +14,10 @@ in the MVP and described across `docs/`; this log gathers them in one place.
 ## 2026-11-03 — CI runs in parallel; draft PRs skip E2E, docs-only PRs skip CI
 
 A full run took about 16 minutes: E2E alone was 13 (one test after another, each render-heavy one
-30–60 s) and api pytest 10. E2E now runs on four machines, each taking every 4th test (Playwright's
-own `--shard` splits in file order and would put all of `videos.spec.ts` on two of them), and api
-pytest runs in 4 processes, each on its own database. A draft PR runs lint, typecheck, pytest and
+30–60 s) and api pytest 10. E2E and api pytest now each run on four machines, each machine taking
+every 4th test (Playwright's own `--shard` splits in file order and would put all of
+`videos.spec.ts` on two of them). Running pytest in 4 processes on one machine (`-n 4`) was tried
+first and saved almost nothing: the runners of a private repo have 2 vCPUs; it stays for local runs. A draft PR runs lint, typecheck, pytest and
 the Cloudflare build only, so members who push often without testing locally get feedback in a few
 minutes; E2E and the Docker image job run when the PR is marked ready for review. A PR that changes
 only `docs/` or `.md` files runs no CI. A push to `main` still runs every job before it deploys, so

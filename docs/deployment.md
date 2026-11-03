@@ -51,7 +51,8 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   apply; [web/public/_headers](../web/public/_headers) makes `/_next/static/*` immutable for a year
   (Cloudflare's default is `max-age=0, must-revalidate`, one revalidation per file per page load).
 - **Delivery:** [.github/workflows/ci-cd.yml](../.github/workflows/ci-cd.yml). Every PR
-  runs api pytest with FFmpeg in 4 processes (`-n 4`; a skipped test fails the job), both Docker
+  runs api pytest with FFmpeg on four machines at once, each taking every 4th test (`PYTEST_SHARD`,
+  see `api/tests/conftest.py`; a skipped test fails the job), both Docker
   image builds and the render parity test inside the worker image, worker pytest with FFmpeg, web
   typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on four
   machines at once, each taking every 4th test of `playwright test --list`. A draft PR runs only the

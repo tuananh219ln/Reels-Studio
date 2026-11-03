@@ -22,8 +22,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # api pytest on four machines at once, each running every 4th test (PYTEST_SHARD, tests/conftest.py).
   api:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:17
@@ -36,6 +41,7 @@ jobs:
           --health-cmd "pg_isready -U reels -d reels_test" --health-interval 2s --health-timeout 3s --health-retries 30
     env:
       TEST_DATABASE_URL: postgresql+psycopg://reels:reels@127.0.0.1:5432/reels_test
+      PYTEST_SHARD: ${{ matrix.shard }}/4
     defaults:
       run:
         working-directory: api
@@ -56,8 +62,7 @@ jobs:
       # A skip here means Postgres or FFmpeg was not there, so it fails the job instead of hiding the
       # integration, worker and render parity tests.
       # pipefail: without it the pipe reports tee's status and failing tests would pass the step.
-      # -n 4: four pytest processes, each on its own database (tests/conftest.py).
-      - run: set -o pipefail; python -m pytest -q -rs -n 4 | tee pytest.log && ! grep -q "SKIPPED" pytest.log
+      - run: set -o pipefail; python -m pytest -q -rs | tee pytest.log && ! grep -q "SKIPPED" pytest.log
 
   # The production images and the render parity test inside the worker image, beside the api tests.
   api-image:
