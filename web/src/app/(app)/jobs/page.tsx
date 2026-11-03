@@ -1,23 +1,45 @@
 "use client";
 
-import { App, Button, Card, Flex, Table, Tag, Typography } from "antd";
+import {
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+  CloseCircleOutlined,
+  MinusCircleOutlined,
+  SearchOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import UserAvatar from "@/components/UserAvatar";
 import { usePolling } from "@/lib/polling";
 
 const REFRESH_MS = 5000;
 const PAGE_SIZE = 300; // JOB_LIST_LIMIT in the api
 
-const STATUS: Record<JobRow["status"], { label: string; color: string }> = {
-  queued: { label: "Chờ", color: "processing" },
-  running: { label: "Đang chạy", color: "processing" },
-  done: { label: "Xong", color: "success" },
-  failed: { label: "Lỗi", color: "error" },
-  cancelled: { label: "Đã hủy", color: "default" },
+const STATUS: Record<JobRow["status"], { label: string; color: string; icon: ReactNode }> = {
+  queued: { label: "Chờ", color: "default", icon: <ClockCircleOutlined /> },
+  running: { label: "Đang chạy", color: "processing", icon: <SyncOutlined spin /> },
+  done: { label: "Xong", color: "success", icon: <CheckCircleOutlined /> },
+  failed: { label: "Lỗi", color: "error", icon: <CloseCircleOutlined /> },
+  cancelled: { label: "Đã hủy", color: "default", icon: <MinusCircleOutlined /> },
 };
+
+/** The status filter: "Đang chạy" also holds the jobs still waiting for the worker. */
+type View = "all" | "active" | "failed" | "done";
+const VIEWS: { value: View; label: string; statuses: JobRow["status"][] | null }[] = [
+  { value: "all", label: "Tất cả", statuses: null },
+  { value: "active", label: "Đang chạy", statuses: ["queued", "running"] },
+  { value: "failed", label: "Lỗi", statuses: ["failed"] },
+  { value: "done", label: "Xong", statuses: ["done"] },
+];
+
+function options(values: string[]): { value: string; label: string }[] {
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b, "vi")).map((value) => ({ value, label: value }));
+}
 
 function duration(seconds: number | null): string {
   if (seconds === null) {
@@ -47,6 +69,10 @@ export default function JobsPage() {
   // Once older pages are loaded, polling merges the newest page into what is shown instead of replacing
   // it, so jobs that slide out of the newest page do not vanish between the two.
   const pagedBack = useRef(false);
+  const [view, setView] = useState<View>("all");
+  const [kind, setKind] = useState<string | null>(null);
+  const [person, setPerson] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const reload = useCallback(
     async (quiet = false) => {
@@ -84,75 +110,169 @@ export default function JobsPage() {
   }, [reload]);
   usePolling(() => reload(true), REFRESH_MS);
 
+  const counts = useMemo(
+    () =>
+      Object.fromEntries(
+        VIEWS.map(({ value, statuses }) => [
+          value,
+          statuses ? shown.filter((row) => statuses.includes(row.status)).length : shown.length,
+        ]),
+      ) as Record<View, number>,
+    [shown],
+  );
+
+  const filtered = useMemo(() => {
+    const statuses = VIEWS.find((item) => item.value === view)?.statuses;
+    const words = search.trim().toLocaleLowerCase("vi");
+    return shown.filter(
+      (row) =>
+        (!statuses || statuses.includes(row.status)) &&
+        (!kind || row.kind_label === kind) &&
+        (!person || row.created_by === person) &&
+        (!words || row.video_title.toLocaleLowerCase("vi").includes(words)),
+    );
+  }, [shown, view, kind, person, search]);
+  const filtering = view !== "all" || kind !== null || person !== null || search.trim() !== "";
+
   const columns: ColumnsType<JobRow> = [
     {
-      title: "Video",
-      key: "video",
+      title: "Job",
+      key: "job",
+      width: 300,
       // A long title takes one line, in full on hover, instead of squeezing to a word per line.
-      width: 240,
       render: (_, row) => (
-        <Typography.Text ellipsis={{ tooltip: row.video_title }} style={{ maxWidth: 220 }}>
-          {row.video_title}
-        </Typography.Text>
+        <Flex vertical style={{ minWidth: 0 }}>
+          <Typography.Text strong ellipsis={{ tooltip: row.video_title }} style={{ maxWidth: 280 }}>
+            {row.video_title}
+          </Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            {row.kind_label} · #{row.id}
+          </Typography.Text>
+        </Flex>
       ),
     },
-    { title: "Loại", dataIndex: "kind_label", width: 130 },
     {
       title: "Trạng thái",
       key: "status",
-      width: 120,
+      width: 130,
       render: (_, row) => {
-        const status = STATUS[row.status] ?? { label: row.status, color: "default" };
-        return <Tag color={status.color}>{status.label}</Tag>;
+        const status = STATUS[row.status] ?? { label: row.status, color: "default", icon: null };
+        return (
+          <Tag color={status.color} icon={status.icon}>
+            {status.label}
+          </Tag>
+        );
       },
     },
-    { title: "Người bấm", dataIndex: "created_by", width: 170 },
+    {
+      title: "Người bấm",
+      key: "created_by",
+      width: 170,
+      render: (_, row) => (
+        <Flex gap={8} align="center">
+          <UserAvatar initial={row.created_by.charAt(0).toUpperCase()} size={24} />
+          <Typography.Text ellipsis={{ tooltip: row.created_by }}>{row.created_by}</Typography.Text>
+        </Flex>
+      ),
+    },
     {
       title: "Bắt đầu",
       key: "started",
-      width: 150,
-      render: (_, row) => (row.started_at ? formatDateTime(row.started_at) : "—"),
+      width: 160,
+      render: (_, row) => (
+        <Flex vertical>
+          <span>{row.started_at ? formatDateTime(row.started_at) : "—"}</span>
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            {duration(row.duration_seconds)}
+          </Typography.Text>
+        </Flex>
+      ),
     },
-    { title: "Thời lượng", key: "duration", width: 120, render: (_, row) => duration(row.duration_seconds) },
     {
-      title: "Lần gọi AI",
-      key: "calls",
-      width: 120,
-      align: "right",
-      render: (_, row) => (row.kind === "image" ? row.image_calls : row.claude_calls),
-    },
-    {
-      title: "Mô hình",
-      key: "llm",
+      title: "AI",
+      key: "ai",
       width: 220,
-      render: (_, row) => row.llm ?? <Typography.Text type="secondary">—</Typography.Text>,
+      render: (_, row) => {
+        const calls = row.kind === "image" ? row.image_calls : row.claude_calls;
+        return (
+          <Flex vertical style={{ minWidth: 0 }}>
+            <span>{calls > 0 ? `${calls} lượt gọi` : "Không gọi AI"}</span>
+            {row.llm && (
+              <Typography.Text type="secondary" ellipsis={{ tooltip: row.llm }} style={{ fontSize: 13, maxWidth: 200 }}>
+                {row.llm}
+              </Typography.Text>
+            )}
+          </Flex>
+        );
+      },
     },
     {
       title: "Lỗi",
       key: "error",
       render: (_, row) =>
         row.error ? (
-          <Typography.Text type="danger" ellipsis={{ tooltip: row.error }}>
+          <Typography.Paragraph
+            type="danger"
+            ellipsis={{ rows: 2, tooltip: row.error }}
+            style={{ margin: 0, minWidth: 220 }}
+          >
             {row.error}
-          </Typography.Text>
+          </Typography.Paragraph>
         ) : (
-          ""
+          <Typography.Text type="secondary">—</Typography.Text>
         ),
     },
   ];
 
   return (
     <>
-      <PageHeader title="Nhật ký job" />
+      <PageHeader
+        title="Nhật ký job"
+        description="Mọi việc chạy nền: viết kịch bản, render, đăng và kiểm tra bài Facebook. Danh sách tự cập nhật; bấm một dòng để mở video của nó."
+      >
+        <Segmented<View>
+          aria-label="Trạng thái"
+          value={view}
+          onChange={setView}
+          options={VIEWS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+        />
+        <Select
+          allowClear
+          aria-label="Loại"
+          placeholder="Mọi loại"
+          value={kind}
+          onChange={(value) => setKind(value ?? null)}
+          options={options(shown.map((row) => row.kind_label))}
+          style={{ minWidth: 170 }}
+        />
+        <Select
+          allowClear
+          aria-label="Người bấm"
+          placeholder="Mọi người"
+          value={person}
+          onChange={(value) => setPerson(value ?? null)}
+          options={options(shown.map((row) => row.created_by))}
+          style={{ minWidth: 150 }}
+        />
+        <Input
+          allowClear
+          aria-label="Tìm theo video"
+          placeholder="Tìm theo tên video"
+          prefix={<SearchOutlined />}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          style={{ width: 240 }}
+        />
+      </PageHeader>
       <Card styles={{ body: { padding: 0 } }}>
         <Table<JobRow>
           rowKey="id"
           columns={columns}
-          dataSource={shown}
+          dataSource={filtered}
           loading={loading}
-          pagination={{ pageSize: 50, hideOnSinglePage: true }}
-          scroll={{ x: 1300 }}
-          locale={{ emptyText: "Chưa có job nào" }}
+          pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false }}
+          scroll={{ x: 1200 }}
+          locale={{ emptyText: filtering ? "Không có job nào khớp" : "Chưa có job nào" }}
           onRow={(row) => ({
             // A plan job has no video: it opens Kho kiến thức, where the plan is.
             onClick: () => router.push(row.video_id === null ? "/knowledge" : `/videos/${row.video_id}`),

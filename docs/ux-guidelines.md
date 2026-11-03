@@ -369,9 +369,12 @@ Built:
     sits under, the month it opens on, and the "today" mark.
     On a phone the month is compact, with a dot on each day that has a video, and the chosen day's
     videos are listed under it.
-- **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
-  AI call count, the model that wrote a script ("DeepSeek · deepseek-chat"), and error; a row opens
-  its video.
+- **Job logs** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
+  jobs: a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or running), "Lỗi", "Xong"),
+  "Mọi loại", "Mọi người" and a search by video title ("Không có job nào khớp" when nothing matches).
+  Each row: the video title with its kind and job number under it, a status tag with an icon, who
+  started it, start with the duration under it, AI call count with the model that wrote a script
+  ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
 - **Cài đặt**, a menu group, last in the sidebar, with two pages: **Cấu hình** and **Kết nối Fanpage**.
   Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with three tabs, each
   its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all three:
