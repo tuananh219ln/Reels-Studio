@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import analytics, facebook, fanpages, knowledge, llm, metrics
+from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, post_comments
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -362,6 +362,7 @@ def publication_payload(post: Publication | None, by_page: dict[int | None, anal
         "closed_at": post.closed_at.isoformat() if post.closed_at else None,
         "closed_by": post.closed_by.name if post.closed_by else None,
         "metrics": metrics.payload(post, by_page),
+        "comment": post_comments.payload(post),
     }
 
 
@@ -479,7 +480,11 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "title_options": video.title_options,
         "caption": video.caption,
         "hashtags": video.hashtags,
+        # What a post sends: the caption, then the hashtags it does not already hold.
+        "post_text": hashtags.post_text(video.caption, video.hashtags),
         "affiliates": video.affiliates,
+        # The products whose links go in the comment under the video's reels (post_comments.py).
+        "affiliate_product_ids": [product.id for product in affiliate.products_of(db, video.id)],
         "pinned_comment": video.pinned_comment,
         "self_review": video.self_review,
         "music_suggestions": video.music_suggestions,

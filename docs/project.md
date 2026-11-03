@@ -54,9 +54,11 @@ app replaces CapCut, so the output is a finished MP4.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text, or its on-screen text when
    that is empty (on by default, off per video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
    tagged by fixed topics and a mood).
-6. **Affiliate Shopee (built, manual):** a product list entered by hand, ranked by expected
-   commission and approved by a member, with products attached to each posted reel and a
-   ready pinned comment. There is no Shopee API call yet, and members still pin the comment.
+6. **Affiliate Shopee (built):** a product list entered by hand, ranked by expected
+   commission and approved by a member. Products are chosen on the video page (or on
+   "Affiliate Shopee" after posting), and once a reel is live the worker writes the pinned
+   comment with their links under it. There is no Shopee API call yet, and members still pin
+   the comment: Facebook's API cannot.
 7. **Job log (built):** every job with status, duration, AI call count, the model that wrote a
    script, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
@@ -66,7 +68,9 @@ app replaces CapCut, so the output is a finished MP4.
    deleted videos, and "Lịch đăng bài" shows the posted and scheduled ones in a month view, both in
    Vietnam time. The worker checks each Page's token twice a day (and on "Kiểm tra ngay"), so a
    broken one shows on "Kết nối Fanpage" and in "Đăng" before a post fails, and keeps the Page's
-   followers with this week's gain.
+   followers with this week's gain, and its views, reach and engagements by day from Page Insights.
+   "Bình luận" gathers visitors' comments under the app's reels on every Page, to answer as the
+   Page, hide or set aside.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections

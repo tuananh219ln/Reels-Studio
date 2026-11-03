@@ -146,6 +146,17 @@ test("the worker checks a connected Page's token and shows its followers", async
   await expect(page.getByText("Hoạt động", { exact: true })).toBeVisible();
 });
 
+test("Bình luận opens from the Đăng bài menu and starts empty", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Bình luận" }).click();
+  await expect(page).toHaveURL(/\/comments$/);
+  await expect(page.getByText("Không còn bình luận nào chờ trả lời")).toBeVisible();
+  await page.getByText("Tất cả", { exact: true }).click();
+  await expect(page.getByText("Chưa có bình luận nào")).toBeVisible();
+  await page.getByRole("button", { name: "Tải bình luận mới" }).click();
+  await expect(page.getByText("Đã nhờ worker tải bình luận mới", { exact: false })).toBeVisible();
+});
+
 test("Cấu hình holds the defaults, AI model and sources as tabs, each with its own address", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();

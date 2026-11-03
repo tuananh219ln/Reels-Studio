@@ -10,7 +10,7 @@ from sqlalchemy.orm import joinedload
 from . import facebook, fanpages
 from .db import get_db
 from .errors import ApiError
-from .models import Fanpage, Session
+from .models import Fanpage, FanpageFollowers, Session
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -57,6 +57,7 @@ def _pages_of(token: str) -> list[dict]:
 def _rows(db: DbSession) -> list[dict]:
     rows = list(db.scalars(select(Fanpage).options(joinedload(Fanpage.updated_by)).order_by(Fanpage.name, Fanpage.id)))
     checks = fanpages.check_payload(db, rows)
+    insights = fanpages.insights_summary(db, rows)
     scheduled = fanpages.scheduled_counts(db)
     return [
         {
@@ -68,6 +69,7 @@ def _rows(db: DbSession) -> list[dict]:
             "updated_at": row.updated_at.isoformat(),
             "updated_by": row.updated_by.email if row.updated_by else None,
             "check": checks[row.id],
+            "insights": insights[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),
         }
         for row in rows
@@ -140,3 +142,27 @@ def check_now(fanpage_id: int, me: Session = Depends(current_member), db: DbSess
     fanpages.request_check(row)
     db.commit()
     return _rows(db)
+
+
+@router.get("/{fanpage_id}/insights")
+def page_insights(
+    fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """The Page's daily numbers of the last 30 days, oldest first, with its followers that day when read."""
+    if db.get(Fanpage, fanpage_id) is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    followers = dict(
+        db.execute(
+            select(FanpageFollowers.day, FanpageFollowers.followers).where(FanpageFollowers.fanpage_id == fanpage_id)
+        ).all()
+    )
+    return [
+        {
+            "day": row.day.isoformat(),
+            "views": row.views,
+            "reach": row.reach,
+            "engagements": row.engagements,
+            "followers": followers.get(row.day),
+        }
+        for row in fanpages.insights_of(db, fanpage_id)
+    ]

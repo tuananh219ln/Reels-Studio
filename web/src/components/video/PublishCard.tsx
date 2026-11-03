@@ -1,14 +1,15 @@
 "use client";
 
 import { SendOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Flex, Input, Modal, Radio, Select, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Checkbox, Flex, Input, Modal, Radio, Select, Tag, Typography } from "antd";
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { api, errorMessage, formatDateTime, type Post, type VideoDetail } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
 import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
 import PostMetrics, { WinnerTag } from "@/components/PostMetrics";
+import PostComment from "@/components/PostComment";
 
 // TikTok and YouTube need their own app review first (docs/project.md), so they are shown but cannot be picked yet.
 const PLATFORMS = [
@@ -25,6 +26,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
   const [mode, setMode] = useState<"now" | "later">("now");
   const [when, setWhen] = useState("");
   const [picked, setPicked] = useState<number | null>(null);
+  const [autoComment, setAutoComment] = useState(true);
   const [busy, setBusy] = useState(false);
   const fanpage = picked ?? (video.fanpages.length === 1 ? video.fanpages[0].id : null);
   const chosen = video.fanpages.find((page) => page.id === fanpage);
@@ -41,7 +43,11 @@ export function PublishButton({ video }: { video: VideoDetail }) {
       await editor.flush();
       const scheduled_at = mode === "later" ? new Date(when).toISOString() : null;
       editor.onSaved(
-        await api<VideoDetail>(`/videos/${video.id}/publish`, "POST", { fanpage_id: fanpage, scheduled_at }),
+        await api<VideoDetail>(`/videos/${video.id}/publish`, "POST", {
+          fanpage_id: fanpage,
+          scheduled_at,
+          auto_comment: autoComment,
+        }),
       );
       setOpen(false);
       // The next post starts fresh: a time kept from this one would schedule it by mistake.
@@ -120,8 +126,12 @@ export function PublishButton({ video }: { video: VideoDetail }) {
                 onChange={(event) => setWhen(event.target.value)}
               />
             )}
+            <Checkbox checked={autoComment} onChange={(event) => setAutoComment(event.target.checked)}>
+              Tự bình luận khi bài lên (bình luận ghim kèm link sản phẩm Shopee đã chọn)
+            </Checkbox>
             <Typography.Text type="secondary">
-              Đăng bản MP4 mới nhất kèm caption và hashtag đã lưu. Bình luận ghim vẫn làm tay trên Facebook.
+              Đăng bản MP4 mới nhất kèm caption và hashtag đã lưu. Facebook không cho ghim bằng API, nên vẫn ghim bình
+              luận tay trên Facebook.
             </Typography.Text>
           </Flex>
         )}
@@ -139,6 +149,10 @@ function statusText(post: Post): string {
 /** Every post of this video, newest first; those cancelled or deleted stay, with who did it and when. */
 export default function PublishCard({ video }: { video: VideoDetail }) {
   const editor = useEditor();
+  const { onSaved } = editor;
+  const reload = useCallback(() => {
+    api<VideoDetail>(`/videos/${video.id}`).then(onSaved, () => undefined);
+  }, [video.id, onSaved]);
   if (video.publications.length === 0) return null;
   return (
     <Card title="Bài đăng của video" size="small">
@@ -162,6 +176,7 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
                   ` · ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
               </Typography.Paragraph>
               <PostMetrics post={post} />
+              <PostComment post={post} onChanged={reload} />
             </div>
             <PostActions post={post} disabled={video.locked} onDone={editor.onSaved} />
           </Flex>

@@ -1,9 +1,11 @@
 "use client";
 
 import { CopyOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Card, Flex, Typography } from "antd";
-import { api, type VideoDetail } from "@/lib/api";
-import AutoSaveField from "./AutoSaveField";
+import { App, Alert, Button, Card, Flex, Select, Typography } from "antd";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/lib/api";
+import AutoSaveField, { useEditor } from "./AutoSaveField";
 
 type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_comment" | "music_suggestions">;
 
@@ -47,12 +49,13 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           save={(text) => patch({ hashtags: words(text) })}
         />
         <AutoSaveField
-          label="Sản phẩm affiliate"
+          label="Gợi ý sản phẩm (AI)"
           value={video.affiliates.join("\n")}
           multiline
-          hint="Mỗi dòng một sản phẩm"
+          hint="Gợi ý để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
           save={(text) => patch({ affiliates: lines(text) })}
         />
+        <ShopeeProducts video={video} />
         <AutoSaveField
           label="Bình luận ghim"
           value={video.pinned_comment}
@@ -68,10 +71,7 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           save={(text) => patch({ music_suggestions: lines(text) })}
         />
         <Flex wrap gap={8} style={{ marginBottom: 12 }}>
-          <Button
-            icon={<CopyOutlined />}
-            onClick={() => copy(`${video.caption}\n\n${video.hashtags.join(" ")}`, "caption + hashtag")}
-          >
+          <Button icon={<CopyOutlined />} onClick={() => copy(video.post_text, "caption + hashtag")}>
             Copy caption + hashtag
           </Button>
           <Button icon={<CopyOutlined />} onClick={() => copy(video.pinned_comment, "bình luận ghim")}>
@@ -98,4 +98,61 @@ export default function PostContent({ video }: { video: VideoDetail }) {
 
 function Warnings({ messages }: { messages: string[] }) {
   return messages.map((text) => <Alert key={text} type="warning" showIcon title={text} style={{ marginBottom: 8 }} />);
+}
+
+/** The approved Shopee products whose links go in the comment the worker writes under the reel, after the pinned
+ * comment. Chosen before posting so the first comment already holds them; a change edits a comment already written. */
+function ShopeeProducts({ video }: { video: VideoDetail }) {
+  const { message } = App.useApp();
+  const { onSaved } = useEditor();
+  const [products, setProducts] = useState<AffiliateProduct[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    api<AffiliateProduct[]>("/affiliate-products?status=approved").then(
+      (found) => live && setProducts(found),
+      () => live && setProducts([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  async function save(ids: number[]) {
+    setSaving(true);
+    try {
+      await api(`/affiliate-products/videos/${video.id}`, "PUT", { product_ids: ids });
+      onSaved(await api<VideoDetail>(`/videos/${video.id}`));
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const usable = (products ?? []).filter((product) => product.problems.length === 0);
+  return (
+    <Flex vertical gap={4} style={{ marginBottom: 12 }}>
+      <Typography.Text strong>Sản phẩm Shopee trong bình luận</Typography.Text>
+      <Select
+        mode="multiple"
+        aria-label="Sản phẩm Shopee trong bình luận"
+        placeholder="Chọn sản phẩm đã duyệt"
+        loading={products === null || saving}
+        value={video.affiliate_product_ids}
+        onChange={save}
+        optionFilterProp="label"
+        options={usable.map((product) => ({ value: product.id, label: product.name }))}
+        notFoundContent={
+          <Typography.Text type="secondary">
+            Chưa có sản phẩm đã duyệt. Thêm ở <Link href="/affiliate">Affiliate Shopee</Link>.
+          </Typography.Text>
+        }
+      />
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Link các sản phẩm này đi sau bình luận ghim, trong bình luận app tự viết dưới reel.
+      </Typography.Text>
+    </Flex>
+  );
 }

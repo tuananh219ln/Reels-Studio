@@ -114,7 +114,11 @@ export type VideoDetail = VideoRow & {
   title_options: string[];
   caption: string;
   hashtags: string[];
+  /** What a post sends: the caption, then the hashtags it does not already hold. */
+  post_text: string;
   affiliates: string[];
+  /** The Shopee products whose links go in the comment under the video's reels. */
+  affiliate_product_ids: number[];
   pinned_comment: string;
   self_review: string[];
   music_suggestions: string[];
@@ -175,6 +179,20 @@ export type Fanpage = {
   };
   /** Posts still waiting for their time on Facebook. */
   scheduled_posts: number;
+  /** Page Insights summed over the last 7 days, and what went wrong at the last reading. */
+  insights: {
+    last_7_days: { views: number | null; reach: number | null; engagements: number | null };
+    error: string | null;
+  };
+};
+
+/** One day of a Page's numbers (api GET /fanpages/{id}/insights). */
+export type FanpageDay = {
+  day: string;
+  views: number | null;
+  reach: number | null;
+  engagements: number | null;
+  followers: number | null;
 };
 
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
@@ -317,6 +335,35 @@ export type StockSource = { id: string; label: string; available: boolean; clips
 /** A stock video clip in the picker's "Video" mode; `preview` is a still shown straight from the source. */
 export type ClipHit = { id: string; preview: string; url: string; seconds: number };
 
+/** A visitor's comment under one of the app's reels ("Bình luận"; api routes_comments.py). */
+export type PageCommentRow = {
+  id: number;
+  /** open: waits for an answer; sending: a reply or hide waits for the worker; answered, hidden, dismissed. */
+  state: "open" | "sending" | "answered" | "hidden" | "dismissed";
+  author: string;
+  message: string;
+  created_at: string;
+  reply_text: string | null;
+  error: string | null;
+  handled_by: string | null;
+  url: string;
+  post: {
+    id: number;
+    video_id: number;
+    title: string;
+    fanpage: string | null;
+    fanpage_id: number | null;
+    reel_url: string | null;
+  };
+};
+
+export type PageComments = {
+  comments: PageCommentRow[];
+  /** Pages whose comments could not be read, with why. */
+  read_errors: { fanpage: string; error: string }[];
+  read_at: string | null;
+};
+
 export type AffiliateProduct = {
   id: number;
   knowledge_topic_id: number;
@@ -370,6 +417,14 @@ export type Post = {
   closed_at: string | null;
   closed_by: string | null;
   metrics: PostMetrics;
+  /** The affiliate comment the worker writes under the reel (api post_comments.payload). */
+  comment: {
+    state: "off" | "waiting" | "pending" | "done" | "failed";
+    auto: boolean;
+    error: string | null;
+    text: string | null;
+    at: string | null;
+  };
 };
 
 /** A post's numbers on Facebook as of `measured_at`; a number is null when Facebook does not give it. */

@@ -10,7 +10,7 @@ from sqlalchemy import select
 from worker_helpers import add_user, committed  # noqa: F401  (fixtures)
 
 from reels_api import analytics, crypto, fanpages
-from reels_api.models import Fanpage, FanpageFollowers, Publication
+from reels_api.models import Fanpage, FanpageFollowers, FanpageInsights, Publication
 
 URL = "/api/fanpages"
 
@@ -271,3 +271,56 @@ def test_the_day_is_vietnam_time(db, me, fakes, monkeypatch):
     page = add_page(db, me)
     fanpages.check(db, page)
     assert [row.day for row in db.scalars(select(FanpageFollowers))] == [date(2026, 11, 4)]
+
+
+# The Page's daily numbers (Page Insights)
+
+
+def test_a_check_keeps_the_pages_daily_numbers(an, db, me, fakes):
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    rows = an.get(f"{URL}/{page.id}/insights").json()
+    assert [(row["day"], row["views"], row["reach"], row["engagements"]) for row in rows] == [
+        ("2026-11-01", 900, 600, 40),
+        ("2026-11-02", 1100, 700, 55),
+    ], "Facebook dates a day by its end"
+    (listed,) = an.get(URL).json()
+    assert listed["insights"]["error"] is None
+
+
+def test_the_last_seven_days_are_summed_on_the_list(an, db, me, fakes, monkeypatch):
+    monkeypatch.setattr(fanpages, "now", lambda: datetime(2026, 11, 3, 12, tzinfo=UTC))
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    (listed,) = an.get(URL).json()
+    assert listed["insights"]["last_7_days"] == {"views": 2000, "reach": 1300, "engagements": 95}
+
+
+def test_a_metric_meta_retired_loses_only_that_number(db, me, fakes):
+    fakes.facebook_page_metrics_dropped = {"page_post_engagements"}
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    row = db.scalars(select(FanpageInsights).order_by(FanpageInsights.day)).first()
+    assert (row.views, row.engagements) == (900, None)
+    assert page.insights_error == "Facebook không trả số liệu page_post_engagements"
+    assert page.check_error is None, "the token works"
+
+
+def test_a_token_without_read_insights_is_not_a_broken_connection(db, me, fakes):
+    fakes.facebook_page_insights_refused = True
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    assert page.check_error is None
+    assert page.insights_error == "Token chưa có quyền đọc số liệu Page (read_insights)"
+
+
+def test_a_later_check_rewrites_a_revised_day(db, me, fakes):
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    fakes.facebook_page_insights["page_media_view"]["2026-11-03T08:00:00+0000"] = 1500
+    fanpages.check(db, page)
+    assert sorted(row.views for row in db.scalars(select(FanpageInsights))) == [900, 1500]
+
+
+def test_insights_of_an_unknown_page(an):
+    assert an.get(f"{URL}/999/insights").status_code == 404

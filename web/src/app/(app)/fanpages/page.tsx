@@ -17,7 +17,7 @@ import {
   Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type Fanpage, type FanpageChoice } from "@/lib/api";
+import { api, errorMessage, formatDateTime, type Fanpage, type FanpageChoice, type FanpageDay } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 
 const number = (value: number) => value.toLocaleString("vi-VN");
@@ -53,6 +53,58 @@ function CheckStatus({ row }: { row: Fanpage }) {
         </Typography.Text>
       )}
     </Flex>
+  );
+}
+
+const count = (value: number | null) => (value === null ? "—" : number(value));
+
+/** Views, reach and engagements of the last 7 days, from Page Insights. */
+function LastWeek({ row }: { row: Fanpage }) {
+  const { last_7_days: week, error } = row.insights;
+  return (
+    <Flex vertical gap={2}>
+      <span>{count(week.views)} lượt xem</span>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        {count(week.reach)} người tiếp cận · {count(week.engagements)} tương tác
+      </Typography.Text>
+      {error && (
+        <Typography.Text type="warning" style={{ fontSize: 12, maxWidth: 280 }}>
+          {error}
+        </Typography.Text>
+      )}
+    </Flex>
+  );
+}
+
+/** The Page's numbers day by day for the last 30 days, loaded when its row opens. */
+function Days({ row }: { row: Fanpage }) {
+  const [days, setDays] = useState<FanpageDay[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    api<FanpageDay[]>(`/fanpages/${row.id}/insights`).then(
+      (found) => live && setDays(found),
+      () => live && setDays([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [row.id]);
+  return (
+    <Table<FanpageDay>
+      size="small"
+      rowKey="day"
+      loading={days === null}
+      dataSource={days ? [...days].reverse() : []}
+      pagination={false}
+      locale={{ emptyText: "Chưa có số liệu: tool đọc Page Insights ở mỗi lần kiểm tra" }}
+      columns={[
+        { title: "Ngày", dataIndex: "day", render: (day: string) => day.split("-").reverse().join("/") },
+        { title: "Lượt xem", dataIndex: "views", render: count },
+        { title: "Người tiếp cận", dataIndex: "reach", render: count },
+        { title: "Tương tác", dataIndex: "engagements", render: count },
+        { title: "Người theo dõi", dataIndex: "followers", render: count },
+      ]}
+    />
   );
 }
 
@@ -280,6 +332,7 @@ export default function FanpagesPage() {
           pagination={false}
           scroll={{ x: "max-content" }}
           locale={{ emptyText: "Chưa kết nối Fanpage nào" }}
+          expandable={{ expandedRowRender: (row) => <Days row={row} />, rowExpandable: (row) => row.active }}
           columns={[
             { title: "Page", render: (_, row) => `${row.name} (${row.page_id})` },
             { title: "Token", render: (_, row) => `…${row.token_tail}` },
@@ -291,6 +344,7 @@ export default function FanpagesPage() {
             },
             { title: "Kết nối", render: (_, row) => <CheckStatus row={row} /> },
             { title: "Người theo dõi", render: (_, row) => <Followers row={row} /> },
+            { title: "7 ngày qua", render: (_, row) => <LastWeek row={row} /> },
             {
               title: "Cập nhật",
               render: (_, row) => `${formatDateTime(row.updated_at)}${row.updated_by ? ` · ${row.updated_by}` : ""}`,

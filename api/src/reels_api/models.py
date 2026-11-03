@@ -288,6 +288,8 @@ class Fanpage(Base):
     check_error: Mapped[str | None] = mapped_column(Text)
     check_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     followers_count: Mapped[int | None] = mapped_column(Integer)
+    # What went wrong reading the Page's daily numbers at the last check (fanpages.read_insights), None when it worked.
+    insights_error: Mapped[str | None] = mapped_column(Text)
 
     updated_by: Mapped[User | None] = relationship()
 
@@ -302,6 +304,21 @@ class FanpageFollowers(Base):
     fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
     day: Mapped[date] = mapped_column(Date)
     followers: Mapped[int] = mapped_column(Integer)
+
+
+class FanpageInsights(Base):
+    """A Page's numbers for one day (Vietnam time) from Page Insights, read by the worker's check: views of its content,
+    the people reached and the engagements on its posts; None when Facebook gave no number."""
+
+    __tablename__ = "fanpage_insights"
+    __table_args__ = (Index("uq_fanpage_insights_fanpage_id_day", "fanpage_id", "day", unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
+    day: Mapped[date] = mapped_column(Date)
+    views: Mapped[int | None] = mapped_column(Integer)
+    reach: Mapped[int | None] = mapped_column(Integer)
+    engagements: Mapped[int | None] = mapped_column(Integer)
 
 
 class LlmProvider(Base):
@@ -372,6 +389,18 @@ class Publication(Base):
     metrics_error: Mapped[str | None] = mapped_column(Text)
     # "Cập nhật view": the worker reads the numbers in its next round, even for a post past the days it follows.
     metrics_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The affiliate comment the worker writes under the reel once it is live (post_comments.py). Only posts made with
+    # "Tự bình luận" on get one by themselves; `comment_id` is Facebook's, so the comment is edited, never posted twice.
+    auto_comment: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    comment_id: Mapped[str | None] = mapped_column(String(64))
+    comment_text: Mapped[str | None] = mapped_column(Text)  # what was sent last
+    comment_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set before asking Facebook
+    commented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Facebook took it
+    comment_error: Mapped[str | None] = mapped_column(Text)
+    comment_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # "Bình luận ngay"
+    # When the worker last read the visitors' comments under the reel (comments_inbox.py), and what went wrong then.
+    comments_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    comments_error: Mapped[str | None] = mapped_column(Text)
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
@@ -395,6 +424,35 @@ class PostMetrics(Base):
     comments: Mapped[int | None] = mapped_column(Integer)
     reactions: Mapped[int | None] = mapped_column(Integer)
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class PageComment(Base):
+    """A visitor's comment under a reel the app posted, read by the worker (comments_inbox.py) for "Bình luận". A reply
+    or a hide a member asks for is stamped before Facebook is asked, so it is never sent twice."""
+
+    __tablename__ = "page_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id", ondelete="CASCADE"), index=True)
+    remote_id: Mapped[str] = mapped_column(String(80), unique=True)  # Facebook's comment id
+    author_name: Mapped[str] = mapped_column(String(200), default="")
+    message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # The Page already answered it on Facebook (found by the worker), or through the app (`reply_id`).
+    answered: Mapped[bool] = mapped_column(Boolean, default=False)
+    hidden: Mapped[bool] = mapped_column(Boolean, default=False)
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # "Bỏ qua": no answer needed
+    reply_text: Mapped[str | None] = mapped_column(Text)
+    reply_id: Mapped[str | None] = mapped_column(String(80))
+    reply_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reply_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    hide_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    hide_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+    handled_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+    handled_by: Mapped[User | None] = relationship()
+    publication: Mapped[Publication] = relationship()
 
 
 class MusicTrack(Base):

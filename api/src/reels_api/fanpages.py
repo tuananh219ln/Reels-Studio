@@ -21,13 +21,15 @@ from sqlalchemy.orm import sessionmaker
 
 from . import analytics, crypto, facebook
 from .facebook import FacebookError, Page
-from .models import Fanpage, FanpageFollowers, Publication
+from .models import Fanpage, FanpageFollowers, FanpageInsights, Publication
 from .sessions import now
 
 log = logging.getLogger("reels_api.fanpages")
 
 TOKEN_TAIL = 4
 EVERY = timedelta(hours=12)
+# Page Insights days re-read at each check: Facebook revises its last days for a while.
+INSIGHTS_DAYS = 7
 # Pages checked per round of the worker; with INSIGHTS_TIMEOUT a dead Facebook holds the queue ~30 s at most.
 BATCH = 3
 
@@ -98,7 +100,8 @@ def check(db: DbSession, row: Fanpage) -> None:
     at = now()
     values: dict = {"checked_at": at, "check_error": None, "updated_at": Fanpage.updated_at}
     try:
-        info = facebook.page_info(_page(row))
+        page = _page(row)
+        info = facebook.page_info(page)
     except FacebookError as err:
         values["check_error"] = err.message
         log.warning("Fanpage %s failed its check: %s %s", row.id, err.message, err.detail)
@@ -113,9 +116,37 @@ def check(db: DbSession, row: Fanpage) -> None:
                 .values(fanpage_id=row.id, day=day, followers=info["followers"])
                 .on_conflict_do_update(index_elements=["fanpage_id", "day"], set_={"followers": info["followers"]})
             )
+        values["insights_error"] = read_insights(db, row, page, at)
     db.execute(update(Fanpage).where(Fanpage.id == row.id).values(**values))
     db.commit()
     db.refresh(row)
+
+
+def read_insights(db: DbSession, row: Fanpage, page: Page, at) -> str | None:
+    """Keep the Page's daily numbers of the last `INSIGHTS_DAYS` days, rewritten each check since Facebook revises its
+    recent days. Returns what went wrong (None when all of it was read); a token that works but lacks `read_insights`
+    is not a broken connection, so this never sets `check_error`."""
+    try:
+        days, problems = facebook.page_insights(page, at - timedelta(days=INSIGHTS_DAYS), at)
+    except FacebookError as err:
+        return err.message
+    for day, numbers in days.items():
+        db.execute(
+            insert(FanpageInsights)
+            .values(fanpage_id=row.id, day=day, **numbers)
+            .on_conflict_do_update(index_elements=["fanpage_id", "day"], set_=numbers)
+        )
+    return "; ".join(problems) or None
+
+
+def insights_of(db: DbSession, fanpage_id: int, days: int = 30) -> list[FanpageInsights]:
+    since = now().astimezone(analytics.VIETNAM).date() - timedelta(days=days)
+    query = (
+        select(FanpageInsights)
+        .where(FanpageInsights.fanpage_id == fanpage_id, FanpageInsights.day > since)
+        .order_by(FanpageInsights.day)
+    )
+    return list(db.scalars(query))
 
 
 def check_due(factory: sessionmaker) -> None:
@@ -169,6 +200,35 @@ def check_payload(db: DbSession, rows: list[Fanpage]) -> dict[int, dict]:
             "followers_this_week": row.followers_count - start
             if row.followers_count is not None and start is not None
             else None,
+        }
+    return result
+
+
+def insights_summary(db: DbSession, rows: list[Fanpage]) -> dict[int, dict]:
+    """Each Page's views, reach and engagements summed over its last 7 days with numbers, and the last reading's
+    error. A sum is None when no day had that number."""
+    since = now().astimezone(analytics.VIETNAM).date() - timedelta(days=7)
+    query = (
+        select(
+            FanpageInsights.fanpage_id,
+            func.sum(FanpageInsights.views),
+            func.sum(FanpageInsights.reach),
+            func.sum(FanpageInsights.engagements),
+        )
+        .where(FanpageInsights.day > since)
+        .group_by(FanpageInsights.fanpage_id)
+    )
+    sums = {fanpage_id: (views, reach, engagements) for fanpage_id, views, reach, engagements in db.execute(query)}
+    result = {}
+    for row in rows:
+        views, reach, engagements = sums.get(row.id, (None, None, None))
+        result[row.id] = {
+            "last_7_days": {
+                "views": int(views) if views is not None else None,
+                "reach": int(reach) if reach is not None else None,
+                "engagements": int(engagements) if engagements is not None else None,
+            },
+            "error": row.insights_error,
         }
     return result
 
