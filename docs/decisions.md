@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — The post metrics migration is 0024, not 0023
+
+The topic plan (#79) and post metrics (#84) branches each added a migration `0023` after `0022`, and both
+were merged, so `alembic upgrade head` failed with two heads. Production got only the topic plan's `0023`
+(#79 deployed; nothing after it could pass CI), so the post metrics migration is renumbered to `0024`, after
+`0023_topic_plans`. This is the one exception to "never edit a migration on `main`": the file was never applied
+outside development, and two files with the same revision id cannot be fixed by adding a third. The post
+metrics entry below says "migration 0023"; read 0024. `api/tests/test_migrations.py` now fails CI when two
+migrations share a number or the history forks. A development database that ran the old post metrics `0023`
+must be reset (drop and recreate it, then migrate).
+
 ## 2026-11-03 — Scene voice texts tell the food's benefit, with an optional short eating tip
 
 Issue #70: narration sounded like a cooking lesson, because the fixed output format asked for "lý do, cách ăn hoặc
