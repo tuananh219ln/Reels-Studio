@@ -27,7 +27,9 @@ from .claude import (
     build_script_prompt,
     generate_script,
 )
+from .clips import ClipError, frame_at
 from .facebook import FacebookError
+from .frames import jpeg_bytes
 from .imagegen import ImageGenError, generate_image
 from .models import Job, KnowledgeTopic, Publication, Scene, Video
 from .sessions import now
@@ -446,7 +448,21 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     post.scheduled_at = (facebook.scheduled_time(status) or post.scheduled_at) if post.status == "scheduled" else None
     post.published_at = now()
     db.commit()
+    _set_cover(page, post, storage)
     log.info("Job %s posted video %s to Facebook as %s", job.id, video.id, post.remote_id)
+
+
+def _set_cover(page: facebook.Page, post: Publication, storage: DirectoryStorage) -> None:
+    """The reel's cover is the title scene: the first frame of the MP4 the reel holds, so it matches what was posted
+    even when the title changed since. Set once the reel is live or scheduled, since Facebook may not take a cover
+    for a reel it is still processing. A cover that cannot be set leaves Facebook's own pick: the post stands."""
+    try:
+        if not post.remote_mp4_key or not storage.exists(post.remote_mp4_key):
+            raise ClipError("MP4 của bài đăng không còn trong storage")
+        cover = jpeg_bytes(frame_at(storage.path(post.remote_mp4_key), 0))
+        facebook.set_cover(page, post.remote_id, cover)
+    except (ClipError, FacebookError) as err:
+        log.warning("Reel %s keeps the cover Facebook picked: %s", post.remote_id, err)
 
 
 def run_unpublish_job(db: DbSession, job: Job) -> None:

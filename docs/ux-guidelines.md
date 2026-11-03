@@ -334,7 +334,7 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
 
 - **Frame:** 9:16 vertical, 1080×1920 at 30 fps. Photos are cover-cropped from the centre, with
   no black bars.
-- **First frame = thumbnail:**
+- **First frame = thumbnail** (and the cover of a reel the app posts to Facebook):
   - a close-up food photo filling the frame, with vivid color;
   - the chosen title in a text box centred in the frame, 3–5 lines, with no fade-in.
 - **Text box:** a scene whose text is empty has none, so a video can mix scenes with and without
