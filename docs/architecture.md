@@ -377,11 +377,12 @@ Planned:
     followers and numbers going with it; each listed Page carries `posts`, its count of posts.
   - **What the numbers mean** ([analytics.py](../api/src/reels_api/analytics.py)) is worked out from
     the `48h` rows when asked, never stored. Each Page's median views is taken over its posts that
-    went live in the last 60 days; a post wins ("Video thắng") when its 48-hour views are at least
-    10× its Page's median and the Page has at least 5 measured posts. `analysis` gives the Page's
-    median and sample count, the post's multiple of it, the flag and its share/view at 48 hours.
+    went live in the last 60 days; a post is compared with it (its multiple of the median) once the
+    Page has at least 5 measured posts. `analysis` gives the Page's median and sample count, the
+    post's multiple of it and its share/view at 48 hours. There is no "Video thắng" flag (dropped
+    2026-11-03, see decisions).
     `GET /api/posts/kpis` gives this week and last, Monday to Sunday in Vietnam time (a fixed UTC+7,
-    which has no daylight saving): posts measured, median views, winners, and how many reached
+    which has no daylight saving): posts measured, median views, and how many reached
     share/view ≥ 0.2 % of those with both numbers.
     null until read), `error`, and `pending` while an asked reading has not run.
 - **30-day plan:** `/api/plans/{group}` reads and changes a group's plan (start date, ideas per

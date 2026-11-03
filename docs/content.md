@@ -123,8 +123,6 @@ Planned rules, with the full Knowledge Base:
 - **Benefits:** only from `approved` food bank rows.
 - **No cure promises:** check against the safety rules before output.
 - **Prompts from the Knowledge Base:** the documents below are injected into the prompt.
-- **Winner variants:** analyze why the video won, then propose 10 variants that change the food,
-  age milestone, or disease group, ranked by viral potential.
 
 ## Knowledge Base
 
@@ -204,5 +202,4 @@ Publishing practice:
 - **Posting windows:** 11–12h or 19–21h.
 - **Hashtags:** 3–5 per post.
 - **Metrics:** recorded 48 hours after posting.
-- **Winner rule:** a video above 10× the median views gets 3 variants.
-- **KPIs:** share/view ratio ≥ 0.2%, median views, and the count of videos above 10× the median.
+- **KPIs:** share/view ratio ≥ 0.2% and median views.

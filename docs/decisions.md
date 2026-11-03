@@ -11,6 +11,23 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — "Video thắng" is dropped from the app
+
+Owner's call, replacing the "Video thắng" part of the earlier 2026-11-03 entry ("Video thắng" is 10× the median of its
+own Page over 60 days). At 1–3 posts a day a 10× outlier is rare, so the tag, the "Chỉ video thắng" filter and the KPI
+card were almost always empty and gave no signal. Gone: the `is_winner` flag, the weekly `winners` count and the
+`winner_factor` rule in the api, and everything showing them. Kept: each Page's 60-day median at 48 hours, a post's
+multiple of it ("Gấp N× trung vị Page", from 5 measured posts), the share/view goal and the weekly KPIs. The team's
+winner rule and the planned "Winner variants" go from docs/content.md and docs/project.md too, on the same call; issue
+#44 (variants of a winner) needs a new trigger if it is picked up.
+
+## 2026-11-03 — "Bài đăng" hides cancelled and deleted posts by default
+
+Cancelled and deleted posts still stay on "Bài đăng" (2026-11-02): they are the only record of who took a post down
+and when, or that Facebook did, with the views read before. But day to day the team looks at live and scheduled posts,
+so the status filter now starts at "Đang hoạt động" (scheduled and published) and a line under the table counts what it
+hides, with "Xem" to show everything. Only the default view changes; no post is removed.
+
 ## 2026-11-03 — "Bài đăng" is one table grouped by video, with no grid
 
 Replaces the "one card per post, grid or list" part of the earlier 2026-11-03 entry ("Bài đăng" looks like "Video"),

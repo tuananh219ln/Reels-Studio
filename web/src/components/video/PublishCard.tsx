@@ -3,12 +3,13 @@
 import { SendOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Checkbox, Flex, Input, Modal, Radio, Select, Tag, Typography } from "antd";
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type Post, type VideoDetail } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
 import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
-import PostMetrics, { WinnerTag } from "@/components/PostMetrics";
+import PostMetrics from "@/components/PostMetrics";
 import PostComment from "@/components/PostComment";
 
 // TikTok and YouTube need their own app review first (docs/project.md), so they are shown but cannot be picked yet.
@@ -22,10 +23,23 @@ const PLATFORMS = [
 export function PublishButton({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const editor = useEditor();
-  const [open, setOpen] = useState(false);
+  // /videos/<id>?publish=<fanpage id>: a suggestion on "Bài đăng" opens the dialog, with that Page picked if given.
+  // The button mounts once the video has loaded in the browser, so the address is there to read.
+  const [asked] = useState(() =>
+    typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("publish"),
+  );
+  const [open, setOpen] = useState(asked !== null);
   const [mode, setMode] = useState<"now" | "later">("now");
   const [when, setWhen] = useState("");
-  const [picked, setPicked] = useState<number | null>(null);
+  const [picked, setPicked] = useState<number | null>(() =>
+    video.fanpages.some((page) => page.id === Number(asked)) ? Number(asked) : null,
+  );
+  const router = useRouter();
+  const pathname = usePathname();
+  // Drop the request from the address, so a reload does not open the dialog again.
+  useEffect(() => {
+    if (asked !== null) router.replace(pathname);
+  }, [asked, router, pathname]);
   const [autoComment, setAutoComment] = useState(true);
   const [busy, setBusy] = useState(false);
   const fanpage = picked ?? (video.fanpages.length === 1 ? video.fanpages[0].id : null);
@@ -161,7 +175,6 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
           <Flex key={post.id} justify="space-between" align="center" gap={8} wrap data-testid="video-post">
             <div style={{ minWidth: 0 }}>
               <Tag color={POST_STATUS[post.status].color}>{POST_STATUS[post.status].label}</Tag>
-              <WinnerTag post={post} />{" "}
               <Typography.Text data-testid={index === 0 ? "publication-status" : undefined}>
                 {statusText(post)}
               </Typography.Text>{" "}

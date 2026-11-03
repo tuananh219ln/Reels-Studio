@@ -2,6 +2,7 @@
 
 import { PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
+import type { SliderSingleProps } from "antd";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice } from "@/lib/api";
@@ -22,7 +23,13 @@ type Props = {
 const SPEED_MIN = 0.7;
 const SPEED_MAX = 1.3;
 const SPEED_STEP = 0.05;
-const SPEED_MARKS = { [SPEED_MIN]: "Chậm", 1: "Vừa", [SPEED_MAX]: "Nhanh" };
+// The end labels sit inside the rail instead of centred on its ends, where they spilled out of the card.
+const SPEED_MARKS = {
+  [SPEED_MIN]: { label: "Chậm", style: { transform: "translateX(0)" } },
+  1: "Vừa",
+  [SPEED_MAX]: { label: "Nhanh", style: { transform: "translateX(-100%)" } },
+};
+const speedText = (speed: number) => `${speed.toFixed(2).replace(".", ",")}×`;
 const TRANSITIONS = [
   { value: "fade", label: "Mờ dần" },
   { value: "cut", label: "Cắt thẳng" },
@@ -154,30 +161,39 @@ export function AudioSettings({ values, onChange, disabled, showMusicVolume }: P
         <Field label="Giọng">
           <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
         </Field>
-        <SpeedField value={values.voice_speed} disabled={disabled || off} onChange={onChange} />
-        <Field label={`Âm lượng giọng: ${values.voice_volume}%`}>
-          <Slider
-            aria-label="Âm lượng giọng"
+        <SliderField
+          label="Tốc độ đọc"
+          format={speedText}
+          hint="Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự)."
+          min={SPEED_MIN}
+          max={SPEED_MAX}
+          step={SPEED_STEP}
+          marks={SPEED_MARKS}
+          value={values.voice_speed}
+          disabled={disabled || off}
+          onSave={(speed) => onChange({ voice_speed: Math.round(speed * 100) / 100 })}
+        />
+        <SliderField
+          label="Âm lượng giọng"
+          format={percentText}
+          min={0}
+          max={100}
+          step={5}
+          value={values.voice_volume}
+          disabled={disabled || off}
+          onSave={(voice_volume) => onChange({ voice_volume })}
+        />
+        {showMusicVolume && values.music_volume !== undefined && (
+          <SliderField
+            label="Âm lượng nhạc"
+            format={percentText}
             min={0}
             max={100}
             step={5}
-            value={values.voice_volume}
-            disabled={disabled || off}
-            onChangeComplete={(voice_volume) => onChange({ voice_volume })}
+            value={values.music_volume}
+            disabled={disabled}
+            onSave={(music_volume) => onChange({ music_volume })}
           />
-        </Field>
-        {showMusicVolume && values.music_volume !== undefined && (
-          <Field label={`Âm lượng nhạc: ${values.music_volume}%`}>
-            <Slider
-              aria-label="Âm lượng nhạc"
-              min={0}
-              max={100}
-              step={5}
-              value={values.music_volume}
-              disabled={disabled}
-              onChangeComplete={(music_volume) => onChange({ music_volume })}
-            />
-          </Field>
         )}
         <Checkbox
           checked={values.ducking}
@@ -191,28 +207,50 @@ export function AudioSettings({ values, onChange, disabled, showMusicVolume }: P
   );
 }
 
-/** The reading speed: the label follows the handle while it moves; the value is saved when it is let go. */
-function SpeedField({ value, disabled, onChange }: { value: number; disabled?: boolean; onChange: Props["onChange"] }) {
+const percentText = (value: number) => `${value}%`;
+
+/** A slider whose handle and label follow the mouse while it moves; the value is saved only when it is let go,
+ * so a drag makes one save. */
+function SliderField({
+  label,
+  format,
+  hint,
+  min,
+  max,
+  step,
+  marks,
+  value,
+  disabled,
+  onSave,
+}: {
+  label: string;
+  format: (value: number) => string;
+  hint?: string;
+  min: number;
+  max: number;
+  step: number;
+  marks?: SliderSingleProps["marks"];
+  value: number;
+  disabled?: boolean;
+  onSave: (value: number) => void;
+}) {
   const [moving, setMoving] = useState<number | null>(null);
   const shown = moving ?? value;
   return (
-    <Field
-      label={`Tốc độ đọc: ${shown.toFixed(2).replace(".", ",")}×`}
-      hint="Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự)."
-    >
+    <Field label={`${label}: ${format(shown)}`} hint={hint}>
       <Slider
-        ariaLabelForHandle="Tốc độ đọc"
-        min={SPEED_MIN}
-        max={SPEED_MAX}
-        step={SPEED_STEP}
-        marks={SPEED_MARKS}
-        tooltip={{ formatter: (speed) => `${speed?.toFixed(2).replace(".", ",")}×` }}
+        ariaLabelForHandle={label}
+        min={min}
+        max={max}
+        step={step}
+        marks={marks}
+        tooltip={{ formatter: (current) => (current === undefined ? null : format(current)) }}
         value={shown}
         disabled={disabled}
         onChange={setMoving}
-        onChangeComplete={(voice_speed) => {
+        onChangeComplete={(done) => {
           setMoving(null);
-          onChange({ voice_speed: Math.round(voice_speed * 100) / 100 });
+          if (done !== value) onSave(done);
         }}
       />
     </Field>

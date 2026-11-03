@@ -1,7 +1,7 @@
 "use client";
 
-import { EyeOutlined, ReloadOutlined, TrophyOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Tag, Tooltip, Typography } from "antd";
+import { EyeOutlined, ReloadOutlined, WarningOutlined } from "@ant-design/icons";
+import { App, Button, Flex, Tooltip, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, formatDateTime, type Post, type PostNumbers } from "@/lib/api";
 
@@ -26,19 +26,6 @@ export function formatRate(value: number | null | undefined): string {
 /** The team's share/view goal (docs/content.md); the api's KPIs use the same. */
 export const SHARE_GOAL = 0.002;
 
-/** "Video thắng": 10× its Page's median views at 48 hours. */
-export function WinnerTag({ post }: { post: Post }) {
-  const { is_winner, times_median } = post.metrics.analysis;
-  if (!is_winner) return null;
-  return (
-    <Tooltip title={`View ở mốc 48 giờ gấp ${times_median}× trung vị của Page: nên làm 3 biến thể bằng "Nhân bản"`}>
-      <Tag color="gold" icon={<TrophyOutlined />} style={{ marginInlineEnd: 0 }} data-testid="winner-tag">
-        Video thắng
-      </Tag>
-    </Tooltip>
-  );
-}
-
 /** Views of a post for sorting: a post not read yet sorts after every read one. */
 export function viewsOf(post: Post): number {
   return post.metrics.latest?.views ?? -1;
@@ -53,8 +40,17 @@ function details(numbers: PostNumbers): string {
 }
 
 /** A post's numbers on Facebook and when they were read; nothing for a post never public. With `onAsked`, a
- * "Cập nhật view" button asks the worker to read them again. */
-export default function PostMetrics({ post, onAsked }: { post: Post; onAsked?: () => void }) {
+ * "Cập nhật view" button asks the worker to read them again. `compact` (the list) keeps it to one line: the
+ * views and an icon button, the rest in a tooltip. */
+export default function PostMetrics({
+  post,
+  onAsked,
+  compact = false,
+}: {
+  post: Post;
+  onAsked?: () => void;
+  compact?: boolean;
+}) {
   const { message } = App.useApp();
   const [asking, setAsking] = useState(false);
   const { latest, at_48h: mark, error, pending, analysis } = post.metrics;
@@ -71,6 +67,63 @@ export default function PostMetrics({ post, onAsked }: { post: Post; onAsked?: (
     } finally {
       setAsking(false);
     }
+  }
+
+  const askTip = "App tự đo mỗi ngày trong 14 ngày đầu; bấm để đo lại ngay";
+
+  if (compact) {
+    const tip = (
+      <Flex vertical gap={2}>
+        {latest ? (
+          <>
+            <span>{details(latest)}</span>
+            <span>
+              Đo lúc {formatDateTime(latest.measured_at)}
+              {mark && ` · mốc 48 giờ: ${formatCount(mark.views)} view`}
+            </span>
+            {mark && <AnalysisText analysis={analysis} />}
+          </>
+        ) : (
+          <span>Chưa có số view, app tự đo sau khi đăng 1 giờ</span>
+        )}
+        {error && <span>Lần đo gần nhất lỗi: {error}</span>}
+      </Flex>
+    );
+    return (
+      <Flex align="center" gap={6} wrap={false} data-testid="post-metrics">
+        <Tooltip title={tip}>
+          {latest ? (
+            <Typography.Text strong style={{ whiteSpace: "nowrap" }}>
+              <EyeOutlined /> <span data-testid="post-views">{formatCount(latest.views)}</span> view
+            </Typography.Text>
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+              Chưa có view
+            </Typography.Text>
+          )}
+        </Tooltip>
+        {error && (
+          <Tooltip title={`Lần đo gần nhất lỗi: ${error}`}>
+            <Typography.Text type="warning" data-testid="post-metrics-error">
+              <WarningOutlined aria-label="Lần đo gần nhất lỗi" />
+            </Typography.Text>
+          </Tooltip>
+        )}
+        {onAsked && isPublic && (
+          <Tooltip title={pending ? "Đang đo view" : `Cập nhật view: ${askTip.toLowerCase()}`}>
+            <Button
+              size="small"
+              type="text"
+              aria-label={pending ? "Đang đo view" : "Cập nhật view"}
+              icon={<ReloadOutlined />}
+              loading={asking || pending}
+              disabled={pending}
+              onClick={ask}
+            />
+          </Tooltip>
+        )}
+      </Flex>
+    );
   }
 
   return (
@@ -103,7 +156,7 @@ export default function PostMetrics({ post, onAsked }: { post: Post; onAsked?: (
       )}
       {onAsked && isPublic && (
         <div>
-          <Tooltip title="App tự đo mỗi ngày trong 14 ngày đầu; bấm để đo lại ngay">
+          <Tooltip title={askTip}>
             <Button size="small" icon={<ReloadOutlined />} loading={asking || pending} disabled={pending} onClick={ask}>
               {pending ? "Đang đo view" : "Cập nhật view"}
             </Button>
@@ -111,6 +164,18 @@ export default function PostMetrics({ post, onAsked }: { post: Post; onAsked?: (
         </div>
       )}
     </Flex>
+  );
+}
+
+/** The 48-hour reading as plain text, for the list's tooltip. */
+function AnalysisText({ analysis }: { analysis: Post["metrics"]["analysis"] }) {
+  return (
+    <span>
+      {analysis.times_median !== null
+        ? `Gấp ${String(analysis.times_median).replace(".", ",")}× trung vị Page (${formatCount(analysis.median_views)})`
+        : "Chưa đủ dữ liệu để so trung vị"}
+      {` · share/view ${formatRate(analysis.share_rate)}`}
+    </span>
   );
 }
 

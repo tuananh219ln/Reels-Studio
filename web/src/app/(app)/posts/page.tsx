@@ -1,40 +1,37 @@
 "use client";
 
-import { AppstoreOutlined, CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
-import {
-  App,
-  Button,
-  Card,
-  Checkbox,
-  Col,
-  Empty,
-  Flex,
-  Input,
-  Row,
-  Segmented,
-  Select,
-  Spin,
-  Table,
-  Tag,
-  Typography,
-} from "antd";
+import { CalendarOutlined, SearchOutlined } from "@ant-design/icons";
+import { App, Button, Card, Empty, Flex, Input, Select, Spin, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type PostRow, type PostStatus } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
-import VideoThumbnail from "@/components/VideoThumbnail";
+import VideoTitleCell from "@/components/VideoTitleCell";
 import PostActions from "@/components/video/PostActions";
 import PostKpis from "@/components/PostKpis";
-import PostMetrics, { viewsOf, WinnerTag } from "@/components/PostMetrics";
+import PostSuggestions from "@/components/PostSuggestions";
+import PostMetrics, { formatCount, viewsOf } from "@/components/PostMetrics";
 import { usePolling } from "@/lib/polling";
-import { useRememberedView, type View } from "@/lib/view";
 
-const VIEW_KEY = "reels-studio.posts-view";
 const STATUSES: PostStatus[] = ["scheduled", "published", "cancelled", "deleted"];
 
 type Sort = "latest" | "views";
+
+/** "Đang hoạt động" (the default) keeps the posts that are live or still to go out; cancelled and deleted ones stay
+ * one choice away, as history. */
+type StatusFilter = PostStatus | "all" | "active";
+const ACTIVE: PostStatus[] = ["scheduled", "published"];
+
+function statusMatches(post: PostRow, filter: StatusFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "active") return ACTIVE.includes(post.status);
+  return post.status === filter;
+}
+
+/** The posts of one video, kept in the order they are shown. */
+type Group = { videoId: number; title: string; thumbnailUrl: string | null; posts: PostRow[] };
 
 /** Lower case and one Unicode form, so a typed "Đ" or a composed vowel still finds the title. */
 function folded(text: string): string {
@@ -47,11 +44,9 @@ export default function PostsPage() {
   const { message } = App.useApp();
   const [posts, setPosts] = useState<PostRow[] | null>(null);
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<PostStatus | "all">("all");
+  const [status, setStatus] = useState<StatusFilter>("active");
   const [fanpage, setFanpage] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("latest");
-  const [winners, setWinners] = useState(false);
-  const [view, chooseView] = useRememberedView(VIEW_KEY);
 
   const load = useCallback(
     () =>
@@ -72,17 +67,16 @@ export default function PostsPage() {
   const all = posts ?? [];
   const pages = [...new Set(all.map((post) => post.fanpage).filter((name): name is string => Boolean(name)))];
   const words = folded(query.trim());
-  const shown = all.filter(
-    (post) =>
-      (status === "all" || post.status === status) &&
-      (fanpage === null || post.fanpage === fanpage) &&
-      (!winners || post.metrics.analysis.is_winner) &&
-      (!words || folded(post.title).includes(words)),
-  );
+  const others = (post: PostRow) =>
+    (fanpage === null || post.fanpage === fanpage) && (!words || folded(post.title).includes(words));
+  const shown = all.filter((post) => statusMatches(post, status) && others(post));
+  // The cancelled and deleted posts "Đang hoạt động" leaves out, so nobody thinks they are lost.
+  const hidden = status === "active" ? all.filter((post) => !ACTIVE.includes(post.status) && others(post)).length : 0;
   // The api sends the latest time first; a stable sort keeps that order among posts with the same views.
   if (sort === "views") shown.sort((a, b) => viewsOf(b) - viewsOf(a));
-  const filtered = Boolean(words) || status !== "all" || fanpage !== null || winners;
+  const filtered = Boolean(words) || status !== "active" || fanpage !== null;
   const count = (which: PostStatus) => all.filter((post) => post.status === which).length;
+  const groups = byVideo(shown);
 
   return (
     <>
@@ -109,6 +103,7 @@ export default function PostsPage() {
           value={status}
           onChange={setStatus}
           options={[
+            { value: "active", label: "Đang hoạt động" },
             { value: "all", label: "Mọi trạng thái" },
             ...STATUSES.map((value) => ({ value, label: POST_STATUS[value].label })),
           ]}
@@ -135,42 +130,57 @@ export default function PostsPage() {
             style={{ width: 220 }}
           />
         )}
-        <Checkbox checked={winners} onChange={(event) => setWinners(event.target.checked)}>
-          Chỉ video thắng
-        </Checkbox>
-        <Segmented
-          aria-label="Kiểu hiển thị"
-          value={view}
-          onChange={(value) => chooseView(value as View)}
-          style={{ marginLeft: "auto" }}
-          options={[
-            { value: "grid", icon: <AppstoreOutlined />, title: "Dạng lưới" },
-            { value: "list", icon: <UnorderedListOutlined />, title: "Dạng danh sách" },
-          ]}
-        />
       </PageHeader>
-      <PostKpis version={posts} />
+      <PostKpis posts={posts} />
+      <PostSuggestions posts={posts} />
       {posts === null ? (
         <Flex justify="center" style={{ padding: 48 }}>
           <Spin />
         </Flex>
-      ) : shown.length === 0 ? (
+      ) : groups.length === 0 ? (
         <Card>
-          <Empty description={filtered ? "Không có bài đăng nào khớp" : "Chưa có video nào đã đăng hoặc hẹn lịch"} />
+          <Empty
+            description={
+              filtered
+                ? "Không có bài đăng nào khớp"
+                : all.length > 0
+                  ? "Không có bài nào đang hẹn lịch hoặc đã đăng"
+                  : "Chưa có video nào đã đăng hoặc hẹn lịch"
+            }
+          />
         </Card>
-      ) : view === "grid" ? (
-        <Row gutter={[16, 16]}>
-          {shown.map((post) => (
-            <Col key={post.id} xs={12} sm={8} md={6} xl={4} style={{ display: "flex" }}>
-              <PostCard post={post} onDone={load} />
-            </Col>
-          ))}
-        </Row>
       ) : (
-        <PostTable posts={shown} onDone={load} />
+        <GroupTable groups={groups} onDone={load} />
+      )}
+      {hidden > 0 && (
+        <Flex align="center" gap={4} style={{ marginTop: 8 }} data-testid="hidden-posts">
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Đang ẩn {hidden} bài đã hủy/xóa ·
+          </Typography.Text>
+          <Button type="link" size="small" style={{ padding: 0, fontSize: 12 }} onClick={() => setStatus("all")}>
+            Xem
+          </Button>
+        </Flex>
       )}
     </>
   );
+}
+
+/** One group per video, in the order its first post is shown, so sorting the posts sorts the videos. */
+function byVideo(posts: PostRow[]): Group[] {
+  const groups = new Map<number, Group>();
+  for (const post of posts) {
+    const group = groups.get(post.video_id);
+    if (group) group.posts.push(post);
+    else
+      groups.set(post.video_id, {
+        videoId: post.video_id,
+        title: post.title,
+        thumbnailUrl: post.thumbnail_url,
+        posts: [post],
+      });
+  }
+  return [...groups.values()];
 }
 
 function StatusTag({ post }: { post: PostRow }) {
@@ -184,111 +194,143 @@ function StatusTag({ post }: { post: PostRow }) {
 function ReelLink({ post }: { post: PostRow }) {
   return (
     post.url && (
-      <a href={post.url} target="_blank" rel="noreferrer">
+      <a href={post.url} target="_blank" rel="noreferrer" style={{ whiteSpace: "nowrap" }}>
         Xem Reel
       </a>
     )
   );
 }
 
-/** Who cancelled or deleted the post and when; "Trên Facebook" when a check found it so. */
-function closedLine(post: PostRow): string | null {
-  return post.closed_at && `${post.closed_by ?? "Trên Facebook"} · ${formatDateTime(post.closed_at)}`;
-}
-
-/** One post: a video posted to two Pages has two cards with the same thumbnail, told apart by Page and time. */
-function PostCard({ post, onDone }: { post: PostRow; onDone: () => void }) {
-  const closed = closedLine(post);
+/** "Đã đăng · 2", one tag per status among the video's posts. */
+function StatusSummary({ posts }: { posts: PostRow[] }) {
+  const counts = STATUSES.map((value) => [value, posts.filter((post) => post.status === value).length] as const);
   return (
-    <Card
-      data-testid="post-card"
-      style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
-      styles={{ body: { padding: 12, flex: 1, display: "flex", flexDirection: "column", gap: 6 } }}
-      cover={
-        <Link prefetch={false} href={`/videos/${post.video_id}`} aria-label={post.title} tabIndex={-1}>
-          <VideoThumbnail name={post.title} url={post.thumbnail_url} />
-        </Link>
-      }
-    >
-      <Link prefetch={false} href={`/videos/${post.video_id}`}>
-        <Typography.Paragraph strong ellipsis={{ rows: 2 }} style={{ margin: 0 }}>
-          {post.title}
-        </Typography.Paragraph>
-      </Link>
-      <Flex wrap gap={6} align="center">
-        <StatusTag post={post} />
-        <WinnerTag post={post} />
-        <ReelLink post={post} />
-      </Flex>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        {post.fanpage ?? "—"}
-        <br />
-        {formatDateTime(post.at)} · {post.created_by}
-        {closed && (
-          <>
-            <br />
-            Hủy/xóa: {closed}
-          </>
-        )}
-      </Typography.Text>
-      <PostMetrics post={post} onAsked={onDone} />
-      <div style={{ marginTop: "auto" }}>
-        <PostActions post={post} disabled={post.busy} onDone={onDone} />
-      </div>
-    </Card>
+    <Flex wrap gap={4}>
+      {counts
+        .filter(([, number]) => number > 0)
+        .map(([value, number]) => (
+          <Tag key={value} color={POST_STATUS[value].color} style={{ marginInlineEnd: 0 }}>
+            {POST_STATUS[value].label}
+            {number > 1 && ` · ${number}`}
+          </Tag>
+        ))}
+    </Flex>
   );
 }
 
-/** "Dạng danh sách": one row per post, to scan many at once. */
-function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) {
-  const columns: ColumnsType<PostRow> = [
+/** The video's views on every post read so far; "—" before the first reading. */
+function totalViews(posts: PostRow[]): string {
+  const read = posts.filter((post) => viewsOf(post) >= 0);
+  return read.length === 0 ? "—" : formatCount(read.reduce((sum, post) => sum + viewsOf(post), 0));
+}
+
+/** "Bài đăng": a row per video with what its posts add up to; opening it lists each post with its own Page, time,
+ * numbers and actions. */
+function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void }) {
+  const columns: ColumnsType<Group> = [
     {
       title: "Video",
       key: "video",
-      render: (_, post) => (
-        <Flex align="center" gap={12}>
-          <VideoThumbnail name={post.title} url={post.thumbnail_url} width={36} />
-          <Link prefetch={false} href={`/videos/${post.video_id}`} style={{ minWidth: 0 }}>
-            <Typography.Text strong ellipsis style={{ maxWidth: 360 }}>
-              {post.title}
-            </Typography.Text>
-          </Link>
-        </Flex>
-      ),
+      render: (_, group) => {
+        const pages = [...new Set(group.posts.map((post) => post.fanpage ?? "—"))].join(", ");
+        return (
+          <VideoTitleCell
+            id={group.videoId}
+            title={group.title}
+            thumbnailUrl={group.thumbnailUrl}
+            sub={`${group.posts.length} bài đăng · ${pages}`}
+            maxWidth={480}
+          />
+        );
+      },
     },
-    { title: "Fanpage", key: "fanpage", width: 200, render: (_, post) => post.fanpage ?? "—" },
+    { title: "Trạng thái", key: "status", width: 220, render: (_, group) => <StatusSummary posts={group.posts} /> },
+    { title: "Tổng view", key: "views", width: 120, render: (_, group) => totalViews(group.posts) },
     {
-      title: "Trạng thái",
-      key: "status",
-      width: 150,
-      render: (_, post) => (
-        <Flex wrap gap={4}>
-          <StatusTag post={post} />
-          <WinnerTag post={post} />
-        </Flex>
-      ),
-    },
-    { title: "Giờ đăng", key: "at", width: 150, render: (_, post) => formatDateTime(post.at) },
-    { title: "View", key: "views", width: 230, render: (_, post) => <PostMetrics post={post} onAsked={onDone} /> },
-    { title: "Người đăng", dataIndex: "created_by", width: 160 },
-    { title: "Hủy/xóa", key: "closed", width: 190, render: (_, post) => closedLine(post) },
-    { title: "", key: "reel", width: 90, render: (_, post) => <ReelLink post={post} /> },
-    {
-      title: "",
-      key: "actions",
+      title: "Lần đăng gần nhất",
+      key: "at",
       width: 170,
-      render: (_, post) => <PostActions post={post} disabled={post.busy} onDone={onDone} />,
+      render: (_, group) => formatDateTime(group.posts.map((post) => post.at).reduce((a, b) => (a > b ? a : b))),
     },
   ];
   return (
     <Card styles={{ body: { padding: 0 } }}>
-      <Table<PostRow>
-        rowKey="id"
+      <Table<Group>
+        rowKey="videoId"
         columns={columns}
-        dataSource={posts}
+        dataSource={groups}
         pagination={{ pageSize: 50, hideOnSinglePage: true }}
-        scroll={{ x: 1430 }}
+        scroll={{ x: 900 }}
+        onRow={() =>
+          ({ "data-testid": "post-group", style: { cursor: "pointer" } }) as React.HTMLAttributes<HTMLElement>
+        }
+        expandable={{
+          expandRowByClick: true,
+          expandedRowRender: (group) => <PostTable posts={group.posts} onDone={onDone} />,
+        }}
       />
     </Card>
+  );
+}
+
+/** The posts of one video: told apart by Page and time, each with its own numbers and actions. */
+function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) {
+  const columns: ColumnsType<PostRow> = [
+    {
+      title: "Fanpage",
+      key: "fanpage",
+      width: 220,
+      render: (_, post) => (
+        <Flex vertical>
+          <Typography.Text>{post.fanpage ?? "—"}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Người đăng: {post.created_by}
+          </Typography.Text>
+        </Flex>
+      ),
+    },
+    {
+      title: "Giờ đăng",
+      key: "at",
+      width: 230,
+      render: (_, post) => (
+        <Flex vertical>
+          <span>{formatDateTime(post.at)}</span>
+          {post.closed_at && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {post.status === "deleted" ? "Xóa" : "Hủy"}: {post.closed_by ?? "Trên Facebook"} ·{" "}
+              {formatDateTime(post.closed_at)}
+            </Typography.Text>
+          )}
+        </Flex>
+      ),
+    },
+    {
+      title: "Trạng thái",
+      key: "status",
+      width: 150,
+      render: (_, post) => <StatusTag post={post} />,
+    },
+    {
+      title: "View",
+      key: "views",
+      width: 150,
+      render: (_, post) => <PostMetrics post={post} onAsked={onDone} compact />,
+    },
+    {
+      title: "",
+      key: "actions",
+      render: (_, post) => (
+        <Flex align="center" gap={12} wrap={false}>
+          <ReelLink post={post} />
+          <PostActions post={post} disabled={post.busy} onDone={onDone} />
+        </Flex>
+      ),
+    },
+  ];
+  return (
+    <div data-testid="post-rows">
+      <Table<PostRow> rowKey="id" size="small" columns={columns} dataSource={posts} pagination={false} />
+    </div>
   );
 }

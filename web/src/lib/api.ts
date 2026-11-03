@@ -454,7 +454,6 @@ export type PostAnalysis = {
   median_views: number | null;
   samples: number;
   times_median: number | null;
-  is_winner: boolean;
   share_rate: number | null;
 };
 
@@ -463,7 +462,6 @@ export type WeekKpis = {
   start: string;
   measured: number;
   median_views: number | null;
-  winners: number;
   share_goal_met: number;
   share_goal_rate: number | null;
 };
@@ -471,7 +469,7 @@ export type WeekKpis = {
 export type PostKpis = {
   this_week: WeekKpis;
   last_week: WeekKpis;
-  rules: { median_days: number; min_samples: number; winner_factor: number; share_goal: number };
+  rules: { median_days: number; min_samples: number; share_goal: number };
   /** Some Page has enough measured posts for its median to mean something. */
   enough_data: boolean;
 };
