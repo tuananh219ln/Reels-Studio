@@ -100,10 +100,18 @@ def test_clip_scene_has_no_zoom_and_is_cut_to_its_exact_frames():
     assert clip == (
         "[0:v]setpts=PTS-STARTPTS,fps=30,scale=1080:1920:force_original_aspect_ratio=increase:out_range=tv,"
         "crop=1080:1920,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=3.200000,"
-        "trim=end_frame=96,setpts=PTS-STARTPTS[bg0]"
+        "trim=end_frame=96[bg0]"
     )
     assert graph.count("zoompan") == 2
     assert "[0:a]" not in graph, "tiếng gốc của video không bao giờ được dùng"
+
+
+def test_clip_keeps_its_30_fps_after_the_frame_rate_filter():
+    """FFmpeg 7.1's setpts marks its output frame rate unknown (1/0), and xfade refuses to join a 1/0 scene to a
+    30 fps one, so nothing after `fps` in a clip's chain may be a setpts."""
+    graph = build_filter_graph(POSITIONS, TIMELINE, music_volume=None, clips=[False, True, True], speeds=[1, 1, 1.5])
+    for chain in graph.split(";")[2:5:2]:
+        assert "setpts" not in chain.split(",fps=30,", 1)[1], chain
 
 
 def test_graph_without_clips_is_unchanged():

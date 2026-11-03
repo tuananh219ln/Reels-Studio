@@ -161,7 +161,7 @@ A scene may hold an uploaded video clip instead of a photo
 - **Filter graph:** the clip is passed with `-ss <start>` before its `-i`. Its chain replaces the
   photo chain: `setpts=PTS-STARTPTS,fps=30,scale=1080:1920:force_original_aspect_ratio=increase:out_range=tv,
   crop=1080:1920,format=yuv420p,setsar=1,tpad=stop_mode=clone:stop_duration=<clip seconds>,
-  trim=end_frame=<clip frames>,setpts=PTS-STARTPTS`.
+  trim=end_frame=<clip frames>`.
   - It has no `zoompan` and no prescale.
   - At a speed other than 1× the first filter is `setpts=(PTS-STARTPTS)/<speed>`; at 1× the graph
     is unchanged. The clip's sound is never used, so no audio filter is needed.
@@ -169,6 +169,8 @@ A scene may hold an uploaded video clip instead of a photo
     becomes constant 30 fps.
   - `tpad` holds the last frame when the clip ends early, and `trim` cuts the clip to the
     timeline's exact frame count, so crossfade offsets stay frame-exact.
+  - No `setpts` follows `fps`: in FFmpeg 7.1 (the worker image) `setpts` marks the frame rate
+    unknown (1/0), and `xfade` then refuses to join the clip to a 30 fps scene.
   - The clip's audio stream is never referenced.
 - **Checks:** a missing clip blocks the render, as a missing photo does. A scene that needs more
   than the clip left after its start only warns. The scene's length counts its narration plus
