@@ -139,6 +139,8 @@ export type VideoDetail = VideoRow & {
   /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
   script_by: string | null;
   clone_of: { title: string; request: string } | null;
+  /** The 30-day plan idea the video was made from. */
+  plan_idea: (PlanIdeaFields & { id: number; knowledge_topic_id: number }) | null;
   title_scene: SceneData | null;
   scenes: SceneData[];
   video_blocking: string[];
@@ -246,6 +248,43 @@ export type Knowledge = {
   default_clone_prompt: string;
 };
 
+/** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. */
+export type PlanIdeaFields = { day: number; topic: string; pain_group: string; pain: string; hook: string };
+
+export type PlanItemStatus = "idea" | "started" | "scripted" | "done";
+
+export type PlanItem = PlanIdeaFields & {
+  id: number;
+  knowledge_topic_id: number;
+  position: number;
+  status: PlanItemStatus;
+  status_label: string;
+  video_id: number | null;
+};
+
+/** An imported file or the AI's draft, shown before it replaces the plan. */
+export type PlanPreview = { ideas: PlanIdeaFields[]; errors: string[]; warnings: string[] };
+
+export type Plan = {
+  topic_id: number;
+  name: string;
+  start_date: string | null;
+  /** Which plan day today is: below 1 before the start, above 30 after the end; null without a start date. */
+  today_day: number | null;
+  per_day: number;
+  prompt: string;
+  default_prompt: string;
+  items: PlanItem[];
+  /** Ideas that already have a video. */
+  made: number;
+  /** "Tạo bằng AI" still queued or running, or the last one when it failed. */
+  job: { id: number; status: JobInfo["status"]; error: string | null; error_detail: string | null } | null;
+  draft: (PlanPreview & { job_id: number; created_at: string }) | null;
+};
+
+/** A topic group whose plan has a today, for "Tạo video" and the progress banner. */
+export type PlanToday = { topic_id: number; name: string; day: number; ideas: PlanItem[]; topics: string[] };
+
 export type MusicTrack = {
   id: number;
   name: string;
@@ -346,9 +385,12 @@ export type PostRow = Post & { video_id: number; title: string; thumbnail_url: s
 
 export type JobRow = {
   id: number;
-  video_id: number;
+  /** null for a plan job, which belongs to a topic group. */
+  video_id: number | null;
+  knowledge_topic_id: number | null;
   video_title: string;
-  kind: JobInfo["kind"];
+  /** "plan": "Tạo bằng AI" of a 30-day plan, which belongs to a topic group. */
+  kind: JobInfo["kind"] | "plan";
   kind_label: string;
   status: JobInfo["status"];
   created_by: string;

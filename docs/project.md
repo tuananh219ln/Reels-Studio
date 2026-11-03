@@ -38,7 +38,8 @@ app replaces CapCut, so the output is a finished MP4.
    a CLI command). There is no self-signup and no roles: every member can manage users. Google
    login is planned ([#54](https://github.com/tuananh219ln/Reels-Studio/issues/54)).
 2. **Knowledge Base (partly built):** today `/knowledge` holds the editable script and clone
-   prompts and the banned words. Planned: editable channel documents and a food bank with sourced
+   prompts, the banned words and each group's 30-day topic plan (3–5 video ideas a day, each with
+   the viewer's pain and a hook angle; imported, written by AI or typed in, and used by "Tạo video"). Planned: editable channel documents and a food bank with sourced
    benefits, drafted by Claude, with food bank rows needing a member's approval before use. See
    [content.md](content.md#knowledge-base).
 3. **Script generation (built):** one LLM call (Claude by default; another provider can be chosen

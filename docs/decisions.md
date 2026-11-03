@@ -19,6 +19,27 @@ choice is remembered per page, in the browser only. The search by title and the 
 browser over the list the api already returns whole, because the team has at most a few hundred
 posts; the api gains only `thumbnail_url`. A video with several posts has several cards, one per
 post, since each post has its own Page, time and actions.
+## 2026-11-03 — Each topic group has a 30-day plan of video ideas; "Tạo video" follows it
+
+Owner's plan "Kế hoạch chủ đề 30 ngày" (tasks 1.1–3.7; task 4, the content research and trial week, happens outside
+the code). Each group on `/knowledge` holds 30 days of 3–5 ideas (topic, pain group, viewer's pain, hook angle),
+imported from JSON/CSV, written by AI or typed in. Choices made while building it:
+
+- **Status is read from the video, not stored** (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong = has an MP4), and
+  deleting a video unlinks its idea through the foreign key, so the status can never disagree with the video.
+- **3–5 a day:** more than 5 is refused everywhere; fewer than 3 only warns, so a day can be filled one idea at a
+  time.
+- **"Tạo bằng AI" is a job** on the queue like scripts (`jobs.kind = plan`, belonging to a topic group, so
+  `jobs.video_id` is now nullable). It writes 10 days per LLM call, three calls, because one answer for 120 ideas
+  passes the output limit; each call gets the topics already chosen. The result waits as a draft and replaces the
+  plan only when a member saves it, as an imported file does after its preview. The plan prompt is app data, its
+  JSON format is code, as for scripts.
+- **Saving a new plan replaces every idea** but keeps the video of an idea whose topic is unchanged, so the plan
+  can be adjusted after the first week (task 4.5) without losing what was made.
+- **Pain and hook reach the script** through `[Nhóm nỗi đau]`, `[Nỗi đau]`, `[Góc hook]` in the script prompt, or
+  appended. The default script prompt is unchanged; the pain-first prompt (task 4.3) is the team's to write.
+- **A topic outside the plan only gets a note**; videos are still made without a plan, as before.
+- "Hôm nay" is the Vietnam date counted from the group's start date.
 
 ## 2026-11-03 — Post numbers: the worker reads them between jobs, daily for 14 days, and keeps the 48-hour mark
 

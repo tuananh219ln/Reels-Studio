@@ -153,7 +153,11 @@ export default function JobsPage() {
           pagination={{ pageSize: 50, hideOnSinglePage: true }}
           scroll={{ x: 1300 }}
           locale={{ emptyText: "Chưa có job nào" }}
-          onRow={(row) => ({ onClick: () => router.push(`/videos/${row.video_id}`), style: { cursor: "pointer" } })}
+          onRow={(row) => ({
+            // A plan job has no video: it opens Kho kiến thức, where the plan is.
+            onClick: () => router.push(row.video_id === null ? "/knowledge" : `/videos/${row.video_id}`),
+            style: { cursor: "pointer" },
+          })}
         />
       </Card>
       {hasMore && (

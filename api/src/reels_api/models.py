@@ -1,7 +1,9 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -109,6 +111,35 @@ class KnowledgeTopic(Base):
     script_prompt: Mapped[str] = mapped_column(Text, default="")
     clone_prompt: Mapped[str] = mapped_column(Text, default="")
     banned_words: Mapped[list] = mapped_column(JSONB, default=list)
+    # The 30-day plan (plans.py): its prompt (empty: the default one), the date of day 1 in Vietnam, how many ideas
+    # a day the AI is asked for, and the AI's last plan, kept for a member to look at before it replaces the plan.
+    plan_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
+    plan_start_date: Mapped[date | None] = mapped_column(Date)
+    plan_per_day: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
+    plan_draft: Mapped[dict | None] = mapped_column(JSONB)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class TopicPlanItem(Base):
+    """One video idea of a topic group's 30-day plan. Its status comes from the linked video (plans.item_status), so
+    it can never disagree with it; deleting the video unlinks it."""
+
+    __tablename__ = "topic_plan_items"
+    __table_args__ = (
+        CheckConstraint("day BETWEEN 1 AND 30", name="day"),
+        Index("ix_topic_plan_items_knowledge_topic_id_day", "knowledge_topic_id", "day", "position"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    knowledge_topic_id: Mapped[int] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
+    day: Mapped[int] = mapped_column(Integer)
+    position: Mapped[int] = mapped_column(Integer)  # 1-5 within the day
+    topic: Mapped[str] = mapped_column(Text)  # becomes the video's Chủ đề
+    pain_group: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    pain: Mapped[str] = mapped_column(Text, default="", server_default="")
+    hook: Mapped[str] = mapped_column(Text, default="", server_default="")
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), unique=True)
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -198,11 +229,19 @@ class Job(Base):
             "uq_jobs_active_video", "video_id", unique=True, postgresql_where=text("status IN ('queued', 'running')")
         ),
         Index("ix_jobs_status_id", "status", "id"),
+        Index(
+            "uq_jobs_active_plan",
+            "knowledge_topic_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running') AND kind = 'plan'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
-    # script | clone | render | publish | unpublish | check | image | photos | voice
+    # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge), which belongs to a topic group.
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
+    # script | clone | render | publish | unpublish | check | image | photos | voice | plan
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
