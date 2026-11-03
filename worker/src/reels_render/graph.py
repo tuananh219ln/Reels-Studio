@@ -84,13 +84,14 @@ def _clip_chain(source: int, frames: int, label: str, speed: float = 1.0) -> str
     """A clip already moves, so it gets no zoom. `setpts` first plays it at its speed, then `fps` turns it, like
     phone footage with a variable frame rate, into constant 30 fps; `tpad` holds the last frame when the clip ends
     before the scene, and `trim` cuts it to the timeline's exact frame count so the crossfade offsets stay
-    frame-exact."""
+    frame-exact. No `setpts` may follow `fps`: FFmpeg 7.1's setpts marks the frame rate unknown, and xfade then
+    refuses to join the clip to a 30 fps scene. None is needed, since the clip already starts at 0."""
     timing = "PTS-STARTPTS" if speed == 1 else f"(PTS-STARTPTS)/{speed:g}"
     return (
         f"[{source}:v]setpts={timing},fps={FPS},"
         f"scale={FRAME_WIDTH}:{FRAME_HEIGHT}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={FRAME_WIDTH}:{FRAME_HEIGHT},format=yuv420p,setsar=1,"
-        f"tpad=stop_mode=clone:stop_duration={_seconds(frames)},trim=end_frame={frames},setpts=PTS-STARTPTS"
+        f"tpad=stop_mode=clone:stop_duration={_seconds(frames)},trim=end_frame={frames}"
         f"[{label}]"
     )
 
