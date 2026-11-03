@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — Scene voice texts tell the food's benefit, with an optional short eating tip
+
+Issue #70: narration sounded like a cooking lesson, because the fixed output format asked for "lý do, cách ăn hoặc
+mẹo nhỏ" and all five voice texts in its worked example described cooking (fried, boiled, roasted…), which the model
+copies closely. The format's voice rule now asks for the benefit (what the food contains, which part of the body it is
+good for, who it suits), one short eating tip only when there is room (when, how much), no cooking steps, the soft
+wording "tốt cho" / "hỗ trợ", no promise to cure, and no word-for-word repeat of the on-screen text. The example's five
+voice texts are rewritten that way and still open with the dish (2026-11-02 holds: the rule itself still does not
+require the dish name, since not every topic has dishes). It is code, not app data, so it applies to "Tạo kịch bản" and
+"Nhân bản" alike; existing videos keep their voice texts until their script is written again.
 ## 2026-11-03 — "Bài đăng" looks like "Video": thumbnails, grid or list, search by title
 
 Part 2 of issue #74. `/posts` shows one card per post with its video's title-scene thumbnail, so a

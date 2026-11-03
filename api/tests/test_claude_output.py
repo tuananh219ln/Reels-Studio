@@ -225,3 +225,34 @@ def test_clone_prompt_appends_what_a_member_removed_from_the_template():
         "Kịch bản đã sửa của video gốc: Cảnh 1 (4 giây): Cá nhỏ\n\n"
         "Yêu cầu đổi: đổi sang mốc 45 tuổi, tim mạch"
     )
+
+
+COOKING_WORDS = {"chiên", "rán", "luộc", "xào", "rang", "giã", "kho", "nấu", "hấp", "nướng", "om", "chế"}
+
+
+def test_the_voice_rule_asks_for_the_benefit_and_a_short_eating_tip_not_how_to_cook():
+    voice_rule = OUTPUT_FORMAT[OUTPUT_FORMAT.index('- "voice"') : OUTPUT_FORMAT.index('- "image_prompt"')]
+    assert "công dụng" in voice_rule
+    assert "mẹo ăn ngắn" in voice_rule and "còn chỗ" in voice_rule
+    assert "không mô tả cách nấu" in voice_rule
+    assert "lý do, cách ăn hoặc mẹo nhỏ" not in OUTPUT_FORMAT
+    # Benefit talk slides easily into health promises (docs/content.md, Safety Rules).
+    assert '"tốt cho"' in voice_rule and '"hỗ trợ"' in voice_rule
+    assert "không hứa chữa bệnh" in voice_rule
+    assert "không lặp lại nguyên văn chữ trên màn hình" in voice_rule
+
+
+def test_the_example_voice_texts_tell_the_benefit_not_the_cooking():
+    # The model copies the example closely, so its voice texts must not describe cooking steps.
+    for scene in parse_output(OUTPUT_FORMAT).scenes:
+        words = {word.strip(",.!?").lower() for word in scene.voice.split()}
+        assert not words & COOKING_WORDS, scene.voice
+        # The voice explains the label, it does not read it back.
+        for line in scene.text.replace("*", "").split("\n")[1:]:
+            assert line.lower() not in scene.voice.lower(), scene.voice
+
+
+def test_the_example_voice_texts_use_no_banned_word():
+    defaults = ["chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc trị", "khắc tinh"]
+    for scene in parse_output(OUTPUT_FORMAT).scenes:
+        assert not any(word in scene.voice.lower() for word in defaults), scene.voice

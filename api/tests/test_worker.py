@@ -86,6 +86,7 @@ def test_script_job_writes_the_script_then_a_photo_search_fills_the_scenes(commi
     assert video.self_review and video.music_suggestions
     assert "Chủ đề: xương khớp sau 50 tuổi" in services.claude_prompts[0]
     assert "chữa khỏi" in services.claude_prompts[0]
+    assert "công dụng của món" in services.claude_prompts[0], "the fixed voice rule (issue #70)"
     assert "input_tokens=" in worker.output() and "output_tokens=" in worker.output()
     # The script job picks no photo itself; the "Tự tìm ảnh" job queued after it does, marked for a member to check.
     assert photos_job_done(committed, video_id).status == "done"
@@ -443,7 +444,9 @@ def test_clone_job_writes_a_new_script_from_the_snapshot(committed, services, st
         )
         db.add(draft)
         db.commit()
-    services.claude_replies = [{**script_json("tim mạch"), "music_suggestions": ["River Flows In You"]}]
+    reply = {**script_json("tim mạch"), "music_suggestions": ["River Flows In You"]}
+    reply["scenes"][0]["voice"] = "Cá nhỏ có canxi ngay trong phần xương, hỗ trợ xương chắc, nhớ nhai kỹ."
+    services.claude_replies = [reply]
     job_id = add_job(committed, draft.id, user.id, kind="clone")
     start_worker()
 
@@ -451,8 +454,10 @@ def test_clone_job_writes_a_new_script_from_the_snapshot(committed, services, st
     prompt = services.claude_prompts[0]
     assert prompt.startswith('Video gốc: "5 MÓN BỔ XƯƠNG" — chủ đề: xương khớp.')
     assert "Cảnh 1 (4 giây): Cá nhỏ / Giàu *canxi*" in prompt and "đổi sang mốc 45 tuổi, tim mạch" in prompt
+    assert "công dụng của món" in prompt and "không mô tả cách nấu" in prompt, "clones share the voice rule"
     video, scenes = load(committed, draft.id)
     assert video.has_script and video.music_suggestions == ["River Flows In You"]
+    assert scenes[1].voice_text == "Cá nhỏ có canxi ngay trong phần xương, hỗ trợ xương chắc, nhớ nhai kỹ."
     assert not any(scene.image_key for scene in scenes)
 
 
