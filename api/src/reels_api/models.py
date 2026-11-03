@@ -282,8 +282,26 @@ class Fanpage(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    # The worker's last check of the token (fanpages.check): when, what went wrong (None when it worked), when a member
+    # asked for one with "Kiểm tra ngay", and the Page's followers it read.
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    check_error: Mapped[str | None] = mapped_column(Text)
+    check_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    followers_count: Mapped[int | None] = mapped_column(Integer)
 
     updated_by: Mapped[User | None] = relationship()
+
+
+class FanpageFollowers(Base):
+    """A Page's followers on one day (Vietnam time), the last number read that day, for the gain of a week."""
+
+    __tablename__ = "fanpage_followers"
+    __table_args__ = (Index("uq_fanpage_followers_fanpage_id_day", "fanpage_id", "day", unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
+    day: Mapped[date] = mapped_column(Date)
+    followers: Mapped[int] = mapped_column(Integer)
 
 
 class LlmProvider(Base):

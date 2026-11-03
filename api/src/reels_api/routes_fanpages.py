@@ -55,7 +55,9 @@ def _pages_of(token: str) -> list[dict]:
 
 
 def _rows(db: DbSession) -> list[dict]:
-    rows = db.scalars(select(Fanpage).options(joinedload(Fanpage.updated_by)).order_by(Fanpage.name, Fanpage.id))
+    rows = list(db.scalars(select(Fanpage).options(joinedload(Fanpage.updated_by)).order_by(Fanpage.name, Fanpage.id)))
+    checks = fanpages.check_payload(db, rows)
+    scheduled = fanpages.scheduled_counts(db)
     return [
         {
             "id": row.id,
@@ -65,6 +67,8 @@ def _rows(db: DbSession) -> list[dict]:
             "active": row.active,
             "updated_at": row.updated_at.isoformat(),
             "updated_by": row.updated_by.email if row.updated_by else None,
+            "check": checks[row.id],
+            "scheduled_posts": scheduled.get(row.id, 0),
         }
         for row in rows
     ]
@@ -123,5 +127,16 @@ def set_active(
 ) -> list[dict]:
     row = _fanpage(db, fanpage_id)
     row.active, row.updated_by_id = body.active, me.user_id
+    db.commit()
+    return _rows(db)
+
+
+@router.post("/{fanpage_id}/check")
+def check_now(fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+    """ "Kiểm tra ngay": the worker checks the Page within seconds; a request never calls Facebook."""
+    row = _fanpage(db, fanpage_id)
+    if not row.active:
+        raise invalid(f"Fanpage “{row.name}” đang ngừng dùng, hãy dùng lại trước khi kiểm tra")
+    fanpages.request_check(row)
     db.commit()
     return _rows(db)

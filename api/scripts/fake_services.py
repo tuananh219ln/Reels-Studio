@@ -160,6 +160,8 @@ class FakeServices:
         self.facebook_insights_calls = 0
         self.facebook_insights_refused = False  # the token lacks read_insights: 403, code 200
         self.facebook_insights_gone: set[str] = set()  # reels Facebook no longer has
+        self.facebook_followers: int | None = 1200  # a Page's followers_count; None leaves it out of the answer
+        self.facebook_page_info_refused = False  # the token cannot read the Page: 403, code 200
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -616,6 +618,18 @@ class FakeServices:
             return 400, {"error": {"message": "(#100) Tried accessing nonexisting field (accounts)", "code": 100}}
         return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
 
+    def _page_info(self, page_id: str, query: dict) -> tuple[int, dict]:
+        """GET /{page-id}?fields=name,followers_count with the Page's own token."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if self.facebook_page_info_refused:
+            return 403, {"error": {"message": "(#200) Requires pages_read_engagement permission", "code": 200}}
+        page = next(page for page in self.facebook_pages if page["id"] == page_id)
+        reply = {"id": page_id, "name": page["name"]}
+        if self.facebook_followers is not None:
+            reply["followers_count"] = self.facebook_followers
+        return 200, reply
+
     def _reel_insights(self, video_id: str, query: dict) -> tuple[int, dict]:
         """Video Insights in the shape Meta documents: one entry per metric, its lifetime value in `values`."""
         if query.get("access_token") != FACEBOOK_TOKEN:
@@ -787,6 +801,8 @@ class FakeServices:
                     target = parts.path.removeprefix("/facebook/")
                     if target in ("me", "me/accounts"):
                         self._send(*fake._me(target, query))
+                    elif target in {page["id"] for page in fake.facebook_pages}:
+                        self._send(*fake._page_info(target, query))
                     elif target.endswith("/video_insights"):
                         self._send(*fake._reel_insights(target.removesuffix("/video_insights"), query))
                     else:

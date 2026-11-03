@@ -27,7 +27,8 @@ export function PublishButton({ video }: { video: VideoDetail }) {
   const [picked, setPicked] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const fanpage = picked ?? (video.fanpages.length === 1 ? video.fanpages[0].id : null);
-  const name = video.fanpages.find((page) => page.id === fanpage)?.name;
+  const chosen = video.fanpages.find((page) => page.id === fanpage);
+  const name = chosen?.name;
   const sameMp4 = fanpage !== null && video.posted_fanpage_ids.includes(fanpage);
   const oldPost = video.publications.some(
     (post) => post.fanpage === name && (post.status === "scheduled" || post.status === "published"),
@@ -86,6 +87,9 @@ export function PublishButton({ video }: { video: VideoDetail }) {
                 showIcon
                 title="Bản MP4 này đang có trên Fanpage đó. Hãy render bản mới hoặc xóa bài cũ."
               />
+            )}
+            {chosen?.error && (
+              <Alert type="warning" showIcon title={`Lần kiểm tra gần nhất, Fanpage này lỗi: ${chosen.error}`} />
             )}
             {oldPost && !sameMp4 && (
               <Alert type="warning" showIcon title="Fanpage này vẫn còn bài cũ của video. Đăng thêm sẽ có hai bài." />

@@ -1,7 +1,17 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
 import { expect, test, type Browser } from "@playwright/test";
-import { SEED, addUser, chooseOption, login, loginAsSeed, openAccountMenu, resetDatabase, row } from "./helpers";
+import {
+  SEED,
+  addUser,
+  chooseOption,
+  connectFacebook,
+  login,
+  loginAsSeed,
+  openAccountMenu,
+  resetDatabase,
+  row,
+} from "./helpers";
 
 test.beforeEach(() => resetDatabase());
 
@@ -122,6 +132,18 @@ test("Kết nối Fanpage opens from inside the Cài đặt menu group", async (
   await fanpages.click();
   await expect(page).toHaveURL(/\/fanpages$/);
   await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toBeVisible();
+});
+
+test("the worker checks a connected Page's token and shows its followers", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  // The worker checks a newly connected Page within seconds; the page asks again until it has.
+  await expect(page.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole("cell", { name: "1.200" })).toBeVisible();
+  await page.getByRole("button", { name: "Kiểm tra ngay" }).click();
+  await expect(page.getByText("Đang kiểm tra…")).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByText("Hoạt động", { exact: true })).toBeVisible();
 });
 
 test("Cấu hình holds the defaults, AI model and sources as tabs, each with its own address", async ({ page }) => {

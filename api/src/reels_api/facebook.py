@@ -23,6 +23,8 @@ FAILED_STATUSES = {"error", "expired", "upload_failed"}
 TOKEN_ERRORS = {102, 190}
 PERMISSION_ERRORS = {10, 200}
 RATE_LIMIT_ERRORS = {4, 17, 32, 613}
+# _http_error's message for a refusal it cannot name; it speaks of posting, so a read replaces it.
+REFUSED = "Facebook từ chối đăng video này"
 
 
 class FacebookError(Exception):
@@ -77,7 +79,7 @@ def _http_error(status: int, body: str) -> FacebookError:
     elif status >= 500:
         message = f"Facebook đang lỗi (HTTP {status}), thử lại sau"
     else:
-        message = "Facebook từ chối đăng video này"
+        message = REFUSED
     return FacebookError(message, detail, status, code)
 
 
@@ -110,6 +112,27 @@ def managed_pages(token: str) -> list[dict]:
         }
         for account in accounts
     ]
+
+
+def page_info(page: Page) -> dict:
+    """The Page's `name` and `followers` (None when Facebook leaves it out), read with the Page's own token: the
+    worker's check that the token still works (fanpages.check). Reading the Page needs `pages_read_engagement`."""
+    query = urllib.parse.urlencode({"fields": "name,followers_count", "access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}?{query}"
+    try:
+        reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
+    except FacebookError as err:
+        if err.code in PERMISSION_ERRORS:
+            raise FacebookError(
+                "Token Facebook chưa có quyền đọc Page (pages_read_engagement), hãy dán token mới trong Kết nối Fanpage",
+                err.detail,
+                err.status,
+                err.code,
+            ) from None
+        if err.message == REFUSED:
+            raise FacebookError("Facebook không cho đọc Page này", err.detail, err.status, err.code) from None
+        raise
+    return {"name": str(reply.get("name") or ""), "followers": _count(reply.get("followers_count"))}
 
 
 def start_upload(page: Page) -> tuple[str, str]:

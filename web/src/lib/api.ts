@@ -128,7 +128,7 @@ export type VideoDetail = VideoRow & {
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages. */
-  fanpages: { id: number; name: string }[];
+  fanpages: { id: number; name: string; error: string | null }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
   publication: Post | null;
   /** Every post of the video, newest first, cancelled and deleted ones included. */
@@ -165,6 +165,16 @@ export type Fanpage = {
   active: boolean;
   updated_at: string;
   updated_by: string | null;
+  /** The worker's last check of the token (api fanpages.check). */
+  check: {
+    checked_at: string | null;
+    error: string | null;
+    pending: boolean;
+    followers: number | null;
+    followers_this_week: number | null;
+  };
+  /** Posts still waiting for their time on Facebook. */
+  scheduled_posts: number;
 };
 
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */

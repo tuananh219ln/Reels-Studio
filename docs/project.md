@@ -64,7 +64,9 @@ app replaces CapCut, so the output is a finished MP4.
    rendered video as a Reel now or at a set time, post a new render again, cancel a post not yet
    public and delete a public one from Facebook. "Bài đăng" lists posted, scheduled, cancelled and
    deleted videos, and "Lịch đăng bài" shows the posted and scheduled ones in a month view, both in
-   Vietnam time.
+   Vietnam time. The worker checks each Page's token twice a day (and on "Kiểm tra ngay"), so a
+   broken one shows on "Kết nối Fanpage" and in "Đăng" before a post fails, and keeps the Page's
+   followers with this week's gain.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections

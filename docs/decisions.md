@@ -32,6 +32,27 @@ wording "tốt cho" / "hỗ trợ", no promise to cure, and no word-for-word rep
 voice texts are rewritten that way and still open with the dish (2026-11-02 holds: the rule itself still does not
 require the dish name, since not every topic has dishes). It is code, not app data, so it applies to "Tạo kịch bản" and
 "Nhân bản" alike; existing videos keep their voice texts until their script is written again.
+## 2026-11-03 — The worker checks each Page's token twice a day and keeps its followers
+
+Part of issue #71, agreed by a member (namtc07). The issue's weekly "Bộ nhiệm vụ" (a playbook of Facebook's Page
+tasks, counted and done by the app) is not built: Graph API does not give Facebook's task list, a tracker alone would
+copy the Professional Dashboard with a different percentage, and posting photo or text posts by itself risks
+"unoriginal content" with stock photos. What the team needs first, with more Pages, is to know when one breaks.
+
+- **What is checked.** The worker reads `GET /{page-id}?fields=name,followers_count` with the Page's token, 12 hours
+  after the last check, at once for a Page just connected or given a new token, and on "Kiểm tra ngay". A token that
+  no longer works (its maker changed their password or lost the Page) shows on "Kết nối Fanpage" with what to do, and
+  "Đăng" warns before posting to it. Only a dead or refused token is found this way: which permissions a Page token
+  has needs a user or app token the app does not keep, so a missing `read_insights` still shows on the post.
+- **Not a job**, for the reasons the post numbers are not one (below): the worker checks up to 3 due Pages between
+  jobs, a request never calls Facebook, and a failed check waits for the next one instead of looping.
+- **Followers** are kept once per day (Vietnam time) in `fanpage_followers` (migration 0025), so "Người theo dõi" shows
+  the gain since the last number before this week's Monday. The week runs Monday to Sunday like the KPIs on "Bài
+  đăng", not Sunday to Saturday like Facebook's weekly tasks: one kind of week in the app.
+- **The Page's name** follows Facebook: a Page renamed there is renamed in the app at its next check.
+- **No new menu yet.** The status lives on "Kết nối Fanpage"; a "Quản lý Page" menu waits until there is more than
+  this to show.
+
 ## 2026-11-03 — "Bài đăng" looks like "Video": thumbnails, grid or list, search by title
 
 Part 2 of issue #74. `/posts` shows one card per post with its video's title-scene thumbnail, so a
