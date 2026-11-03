@@ -186,7 +186,8 @@ function SuggestionCard({
         <Flex vertical gap={10}>
           {shown.map((item) => (
             <Flex key={item.key} align="center" justify="space-between" gap={12} wrap data-testid="suggestion">
-              <div style={{ minWidth: 220, flex: 1 }}>
+              {/* Takes what the button leaves; below 200 px the button goes under it instead of over it. */}
+              <div style={{ minWidth: 0, flex: "1 1 200px" }}>
                 <VideoTitleCell
                   id={item.video.id}
                   title={item.video.title || item.video.topic}
