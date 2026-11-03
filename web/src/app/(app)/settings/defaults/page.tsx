@@ -62,7 +62,7 @@ export default function VideoDefaultsPage() {
 
   return (
     <>
-      <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ marginBottom: 16, maxWidth: 1100 }}>
+      <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ marginBottom: 16 }}>
         <Typography.Paragraph type="secondary" style={{ margin: 0, maxWidth: 680 }}>
           Video tạo mới bắt đầu với các thiết lập này; video nhân bản lấy theo video gốc. Video đã có giữ thiết lập
           riêng: đổi ở tab “Thiết lập” của từng video, hoặc bấm “Lấy theo mặc định nhóm” ở đó.
@@ -87,16 +87,17 @@ export default function VideoDefaultsPage() {
       {values === null ? (
         <Spin />
       ) : (
-        <Row gutter={[16, 16]} style={{ maxWidth: 1100 }}>
-          <Col xs={24} lg={12}>
+        // Two columns (sound, then picture with text under it); three side by side on a wide screen.
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={12} xxl={8}>
             <AudioSettings values={values} onChange={change} disabled={!editing || busy} showMusicVolume />
           </Col>
-          <Col xs={24} lg={12}>
+          <Col xs={24} lg={12} xxl={16}>
             <Row gutter={[16, 16]}>
-              <Col span={24}>
+              <Col span={24} xxl={12}>
                 <MotionSettings values={values} onChange={change} disabled={!editing || busy} />
               </Col>
-              <Col span={24}>
+              <Col span={24} xxl={12}>
                 <TextSettings values={values} onChange={change} disabled={!editing || busy} />
               </Col>
             </Row>

@@ -242,7 +242,7 @@ export default function SourcesPage() {
   const order = stock.filter((source) => source.enabled && source.configured).map((source) => source.label);
 
   return (
-    <Flex vertical gap={28} style={{ maxWidth: 1100 }}>
+    <Flex vertical gap={28}>
       <Section
         title="Kho ảnh và video miễn phí"
         description="Hộp “Chọn từ kho ảnh/video”, nút “Tìm ảnh” và việc tự tìm ảnh dùng các kho này, bắt đầu từ Pexels. Tắt một kho thì nó biến khỏi hộp chọn của cả nhóm."
