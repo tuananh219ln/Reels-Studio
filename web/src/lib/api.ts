@@ -359,10 +359,58 @@ export type Post = {
   /** When and by whom it was cancelled or deleted; `closed_by` is null when a check found it so on Facebook. */
   closed_at: string | null;
   closed_by: string | null;
+  metrics: PostMetrics;
+};
+
+/** A post's numbers on Facebook as of `measured_at`; a number is null when Facebook does not give it. */
+export type PostNumbers = {
+  views: number | null;
+  shares: number | null;
+  comments: number | null;
+  reactions: number | null;
+  measured_at: string;
+};
+
+/** `latest` is rewritten by every reading; `at_48h` is the first reading 48 hours after the post went live, kept as it
+ * is. `pending`: "Cập nhật view" was pressed and the worker has not read it yet. */
+export type PostMetrics = {
+  latest: PostNumbers | null;
+  at_48h: PostNumbers | null;
+  error: string | null;
+  pending: boolean;
+  analysis: PostAnalysis;
+};
+
+/** The post's 48-hour views against its Page's median of the last 60 days; `times_median` and the flag stay empty
+ * until the post has its 48-hour numbers and the Page has enough measured posts. */
+export type PostAnalysis = {
+  median_views: number | null;
+  samples: number;
+  times_median: number | null;
+  is_winner: boolean;
+  share_rate: number | null;
+};
+
+/** One week of the KPI strip, Monday to Sunday in Vietnam time (`start` is the Monday). */
+export type WeekKpis = {
+  start: string;
+  measured: number;
+  median_views: number | null;
+  winners: number;
+  share_goal_met: number;
+  share_goal_rate: number | null;
+};
+
+export type PostKpis = {
+  this_week: WeekKpis;
+  last_week: WeekKpis;
+  rules: { median_days: number; min_samples: number; winner_factor: number; share_goal: number };
+  /** Some Page has enough measured posts for its median to mean something. */
+  enough_data: boolean;
 };
 
 /** A post in the "Bài đăng" list; `busy`: its video has a job queued or running. */
-export type PostRow = Post & { video_id: number; title: string; busy: boolean };
+export type PostRow = Post & { video_id: number; title: string; thumbnail_url: string | null; busy: boolean };
 
 export type JobRow = {
   id: number;

@@ -229,7 +229,8 @@ Built:
   - the "Bài đăng của video" card lists every post, newest first: its status, Fanpage, who posted it,
     the scheduled time or "Xem Reel", who cancelled or deleted it and when ("trên Facebook" when a check
     found it so), with "Kiểm tra" for a post on Facebook (reads it again after a change in Meta Business
-    Suite), "Hủy đăng" for a post not yet public and "Xóa" for a public one, each with a confirmation;
+    Suite), "Hủy đăng" for a post not yet public and "Xóa" for a public one, each with a confirmation,
+    and a public post's numbers and "Video thắng" tag as on "Bài đăng" (without "Cập nhật view");
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): one collapsible line per topic group ("Nhóm chủ đề"), added,
   renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
@@ -263,13 +264,30 @@ Built:
     "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows why, in yellow.
 - **Đăng bài**, a menu group of two screens. Nothing is posted or approved here: a member reviews
   and posts a video from "Đăng" on its page.
-  - **Bài đăng** (`/posts`): posts of every status but pending, latest time first, with the Fanpage,
-    "Đã hẹn lịch", "Đã đăng", "Đã hủy" or "Đã xóa", the time in Vietnam time, who posted it, who
-    cancelled or deleted it and when ("Trên Facebook" when a check found it so), "Xem Reel" once
-    public, "Kiểm tra", and "Hủy đăng" or "Xóa" with a confirmation. A row updates by itself once the worker has done it. The title opens the video. A
-    line counts the scheduled and published reels; filters by status (Tất cả, Đã hẹn lịch, Đã đăng,
-    Đã hủy, Đã xóa) and, with more than one, by Fanpage; "Xem dạng lịch" opens the calendar, whose
-    "Xem dạng danh sách" comes back.
+  - **Bài đăng** (`/posts`): laid out like "Video": a grid of cards (the default) or a list, chosen
+    with the same switch and remembered in the browser apart from the "Video" one. Posts of every
+    status but pending, latest time first, each with its video's thumbnail (the title scene, or the
+    pale tile), the Fanpage, "Đã hẹn lịch", "Đã đăng", "Đã hủy" or "Đã xóa", the time in Vietnam
+    time, who posted it, who cancelled or deleted it and when ("Trên Facebook" when a check found it
+    so), "Xem Reel" once public, "Kiểm tra", and "Hủy đăng" or "Xóa" with a confirmation. A public
+    post shows its views, then shares, comments and reactions ("—" for one Facebook does not give),
+    when they were read ("Đo lúc", Vietnam time) and, once taken, its views at the 48-hour mark;
+    before the first reading, "Chưa có số view, app tự đo sau khi đăng 1 giờ". A failed reading
+    shows its reason in yellow ("Lần đo gần nhất lỗi: …") under the last numbers. "Cập nhật view"
+    asks for a new reading and shows "Đang đo view" until the numbers arrive. Once a post has its
+    48-hour numbers it shows "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị", and its
+    share/view, green at 0,2 % or more, yellow under it; a winner has a gold "Video thắng" tag beside
+    its status, whose tooltip suggests 3 variants with "Nhân bản". Above the posts, a KPI strip for
+    this week (from Monday, Vietnam time) with last week under each figure: "Video đã đo", "View
+    trung vị", "Video thắng" and "Share/view ≥ 0,2 %", then the winner rule, or why nothing is
+    compared yet. A video
+    posted to two Pages, or posted again, has one card per post, told apart by Page and time. A post
+    updates by itself once the worker has done it. The thumbnail and the title open the video. A
+    line counts the scheduled and published reels; "Tìm theo tiêu đề", "Sắp xếp" ("Giờ đăng mới
+    nhất", the default, or "Nhiều view nhất", posts not read yet last), "Chỉ video thắng", a status filter (Mọi trạng
+    thái, Đã hẹn lịch, Đã đăng, Đã hủy, Đã xóa) and, with more than one, a Fanpage filter; "Không có
+    bài đăng nào khớp" when nothing matches. "Xem dạng lịch" opens the calendar, whose "Xem dạng
+    danh sách" comes back.
   - **Lịch đăng bài** (`/calendar`): the posted and scheduled videos in a month view, coloured by status. A video
     opens its page. Everything is in Vietnam time whatever the browser's time zone: the day a video
     sits under, the month it opens on, and the "today" mark.

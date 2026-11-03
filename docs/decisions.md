@@ -21,6 +21,14 @@ wording "tốt cho" / "hỗ trợ", no promise to cure, and no word-for-word rep
 voice texts are rewritten that way and still open with the dish (2026-11-02 holds: the rule itself still does not
 require the dish name, since not every topic has dishes). It is code, not app data, so it applies to "Tạo kịch bản" and
 "Nhân bản" alike; existing videos keep their voice texts until their script is written again.
+## 2026-11-03 — "Bài đăng" looks like "Video": thumbnails, grid or list, search by title
+
+Part 2 of issue #74. `/posts` shows one card per post with its video's title-scene thumbnail, so a
+member recognises the video at a glance, and switches between grid and list like `/videos`; the
+choice is remembered per page, in the browser only. The search by title and the filters run in the
+browser over the list the api already returns whole, because the team has at most a few hundred
+posts; the api gains only `thumbnail_url`. A video with several posts has several cards, one per
+post, since each post has its own Page, time and actions.
 ## 2026-11-03 — Each topic group has a 30-day plan of video ideas; "Tạo video" follows it
 
 Owner's plan "Kế hoạch chủ đề 30 ngày" (tasks 1.1–3.7; task 4, the content research and trial week, happens outside
@@ -42,6 +50,48 @@ imported from JSON/CSV, written by AI or typed in. Choices made while building i
   appended. The default script prompt is unchanged; the pain-first prompt (task 4.3) is the team's to write.
 - **A topic outside the plan only gets a note**; videos are still made without a plan, as before.
 - "Hôm nay" is the Vietnam date counted from the group's start date.
+
+## 2026-11-03 — "Video thắng" is 10× the median of its own Page over 60 days; KPI weeks run Monday to Sunday
+
+Part 3b of issue #74, agreed by a member (namtc07) on the proposals in the issue. The team's rules (docs/content.md) stay
+as they are: a winner is at least 10× the median views, the share/view goal is 0.2 %. What they are measured against:
+
+- **The 48-hour numbers only**, so every post is compared at the same age.
+- **Per Page, over the last 60 days.** The performance-loop brief took every post ever made; against a growing Page's
+  first weeks, or a large Page's numbers, almost every video of a small or newer Page would win, or none would.
+- **At least 5 measured posts on the Page** before any of its posts is flagged, as the brief said; under that the page
+  says "Chưa đủ dữ liệu để so trung vị".
+- **A KPI week is Monday to Sunday in Vietnam time**, this week shown against last, counting the posts that went live in
+  it and have their 48-hour numbers. The share/view figure counts posts with both numbers.
+- **Nothing is stored**: the median, the flag and the KPIs are worked out from `post_metrics` on each request, which
+  is cheap at 1–3 posts a day.
+
+The brief's "Đề xuất biến thể" (Claude proposes 10 variants of a winner) is not part of this and stays open in #44.
+
+## 2026-11-03 — Post numbers: the worker reads them between jobs, daily for 14 days, and keeps the 48-hour mark
+
+Part 3 of issue #74, agreed by a member (namtc07) on the issue's open questions. "Metrics and analytics in the MVP" is
+taken out of Out of Scope in `docs/project.md`: the team's KPIs and its winner rule (`docs/content.md`) need the numbers,
+and "Nhân bản" has no way to know which video won without them.
+
+- **Per post, not per video.** Since a video can have several posts (2026-11-02), numbers belong to a `publications`
+  row (table `post_metrics`, migration 0023).
+- **Two readings kept.** `latest`, rewritten by every reading, which "Bài đăng" sorts by; and `48h`, the first reading
+  at least 48 hours after the post went live, never rewritten, so the median and the winner flag (next PR) compare
+  posts at the same age. A post more than a day past its 48-hour mark when first read (older posts at deploy) gets no
+  mark rather than a wrong one. This replaces the performance-loop brief's "only 48h, a manual re-reading overwrites
+  it": a member wants the current views too, and overwriting the mark would break the comparison.
+- **Not a job.** The brief's `metrics` job would lock the video (one active job per video) for every reading and fill
+  the Jobs list; a reading only writes numbers, so the worker reads due posts itself between jobs, at most 3 every 5
+  seconds with a 10-second timeout per call. A request never calls Facebook: "Cập nhật view" only asks the worker. A
+  failed reading is recorded on the post and waits a day (or another "Cập nhật view"), never looping.
+- **When.** An hour after a post went live, then daily for 14 days; after that only on "Cập nhật view". Video Insights
+  is free to read, and at 1–3 posts a day this stays far under Facebook's limits.
+- **Which numbers.** Views are Video Insights' lifetime `fb_reels_total_plays` (every play, replays included); shares and
+  comments from `post_video_social_actions`; reactions are `post_video_likes_by_reaction_type` summed. These names are
+  from Meta's docs and tested only against the fake service; a member must check them against Meta Business Suite on a
+  real Page, and `facebook.reel_insights` is the one place to change. The Page token needs `read_insights`; without it
+  the post says so in Vietnamese and the member pastes a new token.
 
 ## 2026-11-03 — A reel posted by the app gets the title scene as its cover
 
