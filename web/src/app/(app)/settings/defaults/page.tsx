@@ -1,8 +1,9 @@
 "use client";
 
 import { EditOutlined } from "@ant-design/icons";
-import { App, Button, Col, Flex, Row, Spin, Tag, Typography } from "antd";
+import { App, Button, Col, Flex, Row, Spin, Tag } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { AudioSettings, MotionSettings, TextSettings } from "@/components/video/VideoSettings";
 import { api, errorMessage, type VideoDefaults } from "@/lib/api";
 
@@ -62,14 +63,13 @@ export default function VideoDefaultsPage() {
 
   return (
     <>
-      <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ marginBottom: 16 }}>
-        <Typography.Paragraph type="secondary" style={{ margin: 0, maxWidth: 680 }}>
-          Video tạo mới bắt đầu với các thiết lập này; video nhân bản lấy theo video gốc. Video đã có giữ thiết lập
-          riêng: đổi ở tab “Thiết lập” của từng video, hoặc bấm “Lấy theo mặc định nhóm” ở đó.
-        </Typography.Paragraph>
-        {saved !== null &&
+      <SettingsHeader
+        title="Thiết lập mặc định"
+        description="Video tạo mới bắt đầu với các thiết lập này; video nhân bản lấy theo video gốc. Video đã có giữ thiết lập riêng: đổi ở tab “Thiết lập” của từng video, hoặc bấm “Lấy theo mặc định nhóm” ở đó."
+        actions={
+          saved !== null &&
           (editing ? (
-            <Flex gap={8} align="center">
+            <>
               {dirty && <Tag color="warning">Có thay đổi chưa lưu</Tag>}
               <Button disabled={busy} onClick={() => setDraft(null)}>
                 Huỷ
@@ -77,30 +77,28 @@ export default function VideoDefaultsPage() {
               <Button type="primary" loading={busy} disabled={!dirty} onClick={() => void save()}>
                 Lưu
               </Button>
-            </Flex>
+            </>
           ) : (
             <Button icon={<EditOutlined />} onClick={() => setDraft(saved)}>
               Chỉnh sửa
             </Button>
-          ))}
-      </Flex>
+          ))
+        }
+      />
       {values === null ? (
         <Spin />
       ) : (
-        // Two columns (sound, then picture with text under it); three side by side on a wide screen.
+        // Sound and picture down the left, the text (the longest) on the right on a wide screen; one column below that,
+        // since the settings' segmented choices need about 400 px.
         <Row gutter={[16, 16]}>
-          <Col xs={24} lg={12} xxl={8}>
-            <AudioSettings values={values} onChange={change} disabled={!editing || busy} showMusicVolume />
+          <Col xs={24} xxl={10}>
+            <Flex vertical gap={16}>
+              <AudioSettings values={values} onChange={change} disabled={!editing || busy} showMusicVolume />
+              <MotionSettings values={values} onChange={change} disabled={!editing || busy} />
+            </Flex>
           </Col>
-          <Col xs={24} lg={12} xxl={16}>
-            <Row gutter={[16, 16]}>
-              <Col span={24} xxl={12}>
-                <MotionSettings values={values} onChange={change} disabled={!editing || busy} />
-              </Col>
-              <Col span={24} xxl={12}>
-                <TextSettings values={values} onChange={change} disabled={!editing || busy} />
-              </Col>
-            </Row>
+          <Col xs={24} xxl={14}>
+            <TextSettings values={values} onChange={change} disabled={!editing || busy} />
           </Col>
         </Row>
       )}

@@ -16,8 +16,9 @@ import {
   theme,
   Typography,
 } from "antd";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
+import { SettingsHeader, SettingsSection as Section } from "@/components/settings/SettingsBlocks";
 
 type Key = { origin: "saved" | "unreadable" | "env" | null; hint: string; signup_url: string };
 type Source = {
@@ -152,21 +153,6 @@ const ready = (configured: boolean) =>
 /** The stock library "Tìm ảnh", the picker and "Tự tìm ảnh" start with (api routes_videos.STOCK_SOURCES[0]). */
 const DEFAULT_STOCK = "pexels";
 
-/** One group of the page: a heading, a line on what it is for, then its cards. */
-function Section({ title, description, children }: { title: string; description: ReactNode; children: ReactNode }) {
-  return (
-    <section>
-      <Typography.Title level={5} style={{ margin: 0 }}>
-        {title}
-      </Typography.Title>
-      <Typography.Paragraph type="secondary" style={{ margin: "2px 0 12px", maxWidth: 760 }}>
-        {description}
-      </Typography.Paragraph>
-      {children}
-    </section>
-  );
-}
-
 /** The stock libraries the picker and "Tìm ảnh" use, their keys, the AI image models' keys and ElevenLabs'. */
 export default function SourcesPage() {
   const { message } = App.useApp();
@@ -243,6 +229,10 @@ export default function SourcesPage() {
 
   return (
     <Flex vertical gap={28}>
+      <SettingsHeader
+        title="Nguồn tư liệu"
+        description="Kho ảnh và video miễn phí, ảnh AI và giọng đọc của cả nhóm. Key dán ở đây được mã hoá khi lưu, không bao giờ hiện lại, và được dùng thay key trong file .env của máy chủ."
+      />
       <Section
         title="Kho ảnh và video miễn phí"
         description="Hộp “Chọn từ kho ảnh/video”, nút “Tìm ảnh” và việc tự tìm ảnh dùng các kho này, bắt đầu từ Pexels. Tắt một kho thì nó biến khỏi hộp chọn của cả nhóm."
@@ -277,7 +267,7 @@ export default function SourcesPage() {
           )}
           <Row gutter={[16, 16]}>
             {stock.map((source) => (
-              <Col key={source.id} xs={24} lg={12} xl={8}>
+              <Col key={source.id} xs={24} lg={12} xxl={8}>
                 <Card
                   size="small"
                   data-testid={`source-${source.id}`}
@@ -316,8 +306,8 @@ export default function SourcesPage() {
 
       {data && (
         <Section
-          title="Ảnh AI"
-          description="Các nút “Tạo ảnh AI” dùng nguồn mặc định; muốn dùng nguồn kia cho một lần bấm, chọn ở mũi tên cạnh nút."
+          title="Dịch vụ AI"
+          description="Ảnh AI cho các nút “Tạo ảnh AI” (dùng nguồn mặc định; muốn dùng nguồn kia cho một lần bấm, chọn ở mũi tên cạnh nút) và giọng đọc ElevenLabs."
         >
           <Flex vertical gap={16}>
             {data.ai_provider && (
@@ -375,7 +365,7 @@ export default function SourcesPage() {
             )}
             <Row gutter={[16, 16]}>
               {data.ai_images_cloudflare && (
-                <Col xs={24} lg={12}>
+                <Col xs={24} lg={12} xxl={8}>
                   <Card
                     size="small"
                     data-testid="source-cloudflare"
@@ -408,7 +398,7 @@ export default function SourcesPage() {
                   </Card>
                 </Col>
               )}
-              <Col xs={24} lg={12}>
+              <Col xs={24} lg={12} xxl={8}>
                 <Card
                   size="small"
                   data-testid="source-gemini"
@@ -429,29 +419,30 @@ export default function SourcesPage() {
                   </Flex>
                 </Card>
               </Col>
+              {data.voices && (
+                <Col xs={24} lg={12} xxl={8}>
+                  <Card
+                    size="small"
+                    data-testid="source-elevenlabs"
+                    style={{ height: "100%" }}
+                    title={
+                      <Flex wrap gap={6} align="center">
+                        <span>ElevenLabs</span>
+                        {ready(data.voices.configured)}
+                      </Flex>
+                    }
+                  >
+                    <Flex vertical gap={12}>
+                      <Typography.Text type="secondary">
+                        Đọc lời từng cảnh khi render, và danh sách giọng ở Thiết lập mặc định.
+                      </Typography.Text>
+                      <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
+                    </Flex>
+                  </Card>
+                </Col>
+              )}
             </Row>
           </Flex>
-        </Section>
-      )}
-
-      {data?.voices && (
-        <Section title="Giọng đọc" description="Đọc lời từng cảnh khi render và danh sách giọng ở Thiết lập mặc định.">
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={12}>
-              <Card
-                size="small"
-                data-testid="source-elevenlabs"
-                title={
-                  <Flex wrap gap={6} align="center">
-                    <span>ElevenLabs</span>
-                    {ready(data.voices.configured)}
-                  </Flex>
-                }
-              >
-                <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
-              </Card>
-            </Col>
-          </Row>
         </Section>
       )}
     </Flex>

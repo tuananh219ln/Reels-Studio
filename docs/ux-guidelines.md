@@ -313,7 +313,8 @@ Built:
     row per video and Page; nobody else's.
 - **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
   accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
-  link), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá".
+  link), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá"; "Thêm tài khoản"
+  is in the tab's header.
 - **Kết nối Fanpage**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app.
@@ -387,22 +388,30 @@ Built:
   started it, start with the duration under it, AI call count with the model that wrote a script
   ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
 - **Cài đặt**, a menu group, last in the sidebar, with two pages: **Cấu hình** and **Kết nối Fanpage**.
-  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with three tabs, each
-  its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all three:
+  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with four tabs, each
+  its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all four.
+  From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
+  line on what it holds ("Video mới bắt đầu thế nào", "AI viết kịch bản", "Kho ảnh, ảnh AI, giọng
+  đọc", "Shopee và TikTok của bạn"), beside the tab; narrower, a row above it. Every tab starts the
+  same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
+  what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
+  The content takes the whole width beside the list:
   - **Thiết lập mặc định** (`/settings/defaults`, the first tab): the same three cards as
-    a video's "Thiết lập" tab plus the music level, read-only until "Chỉnh sửa". While editing, the
+    a video's "Thiết lập" tab plus the music level, from 1600 px "Âm thanh" and "Hình ảnh" down the
+    left and "Chữ & phụ đề" on the right, one column below that; read-only until "Chỉnh sửa" (in the
+    tab's header, with "Huỷ" and "Lưu" while editing). While editing, the
     changes stay on the page ("Có thay đổi chưa lưu") until "Lưu" sends them together ("Đã lưu mặc
     định") or "Huỷ" drops them. They apply only to videos created afterwards.
   - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
-    provider not set up yet is greyed out, "chưa cấu hình"). Below, one collapsible line per
+    provider not set up yet is greyed out, "chưa cấu hình"); from 1600 px it sits on the left,
+    staying in view, beside the providers. Below or beside it, one collapsible line per
     provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
     Opened: "API key" (pasted once with "Lưu key", then shown as "Đã lưu, kết thúc bằng …abcd" with
     "Dán key mới" and "Xoá key"; Claude without a saved key says it uses the server's `.env` key),
     "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
-  - **Nguồn tư liệu** (`/settings/sources`): three sections, each a heading with a line on what it
-    is for. "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
+  - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
     (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
     tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side
     (Pexels, marked "Mặc định", and Pixabay: photos and clips; Openverse: photos, no key), each
@@ -412,10 +421,9 @@ Built:
     của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
     ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, and
     "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
-    định" once edited; empty adds nothing) in one card of the "Ảnh AI" section, then one
-    card per AI photo provider side by side (Cloudflare, whose key is a Workers AI API token; Gemini)
-    with its model, its key and "Mặc định" on the default one; last, the "Giọng đọc" section with
-    the ElevenLabs card and its narration key. A
+    định" once edited; empty adds nothing) in the first card of "Dịch vụ AI", then its keys side by
+    side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
+    model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
   - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid

@@ -21,6 +21,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type LlmProvider, type LlmSettings } from "@/lib/api";
 import { COLORS } from "@/app/theme";
+import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 
 function StatusTag({ provider }: { provider: LlmProvider }) {
   if (provider.active) {
@@ -256,15 +257,14 @@ export default function AiSettingsPage() {
 
   return (
     <>
+      <SettingsHeader
+        title="Mô hình AI"
+        description="Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó."
+      />
       {/* The choice beside the list on a wide screen, and staying in view while the list scrolls. */}
       <Row gutter={[24, 16]}>
-        <Col xs={24} xl={9}>
+        <Col xs={24} xxl={8}>
           <div style={{ position: "sticky", top: 16 }}>
-            <Typography.Paragraph type="secondary" style={{ margin: "0 0 16px" }}>
-              Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model
-              riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó.
-            </Typography.Paragraph>
-
             <Card size="small">
               <Flex wrap gap={12} align="center">
                 <Typography.Text strong>Đang dùng để viết kịch bản:</Typography.Text>
@@ -294,7 +294,7 @@ export default function AiSettingsPage() {
             </Card>
           </div>
         </Col>
-        <Col xs={24} xl={15}>
+        <Col xs={24} xxl={16}>
           {settings && (
             <Collapse
               style={{ background: "#fff" }}

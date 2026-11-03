@@ -1,24 +1,10 @@
 "use client";
 
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import {
-  Alert,
-  App,
-  Button,
-  Card,
-  Flex,
-  Form,
-  Input,
-  Popconfirm,
-  Select,
-  Space,
-  Switch,
-  Table,
-  Tag,
-  Typography,
-} from "antd";
+import { App, Button, Card, Flex, Form, Input, Popconfirm, Select, Space, Switch, Table, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateAccount } from "@/lib/api";
+import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import FormDrawer from "@/components/FormDrawer";
 
 type Fields = { platform: "shopee" | "tiktok"; name: string; app_id?: string; secret?: string; profile_url?: string };
@@ -92,24 +78,16 @@ export default function AffiliateAccountsPage() {
   }
 
   return (
-    <Flex vertical gap={16}>
-      <Alert
-        type="info"
-        showIcon
-        title="Tài khoản affiliate là của riêng bạn."
-        description={
-          <>
-            Shopee: App ID và Secret lấy trong trang Shopee Affiliate › Open API (mỗi người tự đăng ký). Có chúng, app
-            tự tìm sản phẩm theo gợi ý của kịch bản và tạo link riêng cho từng Fanpage của bạn. TikTok: tài khoản TikTok
-            bạn đăng tay và gắn giỏ TikTok Shop.
-          </>
+    <Flex vertical gap={0}>
+      <SettingsHeader
+        title="Tài khoản affiliate"
+        description="Tài khoản affiliate là của riêng bạn. Shopee: App ID và Secret lấy trong trang Shopee Affiliate › Open API (mỗi người tự đăng ký); có chúng, app tự tìm sản phẩm theo gợi ý của kịch bản và tạo link riêng cho từng Fanpage của bạn. TikTok: tài khoản bạn đăng tay và gắn giỏ TikTok Shop."
+        actions={
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setTarget("new")}>
+            Thêm tài khoản
+          </Button>
         }
       />
-      <Flex justify="flex-end">
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setTarget("new")}>
-          Thêm tài khoản
-        </Button>
-      </Flex>
       <Card styles={{ body: { padding: 0 } }}>
         <Table<AffiliateAccount>
           rowKey="id"
