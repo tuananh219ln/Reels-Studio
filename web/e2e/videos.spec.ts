@@ -416,6 +416,12 @@ test("a posted video appears in Bài đăng and Lịch đăng bài", async ({ pa
   await expect(cards.getByText("3 share · 5 bình luận · 40 cảm xúc")).toBeVisible();
   await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
   await expect(cards).toHaveCount(1);
+  // The KPI strip: one post has no 48-hour numbers yet, so nothing is compared with a median.
+  await expect(page.getByTestId("post-kpis")).toContainText("Chưa đủ dữ liệu để so trung vị");
+  await page.getByText("Chỉ video thắng", { exact: true }).click();
+  await expect(cards).toHaveCount(0);
+  await page.getByText("Chỉ video thắng", { exact: true }).click();
+  await expect(cards).toHaveCount(1);
   // The status filter: a published reel is not among the scheduled ones.
   await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Đã hẹn lịch");
   await expect(cards).toHaveCount(0);

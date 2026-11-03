@@ -1,7 +1,23 @@
 "use client";
 
 import { AppstoreOutlined, CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
-import { App, Button, Card, Col, Empty, Flex, Input, Row, Segmented, Select, Spin, Table, Tag, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Empty,
+  Flex,
+  Input,
+  Row,
+  Segmented,
+  Select,
+  Spin,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -10,7 +26,8 @@ import { POST_STATUS } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import PostActions from "@/components/video/PostActions";
-import PostMetrics, { viewsOf } from "@/components/PostMetrics";
+import PostKpis from "@/components/PostKpis";
+import PostMetrics, { viewsOf, WinnerTag } from "@/components/PostMetrics";
 import { usePolling } from "@/lib/polling";
 import { useRememberedView, type View } from "@/lib/view";
 
@@ -33,6 +50,7 @@ export default function PostsPage() {
   const [status, setStatus] = useState<PostStatus | "all">("all");
   const [fanpage, setFanpage] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("latest");
+  const [winners, setWinners] = useState(false);
   const [view, chooseView] = useRememberedView(VIEW_KEY);
 
   const load = useCallback(
@@ -58,11 +76,12 @@ export default function PostsPage() {
     (post) =>
       (status === "all" || post.status === status) &&
       (fanpage === null || post.fanpage === fanpage) &&
+      (!winners || post.metrics.analysis.is_winner) &&
       (!words || folded(post.title).includes(words)),
   );
   // The api sends the latest time first; a stable sort keeps that order among posts with the same views.
   if (sort === "views") shown.sort((a, b) => viewsOf(b) - viewsOf(a));
-  const filtered = Boolean(words) || status !== "all" || fanpage !== null;
+  const filtered = Boolean(words) || status !== "all" || fanpage !== null || winners;
   const count = (which: PostStatus) => all.filter((post) => post.status === which).length;
 
   return (
@@ -116,6 +135,9 @@ export default function PostsPage() {
             style={{ width: 220 }}
           />
         )}
+        <Checkbox checked={winners} onChange={(event) => setWinners(event.target.checked)}>
+          Chỉ video thắng
+        </Checkbox>
         <Segmented
           aria-label="Kiểu hiển thị"
           value={view}
@@ -127,6 +149,7 @@ export default function PostsPage() {
           ]}
         />
       </PageHeader>
+      <PostKpis version={posts} />
       {posts === null ? (
         <Flex justify="center" style={{ padding: 48 }}>
           <Spin />
@@ -194,6 +217,7 @@ function PostCard({ post, onDone }: { post: PostRow; onDone: () => void }) {
       </Link>
       <Flex wrap gap={6} align="center">
         <StatusTag post={post} />
+        <WinnerTag post={post} />
         <ReelLink post={post} />
       </Flex>
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -233,7 +257,17 @@ function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) 
       ),
     },
     { title: "Fanpage", key: "fanpage", width: 200, render: (_, post) => post.fanpage ?? "—" },
-    { title: "Trạng thái", key: "status", width: 120, render: (_, post) => <StatusTag post={post} /> },
+    {
+      title: "Trạng thái",
+      key: "status",
+      width: 150,
+      render: (_, post) => (
+        <Flex wrap gap={4}>
+          <StatusTag post={post} />
+          <WinnerTag post={post} />
+        </Flex>
+      ),
+    },
     { title: "Giờ đăng", key: "at", width: 150, render: (_, post) => formatDateTime(post.at) },
     { title: "View", key: "views", width: 230, render: (_, post) => <PostMetrics post={post} onAsked={onDone} /> },
     { title: "Người đăng", dataIndex: "created_by", width: 160 },

@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import facebook, fanpages, knowledge, llm, metrics
+from . import analytics, facebook, fanpages, knowledge, llm, metrics
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -346,7 +346,8 @@ def thumbnail_url(video: Video) -> str | None:
     return f"/api/videos/{video.id}/thumbnail.jpg?v={_version(video.thumbnail_key)}" if video.thumbnail_key else None
 
 
-def publication_payload(post: Publication | None) -> dict | None:
+def publication_payload(post: Publication | None, by_page: dict[int | None, analytics.Median]) -> dict | None:
+    """`by_page`: analytics.medians, read once per request."""
     if post is None:
         return None
     published = is_published(post)
@@ -360,7 +361,7 @@ def publication_payload(post: Publication | None) -> dict | None:
         "created_by": post.created_by.name,
         "closed_at": post.closed_at.isoformat() if post.closed_at else None,
         "closed_by": post.closed_by.name if post.closed_by else None,
-        "metrics": metrics.payload(post),
+        "metrics": metrics.payload(post, by_page),
     }
 
 
@@ -468,6 +469,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
     checks = run_checks(db, video, title, scenes) if video.has_script else Checks()
     topic = knowledge.topic_of(db, video)
     posts = publications_of(db, video.id)
+    # One small query, and only for a video that has posts: this payload answers every save and poll of the editor.
+    by_page = analytics.medians(db) if posts else {}
     payload = {
         "id": video.id,
         "topic": video.topic,
@@ -506,8 +509,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "music_volume": video.music_volume,
         "voice_enabled": video.voice_enabled,
         "options": effective(video),
-        "publication": publication_payload(publication_of(db, video.id)),
-        "publications": [publication_payload(post) for post in posts],
+        "publication": publication_payload(publication_of(db, video.id), by_page),
+        "publications": [publication_payload(post, by_page) for post in posts],
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
         "fanpages": [{"id": page.id, "name": page.name} for page in fanpages.in_use(db)],
         "knowledge_topic": topic.name if topic else None,

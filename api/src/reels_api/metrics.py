@@ -19,7 +19,7 @@ from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import facebook, fanpages
+from . import analytics, facebook, fanpages
 from .facebook import FacebookError
 from .models import PostMetrics, Publication
 from .sessions import now
@@ -135,9 +135,9 @@ def measure_due(factory: sessionmaker) -> None:
             log.exception("Could not read the numbers of post %s", post_id)
 
 
-def payload(post: Publication) -> dict:
-    """The numbers shown with a post: `latest` and `48h` (each null until read), the last error, and `pending` while
-    a reading asked for has not run yet."""
+def payload(post: Publication, by_page: dict[int | None, analytics.Median]) -> dict:
+    """The numbers shown with a post: `latest` and `48h` (each null until read), the last error, `pending` while a
+    reading asked for has not run yet, and what its 48-hour numbers mean against its Page's median (analytics.py)."""
     windows = {row.window: row for row in post.metrics}
 
     def numbers(row: PostMetrics | None) -> dict | None:
@@ -153,9 +153,11 @@ def payload(post: Publication) -> dict:
 
     asked = post.metrics_requested_at
     tried = post.metrics_tried_at
+    mark = windows.get("48h")
     return {
         "latest": numbers(windows.get("latest")),
         "at_48h": numbers(windows.get("48h")),
         "error": post.metrics_error,
         "pending": asked is not None and (tried is None or tried < asked),
+        "analysis": analytics.of_post(post, mark.views if mark else None, mark.shares if mark else None, by_page),
     }
