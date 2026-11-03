@@ -1,8 +1,9 @@
 "use client";
 
-import { Alert, App, Form, Input, InputNumber, Modal, Select } from "antd";
+import { Alert, App, Form, Input, InputNumber, Select } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
+import FormDrawer from "@/components/FormDrawer";
 
 type Fields = Pick<
   AffiliateProduct,
@@ -62,10 +63,10 @@ export default function ProductModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title={adding ? "Thêm sản phẩm" : "Sửa sản phẩm"}
       open={target !== null}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText={adding ? "Thêm" : "Lưu"}
       cancelText="Huỷ"
@@ -154,6 +155,6 @@ export default function ProductModal({
           <InputNumber min={0} max={100} step={0.1} style={{ width: "100%" }} />
         </Form.Item>
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }

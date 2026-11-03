@@ -19,7 +19,6 @@ import {
   Flex,
   Grid,
   Input,
-  Modal,
   Radio,
   Result,
   Row,
@@ -48,6 +47,7 @@ import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@
 import { usePolling } from "@/lib/polling";
 import { usePresence } from "@/lib/presence";
 import { COLORS } from "@/app/theme";
+import FormDrawer from "@/components/FormDrawer";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
@@ -725,10 +725,10 @@ function CloneModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title={tiktok ? "Tạo bản TikTok" : "Nhân bản video"}
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={submit}
       okText={tiktok ? "Tạo bản TikTok" : "Tạo bản nhân bản"}
       cancelText="Huỷ"
@@ -751,7 +751,7 @@ function CloneModal({
         maxLength={300}
         onChange={(event) => setRequest(event.target.value)}
       />
-    </Modal>
+    </FormDrawer>
   );
 }
 

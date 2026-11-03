@@ -1,7 +1,7 @@
 "use client";
 
 import { SendOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Checkbox, Flex, Input, Modal, Radio, Select, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Tag, Typography } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
 import PostMetrics from "@/components/PostMetrics";
 import PostComment from "@/components/PostComment";
+import FormDrawer from "@/components/FormDrawer";
 
 // TikTok and YouTube need their own app review first (docs/project.md), so they are shown but cannot be picked yet.
 const PLATFORMS = [
@@ -80,10 +81,10 @@ export function PublishButton({ video }: { video: VideoDetail }) {
       <Button type="primary" icon={<SendOutlined />} disabled={video.locked} onClick={() => setOpen(true)}>
         Đăng
       </Button>
-      <Modal
+      <FormDrawer
         title="Đăng video"
         open={open}
-        onCancel={() => setOpen(false)}
+        onClose={() => setOpen(false)}
         okText="Đăng"
         cancelText="Huỷ"
         onOk={publish}
@@ -152,7 +153,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
             </Typography.Text>
           </Flex>
         )}
-      </Modal>
+      </FormDrawer>
     </>
   );
 }

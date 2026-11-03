@@ -1,12 +1,13 @@
 "use client";
 
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Input, Modal, Popconfirm, Segmented, Typography } from "antd";
+import { App, Button, Flex, Input, Popconfirm, Segmented, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type TextBoxStyle, type VideoOptions } from "@/lib/api";
 import { ColorChoice, Sample } from "./textControls";
 import { OPACITIES, palette, warnings } from "./textPalette";
 import { COLORS } from "@/app/theme";
+import FormDrawer from "@/components/FormDrawer";
 
 type Look = Pick<VideoOptions, "text_style" | "text_color" | "box_color" | "accent_color" | "box_opacity">;
 type Draft = Omit<TextBoxStyle, "id">;
@@ -106,7 +107,7 @@ function StyleEditor({
   }
 
   return (
-    <Modal
+    <FormDrawer
       open
       title={editing === "new" ? "Thêm kiểu hộp chữ" : "Sửa kiểu hộp chữ"}
       okText={editing === "new" ? "Thêm kiểu" : "Lưu"}
@@ -114,7 +115,7 @@ function StyleEditor({
       confirmLoading={saving}
       okButtonProps={{ disabled: !draft.name.trim() }}
       onOk={save}
-      onCancel={onClose}
+      onClose={onClose}
       destroyOnHidden
     >
       <Flex gap={20} align="flex-start" wrap>
@@ -174,7 +175,7 @@ function StyleEditor({
           {error && <Typography.Text type="danger">{error}</Typography.Text>}
         </Flex>
       </Flex>
-    </Modal>
+    </FormDrawer>
   );
 }
 

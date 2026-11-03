@@ -9,7 +9,6 @@ import {
   Flex,
   Form,
   Input,
-  Modal,
   Popconfirm,
   Select,
   Space,
@@ -20,6 +19,7 @@ import {
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateAccount } from "@/lib/api";
+import FormDrawer from "@/components/FormDrawer";
 
 type Fields = { platform: "shopee" | "tiktok"; name: string; app_id?: string; secret?: string; profile_url?: string };
 
@@ -252,10 +252,10 @@ function AccountModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title={adding ? "Thêm tài khoản affiliate" : "Sửa tài khoản affiliate"}
       open={target !== null}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText={adding ? "Thêm" : "Lưu"}
       cancelText="Huỷ"
@@ -308,6 +308,6 @@ function AccountModal({
           </Form.Item>
         )}
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }

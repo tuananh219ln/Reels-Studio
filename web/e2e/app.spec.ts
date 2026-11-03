@@ -248,6 +248,8 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   const edit = page.getByRole("dialog", { name: "Sửa sản phẩm" });
   await edit.getByLabel("Lượt bán").fill("500");
   await edit.getByRole("button", { name: "Lưu" }).click();
+  // The drawer hands focus back to "Sửa" once it has closed, which would close a dropdown opened before that.
+  await expect(edit).toBeHidden();
   await product.getByRole("button", { name: "Duyệt" }).click();
   await expect(product).toContainText("Đã duyệt");
 

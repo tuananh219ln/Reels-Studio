@@ -11,7 +11,6 @@ import {
   Flex,
   Form,
   Input,
-  Modal,
   Row,
   Segmented,
   Select,
@@ -43,6 +42,7 @@ import {
 import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
 import { useRememberedView, type View } from "@/lib/view";
+import FormDrawer from "@/components/FormDrawer";
 
 const REFRESH_MS = 5000;
 const VIEW_KEY = "reels-studio.videos-view";
@@ -447,10 +447,10 @@ function NewVideoModal({
   );
 
   return (
-    <Modal
+    <FormDrawer
       title="Tạo video"
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       footer={footer}
       width={ideas.length > 0 ? 920 : 640}
       destroyOnHidden
@@ -663,6 +663,6 @@ function NewVideoModal({
           </Row>
         </Form>
       )}
-    </Modal>
+    </FormDrawer>
   );
 }

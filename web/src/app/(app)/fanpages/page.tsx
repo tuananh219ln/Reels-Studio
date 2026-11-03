@@ -43,6 +43,7 @@ import {
 import PageHeader from "@/components/PageHeader";
 import { COLORS } from "@/app/theme";
 import { useFreshenOnOpen } from "@/lib/freshen";
+import FormDrawer from "@/components/FormDrawer";
 
 const number = (value: number) => value.toLocaleString("vi-VN");
 const count = (value: number | null) => (value === null ? "—" : number(value));
@@ -485,10 +486,10 @@ function AddModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title="Thêm Fanpage"
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       destroyOnHidden
       afterClose={() => {
         setToken("");
@@ -522,7 +523,7 @@ function AddModal({
           />
         )}
       </Flex>
-    </Modal>
+    </FormDrawer>
   );
 }
 
@@ -552,10 +553,10 @@ function TokenModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title={`Dán token mới cho ${row?.name ?? ""}`}
       open={row !== null}
-      onCancel={onClose}
+      onClose={onClose}
       destroyOnHidden
       afterClose={() => setToken("")}
       okText="Lưu"
@@ -565,7 +566,7 @@ function TokenModal({
       onOk={save}
     >
       <TokenInput value={token} onChange={setToken} />
-    </Modal>
+    </FormDrawer>
   );
 }
 

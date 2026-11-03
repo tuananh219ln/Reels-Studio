@@ -1,12 +1,13 @@
 "use client";
 
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, Modal, Space, Table, Tag, Typography } from "antd";
+import { App, Button, Card, Form, Input, Space, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";
 import UserAvatar from "@/components/UserAvatar";
 import { ApiError, api, formatLastLogin, type UserRow } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
+import FormDrawer from "@/components/FormDrawer";
 
 type NewUser = { email: string; name: string; password: string };
 
@@ -204,10 +205,10 @@ function AddUserModal({ open, onClose, onAdded }: { open: boolean; onClose: () =
   }
 
   return (
-    <Modal
+    <FormDrawer
       title="Thêm người dùng"
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText="Thêm"
       cancelText="Huỷ"
@@ -237,7 +238,7 @@ function AddUserModal({ open, onClose, onAdded }: { open: boolean; onClose: () =
           <Input.Password autoComplete="new-password" />
         </Form.Item>
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }
 
@@ -254,10 +255,10 @@ function TempPasswordModal({
   const [busy, setBusy] = useState(false);
 
   return (
-    <Modal
+    <FormDrawer
       title="Đặt mật khẩu tạm"
       open={row !== null}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText="Lưu"
       cancelText="Huỷ"
@@ -281,6 +282,6 @@ function TempPasswordModal({
           <Input.Password autoComplete="new-password" />
         </Form.Item>
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }

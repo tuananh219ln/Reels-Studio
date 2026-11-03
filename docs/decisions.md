@@ -11,6 +11,14 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — Forms open in a drawer, not a centred dialog
+
+Owner's request ("chuyển tất cả các modal sang drawer"), narrowed with the owner to the dialogs holding a form: a
+drawer keeps the page in view beside the form and scrolls a long form inside it (the product form no longer runs
+off the screen). Dialogs that need the whole screen (photo and clip editors, stock picker, previews, numbers) and
+yes/no confirmations stay centred dialogs. One component, `FormDrawer`, takes the props the form dialogs took, so
+the screens read alike; see [ux-guidelines.md](ux-guidelines.md).
+
 ## 2026-11-03 — Affiliate accounts, links and revenue belong to one member
 
 Owner's call on issue #47 ("tài khoản aff dùng mỗi người một tài khoản riêng"; "thành viên có được xem hoặc sửa tài

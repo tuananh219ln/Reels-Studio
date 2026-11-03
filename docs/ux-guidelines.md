@@ -40,6 +40,15 @@ lists and tables sit in white cards. The interface
 font is Be Vietnam Pro (served by the app through `next/font`), radius 8 (12 on cards), controls
 36 px high.
 
+Forms open in a drawer from the right ([FormDrawer](../web/src/components/FormDrawer.tsx)), with
+"Huỷ" and the main button at its bottom, so the page stays in view beside it, a long form scrolls
+inside, and on a phone it takes the whole width: adding or editing a product, an affiliate
+account, a Fanpage or its token, a member or a temporary password, a track, a text box style, a
+plan idea, "Tạo video", "Nhân bản" / "Tạo bản TikTok", "Đăng", "Đổi mật khẩu" and "Sửa tên".
+Dialogs that need the whole screen or are not forms stay centred dialogs: the photo and clip
+editors, "Chọn từ kho ảnh/video", the text position, "Chọn nhạc từ thư viện", a plan's preview,
+"Dán ảnh", the numbers of a Page or a post, and every yes/no confirmation.
+
 ## Screens
 
 Built:
