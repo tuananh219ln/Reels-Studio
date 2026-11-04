@@ -316,7 +316,7 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   const text = first.getByLabel("Chữ trên màn hình");
   await text.fill("Một hai ba bốn năm sáu bảy tám chín *mười* thêm");
   // The first counter is the on-screen text's; the voice text has its own.
-  await expect(first.getByTestId("word-count").first()).toHaveText("11 từ · nên tối đa 10 từ");
+  await expect(first.getByTestId("word-count").first()).toHaveText("11 từ, nên tối đa 10 từ");
   await text.blur();
   await expect(first.getByText("Đã lưu")).toBeVisible();
 
@@ -446,10 +446,10 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await expect(groups).toContainText("1.200");
   // The views stay on one line: the details sit in a tooltip.
-  await expect(posts.getByText("3 share · 5 bình luận · 40 cảm xúc")).toHaveCount(0);
+  await expect(posts.getByText("3 share, 5 bình luận, 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();
   // The "Cập nhật view" button's tooltip may still be fading out, so pick the views tooltip by its text.
-  const viewsTip = page.getByRole("tooltip").filter({ hasText: "3 share · 5 bình luận · 40 cảm xúc" });
+  const viewsTip = page.getByRole("tooltip").filter({ hasText: "3 share, 5 bình luận, 40 cảm xúc" });
   await expect(viewsTip).toBeVisible();
   await expect(viewsTip).toContainText("Xem TB 8,4 giây");
   // "Phân tích": every number, and the retention curve split by the posted MP4's scenes.
@@ -605,8 +605,8 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await expect(posts.getByText("Đã hủy", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
   // Who took each down and when, under its time; their action buttons are all greyed out.
-  await expect(posts.getByText(new RegExp(`^Xóa: ${SEED.name} · `))).toBeVisible();
-  await expect(posts.getByText(new RegExp(`^Hủy: ${SEED.name} · `))).toBeVisible();
+  await expect(posts.getByText(new RegExp(`^Xóa: ${SEED.name}, `))).toBeVisible();
+  await expect(posts.getByText(new RegExp(`^Hủy: ${SEED.name}, `))).toBeVisible();
   await expect(posts.getByRole("button", { name: "Kiểm tra" }).first()).toBeDisabled();
 
   await tabs.getByText("Tất cả (2)").click();

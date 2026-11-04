@@ -1,13 +1,14 @@
 "use client";
 
 import dayjsGenerateConfig from "@rc-component/picker/generate/dayjs";
-import { Badge, Calendar, Card, Empty, Flex, Grid, Tag } from "antd";
+import { Badge, Calendar, Card, Empty, Flex, Grid } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/vi";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatDateTime, type PostRow } from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
+import StatusText from "@/components/StatusText";
 
 dayjs.locale("vi");
 
@@ -43,18 +44,21 @@ export default function PostCalendar({ posts }: { posts: PostRow[] }) {
 
   const postTag = ({ post, clock }: { post: PostRow; clock: string }) => (
     <Link prefetch={false} key={post.id} href={`/videos/${post.video_id}`}>
-      <Tag color={POST_STATUS[post.status].color} style={{ whiteSpace: "normal", margin: 0 }}>
+      <StatusText
+        tone={POST_STATUS[post.status].tone}
+        style={{ whiteSpace: "normal", alignItems: "baseline", fontSize: 12 }}
+      >
         {clock} {post.title}
-      </Tag>
+      </StatusText>
     </Link>
   );
 
   const legend = (
-    <Flex gap={4} style={{ marginBottom: 12 }}>
+    <Flex gap={16} style={{ marginBottom: 12 }}>
       {(["scheduled", "published"] as const).map((status) => (
-        <Tag key={status} color={POST_STATUS[status].color}>
+        <StatusText key={status} tone={POST_STATUS[status].tone}>
           {POST_STATUS[status].label}
-        </Tag>
+        </StatusText>
       ))}
     </Flex>
   );

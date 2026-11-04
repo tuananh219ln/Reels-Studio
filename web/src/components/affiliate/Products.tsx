@@ -13,6 +13,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import ProductModal from "./ProductModal";
+import StatusText from "@/components/StatusText";
 
 type Filters = { topicId?: number; status?: string; platform?: string; q: string };
 
@@ -89,7 +90,7 @@ export default function Products() {
               {product.name}
             </a>
             <Space size={4} wrap>
-              <Tag color={product.platform === "tiktok_shop" ? "magenta" : "orange"}>{product.platform_label}</Tag>
+              <Tag>{product.platform_label}</Tag>
               {product.from_shopee_api && <Tag>Tìm qua API</Tag>}
               <Typography.Text type="secondary">{product.topic}</Typography.Text>
             </Space>
@@ -150,7 +151,7 @@ export default function Products() {
       render: (_, product) =>
         product.status === "approved" ? (
           <Flex vertical gap={2} align="flex-start">
-            <Tag color="success">Đã duyệt</Tag>
+            <StatusText tone="success">Đã duyệt</StatusText>
             {product.checked_at && (
               <Typography.Text type="secondary">
                 {product.checked_by}, {formatDateTime(product.checked_at)}
@@ -164,7 +165,7 @@ export default function Products() {
           </Flex>
         ) : (
           <Flex vertical gap={2} align="flex-start">
-            <Tag>Nháp</Tag>
+            <StatusText tone="idle">Nháp</StatusText>
             {product.problems.map((problem) => (
               <Typography.Text key={problem} type="warning">
                 {problem}

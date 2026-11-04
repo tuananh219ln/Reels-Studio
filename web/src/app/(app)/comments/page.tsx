@@ -1,22 +1,23 @@
 "use client";
 
 import { ReloadOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Segmented, Select, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Segmented, Select, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type PageCommentRow, type PageComments } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
+import StatusText, { type StatusTone } from "@/components/StatusText";
 
 const REFRESH_MS = 10_000;
 
-const STATE: Record<PageCommentRow["state"], { label: string; color: string }> = {
-  open: { label: "Chưa trả lời", color: "warning" },
-  sending: { label: "Đang gửi…", color: "processing" },
-  answered: { label: "Đã trả lời", color: "success" },
-  hidden: { label: "Đã ẩn", color: "default" },
-  dismissed: { label: "Bỏ qua", color: "default" },
+const STATE: Record<PageCommentRow["state"], { label: string; tone: StatusTone }> = {
+  open: { label: "Chưa trả lời", tone: "waiting" },
+  sending: { label: "Đang gửi…", tone: "active" },
+  answered: { label: "Đã trả lời", tone: "success" },
+  hidden: { label: "Đã ẩn", tone: "idle" },
+  dismissed: { label: "Bỏ qua", tone: "idle" },
 };
 
 /** One comment: who, what, under which reel, and the reply box. */
@@ -44,9 +45,7 @@ function CommentCard({ row, onChanged }: { row: PageCommentRow; onChanged: (row:
         <Flex justify="space-between" gap={8} wrap>
           <Typography.Text strong>{row.author || "Người xem"}</Typography.Text>
           <Flex gap={6} align="center">
-            <Tag color={STATE[row.state].color} style={{ marginInlineEnd: 0 }}>
-              {STATE[row.state].label}
-            </Tag>
+            <StatusText tone={STATE[row.state].tone}>{STATE[row.state].label}</StatusText>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {formatDateTime(row.created_at)}
             </Typography.Text>
@@ -54,13 +53,13 @@ function CommentCard({ row, onChanged }: { row: PageCommentRow; onChanged: (row:
         </Flex>
         <Typography.Paragraph style={{ margin: 0, whiteSpace: "pre-wrap" }}>{row.message}</Typography.Paragraph>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          {row.post.fanpage} ·{" "}
+          {row.post.fanpage},{" "}
           <Link prefetch={false} href={`/videos/${row.post.video_id}`}>
             {row.post.title}
           </Link>
           {row.post.reel_url && (
             <>
-              {" · "}
+              {", "}
               <a href={row.post.reel_url} target="_blank" rel="noreferrer">
                 Xem Reel
               </a>

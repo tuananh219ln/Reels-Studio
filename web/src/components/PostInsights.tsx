@@ -180,7 +180,7 @@ export default function PostInsights({ post, compact = false }: { post: Post; co
       >
         <div data-testid="post-insights" onClick={(event) => event.stopPropagation()}>
           <Typography.Paragraph type="secondary">
-            {[post.fanpage, `Đo lúc ${formatDateTime(latest.measured_at)}`].filter(Boolean).join(" · ")}. Số do Facebook
+            {[post.fanpage, `Đo lúc ${formatDateTime(latest.measured_at)}`].filter(Boolean).join(", ")}. Số do Facebook
             tính, cộng dồn từ lúc đăng.
           </Typography.Paragraph>
           <Numbers numbers={latest} />
@@ -208,7 +208,7 @@ export default function PostInsights({ post, compact = false }: { post: Post; co
                       render: (label: string, row) =>
                         row.worst ? (
                           <Typography.Text type="danger" strong>
-                            {label} · mất nhiều nhất
+                            {label}, mất nhiều nhất
                           </Typography.Text>
                         ) : (
                           label

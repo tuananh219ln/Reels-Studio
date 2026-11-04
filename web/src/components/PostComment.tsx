@@ -1,16 +1,17 @@
 "use client";
 
 import { CommentOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Flex, Tooltip, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type Post } from "@/lib/api";
+import StatusText, { type StatusTone } from "@/components/StatusText";
 
-const STATE: Record<Post["comment"]["state"], { label: string; color: string } | null> = {
+const STATE: Record<Post["comment"]["state"], { label: string; tone: StatusTone } | null> = {
   off: null,
-  waiting: { label: "Sẽ tự bình luận khi bài lên", color: "default" },
-  pending: { label: "Đang bình luận…", color: "processing" },
-  done: { label: "Đã bình luận", color: "success" },
-  failed: { label: "Bình luận lỗi", color: "error" },
+  waiting: { label: "Sẽ tự bình luận khi bài lên", tone: "idle" },
+  pending: { label: "Đang bình luận…", tone: "active" },
+  done: { label: "Đã bình luận", tone: "success" },
+  failed: { label: "Bình luận lỗi", tone: "danger" },
 };
 
 /** The affiliate comment the worker writes under the reel (api post_comments.py), and "Bình luận ngay" / "Cập nhật
@@ -48,11 +49,7 @@ export default function PostComment({ post, onChanged }: { post: Post; onChanged
     <Flex vertical gap={2} data-testid="post-comment">
       <Flex gap={6} align="center" wrap>
         <CommentOutlined />
-        {shown && (
-          <Tag color={shown.color} style={{ marginInlineEnd: 0 }}>
-            {shown.label}
-          </Tag>
-        )}
+        {shown && <StatusText tone={shown.tone}>{shown.label}</StatusText>}
         {live && comment.state !== "pending" && (
           <Button size="small" type="link" loading={asking} onClick={ask} style={{ padding: 0 }}>
             {comment.state === "done" ? "Cập nhật bình luận" : "Bình luận ngay"}
@@ -67,7 +64,7 @@ export default function PostComment({ post, onChanged }: { post: Post; onChanged
       {comment.state === "done" && comment.at && (
         <Tooltip title={comment.text}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Bình luận lúc {formatDateTime(comment.at)} · nhớ ghim trên Facebook
+            Bình luận lúc {formatDateTime(comment.at)}, nhớ ghim trên Facebook
           </Typography.Text>
         </Tooltip>
       )}

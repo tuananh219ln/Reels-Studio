@@ -37,12 +37,12 @@ function details(numbers: PostNumbers): string {
     `${formatCount(numbers.shares)} share`,
     `${formatCount(numbers.comments)} bình luận`,
     `${formatCount(numbers.reactions)} cảm xúc`,
-  ].join(" · ");
+  ].join(", ");
 }
 
 const seconds = new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 1 });
 
-/** "Xem TB 8,4 giây (42%) · tiếp cận 900", or "" when Facebook gave neither. */
+/** "Xem TB 8,4 giây (42%), tiếp cận 900", or "" when Facebook gave neither. */
 function watching(numbers: PostNumbers): string {
   const parts = [];
   if (numbers.avg_watch_seconds !== null) {
@@ -50,7 +50,7 @@ function watching(numbers: PostNumbers): string {
     parts.push(`Xem TB ${seconds.format(numbers.avg_watch_seconds)} giây${ratio}`);
   }
   if (numbers.reach !== null) parts.push(`tiếp cận ${formatCount(numbers.reach)}`);
-  return parts.join(" · ");
+  return parts.join(", ");
 }
 
 /** A post's numbers on Facebook and when they were read; nothing for a post never public. With `onAsked`, a
@@ -94,7 +94,7 @@ export default function PostMetrics({
             {watching(latest) && <span>{watching(latest)}</span>}
             <span>
               Đo lúc {formatDateTime(latest.measured_at)}
-              {mark && ` · mốc 48 giờ: ${formatCount(mark.views)} view`}
+              {mark && `, mốc 48 giờ: ${formatCount(mark.views)} view`}
             </span>
             {mark && <AnalysisText analysis={analysis} />}
           </>
@@ -159,7 +159,7 @@ export default function PostMetrics({
           )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Đo lúc {formatDateTime(latest.measured_at)}
-            {mark && ` · mốc 48 giờ: ${formatCount(mark.views)} view`}
+            {mark && `, mốc 48 giờ: ${formatCount(mark.views)} view`}
           </Typography.Text>
           {mark && <Analysis analysis={analysis} />}
         </>
@@ -204,7 +204,7 @@ function AnalysisText({ analysis }: { analysis: Post["metrics"]["analysis"] }) {
       {analysis.times_median !== null
         ? `Gấp ${String(analysis.times_median).replace(".", ",")}× trung vị Page (${formatCount(analysis.median_views)})`
         : "Chưa đủ dữ liệu để so trung vị"}
-      {` · share/view ${formatRate(analysis.share_rate)}`}
+      {`, share/view ${formatRate(analysis.share_rate)}`}
     </span>
   );
 }
@@ -217,7 +217,7 @@ function Analysis({ analysis }: { analysis: Post["metrics"]["analysis"] }) {
       {analysis.times_median !== null
         ? `Gấp ${String(analysis.times_median).replace(".", ",")}× trung vị Page (${formatCount(analysis.median_views)})`
         : "Chưa đủ dữ liệu để so trung vị"}
-      {" · share/view "}
+      {", share/view "}
       <Typography.Text
         type={rate === null ? "secondary" : rate >= SHARE_GOAL ? "success" : "warning"}
         style={{ fontSize: 12 }}

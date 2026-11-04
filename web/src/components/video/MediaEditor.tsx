@@ -400,7 +400,7 @@ function ClipTrim({
             tooltip={{ formatter: (value) => `${seconds(value ?? 0)} giây` }}
           />
           <Typography.Text type="secondary" data-testid="trim-range">
-            Từ giây {seconds(start)} đến {seconds(shownEnd)} · cảnh dài {seconds(length)} giây
+            Từ giây {seconds(start)} đến {seconds(shownEnd)}, cảnh dài {seconds(length)} giây
           </Typography.Text>
         </Section>
         <Section

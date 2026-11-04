@@ -32,7 +32,6 @@ import {
   Row,
   Space,
   Spin,
-  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -55,6 +54,7 @@ import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
 import VoiceText from "./VoiceText";
 import { COLORS } from "@/app/theme";
+import StatusText from "@/components/StatusText";
 
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -262,11 +262,11 @@ function SceneHeader({
   const summary = scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
   const status =
     scene.blocking.length > 0 ? (
-      <Tag color="error">{scene.blocking.length} lỗi</Tag>
+      <StatusText tone="danger">{scene.blocking.length} lỗi</StatusText>
     ) : scene.warnings.length > 0 ? (
-      <Tag color="warning">{scene.warnings.length} cảnh báo</Tag>
+      <StatusText tone="warning">{scene.warnings.length} cảnh báo</StatusText>
     ) : (
-      <Tag color="success">Sẵn sàng</Tag>
+      <StatusText tone="success">Sẵn sàng</StatusText>
     );
   return (
     <Flex
@@ -644,9 +644,7 @@ function ScenePicture({
         // "Tự tìm ảnh" picked this photo from a stock library after the script: often the wrong dish for
         // Vietnamese food, so a member looks before rendering. Never blocks the render.
         <Flex wrap align="center" gap={4} data-testid="image-auto">
-          <Tag color="warning" style={{ marginInlineEnd: 0 }}>
-            Tự chọn, kiểm tra lại
-          </Tag>
+          <StatusText tone="warning">Tự chọn, kiểm tra lại</StatusText>
           {!editor.readOnly && (
             <Button
               size="small"

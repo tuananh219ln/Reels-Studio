@@ -50,7 +50,7 @@ function WordCount({ text, min, max }: { text: string; min?: number; max: number
       style={{ marginLeft: "auto", whiteSpace: "nowrap" }}
       data-testid="word-count"
     >
-      {count} từ{outside ? ` · nên ${range} từ` : ""}
+      {count} từ{outside ? `, nên ${range} từ` : ""}
     </Typography.Text>
   );
 }

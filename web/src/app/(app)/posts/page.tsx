@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
-import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tag, Tooltip, Typography } from "antd";
+import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -16,6 +16,7 @@ import PostSuggestions from "@/components/PostSuggestions";
 import PostMetrics, { formatCount, viewsOf } from "@/components/PostMetrics";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
+import StatusText from "@/components/StatusText";
 
 /** The order a video's status tags are listed in. */
 const STATUSES: ShownStatus[] = ["failed", "pending", "scheduled", "published", "cancelled", "deleted"];
@@ -222,9 +223,7 @@ function StatusTag({ post }: { post: PostRow }) {
   const reason = post.attempt?.state === "failed" ? post.attempt.error : null;
   return (
     <Flex vertical gap={2} align="flex-start">
-      <Tag color={shown.color} style={{ marginInlineEnd: 0 }}>
-        {shown.label}
-      </Tag>
+      <StatusText tone={shown.tone}>{shown.label}</StatusText>
       {reason && (
         <Tooltip title={reason}>
           <Typography.Text type="danger" style={{ fontSize: 12, maxWidth: 200 }} ellipsis data-testid="post-error">
@@ -236,18 +235,18 @@ function StatusTag({ post }: { post: PostRow }) {
   );
 }
 
-/** "Đã đăng · 2", one tag per status among the video's posts. */
+/** "Đã đăng 2", one status per kind among the video's posts. */
 function StatusSummary({ posts }: { posts: PostRow[] }) {
   const counts = STATUSES.map((value) => [value, posts.filter((post) => shownStatus(post) === value).length] as const);
   return (
-    <Flex wrap gap={4}>
+    <Flex wrap gap={12}>
       {counts
         .filter(([, number]) => number > 0)
         .map(([value, number]) => (
-          <Tag key={value} color={SHOWN_STATUS[value].color} style={{ marginInlineEnd: 0 }}>
+          <StatusText key={value} tone={SHOWN_STATUS[value].tone}>
             {SHOWN_STATUS[value].label}
-            {number > 1 && ` · ${number}`}
-          </Tag>
+            {number > 1 && ` ${number}`}
+          </StatusText>
         ))}
     </Flex>
   );
@@ -273,7 +272,7 @@ function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void })
             id={group.videoId}
             title={group.title}
             thumbnailUrl={group.thumbnailUrl}
-            sub={`${group.posts.length} bài đăng · ${pages}`}
+            sub={`${group.posts.length} bài đăng, ${pages}`}
             maxWidth={480}
           />
         );
@@ -333,7 +332,7 @@ function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) 
           <span>{formatDateTime(post.at)}</span>
           {post.closed_at && (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {post.status === "deleted" ? "Xóa" : "Hủy"}: {post.closed_by ?? "Trên Facebook"} ·{" "}
+              {post.status === "deleted" ? "Xóa" : "Hủy"}: {post.closed_by ?? "Trên Facebook"},{" "}
               {formatDateTime(post.closed_at)}
             </Typography.Text>
           )}

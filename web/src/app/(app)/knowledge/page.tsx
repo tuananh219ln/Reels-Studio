@@ -197,7 +197,7 @@ function TopicBody({
           </Typography.Title>
           <Typography.Text type="secondary">
             {topic.video_count} video dùng nhóm này
-            {!topic.script_prompt && " · chưa có prompt viết kịch bản nên chưa tạo video được"}
+            {!topic.script_prompt && ", chưa có prompt viết kịch bản nên chưa tạo video được"}
           </Typography.Text>
         </Flex>
         <Flex wrap gap={8} align="center">

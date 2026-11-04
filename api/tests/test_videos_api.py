@@ -1,5 +1,6 @@
 import io
 import time
+from datetime import timedelta
 
 import pytest
 from conftest import (
@@ -16,7 +17,9 @@ from conftest import (
 from PIL import Image
 from sqlalchemy import select
 
-from reels_api.models import Job, Scene, Video
+from reels_api import analytics
+from reels_api.models import Fanpage, Job, PostMetrics, Publication, Scene, TopicPlanItem, Video
+from reels_api.sessions import now
 
 
 @pytest.fixture
@@ -86,6 +89,74 @@ def test_list_searches_title_and_topic_and_shows_status(an, db, me, storage):
     assert [row["topic"] for row in an.get("/api/videos", params={"q": "XƯƠNG"}).json()] == ["xương khớp"]
     row = an.get("/api/videos").json()[0]
     assert {"thumbnail_url", "status_label", "created_by", "created_at", "mp4_outdated", "rerender_failed"} <= set(row)
+
+
+def _post(db, me, video, page, status="published", at=None, latest=None, h48=None):
+    at = at or now() - timedelta(days=3)
+    post = Publication(
+        video_id=video.id,
+        platform="facebook",
+        fanpage_id=page.id,
+        created_by_id=me.id,
+        status=status,
+        scheduled_at=at if status == "scheduled" else None,
+        published_at=at if status == "published" else None,
+    )
+    db.add(post)
+    db.flush()
+    for window, numbers in (("latest", latest), ("48h", h48)):
+        if numbers is not None:
+            db.add(
+                PostMetrics(publication_id=post.id, window=window, views=numbers[0], shares=numbers[1], measured_at=at)
+            )
+    db.flush()
+    return post
+
+
+def test_the_list_shows_each_videos_posts_views_and_48_hour_numbers(an, db, me, storage, monkeypatch):
+    garden, health = (
+        Fanpage(page_id=f"p{n}", name=name, token_encrypted="x", token_tail="x")
+        for n, name in ((1, "Vườn nhà"), (2, "Rau sạch"))
+    )
+    db.add_all([garden, health])
+    db.flush()
+    # Five other posts on "Vườn nhà" make its median meaningful: 100 views at 48 hours.
+    for _ in range(5):
+        _post(db, me, make_video(db, storage, me, scene_count=1), garden, h48=(100, 1))
+    posted = make_video(db, storage, me, scene_count=1, topic="Đã đăng hai trang")
+    _post(db, me, posted, garden, latest=(5000, 30), h48=(1200, 6))
+    _post(db, me, posted, health, latest=(700, 2), h48=(500, 1))
+    later = make_video(db, storage, me, scene_count=1, topic="Hẹn giờ")
+    _post(db, me, later, garden, status="scheduled", at=now() + timedelta(days=2))
+    draft = make_video(db, storage, me, scene_count=1, topic="Nháp")
+    cancelled = make_video(db, storage, me, scene_count=1, topic="Huỷ")
+    _post(db, me, cancelled, garden, status="cancelled")
+    db.add(
+        TopicPlanItem(knowledge_topic_id=draft.knowledge_topic_id, day=4, position=1, topic="Nháp", video_id=draft.id)
+    )
+    db.flush()
+
+    calls = []
+    real = analytics.medians
+    monkeypatch.setattr(analytics, "medians", lambda db: calls.append(1) or real(db))
+    rows = {row["topic"]: row for row in an.get("/api/videos").json()}
+    assert len(calls) == 1  # once for the whole list
+    assert rows["Đã đăng hai trang"]["post"] == {
+        "state": "posted",
+        "fanpage": "Vườn nhà",  # the post with the most views
+        "pages": 2,
+        "at": rows["Đã đăng hai trang"]["post"]["at"],
+        "views": 5700,  # latest readings added up
+        "shares": 6,  # 48-hour numbers of that post only
+        "share_rate": 0.005,
+        "share_met": True,  # against analytics.SHARE_GOAL
+        "times_median": 12.0,
+    }
+    scheduled = rows["Hẹn giờ"]["post"]
+    assert (scheduled["state"], scheduled["fanpage"], scheduled["views"]) == ("scheduled", "Vườn nhà", None)
+    assert rows["Nháp"]["post"] is None and rows["Huỷ"]["post"] is None
+    assert rows["Nháp"]["plan_day"] == 4 and rows["Hẹn giờ"]["plan_day"] is None
+    assert rows["Nháp"]["knowledge_topic"] == "Sức khỏe"
 
 
 def test_a_teammate_sees_edits_and_renders_a_video_someone_else_made(binh, db, me, storage):

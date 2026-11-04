@@ -96,9 +96,7 @@ export default function PostedVideos() {
             {video.title}
           </Link>
           <Typography.Text type="secondary">
-            <Tag color={video.platform === "tiktok" ? "magenta" : "blue"}>
-              {video.platform === "tiktok" ? "TikTok" : "Facebook"}
-            </Tag>
+            <Tag>{video.platform === "tiktok" ? "TikTok" : "Facebook"}</Tag>
             {formatDateTime(video.published_at)}
           </Typography.Text>
           {video.reel_url && (
@@ -149,7 +147,7 @@ export default function PostedVideos() {
             {video.products
               .filter((product) => !usable(product))
               .map((product) => (
-                <Tag key={product.id} color="warning" style={{ whiteSpace: "normal" }}>
+                <Tag key={product.id} color="warning" style={{ whiteSpace: "normal", marginInlineEnd: 0 }}>
                   {product.status === "approved" ? "Không còn đạt tiêu chí" : "Đã bỏ duyệt"}: {product.name}
                 </Tag>
               ))}

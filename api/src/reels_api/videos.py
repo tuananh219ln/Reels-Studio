@@ -17,7 +17,17 @@ from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
-from .models import ACTIVE_JOB_STATUSES, Job, Publication, Scene, TopicPlanItem, Video
+from .models import (
+    ACTIVE_JOB_STATUSES,
+    Fanpage,
+    Job,
+    KnowledgeTopic,
+    PostMetrics,
+    Publication,
+    Scene,
+    TopicPlanItem,
+    Video,
+)
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
 from .storage import DirectoryStorage
@@ -627,8 +637,99 @@ def made_from(db: DbSession) -> tuple[set[int], set[int]]:
     return tiktok, {source for source in sources if source is not None}
 
 
-def list_payload(db: DbSession, video: Video, family: tuple[set[int], set[int]] = (set(), set())) -> dict:
-    """`family`: made_from, read once per list."""
+def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
+    """What a video's card on /videos shows besides itself, by video id: its topic group, its 30-day plan day, and
+    its Facebook posts: whether one is out or set for later, its views and how its best post did at 48 hours.
+    Everything is read in a few queries for the whole list, and the Page medians once."""
+    ids = [video.id for video in videos]
+    if not ids:
+        return {}
+    groups = dict(db.execute(select(KnowledgeTopic.id, KnowledgeTopic.name)).all())
+    days = dict(
+        db.execute(select(TopicPlanItem.video_id, TopicPlanItem.day).where(TopicPlanItem.video_id.in_(ids))).all()
+    )
+    posts = db.execute(
+        select(Publication, Fanpage.name)
+        .outerjoin(Fanpage, Fanpage.id == Publication.fanpage_id)
+        .where(
+            Publication.video_id.in_(ids),
+            Publication.platform == "facebook",
+            Publication.status.in_(LIVE_POST_STATUSES),
+        )
+    ).all()
+    readings: dict[tuple[int, str], PostMetrics] = {}
+    if posts:
+        for row in db.scalars(select(PostMetrics).where(PostMetrics.publication_id.in_([p.id for p, _ in posts]))):
+            readings[(row.publication_id, row.window)] = row
+    by_page = analytics.medians(db) if posts else {}
+    by_video: dict[int, list[tuple[Publication, str]]] = {}
+    for post, page in posts:
+        by_video.setdefault(post.video_id, []).append((post, page or ""))
+    extras = {}
+    for video in videos:
+        live = [(post, page) for post, page in by_video.get(video.id, []) if is_published(post)]
+        later = sorted(
+            ((post, page) for post, page in by_video.get(video.id, []) if not is_published(post)),
+            key=lambda item: item[0].scheduled_at or item[0].created_at,
+        )
+        extras[video.id] = {
+            "knowledge_topic": groups.get(video.knowledge_topic_id),
+            "plan_day": days.get(video.id),
+            "post": _post_summary(live, later, readings, by_page),
+        }
+    return extras
+
+
+def _post_summary(
+    live: list[tuple[Publication, str]],
+    later: list[tuple[Publication, str]],
+    readings: dict[tuple[int, str], PostMetrics],
+    by_page: dict,
+) -> dict | None:
+    """The card's post line. Views are each live post's `latest` reading added up; the 48-hour line is of the post
+    with the most views, and only its `48h` reading, so posts are compared at the same age."""
+    if not live and not later:
+        return None
+    if not live:
+        post, page = later[0]
+        return {
+            "state": "scheduled",
+            "fanpage": page,
+            "pages": len(later),
+            "at": live_at(post).isoformat(),
+            "views": None,
+            "shares": None,
+            "share_rate": None,
+            "share_met": None,
+            "times_median": None,
+        }
+
+    def latest_views(item: tuple[Publication, str]) -> int:
+        row = readings.get((item[0].id, "latest"))
+        return row.views if row is not None and row.views is not None else -1
+
+    counted = [latest_views(item) for item in live if latest_views(item) >= 0]
+    post, page = max(live, key=latest_views)
+    mark = readings.get((post.id, "48h"))
+    views_48h, shares_48h = (mark.views, mark.shares) if mark is not None else (None, None)
+    analysis = analytics.of_post(post, views_48h, shares_48h, by_page)
+    return {
+        "state": "posted",
+        "fanpage": page,
+        "pages": len(live),
+        "at": live_at(post).isoformat(),
+        "views": sum(counted) if counted else None,
+        "shares": shares_48h,
+        "share_rate": analysis["share_rate"],
+        "share_met": analysis["share_rate"] >= analytics.SHARE_GOAL if analysis["share_rate"] is not None else None,
+        "times_median": analysis["times_median"],
+    }
+
+
+def list_payload(
+    db: DbSession, video: Video, family: tuple[set[int], set[int]] = (set(), set()), extras: dict | None = None
+) -> dict:
+    """`family`: made_from, and `extras`: this video's list_extras, both read once per list."""
     title, scenes = split_scenes(db, video)
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
@@ -644,4 +745,5 @@ def list_payload(db: DbSession, video: Video, family: tuple[set[int], set[int]] 
         **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
+        **(extras or {"knowledge_topic": None, "plan_day": None, "post": None}),
     }

@@ -1,7 +1,7 @@
 "use client";
 
 import { SendOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Tag, Typography } from "antd";
+import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Typography } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -12,6 +12,7 @@ import PostActions from "./PostActions";
 import PostMetrics from "@/components/PostMetrics";
 import PostComment from "@/components/PostComment";
 import FormDrawer from "@/components/FormDrawer";
+import StatusText from "@/components/StatusText";
 
 // TikTok and YouTube need their own app review first (docs/project.md), so they are shown but cannot be picked yet.
 const PLATFORMS = [
@@ -124,7 +125,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
               style={{ maxWidth: 320 }}
               options={video.fanpages.map((page) => ({
                 value: page.id,
-                label: page.owner ? `${page.name} · ${page.owner}` : page.name,
+                label: page.owner ? `${page.name}, ${page.owner}` : page.name,
               }))}
             />
             <Radio.Group
@@ -178,7 +179,9 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
         {video.publications.map((post, index) => (
           <Flex key={post.id} justify="space-between" align="center" gap={8} wrap data-testid="video-post">
             <div style={{ minWidth: 0 }}>
-              <Tag color={POST_STATUS[post.status].color}>{POST_STATUS[post.status].label}</Tag>
+              <StatusText tone={POST_STATUS[post.status].tone} style={{ marginRight: 8 }}>
+                {POST_STATUS[post.status].label}
+              </StatusText>
               <Typography.Text data-testid={index === 0 ? "publication-status" : undefined}>
                 {statusText(post)}
               </Typography.Text>{" "}
@@ -188,9 +191,9 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
                 </a>
               )}
               <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-                {[post.fanpage, post.created_by].filter(Boolean).join(" · ")}
+                {[post.fanpage, post.created_by].filter(Boolean).join(", ")}
                 {post.closed_at &&
-                  ` · ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
+                  `, ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
               </Typography.Paragraph>
               <PostMetrics post={post} />
               <PostComment post={post} onChanged={reload} />

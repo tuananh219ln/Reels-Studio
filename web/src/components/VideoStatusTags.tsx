@@ -1,41 +1,52 @@
 "use client";
 
-import { Space, Tag } from "antd";
+import { Flex, theme } from "antd";
 import type { VideoRow } from "@/lib/api";
+import StatusText, { type StatusTone } from "@/components/StatusText";
 
-const COLORS: Record<VideoRow["status"], string> = {
-  draft: "default",
-  queued: "blue",
-  writing: "processing",
-  imaging: "processing",
-  finding: "processing",
-  voicing: "processing",
-  rendering: "processing",
-  publishing: "processing",
-  unpublishing: "processing",
-  checking: "processing",
-  done: "success",
-  failed: "error",
+const TONES: Record<VideoRow["status"], StatusTone> = {
+  draft: "idle",
+  queued: "waiting",
+  writing: "active",
+  imaging: "active",
+  finding: "active",
+  voicing: "active",
+  rendering: "active",
+  publishing: "active",
+  unpublishing: "active",
+  checking: "active",
+  done: "done",
+  failed: "danger",
 };
 
-export default function VideoStatusTags({ video }: { video: VideoRow }) {
+/** A video's status as a dot and a word, with its warnings after it in words. `only`: the status alone, or the
+ * other labels alone (beside a card's title, when the status is said elsewhere). */
+export default function VideoStatusTags({ video, only }: { video: VideoRow; only?: "status" | "labels" }) {
+  const { token } = theme.useToken();
+  const status = (
+    <StatusText tone={TONES[video.status]} data-testid="video-status">
+      {video.status_label}
+    </StatusText>
+  );
+  if (only === "status") {
+    return status;
+  }
+  const notes = [video.rerender_failed && "Render lại lỗi", video.mp4_outdated && "MP4 chưa cập nhật theo bản sửa"];
   return (
-    <Space size={4} wrap>
-      {video.platform === "tiktok" && (
-        <Tag color="magenta" data-testid="video-platform">
-          TikTok
-        </Tag>
-      )}
-      <Tag color={COLORS[video.status]} data-testid="video-status">
-        {video.status_label}
-      </Tag>
-      {video.rerender_failed && <Tag color="error">Render lại lỗi</Tag>}
-      {/* Wraps inside a narrow card instead of running past its edge. */}
-      {video.mp4_outdated && (
-        <Tag color="warning" style={{ whiteSpace: "normal", maxWidth: "100%" }}>
-          MP4 chưa cập nhật theo bản sửa
-        </Tag>
-      )}
-    </Space>
+    <Flex vertical gap={2} style={{ fontSize: 13 }}>
+      <Flex gap={10} align="center" wrap>
+        {only !== "labels" && status}
+        {video.platform === "tiktok" && (
+          <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
+            TikTok
+          </span>
+        )}
+      </Flex>
+      {notes.filter(Boolean).map((note) => (
+        <span key={String(note)} style={{ color: token.colorWarningText, fontSize: 12 }}>
+          {note}
+        </span>
+      ))}
+    </Flex>
   );
 }

@@ -128,7 +128,7 @@ function VoicePicker({ values, onChange, disabled }: Props) {
         onChange={(id) => onChange({ voice_id: id === voices?.defaultId ? "" : id })}
         options={(voices?.voices ?? []).map((voice) => ({
           value: voice.id,
-          label: `${voice.name}${voice.id === voices?.defaultId ? " (mặc định)" : ""}${voice.description ? ` · ${voice.description}` : ""}`,
+          label: `${voice.name}${voice.id === voices?.defaultId ? " (mặc định)" : ""}${voice.description ? `, ${voice.description}` : ""}`,
         }))}
       />
       <Tooltip title={sample ? "Nghe thử giọng mẫu (không tốn ký tự)" : "Giọng này không có bản nghe thử"}>

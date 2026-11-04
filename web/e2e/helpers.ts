@@ -25,7 +25,7 @@ export async function connectFacebook(page: Page) {
   await expect(dialog.getByRole("checkbox", { name: /Trang Dưỡng Sinh/ })).toBeChecked();
   await dialog.getByRole("button", { name: "Lưu" }).click();
   const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
-  await expect(card.getByText("ID 1234567 · token …oken")).toBeVisible();
+  await expect(card.getByText("ID 1234567, token …oken")).toBeVisible();
   await page.getByRole("menuitem", { name: "Video" }).click();
 }
 

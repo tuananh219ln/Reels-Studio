@@ -25,7 +25,6 @@ import {
   Space,
   Spin,
   Tabs,
-  Tag,
   Typography,
 } from "antd";
 import Link from "next/link";
@@ -312,17 +311,17 @@ export default function VideoPage() {
           </Typography.Title>
           {/* Status, the topic and who is here on one line, so the scenes start high on the screen. */}
           <Flex wrap align="center" gap={8} style={{ marginTop: 6 }}>
-            <Space size={4} wrap>
+            <Flex gap={12} align="center" wrap>
               <VideoStatusTags video={video} />
               {video.has_script && !viewing && (
-                <Tag color="processing" data-testid="editing-tag">
+                <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="editing-tag">
                   Đang chỉnh sửa
-                </Tag>
+                </Typography.Text>
               )}
-            </Space>
+            </Flex>
             <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-              Chủ đề: {video.topic}
-              {video.knowledge_topic ? ` · Nhóm: ${video.knowledge_topic}` : ""} · {video.created_by}
+              Chủ đề {video.topic}
+              {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by}
             </Typography.Text>
             <PresenceAvatars others={others} />
           </Flex>
@@ -617,7 +616,7 @@ export default function VideoPage() {
                                 <Mp4Player key={video.mp4.url} url={video.mp4.url} />
                                 <Flex vertical gap={10} style={{ minWidth: 0 }}>
                                   <Typography.Text type="secondary" data-testid="render-time">
-                                    Dài {video.mp4.seconds.toFixed(1)} giây · render mất{" "}
+                                    Dài {video.mp4.seconds.toFixed(1)} giây, render mất{" "}
                                     {video.mp4.render_seconds.toFixed(1)} giây
                                   </Typography.Text>
                                   <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>

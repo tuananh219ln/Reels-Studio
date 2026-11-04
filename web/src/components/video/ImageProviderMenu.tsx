@@ -43,7 +43,7 @@ export default function ImageProviderMenu({
         items: (offered?.providers ?? []).map((item) => ({
           key: item.id,
           disabled: !item.configured,
-          label: `Tạo bằng ${item.label}${item.id === offered?.default ? " (mặc định)" : ""} · ${
+          label: `Tạo bằng ${item.label}${item.id === offered?.default ? " (mặc định)" : ""}, ${
             item.configured ? NOTES[item.id] : "chưa có key"
           }`,
         })),

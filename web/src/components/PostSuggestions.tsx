@@ -96,7 +96,7 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
           items={ready.map((video) => ({
             key: String(video.id),
             video,
-            sub: `${video.created_by} · tạo ${formatDateTime(video.created_at)}`,
+            sub: `${video.created_by}, tạo ${formatDateTime(video.created_at)}`,
             href: publishHref(video.id),
             action: "Đăng",
           }))}
@@ -127,7 +127,7 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
           items={forPages.map((winner) => ({
             key: String(winner.video.id),
             video: winner.video,
-            sub: `${formatCount(winner.views)} view trên ${winner.from} · chưa có trên ${winner.missing.join(", ")}`,
+            sub: `${formatCount(winner.views)} view trên ${winner.from}, chưa có trên ${winner.missing.join(", ")}`,
             href: `/videos/${winner.video.id}?clone=page`,
             action: "Nhân bản",
             icon: <CopyOutlined />,

@@ -15,19 +15,23 @@ import {
   Row,
   Select,
   Space,
-  Tag,
   Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type LlmProvider, type LlmSettings } from "@/lib/api";
 import { COLORS } from "@/app/theme";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
+import StatusText from "@/components/StatusText";
 
 function StatusTag({ provider }: { provider: LlmProvider }) {
   if (provider.active) {
-    return <Tag color="processing">Đang dùng</Tag>;
+    return <StatusText tone="success">Đang dùng</StatusText>;
   }
-  return provider.problem ? <Tag>Chưa cấu hình</Tag> : <Tag color="success">Sẵn sàng</Tag>;
+  return provider.problem ? (
+    <StatusText tone="idle">Chưa cấu hình</StatusText>
+  ) : (
+    <StatusText tone="done">Sẵn sàng</StatusText>
+  );
 }
 
 /** One provider's key, base URL and model, its connection check, and "use it". */
@@ -216,7 +220,7 @@ function ProviderForm({ provider, onSaved }: { provider: LlmProvider; onSaved: (
       {provider.updated_at && (
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Cập nhật {formatDateTime(provider.updated_at)}
-          {provider.updated_by ? ` · ${provider.updated_by}` : ""}
+          {provider.updated_by ? `, ${provider.updated_by}` : ""}
         </Typography.Text>
       )}
     </Flex>
@@ -279,7 +283,7 @@ export default function AiSettingsPage() {
                     disabled: !!provider.problem,
                     label: provider.problem
                       ? `${provider.name} (chưa cấu hình)`
-                      : `${provider.name} · ${provider.effective_model}`,
+                      : `${provider.name}, ${provider.effective_model}`,
                   }))}
                 />
               </Flex>
