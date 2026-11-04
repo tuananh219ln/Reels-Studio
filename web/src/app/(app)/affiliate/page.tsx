@@ -9,7 +9,10 @@ import PageHeader from "@/components/PageHeader";
 export default function AffiliatePage() {
   return (
     <>
-      <PageHeader title="Affiliate" />
+      <PageHeader
+        title="Affiliate"
+        description="Gắn sản phẩm vào video đã đăng, quản lý danh sách sản phẩm và xem doanh thu của bạn."
+      />
       <Tabs
         destroyOnHidden
         items={[

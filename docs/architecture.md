@@ -327,8 +327,10 @@ Planned:
   - The job repeats the MP4 and time checks, because "Thử lại" skips the endpoint.
   - The job locks the video like a render, for the minute or so it takes.
   - `GET /api/posts` ([routes_posts.py](../api/src/reels_api/routes_posts.py)) reads
-    scheduled, published, cancelled and deleted rows for `/posts` and `/calendar`, with the video's
-    `thumbnail_url` and `busy` while the video has an active job. Pending posts are left out. The calendar loads every row, keeps the
+    every Facebook post for `/posts` (list and calendar), with the video's `thumbnail_url`, `busy`
+    while the video has an active job, and `attempt` for a pending post: `working` until its
+    video's last publish job fails, then `failed` with that job's `job_id` (what "Thử lại" sends to
+    `POST /api/jobs/{id}/retry`) and `error`; null for any other post. The calendar loads every row, keeps the
     scheduled and published ones and groups them in the browser, which is enough at 1–3 videos a day.
   - **A post's numbers** ([metrics.py](../api/src/reels_api/metrics.py)) are read by the worker
     between jobs, not by a job: a reading writes only numbers, so it never locks the video and is

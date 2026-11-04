@@ -11,6 +11,28 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-04 — Pages fill a wide screen; "Video đã đăng" on Affiliate gets filters
+
+On the owner's call: the content column stopped at 1464 px, leaving an empty band on a large screen, so it now
+has no maximum width. Grey explanation paragraphs keep their own ~820 px limit, for reading. The "Video đã đăng"
+tab of Affiliate, the one that opens first, had no filter while the list grows with every post; it gets tabs by
+product state, a title search and a platform filter, all in the browser like "Bài đăng", with no api change.
+## 2026-11-04 — "Bài đăng" filters by status tabs, lists failed posts and holds the calendar as a view
+
+Taken from a look at another posting tool's history screen, on the owner's call. Replaces the status Select and the
+"Đang ẩn N bài đã hủy/xóa · Xem" line of the 2026-11-03 entry ("Bài đăng" hides cancelled and deleted posts by
+default), and the separate "Lịch đăng bài" menu item.
+
+- The status filter is a row of tabs with counts: "Đang hoạt động" (still the default), "Đã đăng", "Đã hẹn lịch",
+  "Thất bại", "Đã hủy/xóa" and "Tất cả". The counts follow the search and Fanpage filters, so a tab says what it shows.
+- A post on its way to Facebook ("Đang đăng") and one whose publish job failed ("Thất bại", with the reason and
+  "Thử lại") are now listed; before, a failed post showed only on its video's page and in Job logs. "Thất bại" is
+  read from the video's last publish job, not stored: the post stays `pending`, the row that job and its retry work on,
+  so there is no migration and no second place to keep in step.
+- "Danh sách" and "Lịch" switch on the same page (`/posts?view=calendar`); `/calendar` redirects there.
+- Every post row has the same icon buttons in the same places ("Xem Reel", "Thử lại", "Kiểm tra", "Hủy đăng"/"Xóa"),
+  greyed out with the reason in their tooltip when they do not apply, so the rows line up.
+
 ## 2026-11-03 — Clips from a pasted link, TikTok included; picture tools under the picture
 
 Owner's request: taking a photo from Google by its link worked well, and should work for videos and TikTok too.

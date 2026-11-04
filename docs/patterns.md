@@ -15,6 +15,10 @@
   answer, and a hidden tab does not poll. Links are written `prefetch={false}`, since a prefetch is
   a full server render. Hashed build files are cached for good through
   [web/public/_headers](../web/public/_headers).
+- **A page's view in the address is read with `useSearchParams`.** For example `/posts?view=calendar`.
+  Read it inside a `Suspense` boundary, never through a client page's `searchParams` prop: that prop
+  does not follow `router.replace` to the same page, and on a page prerendered as static it is empty
+  in the production build, so the view works in `next dev` and breaks in E2E and production.
 - **Attribute adapted code.** Code adapted from MoneyPrinterTurbo keeps its MIT attribution in the
   file header.
 - **Prompt content is app data; the output format is code.** Members edit the prompt text and the
@@ -67,6 +71,17 @@ all of them pass.
   needed there too. Every test resets `reels_e2e` first, so any subset runs on its own: CI splits
   them over four machines, and locally `-g "<title>"`, a single spec file or `--last-failed` runs
   just the tests a change touches.
+- **E2E locators that hold.** Every rule here comes from a CI failure. Find elements by role or
+  label scoped to their area (a card, a dialog, `getByTestId(...)`), with `exact: true` for short
+  names. A name that also appears elsewhere on the page (a header button and an empty-state button,
+  a hover tooltip and a confirm popover) breaks strict mode once the UI changes. Read an antd choice
+  from its radio (`toBeChecked`), not from a class such as `.ant-segmented-item-selected`, which is
+  missing while it animates. Use the app's Vietnamese labels ("Đóng"), never antd's English ones.
+- **Run the E2E tests a UI change touches before pushing.** Run them with `-g "<title>"` or a spec
+  file. A selector broken by a UI change otherwise shows up only on CI, and on `main` once merged.
+  Locally E2E needs Postgres at `E2E_DATABASE_URL` (default `reels:reels@127.0.0.1:5432/reels_e2e`,
+  the `docker-compose.yml` one). If port 5432 is taken by something else, point
+  `E2E_DATABASE_URL` at a free Postgres instead.
 - **Visual template check:** a person watches a rendered MP4 against the template in
   [ux-guidelines.md](ux-guidelines.md#video-template). An agent cannot judge the visual result.
 
