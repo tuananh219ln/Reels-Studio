@@ -326,16 +326,19 @@ Built:
 - **Kết nối Fanpage**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app.
-- **Đăng bài**, a menu group of two screens. Nothing is posted or approved here: a member reviews
-  and posts a video from "Đăng" on its page.
+- **Đăng bài**, a menu group. Nothing is posted or approved here: a member reviews and posts a
+  video from "Đăng" on its page; "Bài đăng" only retries a failed post.
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or
     posted again shows its title once. The row has the video's thumbnail (the title scene, or the
     pale tile) and title, which open the video, "N bài đăng" with its Pages, one status tag per
-    status among its posts ("Đã đăng · 2" for more than one), its total views and its latest time. Clicking the row opens its posts, of every status but
-    pending: the Fanpage with "Người đăng" under it; the time in Vietnam time, with who cancelled or
+    status among its posts ("Đã đăng · 2" for more than one), its total views and its latest time. Clicking the row opens its posts: the Fanpage with "Người đăng" under it; the time in Vietnam time, with who cancelled or
     deleted it and when under it ("Hủy: …" or "Xóa: …", "Trên Facebook" when a check found it so);
-    "Đã hẹn lịch", "Đã đăng", "Đã hủy" or "Đã xóa"; the views; then "Xem Reel" once public,
-    "Kiểm tra", and "Hủy đăng" or "Xóa" with a confirmation. There is no grid here: posts are read
+    "Đang đăng" (its publish job is still to run), "Thất bại" (red, with the job's reason under it in
+    red, cut to one line with the whole reason in a tooltip), "Đã hẹn lịch", "Đã đăng", "Đã hủy" or
+    "Đã xóa"; the views; then the same four icon buttons on every post, each with a tooltip: "Xem
+    Reel" (opens the reel once public), "Thử lại" (sends a failed post's job again), "Kiểm tra", and
+    "Hủy đăng" or "Xóa" with a confirmation. A button that does not apply to the post is greyed out,
+    its tooltip saying why, so the buttons line up from row to row. There is no grid here: posts are read
     as numbers, and "Video" keeps the grid for working on videos.
     A post's views stay on one line so rows stay short: the views (or "Chưa có view"), a yellow
     warning icon when the last reading failed, and an icon-only "Cập nhật view" button, which asks
@@ -375,16 +378,17 @@ Built:
     with "Nhân bản" (`?clone=page`, the clone drawer with a variant request filled in). The request
     is dropped from the address at once. The same MP4 is never suggested for another Page. An empty
     card says so, or that it needs at least two Pages in use. A post updates
-    by itself once the worker has done it. A line counts the scheduled and published reels; "Tìm
+    by itself once the worker has done it. Under the title, status tabs with counts: "Đang hoạt động"
+    (the default: on its way, failed, scheduled and published), "Đã đăng", "Đã hẹn lịch", "Thất
+    bại", "Đã hủy/xóa" and "Tất cả"; the counts follow the search and Fanpage filters. Then "Tìm
     theo tiêu đề", "Sắp xếp" ("Giờ đăng mới nhất", the default, or "Nhiều view nhất", posts not
-    read yet last; videos follow their first post), a status filter (Đang hoạt động,
-    the default, for Đã hẹn lịch and Đã đăng; Mọi trạng thái, Đã hẹn lịch, Đã đăng, Đã hủy, Đã xóa)
-    and, with more than one, a Fanpage filter, which filter the posts and keep the videos that still
-    have one. Under "Đang hoạt động", cancelled and deleted posts are left out of the rows and their
-    counts, and a grey line under the table says "Đang ẩn N bài đã hủy/xóa · Xem", "Xem" switching
-    to "Mọi trạng thái". "Không có bài đăng nào khớp" when nothing matches a filter, "Không có bài
-    nào đang hẹn lịch hoặc đã đăng" when only cancelled or deleted posts are left. "Xem dạng lịch" opens the calendar, whose "Xem dạng danh sách" comes back.
-  - **Lịch đăng bài** (`/calendar`): the posted and scheduled videos in a month view, coloured by status. A video
+    read yet last; videos follow their first post) and, with more than one, a Fanpage filter,
+    which filter the posts and keep the videos that still have one. A tab leaves the other posts out
+    of the rows and their tags. "Không có bài đăng nào khớp" when nothing matches a filter, "Không
+    có bài nào đang hoạt động" when only cancelled or deleted posts are left. "Danh sách" and "Lịch",
+    at the right of the title, switch between the table and the calendar on the same page.
+  - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there): the posted and scheduled videos
+    in a month view, coloured by status, with their two tags as a legend. A video
     opens its page. Everything is in Vietnam time whatever the browser's time zone: the day a video
     sits under, the month it opens on, and the "today" mark.
     On a phone the month is compact, with a dot on each day that has a video, and the chosen day's

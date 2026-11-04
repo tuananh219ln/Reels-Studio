@@ -2,7 +2,6 @@
 
 import {
   BookOutlined,
-  CalendarOutlined,
   CommentOutlined,
   ClockCircleOutlined,
   ControlOutlined,
@@ -42,7 +41,6 @@ const NAV = [
     label: "Đăng bài",
     children: [
       { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
-      { key: "/calendar", icon: <CalendarOutlined />, label: "Lịch đăng bài" },
       { key: "/comments", icon: <CommentOutlined />, label: "Bình luận" },
     ],
   },

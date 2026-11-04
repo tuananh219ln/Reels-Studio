@@ -1,5 +1,5 @@
-"""The reels on Facebook, those waiting for their time, and those cancelled or deleted, for the "Bài đăng" list and
-the "Lịch đăng bài" calendar. A video is reviewed and posted from its own page; here a member can only ask for a
+"""The reels on their way to Facebook, those on it or waiting for their time, and those cancelled or deleted, for the
+"Bài đăng" list and its calendar. A video is reviewed and posted from its own page; here a member can only ask for a
 post's numbers to be read again."""
 
 from fastapi import APIRouter, Depends
@@ -9,11 +9,24 @@ from sqlalchemy.orm import Session as DbSession
 from . import analytics, metrics
 from .db import get_db
 from .errors import ApiError
-from .models import Publication, Session, Video
+from .models import Job, Publication, Session, Video
 from .sessions import current_member, now
 from .videos import active_job, is_published, live_at, publication_payload, split_scenes, thumbnail_url, title_of
 
 router = APIRouter(prefix="/api/posts")
+
+
+def _attempt(db: DbSession, post: Publication) -> dict | None:
+    """Where a post not on Facebook yet stands: its video's last publish job is still to run ("working"), or failed
+    ("failed", with the job "Thử lại" sends again and its reason). None for a post past that."""
+    if post.status != "pending":
+        return None
+    job = db.scalar(
+        select(Job).where(Job.video_id == post.video_id, Job.kind == "publish").order_by(Job.id.desc()).limit(1)
+    )
+    if job is None or job.status != "failed":
+        return {"state": "working", "job_id": None, "error": None}
+    return {"state": "failed", "job_id": job.id, "error": job.error}
 
 
 def _payload(db: DbSession, video: Video, post: Publication, by_page: dict) -> dict:
@@ -24,19 +37,13 @@ def _payload(db: DbSession, video: Video, post: Publication, by_page: dict) -> d
         "title": title_of(video, title) or video.topic,
         "thumbnail_url": thumbnail_url(video),
         "busy": active_job(db, video.id) is not None,
+        "attempt": _attempt(db, post),
     }
 
 
 @router.get("")
 def list_posts(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
-    rows = db.execute(
-        select(Video, Publication)
-        .join(Publication)
-        .where(
-            Publication.platform == "facebook",
-            Publication.status.in_(("scheduled", "published", "cancelled", "deleted")),
-        )
-    )
+    rows = db.execute(select(Video, Publication).join(Publication).where(Publication.platform == "facebook"))
     by_page = analytics.medians(db)
     return [
         _payload(db, video, post, by_page)

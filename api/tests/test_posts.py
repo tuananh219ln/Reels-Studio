@@ -5,7 +5,7 @@ from conftest import login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN
 
 from reels_api import fanpages
-from reels_api.models import Publication, Video
+from reels_api.models import Job, Publication, Video
 from reels_api.videos import render_signature, split_scenes
 
 
@@ -36,9 +36,42 @@ def test_the_list_needs_a_login(client):
     assert client.get("/api/posts").status_code == 401
 
 
-def test_a_post_not_on_facebook_yet_is_left_out(an, db, me, storage):
-    add_post(db, storage, me, status="pending", remote_id="1000")
-    assert an.get("/api/posts").json() == []
+def add_publish_job(db, post, user, status, error=None) -> Job:
+    job = Job(video_id=post.video_id, kind="publish", status=status, created_by_id=user.id, error=error)
+    db.add(job)
+    db.commit()
+    return job
+
+
+def test_a_post_on_its_way_to_facebook_is_listed_as_being_posted(an, db, me, storage):
+    post = add_post(db, storage, me, status="pending")
+    add_publish_job(db, post, me, "running")
+    (row,) = an.get("/api/posts").json()
+    assert (row["status"], row["url"]) == ("pending", None)
+    assert row["attempt"] == {"state": "working", "job_id": None, "error": None}
+
+
+def test_a_post_whose_publish_failed_gives_the_reason_and_the_job_to_retry(an, db, me, storage):
+    post = add_post(db, storage, me, status="pending", remote_id="1000")
+    add_publish_job(db, post, me, "failed", "Token cũ")
+    job = add_publish_job(db, post, me, "failed", "Facebook đang lỗi (HTTP 500), thử lại sau")
+    (row,) = an.get("/api/posts").json()
+    assert row["attempt"] == {"state": "failed", "job_id": job.id, "error": "Facebook đang lỗi (HTTP 500), thử lại sau"}
+
+
+def test_a_retry_on_its_way_replaces_the_failure(an, db, me, storage):
+    post = add_post(db, storage, me, status="pending")
+    add_publish_job(db, post, me, "failed", "Token cũ")
+    add_publish_job(db, post, me, "queued")
+    (row,) = an.get("/api/posts").json()
+    assert row["attempt"]["state"] == "working"
+
+
+def test_a_post_on_facebook_has_no_attempt(an, db, me, storage):
+    post = add_post(db, storage, me, status="published", remote_id="1000", published_at=in_hours(-1))
+    add_publish_job(db, post, me, "failed", "Token cũ")
+    (row,) = an.get("/api/posts").json()
+    assert row["attempt"] is None
 
 
 def test_a_post_shows_its_video_fanpage_and_who_posted_it(an, db, me, storage):

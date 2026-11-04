@@ -569,7 +569,18 @@ export type PostKpis = {
 };
 
 /** A post in the "Bài đăng" list; `busy`: its video has a job queued or running. */
-export type PostRow = Post & { video_id: number; title: string; thumbnail_url: string | null; busy: boolean };
+/** Where a post not on Facebook yet stands (api routes_posts._attempt): its publish job is still to run, or failed
+ * with `error`, and "Thử lại" sends `job_id` again. Null once the post is on Facebook, cancelled or deleted. */
+export type PostAttempt =
+  { state: "working"; job_id: null; error: null } | { state: "failed"; job_id: number; error: string | null };
+
+export type PostRow = Post & {
+  video_id: number;
+  title: string;
+  thumbnail_url: string | null;
+  busy: boolean;
+  attempt: PostAttempt | null;
+};
 
 export type JobRow = {
   id: number;

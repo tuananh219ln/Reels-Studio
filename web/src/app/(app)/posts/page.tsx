@@ -1,13 +1,14 @@
 "use client";
 
-import { CalendarOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Empty, Flex, Input, Select, Spin, Table, Tag, Typography } from "antd";
+import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
+import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type PostRow, type PostStatus } from "@/lib/api";
-import { POST_STATUS } from "@/lib/postStatus";
+import { useRouter } from "next/navigation";
+import { use, useCallback, useEffect, useState } from "react";
+import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
+import { SHOWN_STATUS, shownStatus, type ShownStatus } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
+import PostCalendar from "@/components/PostCalendar";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import PostActions from "@/components/video/PostActions";
 import PostKpis from "@/components/PostKpis";
@@ -16,20 +17,28 @@ import PostMetrics, { formatCount, viewsOf } from "@/components/PostMetrics";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 
-const STATUSES: PostStatus[] = ["scheduled", "published", "cancelled", "deleted"];
+/** The order a video's status tags are listed in. */
+const STATUSES: ShownStatus[] = ["failed", "pending", "scheduled", "published", "cancelled", "deleted"];
 
 type Sort = "latest" | "views";
 
-/** "Đang hoạt động" (the default) keeps the posts that are live or still to go out; cancelled and deleted ones stay
- * one choice away, as history. */
-type StatusFilter = PostStatus | "all" | "active";
-const ACTIVE: PostStatus[] = ["scheduled", "published"];
+/** The status tabs. "Đang hoạt động" (the default) keeps every post still to do with: on its way, failed, scheduled
+ * or live; cancelled and deleted ones stay one tab away, as history. */
+type StatusFilter = "active" | "published" | "scheduled" | "failed" | "closed" | "all";
+const FILTERS: { value: StatusFilter; label: string; holds: ShownStatus[] }[] = [
+  { value: "active", label: "Đang hoạt động", holds: ["pending", "failed", "scheduled", "published"] },
+  { value: "published", label: "Đã đăng", holds: ["published"] },
+  { value: "scheduled", label: "Đã hẹn lịch", holds: ["scheduled"] },
+  { value: "failed", label: "Thất bại", holds: ["failed"] },
+  { value: "closed", label: "Đã hủy/xóa", holds: ["cancelled", "deleted"] },
+  { value: "all", label: "Tất cả", holds: STATUSES },
+];
 
 function statusMatches(post: PostRow, filter: StatusFilter): boolean {
-  if (filter === "all") return true;
-  if (filter === "active") return ACTIVE.includes(post.status);
-  return post.status === filter;
+  return FILTERS.find((item) => item.value === filter)!.holds.includes(shownStatus(post));
 }
+
+type View = "list" | "calendar";
 
 /** The posts of one video, kept in the order they are shown. */
 type Group = { videoId: number; title: string; thumbnailUrl: string | null; posts: PostRow[] };
@@ -39,10 +48,13 @@ function folded(text: string): string {
   return text.normalize("NFC").toLocaleLowerCase("vi");
 }
 
-/** The reels posted, scheduled, cancelled or deleted from their video page or here, latest time first or most viewed
- * first, with their numbers on Facebook. */
-export default function PostsPage() {
+/** The reels on their way to Facebook, posted, scheduled, failed, cancelled or deleted, latest time first or most
+ * viewed first, with their numbers on Facebook; or, as "Lịch" (`?view=calendar`), the scheduled and posted ones in a
+ * month. */
+export default function PostsPage({ searchParams }: { searchParams: Promise<{ view?: string | string[] }> }) {
   const { message } = App.useApp();
+  const router = useRouter();
+  const view: View = use(searchParams).view === "calendar" ? "calendar" : "list";
   const [posts, setPosts] = useState<PostRow[] | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("active");
@@ -72,26 +84,55 @@ export default function PostsPage() {
   const words = folded(query.trim());
   const others = (post: PostRow) =>
     (fanpage === null || post.fanpage === fanpage) && (!words || folded(post.title).includes(words));
-  const shown = all.filter((post) => statusMatches(post, status) && others(post));
-  // The cancelled and deleted posts "Đang hoạt động" leaves out, so nobody thinks they are lost.
-  const hidden = status === "active" ? all.filter((post) => !ACTIVE.includes(post.status) && others(post)).length : 0;
+  const matching = all.filter(others);
+  const shown = matching.filter((post) => statusMatches(post, status));
   // The api sends the latest time first; a stable sort keeps that order among posts with the same views.
   if (sort === "views") shown.sort((a, b) => viewsOf(b) - viewsOf(a));
   const filtered = Boolean(words) || status !== "active" || fanpage !== null;
-  const count = (which: PostStatus) => all.filter((post) => post.status === which).length;
+  const counts = Object.fromEntries(
+    FILTERS.map(({ value }) => [value, matching.filter((post) => statusMatches(post, value)).length]),
+  ) as Record<StatusFilter, number>;
   const groups = byVideo(shown);
+
+  const viewSwitch = (
+    <Segmented<View>
+      aria-label="Kiểu hiển thị"
+      value={view}
+      onChange={(next) => router.replace(next === "calendar" ? "/posts?view=calendar" : "/posts")}
+      options={[
+        { value: "list", icon: <UnorderedListOutlined />, label: "Danh sách" },
+        { value: "calendar", icon: <CalendarOutlined />, label: "Lịch" },
+      ]}
+    />
+  );
+
+  if (view === "calendar") {
+    return (
+      <>
+        <PageHeader
+          title="Bài đăng"
+          description="Các bài đã hẹn lịch và đã đăng theo ngày, giờ Việt Nam. Bấm một bài để mở video."
+          actions={viewSwitch}
+        />
+        <PostCalendar posts={all} />
+      </>
+    );
+  }
 
   return (
     <>
       <PageHeader
         title="Bài đăng"
-        description={all.length > 0 && `${count("scheduled")} bài đã hẹn lịch · ${count("published")} bài đã đăng.`}
-        actions={
-          <Link prefetch={false} href="/calendar">
-            <Button icon={<CalendarOutlined />}>Xem dạng lịch</Button>
-          </Link>
-        }
+        description="Theo dõi các bài đang đăng, đã hẹn lịch, đã đăng hoặc thất bại trên mọi Fanpage."
+        actions={viewSwitch}
       >
+        <Segmented<StatusFilter>
+          aria-label="Lọc theo trạng thái"
+          value={status}
+          onChange={setStatus}
+          options={FILTERS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+          style={{ maxWidth: "100%", overflowX: "auto" }}
+        />
         <Input
           aria-label="Tìm theo tiêu đề"
           prefix={<SearchOutlined />}
@@ -100,17 +141,6 @@ export default function PostsPage() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 320, maxWidth: "100%" }}
-        />
-        <Select
-          aria-label="Lọc theo trạng thái"
-          value={status}
-          onChange={setStatus}
-          options={[
-            { value: "active", label: "Đang hoạt động" },
-            { value: "all", label: "Mọi trạng thái" },
-            ...STATUSES.map((value) => ({ value, label: POST_STATUS[value].label })),
-          ]}
-          style={{ width: 170 }}
         />
         <Select
           aria-label="Sắp xếp"
@@ -147,23 +177,13 @@ export default function PostsPage() {
               filtered
                 ? "Không có bài đăng nào khớp"
                 : all.length > 0
-                  ? "Không có bài nào đang hẹn lịch hoặc đã đăng"
+                  ? "Không có bài nào đang hoạt động"
                   : "Chưa có video nào đã đăng hoặc hẹn lịch"
             }
           />
         </Card>
       ) : (
         <GroupTable groups={groups} onDone={load} />
-      )}
-      {hidden > 0 && (
-        <Flex align="center" gap={4} style={{ marginTop: 8 }} data-testid="hidden-posts">
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Đang ẩn {hidden} bài đã hủy/xóa ·
-          </Typography.Text>
-          <Button type="link" size="small" style={{ padding: 0, fontSize: 12 }} onClick={() => setStatus("all")}>
-            Xem
-          </Button>
-        </Flex>
       )}
     </>
   );
@@ -186,34 +206,36 @@ function byVideo(posts: PostRow[]): Group[] {
   return [...groups.values()];
 }
 
+/** The post's status; a failed one has Facebook's or the app's reason under it. */
 function StatusTag({ post }: { post: PostRow }) {
+  const shown = SHOWN_STATUS[shownStatus(post)];
+  const reason = post.attempt?.state === "failed" ? post.attempt.error : null;
   return (
-    <Tag color={POST_STATUS[post.status].color} style={{ marginInlineEnd: 0 }}>
-      {POST_STATUS[post.status].label}
-    </Tag>
-  );
-}
-
-function ReelLink({ post }: { post: PostRow }) {
-  return (
-    post.url && (
-      <a href={post.url} target="_blank" rel="noreferrer" style={{ whiteSpace: "nowrap" }}>
-        Xem Reel
-      </a>
-    )
+    <Flex vertical gap={2} align="flex-start">
+      <Tag color={shown.color} style={{ marginInlineEnd: 0 }}>
+        {shown.label}
+      </Tag>
+      {reason && (
+        <Tooltip title={reason}>
+          <Typography.Text type="danger" style={{ fontSize: 12, maxWidth: 200 }} ellipsis data-testid="post-error">
+            {reason}
+          </Typography.Text>
+        </Tooltip>
+      )}
+    </Flex>
   );
 }
 
 /** "Đã đăng · 2", one tag per status among the video's posts. */
 function StatusSummary({ posts }: { posts: PostRow[] }) {
-  const counts = STATUSES.map((value) => [value, posts.filter((post) => post.status === value).length] as const);
+  const counts = STATUSES.map((value) => [value, posts.filter((post) => shownStatus(post) === value).length] as const);
   return (
     <Flex wrap gap={4}>
       {counts
         .filter(([, number]) => number > 0)
         .map(([value, number]) => (
-          <Tag key={value} color={POST_STATUS[value].color} style={{ marginInlineEnd: 0 }}>
-            {POST_STATUS[value].label}
+          <Tag key={value} color={SHOWN_STATUS[value].color} style={{ marginInlineEnd: 0 }}>
+            {SHOWN_STATUS[value].label}
             {number > 1 && ` · ${number}`}
           </Tag>
         ))}
@@ -311,7 +333,7 @@ function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) 
     {
       title: "Trạng thái",
       key: "status",
-      width: 150,
+      width: 220,
       render: (_, post) => <StatusTag post={post} />,
     },
     {
@@ -324,10 +346,13 @@ function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) 
       title: "",
       key: "actions",
       render: (_, post) => (
-        <Flex align="center" gap={12} wrap={false}>
-          <ReelLink post={post} />
-          <PostActions post={post} disabled={post.busy} onDone={onDone} />
-        </Flex>
+        <PostActions
+          post={post}
+          disabled={post.busy}
+          onDone={onDone}
+          compact
+          retryJobId={post.attempt?.state === "failed" ? post.attempt.job_id : null}
+        />
       ),
     },
   ];
