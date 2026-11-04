@@ -1030,9 +1030,10 @@ test("AI image provider: the team default on Nguồn tư liệu, another one for
   // The starting default depends on the server's .env (IMAGE_GEN_PROVIDER); choosing one here wins over it.
   const choice = page.getByTestId("ai-provider");
   await choice.getByLabel("Nguồn ảnh AI mặc định").getByText("Cloudflare (miễn phí)").click();
-  await expect(choice.locator(".ant-segmented-item-selected")).toHaveText("Cloudflare (miễn phí)");
+  // The radio's checked state, not .ant-segmented-item-selected: that class is left off while the thumb slides.
+  await expect(choice.getByRole("radio", { name: "Cloudflare (miễn phí)" })).toBeChecked();
   await choice.getByLabel("Nguồn ảnh AI mặc định").getByText("Gemini (tốn phí)").click();
-  await expect(choice.locator(".ant-segmented-item-selected")).toHaveText("Gemini (tốn phí)");
+  await expect(choice.getByRole("radio", { name: "Gemini (tốn phí)" })).toBeChecked();
   // The shared style every AI prompt ends with: edited here, kept after a reload, back to the default on request.
   const style = choice.getByLabel("Phong cách ảnh AI");
   await expect(style).toHaveValue(/no text/);
@@ -1367,7 +1368,9 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.getByRole("button", { name: "Chỉnh sửa" }).click();
   await page.getByLabel("Chuyển cảnh").getByText("Trượt").click();
   await page.getByRole("button", { name: "Huỷ" }).click();
-  await expect(page.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).not.toHaveText("Trượt");
+  // The radio's checked state, not .ant-segmented-item-selected: that class is left off while the thumb slides,
+  // and the thumb sliding back as "Huỷ" disables the control may never finish.
+  await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Trượt" })).not.toBeChecked();
   await page.getByRole("button", { name: "Chỉnh sửa" }).click();
   await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
   // The reading speed slider: three steps up from 1 make 1.15.
@@ -1398,7 +1401,7 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
   await page.getByRole("tab", { name: "Thiết lập" }).click();
   const motion = page.getByTestId("motion-settings");
-  await expect(motion.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).toHaveText("Cắt thẳng");
+  await expect(motion.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).toBeChecked();
   await expect(page.getByText("Tốc độ đọc: 1,15×")).toBeVisible();
   await expect(page.getByRole("slider", { name: "Tốc độ đọc" })).toHaveAttribute("aria-valuenow", "1.15");
 
