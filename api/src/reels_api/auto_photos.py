@@ -2,7 +2,7 @@
 
 A job of its own (kind "photos"), queued when a script or clone job finishes, so a search problem never fails the
 script. It uses the picker's rules: tall photos big enough for the frame, never one another scene shows, sources in
-the picker's order (Pixabay, Pexels, Openverse) minus those turned off or without a key; a source that fails is not
+the picker's order (Pexels, Pixabay, Openverse) minus those turned off or without a key; a source that fails is not
 asked again in the same job. It never makes AI photos (they cost calls). Each photo is stored with `image_auto`, shown
 as "Tự chọn, kiểm tra lại" until a member changes it: stock libraries often show the wrong dish for Vietnamese food.
 The team can turn it off on Cài đặt › Nguồn tư liệu.
@@ -21,7 +21,7 @@ from .videos import new_key, refresh_thumbnail, split_scenes
 log = logging.getLogger(__name__)
 
 SETTING_KEY = "auto_photos"
-SOURCES = ("pixabay", "pexels", "openverse")
+SOURCES = ("pexels", "pixabay", "openverse")
 SECONDS_PER_SCENE = 20
 
 

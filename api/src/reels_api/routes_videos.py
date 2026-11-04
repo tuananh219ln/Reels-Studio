@@ -25,7 +25,7 @@ from . import (
     knowledge,
     llm,
     plans,
-    remote_images,
+    remote_media,
     source_keys,
     stock_clips,
     video_options,
@@ -69,6 +69,7 @@ from .videos import (
     list_payload,
     lock_scene,
     lock_video,
+    made_from,
     made_voice_seconds,
     new_key,
     pending_publication,
@@ -234,7 +235,8 @@ def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSessio
         plain = func.replace(func.replace(Scene.text, "*", ""), "\n", " ")
         title_match = select(Scene.video_id).where(Scene.is_title, plain.ilike(pattern, escape="\\"))
         query = query.where(or_(Video.topic.ilike(pattern, escape="\\"), Video.id.in_(title_match)))
-    return [list_payload(db, video) for video in db.scalars(query).all()]
+    family = made_from(db)
+    return [list_payload(db, video, family) for video in db.scalars(query).all()]
 
 
 @router.post("/videos", status_code=201)
@@ -606,6 +608,8 @@ def remove_music(
 
 class CloneBody(BaseModel):
     request: str
+    # "tiktok": the TikTok version of a Facebook video ("Tạo bản TikTok"), linked to it; empty: the same platform.
+    platform: str | None = None
 
 
 def _one_line(text: str) -> str:
@@ -661,6 +665,9 @@ def clone_video(
         raise video_not_found()
     if not source.has_script:
         raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
+    platform = body.platform or source.platform
+    if platform not in ("facebook", "tiktok"):
+        raise invalid("Nền tảng không có trong danh sách")
     group = knowledge.topic_of(db, source)
     if group is None or not group.clone_prompt:
         raise invalid(f"Nhóm chủ đề “{group.name if group else ''}” chưa có prompt nhân bản")
@@ -673,6 +680,9 @@ def clone_video(
         voice_enabled=source.voice_enabled,
         options=video_options.effective(source),
         clone_source=clone_snapshot(db, source, request),
+        platform=platform,
+        # A version for another platform keeps a link to the video it was made from.
+        variant_of_id=source.id if platform != source.platform else None,
     )
     db.add(draft)
     db.flush()
@@ -858,29 +868,39 @@ def upload_scene_image(
     return _store_photo(db, storage, scene_id, data, extension, "upload")
 
 
-class ImageLinkBody(BaseModel):
+class MediaLinkBody(BaseModel):
     url: str
 
 
-@router.post("/scenes/{scene_id}/image-from-url")
-def image_from_url(
+@router.post("/scenes/{scene_id}/media-from-url")
+def media_from_url(
     scene_id: int,
-    body: ImageLinkBody,
+    body: MediaLinkBody,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    """A photo pasted as a link or dragged from another tab (Google Ảnh, a shop, a news site): downloaded here and
-    stored like an upload, its link kept as the source so a copyright claim can be traced back."""
+    """A photo or clip pasted as a link or dragged from another tab (Google Ảnh, a shop, a video file, a TikTok
+    video): downloaded here and stored like an upload. A photo keeps its link as the source so a copyright claim can
+    be traced back; a clip longer than a minute keeps its first minute."""
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
-    # No row lock may be held while the other site answers; _store_photo locks and re-checks everything.
+    # No row lock may be held while the other site answers; the saves lock and re-check everything.
     db.rollback()
-    try:
-        data, extension = remote_images.download(body.url)
-    except remote_images.RemoteImageError as err:
-        raise invalid(str(err)) from None
-    return _store_photo(db, storage, scene_id, data, extension, body.url.strip())
+    with tempfile.TemporaryDirectory(prefix="reels_link_") as folder:
+        try:
+            media = remote_media.download(body.url, Path(folder))
+        except remote_media.RemoteMediaError as err:
+            raise invalid(str(err)) from None
+        if media.photo is not None:
+            data, extension = media.photo
+            return _store_photo(db, storage, scene_id, data, extension, body.url.strip())
+        assert media.clip is not None
+        try:
+            clip = clips.first_part(media.clip, Path(folder))
+        except UploadRejected as err:
+            raise ApiError(415, "invalid_video", str(err)) from None
+        return _attach_clip(db, storage, scene_id, clip)
 
 
 @router.post("/scenes/{scene_id}/image/crop")
@@ -990,7 +1010,7 @@ def _used_photos(db: DbSession, video_id: int, except_scene: int | None = None) 
 @router.post("/scenes/{scene_id}/find-image")
 def find_other_image(
     scene_id: int,
-    source: str = "pixabay",
+    source: str = "pexels",
     orientation: str = "vertical",
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
@@ -1082,7 +1102,8 @@ def choose_pixabay(
 
 # --- Stock sources for the picker ---
 
-STOCK_SOURCES = ("pixabay", "pexels", "openverse")
+# Pexels first: the default of the picker, "Tìm ảnh" and "Tự tìm ảnh".
+STOCK_SOURCES = ("pexels", "pixabay", "openverse")
 STOCK_LABELS = {"pixabay": "Pixabay", "pexels": "Pexels", "openverse": "Openverse"}
 STOCK_OFF_KEY = "stock_sources_off"
 CLIP_DOWNLOAD_SECONDS = 60
@@ -1212,7 +1233,7 @@ def choose_stock_clip(
 def search_stock(
     scene_id: int,
     q: str = "",
-    source: str = "pixabay",
+    source: str = "pexels",
     orientation: str = "vertical",
     hide_used: bool = True,
     me: Session = Depends(current_member),

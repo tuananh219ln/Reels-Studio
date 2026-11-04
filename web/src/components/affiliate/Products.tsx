@@ -14,23 +14,28 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import ProductModal from "./ProductModal";
 
-type Filters = { topicId?: number; status?: string; q: string };
+type Filters = { topicId?: number; status?: string; platform?: string; q: string };
 
 /** The product list, best expected commission first. */
 export default function Products() {
   const { message } = App.useApp();
   const [filters, setFilters] = useState<Filters>({ q: "" });
-  const [options, setOptions] = useState<AffiliateOptions>({ shop_types: [], topics: [] });
+  const [options, setOptions] = useState<AffiliateOptions>({
+    platforms: [],
+    shop_types: { shopee: [], tiktok_shop: [] },
+    topics: [],
+  });
   const [products, setProducts] = useState<AffiliateProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<AffiliateProduct | "new" | null>(null);
-  const { topicId, status, q } = filters;
+  const { topicId, status, platform, q } = filters;
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
     const values: [string, string | undefined][] = [
       ["topic_id", topicId?.toString()],
       ["status", status],
+      ["platform", platform],
       ["q", q.trim()],
     ];
     for (const [name, value] of values) {
@@ -39,7 +44,7 @@ export default function Products() {
       }
     }
     return params.toString();
-  }, [topicId, status, q]);
+  }, [topicId, status, platform, q]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -76,20 +81,33 @@ export default function Products() {
     {
       title: "Sản phẩm",
       key: "name",
-      render: (_, product) => (
-        <Flex vertical gap={2}>
-          <a href={product.url} target="_blank" rel="noreferrer">
-            {product.name}
-          </a>
-          <Typography.Text type="secondary">{product.topic}</Typography.Text>
-          <Typography.Text
-            copyable={{ text: product.url, tooltips: ["Sao chép link", "Đã sao chép"] }}
-            type="secondary"
-          >
-            Link
-          </Typography.Text>
-        </Flex>
-      ),
+      render: (_, product) => {
+        const link = product.url ?? product.page_url ?? undefined;
+        return (
+          <Flex vertical gap={2}>
+            <a href={link} target="_blank" rel="noreferrer">
+              {product.name}
+            </a>
+            <Space size={4} wrap>
+              <Tag color={product.platform === "tiktok_shop" ? "magenta" : "orange"}>{product.platform_label}</Tag>
+              {product.from_shopee_api && <Tag>Tìm qua API</Tag>}
+              <Typography.Text type="secondary">{product.topic}</Typography.Text>
+            </Space>
+            {product.url ? (
+              <Typography.Text
+                copyable={{ text: product.url, tooltips: ["Sao chép link", "Đã sao chép"] }}
+                type="secondary"
+              >
+                Link
+              </Typography.Text>
+            ) : (
+              product.platform === "shopee" && (
+                <Typography.Text type="secondary">Link riêng theo tài khoản Shopee của từng Fanpage</Typography.Text>
+              )
+            )}
+          </Flex>
+        );
+      },
     },
     {
       title: "Shop",
@@ -216,6 +234,15 @@ export default function Products() {
             onChange={(value) => setFilters({ ...filters, topicId: value })}
             options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
             style={{ width: 180 }}
+          />
+          <Select
+            aria-label="Lọc theo nền tảng"
+            placeholder="Mọi nền tảng"
+            allowClear
+            value={platform}
+            onChange={(value) => setFilters({ ...filters, platform: value })}
+            options={options.platforms}
+            style={{ width: 160 }}
           />
           <Select
             aria-label="Lọc theo trạng thái"

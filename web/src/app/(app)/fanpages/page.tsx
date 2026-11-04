@@ -22,6 +22,7 @@ import {
   Input,
   Modal,
   Popconfirm,
+  Select,
   Space,
   Table,
   Tag,
@@ -29,9 +30,19 @@ import {
   Typography,
 } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type Fanpage, type FanpageChoice, type FanpageDay } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  formatDateTime,
+  type AffiliateAccount,
+  type Fanpage,
+  type FanpageChoice,
+  type FanpageDay,
+} from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import { COLORS } from "@/app/theme";
+import { useFreshenOnOpen } from "@/lib/freshen";
+import FormDrawer from "@/components/FormDrawer";
 
 const number = (value: number) => value.toLocaleString("vi-VN");
 const count = (value: number | null) => (value === null ? "—" : number(value));
@@ -77,14 +88,85 @@ function Gain({ gain }: { gain: number | null }) {
   );
 }
 
+/** Whose Page it is and, for its owner, the Shopee account whose links its comments carry (one of their own). A Page
+ * that belongs to nobody is taken with "Nhận Page này". */
+function OwnerLine({
+  row,
+  accounts,
+  onRows,
+}: {
+  row: Fanpage;
+  accounts: AffiliateAccount[];
+  onRows: (rows: Fanpage[]) => void;
+}) {
+  const { message } = App.useApp();
+
+  async function call(path: string, method: "POST" | "PUT", body?: object) {
+    try {
+      onRows(await api<Fanpage[]>(path, method, body));
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+
+  if (!row.owner) {
+    return (
+      <Flex justify="space-between" align="center" gap={8} data-testid="fanpage-owner">
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Chưa thuộc ai
+        </Typography.Text>
+        <Button size="small" onClick={() => call(`/fanpages/${row.id}/owner`, "POST")}>
+          Nhận Page này
+        </Button>
+      </Flex>
+    );
+  }
+  if (!row.mine) {
+    return (
+      <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="fanpage-owner">
+        Thuộc: {row.owner.name}
+      </Typography.Text>
+    );
+  }
+  const shopee = accounts.filter((account) => account.platform === "shopee" && account.active);
+  return (
+    <Flex vertical gap={6} data-testid="fanpage-owner">
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Thuộc: bạn
+      </Typography.Text>
+      <Select
+        size="small"
+        aria-label={`Tài khoản Shopee của ${row.name}`}
+        placeholder="Chưa gắn tài khoản Shopee (dùng link dán tay)"
+        allowClear
+        value={row.shopee_account?.id ?? null}
+        options={shopee.map((account) => ({ value: account.id, label: `Shopee: ${account.name}` }))}
+        onChange={(accountId: number | undefined) =>
+          call(`/fanpages/${row.id}/shopee-account`, "PUT", { account_id: accountId ?? null })
+        }
+        notFoundContent={
+          <Typography.Text type="secondary">Thêm tài khoản ở Cấu hình › Tài khoản affiliate</Typography.Text>
+        }
+      />
+      {row.shopee_account && !row.shopee_account.usable && (
+        <Typography.Text type="warning" style={{ fontSize: 12 }}>
+          Tài khoản Shopee thiếu App ID/Secret hoặc đang ngừng dùng: bình luận dùng link dán tay
+        </Typography.Text>
+      )}
+    </Flex>
+  );
+}
+
 /** A Page in use, compact: who it is, whether its token works, its numbers, and what a member can do with it. */
 function PageCard({
   row,
+  accounts,
   onRows,
   onDays,
   onToken,
 }: {
   row: Fanpage;
+  accounts: AffiliateAccount[];
   onRows: (rows: Fanpage[]) => void;
   onDays: (row: Fanpage) => void;
   onToken: (row: Fanpage) => void;
@@ -174,6 +256,7 @@ function PageCard({
           {insights.error}
         </Typography.Text>
       )}
+      <OwnerLine row={row} accounts={accounts} onRows={onRows} />
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
@@ -382,10 +465,10 @@ function AddModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title="Thêm Fanpage"
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       destroyOnHidden
       afterClose={() => {
         setToken("");
@@ -419,7 +502,7 @@ function AddModal({
           />
         )}
       </Flex>
-    </Modal>
+    </FormDrawer>
   );
 }
 
@@ -449,10 +532,10 @@ function TokenModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title={`Dán token mới cho ${row?.name ?? ""}`}
       open={row !== null}
-      onCancel={onClose}
+      onClose={onClose}
       destroyOnHidden
       afterClose={() => setToken("")}
       okText="Lưu"
@@ -462,7 +545,7 @@ function TokenModal({
       onOk={save}
     >
       <TokenInput value={token} onChange={setToken} />
-    </Modal>
+    </FormDrawer>
   );
 }
 
@@ -472,6 +555,12 @@ export default function FanpagesPage() {
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
   const [days, setDays] = useState<Fanpage | null>(null);
+  const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
+
+  useEffect(() => {
+    // Without them a Page shows its owner but offers no account to choose.
+    api<AffiliateAccount[]>("/affiliate-accounts").then(setAccounts, () => undefined);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -485,6 +574,8 @@ export default function FanpagesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
   }, [load]);
+  // Pages not checked lately are checked again on opening, without pressing "Kiểm tra ngay" on each.
+  useFreshenOnOpen("/fanpages/freshen", load);
 
   // While a check waits for the worker, ask again every few seconds until it has answered.
   const pending = rows?.some((row) => row.active && row.check.pending) ?? false;
@@ -543,7 +634,14 @@ export default function FanpagesPage() {
             }}
           >
             {inUse.map((row) => (
-              <PageCard key={row.id} row={row} onRows={setRows} onDays={setDays} onToken={setReplacing} />
+              <PageCard
+                key={row.id}
+                row={row}
+                accounts={accounts}
+                onRows={setRows}
+                onDays={setDays}
+                onToken={setReplacing}
+              />
             ))}
           </div>
         )}

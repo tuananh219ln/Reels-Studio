@@ -20,6 +20,7 @@ from reels_render.ffmpeg import audio_seconds, find_tools, probe
 from reels_render.script import parse_script
 
 from . import (
+    affiliate_rounds,
     auto_photos,
     config,
     facebook,
@@ -188,6 +189,7 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
         except ClaudeError as err:
             raise JobFailure(err.message, err.detail) from None
         save_script(db, video, script)
+        affiliate_rounds.ask_after_script(db, video, job.created_by_id)
         db.commit()
 
 

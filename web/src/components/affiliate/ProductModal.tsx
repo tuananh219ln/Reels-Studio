@@ -1,12 +1,22 @@
 "use client";
 
-import { Alert, App, Form, Input, InputNumber, Modal, Select } from "antd";
+import { Alert, App, Form, Input, InputNumber, Select } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
+import FormDrawer from "@/components/FormDrawer";
 
 type Fields = Pick<
   AffiliateProduct,
-  "knowledge_topic_id" | "name" | "url" | "shop_name" | "shop_type" | "rating" | "sold" | "price" | "commission_rate"
+  | "knowledge_topic_id"
+  | "platform"
+  | "name"
+  | "url"
+  | "shop_name"
+  | "shop_type"
+  | "rating"
+  | "sold"
+  | "price"
+  | "commission_rate"
 >;
 
 /** Adds a product, or edits one; saving a change to an approved product sends it back to draft. */
@@ -25,15 +35,14 @@ export default function ProductModal({
   const [form] = Form.useForm<Fields>();
   const [busy, setBusy] = useState(false);
   const adding = target === "new";
+  const platform = Form.useWatch("platform", form) ?? "shopee";
 
   useEffect(() => {
     if (target === null) {
       return;
     }
     form.resetFields();
-    if (target !== "new") {
-      form.setFieldsValue(target);
-    }
+    form.setFieldsValue(target === "new" ? { platform: "shopee" } : { ...target, url: target.url ?? undefined });
   }, [form, target]);
 
   async function submit(fields: Fields) {
@@ -54,10 +63,10 @@ export default function ProductModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title={adding ? "Thêm sản phẩm" : "Sửa sản phẩm"}
       open={target !== null}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText={adding ? "Thêm" : "Lưu"}
       cancelText="Huỷ"
@@ -73,6 +82,13 @@ export default function ProductModal({
         />
       )}
       <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>
+        <Form.Item label="Nền tảng" name="platform" rules={[{ required: true, message: "Chọn nền tảng" }]}>
+          <Select
+            aria-label="Nền tảng"
+            options={options.platforms}
+            onChange={() => form.setFieldValue("shop_type", undefined)}
+          />
+        </Form.Item>
         <Form.Item
           label="Nhóm chủ đề"
           name="knowledge_topic_id"
@@ -94,10 +110,20 @@ export default function ProductModal({
           <Input />
         </Form.Item>
         <Form.Item
-          label="Link affiliate"
+          label={platform === "tiktok_shop" ? "Link sản phẩm TikTok Shop" : "Link affiliate"}
           name="url"
-          rules={[{ required: true, whitespace: true, message: "Dán link affiliate" }]}
-          extra="Tạo link trong trang Shopee Affiliate rồi dán vào đây."
+          rules={[
+            {
+              required: platform === "shopee" && !(target !== null && target !== "new" && target.from_shopee_api),
+              whitespace: true,
+              message: "Dán link affiliate",
+            },
+          ]}
+          extra={
+            platform === "tiktok_shop"
+              ? "Không bắt buộc. Sản phẩm TikTok Shop được gắn giỏ trong app TikTok, không có bình luận chứa link."
+              : "Tạo link trong trang Shopee Affiliate rồi dán vào đây. Fanpage đã gắn tài khoản Shopee có App ID sẽ dùng link riêng của tài khoản đó."
+          }
         >
           <Input />
         </Form.Item>
@@ -109,7 +135,7 @@ export default function ProductModal({
           <Input />
         </Form.Item>
         <Form.Item label="Loại shop" name="shop_type" rules={[{ required: true, message: "Chọn loại shop" }]}>
-          <Select aria-label="Loại shop" options={options.shop_types} />
+          <Select aria-label="Loại shop" options={options.shop_types[platform as keyof typeof options.shop_types]} />
         </Form.Item>
         <Form.Item label="Số sao" name="rating" rules={[{ required: true, message: "Nhập số sao" }]}>
           <InputNumber min={0} max={5} step={0.1} style={{ width: "100%" }} />
@@ -129,6 +155,6 @@ export default function ProductModal({
           <InputNumber min={0} max={100} step={0.1} style={{ width: "100%" }} />
         </Form.Item>
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }

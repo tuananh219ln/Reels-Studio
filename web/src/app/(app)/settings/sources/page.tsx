@@ -1,8 +1,24 @@
 "use client";
 
-import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Space, Switch, Tag, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  Col,
+  Flex,
+  Input,
+  Popconfirm,
+  Row,
+  Segmented,
+  Space,
+  Switch,
+  Tag,
+  theme,
+  Typography,
+} from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
+import { SettingsHeader, SettingsSection as Section } from "@/components/settings/SettingsBlocks";
 
 type Key = { origin: "saved" | "unreadable" | "env" | null; hint: string; signup_url: string };
 type Source = {
@@ -134,9 +150,13 @@ function KeyField({
 const ready = (configured: boolean) =>
   configured ? <Tag color="success">Sẵn sàng</Tag> : <Tag color="warning">Chưa có key</Tag>;
 
+/** The stock library "Tìm ảnh", the picker and "Tự tìm ảnh" start with (api routes_videos.STOCK_SOURCES[0]). */
+const DEFAULT_STOCK = "pexels";
+
 /** The stock libraries the picker and "Tìm ảnh" use, their keys, the AI image models' keys and ElevenLabs'. */
 export default function SourcesPage() {
   const { message } = App.useApp();
+  const { token } = theme.useToken();
   const [data, setData] = useState<Sources | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [style, setStyle] = useState<string | null>(null);
@@ -204,191 +224,227 @@ export default function SourcesPage() {
     }
   }
 
+  const stock = data?.sources ?? [];
+  const order = stock.filter((source) => source.enabled && source.configured).map((source) => source.label);
+
   return (
-    <>
-      <Typography.Paragraph type="secondary" style={{ margin: "0 0 16px", maxWidth: 760 }}>
-        Các kho ảnh và video miễn phí mà hộp “Chọn từ kho ảnh/video” và nút “Tìm ảnh” dùng, cùng key tạo ảnh AI và key
-        giọng đọc. Tắt một nguồn thì nó biến khỏi hộp chọn của cả nhóm.
-      </Typography.Paragraph>
-      <Flex vertical gap={16} style={{ maxWidth: 900 }}>
-        {data?.auto_photos !== undefined && (
-          <Card size="small" data-testid="auto-photos">
-            <Flex vertical gap={4}>
-              <Flex gap={8} align="center">
+    <Flex vertical gap={28}>
+      <SettingsHeader
+        title="Nguồn tư liệu"
+        description="Kho ảnh và video miễn phí, ảnh AI và giọng đọc của cả nhóm. Key dán ở đây được mã hoá khi lưu, không bao giờ hiện lại, và được dùng thay key trong file .env của máy chủ."
+      />
+      <Section
+        title="Kho ảnh và video miễn phí"
+        description="Hộp “Chọn từ kho ảnh/video”, nút “Tìm ảnh” và việc tự tìm ảnh dùng các kho này, bắt đầu từ Pexels. Tắt một kho thì nó biến khỏi hộp chọn của cả nhóm."
+      >
+        <Flex vertical gap={16}>
+          {data?.auto_photos !== undefined && (
+            <Card size="small" data-testid="auto-photos" style={{ background: token.colorFillQuaternary }}>
+              <Flex gap={12} align="flex-start">
                 <Switch
                   aria-label="Tự tìm ảnh sau khi viết kịch bản"
                   checked={data.auto_photos}
                   loading={busy === "auto-photos"}
                   disabled={busy !== null}
                   onChange={(checked) => void setAutoPhotos(checked)}
+                  style={{ marginTop: 2 }}
                 />
-                <Typography.Text strong>Tự tìm ảnh sau khi viết kịch bản</Typography.Text>
+                <Flex vertical gap={4}>
+                  <Typography.Text strong>Tự tìm ảnh sau khi viết kịch bản</Typography.Text>
+                  <Typography.Text type="secondary">
+                    Viết kịch bản xong, app lấy cho mỗi cảnh một ảnh dọc từ các kho đang bật (không dùng ảnh AI, không
+                    trùng ảnh giữa các cảnh). Ảnh tự chọn có nhãn “Tự chọn, kiểm tra lại” để bạn xem và thay nếu sai
+                    món.
+                  </Typography.Text>
+                  {order.length > 0 && (
+                    <Typography.Text type="secondary" data-testid="stock-order">
+                      Thứ tự tìm: {order.join(" → ")}
+                    </Typography.Text>
+                  )}
+                </Flex>
               </Flex>
-              <Typography.Text type="secondary">
-                Viết kịch bản xong, app lấy cho mỗi cảnh một ảnh dọc từ các kho miễn phí đang bật bên dưới (không dùng
-                ảnh AI, không trùng ảnh giữa các cảnh). Ảnh tự chọn có nhãn “Tự chọn, kiểm tra lại” để bạn xem và thay
-                nếu sai món.
-              </Typography.Text>
-            </Flex>
-          </Card>
-        )}
-        {(data?.sources ?? []).map((source) => (
-          <Card
-            key={source.id}
-            size="small"
-            data-testid={`source-${source.id}`}
-            title={
-              <Flex wrap gap={8} align="center">
-                <span>{source.label}</span>
-                {ready(source.configured)}
-              </Flex>
-            }
-            extra={
-              <Flex gap={8} align="center">
-                <Typography.Text type="secondary">Hiện trong hộp chọn</Typography.Text>
-                <Switch
-                  aria-label={`Bật ${source.label}`}
-                  checked={source.enabled}
-                  loading={busy === source.id}
-                  onChange={(enabled) => toggle(source, enabled)}
-                />
-              </Flex>
-            }
-          >
-            <Flex vertical gap={12}>
-              <Typography.Text type="secondary">Cung cấp: {source.kinds}</Typography.Text>
-              {source.key ? (
-                <KeyField name={source.id} label={source.label} value={source.key} onSaved={setData} />
-              ) : (
-                source.key === null && <Typography.Text type="secondary">Không cần API key.</Typography.Text>
-              )}
-            </Flex>
-          </Card>
-        ))}
-        {data?.ai_provider && (
-          <Card size="small" data-testid="ai-provider" title="Ảnh AI">
-            <Flex vertical gap={8}>
-              <Segmented
-                aria-label="Nguồn ảnh AI mặc định"
-                value={data.ai_provider}
-                disabled={busy !== null}
-                onChange={(value) => void chooseProvider(value as "gemini" | "cloudflare")}
-                options={[
-                  { label: "Cloudflare (miễn phí)", value: "cloudflare" },
-                  { label: "Gemini (tốn phí)", value: "gemini" },
-                ]}
-                style={{ alignSelf: "flex-start" }}
-              />
-              <Typography.Text type="secondary">
-                Các nút “Tạo ảnh AI” dùng nguồn này. Muốn dùng nguồn kia cho một lần bấm, chọn ở mũi tên cạnh nút. Hết
-                lượt Cloudflare trong ngày thì app báo lỗi chứ không tự chuyển sang Gemini (tốn phí).
-                {!data.ai_provider_saved && " Chưa chọn: app dùng Cloudflare nếu đã có token, không thì dùng Gemini."}
-              </Typography.Text>
-              {data.ai_style && style !== null && (
-                <Flex vertical gap={8} style={{ marginTop: 8 }}>
-                  <Typography.Text strong>Phong cách ảnh AI</Typography.Text>
-                  <Input.TextArea
-                    aria-label="Phong cách ảnh AI"
-                    value={style}
-                    autoSize={{ minRows: 2, maxRows: 5 }}
-                    maxLength={500}
-                    onChange={(event) => setStyle(event.target.value)}
+            </Card>
+          )}
+          <Row gutter={[16, 16]}>
+            {stock.map((source) => (
+              <Col key={source.id} xs={24} lg={12} xxl={8}>
+                <Card
+                  size="small"
+                  data-testid={`source-${source.id}`}
+                  style={{ height: "100%" }}
+                  title={
+                    <Flex wrap gap={6} align="center">
+                      <span>{source.label}</span>
+                      {ready(source.configured)}
+                      {source.id === DEFAULT_STOCK && <Tag color="processing">Mặc định</Tag>}
+                    </Flex>
+                  }
+                  extra={
+                    <Switch
+                      aria-label={`Bật ${source.label}`}
+                      title="Hiện trong hộp chọn"
+                      checked={source.enabled}
+                      loading={busy === source.id}
+                      onChange={(enabled) => toggle(source, enabled)}
+                    />
+                  }
+                >
+                  <Flex vertical gap={12}>
+                    <Typography.Text type="secondary">Cung cấp: {source.kinds}</Typography.Text>
+                    {source.key ? (
+                      <KeyField name={source.id} label={source.label} value={source.key} onSaved={setData} />
+                    ) : (
+                      source.key === null && <Typography.Text type="secondary">Không cần API key.</Typography.Text>
+                    )}
+                  </Flex>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        </Flex>
+      </Section>
+
+      {data && (
+        <Section
+          title="Dịch vụ AI"
+          description="Ảnh AI cho các nút “Tạo ảnh AI” (dùng nguồn mặc định; muốn dùng nguồn kia cho một lần bấm, chọn ở mũi tên cạnh nút) và giọng đọc ElevenLabs."
+        >
+          <Flex vertical gap={16}>
+            {data.ai_provider && (
+              <Card size="small" data-testid="ai-provider" title="Nguồn mặc định và phong cách">
+                <Flex vertical gap={8}>
+                  <Segmented
+                    aria-label="Nguồn ảnh AI mặc định"
+                    value={data.ai_provider}
+                    disabled={busy !== null}
+                    onChange={(value) => void chooseProvider(value as "gemini" | "cloudflare")}
+                    options={[
+                      { label: "Cloudflare (miễn phí)", value: "cloudflare" },
+                      { label: "Gemini (tốn phí)", value: "gemini" },
+                    ]}
+                    style={{ alignSelf: "flex-start" }}
                   />
                   <Typography.Text type="secondary">
-                    Thêm vào sau prompt của mọi cảnh khi tạo ảnh AI, để các cảnh cùng một kiểu (nên viết tiếng Anh). Để
-                    trống thì chỉ dùng prompt của cảnh.
+                    Hết lượt Cloudflare trong ngày thì app báo lỗi chứ không tự chuyển sang Gemini (tốn phí).
+                    {!data.ai_provider_saved &&
+                      " Chưa chọn: app dùng Cloudflare nếu đã có token, không thì dùng Gemini."}
                   </Typography.Text>
-                  <Space>
-                    <Button
-                      type="primary"
-                      loading={busy === "ai-style"}
-                      disabled={busy !== null || style.trim() === data.ai_style.value}
-                      onClick={() => void saveStyle(style)}
-                    >
-                      Lưu phong cách
-                    </Button>
-                    {data.ai_style.custom && (
-                      <Button disabled={busy !== null} onClick={() => void saveStyle(null)}>
-                        Dùng mặc định
-                      </Button>
-                    )}
-                  </Space>
+                  {data.ai_style && style !== null && (
+                    <Flex vertical gap={8} style={{ marginTop: 8 }}>
+                      <Typography.Text strong>Phong cách ảnh AI</Typography.Text>
+                      <Input.TextArea
+                        aria-label="Phong cách ảnh AI"
+                        value={style}
+                        autoSize={{ minRows: 2, maxRows: 5 }}
+                        maxLength={500}
+                        onChange={(event) => setStyle(event.target.value)}
+                      />
+                      <Typography.Text type="secondary">
+                        Thêm vào sau prompt của mọi cảnh khi tạo ảnh AI, để các cảnh cùng một kiểu (nên viết tiếng Anh).
+                        Để trống thì chỉ dùng prompt của cảnh.
+                      </Typography.Text>
+                      <Space>
+                        <Button
+                          type="primary"
+                          loading={busy === "ai-style"}
+                          disabled={busy !== null || style.trim() === data.ai_style.value}
+                          onClick={() => void saveStyle(style)}
+                        >
+                          Lưu phong cách
+                        </Button>
+                        {data.ai_style.custom && (
+                          <Button disabled={busy !== null} onClick={() => void saveStyle(null)}>
+                            Dùng mặc định
+                          </Button>
+                        )}
+                      </Space>
+                    </Flex>
+                  )}
                 </Flex>
+              </Card>
+            )}
+            <Row gutter={[16, 16]}>
+              {data.ai_images_cloudflare && (
+                <Col xs={24} lg={12} xxl={8}>
+                  <Card
+                    size="small"
+                    data-testid="source-cloudflare"
+                    style={{ height: "100%" }}
+                    title={
+                      <Flex wrap gap={6} align="center">
+                        <span>Cloudflare</span>
+                        {ready(data.ai_images_cloudflare.configured)}
+                        {data.ai_provider === "cloudflare" && <Tag color="processing">Mặc định</Tag>}
+                      </Flex>
+                    }
+                  >
+                    <Flex vertical gap={12}>
+                      <Typography.Text type="secondary">
+                        Model: {data.ai_images_cloudflare.model} · miễn phí khoảng 57 ảnh mỗi ngày (10.000 neurons).
+                      </Typography.Text>
+                      <KeyField
+                        name="cloudflare"
+                        label="Cloudflare"
+                        value={data.ai_images_cloudflare.key}
+                        onSaved={setData}
+                        note="Dán API token Workers AI của Cloudflare (quyền Workers AI › Read)."
+                      />
+                      {!data.ai_images_cloudflare.account_id_set && (
+                        <Typography.Text type="warning">
+                          Máy chủ chưa có IMAGE_GEN_CF_ACCOUNT_ID (Account ID của Cloudflare) trong file .env.
+                        </Typography.Text>
+                      )}
+                    </Flex>
+                  </Card>
+                </Col>
               )}
-            </Flex>
-          </Card>
-        )}
-        {data && (
-          <Card
-            size="small"
-            data-testid="source-gemini"
-            title={
-              <Flex wrap gap={8} align="center">
-                <span>Ảnh AI (Gemini)</span>
-                {ready(data.ai_images.configured)}
-                {data.ai_provider === "gemini" && <Tag color="processing">Mặc định</Tag>}
-              </Flex>
-            }
-          >
-            <Flex vertical gap={12}>
-              <Typography.Text type="secondary">Model: {data.ai_images.model}</Typography.Text>
-              {data.ai_images.key && (
-                <KeyField name="gemini" label="Gemini" value={data.ai_images.key} onSaved={setData} />
+              <Col xs={24} lg={12} xxl={8}>
+                <Card
+                  size="small"
+                  data-testid="source-gemini"
+                  style={{ height: "100%" }}
+                  title={
+                    <Flex wrap gap={6} align="center">
+                      <span>Gemini</span>
+                      {ready(data.ai_images.configured)}
+                      {data.ai_provider === "gemini" && <Tag color="processing">Mặc định</Tag>}
+                    </Flex>
+                  }
+                >
+                  <Flex vertical gap={12}>
+                    <Typography.Text type="secondary">Model: {data.ai_images.model}</Typography.Text>
+                    {data.ai_images.key && (
+                      <KeyField name="gemini" label="Gemini" value={data.ai_images.key} onSaved={setData} />
+                    )}
+                  </Flex>
+                </Card>
+              </Col>
+              {data.voices && (
+                <Col xs={24} lg={12} xxl={8}>
+                  <Card
+                    size="small"
+                    data-testid="source-elevenlabs"
+                    style={{ height: "100%" }}
+                    title={
+                      <Flex wrap gap={6} align="center">
+                        <span>ElevenLabs</span>
+                        {ready(data.voices.configured)}
+                      </Flex>
+                    }
+                  >
+                    <Flex vertical gap={12}>
+                      <Typography.Text type="secondary">
+                        Đọc lời từng cảnh khi render, và danh sách giọng ở Thiết lập mặc định.
+                      </Typography.Text>
+                      <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
+                    </Flex>
+                  </Card>
+                </Col>
               )}
-            </Flex>
-          </Card>
-        )}
-        {data?.ai_images_cloudflare && (
-          <Card
-            size="small"
-            data-testid="source-cloudflare"
-            title={
-              <Flex wrap gap={8} align="center">
-                <span>Ảnh AI (Cloudflare)</span>
-                {ready(data.ai_images_cloudflare.configured)}
-                {data.ai_provider === "cloudflare" && <Tag color="processing">Mặc định</Tag>}
-              </Flex>
-            }
-          >
-            <Flex vertical gap={12}>
-              <Typography.Text type="secondary">
-                Model: {data.ai_images_cloudflare.model} · miễn phí khoảng 57 ảnh mỗi ngày (10.000 neurons).
-              </Typography.Text>
-              <KeyField
-                name="cloudflare"
-                label="Cloudflare"
-                value={data.ai_images_cloudflare.key}
-                onSaved={setData}
-                note="Dán API token Workers AI của Cloudflare (quyền Workers AI › Read)."
-              />
-              {!data.ai_images_cloudflare.account_id_set && (
-                <Typography.Text type="warning">
-                  Máy chủ chưa có IMAGE_GEN_CF_ACCOUNT_ID (Account ID của Cloudflare) trong file .env.
-                </Typography.Text>
-              )}
-            </Flex>
-          </Card>
-        )}
-        {data?.voices && (
-          <Card
-            size="small"
-            data-testid="source-elevenlabs"
-            title={
-              <Flex wrap gap={8} align="center">
-                <span>Giọng đọc (ElevenLabs)</span>
-                {ready(data.voices.configured)}
-              </Flex>
-            }
-          >
-            <Flex vertical gap={12}>
-              <Typography.Text type="secondary">
-                Đọc lời từng cảnh khi render và danh sách giọng ở Thiết lập mặc định.
-              </Typography.Text>
-              <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
-            </Flex>
-          </Card>
-        )}
-      </Flex>
-    </>
+            </Row>
+          </Flex>
+        </Section>
+      )}
+    </Flex>
   );
 }

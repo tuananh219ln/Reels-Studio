@@ -143,6 +143,13 @@ def test_stopping_a_page_takes_it_off_the_video_page_and_blocks_posting(an, db, 
     assert an.patch(f"{URL}/{row['id']}", json={"active": True}).json()[0]["active"] is True
 
 
+def test_the_video_page_names_who_connected_each_page(an, db, me, storage, fakes):
+    connect(an)
+    video = make_video(db, storage, me)
+    (listed,) = an.get(f"/api/videos/{video.id}").json()["fanpages"]
+    assert (listed["name"], listed["owner"]) == ("Trang Dưỡng Sinh", "Nguyễn Văn An")
+
+
 def test_an_unknown_fanpage_is_not_found(an):
     assert an.patch(f"{URL}/999", json={"active": False}).status_code == 404
 

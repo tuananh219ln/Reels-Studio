@@ -207,7 +207,7 @@ def test_a_job_starting_during_the_pixabay_search_blocks_the_photo_save(an, db, 
         return photo
 
     monkeypatch.setattr(routes_videos.Pixabay, "find_photo", find_then_render)
-    response = an.post(f"/api/scenes/{target}/find-image")
+    response = an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"})
     assert (response.status_code, response.json()["message"]) == (409, "Video đang render, chưa lưu")
     assert db.scalar(select(Scene.image_key).where(Scene.id == target)) == before
 
@@ -475,7 +475,7 @@ def test_find_other_photo_assigns_a_different_pixabay_photo(an, db, me, storage,
     fakes.pixabay_results["cá cơm"] = ["p1", "p2", "p3"]
     sources = []
     for _ in range(4):
-        assert an.post(f"/api/scenes/{target}/find-image").status_code == 200
+        assert an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"}).status_code == 200
         sources.append(db.scalar(select(Scene.image_source).where(Scene.id == target)))
     # Each press moves on through the results instead of bouncing between two photos.
     assert sources == [fakes.image_url(name) for name in ("p1", "p2", "p3", "p1")]
@@ -487,15 +487,15 @@ def test_find_other_photo_tries_the_next_keyword_then_reports_none(an, db, me, s
     target = scene_ids(db, video)[0]
     an.patch(f"/api/scenes/{target}", json={"keywords": ["một", "hai"]})
     fakes.pixabay_results.update({"một": ["only"], "hai": ["other"]})
-    an.post(f"/api/scenes/{target}/find-image")
+    an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"})
     assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("only")
-    an.post(f"/api/scenes/{target}/find-image")
+    an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"})
     assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("other")
 
     fakes.pixabay_results.update({"một": ["other"], "hai": ["other"]})
     an.patch(f"/api/scenes/{target}", json={"keywords": ["ba"]})
     fakes.pixabay_results["ba"] = ["other"]
-    none = an.post(f"/api/scenes/{target}/find-image")
+    none = an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"})
     assert (none.status_code, none.json()["message"]) == (404, "Không tìm thấy ảnh khác, hãy đổi từ khóa")
     assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("other")
 
@@ -512,7 +512,7 @@ def test_find_other_photo_searches_the_english_keywords_when_the_script_wrote_th
     target = scene_ids(db, video)[0]
     an.patch(f"/api/scenes/{target}", json={"keywords": ["cá cơm"], "keywords_en": ["fried fish"]})
     fakes.pixabay_results["fried fish"] = ["en1"]
-    assert an.post(f"/api/scenes/{target}/find-image").status_code == 200
+    assert an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"}).status_code == 200
     # Pixabay indexes in English: only the English list was searched, never the Vietnamese one.
     assert fakes.pixabay_queries == ["fried fish"]
     assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("en1")
@@ -529,6 +529,16 @@ def test_find_other_photo_from_pexels_walks_the_english_keywords(an, db, me, sto
         sources.append(db.scalar(select(Scene.image_source).where(Scene.id == target)))
     assert sources == [fakes.image_url(name) for name in ("px1", "px2", "px1")]
     assert set(fakes.pexels_queries) == {"fried fish"} and fakes.pixabay_queries == []
+
+
+def test_find_other_photo_searches_pexels_by_default(an, db, me, storage, fakes):
+    video = make_video(db, storage, me, images=False)
+    target = scene_ids(db, video)[0]
+    an.patch(f"/api/scenes/{target}", json={"keywords": ["cá cơm"], "keywords_en": ["fried fish"]})
+    fakes.pexels_results["fried fish"] = ["px1"]
+    assert an.post(f"/api/scenes/{target}/find-image").status_code == 200
+    assert fakes.pexels_queries == ["fried fish"] and fakes.pixabay_queries == []
+    assert db.scalar(select(Scene.image_source).where(Scene.id == target)) == fakes.image_url("px1")
 
 
 def test_find_other_photo_from_openverse_searches_the_vietnamese_keywords(an, db, me, storage, fakes):
@@ -565,7 +575,7 @@ def test_pixabay_failures_keep_the_old_photo(an, db, me, storage, fakes, monkeyp
         monkeypatch.setenv("PIXABAY_API_KEY", "wrong")
     else:
         fakes.pixabay_mode = setup
-    response = an.post(f"/api/scenes/{target}/find-image")
+    response = an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"})
     assert response.status_code == 502 and message in response.json()["message"]
     assert db.scalar(select(Scene.image_key).where(Scene.id == target)) == before
 
@@ -578,7 +588,7 @@ def test_a_slow_pixabay_is_given_up_after_about_ten_seconds(an, db, me, storage,
     target = scene_ids(db, video)[0]
     fakes.pixabay_mode = "hang"
     started = time.monotonic()
-    response = an.post(f"/api/scenes/{target}/find-image")
+    response = an.post(f"/api/scenes/{target}/find-image", params={"source": "pixabay"})
     assert response.status_code == 502 and "không phản hồi kịp" in response.json()["message"]
     assert time.monotonic() - started < 5
 
@@ -589,8 +599,8 @@ def test_a_slow_pixabay_is_given_up_after_about_ten_seconds(an, db, me, storage,
 def test_stock_sources_list_what_is_configured(an, fakes):
     sources = an.get("/api/stock/sources").json()
     assert [(item["id"], item["available"]) for item in sources] == [
-        ("pixabay", True),
         ("pexels", True),
+        ("pixabay", True),
         ("openverse", True),
     ]
 

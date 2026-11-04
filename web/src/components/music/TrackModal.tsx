@@ -1,9 +1,10 @@
 "use client";
 
-import { App, Form, Input, Modal, Select, Typography } from "antd";
+import { App, Form, Input, Select, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, upload, type MusicTrack } from "@/lib/api";
 import { useMusicOptions } from "./useTracks";
+import FormDrawer from "@/components/FormDrawer";
 
 export const MAX_MUSIC_BYTES = 20 * 1024 * 1024;
 
@@ -62,10 +63,10 @@ export default function TrackModal({
   }
 
   return (
-    <Modal
+    <FormDrawer
       title={adding ? "Thêm vào thư viện nhạc" : "Sửa bài nhạc"}
       open={target !== null}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText={adding ? "Thêm" : "Lưu"}
       cancelText="Huỷ"
@@ -99,6 +100,6 @@ export default function TrackModal({
           <Input />
         </Form.Item>
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }

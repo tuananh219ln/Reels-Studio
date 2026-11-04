@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session as DbSession
 from reels_api.config import database_url
 from reels_api.knowledge import default_clone_prompt, default_script_prompt
 from reels_api.models import (
+    AffiliateAccount,
     AffiliateProduct,
     AppSetting,
     Fanpage,
@@ -53,6 +54,7 @@ def main() -> int:
             Video,
             Fanpage,
             AffiliateProduct,
+            AffiliateAccount,
             KnowledgeTopic,
             MusicTrack,
             Setting,

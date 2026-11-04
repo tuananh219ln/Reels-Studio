@@ -1,14 +1,46 @@
-"""Affiliate Shopee rules shared by the routes and the worker: which products may be approved, and the comment a reel
-gets under it (the script's pinned comment, then one link per usable product attached to the video)."""
+"""Affiliate rules shared by the routes and the worker: which products may be approved on each platform, and the
+comment a reel gets under it (the script's pinned comment, then one link per usable Shopee product attached to the
+video, made with the Page's own Shopee account when it has one)."""
+
+import logging
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from .models import AffiliateProduct, Video, VideoAffiliateProduct
+from . import crypto, shopee
+from .models import (
+    AffiliateAccount,
+    AffiliateLink,
+    AffiliateProduct,
+    Fanpage,
+    Publication,
+    Video,
+    VideoAffiliateProduct,
+)
 from .script_rules import banned_hits
 
+log = logging.getLogger("reels_api.affiliate")
+
+PLATFORMS = {"shopee": "Shopee", "tiktok_shop": "TikTok Shop"}
+# The products a video takes: a Facebook reel carries Shopee links, a TikTok video TikTok Shop's cart.
+PRODUCT_PLATFORM = {"facebook": "shopee", "tiktok": "tiktok_shop"}
+SHOP_TYPES = {
+    "shopee": {
+        "mall": "Shopee Mall",
+        "preferred_plus": "Shop Yêu Thích+",
+        "preferred": "Shop Yêu Thích",
+        "other": "Shop thường",
+    },
+    # Proposed in issue #47 and waiting for the owner: TikTok Shop's own Mall, or a shop scoring at least 4.0.
+    "tiktok_shop": {"mall": "TikTok Shop Mall", "trusted": "Điểm shop từ 4.0", "other": "Shop thường"},
+}
 # A high commission does not make up for a poor shop: below these a product cannot be approved.
-TRUSTED_SHOP_TYPES = {"mall", "preferred_plus", "preferred"}
+TRUSTED_SHOP_TYPES = {"shopee": {"mall", "preferred_plus", "preferred"}, "tiktok_shop": {"mall", "trusted"}}
+TRUSTED_SHOPS_TEXT = {
+    "shopee": "Shop phải là Shopee Mall, Yêu Thích hoặc Yêu Thích+",
+    "tiktok_shop": "Shop phải là TikTok Shop Mall hoặc có điểm shop từ 4.0",
+}
 MIN_RATING = 4.7
 MIN_SOLD = 100
 # Facebook's limit for a comment is 8000 characters; a comment is cut well before it.
@@ -18,12 +50,16 @@ MAX_COMMENT_LENGTH = 8000
 def problems(product: AffiliateProduct) -> list[str]:
     """Why a member may not approve this product."""
     found = []
-    if product.shop_type not in TRUSTED_SHOP_TYPES:
-        found.append("Shop phải là Shopee Mall, Yêu Thích hoặc Yêu Thích+")
+    if product.shop_type not in TRUSTED_SHOP_TYPES[product.platform]:
+        found.append(TRUSTED_SHOPS_TEXT[product.platform])
     if product.rating < MIN_RATING:
         found.append(f"Đánh giá dưới {MIN_RATING} sao")
     if product.sold < MIN_SOLD:
         found.append(f"Lượt bán dưới {MIN_SOLD}")
+    if product.platform == "tiktok_shop" and product.commission_rate <= 0:
+        found.append("Hoa hồng phải lớn hơn 0")
+    if product.commission_end_at is not None and product.commission_end_at <= datetime.now(UTC):
+        found.append("Hoa hồng đã hết hạn")
     hits = banned_hits(product.name, product.topic.banned_words)
     if hits:
         found.append(f"Tên có từ cấm: {', '.join(hits)}")
@@ -46,7 +82,57 @@ def products_of(db: DbSession, video_id: int) -> list[AffiliateProduct]:
     )
 
 
-def comment_text(db: DbSession, video: Video) -> str:
-    """The comment under the video's reels: its pinned comment, then "name: link" per usable attached product."""
-    links = [f"{product.name}: {product.url}" for product in products_of(db, video.id) if usable(product)]
-    return "\n".join(part for part in [video.pinned_comment.strip(), *links] if part)[:MAX_COMMENT_LENGTH]
+def credentials(account: AffiliateAccount) -> shopee.Credentials | None:
+    """The account's Open API keys, when it is a Shopee account in use that has them."""
+    if account.platform != "shopee" or not account.active or not account.app_id or not account.secret_encrypted:
+        return None
+    return shopee.Credentials(account.app_id, crypto.decrypt(account.secret_encrypted))
+
+
+def page_account(db: DbSession, page: Fanpage | None) -> AffiliateAccount | None:
+    """The Page's Shopee account, only while it still belongs to the Page's owner and is in use."""
+    if page is None or page.shopee_account_id is None:
+        return None
+    account = db.get(AffiliateAccount, page.shopee_account_id)
+    if account is None or account.owner_id != page.owner_id or credentials(account) is None:
+        return None
+    return account
+
+
+def sub_ids(video_id: int, fanpage_id: int) -> list[str]:
+    """What a link carries so an order names its video and Page (read back by affiliate_rounds.read_orders)."""
+    return [f"v{video_id}", f"p{fanpage_id}"]
+
+
+def _link(db: DbSession, product: AffiliateProduct, post: Publication, account: AffiliateAccount | None) -> str | None:
+    """The product's link under this post: the Page's account makes its own (once, then kept); without one, the link
+    a member pasted. Raises ShopeeError when Shopee cannot make it."""
+    if account is None:
+        return product.url
+    origin = product.page_url or product.url
+    if not origin:
+        return None
+    key = {"product_id": product.id, "account_id": account.id, "video_id": post.video_id, "fanpage_id": post.fanpage_id}
+    kept = db.scalar(select(AffiliateLink).filter_by(**key))
+    if kept is not None:
+        return kept.url
+    url = shopee.short_link(credentials(account), origin, sub_ids(post.video_id, post.fanpage_id))
+    db.add(AffiliateLink(**key, url=url))
+    db.flush()
+    log.info("Made a Shopee link for product %s on Page %s", product.id, post.fanpage_id)
+    return url
+
+
+def comment_text(db: DbSession, post: Publication) -> str:
+    """The comment under the post: the video's pinned comment, then "name: link" per usable attached Shopee product
+    that has a link for the post's Page. Raises ShopeeError when a link cannot be made."""
+    video = db.get(Video, post.video_id)
+    account = page_account(db, db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None)
+    lines = []
+    for product in products_of(db, video.id):
+        if product.platform != "shopee" or not usable(product):
+            continue
+        link = _link(db, product, post, account)
+        if link:
+            lines.append(f"{product.name}: {link}")
+    return "\n".join(part for part in [video.pinned_comment.strip(), *lines] if part)[:MAX_COMMENT_LENGTH]

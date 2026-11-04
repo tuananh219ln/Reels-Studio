@@ -11,6 +11,133 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-03 — Clips from a pasted link, TikTok included; picture tools under the picture
+
+Owner's request: taking a photo from Google by its link worked well, and should work for videos and TikTok too.
+Google and TikTok are still not stock sources in "Chọn từ kho ảnh/video" (the owner dropped that idea; the
+2026-11-02 reasons stand: no usable API, scraping breaks their terms). Instead:
+
+- **One link endpoint for photos and clips.** `POST /scenes/{id}/media-from-url` replaces `image-from-url`
+  (`remote_images.py` is now [remote_media.py](../api/src/reels_api/remote_media.py)) and takes a photo's link, a
+  video file's link (MP4, MOV, WebM) or a TikTok video's link; what was downloaded decides whether it is a photo or
+  a clip. Same public-internet-only rules; the download may be a clip's 50 MB and take up to 60 s, still inside the
+  request (like the photo link, not a job: the member waits for it on the scene).
+- **TikTok through yt-dlp.** A link on `tiktok.com` (any subdomain, short `vt.`/`vm.` links included) is handed to
+  [yt-dlp](https://github.com/yt-dlp/yt-dlp), which reads the page and fetches the video from TikTok, the largest
+  size offered, H.264 before HEVC. Photo posts, profiles and other lists are refused. The owner accepts the risk of
+  reusing other people's TikTok videos (copyright, "unoriginal content" on Facebook and YouTube): the member who
+  pastes the link chooses the video and is responsible for it, as for an upload. A clip's link is not stored (the
+  scene has no column for a clip's source).
+- **A linked clip over 60 s keeps its first minute** (cut without re-encoding), since TikTok videos often run longer
+  than a scene's clip may be; an uploaded file still has to be 60 s at most.
+- **"Tìm trên TikTok"** beside "Tìm trên Google" opens TikTok's video search on the scene's first keyword, to copy a
+  video's link and paste it back; Google Ảnh still opens on tall photos.
+- **Picture tools in the picture's middle.** On hover, "Xem" (new: the scene large in its 9:16 frame, photo or
+  clip, with its text switchable on and off), "Chỉnh khung"/"Cắt video", "Vị trí chữ" and "Xoá video" are stacked in the middle of the scene's picture
+  instead of along its bottom edge; "Thay" is gone ("Tải lên" does the same). The crop, trim, text
+  position, paste and stock dialogs open in the middle of the screen; crop and trim put the picture on the left and
+  their controls beside it, so "Áp dụng" is reached without scrolling.
+
+## 2026-11-03 — Pexels is the default stock library; team defaults are edited, then saved
+
+Owner's request. Pexels comes first everywhere a stock photo is looked for: the picker opens on it,
+"Tìm ảnh" searches it (the api's default `source`), and "Tự tìm ảnh" asks Pexels, then Pixabay, then
+Openverse. Without a Pexels key the first source offered is used. This replaces the Pixabay default of
+"“Tìm ảnh khác” can search any stock source", "The picker offers three stock sources" and the order in
+"“Tự tìm ảnh”: jobs now pick stock photos after the script" (below).
+
+"Thiết lập mặc định" is no longer saved at each change: it is read-only until "Chỉnh sửa", and "Lưu"
+sends every change together ("Huỷ" drops them), so a half-done change never reaches new videos. A
+video's own "Thiết lập" tab still saves at once.
+
+## 2026-11-03 — "Bài đăng" no longer suggests posting a video to another Page
+
+Owner's call: the "Đăng thêm lên Page khác" card is gone. It suggested sending the same MP4 to a second Page, which
+docs/specs/multi-platform/plan.md warns against: Meta shows a copy less and can stop paying a Page that repeats
+content. In its place, from the same "did well" reading (a post reached its Page's usual 48-hour views, or the
+Page has too few measured posts), two cards beside "Sẵn sàng đăng": "Nên làm bản TikTok" (no TikTok version yet,
+opens "Tạo bản TikTok") and "Nhân bản cho Page khác" (no Facebook clone yet and missing from a working Page, opens
+"Nhân bản" with a request for a real variant). Both make the member's choice one click; each costs one LLM call
+only when the member confirms.
+
+## 2026-11-03 — Forms open in a drawer, not a centred dialog
+
+Owner's request ("chuyển tất cả các modal sang drawer"), narrowed with the owner to the dialogs holding a form: a
+drawer keeps the page in view beside the form and scrolls a long form inside it (the product form no longer runs
+off the screen). Dialogs that need the whole screen (photo and clip editors, stock picker, previews, numbers) and
+yes/no confirmations stay centred dialogs. One component, `FormDrawer`, takes the props the form dialogs took, so
+the screens read alike; see [ux-guidelines.md](ux-guidelines.md).
+
+## 2026-11-03 — Affiliate accounts, links and revenue belong to one member
+
+Owner's call on issue #47 ("tài khoản aff dùng mỗi người một tài khoản riêng"; "thành viên có được xem hoặc sửa tài
+khoản aff và doanh thu của người khác không? Không"). This is the first data in the app that belongs to one member,
+next to "There is no self-signup and there are no roles: every member can manage users" (2026-10-31), which stays
+true for everything else.
+
+- **Accounts** (`affiliate_accounts`, migration 0031): each member adds their own Shopee accounts (with the Open
+  API's App ID and Secret) and TikTok accounts on Cấu hình › Tài khoản affiliate. Every query is narrowed to the
+  signed-in member; someone else's account answers as if it did not exist.
+- **Shopee's App ID and Secret** are a new kind of key stored encrypted in the database, like a Fanpage token: they
+  only go in, and only the last characters of the Secret are shown.
+- **Pages have an owner** (`fanpages.owner_id`): the member who connected it, the one who last touched it for Pages
+  already there. Only the owner sets its Shopee account (one of their own); a Page that belongs to nobody is
+  taken by a member for themself ("Nhận Page này"). There is no handing a Page to another member: the owner found it
+  unneeded, and a Page with an owner keeps it.
+- **Orders** read from Shopee are shown only to the account's owner ("Doanh thu" on `/affiliate`).
+- The product list stays the team's: what Shopee says about a product is not private.
+
+## 2026-11-03 — Products per platform; Shopee suggestions and links through its API, never by scraping
+
+Owner's request on issue #47 ("tôi không thể tự tìm thủ công được"). Replaces "Affiliate products are approved by
+fixed rules" (2026-10-31) only in that the rules now depend on the platform.
+
+- **Two platforms.** A product is Shopee's or TikTok Shop's (`affiliate_products.platform`). Shopee keeps its rules
+  (Mall / Yêu Thích+ / Yêu Thích, 4.7 stars, 100 sales, no banned word) and adds "the commission has not expired".
+  TikTok Shop's are the proposal in the issue, still waiting for the owner: TikTok Shop Mall or a shop scoring at
+  least 4.0, 4.7 stars, 100 sales, a commission above 0, no banned word. They live in `affiliate.py` alone.
+- **Shopee's Affiliate Open API, not scraping.** Scraping Shopee breaks its terms, is blocked by its bot checks, and
+  gives no affiliate link anyway. The worker searches `productOfferV2` with the script's product ideas, using the
+  asking member's own account, keeps up to 5 products per idea that meet the rules, best first (money per sale,
+  weighed by stars and sales), and a member presses "Chọn". Without an account, each idea opens Shopee Affiliate's
+  own search.
+- **Each Page gets its own link.** When the worker writes a reel's comment on a Page whose owner set a Shopee account,
+  it makes that account's short link once per product, video and Page (`generateShortLink`, sub ids `v<video>` and
+  `p<page>`, kept in `affiliate_links`), so an order names the video and Page. A Page without one keeps the link a
+  member pasted. A Shopee failure is recorded on the post like a Facebook one and waits for a member.
+- **Not jobs.** Suggestions, the daily check of approved API products (back to draft when Shopee no longer offers one
+  or it fails the rules) and the daily reading of orders are worker rounds between jobs, like the post numbers: a
+  request never calls Shopee (except "Kiểm tra kết nối", one search, like the AI providers' check), and nothing
+  loops. A suggestion job would also have fought the photo search for the video's one active job.
+- Shopee publishes its API documentation only inside the affiliate dashboard. The signature, field names, sort and
+  shop type codes follow third-party clients and are tested only against the fake service; `shopee.py` is the one
+  place to change them, and a member with an App ID should try it once for real.
+
+## 2026-11-03 — A TikTok version is its own video, cloned from the Facebook one, and posted by hand
+
+Owner's choice on issue #47, following docs/specs/multi-platform/plan.md: one file must not go to two platforms,
+and TikTok's money comes from TikTok Shop's cart, set only in TikTok's app.
+
+- **A video has one platform** (`videos.platform`, Facebook for every video before). "Tạo bản TikTok" is "Nhân bản"
+  with a request filled in (a question as the hook, a short caption, few hashtags, 1–2 other scenes and photos) that
+  the member may change; the new video names its source (`variant_of_id`) and both pages link to each other. It
+  costs one LLM call, like any clone.
+- **Products follow the video's platform**: a Facebook video takes Shopee products (links in the comment), a TikTok
+  version TikTok Shop products (the cart).
+- **Posted by hand.** The TikTok version's "Xuất bản" has the MP4, the caption, the cart's products and a checklist
+  (AIGC label, cart, disclaimer, TikTok's own music); "Đã đăng tay" records the post with its link on one of the
+  member's own TikTok accounts (`publications` with `platform = tiktok`, no `remote_id`, so no Facebook reading
+  touches it). Posting through TikTok's API, and reading its numbers, stay with issue #46.
+
+## 2026-11-03 — Pages showing Facebook data ask for a fresh reading when opened
+
+Requested by a member (namtc): "Kết nối Fanpage", "Bài đăng" and "Bình luận" should not wait for "Kiểm tra ngay",
+"Cập nhật view" or "Tải bình luận mới" to be pressed. Opening one of them calls its `POST .../freshen`, which asks the
+worker for what has not been read in the last 15 minutes: the Pages in use, the posts still followed (an hour to 14
+days live), the reels followed for comments. This keeps the earlier rules: a request still never calls Facebook,
+nothing already asked for or read minutes ago is asked again (so five members opening the page add nothing), and posts
+older than 14 days are still read only on "Cập nhật view". The buttons stay for asking at once.
+
 ## 2026-11-03 — "Tự viết": a video without the AI, which then has no AI safety review
 
 Owner's request ("tạo video mà không cần theo prompt"). "Tạo video" can make a video with no LLM call: the member pastes a

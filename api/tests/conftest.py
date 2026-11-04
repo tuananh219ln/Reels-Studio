@@ -166,6 +166,7 @@ def isolated_files(tmp_path, monkeypatch):
         "IMAGE_GEN_CF_MODEL",
         "ELEVENLABS_VOICE_ID",
         "ELEVENLABS_MODEL",
+        "SHOPEE_AFFILIATE_API_URL",
     ):
         monkeypatch.setenv(name, "")
 

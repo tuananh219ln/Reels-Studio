@@ -17,7 +17,7 @@ from datetime import timedelta
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session as DbSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import joinedload, sessionmaker
 
 from . import analytics, crypto, facebook
 from .facebook import FacebookError, Page
@@ -28,6 +28,8 @@ log = logging.getLogger("reels_api.fanpages")
 
 TOKEN_TAIL = 4
 EVERY = timedelta(hours=12)
+# Opening "Kết nối Fanpage" asks for a check of a Page whose last one is older than this.
+ON_OPEN = timedelta(minutes=15)
 # Page Insights days re-read at each check: Facebook revises its last days for a while.
 INSIGHTS_DAYS = 7
 # Pages checked per round of the worker; with INSIGHTS_TIMEOUT a dead Facebook holds the queue ~30 s at most.
@@ -42,6 +44,9 @@ def save(db: DbSession, page_id: str, name: str, token: str, user_id: int) -> Fa
         row = Fanpage(page_id=page_id)
         db.add(row)
     row.name, row.active, row.updated_by_id = name, True, user_id
+    # The member who connects a Page owns it; a new token from someone else does not take it from its owner.
+    if row.owner_id is None:
+        row.owner_id = user_id
     row.token_encrypted = crypto.encrypt(token)
     row.token_tail = token[-TOKEN_TAIL:]
     row.checked_at = row.check_error = None
@@ -49,7 +54,8 @@ def save(db: DbSession, page_id: str, name: str, token: str, user_id: int) -> Fa
 
 
 def in_use(db: DbSession) -> list[Fanpage]:
-    return list(db.scalars(select(Fanpage).where(Fanpage.active.is_(True)).order_by(Fanpage.name, Fanpage.id)))
+    query = select(Fanpage).options(joinedload(Fanpage.updated_by)).where(Fanpage.active.is_(True))
+    return list(db.scalars(query.order_by(Fanpage.name, Fanpage.id)))
 
 
 def load_page(db: DbSession, fanpage_id: int | None) -> Page:
@@ -76,6 +82,22 @@ def _asked():
         Fanpage.check_requested_at.is_not(None),
         or_(Fanpage.checked_at.is_(None), Fanpage.checked_at < Fanpage.check_requested_at),
     )
+
+
+def ask_if_stale(db: DbSession) -> int:
+    """Opening "Kết nối Fanpage": ask for a check of each Page in use not checked for `ON_OPEN`, unless one is already
+    asked for. A Page never checked is due anyway. Returns how many were asked; the caller commits."""
+    rows = db.scalars(
+        select(Fanpage).where(
+            Fanpage.active.is_(True),
+            Fanpage.checked_at.is_not(None),
+            Fanpage.checked_at <= now() - ON_OPEN,
+            ~_asked(),
+        )
+    ).all()
+    for row in rows:
+        request_check(row)
+    return len(rows)
 
 
 def due_checks(db: DbSession, limit: int = BATCH) -> list[Fanpage]:

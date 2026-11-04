@@ -1,10 +1,17 @@
 "use client";
 
-import { CopyOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Card, Flex, Select, Typography } from "antd";
+import { CopyOutlined, SearchOutlined } from "@ant-design/icons";
+import { App, Alert, Button, Card, Flex, Image, Select, Space, Tag, Typography } from "antd";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/lib/api";
+import { useCallback, useEffect, useState } from "react";
+import {
+  api,
+  errorMessage,
+  formatDateTime,
+  type AffiliateProduct,
+  type AffiliateSuggestions,
+  type VideoDetail,
+} from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 
 type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_comment" | "music_suggestions">;
@@ -52,10 +59,15 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           label="Gợi ý sản phẩm (AI)"
           value={video.affiliates.join("\n")}
           multiline
-          hint="Gợi ý để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
+          hint={
+            video.platform === "tiktok"
+              ? "Từ khoá để tìm sản phẩm trong mục “Thêm sản phẩm” của app TikTok; mỗi dòng một sản phẩm"
+              : "Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
+          }
           save={(text) => patch({ affiliates: lines(text) })}
         />
-        <ShopeeProducts video={video} />
+        {video.platform === "facebook" && <ShopeeSuggestions video={video} />}
+        <AttachedProducts video={video} />
         <AutoSaveField
           label="Bình luận ghim"
           value={video.pinned_comment}
@@ -107,9 +119,145 @@ function Warnings({ messages }: { messages: string[] }) {
   return messages.map((text) => <Alert key={text} type="warning" showIcon title={text} style={{ marginBottom: 8 }} />);
 }
 
-/** The approved Shopee products whose links go in the comment the worker writes under the reel, after the pinned
- * comment. Chosen before posting so the first comment already holds them; a change edits a comment already written. */
-function ShopeeProducts({ video }: { video: VideoDetail }) {
+/** Shopee's suggestions for the video's product ideas, searched by the worker with the member's own Shopee account.
+ * "Chọn" approves a product meeting the rules and attaches it; each Page's own link is made when its comment is
+ * written. Without an account, each idea opens Shopee Affiliate's own search instead. */
+function ShopeeSuggestions({ video }: { video: VideoDetail }) {
+  const { message } = App.useApp();
+  const { onSaved } = useEditor();
+  const [data, setData] = useState<AffiliateSuggestions | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setData(await api<AffiliateSuggestions>(`/affiliate-products/videos/${video.id}/suggestions`));
+    } catch {
+      setData(null);
+    }
+  }, [video.id]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
+    void load();
+  }, [load, video.suggest.state]);
+
+  // While the worker searches, ask again every few seconds until it has answered.
+  const pending = data?.state === "pending";
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setTimeout(async () => {
+      await load();
+      onSaved(await api<VideoDetail>(`/videos/${video.id}`));
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [pending, data, load, onSaved, video.id]);
+
+  async function call(run: () => Promise<AffiliateSuggestions>) {
+    setBusy(true);
+    try {
+      setData(await run());
+      onSaved(await api<VideoDetail>(`/videos/${video.id}`));
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const search = () => call(() => api(`/affiliate-products/videos/${video.id}/suggestions`, "POST"));
+  const choose = (productId: number) =>
+    call(() => api(`/affiliate-products/videos/${video.id}/choose`, "POST", { product_id: productId }));
+  const attached = new Set(data?.attached_ids ?? video.affiliate_product_ids);
+
+  return (
+    <Flex vertical gap={6} style={{ marginBottom: 12 }} data-testid="shopee-suggestions">
+      <Flex justify="space-between" align="center" gap={8} wrap>
+        <Typography.Text strong>Sản phẩm gợi ý từ Shopee</Typography.Text>
+        <Button
+          size="small"
+          icon={<SearchOutlined />}
+          loading={busy || pending}
+          disabled={video.affiliates.length === 0}
+          onClick={search}
+        >
+          {data?.keywords.length ? "Tìm lại" : "Tìm sản phẩm"}
+        </Button>
+      </Flex>
+      {pending && <Typography.Text type="secondary">Đang tìm trên Shopee…</Typography.Text>}
+      {data?.error && <Alert type="warning" showIcon title={data.error} />}
+      {data?.at && (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Tìm lúc {formatDateTime(data.at)}; chỉ hiện sản phẩm đạt tiêu chí (shop tin cậy, từ 4.7 sao, từ 100 lượt bán).
+        </Typography.Text>
+      )}
+      {data?.keywords.map((group) => (
+        <Flex vertical gap={4} key={group.keyword}>
+          <Typography.Text type="secondary">{group.keyword}</Typography.Text>
+          {group.products.length === 0 && (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Không có sản phẩm nào đạt tiêu chí
+            </Typography.Text>
+          )}
+          {group.products.map((product) => (
+            <Flex key={product.id} gap={8} align="center" data-testid="suggested-product">
+              {product.image_url && (
+                <Image
+                  src={product.image_url}
+                  alt=""
+                  width={40}
+                  height={40}
+                  preview={false}
+                  style={{ borderRadius: 4 }}
+                />
+              )}
+              <Flex vertical gap={0} style={{ minWidth: 0, flex: 1 }}>
+                <Typography.Link href={product.page_url ?? undefined} target="_blank" rel="noreferrer" ellipsis>
+                  {product.name}
+                </Typography.Link>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {product.price.toLocaleString("vi-VN")}đ · {product.rating} sao ·{" "}
+                  {product.sold.toLocaleString("vi-VN")} đã bán · {product.shop_type_label} · hoa hồng{" "}
+                  {product.commission_rate}% (~
+                  {product.expected_commission.toLocaleString("vi-VN")}đ/đơn)
+                </Typography.Text>
+              </Flex>
+              {attached.has(product.id) ? (
+                <Tag color="success">Đã chọn</Tag>
+              ) : (
+                <Button size="small" disabled={busy} onClick={() => choose(product.id)}>
+                  Chọn
+                </Button>
+              )}
+            </Flex>
+          ))}
+        </Flex>
+      ))}
+      {!data?.keywords.length && video.affiliates.length > 0 && (
+        <Space size={4} wrap>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Chưa có tài khoản Shopee có App ID? Tìm tay:
+          </Typography.Text>
+          {video.affiliates.map((keyword) => (
+            <Typography.Link
+              key={keyword}
+              style={{ fontSize: 12 }}
+              href={`https://affiliate.shopee.vn/offer/product_offer?keyword=${encodeURIComponent(keyword)}`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {keyword}
+            </Typography.Link>
+          ))}
+        </Space>
+      )}
+    </Flex>
+  );
+}
+
+/** The approved products attached to the video: on Facebook their links go in the comment the worker writes under
+ * the reel, after the pinned comment; on TikTok they are the cart a member adds in TikTok's app. Chosen before
+ * posting so the first comment already holds them; a change edits a comment already written. */
+function AttachedProducts({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const { onSaved } = useEditor();
   const [products, setProducts] = useState<AffiliateProduct[] | null>(null);
@@ -117,14 +265,15 @@ function ShopeeProducts({ video }: { video: VideoDetail }) {
 
   useEffect(() => {
     let live = true;
-    api<AffiliateProduct[]>("/affiliate-products?status=approved").then(
+    const platform = video.platform === "tiktok" ? "tiktok_shop" : "shopee";
+    api<AffiliateProduct[]>(`/affiliate-products?status=approved&platform=${platform}`).then(
       (found) => live && setProducts(found),
       () => live && setProducts([]),
     );
     return () => {
       live = false;
     };
-  }, []);
+  }, [video.platform, video.affiliate_product_ids]);
 
   async function save(ids: number[]) {
     setSaving(true);
@@ -139,12 +288,13 @@ function ShopeeProducts({ video }: { video: VideoDetail }) {
   }
 
   const usable = (products ?? []).filter((product) => product.problems.length === 0);
+  const label = video.platform === "tiktok" ? "Sản phẩm TikTok Shop gắn giỏ" : "Sản phẩm Shopee trong bình luận";
   return (
     <Flex vertical gap={4} style={{ marginBottom: 12 }}>
-      <Typography.Text strong>Sản phẩm Shopee trong bình luận</Typography.Text>
+      <Typography.Text strong>{label}</Typography.Text>
       <Select
         mode="multiple"
-        aria-label="Sản phẩm Shopee trong bình luận"
+        aria-label={label}
         placeholder="Chọn sản phẩm đã duyệt"
         loading={products === null || saving}
         value={video.affiliate_product_ids}
@@ -153,12 +303,14 @@ function ShopeeProducts({ video }: { video: VideoDetail }) {
         options={usable.map((product) => ({ value: product.id, label: product.name }))}
         notFoundContent={
           <Typography.Text type="secondary">
-            Chưa có sản phẩm đã duyệt. Thêm ở <Link href="/affiliate">Affiliate Shopee</Link>.
+            Chưa có sản phẩm đã duyệt. Thêm ở <Link href="/affiliate">Affiliate</Link>.
           </Typography.Text>
         }
       />
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        Link các sản phẩm này đi sau bình luận ghim, trong bình luận app tự viết dưới reel.
+        {video.platform === "tiktok"
+          ? "Gắn giỏ các sản phẩm này trong app TikTok khi đăng; TikTok không có bình luận chứa link."
+          : "Link các sản phẩm này đi sau bình luận ghim, trong bình luận app tự viết dưới reel. Fanpage gắn tài khoản Shopee dùng link riêng của tài khoản đó."}
       </Typography.Text>
     </Flex>
   );

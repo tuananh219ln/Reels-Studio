@@ -1,10 +1,11 @@
 "use client";
 
-import { App, Form, Input, Modal } from "antd";
+import { App, Form, Input } from "antd";
 import { useState } from "react";
 import { ApiError, api, type Me } from "@/lib/api";
 import { useMe } from "./MeContext";
 import NewPasswordFields from "./NewPasswordFields";
+import FormDrawer from "@/components/FormDrawer";
 
 type PasswordFields = { current_password: string; new_password: string; confirm_password: string };
 
@@ -31,10 +32,10 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
   }
 
   return (
-    <Modal
+    <FormDrawer
       title="Đổi mật khẩu"
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText="Lưu"
       cancelText="Huỷ"
@@ -51,7 +52,7 @@ export function ChangePasswordModal({ open, onClose }: { open: boolean; onClose:
         </Form.Item>
         <NewPasswordFields />
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }
 
@@ -75,10 +76,10 @@ export function RenameModal({ open, onClose }: { open: boolean; onClose: () => v
   }
 
   return (
-    <Modal
+    <FormDrawer
       title="Sửa tên"
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText="Lưu"
       cancelText="Huỷ"
@@ -97,6 +98,6 @@ export function RenameModal({ open, onClose }: { open: boolean; onClose: () => v
           <Input />
         </Form.Item>
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }

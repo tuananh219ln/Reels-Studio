@@ -19,7 +19,6 @@ import {
   Flex,
   Grid,
   Input,
-  Modal,
   Radio,
   Result,
   Row,
@@ -39,6 +38,7 @@ import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
 import PublishCard, { PublishButton } from "@/components/video/PublishCard";
+import TikTokCard from "@/components/video/TikTokCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
@@ -47,6 +47,7 @@ import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@
 import { usePolling } from "@/lib/polling";
 import { usePresence } from "@/lib/presence";
 import { COLORS } from "@/app/theme";
+import FormDrawer from "@/components/FormDrawer";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
 const REFRESH_MS = 2500;
@@ -81,7 +82,15 @@ export default function VideoPage() {
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [cloning, setCloning] = useState(false);
+  // /videos/<id>?clone=tiktok|page: a suggestion on "Bài đăng" opens the clone drawer with its request filled in.
+  const [cloning, setCloning] = useState<CloneTarget | null>(() => {
+    const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("clone");
+    return asked === "tiktok" || asked === "page" ? asked : null;
+  });
+  // Drop the request from the address, so a reload does not open the drawer again.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("clone")) router.replace(`/videos/${id}`);
+  }, [id, router]);
   // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Xuất bản".
   const [sideTab, setSideTab] = useState<SideTab | null>(null);
   // The two columns sit side by side from xl up; only then does the side panel stick.
@@ -322,6 +331,31 @@ export default function VideoPage() {
               Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
             </Typography.Paragraph>
           )}
+          {(video.variant_of || video.variants.length > 0) && (
+            <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="variants">
+              {video.variant_of && (
+                <>
+                  Bản TikTok của{" "}
+                  <Link prefetch={false} href={`/videos/${video.variant_of.id}`}>
+                    {video.variant_of.title}
+                  </Link>
+                </>
+              )}
+              {video.variants.length > 0 && (
+                <>
+                  Bản TikTok:{" "}
+                  {video.variants.map((variant, index) => (
+                    <span key={variant.id}>
+                      {index > 0 && ", "}
+                      <Link prefetch={false} href={`/videos/${variant.id}`}>
+                        {variant.title}
+                      </Link>
+                    </span>
+                  ))}
+                </>
+              )}
+            </Typography.Paragraph>
+          )}
           {video.plan_idea && (
             <Alert
               type="info"
@@ -363,8 +397,13 @@ export default function VideoPage() {
             </Button>
           )}
           {video.has_script && (
-            <Button icon={<CopyOutlined />} disabled={busy} onClick={() => setCloning(true)}>
+            <Button icon={<CopyOutlined />} disabled={busy} onClick={() => setCloning("same")}>
               Nhân bản
+            </Button>
+          )}
+          {video.has_script && video.platform === "facebook" && (
+            <Button disabled={busy} onClick={() => setCloning("tiktok")}>
+              Tạo bản TikTok
             </Button>
           )}
           <Button danger icon={<DeleteOutlined />} disabled={video.locked || busy} onClick={remove}>
@@ -584,11 +623,11 @@ export default function VideoPage() {
                                   <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
                                     Tải MP4
                                   </Button>
-                                  <PublishButton video={video} />
+                                  {video.platform === "facebook" && <PublishButton video={video} />}
                                 </Flex>
                               </Flex>
                             </Card>
-                            <PublishCard video={video} />
+                            {video.platform === "tiktok" ? <TikTokCard video={video} /> : <PublishCard video={video} />}
                           </>
                         ) : (
                           <Card size="small">
@@ -643,23 +682,52 @@ export default function VideoPage() {
           onMakeVoices={() => void makeVoices()}
         />
       )}
-      <CloneModal videoId={video.id} open={cloning} onClose={() => setCloning(false)} />
+      <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
     </EditorContext.Provider>
   );
 }
 
-/** "Nhân bản": the team's LLM writes a new draft from this video as it is now, changed as the member asks. */
-function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean; onClose: () => void }) {
+/** What "Tạo bản TikTok" asks the clone for, filled in for the member to change: a different file and a different
+ * hook from the Facebook reel, so neither platform sees a copy (docs/specs/multi-platform/plan.md). */
+const TIKTOK_REQUEST =
+  "Viết lại cho TikTok: mở đầu bằng một câu hỏi khơi bình luận, caption ngắn, ít hashtag, đổi 1–2 cảnh và ảnh khác bản Facebook";
+/** What "Nhân bản cho Page khác" on "Bài đăng" asks for: a real variant, never the same file on a second Page. */
+const PAGE_REQUEST = "Viết biến thể cho Page khác: đổi câu mở đầu, đổi 1–2 cảnh và ảnh, giữ chủ đề";
+
+/** "same": "Nhân bản" with an empty request; "page": a variant for another Page; "tiktok": the TikTok version. */
+type CloneTarget = "same" | "page" | "tiktok";
+
+/** "Nhân bản": the team's LLM writes a new draft from this video as it is now, changed as the member asks.
+ * "Tạo bản TikTok" is the same clone, made as the TikTok version of this video. */
+function CloneModal({
+  videoId,
+  target,
+  onClose,
+}: {
+  videoId: number;
+  target: CloneTarget | null;
+  onClose: () => void;
+}) {
   const { message } = App.useApp();
   const router = useRouter();
   const [request, setRequest] = useState("");
   const [busy, setBusy] = useState(false);
+  const open = target !== null;
+  const tiktok = target === "tiktok";
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a suggested request is prefilled each time it opens
+    if (target === "tiktok" || target === "page") setRequest(target === "tiktok" ? TIKTOK_REQUEST : PAGE_REQUEST);
+  }, [target]);
 
   async function submit() {
     setBusy(true);
     try {
-      const draft = await api<VideoDetail>(`/videos/${videoId}/clone`, "POST", { request });
-      message.success("Đã tạo bản nháp nhân bản");
+      const draft = await api<VideoDetail>(`/videos/${videoId}/clone`, "POST", {
+        request,
+        ...(tiktok ? { platform: "tiktok" } : {}),
+      });
+      message.success(tiktok ? "Đã tạo bản TikTok" : "Đã tạo bản nháp nhân bản");
       onClose();
       router.push(`/videos/${draft.id}`);
     } catch (err) {
@@ -670,12 +738,12 @@ function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean
   }
 
   return (
-    <Modal
-      title="Nhân bản video"
+    <FormDrawer
+      title={tiktok ? "Tạo bản TikTok" : "Nhân bản video"}
       open={open}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={submit}
-      okText="Tạo bản nhân bản"
+      okText={tiktok ? "Tạo bản TikTok" : "Tạo bản nhân bản"}
       cancelText="Huỷ"
       okButtonProps={{ disabled: !request.trim() }}
       confirmLoading={busy}
@@ -696,7 +764,7 @@ function CloneModal({ videoId, open, onClose }: { videoId: number; open: boolean
         maxLength={300}
         onChange={(event) => setRequest(event.target.value)}
       />
-    </Modal>
+    </FormDrawer>
   );
 }
 

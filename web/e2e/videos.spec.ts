@@ -178,7 +178,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await cloneCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt nhân bản")).toBeVisible();
-  await health.getByLabel("Từ cấm").fill("thần dược\nđặc trị");
+  await health.getByLabel("Từ cấm", { exact: true }).fill("thần dược\nđặc trị");
   await health.getByRole("button", { name: "Lưu từ cấm" }).click();
   await expect(page.getByText("Đã lưu danh sách từ cấm")).toBeVisible();
 
@@ -187,7 +187,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
   const beauty = page.locator('[data-topic="Làm đẹp"]');
   await expect(beauty.getByLabel("Prompt viết kịch bản", { exact: true })).toHaveValue("");
-  await expect(beauty.getByLabel("Từ cấm")).toHaveValue("");
+  await expect(beauty.getByLabel("Từ cấm", { exact: true })).toHaveValue("");
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
 
   await page.goto("/videos");
@@ -202,7 +202,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
-  await expect(health.getByLabel("Từ cấm")).toHaveValue("thần dược\nđặc trị");
+  await expect(health.getByLabel("Từ cấm", { exact: true })).toHaveValue("thần dược\nđặc trị");
   await scriptCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
   await expect(prompt).toHaveValue(/^Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40\+\./);
@@ -507,8 +507,8 @@ test("a rendered video waits in Sẵn sàng đăng until its Đăng there posts 
   const ready = page.getByTestId("ready-to-post");
   await expect(ready.getByTestId("suggestion")).toHaveCount(1);
   await expect(ready).toContainText("Sẵn sàng đăng (1)");
-  // One Page only: nothing to spread to, and the card says why.
-  await expect(page.getByTestId("spread-to-pages")).toContainText("Cần ít nhất 2 Fanpage đang dùng để có gợi ý.");
+  // One Page only: no other Page to make a variant for, and the card says why.
+  await expect(page.getByTestId("clone-for-pages")).toContainText("Cần ít nhất 2 Fanpage đang dùng để có gợi ý.");
 
   // "Đăng" opens the video with its dialog open and the only Page picked; the address drops the request.
   await ready.getByRole("link", { name: "Đăng" }).click();
@@ -638,7 +638,7 @@ test("a posted reel takes an approved product and its link goes in the pinned co
     await send(`/${tea.id}/approve`, "POST");
   });
 
-  await page.getByRole("menuitem", { name: "Affiliate Shopee" }).click();
+  await page.getByRole("menuitem", { name: "Affiliate" }).click();
   const picker = page.getByLabel(/^Sản phẩm của video/);
   await chooseOption(page, picker, "Vừng đen rang (~10.000đ)");
   await expect(page.getByRole("button", { name: "Sao chép" })).toBeVisible();
@@ -748,13 +748,13 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await picker.getByTestId("stock-hit").nth(1).click();
   // The full-size address goes back with the source and the keyword it was found with.
   const body = (await chosen).postDataJSON() as { source: string; keyword: string; url: string };
-  expect(body.source).toBe("pixabay");
+  expect(body.source).toBe("pexels");
   expect(body.keyword).toBe("calcium rich food");
   expect(body.url).toMatch(/\/img\/\w+\.jpg$/);
   await expect(picker).toBeHidden();
-  // The chosen photo is served by the app, not linked from Pixabay.
+  // The chosen photo is served by the app, not linked from Pexels.
   await expect(title.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
-  await expect(title.getByRole("button", { name: "Tìm ảnh (Pixabay)" })).toBeVisible();
+  await expect(title.getByRole("button", { name: "Tìm ảnh (Pexels)" })).toBeVisible();
 
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
@@ -772,7 +772,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await picker.getByTestId("stock-hit").nth(2).click();
   await expect(picker).toBeHidden();
   await expect(first.getByTestId("scene-preview")).toBeVisible();
-  // The typed keyword was searched on Pixabay, so it now leads the English list (not shown on the
+  // The typed keyword was searched on Pexels, so it now leads the English list (not shown on the
   // card); the card's field is the Vietnamese list, unchanged.
   await expect(first.getByLabel("Từ khóa tìm ảnh")).toHaveValue("cá nhỏ, món ăn");
 
@@ -853,20 +853,28 @@ test("photos from other sites: paste a photo or its link, drag one from another 
   expect(google.searchParams.get("udm")).toBe("2");
   expect(google.searchParams.get("tbs")).toBe("iar:t");
 
+  // "Tìm trên TikTok" opens TikTok's video search on the same keyword.
+  await page.context().route("https://www.tiktok.com/**", (route) => route.fulfill({ body: "TikTok" }));
+  const tiktokOpened = page.waitForEvent("popup");
+  await scenes.nth(0).getByRole("button", { name: "Tìm trên TikTok" }).click();
+  const tiktok = new URL((await tiktokOpened).url());
+  expect(tiktok.pathname).toBe("/search/video");
+  expect(tiktok.searchParams.get("q")).toBe(google.searchParams.get("q"));
+
   // "Dán ảnh/link" without clipboard permission opens a box; a copied thumbnail's data: address is uploaded.
   await scenes.nth(0).getByRole("button", { name: "Dán ảnh/link" }).click();
-  let paste = page.getByRole("dialog", { name: /Dán ảnh cho/ });
+  let paste = page.getByRole("dialog", { name: /Dán ảnh hoặc video cho/ });
   await paste.getByLabel("Link ảnh").fill(PNG_DATA_URL);
   const uploaded = page.waitForRequest((request) => request.method() === "POST" && /\/image$/.test(request.url()));
-  await paste.getByRole("button", { name: "Lấy ảnh" }).click();
+  await paste.getByRole("button", { name: "Lấy về" }).click();
   await uploaded;
   await expect(scenes.nth(0).getByTestId("scene-preview")).toBeVisible();
 
   // A link is fetched by the api, which only reaches the public internet: this machine's address is refused.
   await scenes.nth(1).getByRole("button", { name: "Dán ảnh/link" }).click();
-  paste = page.getByRole("dialog", { name: /Dán ảnh cho/ });
+  paste = page.getByRole("dialog", { name: /Dán ảnh hoặc video cho/ });
   await paste.getByLabel("Link ảnh").fill("http://127.0.0.1:9/anh.jpg");
-  await paste.getByRole("button", { name: "Lấy ảnh" }).click();
+  await paste.getByRole("button", { name: "Lấy về" }).click();
   await expect(scenes.nth(1).getByTestId("image-error")).toContainText("địa chỉ nội bộ");
 
   // A photo dragged from another tab arrives as its <img>, not as a file.
@@ -925,23 +933,24 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   const scene = page.getByTestId("scene").first();
   await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
-  // Pixabay is the default source: its three fake photos show first.
-  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
-  await picker.getByText("Pexels", { exact: true }).click();
+  // Pexels is the default source: its three fake photos show first.
   await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
-  // The page polls the video every 2.5 s; a poll must not send the picker back to Pixabay.
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByText("Pixabay", { exact: true }).click();
+  await expect(picker.getByText(/ảnh từ Pixabay cho/)).toBeVisible();
+  // The page polls the video every 2.5 s; a poll must not send the picker back to Pexels.
   const poll = (response: { url(): string; request(): { method(): string } }) =>
     /\/api\/videos\/\d+$/.test(response.url()) && response.request().method() === "GET";
   await page.waitForResponse(poll);
   await page.waitForResponse(poll);
-  await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
-  await expect(picker.getByRole("radio", { name: "Pexels" })).toBeChecked();
+  await expect(picker.getByText(/ảnh từ Pixabay cho/)).toBeVisible();
+  await expect(picker.getByRole("radio", { name: "Pixabay" })).toBeChecked();
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
   await picker.getByTestId("stock-hit").first().click();
   await expect(picker).toBeHidden();
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 
-  // Reopen and take a photo from Openverse instead; the picker starts on Pixabay again.
+  // Reopen and take a photo from Openverse instead; the picker starts on Pexels again.
   await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
   await picker.getByText("Openverse", { exact: true }).click();
   await expect(picker.getByText(/ảnh từ Openverse cho/)).toBeVisible();
@@ -950,8 +959,8 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await expect(picker).toBeHidden();
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 
-  // "Tìm ảnh" searches Pixabay until another source is picked from its arrow menu.
-  const find = scene.getByRole("button", { name: "Tìm ảnh (Pixabay)" });
+  // "Tìm ảnh" searches Pexels until another source is picked from its arrow menu.
+  const find = scene.getByRole("button", { name: "Tìm ảnh (Pexels)" });
   await expect(find).toBeVisible();
   await scene.getByRole("button", { name: "Đổi nguồn ảnh" }).click();
   await page.getByRole("menuitem", { name: "Openverse" }).click();
@@ -1353,9 +1362,15 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();
   await page.getByRole("tab", { name: "Thiết lập mặc định" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
+  // Read-only until "Chỉnh sửa"; "Huỷ" drops what was changed.
+  await expect(page.getByRole("slider", { name: "Tốc độ đọc" })).toHaveAttribute("aria-disabled", "true");
+  await page.getByRole("button", { name: "Chỉnh sửa" }).click();
+  await page.getByLabel("Chuyển cảnh").getByText("Trượt").click();
+  await page.getByRole("button", { name: "Huỷ" }).click();
+  await expect(page.getByLabel("Chuyển cảnh").locator(".ant-segmented-item-selected")).not.toHaveText("Trượt");
+  await page.getByRole("button", { name: "Chỉnh sửa" }).click();
   await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
-  await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
-  // The reading speed slider: each step is saved (the page is busy meanwhile), three steps up from 1 make 1.15.
+  // The reading speed slider: three steps up from 1 make 1.15.
   const speed = page.getByRole("slider", { name: "Tốc độ đọc" });
   for (const shown of ["1,05", "1,10", "1,15"]) {
     await expect(speed).not.toHaveAttribute("aria-disabled", "true");
@@ -1376,6 +1391,8 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await expect(page.getByText("Âm lượng giọng: 50%")).toBeVisible();
   await page.mouse.up();
   await expect(volume).toHaveAttribute("aria-valuenow", "50");
+  await page.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
 
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");

@@ -1,5 +1,6 @@
-"""Affiliate Shopee: the team's product list, entered by hand, ranked by expected commission and approved by a
-member, and the products attached to each posted reel."""
+"""Affiliate: the team's product list on Shopee and TikTok Shop, entered by hand or found through Shopee's API, ranked
+by expected commission and approved by a member; the products attached to each video, and Shopee's suggestions for a
+video (affiliate_rounds.py finds them)."""
 
 import csv
 import io
@@ -15,20 +16,22 @@ from sqlalchemy.orm import Session as DbSession
 from . import affiliate, facebook, knowledge
 from .db import get_db
 from .errors import ApiError
-from .models import AffiliateProduct, KnowledgeTopic, Publication, Session, Video, VideoAffiliateProduct
+from .models import (
+    AffiliateAccount,
+    AffiliateProduct,
+    AffiliateSuggestion,
+    KnowledgeTopic,
+    Publication,
+    Session,
+    Video,
+    VideoAffiliateProduct,
+)
 from .routes_music import like_pattern
 from .routes_videos import invalid
 from .sessions import current_member, now
 from .videos import is_published, published_publication, split_scenes, title_of
 
 router = APIRouter(prefix="/api/affiliate-products")
-
-SHOP_TYPES = {
-    "mall": "Shopee Mall",
-    "preferred_plus": "Shop Yêu Thích+",
-    "preferred": "Shop Yêu Thích",
-    "other": "Shop thường",
-}
 
 MAX_NAME_LENGTH = 300
 MAX_SHOP_NAME_LENGTH = 200
@@ -39,8 +42,9 @@ VIETNAM_TIME = timezone(timedelta(hours=7))
 
 class ProductBody(BaseModel):
     knowledge_topic_id: int
+    platform: str = "shopee"
     name: str
-    url: str
+    url: str | None = None
     shop_name: str
     shop_type: str
     rating: float
@@ -53,6 +57,10 @@ class VideoProductsBody(BaseModel):
     product_ids: list[int]
 
 
+class ChooseBody(BaseModel):
+    product_id: int
+
+
 def _text(value: str, label: str, limit: int) -> str:
     value = " ".join(unicodedata.normalize("NFC", value).split())
     if not value:
@@ -62,8 +70,10 @@ def _text(value: str, label: str, limit: int) -> str:
     return value
 
 
-def _url(value: str) -> str:
-    value = value.strip()
+def _url(value: str | None) -> str | None:
+    value = (value or "").strip()
+    if not value:
+        return None
     if len(value) > MAX_URL_LENGTH:
         raise invalid(f"Link dài quá {MAX_URL_LENGTH} ký tự")
     # The page renders it as a link, so nothing but a web address may get through.
@@ -79,7 +89,9 @@ def _url(value: str) -> str:
 def _fields(db: DbSession, body: ProductBody) -> dict:
     if db.get(KnowledgeTopic, body.knowledge_topic_id) is None:
         raise invalid("Nhóm chủ đề không còn tồn tại")
-    if body.shop_type not in SHOP_TYPES:
+    if body.platform not in affiliate.PLATFORMS:
+        raise invalid("Nền tảng không có trong danh sách")
+    if body.shop_type not in affiliate.SHOP_TYPES[body.platform]:
         raise invalid("Loại shop không có trong danh sách")
     if not 0 <= body.rating <= 5:
         raise invalid("Số sao phải từ 0 đến 5")
@@ -91,6 +103,7 @@ def _fields(db: DbSession, body: ProductBody) -> dict:
         raise invalid("Lượt bán không hợp lệ")
     return {
         "knowledge_topic_id": body.knowledge_topic_id,
+        "platform": body.platform,
         "name": _text(body.name, "Tên sản phẩm", MAX_NAME_LENGTH),
         "url": _url(body.url),
         "shop_name": _text(body.shop_name, "Tên shop", MAX_SHOP_NAME_LENGTH),
@@ -111,11 +124,17 @@ def _payload(product: AffiliateProduct) -> dict:
         "id": product.id,
         "knowledge_topic_id": product.knowledge_topic_id,
         "topic": product.topic.name,
+        "platform": product.platform,
+        "platform_label": affiliate.PLATFORMS[product.platform],
         "name": product.name,
         "url": product.url,
+        "page_url": product.page_url,
+        "image_url": product.image_url,
+        "from_shopee_api": product.shopee_item_id is not None,
+        "commission_end_at": product.commission_end_at.isoformat() if product.commission_end_at else None,
         "shop_name": product.shop_name,
         "shop_type": product.shop_type,
-        "shop_type_label": SHOP_TYPES[product.shop_type],
+        "shop_type_label": affiliate.SHOP_TYPES[product.platform][product.shop_type],
         "rating": product.rating,
         "sold": product.sold,
         "price": product.price,
@@ -139,7 +158,9 @@ def _clear_approval(product: AffiliateProduct) -> None:
     product.status, product.checked_at, product.checked_by_id = "draft", None, None
 
 
-def _ranked(db: DbSession, topic_id: int | None, status: str | None, q: str | None) -> list[AffiliateProduct]:
+def _ranked(
+    db: DbSession, topic_id: int | None, status: str | None, q: str | None, platform: str | None = None
+) -> list[AffiliateProduct]:
     query = select(AffiliateProduct).order_by(
         # Rounded like the amount on the page: two products showing the same money must reach the tie-break.
         func.round(AffiliateProduct.price * AffiliateProduct.commission_rate / 100).desc(),
@@ -151,6 +172,8 @@ def _ranked(db: DbSession, topic_id: int | None, status: str | None, q: str | No
         query = query.where(AffiliateProduct.knowledge_topic_id == topic_id)
     if status:
         query = query.where(AffiliateProduct.status == status)
+    if platform:
+        query = query.where(AffiliateProduct.platform == platform)
     if q and q.strip():
         pattern = f"%{like_pattern(q)}%"
         query = query.where(
@@ -183,7 +206,8 @@ def _video_payload(db: DbSession, video: Video, post: Publication) -> dict:
     return {
         "id": video.id,
         "title": title_of(video, title) or video.topic,
-        "reel_url": facebook.reel_url(post.remote_id) if post.remote_id else None,
+        "platform": video.platform,
+        "reel_url": post.post_url if post.platform == "tiktok" else facebook.reel_url(post.remote_id),
         "published_at": _live_at(post).isoformat(),
         "suggestions": video.affiliates,
         "pinned_comment": video.pinned_comment,
@@ -203,7 +227,10 @@ def _video_payload(db: DbSession, video: Video, post: Publication) -> dict:
 @router.get("/videos")
 def list_videos(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
     rows = db.execute(
-        select(Video, Publication).join(Publication).where(Publication.platform == "facebook").order_by(Publication.id)
+        select(Video, Publication)
+        .join(Publication)
+        .where(Publication.platform.in_(("facebook", "tiktok")))
+        .order_by(Publication.id)
     )
     # A video posted again has one comment to pin per reel in time, so it shows once, with its newest live post.
     latest = {video.id: (video, post) for video, post in rows if is_published(post)}
@@ -227,6 +254,14 @@ def set_video_products(
     products = list(db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(chosen))))
     if len(products) != len(chosen):
         raise ApiError(404, "product_not_found", "Không tìm thấy sản phẩm (có thể đã bị xóa)")
+    wanted = affiliate.PRODUCT_PLATFORM[video.platform]
+    if any(product.platform != wanted and product.id not in attached for product in products):
+        raise ApiError(
+            409,
+            "wrong_platform",
+            f"Video {'TikTok' if video.platform == 'tiktok' else 'Facebook'} chỉ gắn được sản phẩm "
+            f"{affiliate.PLATFORMS[wanted]}",
+        )
     # A product that stopped qualifying stays until a member removes it, so saving another change is not refused.
     if any(not affiliate.usable(product) and product.id not in attached for product in products):
         raise ApiError(409, "product_not_approved", "Chỉ gắn được sản phẩm đã duyệt và còn đạt tiêu chí")
@@ -247,21 +282,101 @@ def set_video_products(
     return _video_payload(db, video, post) if post else {"id": video.id, "product_ids": sorted(chosen)}
 
 
+def _video(db: DbSession, video_id: int) -> Video:
+    video = db.get(Video, video_id)
+    if video is None:
+        raise ApiError(404, "video_not_found", "Không tìm thấy video")
+    return video
+
+
+def _suggestions(db: DbSession, video: Video) -> dict:
+    rows = db.scalars(
+        select(AffiliateSuggestion).where(AffiliateSuggestion.video_id == video.id).order_by(AffiliateSuggestion.id)
+    )
+    keywords: dict[str, list[dict]] = {}
+    for row in rows:
+        keywords.setdefault(row.keyword, []).append(_payload(row.product))
+    return {
+        "state": "pending" if video.suggest_requested_at else ("failed" if video.suggest_error else "idle"),
+        "error": video.suggest_error,
+        "at": video.suggested_at.isoformat() if video.suggested_at else None,
+        "keywords": [{"keyword": keyword, "products": products} for keyword, products in keywords.items()],
+        "attached_ids": [product.id for product in affiliate.products_of(db, video.id)],
+    }
+
+
+@router.get("/videos/{video_id}/suggestions")
+def video_suggestions(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    return _suggestions(db, _video(db, video_id))
+
+
+@router.post("/videos/{video_id}/suggestions")
+def request_suggestions(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Tìm sản phẩm": the worker searches Shopee for the video's product ideas with the member's own account, within
+    seconds. The request itself never calls Shopee."""
+    video = _video(db, video_id)
+    if video.platform != "facebook":
+        raise invalid("Chỉ video Facebook mới tìm sản phẩm Shopee; video TikTok gắn giỏ TikTok Shop trong app TikTok")
+    if not [keyword for keyword in video.affiliates if keyword.strip()]:
+        raise invalid("Video chưa có gợi ý sản phẩm nào để tìm, hãy thêm ở mục Affiliate")
+    accounts = db.scalars(
+        select(AffiliateAccount).where(AffiliateAccount.owner_id == me.user_id, AffiliateAccount.platform == "shopee")
+    )
+    if not any(affiliate.credentials(account) for account in accounts):
+        raise invalid("Bạn chưa có tài khoản Shopee đang dùng với App ID và Secret (Cài đặt › Tài khoản affiliate)")
+    video.suggest_requested_at, video.suggest_by_id, video.suggest_error = now(), me.user_id, None
+    db.commit()
+    return _suggestions(db, video)
+
+
+@router.post("/videos/{video_id}/choose")
+def choose_suggestion(
+    video_id: int, body: ChooseBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Chọn" a product: approve it when it meets the rules, and attach it to the video. The link of each Page is made
+    by the worker when it writes that Page's comment."""
+    video = _video(db, video_id)
+    product = _get(db, body.product_id)
+    if product.platform != affiliate.PRODUCT_PLATFORM[video.platform]:
+        raise ApiError(409, "wrong_platform", "Sản phẩm không cùng nền tảng với video")
+    if product.status != "approved":
+        problems = affiliate.problems(product)
+        if problems:
+            raise ApiError(409, "product_not_approvable", f"Chưa chọn được: {'; '.join(problems)}")
+        product.status, product.checked_at, product.checked_by_id = "approved", datetime.now(UTC), me.user_id
+    elif not affiliate.usable(product):
+        raise ApiError(409, "product_not_approved", "Sản phẩm không còn đạt tiêu chí")
+    if db.get(VideoAffiliateProduct, (video.id, product.id)) is None:
+        db.add(VideoAffiliateProduct(video_id=video.id, product_id=product.id))
+        for post in db.scalars(
+            select(Publication).where(Publication.video_id == video.id, Publication.comment_id.is_not(None))
+        ):
+            if is_published(post):
+                post.comment_requested_at = now()
+    db.commit()
+    return _suggestions(db, video)
+
+
 @router.get("")
 def list_products(
     topic_id: int | None = None,
     status: str | None = None,
     q: str | None = None,
+    platform: str | None = None,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
 ) -> list[dict]:
-    return [_payload(product) for product in _ranked(db, topic_id, status, q)]
+    return [_payload(product) for product in _ranked(db, topic_id, status, q, platform)]
 
 
 @router.get("/options")
 def options(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     return {
-        "shop_types": [{"value": value, "label": label} for value, label in SHOP_TYPES.items()],
+        "platforms": [{"value": value, "label": label} for value, label in affiliate.PLATFORMS.items()],
+        "shop_types": {
+            platform: [{"value": value, "label": label} for value, label in types.items()]
+            for platform, types in affiliate.SHOP_TYPES.items()
+        },
         "topics": [{"id": topic.id, "name": topic.name} for topic in knowledge.all_topics(db)],
     }
 
@@ -271,6 +386,7 @@ def export_products(
     topic_id: int | None = None,
     status: str | None = None,
     q: str | None = None,
+    platform: str | None = None,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
 ) -> Response:
@@ -291,25 +407,27 @@ def export_products(
             "Trạng thái",
             "Ngày kiểm tra",
             "Người duyệt",
+            "Nền tảng",
         ]
     )
-    for product in _ranked(db, topic_id, status, q):
+    for product in _ranked(db, topic_id, status, q, platform):
         checked = product.checked_at.astimezone(VIETNAM_TIME).strftime("%d/%m/%Y %H:%M") if product.checked_at else ""
         writer.writerow(
             [
                 _csv_cell(product.topic.name),
                 _csv_cell(product.name),
                 _csv_cell(product.shop_name),
-                SHOP_TYPES[product.shop_type],
+                affiliate.SHOP_TYPES[product.platform][product.shop_type],
                 product.rating,
                 product.sold,
                 product.price,
                 product.commission_rate,
                 _expected_commission(product),
-                product.url,
+                product.url or product.page_url or "",
                 "Đã duyệt" if product.status == "approved" else "Nháp",
                 checked,
                 _csv_cell(product.checked_by.name) if product.checked_by else "",
+                affiliate.PLATFORMS[product.platform],
             ]
         )
     # The byte order mark tells Excel the file is UTF-8, otherwise Vietnamese comes out garbled.

@@ -40,18 +40,31 @@ lists and tables sit in white cards. The interface
 font is Be Vietnam Pro (served by the app through `next/font`), radius 8 (12 on cards), controls
 36 px high.
 
+Forms open in a drawer from the right ([FormDrawer](../web/src/components/FormDrawer.tsx)), with
+"Huỷ" and the main button at its bottom, so the page stays in view beside it, a long form scrolls
+inside, and on a phone it takes the whole width: adding or editing a product, an affiliate
+account, a Fanpage or its token, a member or a temporary password, a track, a text box style, a
+plan idea, "Tạo video", "Nhân bản" / "Tạo bản TikTok", "Đăng", "Đổi mật khẩu" and "Sửa tên".
+Dialogs that need the whole screen or are not forms stay centred dialogs: the photo and clip
+editors, "Chọn từ kho ảnh/video", the text position, "Chọn nhạc từ thư viện", a plan's preview,
+"Dán ảnh", the numbers of a Page or a post, and every yes/no confirmation.
+
 ## Screens
 
 Built:
 
 - **Login** and **user management**.
-- **Tạo video** (on the video list): topic group, topic, and a line naming the provider and model
-  that will write the script ("Viết bằng: … (đổi trong Cài đặt)"), in red with a link when that
-  provider is not set up. When the group's 30-day plan has a today, its ideas not made yet are listed
-  under the topic; picking one fills the topic and shows its day, pain group, pain and hook ("Bỏ
-  chọn" drops it). A typed topic that is nowhere in the plan gets a yellow note that does not block.
+- **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, "Cách
+  viết" ("AI viết kịch bản" or "Tự viết") and the topic group; below it the topic. The footer has a
+  line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
+  đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
+  button on the right. When the group's 30-day plan has a today, the dialog widens: its ideas not
+  made yet are a numbered list on the left (day and pain group under each) and the topic and its
+  details sit in a bordered panel on the right (stacked on a phone). Picking an idea marks it
+  "Đã chọn" in orange, fills the topic and shows its day, pain group, pain and hook; picking it
+  again or "Bỏ chọn" drops it. A typed topic that is nowhere in the plan gets a yellow note that does not block.
   "Tạo video" on an idea in Kho kiến thức (`/videos?plan_item=<id>`) and "Làm tiếp" open the dialog
-  with that idea picked. A switch at the top chooses "AI viết kịch bản" (the default) or "Tự viết".
+  with that idea picked. "Cách viết" chooses "AI viết kịch bản" (the default) or "Tự viết".
   "Tự viết" makes no AI call: every group can be picked (no "(chưa có prompt)"), the topic is also
   the title scene's text, and "Kịch bản (không bắt buộc)" takes a pasted script. Its placeholder
   shows the format: a paragraph per scene, "Đọc:" lines for the voice text. A yellow note says that
@@ -138,17 +151,22 @@ Built:
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
   - per scene a preview of the frame, or the reason there is none, in red. Pointing at a picture
-    (always on a touch screen) shows quick actions over a dark gradient: "Chỉnh khung" for a photo
-    or "Cắt video" for a clip, "Vị trí chữ", "Thay" (opens the file chooser) and, for a clip, a
-    delete icon ("Xoá video", confirmed). Under the picture one row: a slim dashed area, "Tải lên",
-    beside two icon buttons, "Dán ảnh/link" and "Tìm trên Google". The dashed area takes a photo
+    (always on a touch screen) dims it and stacks its tools in its middle, all the same width: "Xem"
+    (the only tool in view mode: a centred dialog with the scene large in its 9:16 frame, the photo
+    as the render crops it or the clip looping the part the scene plays, muted, at its speed, and
+    the exact text box where the render puts it, with a "Chữ trên màn hình" switch to hide it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Vị trí chữ" and, for a
+    clip, "Xoá video" (confirmed). Under the picture one row: a slim
+    dashed area, "Tải lên", beside three icon buttons, "Dán ảnh/link", "Tìm trên Google" and "Tìm
+    trên TikTok". The dashed area takes a photo
     (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM, 50 MB) dropped on it or chosen, and a photo
     dragged straight from another tab (its address is read from the drop); a photo in place of a
     clip, or a clip in place of a photo, asks first ("Đổi" / "Huỷ"). "Dán ảnh/link" reads a copied
-    photo or a photo's link from the clipboard, or opens a box to paste into when the browser does
-    not allow it; Cmd/ Ctrl+V anywhere in the picture column outside a text field does the same;
-    "Tìm trên Google" opens Google Ảnh in a new tab on the scene's first keyword, tall photos only,
-    to copy one and paste it back. Then "Chọn từ kho ảnh/video", "Tìm ảnh" with its source arrow,
+    photo or a link from the clipboard, or opens a box to paste into ("Dán ảnh hoặc video cho …",
+    "Lấy về") when the browser does not allow it; Cmd/ Ctrl+V anywhere in the picture column outside
+    a text field does the same. A link may be a photo's, a video file's or a TikTok video's; a video
+    longer than 60 s keeps its first 60 s. "Tìm trên Google" opens Google Ảnh in a new tab on the
+    scene's first keyword, tall photos only, and "Tìm trên TikTok" TikTok's video search on the same
+    keyword, to copy a photo or a video's link and paste it back. Then "Chọn từ kho ảnh/video", "Tìm ảnh" with its source arrow,
     then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the photo is already an AI one): an image job for this
     scene only, from its saved prompt, that replaces the scene's photo or clip, asking first when
     there is one; while it runs the button reads "Đang tạo ảnh AI…" and the job bar says "Tạo ảnh AI
@@ -163,8 +181,11 @@ Built:
     player. The MP4's own mute button moves it too. The browser's free voice takes a new level from
     its next scene. The plain audio players (narration of a scene, music, the music library) keep
     the browser's own volume control.
+  - "Chỉnh khung" and "Cắt video" open in the middle of the screen, the picture on the left and its
+    controls in labelled groups beside it (under it on a phone), so "Áp dụng" needs no scrolling; the
+    other picture dialogs (Vị trí chữ, the paste box, Chọn từ kho) are centred too.
   - **"Chỉnh khung"** (photo): a dialog that crops the photo to 9:16 with a "Phóng to" slider
-    (1–4×), "Xoay 90°" and "Lật ngang"; dragging moves the photo under the frame. "Áp dụng" cuts
+    (1–4×), "Xoay 90°", "Lật ngang" and "Đặt lại"; dragging moves the photo under the frame. "Áp dụng" cuts
     it in the browser to a JPEG of at most 1080×1920 and stores it in place of the photo, keeping
     where it came from (Pixabay, an AI model…); a crop narrower than 1080 px warns that the photo
     will look soft. Cropping again starts from the cropped photo: picking the photo again is the
@@ -196,9 +217,10 @@ Built:
     trong video này" (on by default; any change searches again; photos too small for the frame are
     always left out), and every result as a grid of 9:16 tiles, each photo cropped as the render
     will crop it, that fits the screen (two columns on a phone); clicking one stores it for the scene, closes the dialog and puts the keyword that found
-    it first in the scene's keywords. "Tìm ảnh" (with its source, e.g. "Tìm ảnh (Pixabay)") takes
-    the next result for the saved keywords from the source named on the button (Pixabay until another
-    is picked from the arrow menu beside it). The picker's source tab stays as chosen while the page
+    it first in the scene's keywords. "Tìm ảnh" (with its source, e.g. "Tìm ảnh (Pexels)") takes
+    the next result for the saved keywords from the source named on the button (Pexels, or the first
+    source offered when Pexels is not, until another is picked from the arrow menu beside it). The
+    picker opens on Pexels the same way. The picker's source tab stays as chosen while the page
     polls. Each scene shows its own spinner and the api's
     message word for word; without keywords it also points to the keyword field. The dialog (now
     "Chọn từ kho ảnh/video") has an "Ảnh | Video" switch when a source offers clips: "Video" lists
@@ -238,9 +260,17 @@ Built:
     theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
     with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
-    buttons, and Claude's self-review list;
+    buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
+    Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and
+    money per order) with "Chọn", "Tìm sản phẩm" / "Tìm lại", and links to Shopee Affiliate's own
+    search when there is nothing yet; the products picker shows only the video's platform's products;
+  - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
+    new video is tagged "TikTok" (on the list too, which filters by platform) and both pages link
+    to each other. A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
+    copy buttons, the cart's products, a checklist, and "Đã đăng tay" (one of the member's TikTok
+    accounts and the post's link), with the recorded posts below;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
-    có"), the Fanpage (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
+    có"), the Fanpage, each shown as "<Page> · <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
     ahead, within 29 days; after a post it is back on "Đăng ngay"). Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
     very MP4, and it warns when the Page keeps an older post of the video. The pinned comment stays manual;
   - the "Bài đăng của video" card lists every post, newest first: its status, Fanpage, who posted it,
@@ -249,12 +279,16 @@ Built:
     Suite), "Hủy đăng" for a post not yet public and "Xóa" for a public one, each with a confirmation,
     and a public post's numbers as on "Bài đăng" (without "Cập nhật view");
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
-- **Kho kiến thức** (`/knowledge`): one collapsible line per topic group ("Nhóm chủ đề"), added,
-  renamed, and deleted by members; a group with videos cannot be deleted. Opened, it has the script
-  prompt, the clone prompt (each with "Khôi phục mặc định"), and the banned words. A new group starts
+- **Kho kiến thức** (`/knowledge`): two columns (stacked on a phone). On the left, the card "Nhóm
+  chủ đề": a field and "Thêm nhóm" (the new group is opened), then one line per topic group with its
+  video count and "Chưa có prompt" when it has none; the chosen line is highlighted, the first group
+  is chosen on arrival. On the right, the chosen group: its name as a heading with how many videos use
+  it, the name field with "Đổi tên", and "Xoá nhóm" (disabled while the group has videos). Groups
+  opened once stay loaded, so unsaved text in one survives opening another. A new group starts
   empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
-  video"; a clone keeps its source's group. Below the name, two tabs: "Prompt" (the prompts and banned words) and "Kế
-  hoạch 30 ngày":
+  video"; a clone keeps its source's group. Two tabs: "Prompt và từ cấm" (the script prompt and the
+  clone prompt, each with "Lưu" and "Khôi phục mặc định", and beside them on a wide screen the banned
+  words with "Lưu từ cấm") and "Kế hoạch 30 ngày":
   - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Đã làm X/Y ý tưởng" with a bar;
   - "Nhập file JSON/CSV" and "Tạo bằng AI", both ending in a preview table with errors (which block
     saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as a draft
@@ -271,14 +305,27 @@ Built:
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
   used the track keep their copy).
-- **Affiliate Shopee** (`/affiliate`), two tabs:
-  - "Video đã đăng": reels on the Facebook Page, newest first, with the script's suggestions, a
-    picker of approved products (labelled with the expected commission per order), and a copy button
-    for the pinned comment with one link per product. A product that lost its approval or no longer
-    meets the rules stays attached with a yellow tag, and its link is left out of the copied text;
-  - "Sản phẩm": products ranked by expected commission per order, with shop, type, rating, sales,
-    price, and status; filters by name or shop, topic group, and status; "Thêm sản phẩm", "Sửa",
-    "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows why, in yellow.
+- **Affiliate** (`/affiliate`), three tabs:
+  - "Video đã đăng": Facebook reels and TikTok posts made by hand, newest first, each tagged with its
+    platform, with the script's suggestions, a picker of approved products of the video's platform
+    (labelled with the expected commission per order), and for a reel a copy button for the pinned
+    comment with one link per product ("Gắn giỏ trong app TikTok" for TikTok). A product that lost its
+    approval or no longer meets the rules stays attached with a yellow tag, and its link is left out of
+    the copied text;
+  - "Sản phẩm": products ranked by expected commission per order, with their platform tag ("Tìm qua
+    API" for those Shopee's search found), shop, type, rating, sales, price, and status; filters by name
+    or shop, topic group, platform and status; "Thêm sản phẩm" (platform first; the link is optional
+    for TikTok Shop), "Sửa", "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows
+    why, in yellow;
+  - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
+    row per video and Page; nobody else's.
+- **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
+  accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
+  link), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá"; "Thêm tài khoản"
+  is in the tab's header.
+- **Kết nối Fanpage**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
+  and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
+  này". A Page is not handed to another member from the app.
 - **Đăng bài**, a menu group of two screens. Nothing is posted or approved here: a member reviews
   and posts a video from "Đăng" on its page.
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or
@@ -292,7 +339,8 @@ Built:
     as numbers, and "Video" keeps the grid for working on videos.
     A post's views stay on one line so rows stay short: the views (or "Chưa có view"), a yellow
     warning icon when the last reading failed, and an icon-only "Cập nhật view" button, which asks
-    for a new reading and spins until the numbers arrive. Shares, comments and reactions ("—" for
+    for a new reading and spins until the numbers arrive. Opening the page asks the same by itself for
+    the posts of the last 14 days not read in 15 minutes, so their buttons spin without a click. Shares, comments and reactions ("—" for
     one Facebook does not give), when they were read ("Đo lúc", Vietnam time), the 48-hour views
     with "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị" and the share/view, the
     "Chưa có số view, app tự đo sau khi đăng 1 giờ" note and the failed reading's reason sit in
@@ -316,14 +364,17 @@ Built:
     bài đang chờ đủ 48 giờ, sớm nhất …", "Chưa có bài nào đủ 48 giờ"), and the first card adds the posts still on their way. Under the cards, while a
     Page has fewer than 5 measured posts in 60 days, a line per such Page with a 5-step bar ("2/5
     bài") says how far it is from a median its posts can be compared with ("Gấp N× trung vị Page").
-    Between the KPIs and the table, two cards side by side (stacked on a phone), each listing up to
-    5 videos with "Xem thêm": "Sẵn sàng đăng (N)", rendered videos whose MP4 is current and that
-    have no live or scheduled post, oldest first, each with "Đăng"; and "Đăng thêm lên Page khác
-    (N)", a video whose post reached its Page's usual (median) 48-hour views, or whose Page has too
-    few measured posts to say, and is not live or scheduled on another working Page (on, token
-    fine), most viewed first, each with "Đăng lên <Page>". Either button opens the video with its
-    "Đăng video" dialog already open (`?publish=<fanpage id>`, dropped from the address at once) and
-    that Page picked. An empty card says so, or that it needs at least two Pages in use. A post updates
+    Between the KPIs and the table, three cards side by side (stacked on a phone), each listing up
+    to 5 videos with "Xem thêm": "Sẵn sàng đăng (N)", rendered videos whose MP4 is current and that
+    have no live or scheduled post, oldest first, each with "Đăng", which opens the video with its
+    "Đăng video" dialog already open (`?publish=`); "Nên làm bản TikTok (N)", Facebook videos that
+    did well (a post reached its Page's usual 48-hour views, or the Page has too few measured posts
+    to say) and have no TikTok version, most viewed first, each with "Tạo bản TikTok"
+    (`?clone=tiktok`); and "Nhân bản cho Page khác (N)", Facebook videos that did well, have no
+    Facebook clone yet and are not on every working Page, with the Pages they are missing from, each
+    with "Nhân bản" (`?clone=page`, the clone drawer with a variant request filled in). The request
+    is dropped from the address at once. The same MP4 is never suggested for another Page. An empty
+    card says so, or that it needs at least two Pages in use. A post updates
     by itself once the worker has done it. A line counts the scheduled and published reels; "Tìm
     theo tiêu đề", "Sắp xếp" ("Giờ đăng mới nhất", the default, or "Nhiều view nhất", posts not
     read yet last; videos follow their first post), a status filter (Đang hoạt động,
@@ -338,34 +389,49 @@ Built:
     sits under, the month it opens on, and the "today" mark.
     On a phone the month is compact, with a dot on each day that has a video, and the chosen day's
     videos are listed under it.
-- **Job logs** (`/jobs`): every job with video, kind, status, who started it, start, duration,
-  AI call count, the model that wrote a script ("DeepSeek · deepseek-chat"), and error; a row opens
-  its video.
+- **Job logs** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
+  jobs: a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or running), "Lỗi", "Xong"),
+  "Mọi loại", "Mọi người" and a search by video title ("Không có job nào khớp" when nothing matches).
+  Each row: the video title with its kind and job number under it, a status tag with an icon, who
+  started it, start with the duration under it, AI call count with the model that wrote a script
+  ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
 - **Cài đặt**, a menu group, last in the sidebar, with two pages: **Cấu hình** and **Kết nối Fanpage**.
-  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with three tabs, each
-  its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all three:
+  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with four tabs, each
+  its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all four.
+  From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
+  line on what it holds ("Video mới bắt đầu thế nào", "AI viết kịch bản", "Kho ảnh, ảnh AI, giọng
+  đọc", "Shopee và TikTok của bạn"), beside the tab; narrower, a row above it. Every tab starts the
+  same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
+  what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
+  The content takes the whole width beside the list:
   - **Thiết lập mặc định** (`/settings/defaults`, the first tab): the same three cards as
-    a video's "Thiết lập" tab plus the music level, saved at once ("Đã lưu mặc định"). They apply
-    only to videos created afterwards.
+    a video's "Thiết lập" tab plus the music level, from 1600 px "Âm thanh" and "Hình ảnh" down the
+    left and "Chữ & phụ đề" on the right, one column below that; read-only until "Chỉnh sửa" (in the
+    tab's header, with "Huỷ" and "Lưu" while editing). While editing, the
+    changes stay on the page ("Có thay đổi chưa lưu") until "Lưu" sends them together ("Đã lưu mặc
+    định") or "Huỷ" drops them. They apply only to videos created afterwards.
   - **Mô hình AI** (`/settings/ai`): "Đang dùng để viết kịch bản" picks the team's provider (a
-    provider not set up yet is greyed out, "chưa cấu hình"). Below, one collapsible line per
+    provider not set up yet is greyed out, "chưa cấu hình"); from 1600 px it sits on the left,
+    staying in view, beside the providers. Below or beside it, one collapsible line per
     provider with "Đang dùng", "Sẵn sàng" or "Chưa cấu hình" and its model; the one in use is open.
     Opened: "API key" (pasted once with "Lưu key", then shown as "Đã lưu, kết thúc bằng …abcd" with
     "Dán key mới" and "Xoá key"; Claude without a saved key says it uses the server's `.env` key),
     "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
-  - **Nguồn tư liệu** (`/settings/sources`): first the switch "Tự tìm ảnh sau khi viết kịch bản"
-    (on by default: a stock photo for every scene once a script or clone is written); then one card per stock library (Pixabay, Pexels: photos
-    and clips; Openverse: photos, no key) with "Sẵn sàng" or "Chưa có key", a switch "Hiện trong
-    hộp chọn" that hides a source from the picker and "Tìm ảnh" for the whole team, and its API
+  - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
+    (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
+    tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side
+    (Pexels, marked "Mặc định", and Pixabay: photos and clips; Openverse: photos, no key), each
+    with "Sẵn sàng" or "Chưa có key", a switch (titled "Hiện trong hộp chọn") that hides a source
+    from the picker and "Tìm ảnh" for the whole team, and its API
     key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
     của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
     ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, and
     "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
-    định" once edited; empty adds nothing) in one "Ảnh AI" card, then one
-    card per AI photo provider (Gemini; Cloudflare, whose key is a Workers AI API token) with its
-    model, its key and "Mặc định" on the default one; last, "Giọng đọc (ElevenLabs)" with the narration key. A
+    định" once edited; empty adds nothing) in the first card of "Dịch vụ AI", then its keys side by
+    side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
+    model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
   - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid
@@ -375,7 +441,8 @@ Built:
     pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers
     in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
     then a footer line with when it was last checked and two icon buttons, "Số liệu 30 ngày" (a
-    dialog with the numbers day by day) and "Kiểm tra ngay". The "⋯" menu has
+    dialog with the numbers day by day) and "Kiểm tra ngay". Opening the page checks by itself the
+    Pages not checked in 15 minutes. The "⋯" menu has
     "Dán token mới", which must reach that Page, and "Ngừng dùng" (confirmed). Stopped Pages are
     folded into "Đã ngừng dùng (N)" at the bottom, each with its post count, "Dùng lại", and "Xóa"
     for one that never had a post (confirmed; it removes the token and the numbers); for one with

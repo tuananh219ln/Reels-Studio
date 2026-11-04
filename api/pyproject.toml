@@ -20,6 +20,8 @@ dependencies = [
     "httpx>=0.27",
     "cryptography>=44",
     "mcp>=1.30,<2",
+    # remote_media.py downloads a pasted TikTok video's file with it.
+    "yt-dlp>=2025.10",
     # The render core in ../worker: install it first (pip install ../worker), it is not on PyPI.
     "reels-render",
 ]

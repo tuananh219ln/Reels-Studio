@@ -336,6 +336,34 @@ def pending_publication(db: DbSession, video_id: int) -> Publication | None:
     return next((post for post in publications_of(db, video_id) if post.status == "pending"), None)
 
 
+def tiktok_posts_of(db: DbSession, video_id: int) -> list[Publication]:
+    """The video's TikTok posts, made by hand in TikTok's app and recorded with their link, newest first."""
+    return list(
+        db.scalars(
+            select(Publication)
+            .where(Publication.video_id == video_id, Publication.platform == "tiktok")
+            .order_by(Publication.id.desc())
+        )
+    )
+
+
+def tiktok_post_payload(post: Publication) -> dict:
+    return {
+        "id": post.id,
+        "url": post.post_url,
+        "account": post.affiliate_account.name if post.affiliate_account else None,
+        "at": live_at(post).isoformat(),
+        "created_by": post.created_by.name,
+    }
+
+
+def _video_link(db: DbSession, video: Video | None) -> dict | None:
+    if video is None:
+        return None
+    title, _ = split_scenes(db, video)
+    return {"id": video.id, "title": title_of(video, title) or video.topic, "platform": video.platform}
+
+
 def published_publication(db: DbSession, video_id: int) -> Publication | None:
     return next((post for post in publications_of(db, video_id) if is_published(post)), None)
 
@@ -496,6 +524,18 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # What a post sends: the caption, then the hashtags it does not already hold.
         "post_text": hashtags.post_text(video.caption, video.hashtags),
         "affiliates": video.affiliates,
+        "platform": video.platform,
+        "variant_of": _video_link(db, db.get(Video, video.variant_of_id)) if video.variant_of_id else None,
+        "variants": [
+            _video_link(db, variant)
+            for variant in db.scalars(select(Video).where(Video.variant_of_id == video.id).order_by(Video.id))
+        ],
+        "tiktok_posts": [tiktok_post_payload(post) for post in tiktok_posts_of(db, video.id)],
+        "suggest": {
+            "state": "pending" if video.suggest_requested_at else ("failed" if video.suggest_error else "idle"),
+            "error": video.suggest_error,
+            "at": video.suggested_at.isoformat() if video.suggested_at else None,
+        },
         # The products whose links go in the comment under the video's reels (post_comments.py).
         "affiliate_product_ids": [product.id for product in affiliate.products_of(db, video.id)],
         "pinned_comment": video.pinned_comment,
@@ -530,7 +570,15 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "publication": publication_payload(publication_of(db, video.id), by_page),
         "publications": [publication_payload(post, by_page) for post in posts],
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
-        "fanpages": [{"id": page.id, "name": page.name, "error": page.check_error} for page in fanpages.in_use(db)],
+        "fanpages": [
+            {
+                "id": page.id,
+                "name": page.name,
+                "owner": page.owner.name if page.owner else None,
+                "error": page.check_error,
+            }
+            for page in fanpages.in_use(db)
+        ],
         "knowledge_topic": topic.name if topic else None,
         "plan_idea": _plan_idea(db, video),
         "script_by": script_writer(db, video.id) if video.has_script else None,
@@ -567,7 +615,20 @@ def _plan_idea(db: DbSession, video: Video) -> dict | None:
     }
 
 
-def list_payload(db: DbSession, video: Video) -> dict:
+def made_from(db: DbSession) -> tuple[set[int], set[int]]:
+    """The videos that have a TikTok version, and those a Facebook clone was made from ("Nhân bản", a version for
+    another Page), for the list's suggestions on "Bài đăng"; read once per list."""
+    tiktok = set(db.scalars(select(Video.variant_of_id).where(Video.variant_of_id.is_not(None))))
+    sources = db.scalars(
+        select(Video.clone_source["video_id"].as_integer()).where(
+            Video.clone_source.is_not(None), Video.platform == "facebook"
+        )
+    )
+    return tiktok, {source for source in sources if source is not None}
+
+
+def list_payload(db: DbSession, video: Video, family: tuple[set[int], set[int]] = (set(), set())) -> dict:
+    """`family`: made_from, read once per list."""
     title, scenes = split_scenes(db, video)
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
@@ -575,6 +636,9 @@ def list_payload(db: DbSession, video: Video) -> dict:
         "id": video.id,
         "topic": video.topic,
         "title": title_of(video, title),
+        "platform": video.platform,
+        "has_tiktok_version": video.id in family[0],
+        "cloned": video.id in family[1],
         "created_by": video.created_by.name,
         "created_at": video.created_at.isoformat(),
         **_status(db, video, job, failed),

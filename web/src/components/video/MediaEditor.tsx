@@ -1,7 +1,8 @@
 "use client";
 
-import { PlayCircleOutlined, RedoOutlined, SwapOutlined } from "@ant-design/icons";
+import { PlayCircleOutlined, RedoOutlined, SwapOutlined, UndoOutlined } from "@ant-design/icons";
 import { Alert, Button, Flex, Modal, Slider, Switch, Typography } from "antd";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import ListenVolume, { useListen } from "@/components/ListenVolume";
@@ -39,6 +40,38 @@ export default function MediaEditor({
     <ClipTrim scene={scene} clip={scene.video} voiceEnabled={voiceEnabled} which={which} onClose={onClose} />
   ) : (
     <PhotoCrop scene={scene} which={which} onClose={onClose} />
+  );
+}
+
+// Both dialogs sit in the middle of the screen, the picture on the left and its controls beside it (under it on a
+// phone), so nothing needs scrolling to reach "Áp dụng".
+const DIALOG = {
+  centered: true,
+  width: 860,
+  styles: { body: { maxHeight: "calc(100vh - 180px)", overflowY: "auto", overflowX: "hidden" } },
+} as const;
+const MEDIA_HEIGHT = "min(56vh, 480px)";
+
+function EditorLayout({ media, children }: { media: ReactNode; children: ReactNode }) {
+  return (
+    <Flex wrap gap={24} align="flex-start">
+      <div style={{ flex: "1 1 340px", minWidth: 0 }}>{media}</div>
+      <Flex vertical gap={16} style={{ flex: "1 1 260px", minWidth: 0 }}>
+        {children}
+      </Flex>
+    </Flex>
+  );
+}
+
+function Section({ label, extra, children }: { label: string; extra?: ReactNode; children: ReactNode }) {
+  return (
+    <Flex vertical gap={6}>
+      <Flex justify="space-between" align="center" gap={8}>
+        <Typography.Text strong>{label}</Typography.Text>
+        {extra}
+      </Flex>
+      {children}
+    </Flex>
   );
 }
 
@@ -114,9 +147,17 @@ function PhotoCrop({ scene, which, onClose }: { scene: SceneData; which: string;
     }
   }
 
+  function reset() {
+    setCrop({ x: 0, y: 0 });
+    setZoom(1);
+    setRotation(0);
+    setFlipped(false);
+  }
+
   return (
     <Modal
       open
+      {...DIALOG}
       title={`Chỉnh khung ảnh ${which}`}
       onCancel={onClose}
       onOk={apply}
@@ -127,26 +168,37 @@ function PhotoCrop({ scene, which, onClose }: { scene: SceneData; which: string;
       maskClosable={!saving}
       destroyOnHidden
     >
-      <Flex vertical gap={12}>
-        <div style={{ position: "relative", height: 420, background: "#141414", borderRadius: 6, overflow: "hidden" }}>
-          {src && (
-            <Cropper
-              image={src}
-              crop={crop}
-              zoom={zoom}
-              rotation={rotation}
-              aspect={9 / 16}
-              maxZoom={4}
-              // The flip is shown with the same transform the crop is drawn with.
-              transform={`translate(${crop.x}px, ${crop.y}px) rotate(${rotation}deg) scale(${flipped ? -zoom : zoom}, ${zoom})`}
-              onCropChange={setCrop}
-              onZoomChange={setZoom}
-              onCropComplete={(_, pixels) => setArea(pixels)}
-            />
-          )}
-        </div>
-        <Flex align="center" gap={12}>
-          <Typography.Text>Phóng to</Typography.Text>
+      <EditorLayout
+        media={
+          <div
+            style={{
+              position: "relative",
+              height: MEDIA_HEIGHT,
+              background: "#141414",
+              borderRadius: 8,
+              overflow: "hidden",
+            }}
+          >
+            {src && (
+              <Cropper
+                image={src}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={9 / 16}
+                maxZoom={4}
+                // The flip is shown with the same transform the crop is drawn with.
+                transform={`translate(${crop.x}px, ${crop.y}px) rotate(${rotation}deg) scale(${flipped ? -zoom : zoom}, ${zoom})`}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(_, pixels) => setArea(pixels)}
+              />
+            )}
+          </div>
+        }
+      >
+        <Typography.Text type="secondary">Kéo ảnh để chọn phần nằm trong khung 9:16.</Typography.Text>
+        <Section label="Phóng to" extra={<Typography.Text type="secondary">{zoom.toFixed(2)}×</Typography.Text>}>
           <Slider
             aria-label="Phóng to"
             min={1}
@@ -154,18 +206,22 @@ function PhotoCrop({ scene, which, onClose }: { scene: SceneData; which: string;
             step={0.05}
             value={zoom}
             onChange={setZoom}
-            style={{ flex: 1 }}
             tooltip={{ formatter: (value) => `${(value ?? 1).toFixed(2)}×` }}
           />
-        </Flex>
-        <Flex gap={8} wrap>
-          <Button icon={<RedoOutlined />} onClick={() => setRotation((current) => (current + 90) % 360)}>
-            Xoay 90°
-          </Button>
-          <Button icon={<SwapOutlined />} type={flipped ? "primary" : "default"} onClick={() => setFlipped(!flipped)}>
-            Lật ngang
-          </Button>
-        </Flex>
+        </Section>
+        <Section label="Xoay và lật">
+          <Flex gap={8} wrap>
+            <Button icon={<RedoOutlined />} onClick={() => setRotation((current) => (current + 90) % 360)}>
+              Xoay 90°
+            </Button>
+            <Button icon={<SwapOutlined />} type={flipped ? "primary" : "default"} onClick={() => setFlipped(!flipped)}>
+              Lật ngang
+            </Button>
+            <Button icon={<UndoOutlined />} onClick={reset}>
+              Đặt lại
+            </Button>
+          </Flex>
+        </Section>
         {soft && (
           <Alert
             type="warning"
@@ -174,7 +230,7 @@ function PhotoCrop({ scene, which, onClose }: { scene: SceneData; which: string;
             data-testid="crop-soft"
           />
         )}
-        <Typography.Text type="secondary">
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Ảnh đã cắt thay ảnh hiện tại và giữ nguồn của nó (Pixabay, ảnh AI…). Muốn về ảnh gốc thì chọn lại ảnh.
         </Typography.Text>
         {error && (
@@ -182,7 +238,7 @@ function PhotoCrop({ scene, which, onClose }: { scene: SceneData; which: string;
             {error}
           </Typography.Text>
         )}
-      </Flex>
+      </EditorLayout>
     </Modal>
   );
 }
@@ -285,6 +341,7 @@ function ClipTrim({
   return (
     <Modal
       open
+      {...DIALOG}
       title={`Cắt video ${which}`}
       onCancel={onClose}
       onOk={apply}
@@ -295,51 +352,61 @@ function ClipTrim({
       maskClosable={!saving}
       destroyOnHidden
     >
-      <Flex vertical gap={12}>
-        <video
-          ref={player}
-          src={clip.url}
-          muted={!sound}
-          playsInline
-          preload="metadata"
-          aria-label={`Xem trước video ${which}`}
-          data-testid="trim-player"
-          // "Xem thử" plays the chosen part only.
-          onTimeUpdate={(event) => {
-            if (event.currentTarget.currentTime >= shownEnd) {
-              event.currentTarget.pause();
-            }
-          }}
-          style={{
-            display: "block",
-            height: 360,
-            aspectRatio: "9 / 16",
-            margin: "0 auto",
-            objectFit: "cover",
-            background: "#000",
-            borderRadius: 6,
-          }}
-        />
-        <Slider
-          range
-          aria-label="Đoạn video dùng cho cảnh"
-          min={0}
-          max={total}
-          step={0.1}
-          value={[start, shownEnd]}
-          onChange={change}
-          tooltip={{ formatter: (value) => `${seconds(value ?? 0)} giây` }}
-        />
-        <Flex justify="space-between" wrap gap={8}>
-          <Typography.Text data-testid="trim-range">
+      <EditorLayout
+        media={
+          <video
+            ref={player}
+            src={clip.url}
+            muted={!sound}
+            playsInline
+            preload="metadata"
+            aria-label={`Xem trước video ${which}`}
+            data-testid="trim-player"
+            // "Xem thử" plays the chosen part only.
+            onTimeUpdate={(event) => {
+              if (event.currentTarget.currentTime >= shownEnd) {
+                event.currentTarget.pause();
+              }
+            }}
+            style={{
+              display: "block",
+              height: MEDIA_HEIGHT,
+              maxWidth: "100%",
+              aspectRatio: "9 / 16",
+              margin: "0 auto",
+              objectFit: "cover",
+              background: "#000",
+              borderRadius: 8,
+            }}
+          />
+        }
+      >
+        <Section
+          label="Đoạn dùng cho cảnh"
+          extra={
+            <Button size="small" icon={<PlayCircleOutlined />} onClick={preview}>
+              Xem thử
+            </Button>
+          }
+        >
+          <Slider
+            range
+            aria-label="Đoạn video dùng cho cảnh"
+            min={0}
+            max={total}
+            step={0.1}
+            value={[start, shownEnd]}
+            onChange={change}
+            tooltip={{ formatter: (value) => `${seconds(value ?? 0)} giây` }}
+          />
+          <Typography.Text type="secondary" data-testid="trim-range">
             Từ giây {seconds(start)} đến {seconds(shownEnd)} · cảnh dài {seconds(length)} giây
           </Typography.Text>
-          <Button icon={<PlayCircleOutlined />} onClick={preview}>
-            Xem thử
-          </Button>
-        </Flex>
-        <Flex align="center" gap={12}>
-          <Typography.Text>Tốc độ clip</Typography.Text>
+        </Section>
+        <Section
+          label="Tốc độ clip"
+          extra={<Typography.Text data-testid="trim-speed">{speedText(speed)}</Typography.Text>}
+        >
           <Slider
             aria-label="Tốc độ clip"
             min={MIN_CLIP_SPEED}
@@ -347,20 +414,22 @@ function ClipTrim({
             step={0.25}
             value={speed}
             onChange={changeSpeed}
-            style={{ flex: 1 }}
             tooltip={{ formatter: (value) => speedText(value ?? 1) }}
           />
-          <Typography.Text data-testid="trim-speed">{speedText(speed)}</Typography.Text>
-        </Flex>
+        </Section>
         {problem && <Alert type="error" showIcon title={problem} data-testid="trim-problem" />}
         {short && <Alert type="warning" showIcon title={short} data-testid="trim-short" />}
-        <Flex align="center" gap={8} wrap>
-          <Switch checked={sound} onChange={setSound} aria-label="Nghe tiếng gốc" />
-          <Typography.Text>Nghe tiếng gốc khi xem thử</Typography.Text>
-          {sound && <ListenVolume width={100} />}
-          <Typography.Text type="secondary">(video xuất ra không dùng tiếng gốc)</Typography.Text>
-        </Flex>
-        <Typography.Text type="secondary">
+        <Section label="Tiếng gốc">
+          <Flex align="center" gap={8} wrap>
+            <Switch checked={sound} onChange={setSound} aria-label="Nghe tiếng gốc" />
+            <Typography.Text>Nghe khi xem thử</Typography.Text>
+            {sound && <ListenVolume width={100} />}
+          </Flex>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Video xuất ra không dùng tiếng gốc.
+          </Typography.Text>
+        </Section>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Hai đầu đã chừa {seconds(sides * speed)} giây cho chuyển cảnh.
           {voiceEnabled && " Cảnh có thể dài hơn để khớp lời đọc."}
         </Typography.Text>
@@ -369,7 +438,7 @@ function ClipTrim({
             {error}
           </Typography.Text>
         )}
-      </Flex>
+      </EditorLayout>
     </Modal>
   );
 }

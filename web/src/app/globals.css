@@ -13,16 +13,28 @@ body {
   white-space: nowrap;
 }
 
-/* Scene card: quick actions over the 9:16 picture, shown on hover or keyboard focus, always on touch screens. */
+/* Scene card: the picture's tools stacked in its middle, shown on hover or keyboard focus, always on touch screens. */
+.scene-media {
+  position: relative;
+}
+
 .scene-media__overlay {
   position: absolute;
   inset: 0;
-  justify-content: flex-end;
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
   border-radius: 6px;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.65), transparent 60%);
+  background: rgba(0, 0, 0, 0.45);
   opacity: 0;
   transition: opacity 0.15s;
+}
+
+.scene-media__overlay .ant-btn {
+  width: min(85%, 180px);
 }
 
 .scene-media:hover .scene-media__overlay,
@@ -33,6 +45,7 @@ body {
 @media (hover: none) {
   .scene-media__overlay {
     opacity: 1;
+    background: rgba(0, 0, 0, 0.25);
   }
 }
 

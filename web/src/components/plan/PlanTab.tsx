@@ -46,6 +46,7 @@ import {
   type PlanPreview,
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
+import FormDrawer from "@/components/FormDrawer";
 
 const PLAN_DAYS = 30;
 const MIN_PER_DAY = 3;
@@ -505,10 +506,10 @@ function AddIdeaModal({
   const [form] = Form.useForm<PlanIdeaFields>();
   const [busy, setBusy] = useState(false);
   return (
-    <Modal
+    <FormDrawer
       title={`Thêm ý tưởng ngày ${day ?? ""}`}
       open={day !== null}
-      onCancel={onClose}
+      onClose={onClose}
       onOk={() => form.submit()}
       okText="Thêm"
       cancelText="Huỷ"
@@ -543,7 +544,7 @@ function AddIdeaModal({
           <Input maxLength={500} />
         </Form.Item>
       </Form>
-    </Modal>
+    </FormDrawer>
   );
 }
 

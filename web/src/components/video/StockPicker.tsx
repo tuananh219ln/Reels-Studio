@@ -39,6 +39,9 @@ export function keywordsWithFirst(keywords: string[], keyword: string): string[]
  * community uploads, titled in Vietnamese), the Western libraries with the English ones; either
  * list backs the other up when it is empty.
  */
+/** The team's default stock library: the picker opens on it and "Tìm ảnh" searches it when it is offered. */
+export const DEFAULT_SOURCE = "pexels";
+
 function firstKeyword(sourceId: string, keywords: string[], keywordsEn: string[]): string {
   const preferred = sourceId === "openverse" ? keywords : keywordsEn;
   const fallback = sourceId === "openverse" ? keywordsEn : keywords;
@@ -46,7 +49,7 @@ function firstKeyword(sourceId: string, keywords: string[], keywordsEn: string[]
 }
 
 /**
- * "Chọn từ kho ảnh/video", mounted only while open; its "Video" mode is ClipPicker below. Sources (Pixabay, Pexels, Openverse) come from the api,
+ * "Chọn từ kho ảnh/video", mounted only while open; its "Video" mode is ClipPicker below. Sources (Pexels, Pixabay, Openverse) come from the api,
  * which hides one that is not configured; each source opens in the language it indexes (English for
  * Pixabay/Pexels, Vietnamese for Openverse) unless the member typed a keyword of their own. The grid
  * shows each source's small thumbnails (`preview`) straight from the source; choosing sends the
@@ -69,15 +72,15 @@ export default function StockPicker({
   // each poll hands new (equal) arrays; following them would restart the picker and drop the chosen
   // source. The choice itself still reorders the latest lists (see choose()).
   const [{ keywords, keywordsEn }] = useState({ keywords: liveKeywords, keywordsEn: liveKeywordsEn });
-  const first = firstKeyword("pixabay", keywords, keywordsEn);
+  const first = firstKeyword(DEFAULT_SOURCE, keywords, keywordsEn);
   const [query, setQuery] = useState(first);
   const [sources, setSources] = useState<StockSource[] | null>(null);
-  const [source, setSource] = useState("pixabay");
+  const [source, setSource] = useState(DEFAULT_SOURCE);
   const [hits, setHits] = useState<PixabayHit[] | null>(null);
   // The keyword and source the shown results were found with, as the api normalised them:
   // the choice must name the same pair.
   const [searchedFor, setSearchedFor] = useState("");
-  const [searchedSource, setSearchedSource] = useState("pixabay");
+  const [searchedSource, setSearchedSource] = useState(DEFAULT_SOURCE);
   const [loading, setLoading] = useState(first.trim() !== "");
   const [choosing, setChoosing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -121,8 +124,8 @@ export default function StockPicker({
   }
 
   // On open: learn which sources the api offers, then search the scene's first keyword in the default
-  // one (Pixabay when configured, else the first offered); with no keyword, wait for one to be typed.
-  // If the sources call itself fails, fall back to Pixabay alone so the picker still works. Every state
+  // one (Pexels when configured, else the first offered); with no keyword, wait for one to be typed.
+  // If the sources call itself fails, fall back to Pexels alone so the picker still works. Every state
   // change happens in a promise callback, after checking the picker is still open; `keywords` are the
   // snapshot taken at open, so this runs once per opening.
   useEffect(() => {
@@ -136,9 +139,9 @@ export default function StockPicker({
         if (!open.current) {
           return;
         }
-        const offered = available.length > 0 ? available : [{ id: "pixabay", label: "Pixabay", available: true }];
+        const offered = available.length > 0 ? available : [{ id: DEFAULT_SOURCE, label: "Pexels", available: true }];
         setSources(offered);
-        const initial = offered.some((item) => item.id === "pixabay") ? "pixabay" : offered[0].id;
+        const initial = offered.some((item) => item.id === DEFAULT_SOURCE) ? DEFAULT_SOURCE : offered[0].id;
         setSource(initial);
         setSearchedSource(initial);
         // The member was quicker than the sources answer: what they typed or searched stays.
@@ -219,11 +222,20 @@ export default function StockPicker({
     }
   }
 
-  const sourceLabel = sources?.find((item) => item.id === searchedSource)?.label ?? "Pixabay";
+  const sourceLabel = sources?.find((item) => item.id === searchedSource)?.label ?? "Pexels";
   const clipSources = (sources ?? []).filter((item) => item.clips);
 
   return (
-    <Modal title="Chọn từ kho ảnh/video" open onCancel={onClose} footer={null} width={880}>
+    <Modal
+      title="Chọn từ kho ảnh/video"
+      open
+      centered
+      onCancel={onClose}
+      footer={null}
+      width={880}
+      // In the middle of the screen, the grid scrolling inside it rather than the page.
+      styles={{ body: { maxHeight: "calc(100vh - 140px)", overflowY: "auto", overflowX: "hidden" } }}
+    >
       {clipSources.length > 0 && (
         <Segmented
           aria-label="Loại tư liệu"

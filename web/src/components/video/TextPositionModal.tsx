@@ -130,6 +130,7 @@ export default function TextPositionModal({
       open
       title={scene.is_title ? "Vị trí chữ cảnh tiêu đề" : "Vị trí chữ của cảnh"}
       onCancel={onClose}
+      centered
       width={420}
       footer={null}
       destroyOnHidden

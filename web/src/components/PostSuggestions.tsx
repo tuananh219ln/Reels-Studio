@@ -1,6 +1,6 @@
 "use client";
 
-import { SendOutlined } from "@ant-design/icons";
+import { CopyOutlined, SendOutlined } from "@ant-design/icons";
 import { Button, Card, Col, Flex, Row, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -23,8 +23,6 @@ export function publishHref(videoId: number, fanpageId?: number): string {
   return `/videos/${videoId}?publish=${fanpageId ?? ""}`;
 }
 
-type Spread = { video: VideoRow; views: number; from: string; to: Pick<Fanpage, "id" | "name"> };
-
 /** Rendered videos with no live or scheduled post, oldest first: they were made and are waiting. */
 export function readyToPost(videos: VideoRow[], posts: PostRow[]): VideoRow[] {
   const live = new Set(posts.filter(isActive).map((post) => post.video_id));
@@ -33,11 +31,12 @@ export function readyToPost(videos: VideoRow[], posts: PostRow[]): VideoRow[] {
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 }
 
-/** A video that did well on one Page and is not on another of the team's working Pages yet, most viewed first. "Did
- * well": its views reach the Page's usual (median) views at 48 hours, or the Page has too few measured posts to say. */
-export function spreadToPages(videos: VideoRow[], posts: PostRow[], pages: Fanpage[]): Spread[] {
-  const working = pages.filter((page) => page.active && !page.check.error);
-  const byId = new Map(videos.filter(postable).map((video) => [video.id, video]));
+type Winner = { video: VideoRow; views: number; from: string; on: Set<string> };
+
+/** Facebook videos that did well, most viewed first: a post's views reach its Page's usual (median) views at 48
+ * hours, or the Page has too few measured posts to say. `on`: the Pages the video is live or scheduled on. */
+export function doingWell(videos: VideoRow[], posts: PostRow[]): Winner[] {
+  const byId = new Map(videos.filter((video) => video.platform === "facebook").map((video) => [video.id, video]));
   const best = new Map<number, { views: number; from: string }>();
   for (const post of posts) {
     const views = post.metrics.at_48h?.views ?? post.metrics.latest?.views;
@@ -46,21 +45,23 @@ export function spreadToPages(videos: VideoRow[], posts: PostRow[], pages: Fanpa
     if (samples >= MIN_SAMPLES && median !== null && views < median) continue;
     if (views > (best.get(post.video_id)?.views ?? -1)) best.set(post.video_id, { views, from: post.fanpage });
   }
-  const spreads: Spread[] = [];
+  const winners: Winner[] = [];
   for (const [videoId, { views, from }] of best) {
     const video = byId.get(videoId);
     if (!video) continue;
-    const on = new Set(posts.filter((post) => post.video_id === videoId && isActive(post)).map((post) => post.fanpage));
-    for (const page of working) {
-      if (!on.has(page.name)) spreads.push({ video, views, from, to: { id: page.id, name: page.name } });
-    }
+    const on = new Set(
+      posts.filter((post) => post.video_id === videoId && isActive(post) && post.fanpage).map((post) => post.fanpage!),
+    );
+    winners.push({ video, views, from, on });
   }
-  return spreads.sort((a, b) => b.views - a.views);
+  return winners.sort((a, b) => b.views - a.views);
 }
 
-/** Two short lists above "Bài đăng": what is made and waiting to go out, and what did well on one Page and could go
- * to another. Each opens the video's "Đăng" dialog. `posts` (every post) changes when the list is reloaded, so the
- * videos and Pages are read again with it. A failure leaves the lists out: the table below still works. */
+/** Three short lists above "Bài đăng": what is made and waiting to go out, and what did well on Facebook and could be
+ * made again, as a TikTok version or as a variant for another of the team's Pages. Never the same MP4 on a second
+ * Page: Facebook shows a copy less and can stop paying a Page that repeats content (docs/specs/multi-platform/plan.md).
+ * `posts` (every post) changes when the list is reloaded, so the videos and Pages are read again with it. A failure
+ * leaves the lists out: the table below still works. */
 export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) {
   const [videos, setVideos] = useState<VideoRow[] | null>(null);
   const [pages, setPages] = useState<Fanpage[] | null>(null);
@@ -76,11 +77,17 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
 
   if (!posts || !videos || !pages) return null;
   const ready = readyToPost(videos, posts);
-  const spreads = spreadToPages(videos, posts, pages);
+  const winners = doingWell(videos, posts);
+  const working = pages.filter((page) => page.active && !page.check.error).map((page) => page.name);
+  const forTikTok = winners.filter((winner) => !winner.video.has_tiktok_version);
+  const forPages = winners
+    .filter((winner) => !winner.video.cloned)
+    .map((winner) => ({ ...winner, missing: working.filter((name) => !winner.on.has(name)) }))
+    .filter((winner) => winner.missing.length > 0);
 
   return (
     <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-      <Col xs={24} lg={12} style={{ display: "flex" }}>
+      <Col xs={24} lg={8} style={{ display: "flex" }}>
         <SuggestionCard
           testId="ready-to-post"
           title="Sẵn sàng đăng"
@@ -95,22 +102,35 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
           }))}
         />
       </Col>
-      <Col xs={24} lg={12} style={{ display: "flex" }}>
+      <Col xs={24} lg={8} style={{ display: "flex" }}>
         <SuggestionCard
-          testId="spread-to-pages"
-          title="Đăng thêm lên Page khác"
-          help="Video chạy tốt trên một Page (từ mức view phổ biến của Page trở lên) mà chưa có trên Page khác."
-          empty={
-            pages.filter((page) => page.active).length < 2
-              ? "Cần ít nhất 2 Fanpage đang dùng để có gợi ý."
-              : "Chưa có video nào để đăng thêm."
-          }
-          items={spreads.map((spread) => ({
-            key: `${spread.video.id}-${spread.to.id}`,
-            video: spread.video,
-            sub: `${formatCount(spread.views)} view trên ${spread.from} · chưa có trên ${spread.to.name}`,
-            href: publishHref(spread.video.id, spread.to.id),
-            action: `Đăng lên ${spread.to.name}`,
+          testId="make-tiktok"
+          title="Nên làm bản TikTok"
+          help="Video chạy tốt trên Facebook (từ mức view phổ biến của Page trở lên) mà chưa có bản TikTok."
+          empty="Chưa có video nào cần làm bản TikTok."
+          items={forTikTok.map((winner) => ({
+            key: String(winner.video.id),
+            video: winner.video,
+            sub: `${formatCount(winner.views)} view trên ${winner.from}`,
+            href: `/videos/${winner.video.id}?clone=tiktok`,
+            action: "Tạo bản TikTok",
+            icon: <CopyOutlined />,
+          }))}
+        />
+      </Col>
+      <Col xs={24} lg={8} style={{ display: "flex" }}>
+        <SuggestionCard
+          testId="clone-for-pages"
+          title="Nhân bản cho Page khác"
+          help="Video chạy tốt trên một Page mà Page khác chưa có: AI viết một bản khác cho Page đó, không đăng lại cùng file."
+          empty={working.length < 2 ? "Cần ít nhất 2 Fanpage đang dùng để có gợi ý." : "Chưa có video nào để nhân bản."}
+          items={forPages.map((winner) => ({
+            key: String(winner.video.id),
+            video: winner.video,
+            sub: `${formatCount(winner.views)} view trên ${winner.from} · chưa có trên ${winner.missing.join(", ")}`,
+            href: `/videos/${winner.video.id}?clone=page`,
+            action: "Nhân bản",
+            icon: <CopyOutlined />,
           }))}
         />
       </Col>
@@ -118,7 +138,14 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
   );
 }
 
-type Suggestion = { key: string; video: VideoRow; sub: string; href: string; action: string };
+type Suggestion = {
+  key: string;
+  video: VideoRow;
+  sub: string;
+  href: string;
+  action: string;
+  icon?: React.ReactNode;
+};
 
 function SuggestionCard({
   testId,
@@ -139,7 +166,8 @@ function SuggestionCard({
     <Card
       size="small"
       data-testid={testId}
-      style={{ flex: 1 }}
+      // min-width 0: a long Page name in a button must not push the card past its column.
+      style={{ flex: 1, minWidth: 0 }}
       title={
         <Flex vertical style={{ padding: "8px 0" }}>
           <span>
@@ -157,8 +185,9 @@ function SuggestionCard({
       ) : (
         <Flex vertical gap={10}>
           {shown.map((item) => (
-            <Flex key={item.key} align="center" justify="space-between" gap={12} data-testid="suggestion">
-              <div style={{ minWidth: 0, flex: 1 }}>
+            <Flex key={item.key} align="center" justify="space-between" gap={12} wrap data-testid="suggestion">
+              {/* Takes what the button leaves; below 200 px the button goes under it instead of over it. */}
+              <div style={{ minWidth: 0, flex: "1 1 200px" }}>
                 <VideoTitleCell
                   id={item.video.id}
                   title={item.video.title || item.video.topic}
@@ -168,8 +197,8 @@ function SuggestionCard({
                 />
               </div>
               <Link prefetch={false} href={item.href}>
-                <Button size="small" icon={<SendOutlined />}>
-                  {item.action}
+                <Button size="small" icon={item.icon ?? <SendOutlined />} title={item.action} style={{ maxWidth: 240 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.action}</span>
                 </Button>
               </Link>
             </Flex>

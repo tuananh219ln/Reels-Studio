@@ -50,6 +50,11 @@ def _container(head: bytes) -> tuple[str, str] | None:
     return None
 
 
+def looks_like_clip(head: bytes) -> bool:
+    """Whether a file's first bytes are an MP4/MOV or WebM container's (checked fully by check_clip)."""
+    return _container(head) is not None
+
+
 def _tool(name: str) -> str:
     path = shutil.which(name)
     if path is None:
@@ -77,16 +82,75 @@ def _demuxer(path: Path) -> tuple[str, str]:
     return found
 
 
-def check_clip(path: Path) -> Clip:
-    """Refuse anything that is not a 1–60 s MP4/MOV/WebM clip with a usable video stream."""
+def _probe(path: Path) -> tuple[str, str, dict]:
+    """The demuxer, the stored extension and ffprobe's streams and format."""
     demuxer, extension = _demuxer(path)
     try:
         raw = _run(
             [_tool("ffprobe"), "-v", "error", "-f", demuxer, "-show_streams", "-show_format", "-of", "json", str(path)]
         )
-        data = json.loads(raw)
+        return demuxer, extension, json.loads(raw)
     except (ClipError, json.JSONDecodeError):
         raise UploadRejected(_REFUSED) from None
+
+
+def _length(data: dict) -> float | None:
+    """The first video stream's own length: the container's is the longest stream, often a longer audio track. WebM
+    usually stores no per-stream length, and then the container's is all there is."""
+    videos = [stream for stream in data.get("streams", []) if stream.get("codec_type") == "video"]
+    own = _seconds(videos[0].get("duration")) if videos else None
+    return own or _seconds(data.get("format", {}).get("duration"))
+
+
+def first_part(path: Path, folder: Path) -> Path:
+    """A clip taken from a link (a TikTok video often runs past a minute) cut to its first MAX_CLIP_SECONDS without
+    re-encoding; a shorter clip, or a file that is not one, is returned as is for check_clip to judge."""
+    try:
+        demuxer, extension, data = _probe(path)
+    except UploadRejected:
+        return path
+    seconds = _length(data)
+    if seconds is None or seconds <= MAX_CLIP_SECONDS:
+        return path
+    target = folder / f"first-part.{extension}"
+    # A stream copy ends on the first packet past -t, so it stops a little short of the limit.
+    try:
+        _cut(path, demuxer, extension, target)
+    except ClipError:
+        raise UploadRejected(_REFUSED) from None
+    return target
+
+
+def _cut(path: Path, demuxer: str, extension: str, target: Path) -> None:
+    _run(
+        [
+            _tool("ffmpeg"),
+            "-v",
+            "error",
+            "-nostdin",
+            "-y",
+            "-f",
+            demuxer,
+            "-i",
+            str(path),
+            "-t",
+            f"{MAX_CLIP_SECONDS - 0.5:g}",
+            "-map",
+            "0:v:0",
+            "-map",
+            "0:a:0?",
+            "-c",
+            "copy",
+            "-f",
+            "mp4" if extension == "mp4" else "webm",
+            str(target),
+        ]
+    )
+
+
+def check_clip(path: Path) -> Clip:
+    """Refuse anything that is not a 1–60 s MP4/MOV/WebM clip with a usable video stream."""
+    _, extension, data = _probe(path)
     videos = [stream for stream in data.get("streams", []) if stream.get("codec_type") == "video"]
     if not videos:
         raise UploadRejected(_REFUSED)
@@ -100,10 +164,7 @@ def check_clip(path: Path) -> Clip:
                 f"Video phải có cạnh ngắn từ {MIN_SHORT_SIDE} px và cạnh dài tối đa {MAX_LONG_SIDE} px "
                 f"(đang là {width}×{height})"
             )
-    video = videos[0]
-    # The video stream's own length: the container's is the longest stream, often a longer audio track. WebM
-    # usually stores no per-stream length, and then the container's is all there is.
-    seconds = _seconds(video.get("duration")) or _seconds(data.get("format", {}).get("duration"))
+    seconds = _length(data)
     if seconds is None:
         raise UploadRejected("Không đọc được độ dài video")
     if not MIN_CLIP_SECONDS <= seconds <= MAX_CLIP_SECONDS:

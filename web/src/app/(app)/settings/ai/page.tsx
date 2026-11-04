@@ -7,10 +7,12 @@ import {
   AutoComplete,
   Button,
   Card,
+  Col,
   Collapse,
   Flex,
   Input,
   Popconfirm,
+  Row,
   Select,
   Space,
   Tag,
@@ -19,6 +21,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type LlmProvider, type LlmSettings } from "@/lib/api";
 import { COLORS } from "@/app/theme";
+import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 
 function StatusTag({ provider }: { provider: LlmProvider }) {
   if (provider.active) {
@@ -254,57 +257,69 @@ export default function AiSettingsPage() {
 
   return (
     <>
-      <Typography.Paragraph type="secondary" style={{ margin: "0 0 16px", maxWidth: 760 }}>
-        Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model
-        riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó.
-      </Typography.Paragraph>
-
-      <Card size="small" style={{ marginBottom: 16, maxWidth: 760 }}>
-        <Flex wrap gap={12} align="center">
-          <Typography.Text strong>Đang dùng để viết kịch bản:</Typography.Text>
-          <Select
-            aria-label="Nhà cung cấp đang dùng"
-            style={{ minWidth: 280, flex: "1 1 280px" }}
-            loading={settings === null || switching}
-            value={settings?.active}
-            onChange={choose}
-            options={(settings?.providers ?? []).map((provider) => ({
-              value: provider.id,
-              disabled: !!provider.problem,
-              label: provider.problem
-                ? `${provider.name} (chưa cấu hình)`
-                : `${provider.name} · ${provider.effective_model}`,
-            }))}
-          />
-        </Flex>
-        {active?.problem && (
-          <Alert type="error" showIcon style={{ marginTop: 12 }} title={`Viết kịch bản sẽ lỗi: ${active.problem}`} />
-        )}
-      </Card>
-
-      {settings && (
-        <Collapse
-          style={{ maxWidth: 760, background: "#fff" }}
-          activeKey={open ?? [settings.active]}
-          onChange={(keys) => setOpen(keys as string[])}
-          items={settings.providers.map((provider) => ({
-            key: provider.id,
-            label: (
-              <Flex wrap gap={8} align="center">
-                {provider.active && <CheckCircleFilled style={{ color: COLORS.primary }} />}
-                <Typography.Text strong>{provider.name}</Typography.Text>
-                <StatusTag provider={provider} />
-                {!provider.problem && (
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                    {provider.effective_model}
-                  </Typography.Text>
-                )}
+      <SettingsHeader
+        title="Mô hình AI"
+        description="Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó."
+      />
+      {/* The choice beside the list on a wide screen, and staying in view while the list scrolls. */}
+      <Row gutter={[24, 16]}>
+        <Col xs={24} xxl={8}>
+          <div style={{ position: "sticky", top: 16 }}>
+            <Card size="small">
+              <Flex wrap gap={12} align="center">
+                <Typography.Text strong>Đang dùng để viết kịch bản:</Typography.Text>
+                <Select
+                  aria-label="Nhà cung cấp đang dùng"
+                  style={{ minWidth: 0, flex: "1 1 240px" }}
+                  loading={settings === null || switching}
+                  value={settings?.active}
+                  onChange={choose}
+                  options={(settings?.providers ?? []).map((provider) => ({
+                    value: provider.id,
+                    disabled: !!provider.problem,
+                    label: provider.problem
+                      ? `${provider.name} (chưa cấu hình)`
+                      : `${provider.name} · ${provider.effective_model}`,
+                  }))}
+                />
               </Flex>
-            ),
-            children: <ProviderForm provider={provider} onSaved={setSettings} />,
-          }))}
-        />
-      )}
+              {active?.problem && (
+                <Alert
+                  type="error"
+                  showIcon
+                  style={{ marginTop: 12 }}
+                  title={`Viết kịch bản sẽ lỗi: ${active.problem}`}
+                />
+              )}
+            </Card>
+          </div>
+        </Col>
+        <Col xs={24} xxl={16}>
+          {settings && (
+            <Collapse
+              style={{ background: "#fff" }}
+              activeKey={open ?? [settings.active]}
+              onChange={(keys) => setOpen(keys as string[])}
+              items={settings.providers.map((provider) => ({
+                key: provider.id,
+                label: (
+                  <Flex wrap gap={8} align="center">
+                    {provider.active && <CheckCircleFilled style={{ color: COLORS.primary }} />}
+                    <Typography.Text strong>{provider.name}</Typography.Text>
+                    <StatusTag provider={provider} />
+                    {!provider.problem && (
+                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {provider.effective_model}
+                      </Typography.Text>
+                    )}
+                  </Flex>
+                ),
+                children: <ProviderForm provider={provider} onSaved={setSettings} />,
+              }))}
+            />
+          )}
+        </Col>
+      </Row>
     </>
   );
 }

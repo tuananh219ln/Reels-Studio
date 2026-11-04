@@ -40,6 +40,7 @@ const BACKEND_ENV = {
   IMAGE_GEN_CF_ACCOUNT_ID: "test-account",
   IMAGE_GEN_CF_API_KEY: "fake-cloudflare-token",
   FACEBOOK_API_URL: `${FAKES_URL}/facebook`,
+  SHOPEE_AFFILIATE_API_URL: `${FAKES_URL}/shopee/graphql`,
   PYTHONUNBUFFERED: "1",
   PYTHONIOENCODING: "utf-8",
 };
