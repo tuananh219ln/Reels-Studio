@@ -28,7 +28,11 @@ Asked by the owner (namtc07), who agreed to change the 2026-11-03 rule below:
   next voice job or render.
 - **The preview edits** the scene being shown: its seconds, "Tự khớp lời đọc", the clip's part, the text box dragged on
   the phone (kept in the safe zone as the render places it), and the video's ElevenLabs voice, with the same saves as
-  the scene cards and "Thiết lập".
+  the scene cards and "Thiết lập". The phone itself is edited too: text typed in place, the box snapped to the
+  middle and warned when an app's buttons or caption would cover it (estimated zones in `preview/coverage.ts`), the
+  timeline's edges for seconds and its segments for the order, a trim bar for clips, a toolbar, keys and touch.
+  "Hoàn tác" only covers what can be put back through the same calls (text, place, seconds, clip, transition,
+  order); adding and removing a scene are asked first instead.
 
 ## 2026-11-04 — The interface keeps orange for the main action and where you are; statuses are a dot and a word
 

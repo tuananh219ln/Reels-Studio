@@ -169,7 +169,17 @@ Built:
     narration's length; for a clip, a two-handle "Đoạn clip" slider (the left end is "Bắt đầu từ giây", the
     span the scene's seconds at the clip's speed); and, while the preview is paused, the text box dragged
     on the phone itself, kept inside the safe zone as the render places it, for "Cảnh này" or "Mọi cảnh",
-    with "Về vị trí chung". The video plays inside a phone with the chosen app's own
+    with "Về vị trí chung". While paused and editable, the phone itself is edited: a double-click on the text box
+    types its on-screen text in place (opened with it all chosen; leaving the field or Ctrl+Enter saves, Esc
+    cancels); the box snaps to the frame's middle with a guide line; with a TikTok/Reels/Shorts frame on, a box
+    under the app's right-hand buttons or caption is outlined in red with "Hộp chữ bị … che"; on a touch screen the
+    box moves after a short hold, and a quick swipe across the phone changes scene. On the timeline a segment's
+    right edge drags its seconds (1–10, by tenths; a double-click goes back to "Tự khớp lời đọc") and a content
+    scene's segment drags to a new place. A scene with a clip gets a trim bar under the phone: the window moves the
+    start, its ends set the start and the seconds, and the phone shows the frame being chosen. A toolbar beside the
+    phone has "Hoàn tác" / "Làm lại" (also Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) for these changes, a new photo or clip,
+    the video's "Chuyển cảnh", "Thêm cảnh sau cảnh này" and "Xoá cảnh" (asked first; neither of the last two can be
+    undone). Keys: Space plays or pauses, ← → change scene, [ ] take or add 0.1 s. The video plays inside a phone with the chosen app's own
     screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and
