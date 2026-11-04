@@ -2,6 +2,7 @@
 and from "Kết nối Fanpage"."""
 
 import json
+import logging
 import time
 import urllib.error
 import urllib.parse
@@ -12,6 +13,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from . import config
+
+log = logging.getLogger("reels_api.facebook")
 
 REQUEST_TIMEOUT = 60
 UPLOAD_TIMEOUT = 300
@@ -255,27 +258,30 @@ REEL_RETENTION = "post_video_retention_graph"
 def reel_insights(page: Page, video_id: str) -> dict:
     """The reel's `views`, `shares`, `comments`, `reactions`, the REEL_NUMBERS and `retention`, each None when Facebook
     leaves it out. This is the one place that knows Meta's metric names and shapes, so a change on their side is fixed
-    here alone. Needs the `read_insights` permission on the Page's token."""
+    here alone. Needs the `read_insights` permission on the Page's token.
+
+    Every metric goes in one call. Meta fails that whole call, with (#100), when it has retired any one of them, as it
+    did post_impressions_unique in June 2026. So after a (#100) each metric is asked alone, and only the ones Facebook
+    refuses come back None. If it refuses all of them, the reel is gone."""
     names = [*REEL_METRICS, *REEL_NUMBERS.values(), REEL_RETENTION]
-    query = urllib.parse.urlencode({"metric": ",".join(names), "period": "lifetime", "access_token": page.token})
-    url = f"{config.facebook_api_url()}/{urllib.parse.quote(video_id, safe='')}/video_insights?{query}"
     try:
-        reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
+        data = _video_insights(page, video_id, names)
     except FacebookError as err:
-        if err.code in PERMISSION_ERRORS:
-            raise FacebookError(
-                "Token Facebook chưa có quyền đọc chỉ số (read_insights), hãy dán token mới trong Kết nối Fanpage",
-                err.detail,
-                err.status,
-                err.code,
-            ) from None
-        if err.status == 404 or err.code == 100:
-            raise FacebookError(
-                "Facebook không còn reel này hoặc chưa có chỉ số", err.detail, err.status, err.code
-            ) from None
-        raise
+        if err.code != 100:
+            raise _insights_error(err) from None
+        data, refused = [], []
+        for name in names:
+            try:
+                data += _video_insights(page, video_id, [name])
+            except FacebookError as one:
+                if one.code != 100:
+                    raise _insights_error(one) from None
+                refused.append(name)
+        if not data:
+            raise _insights_error(err) from None
+        log.warning("Facebook refused the Video Insights metrics %s of reel %s", ", ".join(refused), video_id)
     values = {}
-    for item in reply.get("data") or []:
+    for item in data:
         if isinstance(item, dict) and item.get("values"):
             values[item.get("name")] = item["values"][-1].get("value")
     social = values.get("post_video_social_actions")
@@ -287,6 +293,26 @@ def reel_insights(page: Page, video_id: str) -> dict:
         **{key: _number(values.get(name)) for key, name in REEL_NUMBERS.items()},
         "retention": _curve(values.get(REEL_RETENTION)),
     }
+
+
+def _video_insights(page: Page, video_id: str, names: list[str]) -> list:
+    query = urllib.parse.urlencode({"metric": ",".join(names), "period": "lifetime", "access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(video_id, safe='')}/video_insights?{query}"
+    return _send(urllib.request.Request(url), INSIGHTS_TIMEOUT).get("data") or []
+
+
+def _insights_error(err: FacebookError) -> FacebookError:
+    """What a member can act on, for a Video Insights call Facebook refused."""
+    if err.code in PERMISSION_ERRORS:
+        return FacebookError(
+            "Token Facebook chưa có quyền đọc chỉ số (read_insights), hãy dán token mới trong Kết nối Fanpage",
+            err.detail,
+            err.status,
+            err.code,
+        )
+    if err.status == 404 or err.code == 100:
+        return FacebookError("Facebook không còn reel này hoặc chưa có chỉ số", err.detail, err.status, err.code)
+    return err
 
 
 def _number(value: object) -> int | None:

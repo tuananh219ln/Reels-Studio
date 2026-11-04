@@ -267,6 +267,26 @@ def test_a_reel_facebook_no_longer_has_is_said_plainly(db, me, storage, fakes):
     assert post.metrics_error == "Facebook không còn reel này hoặc chưa có chỉ số"
 
 
+def test_a_metric_meta_retired_loses_only_that_number(db, me, storage, fakes):
+    # Meta retired post_impressions_unique (June 2026); asked with the rest, it failed the whole reading.
+    post = add_post(db, storage, me, 5)
+    fakes.facebook_retired_metrics.add("post_impressions_unique")
+    metrics.measure(db, post)
+    assert post.metrics_error is None
+    latest = windows(post)["latest"]
+    assert (latest.views, latest.shares, latest.reach) == (1200, 3, None)
+    assert latest.avg_watch_ms is not None
+
+
+def test_a_reel_gone_is_still_said_plainly_after_asking_metric_by_metric(db, me, storage, fakes):
+    post = add_post(db, storage, me, 5)
+    fakes.facebook_insights_gone.add("1000")
+    fakes.facebook_retired_metrics.add("post_impressions_unique")
+    metrics.measure(db, post)
+    assert post.metrics_error == "Facebook không còn reel này hoặc chưa có chỉ số"
+    assert post.metrics == []
+
+
 # The worker and the api
 
 
