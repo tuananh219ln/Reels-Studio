@@ -362,8 +362,8 @@ export default function VideoPage() {
               data-testid="plan-idea-card"
               title={
                 <>
-                  Theo kế hoạch 30 ngày · Ngày {video.plan_idea.day}
-                  {video.plan_idea.pain_group ? ` · ${video.plan_idea.pain_group}` : ""}
+                  Theo kế hoạch 30 ngày, {video.plan_idea.day === null ? "Backlog" : `ngày ${video.plan_idea.day}`}
+                  {video.plan_idea.pain_group ? `, ${video.plan_idea.pain_group}` : ""}
                 </>
               }
               description={

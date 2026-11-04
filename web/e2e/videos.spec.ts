@@ -114,12 +114,9 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
 
-  // datetime-local takes the browser's local time.
-  const later = new Date(Date.now() + 2 * 3600 * 1000);
-  later.setMinutes(later.getMinutes() - later.getTimezoneOffset());
   await openPublish(page);
   await page.getByRole("radio", { name: "Hẹn giờ" }).click();
-  await page.getByLabel("Giờ đăng").fill(later.toISOString().slice(0, 16));
+  await page.getByLabel("Giờ đăng").fill(vietnamTimeIn(2));
   await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
@@ -239,7 +236,7 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await expect(page.getByText("Không có video nào khớp")).toBeVisible();
   await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Nháp");
   await expect(cards).toHaveCount(1);
-  await page.getByText("Của tôi", { exact: true }).click();
+  await chooseOption(page, page.getByLabel("Người tạo"), "Của tôi");
   await expect(cards).toHaveCount(1);
 
   // The list view shows one row per video; the choice is remembered in this browser.
@@ -415,6 +412,11 @@ async function openPublish(page: Page) {
   await page.getByRole("button", { name: "send Đăng", exact: true }).click();
 }
 
+/** A `datetime-local` value some hours from now: "Giờ đăng" is read as Vietnam time, not the browser's. */
+function vietnamTimeIn(hours: number) {
+  return new Date(Date.now() + (hours + 7) * 3600 * 1000).toISOString().slice(0, 16);
+}
+
 async function confirmPost(page: Page) {
   await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
 }
@@ -493,15 +495,24 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await page.getByLabel("Kiểu hiển thị").getByText("Lịch", { exact: true }).click();
   await expect(page).toHaveURL(/\/posts\?view=calendar$/);
   await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
-  await page.locator(".ant-picker-cell-in-view a[href^='/videos/']").click();
+  // Choosing a day opens its posts in a drawer, each with a link to its video.
+  // The week view is the default on a wide screen: a reel's cover sits in its hour.
+  await page.getByTestId("week-post").first().click();
+  const drawer = page.getByRole("dialog", { name: /^Bài đăng ngày / });
+  await expect(drawer.getByTestId("calendar-drawer-post")).toHaveCount(1);
+  await drawer.getByRole("link", { name: "Mở video" }).click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 
-  // A phone shows the compact month with a dot, and today's posts listed under it.
+  // A phone shows the compact month with a dot; tapping the day opens its posts the same way.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/calendar"); // an old link lands on the calendar view
   await expect(page).toHaveURL(/\/posts\?view=calendar$/);
   await expect(page.locator(".ant-picker-cell-today [data-testid='calendar-dot']")).toBeVisible();
-  await page.locator("a[href^='/videos/']").click();
+  await page.locator(".ant-picker-cell-today").click();
+  await page
+    .getByRole("dialog", { name: /^Bài đăng ngày / })
+    .getByRole("link", { name: "Mở video" })
+    .click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
@@ -536,11 +547,13 @@ test("a scheduled video appears in Bài đăng and its calendar without a link t
   await renderedVideo(page);
   await openPublish(page);
   await page.getByLabel("Hẹn giờ").check();
-  const when = new Date(Date.now() + 60 * 60 * 1000);
-  const local = new Date(when.getTime() - when.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
-  await page.getByLabel("Giờ đăng").fill(local);
+  const typed = vietnamTimeIn(1);
+  await page.getByLabel("Giờ đăng").fill(typed);
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
+  // The time comes back as it was typed, whatever the browser's time zone.
+  const [date, time] = typed.split("T");
+  const shown = `${date.split("-").reverse().join("/")} ${time}`;
+  await expect(page.getByTestId("publication-status")).toContainText(`Đã hẹn đăng lúc ${shown}`, { timeout: 30_000 });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await page.getByTestId("post-group").getByRole("cell").last().click();
@@ -561,9 +574,7 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await renderedVideo(page);
   await openPublish(page);
   await page.getByLabel("Hẹn giờ").check();
-  const when = new Date(Date.now() + 60 * 60 * 1000);
-  const local = new Date(when.getTime() - when.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
-  await page.getByLabel("Giờ đăng").fill(local);
+  await page.getByLabel("Giờ đăng").fill(vietnamTimeIn(1));
   await confirmPost(page);
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
@@ -1773,14 +1784,14 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await expect(idea).toContainText("Ý tưởng");
 
   await page.goto("/videos");
-  await expect(page.getByTestId("plan-banner")).toHaveText(/Ngày 1: hôm nay còn 1\/1 video/);
+  await expect(page.getByTestId("plan-banner")).toHaveText(/ngày 1: hôm nay còn 1\/1 video/);
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
   await idea.getByRole("button", { name: "Tạo video" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
-  await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch · Ngày 1");
+  await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch, ngày 1");
   await expect(dialog.getByLabel("Chủ đề", { exact: true })).toHaveValue("5 món sáng giúp ổn định huyết áp");
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("plan-idea-card")).toContainText("Nỗi đau: Sợ tai biến khi huyết áp lên xuống");

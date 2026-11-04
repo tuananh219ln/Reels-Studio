@@ -1,7 +1,7 @@
 "use client";
 
 import { ReloadOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Segmented, Select, Typography } from "antd";
+import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Segmented, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type PageCommentRow, type PageComments } from "@/lib/api";
@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import StatusText, { type StatusTone } from "@/components/StatusText";
+import FilterSelect from "@/components/FilterSelect";
 
 const REFRESH_MS = 10_000;
 
@@ -200,8 +201,7 @@ export default function CommentsPage() {
             ]}
           />
           {pages.length > 1 && (
-            <Select
-              allowClear
+            <FilterSelect
               aria-label="Fanpage"
               placeholder="Mọi Fanpage"
               value={fanpage}

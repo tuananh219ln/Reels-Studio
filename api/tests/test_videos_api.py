@@ -144,6 +144,7 @@ def test_the_list_shows_each_videos_posts_views_and_48_hour_numbers(an, db, me, 
     assert rows["Đã đăng hai trang"]["post"] == {
         "state": "posted",
         "fanpage": "Vườn nhà",  # the post with the most views
+        "fanpages": ["Rau sạch", "Vườn nhà"],
         "pages": 2,
         "at": rows["Đã đăng hai trang"]["post"]["at"],
         "views": 5700,  # latest readings added up

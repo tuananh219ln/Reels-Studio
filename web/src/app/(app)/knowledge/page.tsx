@@ -21,7 +21,7 @@ import {
 import { useEffect, useState } from "react";
 import { api, errorMessage, type Knowledge, type KnowledgeTopic } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
-import PlanTab from "@/components/plan/PlanTab";
+import { usePlanTabs } from "@/components/plan/PlanTab";
 
 export default function KnowledgePage() {
   const { message } = App.useApp();
@@ -163,6 +163,7 @@ function TopicBody({
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const path = `/knowledge/topics/${topic.id}`;
+  const { tabs: planTabs, dialogs: planDialogs } = usePlanTabs(topic.id);
   const update = async (body: Partial<KnowledgeTopic>) => {
     const saved = await api<Knowledge>(path, "PATCH", body);
     onSaved(saved);
@@ -270,9 +271,10 @@ function TopicBody({
               </Row>
             ),
           },
-          { key: "plan", label: "Kế hoạch 30 ngày", children: <PlanTab topicId={topic.id} /> },
+          ...planTabs,
         ]}
       />
+      {planDialogs}
     </Flex>
   );
 }

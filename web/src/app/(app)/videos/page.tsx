@@ -24,13 +24,12 @@ import {
   Select,
   Spin,
   Table,
-  Tag,
   theme,
   Typography,
 } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import VideoThumbnail from "@/components/VideoThumbnail";
@@ -42,6 +41,7 @@ import {
   type ActiveLlm,
   type Knowledge,
   type KnowledgeTopic,
+  type Plan,
   type PlanItem,
   type PlanToday,
   type VideoDetail,
@@ -50,6 +50,7 @@ import {
 } from "@/lib/api";
 import { COLORS } from "@/app/theme";
 import StatusText, { type StatusTone } from "@/components/StatusText";
+import FilterSelect from "@/components/FilterSelect";
 import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
 import { useRememberedView, type View } from "@/lib/view";
@@ -91,8 +92,10 @@ export default function VideosPage() {
   const router = useRouter();
   const { me } = useMe();
   const [status, setStatus] = useState<StatusFilter>("all");
-  const [mine, setMine] = useState(false);
+  // Null is everyone; a name is that member's videos ("Của tôi" is the signed-in member).
+  const [creator, setCreator] = useState<string | null>(null);
   const [platform, setPlatform] = useState<"all" | "facebook" | "tiktok">("all");
+  const [fanpage, setFanpage] = useState<string | null>(null);
   const [view, chooseView] = useRememberedView(VIEW_KEY);
   const [sort, setSort] = useState<Sort>("new");
 
@@ -145,11 +148,22 @@ export default function VideosPage() {
 
   const match = STATUS_FILTERS.find((item) => item.value === status)!.match;
   const kept = (rows ?? []).filter(
-    (row) => match(row) && (!mine || row.created_by === me.name) && (platform === "all" || row.platform === platform),
+    (row) =>
+      match(row) &&
+      (!creator || row.created_by === creator) &&
+      (platform === "all" || row.platform === platform) &&
+      (!fanpage || Boolean(row.post?.fanpages.includes(fanpage))),
+  );
+  const creators = [...new Set((rows ?? []).map((row) => row.created_by))]
+    .filter((name) => name !== me.name)
+    .sort((a, b) => a.localeCompare(b, "vi"));
+  const pages = [...new Set((rows ?? []).flatMap((row) => row.post?.fanpages ?? []))].sort((a, b) =>
+    a.localeCompare(b, "vi"),
   );
   // The api lists the newest first; "Nhiều view nhất" puts videos without views after, newest first among them.
   const shown = sort === "views" ? [...kept].sort((a, b) => (b.post?.views ?? -1) - (a.post?.views ?? -1)) : kept;
-  const filtered = Boolean(query.trim()) || status !== "all" || mine || platform !== "all";
+  const filtered =
+    Boolean(query.trim()) || status !== "all" || Boolean(creator) || platform !== "all" || Boolean(fanpage);
 
   return (
     <>
@@ -168,34 +182,42 @@ export default function VideosPage() {
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          style={{ width: 320, maxWidth: "100%" }}
+          style={{ width: 230, maxWidth: "100%" }}
         />
-        <Select
+        <FilterSelect<StatusFilter>
           aria-label="Lọc theo trạng thái"
-          value={status}
-          onChange={setStatus}
-          options={STATUS_FILTERS.map(({ value, label }) => ({ value, label }))}
-          style={{ width: 190 }}
+          placeholder="Mọi trạng thái"
+          value={status === "all" ? null : status}
+          onChange={(value) => setStatus(value ?? "all")}
+          options={STATUS_FILTERS.filter(({ value }) => value !== "all").map(({ value, label }) => ({ value, label }))}
+          style={{ width: 160 }}
         />
-        <Select
+        <FilterSelect<"facebook" | "tiktok">
           aria-label="Lọc theo nền tảng"
-          value={platform}
-          onChange={setPlatform}
+          placeholder="Mọi nền tảng"
+          value={platform === "all" ? null : platform}
+          onChange={(value) => setPlatform(value ?? "all")}
           options={[
-            { value: "all", label: "Mọi nền tảng" },
             { value: "facebook", label: "Facebook" },
             { value: "tiktok", label: "TikTok" },
           ]}
-          style={{ width: 150 }}
+          style={{ width: 140 }}
         />
-        <Segmented
+        <FilterSelect<string>
+          aria-label="Lọc theo Fanpage"
+          placeholder="Mọi Fanpage"
+          value={fanpage}
+          onChange={(value) => setFanpage(value ?? null)}
+          options={pages.map((name) => ({ value: name, label: name }))}
+          style={{ width: 160 }}
+        />
+        <FilterSelect<string>
           aria-label="Người tạo"
-          value={mine ? "mine" : "all"}
-          onChange={(value) => setMine(value === "mine")}
-          options={[
-            { value: "all", label: "Cả đội" },
-            { value: "mine", label: "Của tôi" },
-          ]}
+          placeholder="Cả đội"
+          value={creator}
+          onChange={(value) => setCreator(value ?? null)}
+          options={[{ value: me.name, label: "Của tôi" }, ...creators.map((name) => ({ value: name, label: name }))]}
+          style={{ width: 140 }}
         />
         <Select<Sort>
           aria-label="Sắp xếp"
@@ -205,7 +227,7 @@ export default function VideosPage() {
             { value: "new", label: "Mới nhất" },
             { value: "views", label: "Nhiều view nhất" },
           ]}
-          style={{ width: 170 }}
+          style={{ width: 140 }}
         />
         <Segmented
           aria-label="Kiểu hiển thị"
@@ -548,6 +570,11 @@ function PlanBanners({ today, onContinue }: { today: PlanToday[]; onContinue: (i
         .filter((group) => group.ideas.length > 0)
         .map((group) => {
           const left = group.ideas.filter((idea) => idea.status === "idea");
+          // Videos made ahead for the coming days, so their posts can be scheduled.
+          const ahead =
+            group.prepared_through !== null && group.prepared_through > group.day
+              ? `, đã làm trước đến ngày ${group.prepared_through}`
+              : "";
           return (
             <Alert
               key={group.topic_id}
@@ -557,8 +584,8 @@ function PlanBanners({ today, onContinue }: { today: PlanToday[]; onContinue: (i
               data-testid="plan-banner"
               title={
                 left.length
-                  ? `Kế hoạch ${group.name} · Ngày ${group.day}: hôm nay còn ${left.length}/${group.ideas.length} video`
-                  : `Kế hoạch ${group.name} · Ngày ${group.day}: đã làm đủ ${group.ideas.length} video hôm nay`
+                  ? `Kế hoạch ${group.name}, ngày ${group.day}: hôm nay còn ${left.length}/${group.ideas.length} video`
+                  : `Kế hoạch ${group.name}, ngày ${group.day}: đã làm đủ ${group.ideas.length} video hôm nay${ahead}`
               }
               action={
                 left.length > 0 && (
@@ -585,6 +612,35 @@ Vừng đen *giàu canxi*
 
 Cá hồi giảm đau khớp
 Đọc: Omega 3 trong cá hồi giúp khớp bớt đau.`;
+
+/** How many coming days of ideas the dialog lists before "Xem thêm". */
+const NEXT_DAYS = 3;
+
+type IdeaSection = { key: string; title: string; ideas: PlanItem[]; more?: boolean };
+
+/** The ideas still without a video: today's, the coming days', the past days' left undone, then the Backlog. */
+function ideaSections(plan: Plan, allNext: boolean): IdeaSection[] {
+  const free = plan.items.filter((item) => item.status === "idea");
+  const today = plan.today_day;
+  const running = today !== null && today >= 1 && today <= 30;
+  // Before the start (or without a start date) every day is to come; after the end, every day is past.
+  const after = running ? today : today !== null && today > 30 ? 31 : 0;
+  const coming = free.filter((item) => item.day !== null && item.day > after);
+  const comingDays = [...new Set(coming.map((item) => item.day))];
+  const shownDays = allNext ? comingDays : comingDays.slice(0, NEXT_DAYS);
+  const sections: IdeaSection[] = [
+    { key: "today", title: `Hôm nay, ngày ${today}`, ideas: running ? free.filter((item) => item.day === today) : [] },
+    {
+      key: "next",
+      title: "Ngày tới",
+      ideas: coming.filter((item) => shownDays.includes(item.day)),
+      more: shownDays.length < comingDays.length,
+    },
+    { key: "late", title: "Ngày đã qua chưa làm", ideas: free.filter((item) => item.day !== null && item.day < after) },
+    { key: "backlog", title: "Backlog", ideas: free.filter((item) => item.day === null) },
+  ];
+  return sections.filter((section) => section.ideas.length > 0);
+}
 
 /** Topics compare like the api's: case, spacing and Unicode form do not count. */
 function sameTopic(a: string, b: string): boolean {
@@ -618,8 +674,24 @@ function NewVideoModal({
   const groupId = Form.useWatch("knowledge_topic_id", form);
   const typed = Form.useWatch("topic", form) ?? "";
   const plan = today.find((group) => group.topic_id === groupId);
-  const suggestions = plan?.ideas.filter((idea) => idea.status === "idea") ?? [];
   const outsidePlan = !picked && plan && typed.trim() && !plan.topics.some((topic) => sameTopic(topic, typed));
+  // The group's whole plan: ideas of the coming days and of the Backlog can be made ahead, to schedule their posts.
+  const [groupPlan, setGroupPlan] = useState<Plan | null>(null);
+  const [allNext, setAllNext] = useState(false);
+  useEffect(() => {
+    if (!open || !groupId) {
+      return;
+    }
+    let live = true;
+    api<Plan>(`/plans/${groupId}`)
+      .then((fresh) => live && setGroupPlan(fresh))
+      // Only a suggestion: without it the dialog works as before.
+      .catch(() => live && setGroupPlan(null));
+    return () => {
+      live = false;
+    };
+  }, [open, groupId]);
+  const sections = groupPlan && groupPlan.topic_id === groupId ? ideaSections(groupPlan, allNext) : [];
 
   function pick(item: PlanItem) {
     setPicked(item);
@@ -655,8 +727,12 @@ function NewVideoModal({
     }
   }
 
-  // The plan's ideas list on the left, the one picked from elsewhere ("Tạo video" in Kho kiến thức) first.
-  const ideas = picked && !suggestions.some((idea) => idea.id === picked.id) ? [picked, ...suggestions] : suggestions;
+  // The idea picked from elsewhere ("Tạo video" in Kho kiến thức) stays listed even after it is unpicked.
+  const listed = sections.some((section) => section.ideas.some((idea) => idea.id === startItem?.id));
+  if (startItem && !listed && startItem.knowledge_topic_id === groupId) {
+    sections.unshift({ key: "picked", title: "Ý tưởng đã chọn", ideas: [startItem] });
+  }
+  const ideas = sections.flatMap((section) => section.ideas);
   const footer = (
     <Flex justify="space-between" align="center" gap={12} wrap>
       <div style={{ flex: 1, minWidth: 200, textAlign: "start" }}>
@@ -778,55 +854,68 @@ function NewVideoModal({
           <Row gutter={[16, 16]}>
             {ideas.length > 0 && (
               <Col xs={24} md={9}>
-                <Typography.Text type="secondary" style={{ fontSize: 12, letterSpacing: 0.4 }}>
-                  {plan ? `Ý TƯỞNG HÔM NAY · NGÀY ${plan.day} · ${suggestions.length} CHƯA LÀM` : "Ý TƯỞNG ĐÃ CHỌN"}
-                </Typography.Text>
-                <Flex vertical gap={6} style={{ marginTop: 8 }} data-testid="plan-suggestions">
+                <Flex
+                  vertical
+                  gap={6}
+                  data-testid="plan-suggestions"
+                  style={{ maxHeight: 520, overflowY: "auto", paddingRight: 4 }}
+                >
                   {ideas.map((idea, index) => {
                     const chosen = picked?.id === idea.id;
+                    const section = sections.find((item) => item.ideas[0]?.id === idea.id);
                     return (
-                      <div
-                        key={idea.id}
-                        role="button"
-                        tabIndex={0}
-                        aria-pressed={chosen}
-                        onClick={() => (chosen ? setPicked(null) : pick(idea))}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            if (chosen) setPicked(null);
-                            else pick(idea);
-                          }
-                        }}
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          alignItems: "flex-start",
-                          padding: "8px 10px",
-                          cursor: "pointer",
-                          borderRadius: token.borderRadius,
-                          border: `1px solid ${chosen ? token.colorPrimary : token.colorBorderSecondary}`,
-                          background: chosen ? token.colorPrimaryBg : token.colorBgContainer,
-                        }}
-                      >
-                        <Typography.Text type="secondary" style={{ fontVariantNumeric: "tabular-nums" }}>
-                          {String(index + 1).padStart(2, "0")}
-                        </Typography.Text>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <Typography.Text>{idea.topic}</Typography.Text>
-                          <div>
-                            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                              Ngày {idea.day}
-                              {idea.pain_group ? ` · ${idea.pain_group}` : ""}
+                      <Fragment key={idea.id}>
+                        {section && (
+                          <Flex justify="space-between" align="center" style={{ marginTop: index ? 8 : 0 }}>
+                            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                              {section.title} ({section.ideas.length})
                             </Typography.Text>
-                          </div>
-                        </div>
-                        {chosen && (
-                          <Tag color="orange" style={{ marginInlineEnd: 0 }}>
-                            Đã chọn
-                          </Tag>
+                            {section.key === "next" && section.more && (
+                              <Button size="small" type="link" onClick={() => setAllNext(true)}>
+                                Xem thêm
+                              </Button>
+                            )}
+                          </Flex>
                         )}
-                      </div>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-pressed={chosen}
+                          onClick={() => (chosen ? setPicked(null) : pick(idea))}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              if (chosen) setPicked(null);
+                              else pick(idea);
+                            }
+                          }}
+                          style={{
+                            display: "flex",
+                            gap: 10,
+                            alignItems: "flex-start",
+                            padding: "8px 10px",
+                            cursor: "pointer",
+                            borderRadius: token.borderRadius,
+                            border: `1px solid ${chosen ? token.colorPrimary : token.colorBorderSecondary}`,
+                            background: chosen ? token.colorPrimaryBg : token.colorBgContainer,
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <Typography.Text>{idea.topic}</Typography.Text>
+                            <div>
+                              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                {idea.day === null ? "Backlog" : `Ngày ${idea.day}`}
+                                {idea.pain_group ? `, ${idea.pain_group}` : ""}
+                              </Typography.Text>
+                            </div>
+                          </div>
+                          {chosen && (
+                            <Typography.Text style={{ fontSize: 12, color: token.colorPrimary, whiteSpace: "nowrap" }}>
+                              Đã chọn
+                            </Typography.Text>
+                          )}
+                        </div>
+                      </Fragment>
                     );
                   })}
                 </Flex>
@@ -880,7 +969,7 @@ function NewVideoModal({
                     type="info"
                     style={{ marginBottom: 16 }}
                     data-testid="picked-idea"
-                    title={`Theo kế hoạch · Ngày ${picked.day}${picked.pain_group ? ` · ${picked.pain_group}` : ""}`}
+                    title={`Theo kế hoạch, ${picked.day === null ? "Backlog" : `ngày ${picked.day}`}${picked.pain_group ? `, ${picked.pain_group}` : ""}`}
                     description={
                       <>
                         {picked.pain && <div>Nỗi đau: {picked.pain}</div>}

@@ -1,4 +1,5 @@
-"""The 30-day topic plan of each topic group ("Kế hoạch 30 ngày" on /knowledge) and today's ideas for "Tạo video"."""
+"""The 30-day topic plan of each topic group ("Kế hoạch 30 ngày" on /knowledge), its Backlog, and today's ideas for
+"Tạo video"."""
 
 from dataclasses import asdict
 from datetime import date
@@ -26,10 +27,12 @@ class PlanPatchBody(BaseModel):
     start_date: date | None = None  # null clears it
     per_day: int | None = None
     prompt: str | None = None
+    post_times: list[str] | None = None  # "HH:MM", 1 to 5
+    video_target: int | None = None  # null clears it
 
 
 class IdeaBody(BaseModel):
-    day: int
+    day: int | None = None  # None: the Backlog
     topic: str
     pain_group: str = ""
     pain: str = ""
@@ -37,7 +40,7 @@ class IdeaBody(BaseModel):
 
 
 class IdeaPatchBody(BaseModel):
-    day: int | None = None
+    day: int | None = None  # sent as null: into the Backlog
     position: int | None = None  # 1-based place within the day; the end of the day when moved without one
     topic: str | None = None
     pain_group: str | None = None
@@ -46,6 +49,10 @@ class IdeaPatchBody(BaseModel):
 
 
 class ReplaceBody(BaseModel):
+    ideas: list[IdeaBody]
+
+
+class BacklogBody(BaseModel):
     ideas: list[IdeaBody]
 
 
@@ -79,13 +86,17 @@ def _idea(body: IdeaBody) -> Idea:
         raise invalid(str(err)) from None
 
 
-def _check_day(day: int) -> None:
-    if not 1 <= day <= PLAN_DAYS:
+def _check_day(day: int | None) -> None:
+    if day is not None and not 1 <= day <= PLAN_DAYS:
         raise invalid(f"Ngày phải từ 1 đến {PLAN_DAYS}")
 
 
-def _room(db: DbSession, topic_id: int, day: int) -> None:
-    if plans.day_count(db, topic_id, day) >= MAX_PER_DAY:
+def _room(db: DbSession, topic_id: int, day: int | None) -> None:
+    """At most 5 ideas a day; the Backlog has a far higher limit."""
+    if day is None:
+        if plans.day_count(db, topic_id, None) >= plans.MAX_BACKLOG:
+            raise ApiError(409, "plan_backlog_full", f"Backlog đã đủ {plans.MAX_BACKLOG} ý tưởng")
+    elif plans.day_count(db, topic_id, day) >= MAX_PER_DAY:
         raise ApiError(409, "plan_day_full", f"Ngày {day} đã đủ {MAX_PER_DAY} ý tưởng")
 
 
@@ -93,7 +104,8 @@ def _unique(db: DbSession, topic_id: int, topic: str, own_id: int | None = None)
     key = plans.topic_key(topic)
     for item in plans.items_of(db, topic_id):
         if item.id != own_id and plans.topic_key(item.topic) == key:
-            raise ApiError(409, "plan_topic_taken", f"Kế hoạch đã có chủ đề này (ngày {item.day})")
+            where = f"ngày {item.day}" if item.day is not None else "trong Backlog"
+            raise ApiError(409, "plan_topic_taken", f"Kế hoạch đã có chủ đề này ({where})")
 
 
 def _saved(db: DbSession, topic: KnowledgeTopic) -> dict:
@@ -143,13 +155,13 @@ def patch_item(
         _unique(db, topic.id, changes["topic"], item.id)
     for field, value in changes.items():
         setattr(item, field, value)
-    if body.day is not None or body.position is not None:
-        _move(db, topic, item, body.day if body.day is not None else item.day, body.position)
+    if "day" in body.model_fields_set or body.position is not None:
+        _move(db, topic, item, body.day if "day" in body.model_fields_set else item.day, body.position)
     item.updated_by_id = me.user_id
     return _saved(db, topic)
 
 
-def _move(db: DbSession, topic: KnowledgeTopic, item: TopicPlanItem, day: int, position: int | None) -> None:
+def _move(db: DbSession, topic: KnowledgeTopic, item: TopicPlanItem, day: int | None, position: int | None) -> None:
     _check_day(day)
     old_day = item.day
     if day != old_day:
@@ -192,6 +204,15 @@ def patch_plan(
         if not plans.MIN_PER_DAY <= body.per_day <= MAX_PER_DAY:
             raise invalid(f"Số ý tưởng mỗi ngày phải từ {plans.MIN_PER_DAY} đến {MAX_PER_DAY}")
         topic.plan_per_day = body.per_day
+    if "video_target" in body.model_fields_set:
+        if body.video_target is not None and body.video_target < 1:
+            raise invalid("Số video mục tiêu phải từ 1 trở lên")
+        topic.video_target = body.video_target
+    if body.post_times is not None:
+        try:
+            topic.plan_post_times = plans.check_post_times(body.post_times)
+        except PlanError as err:
+            raise invalid(str(err)) from None
     if body.prompt is not None:
         prompt = body.prompt.replace("\r\n", "\n").strip()
         if not prompt:
@@ -228,11 +249,26 @@ def add_item(
     return _saved(db, topic)
 
 
+@router.post("/{topic_id}/backlog")
+def add_backlog(
+    topic_id: int, body: BacklogBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """Ideas of a previewed file into the Backlog, whatever their day; topics already in the plan are skipped."""
+    topic = _topic(db, topic_id)
+    ideas = [_idea(IdeaBody(**{**idea.model_dump(), "day": None})) for idea in body.ideas]
+    if not ideas:
+        raise invalid("Không có ý tưởng nào")
+    if plans.day_count(db, topic.id, None) + len(ideas) > plans.MAX_BACKLOG:
+        raise ApiError(409, "plan_backlog_full", f"Backlog tối đa {plans.MAX_BACKLOG} ý tưởng")
+    added, skipped = plans.add_to_backlog(db, topic, ideas, me.user_id)
+    return {**_saved(db, topic), "added": added, "skipped": skipped}
+
+
 @router.put("/{topic_id}/items")
 def replace_items(
     topic_id: int, body: ReplaceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    """Save an imported file or the AI's draft as the whole plan, after a member looked at it."""
+    """Save an imported file or the AI's draft as the 30 days, after a member looked at it; the Backlog stays."""
     topic = _topic(db, topic_id)
     if len(body.ideas) > plans.MAX_IDEAS:
         raise invalid(f"Tối đa {plans.MAX_IDEAS} ý tưởng")
@@ -264,6 +300,8 @@ def preview_import(
         "ideas": [asdict(idea) for idea in ideas],
         "errors": row_errors + errors,
         "warnings": warnings,
+        # Only rows that could not be read stop "Thêm vào Backlog": days and repeats do not matter there.
+        "can_backlog": bool(ideas) and not row_errors,
     }
 
 

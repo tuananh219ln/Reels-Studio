@@ -17,6 +17,7 @@ import PostMetrics, { formatCount, viewsOf } from "@/components/PostMetrics";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import StatusText from "@/components/StatusText";
+import FilterSelect from "@/components/FilterSelect";
 
 /** The order a video's status tags are listed in. */
 const STATUSES: ShownStatus[] = ["failed", "pending", "scheduled", "published", "cancelled", "deleted"];
@@ -137,13 +138,6 @@ function Posts() {
         description="Theo dõi các bài đang đăng, đã hẹn lịch, đã đăng hoặc thất bại trên mọi Fanpage."
         actions={viewSwitch}
       >
-        <Segmented<StatusFilter>
-          aria-label="Lọc theo trạng thái"
-          value={status}
-          onChange={setStatus}
-          options={FILTERS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
-          style={{ maxWidth: "100%", overflowX: "auto" }}
-        />
         <Input
           aria-label="Tìm theo tiêu đề"
           prefix={<SearchOutlined />}
@@ -152,6 +146,13 @@ function Posts() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 320, maxWidth: "100%" }}
+        />
+        <Segmented<StatusFilter>
+          aria-label="Lọc theo trạng thái"
+          value={status}
+          onChange={setStatus}
+          options={FILTERS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+          style={{ maxWidth: "100%", overflowX: "auto" }}
         />
         <Select
           aria-label="Sắp xếp"
@@ -163,10 +164,9 @@ function Posts() {
           ]}
           style={{ width: 180 }}
         />
-        {pages.length > 1 && (
-          <Select
+        {pages.length > 0 && (
+          <FilterSelect
             aria-label="Lọc theo Fanpage"
-            allowClear
             placeholder="Mọi Fanpage"
             value={fanpage}
             onChange={(value) => setFanpage(value ?? null)}

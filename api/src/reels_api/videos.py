@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, post_comments
+from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -610,10 +610,12 @@ def video_payload(db: DbSession, video: Video) -> dict:
 
 
 def _plan_idea(db: DbSession, video: Video) -> dict | None:
-    """The 30-day plan idea the video was made from, to compare against while editing."""
+    """The 30-day plan idea the video was made from, to compare against while editing, and when the plan means the
+    video to go out ("Đăng" starts with that time)."""
     idea = db.scalar(select(TopicPlanItem).where(TopicPlanItem.video_id == video.id))
     if idea is None:
         return None
+    post_at = plans.suggested_post_at(db.get(KnowledgeTopic, idea.knowledge_topic_id), idea)
     return {
         "id": idea.id,
         "knowledge_topic_id": idea.knowledge_topic_id,
@@ -622,6 +624,7 @@ def _plan_idea(db: DbSession, video: Video) -> dict | None:
         "pain_group": idea.pain_group,
         "pain": idea.pain,
         "hook": idea.hook,
+        "suggested_post_at": post_at.isoformat() if post_at else None,
     }
 
 
@@ -695,6 +698,7 @@ def _post_summary(
         return {
             "state": "scheduled",
             "fanpage": page,
+            "fanpages": sorted({name for _, name in later if name}),
             "pages": len(later),
             "at": live_at(post).isoformat(),
             "views": None,
@@ -716,6 +720,8 @@ def _post_summary(
     return {
         "state": "posted",
         "fanpage": page,
+        # Every Page it is out on or set for, for the list's Fanpage filter.
+        "fanpages": sorted({name for _, name in [*live, *later] if name}),
         "pages": len(live),
         "at": live_at(post).isoformat(),
         "views": sum(counted) if counted else None,

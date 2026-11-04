@@ -8,12 +8,13 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import ProductModal from "./ProductModal";
 import StatusText from "@/components/StatusText";
+import FilterSelect from "@/components/FilterSelect";
 
 type Filters = { topicId?: number; status?: string; platform?: string; q: string };
 
@@ -227,28 +228,25 @@ export default function Products() {
             onChange={(event) => setFilters({ ...filters, q: event.target.value })}
             style={{ maxWidth: 280 }}
           />
-          <Select
+          <FilterSelect
             aria-label="Lọc theo nhóm chủ đề"
             placeholder="Mọi nhóm chủ đề"
-            allowClear
             value={topicId}
             onChange={(value) => setFilters({ ...filters, topicId: value })}
             options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
             style={{ width: 180 }}
           />
-          <Select
+          <FilterSelect
             aria-label="Lọc theo nền tảng"
             placeholder="Mọi nền tảng"
-            allowClear
             value={platform}
             onChange={(value) => setFilters({ ...filters, platform: value })}
             options={options.platforms}
             style={{ width: 160 }}
           />
-          <Select
+          <FilterSelect
             aria-label="Lọc theo trạng thái"
             placeholder="Mọi trạng thái"
-            allowClear
             value={status}
             onChange={(value) => setFilters({ ...filters, status: value })}
             options={[

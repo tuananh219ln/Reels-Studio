@@ -6,6 +6,7 @@ import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateProduct, type AffiliateVideo } from "@/lib/api";
+import FilterSelect from "@/components/FilterSelect";
 
 /** What a member pastes as the reel's pinned comment: the script's sentence, then one link per product. */
 function usable(product: AffiliateVideo["products"][number]): boolean {
@@ -189,13 +190,6 @@ export default function PostedVideos() {
   return (
     <>
       <Flex wrap gap={12} align="center" style={{ marginBottom: 16 }}>
-        <Segmented<Linked>
-          aria-label="Lọc theo sản phẩm đã gắn"
-          value={linked}
-          onChange={setLinked}
-          options={LINKED.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
-          style={{ maxWidth: "100%", overflowX: "auto" }}
-        />
         <Input
           aria-label="Tìm theo tiêu đề video"
           prefix={<SearchOutlined />}
@@ -205,10 +199,16 @@ export default function PostedVideos() {
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 280, maxWidth: "100%" }}
         />
-        <Select
+        <Segmented<Linked>
+          aria-label="Lọc theo sản phẩm đã gắn"
+          value={linked}
+          onChange={setLinked}
+          options={LINKED.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+          style={{ maxWidth: "100%", overflowX: "auto" }}
+        />
+        <FilterSelect
           aria-label="Lọc theo nền tảng"
           placeholder="Mọi nền tảng"
-          allowClear
           value={platform}
           onChange={(value) => setPlatform(value ?? null)}
           options={[

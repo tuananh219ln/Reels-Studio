@@ -5,7 +5,15 @@ import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Typogra
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type Post, type VideoDetail } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  formatDateTime,
+  fromVietnamInput,
+  vietnamInputValue,
+  type Post,
+  type VideoDetail,
+} from "@/lib/api";
 import { POST_STATUS } from "@/lib/postStatus";
 import { useEditor } from "./AutoSaveField";
 import PostActions from "./PostActions";
@@ -31,8 +39,10 @@ export function PublishButton({ video }: { video: VideoDetail }) {
     typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("publish"),
   );
   const [open, setOpen] = useState(asked !== null);
-  const [mode, setMode] = useState<"now" | "later">("now");
-  const [when, setWhen] = useState("");
+  // A video of the 30-day plan starts on the time the plan means it to go out (its day, at the group's posting time).
+  const planned = video.plan_idea?.suggested_post_at ?? null;
+  const [mode, setMode] = useState<"now" | "later">(planned ? "later" : "now");
+  const [when, setWhen] = useState(planned ? vietnamInputValue(planned) : "");
   const [picked, setPicked] = useState<number | null>(() =>
     video.fanpages.some((page) => page.id === Number(asked)) ? Number(asked) : null,
   );
@@ -57,7 +67,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
     try {
       // The post uses the saved caption: leave the field being typed in and wait until it is saved.
       await editor.flush();
-      const scheduled_at = mode === "later" ? new Date(when).toISOString() : null;
+      const scheduled_at = mode === "later" ? fromVietnamInput(when) : null;
       editor.onSaved(
         await api<VideoDetail>(`/videos/${video.id}/publish`, "POST", {
           fanpage_id: fanpage,
@@ -144,6 +154,12 @@ export function PublishButton({ video }: { video: VideoDetail }) {
                 style={{ maxWidth: 240 }}
                 onChange={(event) => setWhen(event.target.value)}
               />
+            )}
+            {mode === "later" && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Giờ Việt Nam.
+                {planned && ` Kế hoạch 30 ngày gợi ý ${formatDateTime(planned)} (ngày ${video.plan_idea?.day}).`}
+              </Typography.Text>
             )}
             <Checkbox checked={autoComment} onChange={(event) => setAutoComment(event.target.checked)}>
               Tự bình luận khi bài lên (bình luận ghim kèm link sản phẩm Shopee đã chọn)

@@ -1,7 +1,7 @@
 "use client";
 
 import { SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import UserAvatar from "@/components/UserAvatar";
 import { usePolling } from "@/lib/polling";
 import StatusText, { type StatusTone } from "@/components/StatusText";
+import FilterSelect from "@/components/FilterSelect";
 
 const REFRESH_MS = 5000;
 const PAGE_SIZE = 300; // JOB_LIST_LIMIT in the api
@@ -220,30 +221,6 @@ export default function JobsPage() {
         title="Nhật ký job"
         description="Mọi việc chạy nền: viết kịch bản, render, đăng và kiểm tra bài Facebook. Danh sách tự cập nhật; bấm một dòng để mở video của nó."
       >
-        <Segmented<View>
-          aria-label="Trạng thái"
-          value={view}
-          onChange={setView}
-          options={VIEWS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
-        />
-        <Select
-          allowClear
-          aria-label="Loại"
-          placeholder="Mọi loại"
-          value={kind}
-          onChange={(value) => setKind(value ?? null)}
-          options={options(shown.map((row) => row.kind_label))}
-          style={{ minWidth: 170 }}
-        />
-        <Select
-          allowClear
-          aria-label="Người bấm"
-          placeholder="Mọi người"
-          value={person}
-          onChange={(value) => setPerson(value ?? null)}
-          options={options(shown.map((row) => row.created_by))}
-          style={{ minWidth: 150 }}
-        />
         <Input
           allowClear
           aria-label="Tìm theo video"
@@ -252,6 +229,28 @@ export default function JobsPage() {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           style={{ width: 240 }}
+        />
+        <Segmented<View>
+          aria-label="Trạng thái"
+          value={view}
+          onChange={setView}
+          options={VIEWS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+        />
+        <FilterSelect
+          aria-label="Loại"
+          placeholder="Mọi loại"
+          value={kind}
+          onChange={(value) => setKind(value ?? null)}
+          options={options(shown.map((row) => row.kind_label))}
+          style={{ minWidth: 170 }}
+        />
+        <FilterSelect
+          aria-label="Người bấm"
+          placeholder="Mọi người"
+          value={person}
+          onChange={(value) => setPerson(value ?? null)}
+          options={options(shown.map((row) => row.created_by))}
+          style={{ minWidth: 150 }}
         />
       </PageHeader>
       <Card styles={{ body: { padding: 0 } }}>

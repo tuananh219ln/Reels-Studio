@@ -74,6 +74,8 @@ export type VideoRowPost = {
   state: "posted" | "scheduled";
   /** The post with the most views, or the next one set for later. */
   fanpage: string;
+  /** Every Page it is out on or set for. */
+  fanpages: string[];
   pages: number;
   at: string;
   views: number | null;
@@ -182,7 +184,14 @@ export type VideoDetail = VideoRow & {
   script_by: string | null;
   clone_of: { title: string; request: string } | null;
   /** The 30-day plan idea the video was made from. */
-  plan_idea: (PlanIdeaFields & { id: number; knowledge_topic_id: number }) | null;
+  plan_idea:
+    | (PlanIdeaFields & {
+        id: number;
+        knowledge_topic_id: number;
+        /** When the plan means the video to go out (its day, at the group's posting time); null once past. */
+        suggested_post_at: string | null;
+      })
+    | null;
   title_scene: SceneData | null;
   scenes: SceneData[];
   video_blocking: string[];
@@ -325,10 +334,10 @@ export type Knowledge = {
   default_clone_prompt: string;
 };
 
-/** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. */
-export type PlanIdeaFields = { day: number; topic: string; pain_group: string; pain: string; hook: string };
+/** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. A null day is the Backlog. */
+export type PlanIdeaFields = { day: number | null; topic: string; pain_group: string; pain: string; hook: string };
 
-export type PlanItemStatus = "idea" | "started" | "scripted" | "done";
+export type PlanItemStatus = "idea" | "started" | "scripted" | "done" | "scheduled" | "posted";
 
 export type PlanItem = PlanIdeaFields & {
   id: number;
@@ -337,10 +346,30 @@ export type PlanItem = PlanIdeaFields & {
   status: PlanItemStatus;
   status_label: string;
   video_id: number | null;
+  /** When its post went out or is set to. */
+  post_at: string | null;
+  /** When the plan means it to go out; null in the Backlog, without a start date, or once past. */
+  suggested_post_at: string | null;
+  /** Its video's Facebook posts that went live, with their 48-hour numbers (only on GET /plans/{id}). */
+  posts?: PlanPost[];
+};
+
+/** A post's 48-hour numbers on a plan card; all null until the 48-hour reading exists. */
+export type PlanPost = {
+  publication_id: number;
+  fanpage_name: string;
+  views: number | null;
+  shares: number | null;
+  share_rate: number | null;
+  /** Views over the Page's 60-day median, rounded to 0.1; null while the Page has fewer than 5 measured posts. */
+  times_median: number | null;
+  median_views: number | null;
+  samples: number;
+  measured_at: string | null;
 };
 
 /** An imported file or the AI's draft, shown before it replaces the plan. */
-export type PlanPreview = { ideas: PlanIdeaFields[]; errors: string[]; warnings: string[] };
+export type PlanPreview = { ideas: PlanIdeaFields[]; errors: string[]; warnings: string[]; can_backlog?: boolean };
 
 export type Plan = {
   topic_id: number;
@@ -349,18 +378,35 @@ export type Plan = {
   /** Which plan day today is: below 1 before the start, above 30 after the end; null without a start date. */
   today_day: number | null;
   per_day: number;
+  /** "HH:MM": the n-th idea of a day is suggested to go out at the n-th time. */
+  post_times: string[];
   prompt: string;
   default_prompt: string;
+  /** The 30 days, then the Backlog (day null). */
   items: PlanItem[];
-  /** Ideas that already have a video. */
+  /** Ideas of the 30 days that already have a video. */
   made: number;
   /** "Tạo bằng AI" still queued or running, or the last one when it failed. */
   job: { id: number; status: JobInfo["status"]; error: string | null; error_detail: string | null } | null;
   draft: (PlanPreview & { job_id: number; created_at: string }) | null;
+  /** The share/view goal the cards compare against. */
+  share_goal: number;
+  /** How many videos the group's trial counts towards; null: no "Tiến độ verdict" banner. */
+  video_target: number | null;
+  /** Videos made with this topic group. */
+  video_count: number;
 };
 
 /** A topic group whose plan has a today, for "Tạo video" and the progress banner. */
-export type PlanToday = { topic_id: number; name: string; day: number; ideas: PlanItem[]; topics: string[] };
+export type PlanToday = {
+  topic_id: number;
+  name: string;
+  day: number;
+  ideas: PlanItem[];
+  /** The last day, from today on, whose ideas all have a video; null when today's do not. */
+  prepared_through: number | null;
+  topics: string[];
+};
 
 export type MusicTrack = {
   id: number;
@@ -620,7 +666,7 @@ export type JobRow = {
   duration_seconds: number | null;
   claude_calls: number;
   image_calls: number;
-  /** "DeepSeek, deepseek-chat" for a script or clone job; null for other jobs and older ones. */
+  /** "DeepSeek · deepseek-chat" for a script or clone job; null for other jobs and older ones. */
   llm: string | null;
   error: string | null;
 };
@@ -690,6 +736,17 @@ const dateParts = new Intl.DateTimeFormat("en-GB", {
 export function formatDateTime(iso: string): string {
   const part = Object.fromEntries(dateParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
   return `${part.day}/${part.month}/${part.year} ${part.hour}:${part.minute}`;
+}
+
+/** An ISO time as a `datetime-local` input's value, in Vietnam time whatever the browser's time zone. */
+export function vietnamInputValue(iso: string): string {
+  const part = Object.fromEntries(dateParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  return `${part.year}-${part.month}-${part.day}T${part.hour}:${part.minute}`;
+}
+
+/** A `datetime-local` value read as Vietnam time (no daylight saving there), as an ISO time. */
+export function fromVietnamInput(value: string): string {
+  return new Date(`${value}:00+07:00`).toISOString();
 }
 
 export function formatLastLogin(iso: string | null): string {
