@@ -217,6 +217,9 @@ class Scene(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
     text: Mapped[str] = mapped_column(Text, default="")
     seconds: Mapped[float] = mapped_column(Float)
+    # "Tự khớp lời đọc": once its narration is made, the scene lasts as long as it (videos.auto_seconds). Typing the
+    # seconds turns it off. The scenes the app writes (script, "Tự viết", "Thêm cảnh") start on; older ones off.
+    seconds_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     keywords: Mapped[list] = mapped_column(JSONB, default=list)
     # The same search terms in English: Western stock libraries (Pixabay, Pexels) index in English,
     # so their searches use these; the Vietnamese list stays for Openverse and for display.

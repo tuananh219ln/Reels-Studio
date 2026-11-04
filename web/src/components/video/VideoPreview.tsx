@@ -7,11 +7,28 @@ import {
   StepBackwardOutlined,
   StepForwardOutlined,
 } from "@ant-design/icons";
-import { Alert, Button, Drawer, Flex, Popconfirm, Segmented, Select, Space, Switch, Typography } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Collapse,
+  Drawer,
+  Flex,
+  InputNumber,
+  Popconfirm,
+  Segmented,
+  Select,
+  Slider,
+  Space,
+  Switch,
+  Typography,
+} from "antd";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ListenVolume, { useListen } from "@/components/ListenVolume";
 import { COLORS } from "@/app/theme";
-import type { SceneData, VideoDetail } from "@/lib/api";
+import { api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
+import { useEditor } from "./AutoSaveField";
+import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
 import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
@@ -115,6 +132,12 @@ export default function VideoPreview({
   });
   const voice = voices.find((item) => item.voiceURI === voiceName) ?? voices[0] ?? null;
   const [boxes, setBoxes] = useState<Record<string, { width: number; height: number }>>({});
+  // Editing from the preview: what the editor allows, the text box being dragged, and where a drop applies.
+  const editor = useEditor();
+  const { message } = App.useApp();
+  const editable = !editor.locked && !editor.readOnly;
+  const [dragged, setDragged] = useState<{ sceneId: number; centre: [number, number] } | null>(null);
+  const [scope, setScope] = useState<"scene" | "all">("scene");
   const stage = useRef<HTMLDivElement>(null);
   const music = useRef<HTMLAudioElement>(null);
   const narration = useRef<HTMLAudioElement>(null);
@@ -377,6 +400,33 @@ export default function VideoPreview({
   const sound = video.music?.name ?? "Âm thanh gốc";
   const total = scenes.reduce((sum, item) => sum + item.fitted_seconds, 0);
 
+  /** Saves a change made in the preview, as the scene cards do; the drawer then shows the saved video. */
+  async function save(call: () => Promise<VideoDetail>) {
+    try {
+      editor.onSaved(await call());
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+  const patchScene = (body: object) => save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body));
+
+  /** A text box dropped on the stage: this scene's own place, or the place of every content scene. */
+  function dropBox(centre: [number, number]) {
+    const point: [number, number] = [Math.round(centre[0]), Math.round(centre[1])];
+    const target = scene;
+    void save(async () => {
+      if (scope === "scene" || target.is_title) {
+        return api<VideoDetail>(`/scenes/${target.id}`, "PATCH", { text_position: point });
+      }
+      const saved = await api<VideoDetail>(`/videos/${target.video_id}`, "PATCH", {
+        options: { text_position: point },
+      });
+      return target.text_position ? api<VideoDetail>(`/scenes/${target.id}`, "PATCH", { text_position: null }) : saved;
+    }).finally(() => setDragged(null));
+  }
+  // The box follows the pointer only while the preview stands still on a scene.
+  const canDrag = editable && (!playing || ended);
+
   return (
     // A drawer from the right, so the page it previews stays in sight beside it.
     <Drawer
@@ -426,6 +476,10 @@ export default function VideoPreview({
                   entering={phase.prev !== null}
                   boxes={boxes}
                   onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
+                  stage={stage}
+                  centre={dragged?.sceneId === scene.id ? dragged.centre : null}
+                  onDrag={canDrag ? (centre) => setDragged({ sceneId: scene.id, centre }) : undefined}
+                  onDrop={canDrag ? dropBox : undefined}
                 />
               )}
               {platform !== "none" && (
@@ -566,34 +620,39 @@ export default function VideoPreview({
               ))}
             </Flex>
           </div>
-          {(missingVoice || voicing) && (
-            <Flex vertical gap={8} data-testid="preview-voice">
-              <Typography.Text strong>Giọng đọc</Typography.Text>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {voicing
-                  ? "ElevenLabs đang đọc các cảnh, xong sẽ tự dùng giọng thật."
-                  : `${unvoiced} cảnh chưa có giọng ElevenLabs nên đang đọc bằng giọng miễn phí của trình duyệt.`}
-              </Typography.Text>
-              {voices.length > 0 ? (
-                <Select
-                  aria-label="Giọng trình duyệt"
-                  value={voice?.voiceURI}
-                  onChange={chooseVoice}
-                  options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
-                />
-              ) : (
-                <Alert
-                  type="warning"
-                  showIcon
-                  data-testid="preview-no-voice"
-                  title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử."
-                />
-              )}
-              {voices.length > 0 && !voices.some((item) => NATURAL.test(item.name)) && (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-edge-tip">
-                  Giọng tự nhiên hơn: mở trang này bằng Microsoft Edge để có giọng HoaiMy, NamMinh.
-                </Typography.Text>
-              )}
+          {scene && (
+            <SceneEditor
+              key={`${scene.id}-${scene.seconds}`}
+              scene={scene}
+              label={label(phase.index)}
+              editable={editable}
+              still={!playing || ended}
+              scope={scope}
+              onScope={setScope}
+              onPatch={patchScene}
+              onResetPosition={() =>
+                void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
+              }
+            />
+          )}
+          <Flex vertical gap={8} data-testid="preview-voice">
+            <Typography.Text strong>Giọng đọc</Typography.Text>
+            {/* The video's ElevenLabs voice, the same choice as "Thiết lập": a new one makes the narration again. */}
+            <VoicePicker
+              values={{ ...video.options, voice_enabled: video.voice_enabled }}
+              disabled={!editable}
+              onChange={({ voice_id }) =>
+                void save(() => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { options: { voice_id } }))
+              }
+            />
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {voicing
+                ? "ElevenLabs đang đọc các cảnh, xong sẽ tự dùng giọng thật."
+                : missingVoice
+                  ? `${unvoiced} cảnh chưa có giọng ElevenLabs (lời đọc mới hoặc vừa đổi giọng), đang đọc tạm bằng giọng trình duyệt.`
+                  : "Mọi cảnh đã có giọng ElevenLabs. Đổi giọng thì các cảnh được đọc lại khi tạo giọng hoặc render."}
+            </Typography.Text>
+            {(missingVoice || voicing) && (
               <Popconfirm
                 title="Tạo giọng thật bằng ElevenLabs?"
                 description={`ElevenLabs đọc ${unvoiced} cảnh, tốn credit một lần. Render sau đó dùng lại, không tốn thêm.`}
@@ -603,11 +662,47 @@ export default function VideoPreview({
                 disabled={voicing || Boolean(video.active_job)}
               >
                 <Button block loading={voicing} disabled={!voicing && Boolean(video.active_job)}>
-                  Tạo giọng thật (ElevenLabs)
+                  Tạo giọng ElevenLabs cho {unvoiced} cảnh
                 </Button>
               </Popconfirm>
-            </Flex>
-          )}
+            )}
+            {missingVoice && (
+              <Collapse
+                size="small"
+                ghost
+                items={[
+                  {
+                    key: "browser",
+                    label: "Giọng tạm của trình duyệt",
+                    children: (
+                      <Flex vertical gap={8}>
+                        {voices.length > 0 ? (
+                          <Select
+                            aria-label="Giọng trình duyệt"
+                            value={voice?.voiceURI}
+                            onChange={chooseVoice}
+                            options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
+                          />
+                        ) : (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            data-testid="preview-no-voice"
+                            title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử."
+                          />
+                        )}
+                        {voices.length > 0 && !voices.some((item) => NATURAL.test(item.name)) && (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-edge-tip">
+                            Giọng tự nhiên hơn: mở trang này bằng Microsoft Edge để có giọng HoaiMy, NamMinh.
+                          </Typography.Text>
+                        )}
+                      </Flex>
+                    ),
+                  },
+                ]}
+              />
+            )}
+          </Flex>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Bản xem trước gần đúng, chưa phải MP4. Cảnh đã có giọng ElevenLabs (sau một lần render hoặc “Tạo giọng
             thật”) dùng giọng đó, cảnh khác dùng giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm chỉ
@@ -630,6 +725,10 @@ function SceneLayer({
   atEnd = false,
   boxes,
   onBox,
+  stage,
+  centre = null,
+  onDrag,
+  onDrop,
 }: {
   video: VideoDetail;
   scene: SceneData;
@@ -638,14 +737,60 @@ function SceneLayer({
   atEnd?: boolean;
   boxes: Record<string, { width: number; height: number }>;
   onBox: (url: string, size: { width: number; height: number }) => void;
+  /** With these, the box is dragged on the stage: its centre while moving, and where it is dropped. */
+  stage?: React.RefObject<HTMLDivElement | null>;
+  centre?: [number, number] | null;
+  onDrag?: (centre: [number, number]) => void;
+  onDrop?: (centre: [number, number]) => void;
 }) {
+  const grab = useRef<{ dx: number; dy: number; last: [number, number] | null } | null>(null);
   const { transition, motion, zoom } = video.options;
   const end = ZOOMS[zoom];
   // The frame without text when there is one, so the box stays still while the picture moves; else the preview.
   const picture = scene.frame_url ?? scene.preview_url;
   const box = scene.frame_url ? scene.textbox_url : null;
   const size = box ? boxes[box] : undefined;
-  const corner = size ? placeBox(size, scene.placed_at, scene.is_title) : null;
+  const corner = size ? placeBox(size, centre ?? scene.placed_at, scene.is_title) : null;
+
+  /** The pointer in frame pixels (1080 × 1920). */
+  function framePoint(event: React.PointerEvent): [number, number] | null {
+    const rect = stage?.current?.getBoundingClientRect();
+    if (!rect) return null;
+    return [
+      ((event.clientX - rect.left) / rect.width) * FRAME_WIDTH,
+      ((event.clientY - rect.top) / rect.height) * FRAME_HEIGHT,
+    ];
+  }
+  const dragHandlers =
+    onDrag && onDrop && size && corner
+      ? {
+          onPointerDown: (event: React.PointerEvent<HTMLImageElement>) => {
+            const point = framePoint(event);
+            if (!point) return;
+            event.preventDefault();
+            event.currentTarget.setPointerCapture(event.pointerId);
+            grab.current = { dx: point[0] - corner[0], dy: point[1] - corner[1], last: null };
+          },
+          onPointerMove: (event: React.PointerEvent<HTMLImageElement>) => {
+            const point = framePoint(event);
+            if (!grab.current || !point) return;
+            // The box's centre; placeBox keeps it inside the safe zone, and the title stays centred across.
+            const next: [number, number] = [
+              scene.is_title ? FRAME_WIDTH / 2 : point[0] - grab.current.dx + size.width / 2,
+              point[1] - grab.current.dy + size.height / 2,
+            ];
+            const placed = placeBox(size, next, scene.is_title);
+            const kept: [number, number] = [placed[0] + size.width / 2, placed[1] + size.height / 2];
+            grab.current.last = kept;
+            onDrag(kept);
+          },
+          onPointerUp: () => {
+            const last = grab.current?.last;
+            grab.current = null;
+            if (last) onDrop(last);
+          },
+        }
+      : {};
   const motionStyle = {
     "--z0": motion === "zoom_out" ? end : motion === "static" ? 1 : motion === "pan" ? end : 1,
     "--z1": motion === "zoom_in" ? end : motion === "pan" ? end : 1,
@@ -705,12 +850,19 @@ function SceneLayer({
           onLoad={(event) =>
             onBox(box, { width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
           }
+          {...dragHandlers}
+          data-testid={onDrag ? "preview-textbox" : undefined}
+          draggable={false}
           style={{
             position: "absolute",
             visibility: corner ? "visible" : "hidden",
             left: corner ? percent(corner[0], FRAME_WIDTH) : 0,
             top: corner ? percent(corner[1], FRAME_HEIGHT) : 0,
             width: size ? percent(size.width, FRAME_WIDTH) : undefined,
+            cursor: onDrag ? "grab" : undefined,
+            touchAction: onDrag ? "none" : undefined,
+            outline: onDrag ? "1px dashed rgba(255, 255, 255, 0.7)" : undefined,
+            outlineOffset: 4,
           }}
         />
       )}
@@ -733,5 +885,138 @@ function SafeZone() {
         pointerEvents: "none",
       }}
     />
+  );
+}
+
+/**
+ * "Chỉnh cảnh này": the scene's seconds (or "Tự khớp lời đọc"), the part of its clip it shows, and where its text
+ * sits, saved at once as on the scene cards. Shown while the preview stands still, read-only while the page is.
+ */
+function SceneEditor({
+  scene,
+  label,
+  editable,
+  still,
+  scope,
+  onScope,
+  onPatch,
+  onResetPosition,
+}: {
+  scene: SceneData;
+  label: string;
+  editable: boolean;
+  still: boolean;
+  scope: "scene" | "all";
+  onScope: (scope: "scene" | "all") => void;
+  onPatch: (body: object) => Promise<void>;
+  onResetPosition: () => void;
+}) {
+  // Started from the saved seconds; the drawer keys this panel on the scene and its seconds, so a save resets it.
+  const [typed, setTyped] = useState<number | null>(scene.seconds);
+  const clip = scene.video;
+  const speed = clip?.speed ?? 1;
+  // The clip's part on screen: from its start, as long as the scene at the clip's speed.
+  const until = clip ? Math.min(clip.seconds, clip.start + scene.seconds * speed) : 0;
+  const commit = () => {
+    if (typed !== null && typed !== scene.seconds) {
+      void onPatch({ seconds: typed });
+    }
+  };
+  return (
+    <Flex vertical gap={10} data-testid="preview-scene-editor">
+      <Typography.Text strong>Chỉnh {label.toLowerCase()}</Typography.Text>
+      {!editable && (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Bấm “Chỉnh sửa” trên trang video (và chờ job xong) để sửa ngay tại đây.
+        </Typography.Text>
+      )}
+      <Flex align="center" gap={8} wrap>
+        <InputNumber
+          aria-label="Số giây của cảnh"
+          min={1}
+          max={10}
+          step={0.1}
+          precision={1}
+          value={typed}
+          disabled={!editable}
+          onChange={setTyped}
+          onBlur={commit}
+          onPressEnter={commit}
+          suffix="giây"
+          style={{ width: 110 }}
+        />
+        <Flex align="center" gap={6}>
+          <Switch
+            size="small"
+            aria-label="Tự khớp lời đọc"
+            checked={scene.seconds_auto}
+            disabled={!editable}
+            onChange={(checked) => void onPatch({ seconds_auto: checked })}
+          />
+          <Typography.Text style={{ fontSize: 13 }}>Tự khớp lời đọc</Typography.Text>
+        </Flex>
+      </Flex>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        {scene.voice_seconds !== null
+          ? `Lời đọc dài ${seconds(scene.voice_seconds)} giây${
+              scene.fitted_seconds > scene.seconds ? `, cảnh kéo dài thành ${seconds(scene.fitted_seconds)} giây` : ""
+            }.`
+          : scene.seconds_auto
+            ? "Có giọng ElevenLabs là số giây tự theo lời đọc."
+            : "Gõ số giây là cảnh giữ đúng số đó; bật “Tự khớp lời đọc” để theo lời đọc."}
+      </Typography.Text>
+      {clip && (
+        <div>
+          <Typography.Text style={{ fontSize: 13 }}>
+            Đoạn clip: từ {seconds(clip.start)} đến {seconds(until)} giây (clip dài {seconds(clip.seconds)} giây)
+          </Typography.Text>
+          {/* Dragging the left end moves the start; the right end sets how long the scene shows the clip. */}
+          <Slider
+            range
+            aria-label="Đoạn clip"
+            min={0}
+            max={clip.seconds}
+            step={0.1}
+            value={[clip.start, until]}
+            disabled={!editable}
+            tooltip={{ formatter: (value) => `${seconds(value ?? 0)} giây` }}
+            onChangeComplete={(value) => {
+              const [from, to] = value as number[];
+              const length = Math.round(((to - from) / speed) * 10) / 10;
+              void onPatch({ video_start: Math.round(from * 10) / 10, seconds: Math.max(1, Math.min(10, length)) });
+            }}
+          />
+        </div>
+      )}
+      {scene.textbox_url && (
+        <Flex vertical gap={6}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {still && editable
+              ? "Kéo hộp chữ trên màn hình để đổi chỗ; chữ luôn nằm trong vùng an toàn."
+              : "Tạm dừng ở cảnh này để kéo hộp chữ."}
+          </Typography.Text>
+          {!scene.is_title && (
+            <Flex align="center" gap={8} wrap>
+              <Segmented
+                size="small"
+                aria-label="Áp dụng vị trí chữ"
+                value={scope}
+                onChange={(value) => onScope(value as "scene" | "all")}
+                options={[
+                  { value: "scene", label: "Cảnh này" },
+                  { value: "all", label: "Mọi cảnh" },
+                ]}
+                disabled={!editable}
+              />
+              {scene.text_position && (
+                <Button size="small" type="link" disabled={!editable} onClick={onResetPosition}>
+                  Về vị trí chung
+                </Button>
+              )}
+            </Flex>
+          )}
+        </Flex>
+      )}
+    </Flex>
   );
 }

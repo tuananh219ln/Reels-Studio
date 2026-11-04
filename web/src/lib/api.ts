@@ -106,6 +106,8 @@ export type SceneData = {
   is_title: boolean;
   text: string;
   seconds: number;
+  /** "Tự khớp lời đọc": once the narration is made, the seconds follow it; typing them turns it off. */
+  seconds_auto: boolean;
   keywords: string[];
   /** The same search terms in English, for the Western stock libraries (Pixabay, Pexels). */
   keywords_en: string[];

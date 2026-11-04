@@ -65,9 +65,10 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
 
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
-  // Each scene is lengthened to fit its fake narration of 0.3 s per word, plus 0.6 s and the MP3 padding, when that is
-  // longer: the title's 6 words fit its 3 s, the five scenes' 4 words take 1.9 s each.
-  await expect(page.getByTestId("render-time")).toContainText("Dài 12.5 giây");
+  // A script's scenes follow their narration ("Tự khớp lời đọc"): each lasts its fake narration of 0.3 s per word plus
+  // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
+  // the five scenes' 4 words 1.9 s each.
+  await expect(page.getByTestId("render-time")).toContainText("Dài 12.0 giây");
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
@@ -348,6 +349,10 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(now).toContainText("Cảnh 2");
   await preview.getByRole("button", { name: "Tạm dừng" }).click();
   await expect(preview.getByRole("button", { name: "Tiếp tục" })).toBeVisible();
+  // "Chỉnh cảnh 2": its seconds are at hand here; the page is not in "Chỉnh sửa", so they only show.
+  const editor = preview.getByTestId("preview-scene-editor");
+  await expect(editor).toContainText("Chỉnh cảnh 2");
+  await expect(editor.getByLabel("Số giây của cảnh")).toBeVisible();
   await preview.getByRole("switch", { name: "Vùng an toàn" }).click();
   await expect(preview.getByTestId("preview-safe-zone")).toBeVisible();
   await preview.getByText("TikTok", { exact: true }).click();
@@ -366,13 +371,15 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   // The frame chosen last time is remembered in this browser.
   await expect(preview.getByTestId("platform-frame")).toHaveCount(0);
 
-  // "Tạo giọng thật": ElevenLabs (the fake) reads the scenes without narration, after a confirmation.
+  // "Tạo giọng ElevenLabs": the fake reads the scenes without narration, after a confirmation.
   const voiceBox = preview.getByTestId("preview-voice");
   await expect(voiceBox).toContainText("chưa có giọng ElevenLabs");
-  await voiceBox.getByRole("button", { name: "Tạo giọng thật (ElevenLabs)" }).click();
+  await expect(voiceBox.getByLabel("Giọng đọc")).toBeVisible();
+  await voiceBox.getByRole("button", { name: /^Tạo giọng ElevenLabs cho \d+ cảnh$/ }).click();
   await page.getByRole("button", { name: "Tạo giọng", exact: true }).click();
-  // Once every scene has its narration, the section goes away.
-  await expect(voiceBox).toHaveCount(0, { timeout: 60_000 });
+  // Once every scene has its narration, the button goes and the voice choice stays.
+  await expect(voiceBox).toContainText("Mọi cảnh đã có giọng ElevenLabs", { timeout: 60_000 });
+  await expect(voiceBox.getByRole("button", { name: /^Tạo giọng ElevenLabs/ })).toHaveCount(0);
 
   // The listener's own volume: muting and the slider change what plays here, never the video's settings.
   const narration = preview.locator("audio").nth(1);

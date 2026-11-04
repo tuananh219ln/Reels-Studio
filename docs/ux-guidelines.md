@@ -157,12 +157,19 @@ Built:
     render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
     the music from where that scene falls in the video (lowered while narration plays when ducking
     is on). Narration: the ElevenLabs MP3 when one was made for the current text (by a render or
-    by "Tạo giọng thật"), else the browser's own Vietnamese voice (free, at the video's speed). While
-    some scenes lack the MP3, a "Giọng đọc" section lists the browser's Vietnamese voices, the most
-    natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser; suggests Edge
-    when only robotic ones exist; and offers "Tạo giọng thật (ElevenLabs)", which asks first (it
-    costs credit once) and queues a job reading only those scenes. A browser without a Vietnamese
-    voice says so and those scenes stay silent. The video plays inside a phone with the chosen app's own
+    by "Tạo giọng ElevenLabs"), else the browser's own Vietnamese voice (free, at the video's speed). The
+    "Giọng đọc" section picks the video's ElevenLabs voice with "Nghe thử" (the same choice as "Thiết lập";
+    a new voice makes each scene's narration again), says how many scenes lack the MP3, and offers
+    "Tạo giọng ElevenLabs cho N cảnh", which asks first (it costs credit once) and queues a job reading only
+    those scenes. "Giọng tạm của trình duyệt", folded, lists the browser's Vietnamese voices, the most
+    natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser, and suggests Edge
+    when only robotic ones exist; a browser without a Vietnamese voice says so and those scenes stay
+    silent. "Chỉnh cảnh N" edits the scene being shown, saved at once as on its card (read-only until
+    "Chỉnh sửa" and while a job runs): its seconds with "Tự khớp lời đọc" (typing them turns it off), the
+    narration's length; for a clip, a two-handle "Đoạn clip" slider (the left end is "Bắt đầu từ giây", the
+    span the scene's seconds at the clip's speed); and, while the preview is paused, the text box dragged
+    on the phone itself, kept inside the safe zone as the render places it, for "Cảnh này" or "Mọi cảnh",
+    with "Về vị trí chung". The video plays inside a phone with the chosen app's own
     screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and

@@ -11,6 +11,25 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — Scenes follow their narration; a named scene's voice text opens with its name; edits from the preview
+
+Asked by the owner (namtc07), who agreed to change the 2026-11-03 rule below:
+
+- **"Tự khớp lời đọc"** (`scenes.seconds_auto`): once a scene's narration is made (the voice job, or a render's), its
+  seconds become the narration's length plus the pauses around it, shorter or longer than before, within the 1–10 s a
+  scene may be set to; a longer narration still lengthens the scene at render as before. Typing the seconds turns it
+  off for that scene. It is on for the scenes the app writes (script, clone, "Tự viết", "Thêm cảnh") and off for
+  scenes made before, so seconds a member already tuned are kept. The render is unchanged: it reads the seconds the
+  voice job set.
+- **The name before the narration.** This replaces "the rule itself still does not require the dish name" of
+  2026-11-03: a scene whose on-screen text opens with a dish, product or thing opens its voice text with that name and
+  a comma. Scenes without one (a mistake, a step) are unchanged. Narration adds the comma itself after a leading name
+  with no pause, so older scripts read "Rau muống, ngâm hạt…" too; those scenes' made MP3s are read again once, at the
+  next voice job or render.
+- **The preview edits** the scene being shown: its seconds, "Tự khớp lời đọc", the clip's part, the text box dragged on
+  the phone (kept in the safe zone as the render places it), and the video's ElevenLabs voice, with the same saves as
+  the scene cards and "Thiết lập".
+
 ## 2026-11-04 — The interface keeps orange for the main action and where you are; statuses are a dot and a word
 
 Asked by the owner ("giao diện hơi AI, cho tự nhiên hơn"). Orange had spread to every info banner, "processing" tag
