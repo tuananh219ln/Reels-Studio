@@ -128,6 +128,15 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
   const [data, setData] = useState<AffiliateSuggestions | null>(null);
   const [busy, setBusy] = useState(false);
 
+  async function copyKeyword(keyword: string) {
+    try {
+      await navigator.clipboard.writeText(keyword);
+      message.success(`Đã copy "${keyword}", dán vào ô "Tìm kiếm" của Shopee Affiliate`);
+    } catch {
+      message.warning(`Trình duyệt không cho copy, hãy gõ "${keyword}" vào ô "Tìm kiếm" của Shopee Affiliate`);
+    }
+  }
+
   const load = useCallback(async () => {
     try {
       setData(await api<AffiliateSuggestions>(`/affiliate-products/videos/${video.id}/suggestions`));
@@ -234,15 +243,18 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
       {!data?.keywords.length && video.affiliates.length > 0 && (
         <Space size={4} wrap>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Chưa có tài khoản Shopee có App ID? Tìm tay:
+            Chưa có tài khoản Shopee có App ID? Tìm tay (bấm để copy từ khoá rồi dán vào ô tìm kiếm của Shopee
+            Affiliate):
           </Typography.Text>
           {video.affiliates.map((keyword) => (
             <Typography.Link
               key={keyword}
               style={{ fontSize: 12 }}
-              href={`https://affiliate.shopee.vn/offer/product_offer?keyword=${encodeURIComponent(keyword)}`}
+              // Shopee Affiliate ignores a keyword in the address, so the click copies it for the search box.
+              href="https://affiliate.shopee.vn/offer/product_offer"
               target="_blank"
               rel="noreferrer"
+              onClick={() => copyKeyword(keyword)}
             >
               {keyword}
             </Typography.Link>
