@@ -11,6 +11,12 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-04 — Pages fill a wide screen; "Video đã đăng" on Affiliate gets filters
+
+On the owner's call: the content column stopped at 1464 px, leaving an empty band on a large screen, so it now
+has no maximum width. Grey explanation paragraphs keep their own ~820 px limit, for reading. The "Video đã đăng"
+tab of Affiliate, the one that opens first, had no filter while the list grows with every post; it gets tabs by
+product state, a title search and a platform filter, all in the browser like "Bài đăng", with no api change.
 ## 2026-11-04 — "Bài đăng" filters by status tabs, lists failed posts and holds the calendar as a view
 
 Taken from a look at another posting tool's history screen, on the owner's call. Replaces the status Select and the

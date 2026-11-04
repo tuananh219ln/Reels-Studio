@@ -305,8 +305,12 @@ Built:
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
   used the track keep their copy).
-- **Affiliate** (`/affiliate`), three tabs:
-  - "Video đã đăng": Facebook reels and TikTok posts made by hand, newest first, each tagged with its
+- **Affiliate** (`/affiliate`), a line saying what the page is for, then three tabs:
+  - "Video đã đăng": filters over the loaded videos: tabs with counts ("Tất cả", "Chưa gắn sản
+    phẩm", "Đã gắn", "Cần xem lại" for a video with a product that lost its approval or no longer
+    meets the rules), "Tìm theo tiêu đề video" and "Mọi nền tảng" (Facebook or TikTok); the counts
+    follow the search and platform, and "Không có video nào khớp" when nothing matches. Then
+    Facebook reels and TikTok posts made by hand, newest first, each tagged with its
     platform, with the script's suggestions, a picker of approved products of the video's platform
     (labelled with the expected commission per order), and for a reel a copy button for the pinned
     comment with one link per product ("Gắn giỏ trong app TikTok" for TikTok). A product that lost its
@@ -458,7 +462,9 @@ Phones (below 992 px wide; built):
 
 - The menu collapses into a drawer opened from a header, which shows the logo and the avatar
   only. On a wider screen there is no header: the sidebar stays in place while the page scrolls,
-  with the member's name and account menu (Đổi mật khẩu, Sửa tên, Đăng xuất) at its foot.
+  with the member's name and account menu (Đổi mật khẩu, Sửa tên, Đăng xuất) at its foot. The page
+  beside it has no maximum width: on a large screen tables and cards fill the window, and only
+  paragraphs of grey explanation stop at about 820 px so they stay readable.
 - In the video editor the actions ("Nhân bản", "Xóa") wrap under the title, the tab panel sits
   under the scenes, the render bar stays at the bottom of the screen, and each scene's preview is
   a centred thumbnail at most 220 px wide.

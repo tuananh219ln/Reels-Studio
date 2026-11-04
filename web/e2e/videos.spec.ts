@@ -675,6 +675,16 @@ test("a posted reel takes an approved product and its link goes in the pinned co
   const rest = await copied();
   expect(rest).toContain("Vừng đen rang: https://s.shopee.vn/vung");
   expect(rest).not.toContain("https://s.shopee.vn/tra");
+
+  // The filters: the reel now has a product to look at again, and none without a product.
+  const linked = page.getByLabel("Lọc theo sản phẩm đã gắn");
+  await expect(linked.getByText("Cần xem lại (1)")).toBeVisible();
+  await linked.getByText("Chưa gắn sản phẩm (0)").click();
+  await expect(page.getByText("Không có video nào khớp")).toBeVisible();
+  await linked.getByText("Cần xem lại (1)").click();
+  await expect(page.getByText("Đã bỏ duyệt: Trà sen")).toBeVisible();
+  await chooseOption(page, page.getByLabel("Lọc theo nền tảng"), "TikTok");
+  await expect(page.getByText("Không có video nào khớp")).toBeVisible();
 });
 
 /** Gives the title and every content scene a photo, as a member does after the script is written. */
