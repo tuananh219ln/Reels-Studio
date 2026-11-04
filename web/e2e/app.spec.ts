@@ -304,6 +304,8 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
 
   // The three figures the file lacks are filled in on the row, and then it can be approved.
   await dialog.getByRole("button", { name: "Huỷ" }).click();
+  // Once closed the drawer gives the focus back to "Nhập file", which would close a dropdown opened before that.
+  await expect(dialog).toBeHidden();
   await expect(product.getByRole("button", { name: "Duyệt" })).toBeDisabled();
   const quick = product.getByTestId("quick-fill");
   await chooseOption(page, quick.getByLabel("Loại shop của Combo hạt giống rau mùa hè"), "Shop Yêu Thích");
