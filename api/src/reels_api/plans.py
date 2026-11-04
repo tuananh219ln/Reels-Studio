@@ -1,4 +1,5 @@
-"""The 30-day topic plan of a topic group: its ideas and their status, file import, and the AI plan's prompt and parsing.
+"""The 30-day topic plan of a topic group: its ideas and their status, its Backlog (ideas with no day yet), file
+import, the posting time suggested for each idea, and the AI plan's prompt and parsing.
 
 Like the script prompt, members edit only the plan prompt's text on /knowledge; the JSON format the AI answers in is
 code, so an edited prompt can never break the parsing.
@@ -20,8 +21,9 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from . import analytics
 from .claude import ClaudeError, fill_placeholders
-from .models import Job, KnowledgeTopic, TopicPlanItem, Video
+from .models import Fanpage, Job, KnowledgeTopic, PostMetrics, Publication, TopicPlanItem, Video
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +37,8 @@ MAX_PAIN_GROUP_LENGTH = 100
 MAX_PAIN_LENGTH = 1000
 MAX_HOOK_LENGTH = 500
 MAX_IDEAS = PLAN_DAYS * MAX_PER_DAY
+MAX_BACKLOG = 300
+MAX_POST_TIMES = MAX_PER_DAY
 MAX_FILE_BYTES = 1_000_000
 # Vietnam has no daylight saving time, so a fixed offset is its time zone.
 VIETNAM = timezone(timedelta(hours=7))
@@ -42,12 +46,14 @@ VIETNAM = timezone(timedelta(hours=7))
 GROUP_PLACEHOLDER = "[Chủ đề nhóm]"
 PER_DAY_PLACEHOLDER = "[Số video mỗi ngày]"
 
-# Read from the linked video, never stored: "Xong" means the video has an MP4.
+# Read from the linked video and its posts, never stored: "Xong" means the video has an MP4.
 STATUS_LABELS = {
     "idea": "Ý tưởng",
     "started": "Đã tạo video",
     "scripted": "Đã viết kịch bản",
     "done": "Xong",
+    "scheduled": "Đã lên lịch",
+    "posted": "Đã đăng",
 }
 
 OUTPUT_FORMAT = """\
@@ -86,7 +92,7 @@ class PlanOutputError(ValueError):
 
 @dataclass(frozen=True)
 class Idea:
-    day: int
+    day: int | None  # None: the Backlog
     topic: str
     pain_group: str = ""
     pain: str = ""
@@ -107,12 +113,43 @@ def day_of(start: date | None, on: date) -> int | None:
     return (on - start).days + 1 if start else None
 
 
-def item_status(video: Video | None) -> str:
+def item_status(video: Video | None, post: Publication | None = None) -> str:
     if video is None:
         return "idea"
+    if post is not None:
+        return "posted" if post.status == "published" else "scheduled"
     if video.mp4_key:
         return "done"
     return "scripted" if video.has_script else "started"
+
+
+def day_label(day: int | None) -> str:
+    return f"ngày {day}" if day is not None else "Backlog"
+
+
+def check_post_times(times: list[str]) -> list[str]:
+    """1 to 5 times of day, "HH:MM", in order; the message is shown to members."""
+    if not 1 <= len(times) <= MAX_POST_TIMES:
+        raise PlanError(f"Cần từ 1 đến {MAX_POST_TIMES} giờ đăng")
+    cleaned = []
+    for value in times:
+        match = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", value)
+        if not match or int(match.group(1)) > 23 or int(match.group(2)) > 59:
+            raise PlanError(f"Giờ đăng “{value}” phải có dạng HH:MM")
+        cleaned.append(f"{int(match.group(1)):02d}:{match.group(2)}")
+    return sorted(cleaned)
+
+
+def suggested_post_at(topic: KnowledgeTopic, item: TopicPlanItem, now: datetime | None = None) -> datetime | None:
+    """When the idea's video is meant to go out: its plan day, at the group's posting time of its place in the day
+    (the last time for a place past them). None in the Backlog, without a start date, or once that time is past."""
+    if item.day is None or topic.plan_start_date is None or not topic.plan_post_times:
+        return None
+    times = topic.plan_post_times
+    hour, minute = (int(part) for part in times[min(item.position, len(times)) - 1].split(":"))
+    on = topic.plan_start_date + timedelta(days=item.day - 1)
+    at = datetime(on.year, on.month, on.day, hour, minute, tzinfo=VIETNAM)
+    return at if at > (now or datetime.now(VIETNAM)) else None
 
 
 def topic_key(topic: str) -> str:
@@ -130,8 +167,10 @@ def clean(value: str, limit: int, label: str, cut: bool = False) -> str:
     return value
 
 
-def make_idea(day: int, topic: str, pain_group: str = "", pain: str = "", hook: str = "", cut: bool = False) -> Idea:
-    if not 1 <= day <= PLAN_DAYS:
+def make_idea(
+    day: int | None, topic: str, pain_group: str = "", pain: str = "", hook: str = "", cut: bool = False
+) -> Idea:
+    if day is not None and not 1 <= day <= PLAN_DAYS:
         raise PlanError(f"Ngày phải từ 1 đến {PLAN_DAYS}")
     topic = clean(topic, MAX_TOPIC_LENGTH, "Chủ đề", cut)
     if not topic:
@@ -150,17 +189,21 @@ def check_plan(ideas: list[Idea]) -> tuple[list[str], list[str]]:
     errors, warnings = [], []
     if not ideas:
         errors.append("Không có ý tưởng nào")
+    undated = [idea.topic for idea in ideas if idea.day is None]
+    if undated:
+        errors.append(f"{len(undated)} ý tưởng chưa có ngày (chỉ thêm được vào Backlog), ví dụ “{undated[0]}”")
     counts: dict[int, int] = {}
     for idea in ideas:
-        counts[idea.day] = counts.get(idea.day, 0) + 1
+        if idea.day is not None:
+            counts[idea.day] = counts.get(idea.day, 0) + 1
     errors += [
         f"Ngày {day} có {count} ý tưởng, tối đa {MAX_PER_DAY}" for day, count in counts.items() if count > MAX_PER_DAY
     ]
-    first_day: dict[str, int] = {}
+    first_day: dict[str, int | None] = {}
     for idea in ideas:
         key = topic_key(idea.topic)
         if key in first_day:
-            errors.append(f"Chủ đề trùng: “{idea.topic}” (ngày {first_day[key]} và ngày {idea.day})")
+            errors.append(f"Chủ đề trùng: “{idea.topic}” ({day_label(first_day[key])} và {day_label(idea.day)})")
         else:
             first_day[key] = idea.day
     if ideas:
@@ -222,9 +265,11 @@ def _idea(raw: dict, day: object, where: str, cut: bool = False) -> Idea:
         field = FIELD_OF.get(_name(key))
         if field and field not in fields:
             fields[field] = value
-    number = _day(fields.get("day", day))
-    if number is None:
-        raise PlanError(f"{where}: thiếu ngày hoặc ngày không phải số")
+    raw_day = fields.get("day", day)
+    # No day at all is an idea for the Backlog; a day that is not a number is a mistake.
+    number = None if raw_day is None or _value(raw_day).strip() == "" else _day(raw_day)
+    if number is None and not (raw_day is None or _value(raw_day).strip() == ""):
+        raise PlanError(f"{where}: ngày không phải số")
     try:
         return make_idea(
             number,
@@ -296,8 +341,8 @@ def _parse_csv(text: str) -> tuple[list[Idea], list[str]]:
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
     header = next(reader, None)
     columns = [FIELD_OF.get(_name(name)) for name in header or []]
-    if "day" not in columns or "topic" not in columns:
-        raise PlanError("File CSV cần dòng tiêu đề có cột ngày và chủ đề (day, topic)")
+    if "topic" not in columns:
+        raise PlanError("File CSV cần dòng tiêu đề có cột chủ đề (topic), thêm cột ngày (day) nếu là kế hoạch")
     ideas, errors = [], []
     for row in reader:
         if not any(cell.strip() for cell in row):
@@ -322,9 +367,9 @@ def parse_file(filename: str, data: bytes) -> tuple[list[Idea], list[str]]:
         raise PlanError("File trống")
     is_json = filename.lower().endswith(".json") or text.lstrip()[:1] in ("{", "[")
     ideas, errors = _parse_json(text) if is_json else _parse_csv(text)
-    if len(ideas) > MAX_IDEAS:
-        raise PlanError(f"File có {len(ideas)} ý tưởng, tối đa {MAX_IDEAS}")
-    return sorted(ideas, key=lambda idea: idea.day), errors
+    if len(ideas) > MAX_BACKLOG:
+        raise PlanError(f"File có {len(ideas)} ý tưởng, tối đa {MAX_BACKLOG}")
+    return sorted(ideas, key=lambda idea: (idea.day is None, idea.day or 0)), errors
 
 
 # --- The plan as saved ---
@@ -340,19 +385,22 @@ def items_of(db: DbSession, topic_id: int) -> list[TopicPlanItem]:
     )
 
 
-def day_count(db: DbSession, topic_id: int, day: int) -> int:
+def _on(day: int | None):
+    return TopicPlanItem.day.is_(None) if day is None else TopicPlanItem.day == day
+
+
+def day_count(db: DbSession, topic_id: int, day: int | None) -> int:
+    """The ideas of one day, or of the Backlog when `day` is None."""
     return db.scalar(
-        select(func.count())
-        .select_from(TopicPlanItem)
-        .where(TopicPlanItem.knowledge_topic_id == topic_id, TopicPlanItem.day == day)
+        select(func.count()).select_from(TopicPlanItem).where(TopicPlanItem.knowledge_topic_id == topic_id, _on(day))
     )
 
 
-def renumber(db: DbSession, topic_id: int, day: int) -> None:
+def renumber(db: DbSession, topic_id: int, day: int | None) -> None:
     db.flush()
     rows = db.scalars(
         select(TopicPlanItem)
-        .where(TopicPlanItem.knowledge_topic_id == topic_id, TopicPlanItem.day == day)
+        .where(TopicPlanItem.knowledge_topic_id == topic_id, _on(day))
         .order_by(TopicPlanItem.position, TopicPlanItem.id)
     ).all()
     for position, row in enumerate(rows, start=1):
@@ -360,10 +408,14 @@ def renumber(db: DbSession, topic_id: int, day: int) -> None:
 
 
 def replace_plan(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user_id: int) -> None:
-    """The whole plan becomes `ideas`. An idea that keeps the topic of one that had a video keeps the video, so
-    re-importing an adjusted plan does not lose what was already made."""
-    linked = {topic_key(item.topic): item.video_id for item in items_of(db, topic.id) if item.video_id}
-    db.query(TopicPlanItem).filter(TopicPlanItem.knowledge_topic_id == topic.id).delete()
+    """The 30 days become `ideas`; the Backlog stays, but for an idea the new plan now has on a day. An idea that keeps
+    the topic of one that had a video keeps the video, so re-importing an adjusted plan does not lose what was made."""
+    current = items_of(db, topic.id)
+    linked = {topic_key(item.topic): item.video_id for item in current if item.video_id}
+    planned = {topic_key(idea.topic) for idea in ideas}
+    for item in current:
+        if item.day is not None or topic_key(item.topic) in planned:
+            db.delete(item)
     db.flush()
     positions: dict[int, int] = {}
     for idea in sorted(ideas, key=lambda idea: idea.day):
@@ -378,10 +430,43 @@ def replace_plan(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user_i
             )
         )
     topic.plan_draft = None
+    renumber(db, topic.id, None)
 
 
-def item_payload(item: TopicPlanItem, video: Video | None) -> dict:
-    status = item_status(video)
+def add_to_backlog(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user_id: int) -> tuple[int, int]:
+    """Ideas into the Backlog, after what it holds; a topic the plan or the Backlog already has is skipped. Returns
+    how many were added and skipped."""
+    taken = {topic_key(item.topic) for item in items_of(db, topic.id)}
+    position = day_count(db, topic.id, None)
+    added = 0
+    for idea in ideas:
+        key = topic_key(idea.topic)
+        if key in taken:
+            continue
+        taken.add(key)
+        position += 1
+        added += 1
+        db.add(
+            TopicPlanItem(
+                knowledge_topic_id=topic.id,
+                day=None,
+                position=position,
+                topic=idea.topic,
+                pain_group=idea.pain_group,
+                pain=idea.pain,
+                hook=idea.hook,
+                updated_by_id=user_id,
+            )
+        )
+    return added, len(ideas) - added
+
+
+def item_payload(
+    item: TopicPlanItem, video: Video | None, post: Publication | None = None, topic: KnowledgeTopic | None = None
+) -> dict:
+    status = item_status(video, post)
+    post_at = (post.published_at or post.scheduled_at) if post is not None else None
+    suggested = suggested_post_at(topic, item) if topic is not None and status != "posted" else None
     return {
         "id": item.id,
         "knowledge_topic_id": item.knowledge_topic_id,
@@ -394,6 +479,9 @@ def item_payload(item: TopicPlanItem, video: Video | None) -> dict:
         "status": status,
         "status_label": STATUS_LABELS[status],
         "video_id": item.video_id,
+        # When its post went out or is set to; else when the plan means it to go out (Vietnam time, ISO).
+        "post_at": post_at.isoformat() if post_at else None,
+        "suggested_post_at": suggested.isoformat() if suggested else None,
     }
 
 
@@ -402,9 +490,77 @@ def _videos(db: DbSession, items: list[TopicPlanItem]) -> dict[int, Video]:
     return {video.id: video for video in db.scalars(select(Video).where(Video.id.in_(ids)))} if ids else {}
 
 
-def payloads(db: DbSession, items: list[TopicPlanItem]) -> list[dict]:
-    videos = _videos(db, items)
-    return [item_payload(item, videos.get(item.video_id)) for item in items]
+def _posts(db: DbSession, items: list[TopicPlanItem]) -> dict[int, Publication]:
+    """Each video's post that counts for its idea: a published one first, else the earliest one set for later."""
+    ids = [item.video_id for item in items if item.video_id]
+    if not ids:
+        return {}
+    rows = db.scalars(
+        select(Publication).where(
+            Publication.video_id.in_(ids),
+            (Publication.status == "published")
+            | (Publication.status.in_(("scheduled", "pending")) & Publication.scheduled_at.is_not(None)),
+        )
+    )
+    best: dict[int, Publication] = {}
+    for post in rows:
+        rank = (post.status != "published", post.published_at or post.scheduled_at)
+        kept = best.get(post.video_id)
+        if kept is None or rank < (kept.status != "published", kept.published_at or kept.scheduled_at):
+            best[post.video_id] = post
+    return best
+
+
+def numbers_48h(db: DbSession, items: list[TopicPlanItem]) -> dict[int, list[dict]]:
+    """Each video's Facebook posts that went live, with their 48-hour numbers and how they compare to their Page's
+    median, by video id. Only the `48h` reading: `latest` is never put in its place, so posts are compared at the same
+    age. The medians are read once for all of them; two queries load the posts and their readings."""
+    ids = [item.video_id for item in items if item.video_id]
+    if not ids:
+        return {}
+    posts = db.execute(
+        select(Publication, Fanpage.name)
+        .outerjoin(Fanpage, Fanpage.id == Publication.fanpage_id)
+        .where(
+            Publication.video_id.in_(ids),
+            Publication.platform == "facebook",
+            Publication.published_at.is_not(None),
+        )
+        .order_by(Publication.published_at, Publication.id)
+    ).all()
+    if not posts:
+        return {}
+    marks = {
+        mark.publication_id: mark
+        for mark in db.scalars(
+            select(PostMetrics).where(
+                PostMetrics.publication_id.in_([post.id for post, _ in posts]), PostMetrics.window == "48h"
+            )
+        )
+    }
+    by_page = analytics.medians(db)
+    found: dict[int, list[dict]] = {}
+    for post, page_name in posts:
+        mark = marks.get(post.id)
+        views, shares = (mark.views, mark.shares) if mark else (None, None)
+        found.setdefault(post.video_id, []).append(
+            {
+                "publication_id": post.id,
+                "fanpage_name": page_name or "",
+                "views": views,
+                "shares": shares,
+                "measured_at": mark.measured_at.isoformat() if mark else None,
+                **analytics.of_post(post, views, shares, by_page),
+            }
+        )
+    return found
+
+
+def payloads(db: DbSession, items: list[TopicPlanItem], topic: KnowledgeTopic | None = None) -> list[dict]:
+    videos, posts = _videos(db, items), _posts(db, items)
+    if topic is None and items:
+        topic = db.get(KnowledgeTopic, items[0].knowledge_topic_id)
+    return [item_payload(item, videos.get(item.video_id), posts.get(item.video_id), topic) for item in items]
 
 
 def plan_job(db: DbSession, topic_id: int) -> Job | None:
@@ -416,7 +572,11 @@ def plan_job(db: DbSession, topic_id: int) -> Job | None:
 
 
 def plan_payload(db: DbSession, topic: KnowledgeTopic) -> dict:
-    items = payloads(db, items_of(db, topic.id))
+    rows = items_of(db, topic.id)
+    items = payloads(db, rows, topic)
+    numbers = numbers_48h(db, rows)
+    for item in items:
+        item["posts"] = numbers.get(item["video_id"], []) if item["video_id"] else []
     job = plan_job(db, topic.id)
     return {
         "topic_id": topic.id,
@@ -424,20 +584,26 @@ def plan_payload(db: DbSession, topic: KnowledgeTopic) -> dict:
         "start_date": topic.plan_start_date.isoformat() if topic.plan_start_date else None,
         "today_day": day_of(topic.plan_start_date, today()),
         "per_day": topic.plan_per_day,
+        "post_times": topic.plan_post_times,
         "prompt": topic.plan_prompt or default_prompt(),
         "default_prompt": default_prompt(),
         "items": items,
-        "made": sum(1 for item in items if item["status"] != "idea"),
+        "made": sum(1 for item in items if item["status"] != "idea" and item["day"] is not None),
         "job": {"id": job.id, "status": job.status, "error": job.error, "error_detail": job.error_detail}
         if job
         else None,
         "draft": topic.plan_draft,
+        # Compared against on the cards, so the goal lives in one place (analytics.SHARE_GOAL).
+        "share_goal": analytics.SHARE_GOAL,
+        "video_target": topic.video_target,
+        "video_count": db.scalar(select(func.count()).select_from(Video).where(Video.knowledge_topic_id == topic.id)),
     }
 
 
 def today_payload(db: DbSession) -> list[dict]:
-    """Every topic group whose plan has a today: its ideas of today, for "Tạo video" and the progress banner. All
-    its topics come too, so the dialog can tell a topic outside the plan."""
+    """Every topic group whose plan has a today: its ideas of today, for "Tạo video" and the progress banner, and the
+    last day that has a video for every idea from today on ("đã chuẩn bị trước đến ngày ..."). All its topics come
+    too, so the dialog can tell a topic outside the plan."""
     on = today()
     groups = []
     for topic in db.scalars(select(KnowledgeTopic).where(KnowledgeTopic.plan_start_date.is_not(None))):
@@ -452,11 +618,23 @@ def today_payload(db: DbSession) -> list[dict]:
                 "topic_id": topic.id,
                 "name": topic.name,
                 "day": day,
-                "ideas": payloads(db, [item for item in items if item.day == day]),
+                "ideas": payloads(db, [item for item in items if item.day == day], topic),
+                "prepared_through": prepared_through(items, day),
                 "topics": [item.topic for item in items],
             }
         )
     return groups
+
+
+def prepared_through(items: list[TopicPlanItem], today_day: int) -> int | None:
+    """The last day, from today on, up to which every day has ideas and each of them a video; None if today has not."""
+    last = None
+    for day in range(today_day, PLAN_DAYS + 1):
+        ideas = [item for item in items if item.day == day]
+        if not ideas or any(item.video_id is None for item in ideas):
+            break
+        last = day
+    return last
 
 
 def idea_of_video(db: DbSession, video_id: int) -> TopicPlanItem | None:

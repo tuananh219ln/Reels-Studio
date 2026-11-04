@@ -11,6 +11,27 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-04 — The 30-day plan gets a Backlog, posting times and 48-hour numbers; no stored winner flag
+
+Asked by the owner on /knowledge and in docs/specs/plan-tab-improvements/brief.md. Adds to the 2026-11-03 plan
+decision without reversing it:
+
+- **A Backlog of ideas with no day** (`topic_plan_items.day` null), as its own tab. Ideas move between it and the
+  days by dragging or "Xếp vào ngày…"; the 5-a-day limit does not apply there (300 at most) and a topic is still
+  never twice in the group. **Saving an imported or AI plan replaces the 30 days only**: the Backlog stays, but for
+  an idea the new plan puts on a day. A file without days can only be added to the Backlog.
+- **Videos can be made ahead.** "Tạo video" lists the coming days' and the Backlog's ideas, not only today's. Each
+  group has 1–5 posting times; the n-th idea of a day is suggested to go out at the n-th, and "Đăng" for its video
+  starts on "Hẹn giờ" at that time. The time typed there is Vietnam time whatever the browser's time zone (before,
+  it was the browser's). Moving an idea does not move a post already scheduled; the member is told so.
+- **Two statuses more**, read from the video's posts, never stored: "Đã lên lịch" and "Đã đăng".
+- **No stored winner flag**, keeping the 2026-11-03 decision: a card shows each Facebook post's 48-hour numbers
+  against its Page's median and the share/view goal, and is drawn bold from 10× only when shown. Only the `48h`
+  reading is used, never `latest` in its place, so posts are compared at the same age.
+- **"Tiến độ verdict" only counts** the group's videos against `video_target`; the verdict is still decided by the
+  team in a meeting once enough videos are posted and measured at 48 hours. The garden group's target is set by
+  hand on the page, never seeded by its name in code.
+
 ## 2026-11-04 — A reel's numbers survive a Video Insights metric Meta retires
 
 Every post on "Bài đăng" showed "Lần đo gần nhất lỗi: Facebook không còn reel này hoặc chưa có chỉ số". The app

@@ -58,8 +58,10 @@ Built:
   viết" ("AI viết kịch bản" or "Tự viết") and the topic group; below it the topic. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
-  button on the right. When the group's 30-day plan has a today, the dialog widens: its ideas not
-  made yet are a numbered list on the left (day and pain group under each) and the topic and its
+  button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
+  are a numbered list on the left (day or "Backlog" and pain group under each), in groups: "Hôm nay",
+  "Ngày tới" (the next 3 days with ideas, "Xem thêm" for the rest), "Ngày đã qua chưa làm" and
+  "Backlog", so videos can be made ahead and their posts scheduled, and the topic and its
   details sit in a bordered panel on the right (stacked on a phone). Picking an idea marks it
   "Đã chọn" in orange, fills the topic and shows its day, pain group, pain and hook; picking it
   again or "Bỏ chọn" drops it. A typed topic that is nowhere in the plan gets a yellow note that does not block.
@@ -271,7 +273,9 @@ Built:
     accounts and the post's link), with the recorded posts below;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
     có"), the Fanpage, each shown as "<Page> · <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
-    ahead, within 29 days; after a post it is back on "Đăng ngay"). Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
+    ahead, within 29 days, typed in Vietnam time whatever the browser's time zone; after a post it is back on "Đăng ngay").
+    A video of the 30-day plan opens on "Hẹn giờ" at the time the plan suggests (its day, at the group's posting
+    time for its place in the day), said under the field. Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
     very MP4, and it warns when the Page keeps an older post of the video. The pinned comment stays manual;
   - the "Bài đăng của video" card lists every post, newest first: its status, Fanpage, who posted it,
     the scheduled time or "Xem Reel", who cancelled or deleted it and when ("trên Facebook" when a check
@@ -288,18 +292,36 @@ Built:
   empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
   video"; a clone keeps its source's group. Two tabs: "Prompt và từ cấm" (the script prompt and the
   clone prompt, each with "Lưu" and "Khôi phục mặc định", and beside them on a wide screen the banned
-  words with "Lưu từ cấm") and "Kế hoạch 30 ngày":
-  - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Đã làm X/Y ý tưởng" with a bar;
+  words with "Lưu từ cấm"), "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on
+  the tab's name goes to the Backlog):
+  - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Giờ đăng" (1–5 times, as tags), "Đã làm
+    X/Y ý tưởng" with a bar, and a strip of 30 small cells, one a day (Trống, Có ý tưởng, Đang làm, Đủ
+    video, Đã lên lịch đủ; today outlined), each a link to its day;
+  - "Tiến độ verdict: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
+    target to set; it only counts, the line under it says the verdict is still decided in a meeting;
   - "Nhập file JSON/CSV" and "Tạo bằng AI", both ending in a preview table with errors (which block
     saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as a draft
     ("Xem trước" / "Bỏ") until then; a failed one shows its error;
   - "Prompt kế hoạch", folded, with "Lưu" and "Khôi phục mặc định";
+  - above the days, filters for the session only: status, pain group (A–Z) and a search over topic,
+    pain group, pain and hook that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp",
+    "Xóa lọc", and "Đầy đủ | Gọn" (kept in the browser as `plan-compact`; a compact card shows its
+    title, status, numbers and buttons, and opens on its title or arrow);
   - the 30 days on one page, one card each (its date and weekday once a start date is set, "Hôm nay"
-    on today's), each idea with its topic, pain group, pain and hook editable in place (saved when
-    the edit ends), a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong), "Tạo video" or
-    "Mở video", and "Xoá". "+" adds an idea (greyed out at 5); dragging an idea onto another day
-    moves it there. A day with 1–2 ideas says it should have 3–5.
-- **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày · Ngày N"
+    on today's, a line counting its shown ideas by status, "Không có ý tưởng khớp" when the filters
+    hide them all), each idea with a 3 px left border in its status colour, its topic, pain group,
+    pain and hook editable in place (saved when the edit ends), a status tag (Ý tưởng, Đã tạo video,
+    Đã viết kịch bản, Xong, Đã lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while
+    no post is set, "Tạo video" or "Mở video", "Chuyển về Backlog" and "Xoá", and under them one line
+    per Facebook post with its 48-hour numbers ("<Page>: N view · N share · share/view x,xx% đạt/không
+    đạt 0,2% · N× trung vị", bold from 10×; "chưa đủ dữ liệu" under 5 measured posts; "chưa đo 48h"
+    before). "+" adds an idea (greyed out at 5); dragging an idea onto another day moves it there. A
+    day with 1–2 ideas says it should have 3–5. "Mở Backlog" opens the Backlog beside the days, to drag
+    ideas between them;
+  - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
+    "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
+    filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
+- **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày · Ngày N" (or "Backlog")
   with its pain group, pain and hook under the title.
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;

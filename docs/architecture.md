@@ -216,8 +216,8 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 |---|---|
 | `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
 | `videos` | Topic, whether the script exists, narration on/off, its own settings (`options`: voice, reading speed as a tempo factor, voice level, ducking, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, whether a member wrote the script by hand (`hand_written`), thumbnail, the clone snapshot for a cloned draft, creator. |
-| `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words; its 30-day plan's prompt (empty: the default), start date (day 1, Vietnam time), ideas per day for the AI (3–5), and the AI's last plan as a draft (`plan_draft`) until a member saves or drops it. Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
-| `topic_plan_items` | One idea of a topic group's 30-day plan ([plans.py](../api/src/reels_api/plans.py), [routes_plans.py](../api/src/reels_api/routes_plans.py)): day (1–30), place in the day, topic, pain group, pain, hook, the video made from it (unique; `SET NULL` when the video is deleted), who changed it. At most 5 a day and no topic twice, checked by the api under a lock on the topic group. Its status is read from the video. Deleted with the group. Saving an imported or AI plan replaces every idea, and an idea with the topic of one that had a video keeps that video. |
+| `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, banned words; its 30-day plan's prompt (empty: the default), start date (day 1, Vietnam time), ideas per day for the AI (3–5), its posting times (`plan_post_times`, 1–5 "HH:MM", the n-th idea of a day suggested at the n-th), the AI's last plan as a draft (`plan_draft`) until a member saves or drops it, and `video_target`, the number of videos its trial counts towards ("Tiến độ verdict", null: no banner). Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
+| `topic_plan_items` | One idea of a topic group's 30-day plan ([plans.py](../api/src/reels_api/plans.py), [routes_plans.py](../api/src/reels_api/routes_plans.py)): day (1–30, or null: the group's Backlog), place in the day (or the Backlog), topic, pain group, pain, hook, the video made from it (unique; `SET NULL` when the video is deleted), who changed it. At most 5 a day (300 in the Backlog) and no topic twice, checked by the api under a lock on the topic group. Its status is read from the video and its posts (Đã lên lịch, Đã đăng). Deleted with the group. Saving an imported or AI plan replaces the 30 days and keeps the Backlog, but for an idea the new plan puts on a day; an idea with the topic of one that had a video keeps that video. |
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds, on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from, and where a member dragged its text box (`text_x`, `text_y`, the box centre; null: the video's place in `videos.options.text_position`, else the template's). Whether its photo is the app's unchecked pick (`image_auto`). |
 | `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last, and the worker's last check of its token: when, its error (null when it worked), when a member asked for one, the followers it read, and what went wrong reading its Page Insights (`insights_error`). |
 | `fanpage_followers` | A Page's followers on one day in Vietnam time, the last number read that day; one row per Page and day. |
@@ -418,10 +418,18 @@ Planned:
     share/view ≥ 0.2 % of those with both numbers.
     null until read), `error`, and `pending` while an asked reading has not run.
 - **30-day plan:** `/api/plans/{group}` reads and changes a group's plan (start date, ideas per
-  day, prompt; ideas added, edited, moved and deleted under `/api/plans/items/{id}`; `PUT .../items`
-  replaces the whole plan). `POST .../import` only reads a file and answers the preview; `POST
-  .../generate` queues the plan job, whose result waits in `plan_draft`. `GET /api/plans/today`
-  gives every group whose plan has a today its ideas of today and all its topics. `POST /api/videos`
+  day, posting times, video target, prompt; ideas added, edited, moved and deleted under
+  `/api/plans/items/{id}`, a null `day` being the Backlog; `PUT .../items` replaces the 30 days and
+  keeps the Backlog; `POST .../backlog` adds a previewed file's ideas to the Backlog, skipping topics
+  already there). `POST .../import` only reads a file and answers the preview (a file without days
+  can only go to the Backlog); `POST .../generate` queues the plan job, whose result waits in
+  `plan_draft`. Each idea carries `suggested_post_at` (its day at the posting time of its place,
+  until that time is past) and `post_at` from its post; `GET /api/plans/{group}` also gives each
+  idea's Facebook posts that went live with their 48-hour numbers only (never `latest`), compared
+  with `analytics.medians`, read once for the whole plan, and `analytics.SHARE_GOAL`.
+  `GET /api/plans/today` gives every group whose plan has a today its ideas of today, the last day
+  from today on that has a video for every idea, and all its topics. A video's `plan_idea` carries
+  `suggested_post_at`, which "Đăng" starts with. `POST /api/videos`
   takes an optional `plan_item_id`, refused when the idea already has a video or belongs to another
   group; the script job then passes the idea's pain and hook to the prompt
   ([content.md](content.md#script-generation-contract)). The job log names a plan job "Kế hoạch 30
