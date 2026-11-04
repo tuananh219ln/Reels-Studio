@@ -141,6 +141,12 @@ def shopee_affiliate_api_url() -> str:
     return (read_env("SHOPEE_AFFILIATE_API_URL") or "https://open-api.affiliate.shopee.vn/graphql").rstrip("/")
 
 
+def shopee_short_link_url() -> str:
+    # Where a pasted short link (s.shopee.vn/<code>) is asked for its redirect. Overridable only so tests and E2E can
+    # point at a local fake; production uses the default.
+    return (read_env("SHOPEE_SHORT_LINK_URL") or "https://s.shopee.vn").rstrip("/")
+
+
 def elevenlabs_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("ELEVENLABS_API_URL") or "https://api.elevenlabs.io").rstrip("/")

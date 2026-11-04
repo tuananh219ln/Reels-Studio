@@ -1,4 +1,5 @@
-"""Affiliate: the team's product list on Shopee and TikTok Shop, entered by hand or found through Shopee's API, ranked
+"""Affiliate: the team's product list on Shopee and TikTok Shop, added by a pasted Shopee link or Shopee Affiliate's
+file (the worker reads the rest), entered by hand, or found through Shopee's API, ranked
 by expected commission and approved by a member; the products attached to each video, and Shopee's suggestions for a
 video (affiliate_rounds.py finds them)."""
 
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import affiliate, facebook, knowledge
+from . import affiliate, affiliate_rounds, facebook, knowledge, shopee
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -38,6 +39,24 @@ MAX_SHOP_NAME_LENGTH = 200
 MAX_URL_LENGTH = 2000
 MAX_COUNT = 1_000_000_000  # keeps price and sold inside the database's integer
 VIETNAM_TIME = timezone(timedelta(hours=7))
+MAX_LINKS = 50  # links pasted at once
+MAX_IMPORT_ROWS = 500
+MAX_IMPORT_CHARS = 2_000_000
+NO_SHOPEE_ACCOUNT = (
+    "Chưa có tài khoản Shopee nào có App ID và Secret để tự lấy thông tin sản phẩm. Thêm ở Cài đặt › Tài khoản "
+    "affiliate, hoặc dùng Nhập file từ Shopee Affiliate"
+)
+# The columns of Shopee Affiliate's "Lấy link hàng loạt" file, in Vietnamese and in English.
+IMPORT_COLUMNS = {
+    "item_id": ("mã sản phẩm", "item id"),
+    "name": ("tên sản phẩm", "item name", "product name"),
+    "price": ("giá", "price"),
+    "shop_name": ("tên cửa hàng", "tên shop", "shop name"),
+    "commission_rate": ("tỉ lệ hoa hồng", "tỷ lệ hoa hồng", "commission rate"),
+    "page_url": ("link sản phẩm", "product link"),
+    "url": ("link ưu đãi", "offer link"),
+}
+BOM = "\ufeff"
 
 
 class ProductBody(BaseModel):
@@ -51,6 +70,16 @@ class ProductBody(BaseModel):
     sold: int
     price: int
     commission_rate: float
+
+
+class LinksBody(BaseModel):
+    knowledge_topic_id: int
+    links: list[str]
+
+
+class ImportBody(BaseModel):
+    knowledge_topic_id: int
+    text: str
 
 
 class VideoProductsBody(BaseModel):
@@ -115,6 +144,81 @@ def _fields(db: DbSession, body: ProductBody) -> dict:
     }
 
 
+def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
+    topic = db.get(KnowledgeTopic, topic_id)
+    if topic is None:
+        raise invalid("Nhóm chủ đề không còn tồn tại")
+    return topic
+
+
+def _waiting(product: AffiliateProduct, user_id: int, ask: bool) -> None:
+    """Hand the product to the worker's next round (affiliate_rounds.lookup) when there is an account to ask with."""
+    product.lookup_requested_at, product.lookup_by_id, product.lookup_error = (now() if ask else None), user_id, None
+
+
+def _known(db: DbSession, item_ids: set[int], urls: set[str]) -> tuple[dict[int, AffiliateProduct], set[str]]:
+    rows = list(
+        db.scalars(
+            select(AffiliateProduct).where(
+                or_(
+                    AffiliateProduct.shopee_item_id.in_(item_ids),
+                    AffiliateProduct.url.in_(urls),
+                    AffiliateProduct.page_url.in_(urls),
+                )
+            )
+        )
+    )
+    links = {row.url for row in rows if row.url} | {row.page_url for row in rows if row.page_url}
+    return {row.shopee_item_id: row for row in rows if row.shopee_item_id}, links
+
+
+def _header(cell: str) -> str:
+    return " ".join(unicodedata.normalize("NFC", cell).lstrip(BOM).lower().split())
+
+
+def _amount(cell: str) -> float | None:
+    """A number as Shopee Affiliate's file writes it: "45,0k", "1,2tr", "₫900", "2,5%", "125.000"."""
+    value = cell.strip().lower().replace("₫", "").replace("đ", "").replace("%", "").replace(" ", "")
+    factor = 1
+    for suffix, times in (("tr", 1_000_000), ("m", 1_000_000), ("k", 1_000)):
+        if value.endswith(suffix):
+            value, factor = value[: -len(suffix)], times
+            break
+    if factor == 1 and "," not in value and "." in value and len(value.rsplit(".", 1)[1]) == 3:
+        value = value.replace(".", "")  # 125.000: dots group the thousands
+    try:
+        return float(value.replace(",", ".")) * factor
+    except ValueError:
+        return None
+
+
+def _imported(row: dict[str, str]) -> dict:
+    """One row of the file as the fields of a product; raises ApiError saying what is wrong."""
+    try:
+        item_id = int(row["item_id"].strip())
+    except ValueError:
+        raise invalid("Mã sản phẩm không hợp lệ") from None
+    price = _amount(row["price"])
+    rate = _amount(row["commission_rate"])
+    if price is None or not 0 < price <= MAX_COUNT:
+        raise invalid("Giá không đọc được")
+    if rate is None or not 0 <= rate <= 100:
+        raise invalid("Tỉ lệ hoa hồng không đọc được")
+    url = _url(row["url"])
+    page_url = _url(row["page_url"])
+    if not (url or page_url):
+        raise invalid("Thiếu link sản phẩm")
+    return {
+        "shopee_item_id": item_id,
+        "name": _text(row["name"], "Tên sản phẩm", MAX_NAME_LENGTH),
+        "shop_name": _text(row["shop_name"], "Tên shop", MAX_SHOP_NAME_LENGTH),
+        "price": round(price),
+        "commission_rate": round(rate, 2),
+        "url": url,
+        "page_url": page_url,
+    }
+
+
 def _expected_commission(product: AffiliateProduct) -> int:
     return round(product.price * product.commission_rate / 100)
 
@@ -144,6 +248,8 @@ def _payload(product: AffiliateProduct) -> dict:
         "checked_at": product.checked_at.isoformat() if product.checked_at else None,
         "checked_by": product.checked_by.name if product.checked_by else None,
         "problems": affiliate.problems(product),
+        "lookup": "pending" if product.lookup_requested_at else ("failed" if product.lookup_error else None),
+        "lookup_error": product.lookup_error,
     }
 
 
@@ -378,6 +484,8 @@ def options(me: Session = Depends(current_member), db: DbSession = Depends(get_d
             for platform, types in affiliate.SHOP_TYPES.items()
         },
         "topics": [{"id": topic.id, "name": topic.name} for topic in knowledge.all_topics(db)],
+        # Whether a pasted Shopee link can be read: some member has a Shopee account with App ID and Secret.
+        "shopee_lookup": affiliate_rounds.team_account(db, me.user_id) is not None,
     }
 
 
@@ -446,6 +554,140 @@ def add_product(body: ProductBody, me: Session = Depends(current_member), db: Db
     return _payload(product)
 
 
+@router.post("/links", status_code=201)
+def add_links(body: LinksBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Thêm sản phẩm": a member pastes Shopee links and the worker reads each product within seconds (name, shop,
+    stars, sales, price, commission); the request itself never calls Shopee."""
+    topic = _topic(db, body.knowledge_topic_id)
+    links = list(dict.fromkeys(link.strip() for link in body.links if link.strip()))
+    if not links:
+        raise invalid("Dán ít nhất một link sản phẩm Shopee")
+    if len(links) > MAX_LINKS:
+        raise invalid(f"Mỗi lần dán tối đa {MAX_LINKS} link")
+    for link in links:
+        if not shopee.is_shopee_link(_url(link)):
+            raise invalid(f"Không phải link Shopee: {link[:80]}")
+    if affiliate_rounds.team_account(db, me.user_id) is None:
+        raise invalid(NO_SHOPEE_ACCOUNT)
+    items = {link: shopee.item_id_of(link) for link in links}
+    known_items, known_links = _known(db, {item for item in items.values() if item}, set(links))
+    added, skipped = 0, []
+    for link, item_id in items.items():
+        if link in known_links or (item_id and item_id in known_items):
+            skipped.append(link)
+            continue
+        product = AffiliateProduct(
+            knowledge_topic_id=topic.id,
+            platform="shopee",
+            # Named by its link until the worker reads it; the page shows "Đang lấy thông tin" meanwhile.
+            name=link[:MAX_NAME_LENGTH],
+            # A short link is the member's own affiliate link; a product page's link is not one.
+            url=None if item_id else link,
+            page_url=link if item_id else None,
+            shopee_item_id=item_id,
+            shop_name="",
+            shop_type="other",
+            rating=0,
+            sold=0,
+            price=0,
+            commission_rate=0,
+            created_by_id=me.user_id,
+        )
+        _waiting(product, me.user_id, ask=True)
+        db.add(product)
+        if item_id:
+            known_items[item_id] = product
+        added += 1
+    db.commit()
+    return {"added": added, "skipped": skipped}
+
+
+@router.post("/import", status_code=201)
+def import_products(body: ImportBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Nhập file": the CSV of Shopee Affiliate's "Lấy link hàng loạt" (item id, name, price, shop, commission,
+    product link, affiliate link). Stars, sales and the shop's type are not in it: the worker reads them when a member
+    has a Shopee account with App ID, otherwise a member fills them in before approving. A product already in the list
+    takes the file's link and figures; an approved one keeps its approval unless it no longer meets the rules."""
+    topic = _topic(db, body.knowledge_topic_id)
+    if len(body.text) > MAX_IMPORT_CHARS:
+        raise invalid("File quá lớn, hãy chia nhỏ")
+    text = body.text.lstrip(BOM)
+    try:
+        dialect = csv.Sniffer().sniff(text.split("\n", 1)[0], delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    rows = list(csv.reader(io.StringIO(text), dialect))
+    if not rows:
+        raise invalid("File trống")
+    headers = [_header(cell) for cell in rows[0]]
+    columns = {
+        field: next((index for index, header in enumerate(headers) if header in names), None)
+        for field, names in IMPORT_COLUMNS.items()
+    }
+    missing = [IMPORT_COLUMNS[field][0] for field, index in columns.items() if index is None and field != "url"]
+    if missing:
+        raise invalid(
+            f"File thiếu cột: {', '.join(missing)}. Hãy dùng file tải từ Shopee Affiliate › Lấy link hàng loạt"
+        )
+    data = [(number, row) for number, row in enumerate(rows[1:], start=2) if any(cell.strip() for cell in row)]
+    if not data:
+        raise invalid("File không có sản phẩm nào")
+    if len(data) > MAX_IMPORT_ROWS:
+        raise invalid(f"Mỗi lần nhập tối đa {MAX_IMPORT_ROWS} sản phẩm")
+    ask = affiliate_rounds.team_account(db, me.user_id) is not None
+    parsed: list[dict] = []
+    errors = []
+    for number, row in data:
+        cells = {
+            field: row[index] if index is not None and index < len(row) else "" for field, index in columns.items()
+        }
+        try:
+            parsed.append(_imported(cells))
+        except ApiError as err:
+            errors.append({"row": number, "message": err.message})
+    known, _ = _known(db, {fields["shopee_item_id"] for fields in parsed}, set())
+    added = updated = 0
+    for fields in parsed:
+        product = known.get(fields["shopee_item_id"])
+        if product is None:
+            product = AffiliateProduct(
+                **fields,
+                knowledge_topic_id=topic.id,
+                platform="shopee",
+                shop_type="other",
+                rating=0,
+                sold=0,
+                created_by_id=me.user_id,
+            )
+            _waiting(product, me.user_id, ask)
+            db.add(product)
+            known[fields["shopee_item_id"]] = product
+            added += 1
+            continue
+        for name, value in fields.items():
+            if value is not None:
+                setattr(product, name, value)
+        if product.status == "approved" and affiliate.problems(product):
+            _clear_approval(product)
+        updated += 1
+    db.commit()
+    return {"added": added, "updated": updated, "errors": errors, "lookup": ask}
+
+
+@router.post("/{product_id}/lookup")
+def request_lookup(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Lấy lại thông tin" from Shopee, in the worker's next round."""
+    product = _get(db, product_id)
+    if product.platform != "shopee" or not (product.shopee_item_id or product.url or product.page_url):
+        raise invalid("Chỉ lấy được thông tin của sản phẩm Shopee có link")
+    if affiliate_rounds.team_account(db, me.user_id) is None:
+        raise invalid(NO_SHOPEE_ACCOUNT)
+    _waiting(product, me.user_id, ask=True)
+    db.commit()
+    db.refresh(product)
+    return _payload(product)
+
+
 @router.put("/{product_id}")
 def update_product(
     product_id: int, body: ProductBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
@@ -456,6 +698,7 @@ def update_product(
         _clear_approval(product)
     for name, value in fields.items():
         setattr(product, name, value)
+    product.lookup_error = None  # filled in by hand
     db.commit()
     db.refresh(product)
     return _payload(product)
@@ -464,6 +707,8 @@ def update_product(
 @router.post("/{product_id}/approve")
 def approve_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     product = _get(db, product_id)
+    if product.lookup_requested_at is not None:
+        raise ApiError(409, "product_not_approvable", "Đang lấy thông tin từ Shopee, chờ vài giây rồi duyệt")
     problems = affiliate.problems(product)
     if problems:
         raise ApiError(409, "product_not_approvable", f"Chưa duyệt được: {'; '.join(problems)}")

@@ -231,7 +231,8 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | `llm_providers` | One row per provider set up on `/settings/ai` (the list itself is fixed in [llm.py](../api/src/reels_api/llm.py)): base URL and model (empty means the provider's default), the API key encrypted like a Fanpage token ([crypto.py](../api/src/reels_api/crypto.py)) and its last characters, who changed it last. |
 | `app_settings` | Team-wide settings from the Cài đặt pages by key: `llm_provider` (the provider that writes scripts; Claude when unset), `video_defaults` (what a new video's settings, narration switch and music level start as), `stock_sources_off` (stock sources the team turned off). |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
-| `affiliate_products` | The team's products, typed in from the affiliate dashboard or found through Shopee's API: platform (`shopee` or `tiktok_shop`), topic group, name, the link a member pasted (none for API products: each Page gets its own), the product page and image, Shopee's item id, shop, shop type, rating, sales, price, commission rate and when it ends, draft or approved, who approved it and when, creator, when the daily check last read it. Approval follows the platform's rules in [affiliate.py](../api/src/reels_api/affiliate.py) (Shopee: a trusted shop type, at least 4.7 stars, 100 sales, no banned word, a commission not expired); changing an approved row sends it back to draft. A topic group with products cannot be deleted. |
+| `affiliate_products` | The team's products, typed in from the affiliate dashboard or found through Shopee's API: platform (`shopee` or `tiktok_shop`), topic group, name, the link a member pasted (none for API products: each Page gets its own), the product page and image, Shopee's item id, shop, shop type, rating, sales, price, commission rate and when it ends, draft or approved, who approved it and when, creator, when the daily check last read it, and whether the worker is to read it from Shopee
+(`lookup_requested_at`, `lookup_by_id`) or could not (`lookup_error`). Approval follows the platform's rules in [affiliate.py](../api/src/reels_api/affiliate.py) (Shopee: a trusted shop type, at least 4.7 stars, 100 sales, no banned word, a commission not expired); changing an approved row sends it back to draft. A topic group with products cannot be deleted. |
 | `affiliate_accounts` | A member's own account: platform (`shopee` with the Open API's App ID and Secret, encrypted with its last characters kept, or `tiktok` with the profile link), name, owner, in use, when the worker last read its orders and what went wrong. Only its owner reads or changes it ([routes_affiliate_accounts.py](../api/src/reels_api/routes_affiliate_accounts.py)); one with posts or orders is only stopped. |
 | `affiliate_links` | A Shopee short link made with a Page's account for one product, video and Page (sub ids `v<video>`, `p<page>`); made once, when the comment is first written, and reused. |
 | `affiliate_suggestions` | Shopee's products for one of a video's product ideas, best first; replaced by each search. |
@@ -371,8 +372,13 @@ Planned:
   - **Shopee** ([affiliate_rounds.py](../api/src/reels_api/affiliate_rounds.py), [shopee.py](../api/src/reels_api/shopee.py))
     is the worker's too, between jobs: the suggestions of one asked video per round (a new script asks by itself
     when its writer has a Shopee account; "Tìm sản phẩm" is `POST /api/affiliate-products/videos/{id}/suggestions`,
-    shown by `GET` there, "Chọn" is `POST .../choose`), searched with the asking member's account; up to 5
-    approved API products whose last check is a day old; and up to 2 accounts whose orders were last read a day
+    shown by `GET` there, "Chọn" is `POST .../choose`), searched with the asking member's account; up to 10
+    products added by a pasted link (`POST /api/affiliate-products/links`) or imported from Shopee Affiliate's
+    file (`POST /api/affiliate-products/import`, read in the request, no Shopee call) that wait to be read
+    (`lookup_requested_at`): the item id comes from the link, a short link (s.shopee.vn) only asked for its
+    redirect, then `productOfferV2` fills name, shop, stars, sales, price and commission, with the member's own
+    account or else any member's; a failure is kept in `lookup_error` until "Lấy lại thông tin"
+    (`POST .../{id}/lookup`) or an edit by hand; up to 5 approved API products whose last check is a day old; and up to 2 accounts whose orders were last read a day
     ago (the last 30 days, kept by order and item). Each failure is recorded where members see it and waits.
   - **"Bình luận"** ([comments_inbox.py](../api/src/reels_api/comments_inbox.py),
     [routes_comments.py](../api/src/reels_api/routes_comments.py)) is the worker's too, between jobs:

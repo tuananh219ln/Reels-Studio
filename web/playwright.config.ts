@@ -41,6 +41,7 @@ const BACKEND_ENV = {
   IMAGE_GEN_CF_API_KEY: "fake-cloudflare-token",
   FACEBOOK_API_URL: `${FAKES_URL}/facebook`,
   SHOPEE_AFFILIATE_API_URL: `${FAKES_URL}/shopee/graphql`,
+  SHOPEE_SHORT_LINK_URL: `${FAKES_URL}/shopee-short`,
   PYTHONUNBUFFERED: "1",
   PYTHONIOENCODING: "utf-8",
 };

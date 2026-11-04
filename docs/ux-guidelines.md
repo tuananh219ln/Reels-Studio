@@ -383,9 +383,19 @@ Built:
     the copied text;
   - "Sản phẩm": products ranked by expected commission per order, with their platform tag ("Tìm qua
     API" for those Shopee's search found), shop, type, rating, sales, price, and status; filters by name
-    or shop, topic group, platform and status; "Thêm sản phẩm" (platform first; the link is optional
-    for TikTok Shop), "Sửa", "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows
-    why, in yellow;
+    or shop, topic group, platform and status; "Thêm sản phẩm" opens a drawer with two tabs, "Dán link
+    Shopee" (a topic group and one link per line, up to 50; the rest is read from Shopee, so it needs a
+    Shopee account with App ID somewhere in the team and says so when there is none) and "Nhập file"
+    (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in; rows left out are listed by number, and
+    without an App ID the drawer says stars, sales and shop type are still to fill in); "Nhập file" on
+    the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
+    platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
+    Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
+    a "Lấy lại thông tin" button. A Shopee draft whose stars, sales and shop type nobody has read (a row
+    of the file, or a link, with no App ID in the team) says they are to be filled in by hand, links its
+    Shopee page, and takes the three on the row itself (shop type, stars, sales, "Lưu"; the same save as
+    "Sửa"), so it can be approved without opening "Sửa" for each one. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
+    "Xuất CSV". A row that fails the rules shows why, in yellow;
   - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
     row per video and Page; nobody else's.
 - **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee

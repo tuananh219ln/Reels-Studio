@@ -230,7 +230,13 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
 
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
   await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
-  const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  const adding = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  // The seeded team has no Shopee App ID, so a pasted link cannot be read and the drawer says so.
+  await expect(adding.getByText("Cần một tài khoản Shopee có App ID")).toBeVisible();
+  await adding.getByRole("button", { name: "Nhập tay" }).click();
+  // The closing drawer hands focus back to "Thêm sản phẩm", which would close a dropdown opened before that.
+  await expect(adding).toBeHidden();
+  const dialog = page.getByRole("dialog", { name: "Nhập tay sản phẩm" });
   await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
   await dialog.getByLabel("Tên sản phẩm").fill("Vừng đen rang");
   await dialog.getByLabel("Link affiliate").fill("https://s.shopee.vn/abc");
@@ -269,6 +275,45 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "Xuất CSV" }).click();
   expect((await download).suggestedFilename()).toBe("san-pham-affiliate.csv");
+});
+
+test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng loạt", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/affiliate");
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await page.getByRole("button", { name: "Nhập file" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  const csv =
+    "Mã sản phẩm,Tên sản phẩm,Giá,Doanh thu,Tên cửa hàng,Tỉ lệ hoa hồng,Hoa hồng,Link sản phẩm,Link ưu đãi\n" +
+    '45113237093,"Combo hạt giống rau mùa hè","45,0k",0,HỒNG HÀ F1 SEEDS,"2,5%",₫900,' +
+    "https://shopee.vn/product/1346703635/45113237093,https://s.shopee.vn/4LKghKN3cR\n";
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: "lay-link-hang-loat.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(csv),
+  });
+  await expect(dialog.getByText("lay-link-hang-loat.csv")).toBeVisible();
+  await dialog.getByRole("button", { name: "Nhập", exact: true }).click();
+  // Without a Shopee App ID the drawer stays open to say what is still to fill in.
+  await expect(dialog.getByText("File không có số sao, lượt bán và loại shop")).toBeVisible();
+  const product = row(page, "Combo hạt giống rau mùa hè");
+  await expect(product).toContainText("HỒNG HÀ F1 SEEDS");
+  await expect(product).toContainText("45.000đ");
+  await expect(product).toContainText("1.125đ/đơn");
+
+  // The three figures the file lacks are filled in on the row, and then it can be approved.
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  await expect(product.getByRole("button", { name: "Duyệt" })).toBeDisabled();
+  const quick = product.getByTestId("quick-fill");
+  await chooseOption(page, quick.getByLabel("Loại shop của Combo hạt giống rau mùa hè"), "Shop Yêu Thích");
+  await quick.getByLabel("Số sao của Combo hạt giống rau mùa hè").fill("4.8");
+  await quick.getByLabel("Lượt bán của Combo hạt giống rau mùa hè").fill("250");
+  await quick.getByRole("button", { name: "Lưu" }).click();
+  await expect(product).toContainText("4.8 / 250");
+  await expect(product.getByTestId("quick-fill")).toHaveCount(0);
+  await product.getByRole("button", { name: "Duyệt" }).click();
+  await expect(product).toContainText("Đã duyệt");
 });
 
 test("a new user logs in with the temporary password and must change it", async ({ page, browser }) => {

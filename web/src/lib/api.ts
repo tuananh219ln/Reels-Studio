@@ -489,12 +489,26 @@ export type AffiliateProduct = {
   checked_by: string | null;
   /** Why it cannot be approved; empty when it can. */
   problems: string[];
+  /** A pasted link or an imported row the worker is reading from Shopee ("pending"), or could not read ("failed"). */
+  lookup: "pending" | "failed" | null;
+  lookup_error: string | null;
 };
 
 export type AffiliateOptions = {
   platforms: { value: ProductPlatform; label: string }[];
   shop_types: Record<ProductPlatform, { value: string; label: string }[]>;
   topics: { id: number; name: string }[];
+  /** Some member has a Shopee account with App ID, so a pasted link is filled in by itself. */
+  shopee_lookup: boolean;
+};
+
+/** What "Nhập file" did with Shopee Affiliate's file. */
+export type AffiliateImport = {
+  added: number;
+  updated: number;
+  errors: { row: number; message: string }[];
+  /** The worker will read stars, sales and the shop's type from Shopee. */
+  lookup: boolean;
 };
 
 /** A posted reel and the products whose links go in its pinned comment. */

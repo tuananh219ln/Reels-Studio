@@ -82,6 +82,25 @@ test("a new script finds Shopee products with the writer's account, and one is c
   await expect(row).toContainText("Tìm qua API");
 });
 
+test("a pasted Shopee link is filled in by the worker and can be approved", async ({ page }) => {
+  await loginAsSeed(page);
+  await addShopeeAccount(page);
+  await page.goto("/affiliate");
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  // The fake offers any item it is asked for, as "Sản phẩm Shopee <id>" from a Mall shop with 4.9 stars.
+  await dialog.getByLabel("Link sản phẩm").fill("https://shopee.vn/Hat-giong-rau-i.1346703635.45113237093");
+  await dialog.getByRole("button", { name: "Thêm", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  const product = page.getByRole("row", { name: /Sản phẩm Shopee 45113237093/ });
+  await expect(product).toContainText("Shopee Mall", { timeout: 30_000 });
+  await expect(product).toContainText("20.000đ/đơn");
+  await product.getByRole("button", { name: "Duyệt" }).click();
+  await expect(product).toContainText("Đã duyệt");
+});
+
 test("a TikTok version is its own video, linked both ways, with TikTok's posting kit", async ({ page }) => {
   test.setTimeout(120_000);
   await loginAsSeed(page);

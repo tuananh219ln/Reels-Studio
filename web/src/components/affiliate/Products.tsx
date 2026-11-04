@@ -5,14 +5,19 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
+  LoadingOutlined,
   PlusOutlined,
+  ReloadOutlined,
   SearchOutlined,
+  UploadOutlined,
 } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
+import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import ProductModal from "./ProductModal";
+import QuickFill, { needsQuickFill } from "./QuickFill";
 import StatusText from "@/components/StatusText";
 import FilterSelect from "@/components/FilterSelect";
 
@@ -26,10 +31,12 @@ export default function Products() {
     platforms: [],
     shop_types: { shopee: [], tiktok_shop: [] },
     topics: [],
+    shopee_lookup: false,
   });
   const [products, setProducts] = useState<AffiliateProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<AffiliateProduct | "new" | null>(null);
+  const [adding, setAdding] = useState<AddMode | null>(null);
   const { topicId, status, platform, q } = filters;
 
   const query = useMemo(() => {
@@ -48,26 +55,41 @@ export default function Products() {
     return params.toString();
   }, [topicId, status, platform, q]);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      setProducts(await api<AffiliateProduct[]>(`/affiliate-products?${query}`));
-    } catch (err) {
-      message.error(errorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [message, query]);
+  const reload = useCallback(
+    async (quiet = false) => {
+      setLoading(!quiet);
+      try {
+        setProducts(await api<AffiliateProduct[]>(`/affiliate-products?${query}`));
+      } catch (err) {
+        message.error(errorMessage(err));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [message, query],
+  );
 
   useEffect(() => {
     const timer = setTimeout(reload, 250);
     return () => clearTimeout(timer);
   }, [reload]);
 
+  const waiting = products.some((product) => product.lookup === "pending");
   useEffect(() => {
+    // The worker reads a pasted link within seconds; the list follows it without a reload.
+    if (!waiting) {
+      return;
+    }
+    const timer = setInterval(() => void reload(true), 3000);
+    return () => clearInterval(timer);
+  }, [waiting, reload]);
+
+  const loadOptions = useCallback(() => {
     // Without the lists the selects stay empty and the api still refuses unknown values.
     api<AffiliateOptions>("/affiliate-products/options").then(setOptions, () => undefined);
   }, []);
+
+  useEffect(loadOptions, [loadOptions]);
 
   async function act(run: () => Promise<unknown>, done: string) {
     try {
@@ -87,9 +109,15 @@ export default function Products() {
         const link = product.url ?? product.page_url ?? undefined;
         return (
           <Flex vertical gap={2}>
-            <a href={link} target="_blank" rel="noreferrer">
+            <a href={link} target="_blank" rel="noreferrer" style={{ wordBreak: "break-word" }}>
               {product.name}
             </a>
+            {product.lookup === "pending" && (
+              <Typography.Text type="secondary">
+                <LoadingOutlined /> Đang lấy thông tin từ Shopee…
+              </Typography.Text>
+            )}
+            {product.lookup === "failed" && <Typography.Text type="danger">{product.lookup_error}</Typography.Text>}
             <Space size={4} wrap>
               <Tag>{product.platform_label}</Tag>
               {product.from_shopee_api && <Tag>Tìm qua API</Tag>}
@@ -117,7 +145,7 @@ export default function Products() {
       width: 200,
       render: (_, product) => (
         <Flex vertical gap={2}>
-          <span>{product.shop_name}</span>
+          <span>{product.shop_name || "—"}</span>
           <Typography.Text type="secondary">{product.shop_type_label}</Typography.Text>
         </Flex>
       ),
@@ -126,13 +154,14 @@ export default function Products() {
       title: "Sao / đã bán",
       key: "trust",
       width: 120,
-      render: (_, product) => `${product.rating} / ${product.sold.toLocaleString("vi-VN")}`,
+      render: (_, product) =>
+        product.lookup === "pending" ? "—" : `${product.rating} / ${product.sold.toLocaleString("vi-VN")}`,
     },
     {
       title: "Giá",
       key: "price",
       width: 120,
-      render: (_, product) => `${product.price.toLocaleString("vi-VN")}đ`,
+      render: (_, product) => (product.price > 0 ? `${product.price.toLocaleString("vi-VN")}đ` : "—"),
     },
     {
       title: "Hoa hồng ước tính",
@@ -148,9 +177,11 @@ export default function Products() {
     {
       title: "Trạng thái",
       key: "status",
-      width: 230,
+      width: 260,
       render: (_, product) =>
-        product.status === "approved" ? (
+        product.lookup === "pending" ? (
+          <StatusText tone="idle">Đang lấy thông tin</StatusText>
+        ) : product.status === "approved" ? (
           <Flex vertical gap={2} align="flex-start">
             <StatusText tone="success">Đã duyệt</StatusText>
             {product.checked_at && (
@@ -172,6 +203,7 @@ export default function Products() {
                 {problem}
               </Typography.Text>
             ))}
+            {needsQuickFill(product) && <QuickFill product={product} options={options} onSaved={() => reload(true)} />}
           </Flex>
         ),
     },
@@ -193,11 +225,22 @@ export default function Products() {
             >
               <Button
                 icon={<CheckOutlined />}
-                disabled={product.problems.length > 0}
+                disabled={product.problems.length > 0 || product.lookup === "pending"}
                 onClick={() => act(() => api(`/affiliate-products/${product.id}/approve`, "POST"), "Đã duyệt")}
               >
                 Duyệt
               </Button>
+            </Tooltip>
+          )}
+          {product.lookup === "failed" && (
+            <Tooltip title="Lấy lại thông tin từ Shopee">
+              <Button
+                aria-label={`Lấy lại thông tin ${product.name}`}
+                icon={<ReloadOutlined />}
+                onClick={() =>
+                  act(() => api(`/affiliate-products/${product.id}/lookup`, "POST"), "Đang lấy lại thông tin")
+                }
+              />
             </Tooltip>
           )}
           <Button aria-label={`Sửa ${product.name}`} icon={<EditOutlined />} onClick={() => setTarget(product)} />
@@ -260,7 +303,10 @@ export default function Products() {
           <Button icon={<DownloadOutlined />} href={`/api/affiliate-products/export.csv?${query}`}>
             Xuất CSV
           </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setTarget("new")}>
+          <Button icon={<UploadOutlined />} onClick={() => setAdding("file")}>
+            Nhập file
+          </Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
             Thêm sản phẩm
           </Button>
         </Space>
@@ -272,10 +318,23 @@ export default function Products() {
           dataSource={products}
           loading={loading}
           pagination={{ pageSize: 50, hideOnSinglePage: true }}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1330 }}
           locale={{ emptyText: "Chưa có sản phẩm nào" }}
         />
       </Card>
+      <AddProductDrawer
+        mode={adding}
+        options={options}
+        onClose={() => setAdding(null)}
+        onManual={() => {
+          setAdding(null);
+          setTarget("new");
+        }}
+        onDone={async () => {
+          await reload();
+          loadOptions();
+        }}
+      />
       <ProductModal
         target={target}
         options={options}

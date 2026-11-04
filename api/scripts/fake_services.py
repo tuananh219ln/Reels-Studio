@@ -2,8 +2,8 @@
 ElevenLabs TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels and Shopee Affiliate, for pytest and E2E.
 
 The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
-OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL and
-SHOPEE_AFFILIATE_API_URL,
+OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL,
+SHOPEE_AFFILIATE_API_URL and SHOPEE_SHORT_LINK_URL,
 so production code has no test switches. The OpenAI-compatible API (at <url>/openai/v1) is reached the way a
 member sets any provider up, through its base URL on /settings/ai. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
@@ -236,6 +236,8 @@ class FakeServices:
         self.shopee_conversions: list[dict] = []  # conversionReport nodes
         self.shopee_queries: list[str] = []
         self.shopee_links: list[dict] = []  # {"origin", "sub_ids", "link"}
+        # s.shopee.vn/<code> -> where it redirects, as Shopee's affiliate redirect writes it; a missing code is a 404.
+        self.shopee_short_links: dict[str, str] = {}
         self.facebook_page_insights_refused = False
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
@@ -272,6 +274,7 @@ class FakeServices:
             "IMAGE_GEN_CF_API_KEY": IMAGE_GEN_CF_KEY,
             "FACEBOOK_API_URL": f"{self.url}/facebook",
             "SHOPEE_AFFILIATE_API_URL": f"{self.url}/shopee/graphql",
+            "SHOPEE_SHORT_LINK_URL": f"{self.url}/shopee-short",
         }
 
     def image_url(self, name: str) -> str:
@@ -923,8 +926,10 @@ class FakeServices:
                 if item_id in self.shopee_items:
                     node = self.shopee_items[item_id]
                 else:
+                    # Any other item is offered too, so E2E can paste a product link the fake has never seen.
                     node = next(
-                        (n for nodes in self.shopee_offers.values() for n in nodes if n["itemId"] == item_id), None
+                        (n for nodes in self.shopee_offers.values() for n in nodes if n["itemId"] == item_id),
+                        shopee_offer(item_id, f"Sản phẩm Shopee {item_id}"),
                     )
                 return 200, {"data": {"productOfferV2": {"nodes": [node] if node else []}}}
             keyword = json.loads(re.search(r'keyword: ("(?:[^"\\]|\\.)*")', query).group(1))
@@ -1030,6 +1035,19 @@ class FakeServices:
                     self._send(*fake._delete_reel(parts.path.removeprefix("/facebook/"), query))
                 else:
                     self._send(404, {"error": "not found"})
+
+            def do_HEAD(self):
+                path = urllib.parse.urlsplit(self.path).path
+                target = fake.shopee_short_links.get(path.removeprefix("/shopee-short/"))
+                if path.startswith("/shopee-short/") and target:
+                    self.send_response(301)
+                    self.send_header("Location", target)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
+                else:
+                    self.send_response(404)
+                    self.send_header("Content-Length", "0")
+                    self.end_headers()
 
             def do_GET(self):
                 parts = urllib.parse.urlsplit(self.path)

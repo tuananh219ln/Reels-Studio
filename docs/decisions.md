@@ -34,6 +34,26 @@ Asked by the owner (namtc07), who agreed to change the 2026-11-03 rule below:
   "Hoàn tác" only covers what can be put back through the same calls (text, place, seconds, clip, transition,
   order); adding and removing a scene are asked first instead.
 
+## 2026-11-05 — Shopee products are added by their link or Shopee Affiliate's file, not typed in
+
+Owner's request ("drawer thêm sản phẩm chỉ cần dán link aff, sẽ tự fill các thông tin còn lại, không nên nhập tay").
+Follows "Shopee suggestions and links through its API, never by scraping" (2026-11-03) and changes nothing in it.
+
+- **A pasted link** becomes a draft that the worker reads in its next round (`affiliate_rounds.lookup`), like the
+  suggestions: the request never calls Shopee. A short link (s.shopee.vn) is only asked where it redirects, to
+  read the item id from the address; the product page is never opened. `productOfferV2` then gives the rest.
+- **The link a member pasted stays the product's link**: their own affiliate link, used on a Page without a Shopee
+  account. A product page's link (shopee.vn/...) is kept as the page instead.
+- **Any member's Shopee account may read it**, the member's own first, like the daily check: what Shopee says
+  about a product is not private (2026-11-03). Without one in the team, pasting is refused and points to the file.
+- **Shopee Affiliate's "Lấy link hàng loạt" CSV** is imported without Shopee (item id, name, price, shop,
+  commission, product page, affiliate link). It has no stars, sales or shop type, so those start at 0 / "Shop
+  thường" and the worker fills them when the team has an App ID; otherwise a member does before approving.
+  Its "Doanh thu" column is not used: it is not clear whether it counts sales or money, and a wrong sales
+  number would let a product pass the 100-sales rule. A product already listed (same item id) takes the file's
+  link and figures and keeps its approval unless it no longer meets the rules.
+- Typing every field stays, behind "Nhập tay", for TikTok Shop and for fixing a row by hand.
+
 ## 2026-11-04 — The interface keeps orange for the main action and where you are; statuses are a dot and a word
 
 Asked by the owner ("giao diện hơi AI, cho tự nhiên hơn"). Orange had spread to every info banner, "processing" tag

@@ -2,6 +2,8 @@
 
 Three calls: `productOfferV2` (search products, or read one again by its item id), `generateShortLink` (a member's
 affiliate link, with sub ids naming the video and the Page) and `conversionReport` (orders credited to the account).
+A pasted short link (s.shopee.vn) is only asked where it redirects, to read the item id from the address; the page
+itself is never opened or read.
 
 Shopee publishes its API documentation only inside the affiliate dashboard, so the signature, the field names, the
 sort numbers and the shop type codes below follow third-party clients and are tested only against the fake service
@@ -10,11 +12,14 @@ sort numbers and the shop type codes below follow third-party clients and are te
 
 import hashlib
 import json
+import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 from . import config
 
@@ -180,6 +185,54 @@ def offer(credentials: Credentials, item_id: int) -> Offer | None:
     query = f"{{productOfferV2(itemId: {int(item_id)}, page: 1, limit: 1) {{nodes {{{OFFER_FIELDS}}}}}}}"
     found = _offers(_call(credentials, query))
     return found[0] if found else None
+
+
+PRODUCT_HOSTS = {"shopee.vn", "www.shopee.vn", "m.shopee.vn"}
+SHORT_HOSTS = {"s.shopee.vn", "shp.ee", "shope.ee"}
+# shopee.vn/product/<shop>/<item>, shopee.vn/<name>-i.<shop>.<item>, and the affiliate redirect's
+# shopee.vn/<anything>/<shop>/<item>.
+ITEM_IN_NAME = re.compile(r"-i\.(\d+)\.(\d+)$")
+ITEM_IN_PATH = re.compile(r"/(\d+)/(\d+)/?$")
+
+
+def is_shopee_link(url: str) -> bool:
+    return (urlsplit(url).hostname or "").lower() in PRODUCT_HOSTS | SHORT_HOSTS
+
+
+def item_id_of(url: str) -> int | None:
+    """The item id a product page link names; None for a short link or anything else."""
+    parts = urlsplit(url)
+    if (parts.hostname or "").lower() not in PRODUCT_HOSTS:
+        return None
+    path = urllib.parse.unquote(parts.path)
+    match = ITEM_IN_NAME.search(path) or ITEM_IN_PATH.search(path)
+    return int(match.group(2)) if match else None
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+def resolve(url: str) -> str:
+    """Where a short link leads, read from its redirect without opening the page; a product link comes back as it
+    is. Raises ShopeeError."""
+    parts = urlsplit(url)
+    if (parts.hostname or "").lower() not in SHORT_HOSTS:
+        return url
+    target = f"{config.shopee_short_link_url()}{parts.path}"
+    request = urllib.request.Request(target, method="HEAD")
+    try:
+        with urllib.request.build_opener(_NoRedirect).open(request, timeout=REQUEST_TIMEOUT):
+            pass
+    except urllib.error.HTTPError as err:
+        location = err.headers.get("Location") if 300 <= err.code < 400 else None
+        if location:
+            return urllib.parse.urljoin(target, location)
+        raise ShopeeError("Link Shopee không mở được, hãy kiểm tra lại link", f"HTTP {err.code}") from None
+    except OSError as err:
+        raise ShopeeError("Không kết nối được Shopee, kiểm tra mạng rồi thử lại", str(err)) from None
+    raise ShopeeError("Link Shopee không dẫn tới sản phẩm nào, hãy kiểm tra lại link", target)
 
 
 def short_link(credentials: Credentials, origin_url: str, sub_ids: list[str]) -> str:
