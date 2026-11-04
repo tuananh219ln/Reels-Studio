@@ -244,8 +244,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
           <Layout.Content
             style={{
+              // No max width: on a wide screen the tables and cards use the whole window.
               padding: desktop ? "32px 32px 48px" : "20px 16px 40px",
-              maxWidth: 1464,
               width: "100%",
               boxSizing: "border-box",
             }}
