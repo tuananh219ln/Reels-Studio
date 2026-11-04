@@ -114,12 +114,9 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
 
-  // datetime-local takes the browser's local time.
-  const later = new Date(Date.now() + 2 * 3600 * 1000);
-  later.setMinutes(later.getMinutes() - later.getTimezoneOffset());
   await openPublish(page);
   await page.getByRole("radio", { name: "Hẹn giờ" }).click();
-  await page.getByLabel("Giờ đăng").fill(later.toISOString().slice(0, 16));
+  await page.getByLabel("Giờ đăng").fill(vietnamTimeIn(2));
   await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
@@ -415,6 +412,11 @@ async function openPublish(page: Page) {
   await page.getByRole("button", { name: "send Đăng", exact: true }).click();
 }
 
+/** A `datetime-local` value some hours from now: "Giờ đăng" is read as Vietnam time, not the browser's. */
+function vietnamTimeIn(hours: number) {
+  return new Date(Date.now() + (hours + 7) * 3600 * 1000).toISOString().slice(0, 16);
+}
+
 async function confirmPost(page: Page) {
   await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
 }
@@ -536,11 +538,13 @@ test("a scheduled video appears in Bài đăng and its calendar without a link t
   await renderedVideo(page);
   await openPublish(page);
   await page.getByLabel("Hẹn giờ").check();
-  const when = new Date(Date.now() + 60 * 60 * 1000);
-  const local = new Date(when.getTime() - when.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
-  await page.getByLabel("Giờ đăng").fill(local);
+  const typed = vietnamTimeIn(1);
+  await page.getByLabel("Giờ đăng").fill(typed);
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
+  // The time comes back as it was typed, whatever the browser's time zone.
+  const [date, time] = typed.split("T");
+  const shown = `${date.split("-").reverse().join("/")} ${time}`;
+  await expect(page.getByTestId("publication-status")).toContainText(`Đã hẹn đăng lúc ${shown}`, { timeout: 30_000 });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await page.getByTestId("post-group").getByRole("cell").last().click();
@@ -561,9 +565,7 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await renderedVideo(page);
   await openPublish(page);
   await page.getByLabel("Hẹn giờ").check();
-  const when = new Date(Date.now() + 60 * 60 * 1000);
-  const local = new Date(when.getTime() - when.getTimezoneOffset() * 60 * 1000).toISOString().slice(0, 16);
-  await page.getByLabel("Giờ đăng").fill(local);
+  await page.getByLabel("Giờ đăng").fill(vietnamTimeIn(1));
   await confirmPost(page);
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 

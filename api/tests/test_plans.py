@@ -2,7 +2,7 @@
 
 import json
 import re
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from conftest import first_topic, login, make_user, make_video
@@ -10,9 +10,9 @@ from fake_services import plan_json
 from sqlalchemy import select
 from worker_helpers import add_user, committed, job_row  # noqa: F401  (fixtures)
 
-from reels_api import jobs, plans
+from reels_api import analytics, jobs, plans
 from reels_api.claude import build_script_prompt
-from reels_api.models import Job, KnowledgeTopic, TopicPlanItem, Video
+from reels_api.models import Fanpage, Job, KnowledgeTopic, PostMetrics, Publication, TopicPlanItem, Video
 from reels_api.storage import DirectoryStorage
 
 
@@ -173,7 +173,7 @@ def test_a_csv_file_reports_the_rows_it_cannot_read(an, topic_id):
     assert [idea["topic"] for idea in preview["ideas"]] == ["7 món tốt cho tim", "7 MÓN tốt cho tim"]
     assert preview["errors"] == [
         "Dòng 4: thiếu chủ đề",
-        "Dòng 5: thiếu ngày hoặc ngày không phải số",
+        "Dòng 5: ngày không phải số",
         "Chủ đề trùng: “7 MÓN tốt cho tim” (ngày 1 và ngày 1)",
     ]
     assert preview["warnings"][0].startswith("Chưa có ý tưởng cho ngày 2, 3")
@@ -188,7 +188,7 @@ def test_files_that_cannot_be_a_plan_are_refused(an, topic_id):
     path = f"/api/plans/{topic_id}/import"
     assert an.post(path, files={"file": ("a.json", b"{ broken")}).json()["message"].startswith("JSON lỗi cú pháp")
     assert an.post(path, files={"file": ("a.csv", "Tên,Giá\nx,1".encode())}).json()["message"] == (
-        "File CSV cần dòng tiêu đề có cột ngày và chủ đề (day, topic)"
+        "File CSV cần dòng tiêu đề có cột chủ đề (topic), thêm cột ngày (day) nếu là kế hoạch"
     )
     assert an.post(path, files={"file": ("a.csv", "ngày\xff".encode("latin-1"))}).json()["message"] == (
         "File phải là văn bản UTF-8 (JSON hoặc CSV)"
@@ -232,6 +232,7 @@ def test_a_video_made_from_an_idea_is_linked_and_its_status_follows_the_video(an
         "pain_group": "",
         "pain": "Sợ tai biến",
         "hook": "Đừng bỏ qua",
+        "suggested_post_at": None,  # the plan has no start date
     }
     assert an.get(f"/api/plans/items/{item_id}").json()["status"] == "started"
     again = an.post("/api/videos", json=body)
@@ -279,6 +280,232 @@ def test_today_lists_the_ideas_of_today_for_groups_with_a_running_plan(an, topic
     assert group["topics"] == ["Hôm qua", "Hôm nay 1", "Hôm nay 2"]
     an.patch(f"/api/plans/{topic_id}", json={"start_date": (plans.today() - timedelta(days=30)).isoformat()})
     assert an.get("/api/plans/today").json() == []
+
+
+def test_today_tells_up_to_which_day_videos_are_made_ahead(an, db, me, storage, topic_id):
+    start = plans.today()
+    an.patch(f"/api/plans/{topic_id}", json={"start_date": start.isoformat()})
+    for day in (1, 2, 3):
+        add(an, topic_id, day, f"Ngày {day}")
+    [group] = an.get("/api/plans/today").json()
+    assert group["prepared_through"] is None
+    items = {item.topic: item for item in db.scalars(select(TopicPlanItem))}
+    for name in ("Ngày 1", "Ngày 2"):
+        items[name].video_id = make_video(db, storage, me, scene_count=1).id
+    db.flush()
+    [group] = an.get("/api/plans/today").json()
+    assert group["prepared_through"] == 2
+
+
+# --- The Backlog ---
+
+
+def test_backlog_ideas_have_no_day_no_daily_limit_and_move_to_and_from_days(an, topic_id):
+    for n in range(1, 7):
+        assert add(an, topic_id, None, f"Để dành {n}").status_code == 201
+    plan = an.get(f"/api/plans/{topic_id}").json()
+    assert ideas_of(plan, None) == [f"Để dành {n}" for n in range(1, 7)]
+    assert [item["position"] for item in plan["items"]] == [1, 2, 3, 4, 5, 6]
+    twice = add(an, topic_id, 4, "để dành 1")
+    assert (twice.status_code, twice.json()["message"]) == (409, "Kế hoạch đã có chủ đề này (trong Backlog)")
+    # A Backlog idea is not "made" in the 30-day progress.
+    assert plan["made"] == 0
+
+    first = plan["items"][0]["id"]
+    moved = an.patch(f"/api/plans/items/{first}", json={"day": 3}).json()
+    assert ideas_of(moved, 3) == ["Để dành 1"] and ideas_of(moved, None)[0] == "Để dành 2"
+    assert [item["position"] for item in moved["items"] if item["day"] is None] == [1, 2, 3, 4, 5]
+    back = an.patch(f"/api/plans/items/{first}", json={"day": None}).json()
+    assert ideas_of(back, 3) == [] and ideas_of(back, None)[-1] == "Để dành 1"
+
+    for n in range(1, 6):
+        add(an, topic_id, 7, f"Ngày 7 số {n}")
+    full = an.patch(f"/api/plans/items/{first}", json={"day": 7})
+    assert (full.status_code, full.json()["message"]) == (409, "Ngày 7 đã đủ 5 ý tưởng")
+
+
+def test_saving_a_plan_keeps_the_backlog_but_takes_an_idea_it_now_plans(an, db, me, storage, topic_id):
+    add(an, topic_id, None, "Còn để dành")
+    plan = add(an, topic_id, None, "Sẽ vào ngày 2").json()
+    video = make_video(db, storage, me, scene_count=1)
+    db.get(TopicPlanItem, plan["items"][1]["id"]).video_id = video.id
+    db.flush()
+    add(an, topic_id, 1, "Ngày 1 cũ")
+    ideas = [{"day": 1, "topic": "Ngày 1 mới"}, {"day": 2, "topic": "sẽ vào ngày 2"}]
+    saved = an.put(f"/api/plans/{topic_id}/items", json={"ideas": ideas}).json()
+    assert {item["topic"]: (item["day"], item["video_id"]) for item in saved["items"]} == {
+        "Ngày 1 mới": (1, None),
+        "sẽ vào ngày 2": (2, video.id),
+        "Còn để dành": (None, None),
+    }
+    undated = an.put(f"/api/plans/{topic_id}/items", json={"ideas": [{"topic": "Không ngày"}]})
+    assert undated.json()["message"] == "1 ý tưởng chưa có ngày (chỉ thêm được vào Backlog), ví dụ “Không ngày”"
+
+
+def test_a_file_without_days_goes_into_the_backlog_skipping_topics_already_there(an, topic_id):
+    add(an, topic_id, 1, "Món A")
+    data = "Chủ đề;Góc hook\nMón A;h\nMón B;h2\nmón b;\nMón C;".encode()
+    preview = an.post(f"/api/plans/{topic_id}/import", files={"file": ("y.csv", data)}).json()
+    assert [idea["day"] for idea in preview["ideas"]] == [None, None, None, None]
+    assert preview["errors"][0].startswith("4 ý tưởng chưa có ngày") and preview["can_backlog"] is True
+    added = an.post(f"/api/plans/{topic_id}/backlog", json={"ideas": preview["ideas"]}).json()
+    assert (added["added"], added["skipped"]) == (2, 2)
+    assert ideas_of(added, None) == ["Món B", "Món C"] and ideas_of(added, 1) == ["Món A"]
+    # A day in the file does not matter for the Backlog.
+    dated = an.post(f"/api/plans/{topic_id}/backlog", json={"ideas": [{"day": 5, "topic": "Món D"}]}).json()
+    assert ideas_of(dated, None) == ["Món B", "Món C", "Món D"]
+    broken = "Chủ đề;Ngày\nMón E;ba".encode()
+    assert an.post(f"/api/plans/{topic_id}/import", files={"file": ("y.csv", broken)}).json()["can_backlog"] is False
+
+
+# --- Posting times and the status of posts ---
+
+
+def test_posting_times_are_checked_and_sorted(an, topic_id):
+    path = f"/api/plans/{topic_id}"
+    assert an.get(path).json()["post_times"] == ["07:00", "11:30", "17:00", "20:00", "21:30"]
+    assert an.patch(path, json={"post_times": ["20:00", "7:05"]}).json()["post_times"] == ["07:05", "20:00"]
+    assert an.patch(path, json={"post_times": ["25:00"]}).json()["message"] == "Giờ đăng “25:00” phải có dạng HH:MM"
+    assert an.patch(path, json={"post_times": []}).json()["message"] == "Cần từ 1 đến 5 giờ đăng"
+
+
+def test_an_idea_is_suggested_to_go_out_on_its_day_at_the_time_of_its_place(an, db, topic_id):
+    start = plans.today() + timedelta(days=1)
+    an.patch(f"/api/plans/{topic_id}", json={"start_date": start.isoformat(), "post_times": ["08:00", "19:30"]})
+    for n in range(1, 4):
+        add(an, topic_id, 2, f"Ngày 2 số {n}")
+    plan = add(an, topic_id, None, "Để dành").json()
+    second_day = start + timedelta(days=1)
+    at = {item["topic"]: item["suggested_post_at"] for item in plan["items"]}
+    assert at == {
+        "Ngày 2 số 1": datetime(*second_day.timetuple()[:3], 8, 0, tzinfo=plans.VIETNAM).isoformat(),
+        "Ngày 2 số 2": datetime(*second_day.timetuple()[:3], 19, 30, tzinfo=plans.VIETNAM).isoformat(),
+        # Past the posting times: the last one.
+        "Ngày 2 số 3": datetime(*second_day.timetuple()[:3], 19, 30, tzinfo=plans.VIETNAM).isoformat(),
+        "Để dành": None,
+    }
+    item = db.scalar(select(TopicPlanItem).where(TopicPlanItem.topic == "Ngày 2 số 1"))
+    topic = db.get(KnowledgeTopic, topic_id)
+    late = datetime(*second_day.timetuple()[:3], 9, 0, tzinfo=plans.VIETNAM)
+    assert plans.suggested_post_at(topic, item, now=late) is None
+
+    body = {"topic": "Ngày 2 số 1", "knowledge_topic_id": topic_id, "plan_item_id": item.id}
+    video = an.post("/api/videos", json=body).json()
+    assert video["plan_idea"]["suggested_post_at"] == at["Ngày 2 số 1"]
+
+
+def test_an_idea_shows_when_its_video_is_scheduled_and_posted(an, db, me, storage, topic_id):
+    plan = add(an, topic_id, 1, "Món A").json()
+    video = make_video(db, storage, me, scene_count=1)
+    db.get(TopicPlanItem, plan["items"][0]["id"]).video_id = video.id
+    later = datetime(2030, 1, 2, 20, 0, tzinfo=plans.VIETNAM)
+    post = Publication(
+        video_id=video.id, platform="facebook", created_by_id=me.id, status="scheduled", scheduled_at=later
+    )
+    db.add(post)
+    db.flush()
+    item = an.get(f"/api/plans/{topic_id}").json()["items"][0]
+    assert (item["status"], item["status_label"]) == ("scheduled", "Đã lên lịch")
+    assert datetime.fromisoformat(item["post_at"]) == later
+    post.status, post.published_at = "published", later
+    db.flush()
+    item = an.get(f"/api/plans/{topic_id}").json()["items"][0]
+    assert (item["status"], item["status_label"], item["suggested_post_at"]) == ("posted", "Đã đăng", None)
+    post.status = "cancelled"
+    db.flush()
+    assert an.get(f"/api/plans/{topic_id}").json()["items"][0]["status"] in ("started", "scripted", "done")
+
+
+# --- 48-hour numbers on the cards, and the trial's video target ---
+
+
+def page(db, name="Vườn nhà") -> Fanpage:
+    row = Fanpage(page_id=f"p-{name}", name=name, token_encrypted="x", token_tail="x")
+    db.add(row)
+    db.flush()
+    return row
+
+
+def live_post(db, me, video, fanpage, views=None, shares=None, platform="facebook", days_ago=3) -> Publication:
+    at = datetime.now(plans.VIETNAM) - timedelta(days=days_ago)
+    post = Publication(
+        video_id=video.id,
+        platform=platform,
+        fanpage_id=fanpage.id if fanpage else None,
+        created_by_id=me.id,
+        status="published",
+        published_at=at,
+    )
+    db.add(post)
+    db.flush()
+    if views is not None:
+        db.add(PostMetrics(publication_id=post.id, window="48h", views=views, shares=shares, measured_at=at))
+        # `latest` must never stand in for the 48-hour reading.
+        db.add(PostMetrics(publication_id=post.id, window="latest", views=views * 9, shares=0, measured_at=at))
+        db.flush()
+    return post
+
+
+def test_cards_carry_the_48_hour_numbers_of_each_facebook_post(an, db, me, storage, topic_id, monkeypatch):
+    garden = page(db)
+    # Five other posts of the Page make its median meaningful: 100 views.
+    for _ in range(5):
+        live_post(db, me, make_video(db, storage, me, scene_count=1), garden, views=100, shares=1)
+    ideas = {}
+    for name in ("Đã đo", "Chưa đo", "Chưa đăng", "Không video"):
+        ideas[name] = add(an, topic_id, 1, name).json()
+    items = {item.topic: item for item in db.scalars(select(TopicPlanItem))}
+    measured, waiting, unposted = (make_video(db, storage, me, scene_count=1) for _ in range(3))
+    items["Đã đo"].video_id, items["Chưa đo"].video_id, items["Chưa đăng"].video_id = (
+        measured.id,
+        waiting.id,
+        unposted.id,
+    )
+    db.flush()
+    measured_post = live_post(db, me, measured, garden, views=1200, shares=6)
+    live_post(db, me, measured, None, views=50, platform="tiktok")
+    waiting_post = live_post(db, me, waiting, garden, days_ago=1)
+
+    calls = []
+    real = analytics.medians
+    monkeypatch.setattr(analytics, "medians", lambda db: calls.append(1) or real(db))
+    plan = an.get(f"/api/plans/{topic_id}").json()
+    assert len(calls) == 1  # the medians are read once for the whole plan
+    assert plan["share_goal"] == analytics.SHARE_GOAL
+    posts = {item["topic"]: item["posts"] for item in plan["items"]}
+    [done] = posts["Đã đo"]  # the TikTok post is left out
+    assert done == {
+        "publication_id": measured_post.id,
+        "fanpage_name": "Vườn nhà",
+        "views": 1200,
+        "shares": 6,
+        "measured_at": done["measured_at"],
+        "median_views": 100,
+        "samples": 6,  # the five others and this one
+        "times_median": 12.0,
+        "share_rate": 0.005,
+    }
+    [pending] = posts["Chưa đo"]
+    assert pending["publication_id"] == waiting_post.id
+    assert (pending["views"], pending["shares"], pending["times_median"], pending["share_rate"]) == (None,) * 4
+    assert posts["Chưa đăng"] == [] and posts["Không video"] == []
+
+
+def test_the_video_target_is_set_cleared_and_counted(an, db, me, storage, topic_id):
+    path = f"/api/plans/{topic_id}"
+    plan = an.get(path).json()
+    assert (plan["video_target"], plan["video_count"]) == (None, 0)
+    for _ in range(2):
+        make_video(db, storage, me, scene_count=1).knowledge_topic_id = topic_id
+    db.flush()
+    plan = an.patch(path, json={"video_target": 6}).json()
+    assert (plan["video_target"], plan["video_count"]) == (6, 2)
+    for wrong in (0, -1):
+        refused = an.patch(path, json={"video_target": wrong})
+        assert (refused.status_code, refused.json()["message"]) == (422, "Số video mục tiêu phải từ 1 trở lên")
+    # Another field alone leaves the target as it is; null clears it.
+    assert an.patch(path, json={"per_day": 3}).json()["video_target"] == 6
+    assert an.patch(path, json={"video_target": None}).json()["video_target"] is None
 
 
 def test_the_script_prompt_carries_the_pain_and_hook_of_the_idea():

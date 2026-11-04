@@ -103,6 +103,10 @@ class McpConnection(Base):
 ACTIVE_JOB_STATUSES = ("queued", "running")
 
 
+DEFAULT_POST_TIMES = ("07:00", "11:30", "17:00", "20:00", "21:30")
+DEFAULT_POST_TIMES_SQL = '\'["07:00", "11:30", "17:00", "20:00", "21:30"]\'::jsonb'
+
+
 class KnowledgeTopic(Base):
     """One line of /knowledge: the prompts and banned words of the videos in this topic. Empty until written."""
 
@@ -119,24 +123,32 @@ class KnowledgeTopic(Base):
     plan_start_date: Mapped[date | None] = mapped_column(Date)
     plan_per_day: Mapped[int] = mapped_column(Integer, default=4, server_default="4")
     plan_draft: Mapped[dict | None] = mapped_column(JSONB)
+    # "HH:MM" in Vietnam: the n-th idea of a plan day is suggested to be posted at the n-th time.
+    plan_post_times: Mapped[list] = mapped_column(
+        JSONB, default=lambda: list(DEFAULT_POST_TIMES), server_default=text(DEFAULT_POST_TIMES_SQL)
+    )
+    # How many videos the group's trial counts towards ("Tiến độ verdict" on its plan); None: no banner. Only a count:
+    # the verdict itself is decided by the team in a meeting.
+    video_target: Mapped[int | None] = mapped_column(Integer)
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class TopicPlanItem(Base):
-    """One video idea of a topic group's 30-day plan. Its status comes from the linked video (plans.item_status), so
-    it can never disagree with it; deleting the video unlinks it."""
+    """One video idea of a topic group's 30-day plan, or of its Backlog when it has no day. Its status comes from the
+    linked video and its posts (plans.item_status), so it can never disagree with them; deleting the video unlinks
+    it."""
 
     __tablename__ = "topic_plan_items"
     __table_args__ = (
-        CheckConstraint("day BETWEEN 1 AND 30", name="day"),
+        CheckConstraint("day IS NULL OR day BETWEEN 1 AND 30", name="day"),
         Index("ix_topic_plan_items_knowledge_topic_id_day", "knowledge_topic_id", "day", "position"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     knowledge_topic_id: Mapped[int] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
-    day: Mapped[int] = mapped_column(Integer)
-    position: Mapped[int] = mapped_column(Integer)  # 1-5 within the day
+    day: Mapped[int | None] = mapped_column(Integer)  # None: in the Backlog
+    position: Mapped[int] = mapped_column(Integer)  # 1-5 within the day; any number in the Backlog
     topic: Mapped[str] = mapped_column(Text)  # becomes the video's Chủ đề
     pain_group: Mapped[str] = mapped_column(String(100), default="", server_default="")
     pain: Mapped[str] = mapped_column(Text, default="", server_default="")

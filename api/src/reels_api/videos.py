@@ -13,11 +13,11 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.timeline import fit_seconds
 
-from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, post_comments
+from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
-from .models import ACTIVE_JOB_STATUSES, Job, Publication, Scene, TopicPlanItem, Video
+from .models import ACTIVE_JOB_STATUSES, Job, KnowledgeTopic, Publication, Scene, TopicPlanItem, Video
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
 from .storage import DirectoryStorage
@@ -600,10 +600,12 @@ def video_payload(db: DbSession, video: Video) -> dict:
 
 
 def _plan_idea(db: DbSession, video: Video) -> dict | None:
-    """The 30-day plan idea the video was made from, to compare against while editing."""
+    """The 30-day plan idea the video was made from, to compare against while editing, and when the plan means the
+    video to go out ("Đăng" starts with that time)."""
     idea = db.scalar(select(TopicPlanItem).where(TopicPlanItem.video_id == video.id))
     if idea is None:
         return None
+    post_at = plans.suggested_post_at(db.get(KnowledgeTopic, idea.knowledge_topic_id), idea)
     return {
         "id": idea.id,
         "knowledge_topic_id": idea.knowledge_topic_id,
@@ -612,6 +614,7 @@ def _plan_idea(db: DbSession, video: Video) -> dict | None:
         "pain_group": idea.pain_group,
         "pain": idea.pain,
         "hook": idea.hook,
+        "suggested_post_at": post_at.isoformat() if post_at else None,
     }
 
 
