@@ -3,8 +3,8 @@
 import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useRouter } from "next/navigation";
-import { use, useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
 import { SHOWN_STATUS, shownStatus, type ShownStatus } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
@@ -51,10 +51,20 @@ function folded(text: string): string {
 /** The reels on their way to Facebook, posted, scheduled, failed, cancelled or deleted, latest time first or most
  * viewed first, with their numbers on Facebook; or, as "Lịch" (`?view=calendar`), the scheduled and posted ones in a
  * month. */
-export default function PostsPage({ searchParams }: { searchParams: Promise<{ view?: string | string[] }> }) {
+export default function PostsPage() {
+  // The view comes from the address, which a static page only knows in the browser: Suspense keeps the rest of the
+  // app shell prerendered, and useSearchParams (unlike the page's `searchParams` prop) follows "Danh sách"/"Lịch".
+  return (
+    <Suspense fallback={null}>
+      <Posts />
+    </Suspense>
+  );
+}
+
+function Posts() {
   const { message } = App.useApp();
   const router = useRouter();
-  const view: View = use(searchParams).view === "calendar" ? "calendar" : "list";
+  const view: View = useSearchParams().get("view") === "calendar" ? "calendar" : "list";
   const [posts, setPosts] = useState<PostRow[] | null>(null);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<StatusFilter>("active");
