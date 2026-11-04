@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-04 — A reel's numbers survive a Video Insights metric Meta retires
+
+Every post on "Bài đăng" showed "Lần đo gần nhất lỗi: Facebook không còn reel này hoặc chưa có chỉ số". The app
+asks all of a reel's metrics in one call, and Meta answers (#100) for the whole call once it has retired one of them,
+as it did `post_impressions_unique` in June 2026. Now a (#100) is followed by one call per metric, as Page Insights
+already does. A retired metric is null (the reach, "tiếp cận", for now) and logged, and the rest are kept. That
+costs about ten more calls per reading. They are cheap (one reading a day per followed post), and cheaper than
+guessing Meta's replacement name: a metric is swapped only once Meta's documentation confirms its name.
+
 ## 2026-11-04 — Pages fill a wide screen; "Video đã đăng" on Affiliate gets filters
 
 On the owner's call: the content column stopped at 1464 px, leaving an empty band on a large screen, so it now

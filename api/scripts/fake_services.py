@@ -209,6 +209,8 @@ class FakeServices:
         self.facebook_insights_calls = 0
         self.facebook_insights_refused = False  # the token lacks read_insights: 403, code 200
         self.facebook_insights_gone: set[str] = set()  # reels Facebook no longer has
+        # Video Insights metrics Meta has retired: a call asking for any of them fails whole, (#100) like Meta's.
+        self.facebook_retired_metrics: set[str] = set()
         self.facebook_followers: int | None = 1200  # a Page's followers_count; None leaves it out of the answer
         self.facebook_page_info_refused = False  # the token cannot read the Page: 403, code 200
         # Comments by id: {"object": reel id, "message", "from": {"id", "name"}, "edits"}
@@ -813,6 +815,9 @@ class FakeServices:
                 return 403, {"error": {"message": "(#200) Requires read_insights permission", "code": 200}}
             if video_id in self.facebook_insights_gone or self.reels.get(video_id, {}).get("lost"):
                 return 400, {"error": {"message": "Unsupported get request", "code": 100, "error_subcode": 33}}
+            asked = set(query.get("metric", "").split(","))
+            if asked & self.facebook_retired_metrics:
+                return 400, {"error": {"message": "(#100) The value must be a valid insights metric", "code": 100}}
             numbers = self.facebook_insights.get(video_id, DEFAULT_REEL_NUMBERS)
 
         def metric(name: str, value: object) -> dict:
@@ -843,7 +848,8 @@ class FakeServices:
         ):
             if key in numbers:
                 data.append(metric(name, numbers[key]))
-        return 200, {"data": data}
+        # Like Meta, only the metrics asked for come back.
+        return 200, {"data": [item for item in data if item["name"] in asked]}
 
     def _reel_status(self, video_id: str, query: dict) -> tuple[int, dict]:
         if query.get("access_token") != FACEBOOK_TOKEN:
