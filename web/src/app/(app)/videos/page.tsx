@@ -432,7 +432,7 @@ function VideoCard({ row }: { row: VideoRow }) {
           )}
           <Flex justify="space-between" align="flex-end" gap={8} style={{ marginTop: "auto", paddingTop: 10 }}>
             <Flex gap={10} align="center" style={small}>
-              <StatusText tone={cardTone(row)} data-testid={post ? undefined : "video-status"}>
+              <StatusText tone={cardTone(row)} data-testid="video-status">
                 {post ? (post.state === "posted" ? "Đã đăng" : "Đã lên lịch") : row.status_label}
               </StatusText>
               {row.platform === "tiktok" && (

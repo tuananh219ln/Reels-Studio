@@ -95,9 +95,10 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveAttribute("href", /facebook\.com\/reel\//);
 
+  // Once posted, the card says so rather than the video's own "Xong".
   await page.goto("/videos");
   const card = page.getByTestId("video-card").first();
-  await expect(card.getByTestId("video-status")).toHaveText("Xong");
+  await expect(card.getByTestId("video-status")).toHaveText("Đã đăng");
   await expect(card.locator("img")).toBeVisible();
   await expect(card).toContainText("6 MÓN");
 });
@@ -562,8 +563,17 @@ test("a scheduled video appears in Bài đăng and its calendar without a link t
   await expect(page.getByTestId("post-rows").getByRole("button", { name: "Xem Reel" })).toBeDisabled();
 
   await page.getByLabel("Kiểu hiển thị").getByText("Lịch", { exact: true }).click();
-  // Any cell of the grid: an hour ahead can already be tomorrow, or next month.
-  await page.locator(".ant-picker-cell a[href^='/videos/']").click();
+  // The week view opens on this week; an hour ahead can already be next week, one "Sau" away.
+  await expect(page.getByTestId("calendar-title")).toBeVisible();
+  const reel = page.getByTestId("week-post");
+  if ((await reel.count()) === 0) {
+    await page.getByLabel("Sau").click();
+  }
+  await reel.first().click();
+  await page
+    .getByRole("dialog", { name: /^Bài đăng ngày / })
+    .getByRole("link", { name: "Mở video" })
+    .click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
@@ -1367,7 +1377,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   await custom.getByRole("button", { name: "Dùng để viết kịch bản" }).click();
   await expect(page.getByText("Từ giờ kịch bản được viết bằng Tùy chỉnh (chuẩn OpenAI)")).toBeVisible();
   await expect(page.getByLabel("Nhà cung cấp đang dùng").locator("..")).toContainText(
-    "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
+    "Tùy chỉnh (chuẩn OpenAI), fake-gpt-mini",
   );
 
   await page.getByRole("menuitem", { name: "Video" }).click();
