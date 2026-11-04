@@ -149,7 +149,7 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
                 {post.account ?? "TikTok"}
               </a>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {formatDateTime(post.at)} · {post.created_by}
+                {formatDateTime(post.at)}, {post.created_by}
               </Typography.Text>
             </Flex>
             <Popconfirm

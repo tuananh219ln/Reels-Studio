@@ -64,7 +64,10 @@ test("the calendar opens on today in Vietnam whatever the browser time zone", as
   // 30 November in New York, already 1 December in Vietnam.
   await page.clock.setFixedTime(new Date("2026-11-30T20:00:00Z"));
   await page.goto("/calendar");
-  await expect(page.getByText("Th 12", { exact: true })).toBeVisible();
+  // The week holds Vietnam's today, Tuesday 1 December; the month view opens on December too.
+  await expect(page.getByTestId("week-today")).toHaveAttribute("title", "2026-12-01");
+  await page.getByLabel("Kiểu lịch").getByText("Tháng", { exact: true }).click();
+  await expect(page.getByTestId("calendar-title")).toHaveText("Tháng 12, 2026");
   await expect(page.locator(".ant-picker-cell-today")).toHaveAttribute("title", "2026-12-01");
 });
 

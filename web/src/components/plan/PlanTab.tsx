@@ -58,6 +58,7 @@ import {
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import FormDrawer from "@/components/FormDrawer";
+import { COLORS } from "@/app/theme";
 
 const PLAN_DAYS = 30;
 const MIN_PER_DAY = 3;
@@ -795,7 +796,9 @@ function DayCard({
               {date.format("dddd, DD/MM")}
             </Typography.Text>
           )}
-          {today && <Tag color="orange">Hôm nay</Tag>}
+          {today && (
+            <Typography.Text style={{ fontSize: 12, fontWeight: 500, color: COLORS.primary }}>Hôm nay</Typography.Text>
+          )}
         </Flex>
       }
       extra={
@@ -840,13 +843,13 @@ function DayCard({
   );
 }
 
-/** "2 Ý tưởng · 1 Xong": only the statuses the day has. */
+/** "2 ý tưởng, 1 xong": only the statuses the day has. */
 function statusCounts(items: PlanItem[]): string {
   return (Object.keys(STATUS_LABELS) as PlanItemStatus[])
     .map((status) => [status, items.filter((item) => item.status === status).length] as const)
     .filter(([, count]) => count > 0)
     .map(([status, count]) => `${count} ${STATUS_LABELS[status].toLowerCase()}`)
-    .join(" · ");
+    .join(", ");
 }
 
 /** "Tiến độ verdict": a count of the group's videos against its target, never a verdict. */
@@ -908,14 +911,14 @@ function PostNumbers({ posts, shareGoal }: { posts: PlanPost[]; shareGoal: numbe
             `${post.fanpage_name}: chưa đo 48h`
           ) : (
             <>
-              {post.fanpage_name}: {post.views.toLocaleString("vi-VN")} view ·{" "}
+              {post.fanpage_name}: {post.views.toLocaleString("vi-VN")} view,{" "}
               {(post.shares ?? 0).toLocaleString("vi-VN")} share
               {post.share_rate !== null &&
-                ` · share/view ${(post.share_rate * 100).toLocaleString("vi-VN", {
+                `, share/view ${(post.share_rate * 100).toLocaleString("vi-VN", {
                   minimumFractionDigits: 2,
                   maximumFractionDigits: 2,
                 })}% ${post.share_rate >= shareGoal ? "đạt" : "không đạt"} ${goal}`}{" "}
-              ·{" "}
+              ,{" "}
               {post.times_median === null ? (
                 "chưa đủ dữ liệu (cần ≥5 bài đã đo 48h)"
               ) : (
@@ -948,7 +951,7 @@ function DayPicker({ plan, item, move }: { plan: Plan; item: PlanItem; move: Mov
         return {
           value: day,
           disabled: count(day) >= MAX_PER_DAY,
-          label: `Ngày ${day}${date ? ` · ${date.format("DD/MM")}` : ""} (${count(day)}/${MAX_PER_DAY})`,
+          label: `Ngày ${day}${date ? `, ${date.format("DD/MM")}` : ""} (${count(day)}/${MAX_PER_DAY})`,
         };
       })}
     />

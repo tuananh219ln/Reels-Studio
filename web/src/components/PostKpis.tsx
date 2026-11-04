@@ -8,7 +8,7 @@ import {
   InfoCircleOutlined,
   ShareAltOutlined,
 } from "@ant-design/icons";
-import { Card, Col, Flex, Progress, Row, theme, Tooltip, Typography } from "antd";
+import { Card, Col, Flex, Progress, Row, Tooltip, Typography } from "antd";
 import { useEffect, useState, type ReactNode } from "react";
 import { api, formatDateTime, type PostKpis as Kpis, type PostRow, type WeekKpis } from "@/lib/api";
 import { formatCount, formatRate } from "@/components/PostMetrics";
@@ -141,12 +141,11 @@ type Item = {
 /** One figure on its own card: an icon, the name and what it means, the figure large, and last week's under it
  * with the change. */
 function KpiCard({ item }: { item: Item }) {
-  const { token } = theme.useToken();
   return (
     <Card
       size="small"
       data-testid="kpi-card"
-      style={{ flex: 1, boxShadow: token.boxShadowTertiary, borderColor: COLORS.border }}
+      style={{ flex: 1, borderColor: COLORS.border }}
       styles={{ body: { padding: 16, height: "100%" } }}
     >
       <Flex vertical gap={6} style={{ height: "100%" }}>

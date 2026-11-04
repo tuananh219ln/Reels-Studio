@@ -1,31 +1,26 @@
 "use client";
 
-import {
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  CloseCircleOutlined,
-  MinusCircleOutlined,
-  SearchOutlined,
-  SyncOutlined,
-} from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tag, Typography } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Segmented, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import UserAvatar from "@/components/UserAvatar";
 import { usePolling } from "@/lib/polling";
+import StatusText, { type StatusTone } from "@/components/StatusText";
+import FilterSelect from "@/components/FilterSelect";
 
 const REFRESH_MS = 5000;
 const PAGE_SIZE = 300; // JOB_LIST_LIMIT in the api
 
-const STATUS: Record<JobRow["status"], { label: string; color: string; icon: ReactNode }> = {
-  queued: { label: "Chờ", color: "default", icon: <ClockCircleOutlined /> },
-  running: { label: "Đang chạy", color: "processing", icon: <SyncOutlined spin /> },
-  done: { label: "Xong", color: "success", icon: <CheckCircleOutlined /> },
-  failed: { label: "Lỗi", color: "error", icon: <CloseCircleOutlined /> },
-  cancelled: { label: "Đã hủy", color: "default", icon: <MinusCircleOutlined /> },
+const STATUS: Record<JobRow["status"], { label: string; tone: StatusTone }> = {
+  queued: { label: "Chờ", tone: "waiting" },
+  running: { label: "Đang chạy", tone: "active" },
+  done: { label: "Xong", tone: "success" },
+  failed: { label: "Lỗi", tone: "danger" },
+  cancelled: { label: "Đã hủy", tone: "idle" },
 };
 
 /** The status filter: "Đang chạy" also holds the jobs still waiting for the worker. */
@@ -146,7 +141,7 @@ export default function JobsPage() {
             {row.video_title}
           </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-            {row.kind_label} · #{row.id}
+            {row.kind_label}, #{row.id}
           </Typography.Text>
         </Flex>
       ),
@@ -156,12 +151,8 @@ export default function JobsPage() {
       key: "status",
       width: 130,
       render: (_, row) => {
-        const status = STATUS[row.status] ?? { label: row.status, color: "default", icon: null };
-        return (
-          <Tag color={status.color} icon={status.icon}>
-            {status.label}
-          </Tag>
-        );
+        const status = STATUS[row.status] ?? { label: row.status, tone: "idle" as const };
+        return <StatusText tone={status.tone}>{status.label}</StatusText>;
       },
     },
     {
@@ -230,30 +221,6 @@ export default function JobsPage() {
         title="Nhật ký job"
         description="Mọi việc chạy nền: viết kịch bản, render, đăng và kiểm tra bài Facebook. Danh sách tự cập nhật; bấm một dòng để mở video của nó."
       >
-        <Segmented<View>
-          aria-label="Trạng thái"
-          value={view}
-          onChange={setView}
-          options={VIEWS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
-        />
-        <Select
-          allowClear
-          aria-label="Loại"
-          placeholder="Mọi loại"
-          value={kind}
-          onChange={(value) => setKind(value ?? null)}
-          options={options(shown.map((row) => row.kind_label))}
-          style={{ minWidth: 170 }}
-        />
-        <Select
-          allowClear
-          aria-label="Người bấm"
-          placeholder="Mọi người"
-          value={person}
-          onChange={(value) => setPerson(value ?? null)}
-          options={options(shown.map((row) => row.created_by))}
-          style={{ minWidth: 150 }}
-        />
         <Input
           allowClear
           aria-label="Tìm theo video"
@@ -262,6 +229,28 @@ export default function JobsPage() {
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           style={{ width: 240 }}
+        />
+        <Segmented<View>
+          aria-label="Trạng thái"
+          value={view}
+          onChange={setView}
+          options={VIEWS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+        />
+        <FilterSelect
+          aria-label="Loại"
+          placeholder="Mọi loại"
+          value={kind}
+          onChange={(value) => setKind(value ?? null)}
+          options={options(shown.map((row) => row.kind_label))}
+          style={{ minWidth: 170 }}
+        />
+        <FilterSelect
+          aria-label="Người bấm"
+          placeholder="Mọi người"
+          value={person}
+          onChange={(value) => setPerson(value ?? null)}
+          options={options(shown.map((row) => row.created_by))}
+          style={{ minWidth: 150 }}
         />
       </PageHeader>
       <Card styles={{ body: { padding: 0 } }}>

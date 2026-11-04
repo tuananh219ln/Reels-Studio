@@ -66,6 +66,7 @@ from .videos import (
     OPEN_POST_STATUSES,
     active_job,
     ensure_unlocked,
+    list_extras,
     list_payload,
     lock_scene,
     lock_video,
@@ -236,7 +237,9 @@ def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSessio
         title_match = select(Scene.video_id).where(Scene.is_title, plain.ilike(pattern, escape="\\"))
         query = query.where(or_(Video.topic.ilike(pattern, escape="\\"), Video.id.in_(title_match)))
     family = made_from(db)
-    return [list_payload(db, video, family) for video in db.scalars(query).all()]
+    videos = db.scalars(query).all()
+    extras = list_extras(db, videos)
+    return [list_payload(db, video, family, extras[video.id]) for video in videos]
 
 
 @router.post("/videos", status_code=201)

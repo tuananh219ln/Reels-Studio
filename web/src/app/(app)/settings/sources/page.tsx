@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { SettingsHeader, SettingsSection as Section } from "@/components/settings/SettingsBlocks";
+import StatusText from "@/components/StatusText";
 
 type Key = { origin: "saved" | "unreadable" | "env" | null; hint: string; signup_url: string };
 type Source = {
@@ -148,7 +149,7 @@ function KeyField({
 }
 
 const ready = (configured: boolean) =>
-  configured ? <Tag color="success">Sẵn sàng</Tag> : <Tag color="warning">Chưa có key</Tag>;
+  configured ? <StatusText tone="success">Sẵn sàng</StatusText> : <StatusText tone="warning">Chưa có key</StatusText>;
 
 /** The stock library "Tìm ảnh", the picker and "Tự tìm ảnh" start with (api routes_videos.STOCK_SOURCES[0]). */
 const DEFAULT_STOCK = "pexels";
@@ -276,7 +277,7 @@ export default function SourcesPage() {
                     <Flex wrap gap={6} align="center">
                       <span>{source.label}</span>
                       {ready(source.configured)}
-                      {source.id === DEFAULT_STOCK && <Tag color="processing">Mặc định</Tag>}
+                      {source.id === DEFAULT_STOCK && <Tag>Mặc định</Tag>}
                     </Flex>
                   }
                   extra={
@@ -374,13 +375,13 @@ export default function SourcesPage() {
                       <Flex wrap gap={6} align="center">
                         <span>Cloudflare</span>
                         {ready(data.ai_images_cloudflare.configured)}
-                        {data.ai_provider === "cloudflare" && <Tag color="processing">Mặc định</Tag>}
+                        {data.ai_provider === "cloudflare" && <Tag>Mặc định</Tag>}
                       </Flex>
                     }
                   >
                     <Flex vertical gap={12}>
                       <Typography.Text type="secondary">
-                        Model: {data.ai_images_cloudflare.model} · miễn phí khoảng 57 ảnh mỗi ngày (10.000 neurons).
+                        Model: {data.ai_images_cloudflare.model}, miễn phí khoảng 57 ảnh mỗi ngày (10.000 neurons).
                       </Typography.Text>
                       <KeyField
                         name="cloudflare"
@@ -407,7 +408,7 @@ export default function SourcesPage() {
                     <Flex wrap gap={6} align="center">
                       <span>Gemini</span>
                       {ready(data.ai_images.configured)}
-                      {data.ai_provider === "gemini" && <Tag color="processing">Mặc định</Tag>}
+                      {data.ai_provider === "gemini" && <Tag>Mặc định</Tag>}
                     </Flex>
                   }
                 >

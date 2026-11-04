@@ -1,20 +1,22 @@
+import type { StatusTone } from "@/components/StatusText";
 import type { PostRow, PostStatus } from "./api";
 
-export const POST_STATUS: Record<PostStatus, { label: string; color: string }> = {
-  pending: { label: "Đang chờ", color: "default" },
-  scheduled: { label: "Đã hẹn lịch", color: "processing" },
-  published: { label: "Đã đăng", color: "success" },
-  cancelled: { label: "Đã hủy", color: "warning" },
-  deleted: { label: "Đã xóa", color: "error" },
+/** Each status's label and the dot it is shown with (StatusText). */
+export const POST_STATUS: Record<PostStatus, { label: string; tone: StatusTone }> = {
+  pending: { label: "Đang chờ", tone: "idle" },
+  scheduled: { label: "Đã hẹn lịch", tone: "waiting" },
+  published: { label: "Đã đăng", tone: "success" },
+  cancelled: { label: "Đã hủy", tone: "idle" },
+  deleted: { label: "Đã xóa", tone: "danger" },
 };
 
 /** A post as "Bài đăng" shows it: one not on Facebook yet is on its way ("Đang đăng") or failed ("Thất bại"). */
 export type ShownStatus = PostStatus | "failed";
 
-export const SHOWN_STATUS: Record<ShownStatus, { label: string; color: string }> = {
+export const SHOWN_STATUS: Record<ShownStatus, { label: string; tone: StatusTone }> = {
   ...POST_STATUS,
-  pending: { label: "Đang đăng", color: "processing" },
-  failed: { label: "Thất bại", color: "red" },
+  pending: { label: "Đang đăng", tone: "active" },
+  failed: { label: "Thất bại", tone: "danger" },
 };
 
 export function shownStatus(post: PostRow): ShownStatus {

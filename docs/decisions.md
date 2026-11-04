@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-04 — The interface keeps orange for the main action and where you are; statuses are a dot and a word
+
+Asked by the owner ("giao diện hơi AI, cho tự nhiên hơn"). Orange had spread to every info banner, "processing" tag
+and the solid selected menu item, so it no longer pointed at anything. Now: primary buttons stay the icon's orange;
+the selected menu item is a light grey fill with deep-orange text; information is a quiet slate blue. Statuses
+across the app are `StatusText` (a dot and a word) instead of tinted tags; details are joined with commas or set on
+their own lines instead of "·"; no all-caps labels or decorative shadows; empty thumbnails are grey. The 30-day plan
+(its tab, the "Tạo video" dialog, its banner) follows the same rules. Only text the api writes (the LLM label
+"DeepSeek · deepseek-chat") keeps its "·". The video template and its render are not touched.
+
 ## 2026-11-04 — The 30-day plan gets a Backlog, posting times and 48-hour numbers; no stored winner flag
 
 Asked by the owner on /knowledge and in docs/specs/plan-tab-improvements/brief.md. Adds to the 2026-11-03 plan

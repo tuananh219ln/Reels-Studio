@@ -27,12 +27,27 @@ shows the API's Vietnamese message; the page uses the existing Ant Design theme 
 
 One theme for every screen, in [web/src/app/theme.ts](../web/src/app/theme.ts): Ant Design in the
 orange of the app's icon ([web/src/app/icon.svg](../web/src/app/icon.svg)), used as the icon uses
-it. Primary buttons and the selected menu item are filled with that orange (`#F5551F`) with white
-on it; wherever the brand colour is text or a thin mark on white (links, tabs, switches,
-checkboxes, the "Đang chỉnh sửa" tag and outline) it is a deeper orange of the same hue
-(`#C2410C`), since the icon's orange is too light for small text on white. Never antd's default
-blue. Components take colours from `COLORS` there (or antd's tokens), never a hex value of their
-own. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
+it, and kept for two jobs only so it still points at something: the main action and where you
+are. Primary buttons are filled with that orange (`#F5551F`) with white on it; the selected menu
+item is a light grey fill with the deeper orange of the same hue (`#C2410C`) as its text, the
+colour used wherever the brand is text or a thin mark on white (links, tabs, switches, checkboxes,
+the outline round a video being edited), since the icon's orange is too light for small text on
+white. Anything informational (a running job, a note, an info banner) is a quiet slate blue
+(`#3B6A9A`), never antd's default blue and never the brand. Components take colours from `COLORS`
+there (or antd's tokens), never a hex value of their own.
+
+The interface reads as a tool, not a template. A status is a small dot and a word
+([StatusText](../web/src/components/StatusText.tsx)): grey for nothing yet, blue while a job
+runs, dark grey when done, green once out or working, amber while waiting or needing a look, red
+when failed. Tags are kept for what really is a tag (a track's topics, "Mặc định", a platform).
+Details are joined with commas or set on lines of their own, never strung together with "·";
+there are no all-caps labels and no decorative shadows (cards are told apart by their border);
+alerts are for errors and warnings that block something, plain grey text for the rest. An empty
+thumbnail is a grey tile with an icon.
+
+Every list's toolbar reads the same way: its search box first, then its filters, then its sort. A filter
+is a [FilterSelect](../web/src/components/FilterSelect.tsx): typing searches its options (accents do not
+matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội"). The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
 the login starts with the same header ([PageHeader](../web/src/components/PageHeader.tsx)): the
 title with the page's main action on its right ("Tạo video", "Tải nhạc lên", "Thêm Fanpage"…), a
 line saying what the page is for when it needs one, then its search and filters on one row;
@@ -59,11 +74,11 @@ Built:
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
   button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
-  are a numbered list on the left (day or "Backlog" and pain group under each), in groups: "Hôm nay",
+  are a list on the left (day or "Backlog" and pain group under each), in groups with their count: "Hôm nay, ngày N",
   "Ngày tới" (the next 3 days with ideas, "Xem thêm" for the rest), "Ngày đã qua chưa làm" and
   "Backlog", so videos can be made ahead and their posts scheduled, and the topic and its
   details sit in a bordered panel on the right (stacked on a phone). Picking an idea marks it
-  "Đã chọn" in orange, fills the topic and shows its day, pain group, pain and hook; picking it
+  with an orange border and "Đã chọn", fills the topic and shows its day, pain group, pain and hook; picking it
   again or "Bỏ chọn" drops it. A typed topic that is nowhere in the plan gets a yellow note that does not block.
   "Tạo video" on an idea in Kho kiến thức (`/videos?plan_item=<id>`) and "Làm tiếp" open the dialog
   with that idea picked. "Cách viết" chooses "AI viết kịch bản" (the default) or "Tự viết".
@@ -75,14 +90,25 @@ Built:
   the button reads "Tạo video". The video page opens with the scenes ready to edit. The title card
   says "Kịch bản tự viết, không qua AI", and "Nội dung đăng" shows a yellow warning in place of the
   AI's self-review.
-- **Video list** (`/videos`): thumbnail (the title-scene preview, or a pale tile with the title
-  when there is none or it fails to load), title, status (Nháp / Chờ / Đang viết / Đang render /
-  Xong / Lỗi) with the labels "MP4 chưa cập nhật theo bản sửa" and "Render lại lỗi", creator,
-  date, search by title or topic, "Tạo video". Filters: status (Mọi trạng thái, Nháp, Đang xử lý,
-  Xong, Lỗi, MP4 cần render lại) and "Cả đội" / "Của tôi". Two views, remembered in the browser:
-  a grid of cards of equal height (the default) and a list, one row per video with a small
-  thumbnail, its topic, status, creator and date; a click opens the video. Above the videos, one
-  banner per topic group whose plan has a today: "Kế hoạch <nhóm> · Ngày N: hôm nay còn X/Y video"
+- **Video list** (`/videos`): "Tạo video"; then, on one row, the search by title or topic and the filters:
+  status (Nháp, Đang xử lý, Xong, Lỗi, MP4 cần render lại), platform, Fanpage (any Page the video is out on
+  or set for) and creator ("Của tôi" first, then the team), each showing "Mọi trạng thái", "Mọi nền tảng",
+  "Mọi Fanpage" or "Cả đội" while empty; sort "Mới nhất" or "Nhiều view nhất". Two views, remembered in the browser; a click opens the video:
+  - a grid of cards on their side (1 to 4 a row by width), equal in height. The 92 px thumbnail is
+    left as it is (or a grey tile with an icon) but for one dark badge in its corner, as on a profile
+    grid: the views ("12,4K", the latest readings of every live post added up) or the scheduled day.
+    Beside it, top to bottom: the title (2 lines, in full on hover); the post's Page ("và N trang khác"
+    for more, a long name cut and in full on hover) and "Đăng 03/11 07:00" or "Hẹn đăng 05/11 20:00"
+    (the year only when it is not this one), or "Chưa đăng"; at 48 hours "N× trung vị" (orange and
+    bold from 10×) and "N% share" (green once it reaches the goal); a warning on its own line (a job's
+    stage while posted, "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot
+    and a word ("Đã đăng", "Đã lên lịch", or Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi, with
+    "TikTok" after it) and on the right the creator and the day it was made; under them, small, the
+    topic group and its plan day;
+  - a list, one row per video: small thumbnail and title, the status (with "Đã đăng" or "Đã lên lịch"
+    under it), "Đăng" (Page and time, or "Chưa đăng"), "View" (sortable), "48h" (the multiple or
+    "chưa đủ dữ liệu", the share/view under it) and "Tạo" (group, plan day, creator, day). Above the videos, one
+  banner per topic group whose plan has a today: "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video"
   with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
@@ -98,20 +124,20 @@ Built:
     and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
     previews and the MP4, "Tải MP4", "Nhân bản", "Xóa", "Render", the "Xuất bản" tab and the
     post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
-    "Nhân bản" unlocks the page, shown by an orange "Đang chỉnh sửa" tag by the title and a light
+    "Nhân bản" unlocks the page, shown by "Đang chỉnh sửa" in grey by the title and a light
     orange outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
     "Xong" saves the field being typed in and locks the page again, unless a save was refused
     (then a message points to the field). A video never rendered opens in edit mode. The mode is
     chosen when the page opens and is not stored;
   - **who else is here.** Under the title, "Đang ở đây:" and the avatars of the other members
     with the video open (not yourself; one per member, however many tabs). An avatar has a blue
-    ring when that member is in "Chỉnh sửa", and its tooltip says "<name> · đang chỉnh sửa" or
+    ring when that member is in "Chỉnh sửa", and its tooltip says "<name>, đang chỉnh sửa" or
     "đang xem". It updates within about 10 s, and a closed tab leaves at once. Pressing "Chỉnh
     sửa" while someone else is editing shows a warning naming them ("Bình đang chỉnh sửa video
     này…"), but still unlocks the page: nothing is locked, the last field saved wins;
   - **scene cards that open and close.** A closed card's title row shows a 40×40 thumbnail of
     the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, its text on one line (without the
-    `*` marks) and a tag: red "N lỗi", yellow "N cảnh báo" or green "Sẵn sàng"; an open card
+    `*` marks) and a status: red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng"; an open card
     shows the name, seconds and tag. A click or Enter anywhere on the row opens or closes it;
     the move and delete buttons beside it do not. When the page opens, a draft's scenes are all
     open; in a rendered video only the scenes with a red reason are. "Mở tất cả" and "Thu gọn
@@ -209,8 +235,8 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
-  - a photo picked by "Tự tìm ảnh" carries a yellow "Tự chọn, kiểm tra lại" tag under the picture
-    with "Giữ ảnh này"; keeping it, or changing the photo any other way, removes the tag. It never
+  - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture
+    with "Giữ ảnh này"; keeping it, or changing the photo any other way, removes it. It never
     blocks the render;
   - per scene (title included) a "Từ khóa tìm ảnh" field and two Pixabay buttons: "Chọn từ
     Pixabay" opens a dialog with the scene's first keyword already searched (editable, Enter
@@ -272,7 +298,7 @@ Built:
     copy buttons, the cart's products, a checklist, and "Đã đăng tay" (one of the member's TikTok
     accounts and the post's link), with the recorded posts below;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
-    có"), the Fanpage, each shown as "<Page> · <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
+    có"), the Fanpage, each shown as "<Page>, <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
     ahead, within 29 days, typed in Vietnam time whatever the browser's time zone; after a post it is back on "Đăng ngay").
     A video of the 30-day plan opens on "Hẹn giờ" at the time the plan suggests (its day, at the group's posting
     time for its place in the day), said under the field. Its "Đăng" is disabled while the MP4 is out of date or the Page holds this
@@ -308,20 +334,20 @@ Built:
     "Xóa lọc", and "Đầy đủ | Gọn" (kept in the browser as `plan-compact`; a compact card shows its
     title, status, numbers and buttons, and opens on its title or arrow);
   - the 30 days on one page, one card each (its date and weekday once a start date is set, "Hôm nay"
-    on today's, a line counting its shown ideas by status, "Không có ý tưởng khớp" when the filters
+    in orange on today's, a line counting its shown ideas by status, "Không có ý tưởng khớp" when the filters
     hide them all), each idea with a 3 px left border in its status colour, its topic, pain group,
     pain and hook editable in place (saved when the edit ends), a status tag (Ý tưởng, Đã tạo video,
     Đã viết kịch bản, Xong, Đã lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while
     no post is set, "Tạo video" or "Mở video", "Chuyển về Backlog" and "Xoá", and under them one line
-    per Facebook post with its 48-hour numbers ("<Page>: N view · N share · share/view x,xx% đạt/không
-    đạt 0,2% · N× trung vị", bold from 10×; "chưa đủ dữ liệu" under 5 measured posts; "chưa đo 48h"
+    per Facebook post with its 48-hour numbers ("<Page>: N view, N share, share/view x,xx% đạt/không
+    đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu" under 5 measured posts; "chưa đo 48h"
     before). "+" adds an idea (greyed out at 5); dragging an idea onto another day moves it there. A
     day with 1–2 ideas says it should have 3–5. "Mở Backlog" opens the Backlog beside the days, to drag
     ideas between them;
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
-- **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày · Ngày N" (or "Backlog")
+- **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày, ngày N" (or "Backlog")
   with its pain group, pain and hook under the title.
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
@@ -357,7 +383,7 @@ Built:
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or
     posted again shows its title once. The row has the video's thumbnail (the title scene, or the
     pale tile) and title, which open the video, "N bài đăng" with its Pages, one status tag per
-    status among its posts ("Đã đăng · 2" for more than one), its total views and its latest time. Clicking the row opens its posts: the Fanpage with "Người đăng" under it; the time in Vietnam time, with who cancelled or
+    status among its posts ("Đã đăng 2" for more than one), its total views and its latest time. Clicking the row opens its posts: the Fanpage with "Người đăng" under it; the time in Vietnam time, with who cancelled or
     deleted it and when under it ("Hủy: …" or "Xóa: …", "Trên Facebook" when a check found it so);
     "Đang đăng" (its publish job is still to run), "Thất bại" (red, with the job's reason under it in
     red, cut to one line with the whole reason in a tooltip), "Đã hẹn lịch", "Đã đăng", "Đã hủy" or
@@ -373,7 +399,7 @@ Built:
     one Facebook does not give), when they were read ("Đo lúc", Vietnam time), the 48-hour views
     with "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị" and the share/view, the
     "Chưa có số view, app tự đo sau khi đăng 1 giờ" note and the failed reading's reason sit in
-    tooltips, with "Xem TB N giây (N %) · tiếp cận N" when Facebook gives them. The video's page
+    tooltips, with "Xem TB N giây (N %), tiếp cận N" when Facebook gives them. The video's page
     shows the same numbers in full, with share/view green at 0,2 % or more, yellow under it. A post
     with numbers has "Phân tích" (an icon button on "Bài đăng", a button on the video's page). It
     opens "Phân tích bài đăng": views, average watch with its share of the posted length, reach,
@@ -406,22 +432,29 @@ Built:
     card says so, or that it needs at least two Pages in use. A post updates
     by itself once the worker has done it. Under the title, status tabs with counts: "Đang hoạt động"
     (the default: on its way, failed, scheduled and published), "Đã đăng", "Đã hẹn lịch", "Thất
-    bại", "Đã hủy/xóa" and "Tất cả"; the counts follow the search and Fanpage filters. Then "Tìm
-    theo tiêu đề", "Sắp xếp" ("Giờ đăng mới nhất", the default, or "Nhiều view nhất", posts not
-    read yet last; videos follow their first post) and, with more than one, a Fanpage filter,
+    bại", "Đã hủy/xóa" and "Tất cả", after "Tìm theo tiêu đề"; the counts follow the search and Fanpage
+    filters. Then the Fanpage filter ("Mọi Fanpage") and "Sắp xếp" ("Giờ đăng mới nhất", the default, or
+    "Nhiều view nhất", posts not read yet last; videos follow their first post),
     which filter the posts and keep the videos that still have one. A tab leaves the other posts out
     of the rows and their tags. "Không có bài đăng nào khớp" when nothing matches a filter, "Không
     có bài nào đang hoạt động" when only cancelled or deleted posts are left. "Danh sách" and "Lịch",
     at the right of the title, switch between the table and the calendar on the same page.
-  - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there): the posted and scheduled videos
-    in a month view, coloured by status, with their two tags as a legend. A video
-    opens its page. Everything is in Vietnam time whatever the browser's time zone: the day a video
-    sits under, the month it opens on, and the "today" mark.
-    On a phone the month is compact, with a dot on each day that has a video, and the chosen day's
-    videos are listed under it.
+  - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there), after the content calendar of
+    Meta's creator dashboard: a title naming the range ("2–8 tháng 11, 2026", "Tháng 11, 2026",
+    "Thứ tư, 4 tháng 11, 2026") over "Giờ Việt Nam" and the legend (a dot for "Đã hẹn lịch" and
+    "Đã đăng"); on the right "◀ Hôm nay ▶" and "Ngày | Tuần | Tháng" (Tuần by default, the choice
+    remembered in the browser). Tuần and Ngày are hour rows (opened at 06:00): in each hour the first
+    reel is its cover with its time and views on it and "+N bài khác" for the rest; a day shows every
+    reel of the hour side by side. Tháng shows each day's first two reels as a small cover with "N
+    lượt xem" ("Hẹn 20:00" while scheduled) and "+N bài khác". Choosing a reel, an hour or a day opens
+    a drawer, "Bài đăng ngày dd/mm/yyyy" (with the hour when one was chosen), listing each post's
+    cover, title, time and Page, status and views, with "Mở video" and "Xem Reel". Everything is in
+    Vietnam time whatever the browser's time zone: the hour and day a reel sits under, the week and
+    month it opens on, and today's mark. On a phone the month is compact, with a dot on each day that
+    has a video; tapping a day opens the same drawer.
 - **Job logs** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
-  jobs: a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or running), "Lỗi", "Xong"),
-  "Mọi loại", "Mọi người" and a search by video title ("Không có job nào khớp" when nothing matches).
+  jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
+  running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
   Each row: the video title with its kind and job number under it, a status tag with an icon, who
   started it, start with the duration under it, AI call count with the model that wrote a script
   ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.

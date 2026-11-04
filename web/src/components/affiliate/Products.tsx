@@ -8,11 +8,13 @@ import {
   PlusOutlined,
   SearchOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import ProductModal from "./ProductModal";
+import StatusText from "@/components/StatusText";
+import FilterSelect from "@/components/FilterSelect";
 
 type Filters = { topicId?: number; status?: string; platform?: string; q: string };
 
@@ -89,7 +91,7 @@ export default function Products() {
               {product.name}
             </a>
             <Space size={4} wrap>
-              <Tag color={product.platform === "tiktok_shop" ? "magenta" : "orange"}>{product.platform_label}</Tag>
+              <Tag>{product.platform_label}</Tag>
               {product.from_shopee_api && <Tag>Tìm qua API</Tag>}
               <Typography.Text type="secondary">{product.topic}</Typography.Text>
             </Space>
@@ -150,7 +152,7 @@ export default function Products() {
       render: (_, product) =>
         product.status === "approved" ? (
           <Flex vertical gap={2} align="flex-start">
-            <Tag color="success">Đã duyệt</Tag>
+            <StatusText tone="success">Đã duyệt</StatusText>
             {product.checked_at && (
               <Typography.Text type="secondary">
                 {product.checked_by}, {formatDateTime(product.checked_at)}
@@ -164,7 +166,7 @@ export default function Products() {
           </Flex>
         ) : (
           <Flex vertical gap={2} align="flex-start">
-            <Tag>Nháp</Tag>
+            <StatusText tone="idle">Nháp</StatusText>
             {product.problems.map((problem) => (
               <Typography.Text key={problem} type="warning">
                 {problem}
@@ -226,28 +228,25 @@ export default function Products() {
             onChange={(event) => setFilters({ ...filters, q: event.target.value })}
             style={{ maxWidth: 280 }}
           />
-          <Select
+          <FilterSelect
             aria-label="Lọc theo nhóm chủ đề"
             placeholder="Mọi nhóm chủ đề"
-            allowClear
             value={topicId}
             onChange={(value) => setFilters({ ...filters, topicId: value })}
             options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
             style={{ width: 180 }}
           />
-          <Select
+          <FilterSelect
             aria-label="Lọc theo nền tảng"
             placeholder="Mọi nền tảng"
-            allowClear
             value={platform}
             onChange={(value) => setFilters({ ...filters, platform: value })}
             options={options.platforms}
             style={{ width: 160 }}
           />
-          <Select
+          <FilterSelect
             aria-label="Lọc theo trạng thái"
             placeholder="Mọi trạng thái"
-            allowClear
             value={status}
             onChange={(value) => setFilters({ ...filters, status: value })}
             options={[

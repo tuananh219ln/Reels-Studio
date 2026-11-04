@@ -412,7 +412,11 @@ Planned:
     went live in the last 60 days; a post is compared with it (its multiple of the median) once the
     Page has at least 5 measured posts. `analysis` gives the Page's median and sample count, the
     post's multiple of it and its share/view at 48 hours. There is no "Video thắng" flag (dropped
-    2026-11-03, see decisions).
+    2026-11-03, see decisions). `GET /api/videos` gives each video its topic group, its plan day and
+    `post`: its live or scheduled Facebook posts in one line (`state` posted or scheduled, the Page and
+    time of the post with the most views or the next one set, how many Pages, the `latest` views of
+    every live post added up, and that post's 48-hour shares, share/view, `share_met` and multiple of
+    the median). The posts, their readings and the medians are read once for the whole list.
     `GET /api/posts/kpis` gives this week and last, Monday to Sunday in Vietnam time (a fixed UTC+7,
     which has no daylight saving): posts measured, median views, and how many reached
     share/view ≥ 0.2 % of those with both numbers.

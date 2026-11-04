@@ -7,7 +7,18 @@ import { COLORS } from "@/app/theme";
 
 /** A video's title-scene thumbnail, or a tile with its name when there is none or it fails to load. With `width`
  * it is a small one for a table row; without, it fills a card's cover. */
-export default function VideoThumbnail({ name, url, width }: { name: string; url: string | null; width?: number }) {
+export default function VideoThumbnail({
+  name,
+  url,
+  width,
+  plain = true,
+}: {
+  name: string;
+  url: string | null;
+  width?: number;
+  /** A quiet grey tile when there is no thumbnail (the default); false keeps the brand-tinted tile. */
+  plain?: boolean;
+}) {
   const [broken, setBroken] = useState(false);
   const box = { width: width ?? "100%", aspectRatio: "9 / 16", borderRadius: width ? 6 : 0, flex: "none" } as const;
   if (url && !broken) {
@@ -24,14 +35,16 @@ export default function VideoThumbnail({ name, url, width }: { name: string; url
       justify="center"
       style={{
         ...box,
-        background: COLORS.primaryBg,
-        border: width ? `1px solid ${COLORS.primaryBorder}` : undefined,
+        background: plain ? COLORS.layout : COLORS.primaryBg,
+        border: width ? `1px solid ${plain ? COLORS.border : COLORS.primaryBorder}` : undefined,
         padding: width ? 2 : 12,
         textAlign: "center",
       }}
     >
       {width ? (
-        <PlaySquareOutlined style={{ color: COLORS.primary, fontSize: 16 }} />
+        <PlaySquareOutlined
+          style={{ color: plain ? COLORS.textSecondary : COLORS.primary, fontSize: plain ? 20 : 16 }}
+        />
       ) : (
         <Typography.Text strong style={{ color: COLORS.primary }}>
           {name}

@@ -95,9 +95,10 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveAttribute("href", /facebook\.com\/reel\//);
 
+  // Once posted, the card says so rather than the video's own "Xong".
   await page.goto("/videos");
   const card = page.getByTestId("video-card").first();
-  await expect(card.getByTestId("video-status")).toHaveText("Xong");
+  await expect(card.getByTestId("video-status")).toHaveText("Đã đăng");
   await expect(card.locator("img")).toBeVisible();
   await expect(card).toContainText("6 MÓN");
 });
@@ -236,7 +237,7 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await expect(page.getByText("Không có video nào khớp")).toBeVisible();
   await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Nháp");
   await expect(cards).toHaveCount(1);
-  await page.getByText("Của tôi", { exact: true }).click();
+  await chooseOption(page, page.getByLabel("Người tạo"), "Của tôi");
   await expect(cards).toHaveCount(1);
 
   // The list view shows one row per video; the choice is remembered in this browser.
@@ -313,7 +314,7 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   const text = first.getByLabel("Chữ trên màn hình");
   await text.fill("Một hai ba bốn năm sáu bảy tám chín *mười* thêm");
   // The first counter is the on-screen text's; the voice text has its own.
-  await expect(first.getByTestId("word-count").first()).toHaveText("11 từ · nên tối đa 10 từ");
+  await expect(first.getByTestId("word-count").first()).toHaveText("11 từ, nên tối đa 10 từ");
   await text.blur();
   await expect(first.getByText("Đã lưu")).toBeVisible();
 
@@ -448,10 +449,10 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await expect(groups).toContainText("1.200");
   // The views stay on one line: the details sit in a tooltip.
-  await expect(posts.getByText("3 share · 5 bình luận · 40 cảm xúc")).toHaveCount(0);
+  await expect(posts.getByText("3 share, 5 bình luận, 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();
   // The "Cập nhật view" button's tooltip may still be fading out, so pick the views tooltip by its text.
-  const viewsTip = page.getByRole("tooltip").filter({ hasText: "3 share · 5 bình luận · 40 cảm xúc" });
+  const viewsTip = page.getByRole("tooltip").filter({ hasText: "3 share, 5 bình luận, 40 cảm xúc" });
   await expect(viewsTip).toBeVisible();
   await expect(viewsTip).toContainText("Xem TB 8,4 giây");
   // "Phân tích": every number, and the retention curve split by the posted MP4's scenes.
@@ -495,15 +496,24 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await page.getByLabel("Kiểu hiển thị").getByText("Lịch", { exact: true }).click();
   await expect(page).toHaveURL(/\/posts\?view=calendar$/);
   await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
-  await page.locator(".ant-picker-cell-in-view a[href^='/videos/']").click();
+  // Choosing a day opens its posts in a drawer, each with a link to its video.
+  // The week view is the default on a wide screen: a reel's cover sits in its hour.
+  await page.getByTestId("week-post").first().click();
+  const drawer = page.getByRole("dialog", { name: /^Bài đăng ngày / });
+  await expect(drawer.getByTestId("calendar-drawer-post")).toHaveCount(1);
+  await drawer.getByRole("link", { name: "Mở video" }).click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 
-  // A phone shows the compact month with a dot, and today's posts listed under it.
+  // A phone shows the compact month with a dot; tapping the day opens its posts the same way.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/calendar"); // an old link lands on the calendar view
   await expect(page).toHaveURL(/\/posts\?view=calendar$/);
   await expect(page.locator(".ant-picker-cell-today [data-testid='calendar-dot']")).toBeVisible();
-  await page.locator("a[href^='/videos/']").click();
+  await page.locator(".ant-picker-cell-today").click();
+  await page
+    .getByRole("dialog", { name: /^Bài đăng ngày / })
+    .getByRole("link", { name: "Mở video" })
+    .click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
@@ -553,8 +563,17 @@ test("a scheduled video appears in Bài đăng and its calendar without a link t
   await expect(page.getByTestId("post-rows").getByRole("button", { name: "Xem Reel" })).toBeDisabled();
 
   await page.getByLabel("Kiểu hiển thị").getByText("Lịch", { exact: true }).click();
-  // Any cell of the grid: an hour ahead can already be tomorrow, or next month.
-  await page.locator(".ant-picker-cell a[href^='/videos/']").click();
+  // The week view opens on this week; an hour ahead can already be next week, one "Sau" away.
+  await expect(page.getByTestId("calendar-title")).toBeVisible();
+  const reel = page.getByTestId("week-post");
+  if ((await reel.count()) === 0) {
+    await page.getByLabel("Sau").click();
+  }
+  await reel.first().click();
+  await page
+    .getByRole("dialog", { name: /^Bài đăng ngày / })
+    .getByRole("link", { name: "Mở video" })
+    .click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
@@ -607,8 +626,8 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await expect(posts.getByText("Đã hủy", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
   // Who took each down and when, under its time; their action buttons are all greyed out.
-  await expect(posts.getByText(new RegExp(`^Xóa: ${SEED.name} · `))).toBeVisible();
-  await expect(posts.getByText(new RegExp(`^Hủy: ${SEED.name} · `))).toBeVisible();
+  await expect(posts.getByText(new RegExp(`^Xóa: ${SEED.name}, `))).toBeVisible();
+  await expect(posts.getByText(new RegExp(`^Hủy: ${SEED.name}, `))).toBeVisible();
   await expect(posts.getByRole("button", { name: "Kiểm tra" }).first()).toBeDisabled();
 
   await tabs.getByText("Tất cả (2)").click();
@@ -1358,7 +1377,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   await custom.getByRole("button", { name: "Dùng để viết kịch bản" }).click();
   await expect(page.getByText("Từ giờ kịch bản được viết bằng Tùy chỉnh (chuẩn OpenAI)")).toBeVisible();
   await expect(page.getByLabel("Nhà cung cấp đang dùng").locator("..")).toContainText(
-    "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
+    "Tùy chỉnh (chuẩn OpenAI), fake-gpt-mini",
   );
 
   await page.getByRole("menuitem", { name: "Video" }).click();
@@ -1775,14 +1794,14 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await expect(idea).toContainText("Ý tưởng");
 
   await page.goto("/videos");
-  await expect(page.getByTestId("plan-banner")).toHaveText(/Ngày 1: hôm nay còn 1\/1 video/);
+  await expect(page.getByTestId("plan-banner")).toHaveText(/ngày 1: hôm nay còn 1\/1 video/);
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
   await idea.getByRole("button", { name: "Tạo video" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
-  await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch · Ngày 1");
+  await expect(dialog.getByTestId("picked-idea")).toContainText("Theo kế hoạch, ngày 1");
   await expect(dialog.getByLabel("Chủ đề", { exact: true })).toHaveValue("5 món sáng giúp ổn định huyết áp");
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("plan-idea-card")).toContainText("Nỗi đau: Sợ tai biến khi huyết áp lên xuống");

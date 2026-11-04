@@ -6,6 +6,10 @@ import type { ThemeConfig } from "antd";
  * wherever the brand colour is text or a thin mark on white (links, tabs, switches, checkboxes, focus), since the
  * icon's orange is too light for small text on white. Components take colours from here (or antd's tokens), never a
  * hex of their own.
+ *
+ * Orange is kept for two jobs only, the main action and where you are, so it still points at something. Everything
+ * informational (a running job, a note, "processing") is a quiet slate blue, and statuses are a dot and a word
+ * (StatusText), not a tinted tag.
  */
 export const COLORS = {
   /** The brand as text or a thin mark on white: about 5:1 against white. */
@@ -26,6 +30,12 @@ export const COLORS = {
   surface: "#FFFFFF",
   /** An empty or inactive area inside a card (no photo yet, an empty timeline segment). */
   muted: "#F8F8F9",
+  /** The selected menu item and other "you are here" fills: a grey a step darker than a hover. */
+  selected: "#EEEFF1",
+  /** Information that is not the brand: a running job, a note. */
+  info: "#3B6A9A",
+  infoBg: "#F1F5F9",
+  infoBorder: "#CBD8E6",
 } as const;
 
 export const FONT_FAMILY = "var(--font-app), -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
@@ -33,13 +43,13 @@ export const FONT_FAMILY = "var(--font-app), -apple-system, 'Segoe UI', Roboto, 
 export const theme: ThemeConfig = {
   token: {
     colorPrimary: COLORS.primary,
-    // Info (job banners, "processing" tags) follows the brand, not antd's default blue.
-    colorInfo: COLORS.primary,
-    colorInfoBg: COLORS.primaryBg,
-    colorInfoBgHover: "#FFE6D8",
-    colorInfoBorder: COLORS.primaryBorder,
-    colorInfoBorderHover: "#FB9E6E",
-    colorInfoText: COLORS.primary,
+    // Info (job banners, notes) is a quiet slate blue, so orange is left for the main action and the current place.
+    colorInfo: COLORS.info,
+    colorInfoBg: COLORS.infoBg,
+    colorInfoBgHover: "#E6EDF5",
+    colorInfoBorder: COLORS.infoBorder,
+    colorInfoBorderHover: "#AFC4DA",
+    colorInfoText: COLORS.info,
     colorLink: COLORS.primary,
     colorText: COLORS.text,
     colorTextSecondary: COLORS.textSecondary,
@@ -52,14 +62,15 @@ export const theme: ThemeConfig = {
     controlHeight: 36,
     fontFamily: FONT_FAMILY,
     fontSize: 14,
-    boxShadowTertiary: "0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 6px -1px rgba(16, 24, 40, 0.04)",
+    // Cards are told apart by their border, not by a shadow.
+    boxShadowTertiary: "none",
   },
   components: {
     Layout: { siderBg: COLORS.surface, headerBg: COLORS.surface, bodyBg: COLORS.layout },
     Menu: {
-      // The selected item looks like the icon: its orange, white on it.
-      itemSelectedBg: COLORS.brand,
-      itemSelectedColor: COLORS.brandInk,
+      // The selected item is a grey fill with the deep orange text: the place you are, without a block of colour.
+      itemSelectedBg: COLORS.selected,
+      itemSelectedColor: COLORS.primary,
       itemBorderRadius: 8,
       itemHeight: 40,
       activeBarBorderWidth: 0,

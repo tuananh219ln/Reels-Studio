@@ -20,7 +20,7 @@ export default function PresenceAvatars({ others }: { others: PresentMember[] })
         {others.map((member) => {
           const doing = member.editing ? "đang chỉnh sửa" : "đang xem";
           return (
-            <Tooltip key={member.id} title={`${member.name} · ${doing}`}>
+            <Tooltip key={member.id} title={`${member.name}, ${doing}`}>
               <span
                 aria-label={`${member.name} ${doing}`}
                 data-testid="presence-member"

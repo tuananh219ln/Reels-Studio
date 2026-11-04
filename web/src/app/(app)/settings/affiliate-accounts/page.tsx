@@ -108,7 +108,7 @@ export default function AffiliateAccountsPage() {
                   </Space>
                   {account.platform === "shopee" ? (
                     <Typography.Text type="secondary">
-                      App ID {account.app_id} · Secret …{account.secret_tail}
+                      App ID {account.app_id}, Secret …{account.secret_tail}
                     </Typography.Text>
                   ) : (
                     <a href={account.profile_url ?? undefined} target="_blank" rel="noreferrer">

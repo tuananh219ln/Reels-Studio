@@ -19,7 +19,7 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
       scene.spoken_text && !scene.voice_url && "Giọng đọc được tạo khi render",
     ]
       .filter(Boolean)
-      .join(" · ") || undefined;
+      .join(", ") || undefined;
   return (
     <Flex vertical gap={4}>
       <AutoSaveField
@@ -43,7 +43,7 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
           />
           <Typography.Text type="secondary" data-testid="voice-length">
             Lời đọc dài {seconds(scene.voice_seconds)} giây
-            {lengthened && ` · cảnh kéo dài thành ${seconds(scene.fitted_seconds)} giây`}
+            {lengthened && `, cảnh kéo dài thành ${seconds(scene.fitted_seconds)} giây`}
           </Typography.Text>
         </Flex>
       )}

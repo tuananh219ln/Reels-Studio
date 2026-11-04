@@ -215,9 +215,8 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
                   {product.name}
                 </Typography.Link>
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {product.price.toLocaleString("vi-VN")}đ · {product.rating} sao ·{" "}
-                  {product.sold.toLocaleString("vi-VN")} đã bán · {product.shop_type_label} · hoa hồng{" "}
-                  {product.commission_rate}% (~
+                  {product.price.toLocaleString("vi-VN")}đ, {product.rating} sao, {product.sold.toLocaleString("vi-VN")}{" "}
+                  đã bán, {product.shop_type_label}, hoa hồng {product.commission_rate}% (~
                   {product.expected_commission.toLocaleString("vi-VN")}đ/đơn)
                 </Typography.Text>
               </Flex>

@@ -25,7 +25,6 @@ import {
   Select,
   Space,
   Table,
-  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -43,6 +42,7 @@ import PageHeader from "@/components/PageHeader";
 import { COLORS } from "@/app/theme";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import FormDrawer from "@/components/FormDrawer";
+import StatusText from "@/components/StatusText";
 
 const number = (value: number) => value.toLocaleString("vi-VN");
 const count = (value: number | null) => (value === null ? "—" : number(value));
@@ -56,10 +56,10 @@ function byNeed(a: Fanpage, b: Fanpage): number {
 /** The worker's last check of the Page's token: works, broken, or waiting for the worker. */
 function StatusTag({ row }: { row: Fanpage }) {
   const { check } = row;
-  if (check.pending) return <Tag color="processing">Đang kiểm tra…</Tag>;
-  if (check.error) return <Tag color="error">Lỗi kết nối</Tag>;
-  if (check.checked_at) return <Tag color="success">Hoạt động</Tag>;
-  return <Tag>Chưa kiểm tra</Tag>;
+  if (check.pending) return <StatusText tone="active">Đang kiểm tra…</StatusText>;
+  if (check.error) return <StatusText tone="danger">Lỗi kết nối</StatusText>;
+  if (check.checked_at) return <StatusText tone="success">Hoạt động</StatusText>;
+  return <StatusText tone="idle">Chưa kiểm tra</StatusText>;
 }
 
 /** One number of a Page, small: the value over its label. */
@@ -211,7 +211,7 @@ function PageCard({
             {row.name}
           </Typography.Link>
           <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-            ID {row.page_id} · token …{row.token_tail}
+            ID {row.page_id}, token …{row.token_tail}
           </Typography.Text>
         </Flex>
         <StatusTag row={row} />
@@ -237,7 +237,7 @@ function PageCard({
         >
           <Typography.Text type="danger" style={{ fontSize: 12, flex: 1 }}>
             {check.error}
-            {row.scheduled_posts > 0 && ` · ${row.scheduled_posts} bài hẹn giờ bị ảnh hưởng`}
+            {row.scheduled_posts > 0 && `, ${row.scheduled_posts} bài hẹn giờ bị ảnh hưởng`}
           </Typography.Text>
           <Button size="small" onClick={() => onToken(row)}>
             Dán token mới
@@ -260,8 +260,8 @@ function PageCard({
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-          Số liệu 7 ngày · {check.checked_at ? `kiểm tra ${formatDateTime(check.checked_at)}` : "chưa kiểm tra"}
-          {row.scheduled_posts > 0 && !check.error && ` · ${row.scheduled_posts} bài hẹn giờ`}
+          Số liệu 7 ngày, {check.checked_at ? `kiểm tra ${formatDateTime(check.checked_at)}` : "chưa kiểm tra"}
+          {row.scheduled_posts > 0 && !check.error && `, ${row.scheduled_posts} bài hẹn giờ`}
         </Typography.Text>
         <Space size={0}>
           <Tooltip title="Số liệu 30 ngày">
@@ -306,7 +306,7 @@ function DaysModal({ row, onClose }: { row: Fanpage | null; onClose: () => void 
   }, [id]);
   return (
     <Modal
-      title={`Số liệu 30 ngày · ${row?.name ?? ""}`}
+      title={`Số liệu 30 ngày, ${row?.name ?? ""}`}
       open={row !== null}
       onCancel={onClose}
       afterClose={() => setDays(null)}
@@ -370,7 +370,7 @@ function StoppedPages({ rows, onRows }: { rows: Fanpage[]; onRows: (rows: Fanpag
                   <Flex vertical style={{ minWidth: 0 }}>
                     <Typography.Text>{row.name}</Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      ID {row.page_id} · {row.posts ? `${row.posts} bài đăng` : "chưa đăng bài nào"} · ngừng{" "}
+                      ID {row.page_id}, {row.posts ? `${row.posts} bài đăng` : "chưa đăng bài nào"}, ngừng{" "}
                       {formatDateTime(row.updated_at)}
                       {row.updated_by ? ` bởi ${row.updated_by}` : ""}
                     </Typography.Text>
@@ -610,9 +610,9 @@ export default function FanpagesPage() {
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
           <Flex gap={8} wrap>
-            <Tag color="success">{inUse.length} đang dùng</Tag>
-            {broken > 0 && <Tag color="error">{broken} lỗi kết nối</Tag>}
-            {stopped.length > 0 && <Tag>{stopped.length} ngừng dùng</Tag>}
+            <StatusText tone="success">{inUse.length} đang dùng</StatusText>
+            {broken > 0 && <StatusText tone="danger">{broken} lỗi kết nối</StatusText>}
+            {stopped.length > 0 && <StatusText tone="idle">{stopped.length} ngừng dùng</StatusText>}
           </Flex>
         )}
         {rows === null ? (

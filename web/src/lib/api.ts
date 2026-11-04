@@ -61,6 +61,30 @@ export type VideoRow = {
   mp4_outdated: boolean;
   rerender_failed: boolean;
   thumbnail_url: string | null;
+  knowledge_topic: string | null;
+  /** The 30-day plan day of the idea it was made from. */
+  plan_day: number | null;
+  /** Its Facebook posts in one line; null when none is out or set for later. */
+  post: VideoRowPost | null;
+};
+
+/** A video's posts on the list: views are every live post's latest reading added up; the 48-hour numbers are of
+ * its post with the most views. */
+export type VideoRowPost = {
+  state: "posted" | "scheduled";
+  /** The post with the most views, or the next one set for later. */
+  fanpage: string;
+  /** Every Page it is out on or set for. */
+  fanpages: string[];
+  pages: number;
+  at: string;
+  views: number | null;
+  shares: number | null;
+  share_rate: number | null;
+  /** Whether share/view reaches the team's goal (analytics.SHARE_GOAL). */
+  share_met: boolean | null;
+  /** Null while its Page has fewer than 5 posts measured at 48 hours. */
+  times_median: number | null;
 };
 
 export type JobInfo = {

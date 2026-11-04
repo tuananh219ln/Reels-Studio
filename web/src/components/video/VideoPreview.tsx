@@ -473,10 +473,10 @@ export default function VideoPreview({
           </Flex>
           <Flex justify="space-between" style={{ width: "100%" }}>
             <Typography.Text strong data-testid="preview-scene">
-              {label(phase.index)} · {seconds(scene?.fitted_seconds ?? 0)} giây
+              {label(phase.index)}, {seconds(scene?.fitted_seconds ?? 0)} giây
             </Typography.Text>
             <Typography.Text type="secondary">
-              {phase.index + 1}/{scenes.length} cảnh · {seconds(total)} giây
+              {phase.index + 1}/{scenes.length} cảnh, {seconds(total)} giây
             </Typography.Text>
           </Flex>
           <Space wrap>
