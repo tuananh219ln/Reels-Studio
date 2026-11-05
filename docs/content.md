@@ -112,6 +112,13 @@ How the prompt is built (built, compact version):
   else. Only scripts and clones written after a change to these rules follow them; existing
   videos keep their voice texts until their script is written again.
   Banned words cover the voice text too.
+- **Photo keywords and the group's "Gợi ý tìm ảnh":** a scene's search keywords (Vietnamese and
+  English) describe the main thing in its frame, a dish, a plant, an object or something being done,
+  with its state when it matters ("cây cải đang mọc", not just "cải"), most specific first. A topic
+  group's "Gợi ý tìm ảnh" on `/knowledge` (what its photos show, up to 1000 characters) is added
+  after the banned words, before the format, of both its script and clone prompts, telling the AI to
+  write the keywords and AI image prompts by it; empty adds nothing. Only scripts written after a
+  change follow it.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
   become 4, keywords are cut to 100 characters, missing parts stay empty. Everything then goes

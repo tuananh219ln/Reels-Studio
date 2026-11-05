@@ -11,6 +11,21 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — Photo search follows the topic group; the group's own pictures can be reused
+
+Asked by the owner (namtc07): with several topic groups (Sức khỏe, Vườn rau tại nhà) the scenes' search
+keywords were written as for food, so a gardening scene found cooked dishes.
+
+- **Keywords describe what is in the frame** (a dish, a plant, an object or an action, with its state), not
+  only a dish or ingredient. The output format is code, so this applies to every group.
+- **"Gợi ý tìm ảnh" per topic group** (`knowledge_topics.photo_hint`, migration 0036): free text added to the
+  group's script and clone prompts, before the format, for the keywords and AI image prompts. Empty adds nothing,
+  so existing groups write as before until a member fills it in.
+- **Google and TikTok open on a keyword the member picks** from the scene's list, not always the first.
+- **"Đã dùng trong nhóm"** copies a photo or clip another video of the same group uses into a scene. A copy, not a
+  shared file, so deleting either video never breaks the other; a photo keeps its source for a copyright claim.
+  Limited to the same group: groups are separate channels' material.
+
 ## 2026-11-05 — CI takes FFmpeg and Playwright's libraries without the apt mirror; every job has a timeout
 
 The runners' Ubuntu mirror at times downloads at about 57 kB/s: installing FFmpeg took 14–19 minutes on

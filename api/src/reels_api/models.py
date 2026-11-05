@@ -117,6 +117,9 @@ class KnowledgeTopic(Base):
     script_prompt: Mapped[str] = mapped_column(Text, default="")
     clone_prompt: Mapped[str] = mapped_column(Text, default="")
     banned_words: Mapped[list] = mapped_column(JSONB, default=list)
+    # "Gợi ý tìm ảnh": what the group's photos show (growing plants, not cooked dishes...), added to the script and
+    # clone prompts so the AI writes the scenes' search keywords and image prompts for it. Empty: nothing added.
+    photo_hint: Mapped[str] = mapped_column(Text, default="", server_default="")
     # The 30-day plan (plans.py): its prompt (empty: the default one), the date of day 1 in Vietnam, how many ideas
     # a day the AI is asked for, and the AI's last plan, kept for a member to look at before it replaces the plan.
     plan_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")

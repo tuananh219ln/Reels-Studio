@@ -203,6 +203,21 @@ export type VideoDetail = VideoRow & {
 
 export type VideoLink = { id: number; title: string; platform: VideoPlatform };
 
+/** "Đã dùng trong nhóm": photos and clips of the other videos in a scene's topic group, best match first. */
+export type GroupMedia = {
+  items: {
+    scene_id: number;
+    video_id: number;
+    video_title: string;
+    text: string;
+    keywords: string[];
+    kind: "photo" | "clip";
+    url: string;
+  }[];
+  /** How many pictures the group's other videos hold, matching or not. */
+  total: number;
+};
+
 export type TikTokPost = { id: number; url: string; account: string | null; at: string; created_by: string };
 
 export type KnowledgeTopic = {
@@ -211,6 +226,8 @@ export type KnowledgeTopic = {
   script_prompt: string;
   clone_prompt: string;
   banned_words: string[];
+  /** "Gợi ý tìm ảnh": what the group's photos show, added to the script prompts for the search keywords. */
+  photo_hint: string;
   video_count: number;
 };
 

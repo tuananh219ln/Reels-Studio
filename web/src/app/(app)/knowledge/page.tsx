@@ -266,7 +266,10 @@ function TopicBody({
                   </Flex>
                 </Col>
                 <Col xs={24} xl={8}>
-                  <BannedWordsCard initial={topic.banned_words} update={update} />
+                  <Flex vertical gap={16}>
+                    <BannedWordsCard initial={topic.banned_words} update={update} />
+                    <PhotoHintCard initial={topic.photo_hint} update={update} />
+                  </Flex>
                 </Col>
               </Row>
             ),
@@ -375,6 +378,45 @@ function PromptCard({
           Khôi phục mặc định
         </Button>
       </Flex>
+    </Card>
+  );
+}
+
+/** "Gợi ý tìm ảnh": what this group's photos show, read by the AI when it writes the scenes' search keywords. */
+function PhotoHintCard({ initial, update }: { initial: string; update: Update }) {
+  const { message } = App.useApp();
+  const [text, setText] = useState(initial);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      setText((await update({ photo_hint: text })).photo_hint);
+      message.success("Đã lưu gợi ý tìm ảnh");
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Gợi ý tìm ảnh" size="small">
+      <Typography.Paragraph type="secondary">
+        Ảnh của nhóm này nên cho thấy gì. AI đọc gợi ý này khi viết từ khóa tìm ảnh và prompt ảnh AI cho từng cảnh, áp
+        dụng cho kịch bản viết sau khi lưu. Để trống nếu không cần.
+      </Typography.Paragraph>
+      <Input.TextArea
+        aria-label="Gợi ý tìm ảnh"
+        value={text}
+        placeholder="VD: cây rau đang mọc trong chậu, luống đất hoặc tay người đang chăm cây; không phải món rau đã nấu"
+        autoSize={{ minRows: 3, maxRows: 8 }}
+        maxLength={1000}
+        onChange={(event) => setText(event.target.value)}
+      />
+      <Button type="primary" loading={busy} style={{ marginTop: 12 }} onClick={save}>
+        Lưu gợi ý
+      </Button>
     </Card>
   );
 }

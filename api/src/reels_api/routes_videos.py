@@ -48,7 +48,7 @@ from .models import (
 from .openverse import Openverse, OpenverseError
 from .pexels import Pexels, PexelsError
 from .pixabay import ORIENTATIONS, Pixabay, PixabayError
-from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, text_problem
+from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, plain_title, text_problem
 from .sessions import current_member, now
 from .storage import DirectoryStorage, get_storage
 from .uploads import (
@@ -901,6 +901,107 @@ class MediaLinkBody(BaseModel):
     url: str
 
 
+class ReuseBody(BaseModel):
+    scene_id: int
+
+
+MAX_GROUP_MEDIA = 60
+
+
+def _folded(text: str) -> str:
+    """Lower case without accents, so "cai be" finds "Cải bẹ"."""
+    plain = unicodedata.normalize("NFD", text.replace("đ", "d").replace("Đ", "D"))
+    return "".join(char for char in plain if not unicodedata.combining(char)).lower()
+
+
+def _words(texts: list[str]) -> set[str]:
+    # \w+ drops the *stars* around highlighted words and other punctuation.
+    return {word for text in texts for word in re.findall(r"\w+", _folded(text)) if len(word) > 1}
+
+
+@router.get("/scenes/{scene_id}/group-media")
+def group_media(
+    scene_id: int, q: str = "", me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Đã dùng trong nhóm": the photos and clips of the other videos in this scene's topic group, best match first:
+    by the words typed, else by the words this scene's keywords share with theirs. Read only; "Dùng" copies one."""
+    scene = db.get(Scene, scene_id)
+    if scene is None:
+        raise ApiError(404, "scene_not_found", "Không tìm thấy cảnh")
+    video = db.get(Video, scene.video_id)
+    rows = db.execute(
+        select(Scene, Video)
+        .join(Video, Scene.video_id == Video.id)
+        .where(
+            Video.knowledge_topic_id == video.knowledge_topic_id,
+            Video.id != video.id,
+            or_(Scene.image_key.is_not(None), Scene.video_key.is_not(None)),
+        )
+        .order_by(Scene.id.desc())
+    ).all()
+    titles = dict(
+        db.execute(
+            select(Scene.video_id, Scene.text).where(
+                Scene.is_title, Scene.video_id.in_({other.id for _, other in rows})
+            )
+        ).all()
+    )
+    typed = _words([q])
+    wanted = typed or _words([*scene.keywords, *scene.keywords_en])
+    found = []
+    for other_scene, other in rows:
+        words = _words([*other_scene.keywords, *other_scene.keywords_en, other_scene.text])
+        score = len(wanted & words)
+        if typed and score < len(typed):
+            continue  # every typed word must be there
+        found.append((score, other_scene, other))
+    found.sort(key=lambda row: -row[0])  # stable: the newest first among equals
+    items = []
+    for _, other_scene, other in found[:MAX_GROUP_MEDIA]:
+        base = f"/api/scenes/{other_scene.id}"
+        items.append(
+            {
+                "scene_id": other_scene.id,
+                "video_id": other.id,
+                "video_title": plain_title(titles.get(other.id, "")) or other.topic,
+                "text": other_scene.text,
+                "keywords": other_scene.keywords,
+                "kind": "clip" if other_scene.video_key else "photo",
+                "url": f"{base}/video" if other_scene.video_key else f"{base}/image",
+            }
+        )
+    return {"items": items, "total": len(rows)}
+
+
+@router.post("/scenes/{scene_id}/reuse")
+def reuse_media(
+    scene_id: int,
+    body: ReuseBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Dùng" on "Đã dùng trong nhóm": a copy of another video's photo or clip in this group, stored as this scene's
+    own file (deleting either video leaves the other's intact). A photo keeps its source, for a copyright claim."""
+    scene = db.get(Scene, scene_id)
+    source = db.get(Scene, body.scene_id)
+    if scene is None or source is None:
+        raise ApiError(404, "scene_not_found", "Không tìm thấy cảnh")
+    video, other = db.get(Video, scene.video_id), db.get(Video, source.video_id)
+    if other.knowledge_topic_id != video.knowledge_topic_id:
+        raise invalid("Chỉ dùng lại được ảnh/video của video cùng nhóm chủ đề")
+    image_key, image_source, clip_key = source.image_key, source.image_source, source.video_key
+    db.rollback()
+    if clip_key:
+        with tempfile.TemporaryDirectory(prefix="reels_reuse_") as folder:
+            copy = storage.copy_to(clip_key, Path(folder) / f"clip{Path(clip_key).suffix}")
+            return _attach_clip(db, storage, scene_id, copy)
+    if not image_key:
+        raise invalid("Cảnh đó không còn ảnh hay video để dùng lại")
+    data = storage.path(image_key).read_bytes()
+    return _store_photo(db, storage, scene_id, data, Path(image_key).suffix.lstrip("."), image_source or "upload")
+
+
 @router.post("/scenes/{scene_id}/media-from-url")
 def media_from_url(
     scene_id: int,
@@ -1609,6 +1710,10 @@ class TopicPatchBody(BaseModel):
     script_prompt: str | None = None
     clone_prompt: str | None = None
     banned_words: list[str] | None = None
+    photo_hint: str | None = None
+
+
+MAX_PHOTO_HINT_LENGTH = 1000
 
 
 def _knowledge_payload(db: DbSession) -> dict:
@@ -1621,6 +1726,7 @@ def _knowledge_payload(db: DbSession) -> dict:
                 "script_prompt": topic.script_prompt,
                 "clone_prompt": topic.clone_prompt,
                 "banned_words": topic.banned_words,
+                "photo_hint": topic.photo_hint,
                 "video_count": counts.get(topic.id, 0),
             }
             for topic in knowledge.all_topics(db)
@@ -1684,6 +1790,11 @@ def patch_topic(
         topic.banned_words = list(
             dict.fromkeys(_clean_list(body.banned_words, MAX_KEYWORD_LENGTH, "Từ cấm", max_items=500))
         )
+    if body.photo_hint is not None:
+        hint = unicodedata.normalize("NFC", body.photo_hint.replace("\r\n", "\n")).strip()
+        if len(hint) > MAX_PHOTO_HINT_LENGTH:
+            raise invalid(f"Gợi ý tìm ảnh dài quá {MAX_PHOTO_HINT_LENGTH} ký tự")
+        topic.photo_hint = hint
     topic.updated_by_id = me.user_id
     db.commit()
     return _knowledge_payload(db)

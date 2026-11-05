@@ -97,7 +97,12 @@ def test_script_job_writes_the_script_then_a_photo_search_fills_the_scenes(commi
 def test_edited_prompt_without_placeholder_gets_the_topic_appended(committed, services, start_worker):
     user = add_user(committed)
     with committed() as db:
-        topic = KnowledgeTopic(name="Tim mạch", script_prompt="Viết 5 món dễ tìm.", banned_words=["thần dược"])
+        topic = KnowledgeTopic(
+            name="Tim mạch",
+            script_prompt="Viết 5 món dễ tìm.",
+            banned_words=["thần dược"],
+            photo_hint="món đã bày ra đĩa",
+        )
         db.add(topic)
         db.flush()
         video = Video(topic="tim mạch", knowledge_topic_id=topic.id, has_script=False, created_by_id=user.id)
@@ -110,6 +115,7 @@ def test_edited_prompt_without_placeholder_gets_the_topic_appended(committed, se
     prompt = services.claude_prompts[0]
     assert prompt.startswith("Viết 5 món dễ tìm.\n\nChủ đề: tim mạch\n\n")
     assert "thần dược" in prompt and "khắc tinh" not in prompt, "only this topic's banned words"
+    assert "Ảnh của nhóm chủ đề này: món đã bày ra đĩa" in prompt, "the group's photo hint"
 
 
 def test_a_broken_answer_is_retried_once_then_the_job_fails(committed, services, start_worker):

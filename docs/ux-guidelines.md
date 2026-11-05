@@ -209,9 +209,13 @@ Built:
     photo or a link from the clipboard, or opens a box to paste into ("Dán ảnh hoặc video cho …",
     "Lấy về") when the browser does not allow it; Cmd/ Ctrl+V anywhere in the picture column outside
     a text field does the same. A link may be a photo's, a video file's or a TikTok video's; a video
-    longer than 60 s keeps its first 60 s. "Tìm trên Google" opens Google Ảnh in a new tab on the
-    scene's first keyword, tall photos only, and "Tìm trên TikTok" TikTok's video search on the same
-    keyword, to copy a photo or a video's link and paste it back. Then "Chọn từ kho ảnh/video", "Tìm ảnh" with its source arrow,
+    longer than 60 s keeps its first 60 s. "Tìm trên Google" opens Google Ảnh in a new tab, tall
+    photos only, and "Tìm trên TikTok" TikTok's video search, to copy a photo or a video's link and
+    paste it back; with more than one keyword each button first lists them ("… với từ khóa:", Google
+    the Vietnamese then the English ones, TikTok the Vietnamese ones) and opens on the one picked. Then
+    "Chọn từ kho ảnh/video", "Đã dùng trong nhóm" (a dialog of the photos and clips the group's other
+    videos use, best match for the scene's keywords first, a search box that ignores accents, and
+    "Dùng" on each, which copies it into the scene, asking first when the scene has a picture), "Tìm ảnh" with its source arrow,
     then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the photo is already an AI one): an image job for this
     scene only, from its saved prompt, that replaces the scene's photo or clip, asking first when
     there is one; while it runs the button reads "Đang tạo ảnh AI…" and the job bar says "Tạo ảnh AI
@@ -335,7 +339,7 @@ Built:
   empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
   video"; a clone keeps its source's group. Two tabs: "Prompt và từ cấm" (the script prompt and the
   clone prompt, each with "Lưu" and "Khôi phục mặc định", and beside them on a wide screen the banned
-  words with "Lưu từ cấm"), "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on
+  words with "Lưu từ cấm", then "Gợi ý tìm ảnh" with "Lưu gợi ý"), "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on
   the tab's name goes to the Backlog):
   - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Giờ đăng" (1–5 times, as tags), "Đã làm
     X/Y ý tưởng" with a bar, and a strip of 30 small cells, one a day (Trống, Có ý tưởng, Đang làm, Đủ

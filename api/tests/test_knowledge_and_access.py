@@ -55,6 +55,16 @@ def test_a_new_topic_starts_empty_and_is_saved_on_its_own(an):
     assert an.patch(path, json={"name": "Da đẹp"}).json()["topics"][1]["name"] == "Da đẹp"
 
 
+def test_a_topics_photo_hint_is_saved_trimmed_may_be_emptied_and_has_a_limit(an):
+    topic = an.get("/api/knowledge").json()["topics"][0]
+    assert topic["photo_hint"] == ""
+    path = f"/api/knowledge/topics/{topic['id']}"
+    saved = an.patch(path, json={"photo_hint": "  cây rau đang mọc trong chậu\r\n "}).json()["topics"][0]
+    assert saved["photo_hint"] == "cây rau đang mọc trong chậu"
+    assert an.patch(path, json={"photo_hint": ""}).json()["topics"][0]["photo_hint"] == ""
+    assert an.patch(path, json={"photo_hint": "x" * 1001}).status_code == 422
+
+
 def test_topic_names_are_required_and_unique(an):
     assert an.post("/api/knowledge/topics", json={"name": "  "}).json()["message"] == "Hãy nhập tên nhóm chủ đề"
     assert (

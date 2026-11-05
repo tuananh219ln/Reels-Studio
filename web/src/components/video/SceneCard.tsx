@@ -8,6 +8,7 @@ import {
   DragOutlined,
   EyeOutlined,
   GoogleOutlined,
+  HistoryOutlined,
   InboxOutlined,
   PictureOutlined,
   PlayCircleOutlined,
@@ -47,6 +48,7 @@ import {
   unwrapLink,
 } from "@/lib/mediaLinks";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
+import GroupMediaPicker from "./GroupMediaPicker";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
 import SceneViewer from "./SceneViewer";
@@ -364,6 +366,8 @@ function ScenePicture({
   const [busy, setBusy] = useState<Busy | null>(null);
   const [error, setError] = useState<{ kind: Busy; message: string } | null>(null);
   const [picking, setPicking] = useState(false);
+  // "Đã dùng trong nhóm" is open.
+  const [reusing, setReusing] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [framing, setFraming] = useState(false);
   const [viewing, setViewing] = useState(false);
@@ -484,9 +488,9 @@ function ScenePicture({
   }
 
   /** "Tìm trên Google" / "Tìm trên TikTok": the keyword being typed is saved first, then the site opens in a tab. */
-  async function search(url: (keyword: string) => string) {
+  async function search(url: (keyword: string) => string, keyword: string) {
     await editor.flush();
-    window.open(url(searchKeyword), "_blank", "noopener");
+    window.open(url(keyword), "_blank", "noopener");
   }
 
   /** "Dán ảnh/link": the clipboard read directly when the browser allows it, otherwise a box to paste into. */
@@ -530,7 +534,9 @@ function ScenePicture({
   const which = scene.is_title ? "cảnh tiêu đề" : "cảnh";
   const canPlace = !!scene.preview_url && !reason && !!scene.textbox_url && !!scene.frame_url;
   const uploading = busy === "upload" || busy === "video" || busy === "link";
-  const searchKeyword = scene.keywords[0] ?? scene.keywords_en[0] ?? "";
+  // Google is searched in either language; TikTok's Vietnamese videos are found by the Vietnamese keywords.
+  const googleKeywords = [...new Set([...scene.keywords, ...scene.keywords_en])];
+  const tiktokKeywords = scene.keywords.length ? scene.keywords : scene.keywords_en;
   const replaceQuestion = scene.video
     ? "Ảnh AI sẽ thay video của cảnh này?"
     : scene.image_ai
@@ -750,22 +756,22 @@ function ScenePicture({
                 onClick={() => void pasteFromClipboard()}
               />
             </Tooltip>
-            <Tooltip title="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa của cảnh; sao chép ảnh ưng ý rồi quay lại dán vào đây">
-              <Button
-                aria-label="Tìm trên Google"
-                icon={<GoogleOutlined />}
-                disabled={off}
-                onClick={() => void search(googleImagesUrl)}
-              />
-            </Tooltip>
-            <Tooltip title="Tìm trên TikTok: mở video TikTok với từ khóa của cảnh; sao chép link video ưng ý rồi quay lại dán vào đây">
-              <Button
-                aria-label="Tìm trên TikTok"
-                icon={<TikTokOutlined />}
-                disabled={off}
-                onClick={() => void search(tiktokSearchUrl)}
-              />
-            </Tooltip>
+            <SiteSearch
+              label="Tìm trên Google"
+              icon={<GoogleOutlined />}
+              tip="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa bạn chọn; sao chép ảnh ưng ý rồi quay lại dán vào đây"
+              keywords={googleKeywords}
+              disabled={off}
+              onSearch={(keyword) => void search(googleImagesUrl, keyword)}
+            />
+            <SiteSearch
+              label="Tìm trên TikTok"
+              icon={<TikTokOutlined />}
+              tip="Tìm trên TikTok: mở video TikTok với từ khóa bạn chọn; sao chép link video ưng ý rồi quay lại dán vào đây"
+              keywords={tiktokKeywords}
+              disabled={off}
+              onSearch={(keyword) => void search(tiktokSearchUrl, keyword)}
+            />
           </Flex>
           <Switching
             show={scene.video !== null}
@@ -781,6 +787,19 @@ function ScenePicture({
               Chọn từ kho ảnh/video
             </Button>
           </Switching>
+          <Button
+            className="scene-action"
+            icon={<HistoryOutlined />}
+            disabled={off}
+            block
+            onClick={async () => {
+              // The list is ranked by the keywords on screen, so their save goes first.
+              await editor.flush();
+              setReusing(true);
+            }}
+          >
+            Đã dùng trong nhóm
+          </Button>
           <Space.Compact block>
             <Switching
               show={scene.video !== null}
@@ -908,7 +927,57 @@ function ScenePicture({
           onClose={() => setPicking(false)}
         />
       )}
+      {reusing && <GroupMediaPicker sceneId={scene.id} hasPicture={hasPicture} onClose={() => setReusing(false)} />}
     </Flex>
+  );
+}
+
+/**
+ * "Tìm trên Google" / "Tìm trên TikTok": with one keyword the site opens on it; with several the member picks which,
+ * since the first one is not always the one that finds the right picture.
+ */
+function SiteSearch({
+  label,
+  icon,
+  tip,
+  keywords,
+  disabled,
+  onSearch,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  tip: string;
+  keywords: string[];
+  disabled: boolean;
+  onSearch: (keyword: string) => void;
+}) {
+  const button = (
+    <Button
+      aria-label={label}
+      icon={icon}
+      disabled={disabled}
+      onClick={keywords.length > 1 ? undefined : () => onSearch(keywords[0] ?? "")}
+    />
+  );
+  if (keywords.length <= 1) {
+    return <Tooltip title={tip}>{button}</Tooltip>;
+  }
+  return (
+    <Tooltip title={tip}>
+      <Dropdown
+        trigger={["click"]}
+        disabled={disabled}
+        menu={{
+          items: [
+            { key: "head", type: "group", label: `${label} với từ khóa:` },
+            ...keywords.map((keyword) => ({ key: keyword, label: keyword })),
+          ],
+          onClick: ({ key }) => onSearch(key),
+        }}
+      >
+        {button}
+      </Dropdown>
+    </Tooltip>
   );
 }
 
