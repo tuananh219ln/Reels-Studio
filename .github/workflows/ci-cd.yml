@@ -310,6 +310,9 @@ jobs:
 
   deploy-web:
     needs: deploy-api
+    # The default success() also looks at deploy-api's own needs, which are skipped when the checks
+    # already passed on the merged PR; that silently skipped this job. Follow deploy-api alone.
+    if: ${{ !cancelled() && needs.deploy-api.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: production
