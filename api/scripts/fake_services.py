@@ -110,6 +110,17 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
 PAIN_GROUPS = ["Huyết áp và tim mạch", "Đường huyết", "Xương khớp", "Mất ngủ", "Tiêu hóa và gan", "Da và tóc"]
 
 
+def revise_json(prompt: str) -> dict:
+    """ "Nhờ AI sửa": the first note's scene gets a new on-screen text and a layer at its second; every note an answer."""
+    notes = re.findall(r"^- Góp ý (\d+) \[[^\]]+\] (Cảnh tiêu đề|Cảnh (\d+)):", prompt, flags=re.MULTILINE)
+    scene = int(notes[0][2]) if notes and notes[0][2] else 1
+    return {
+        "changes": [{"scene": scene, "text": "Đã sửa\n*theo góp ý*"}],
+        "layers": [{"scene": scene, "start": 0.2, "seconds": 2, "text": "GIẢM *50%*"}],
+        "replies": [{"note": int(number), "reply": f"Đã sửa theo góp ý {number}."} for number, _, _ in notes],
+    }
+
+
 def plan_json(first: int, last: int, per_day: int = 4) -> dict:
     """A 30-day plan answer for days `first` to `last`, every topic different."""
     return {
@@ -292,9 +303,17 @@ class FakeServices:
         plan = re.search(r"chỉ lập ngày (\d+) đến ngày (\d+), mỗi ngày đúng (\d+) ý tưởng", prompt)
         if reply is None and plan:
             reply = plan_json(*(int(number) for number in plan.groups()))
+        elif reply is None and "<gop-y>" in prompt:
+            reply = revise_json(prompt)
         elif reply is None:
             topic = prompt.split("Chủ đề: ", 1)[-1].split("\n", 1)[0].strip() or "sức khỏe"
             reply = script_json(topic, self.default_seconds)
+            if "HIỆU ỨNG CHO TỪNG CẢNH" in prompt:
+                # "AI gợi ý hiệu ứng": a transition on every scene, a sound on the first, a line of text on the second.
+                for index, scene in enumerate(reply["scenes"]):
+                    scene["effects"] = {"transition": ["circle", "zoom", "slide"][index % 3], "color": None}
+                reply["scenes"][0]["effects"]["sounds"] = [{"sound": "ding", "start": 0.2}]
+                reply["scenes"][1]["effects"]["layer"] = {"text": "Dễ *trồng*", "start": 0, "seconds": 1}
         text = reply if isinstance(reply, str) else json.dumps(reply, ensure_ascii=False)
         return 200, {
             "id": "msg_fake",

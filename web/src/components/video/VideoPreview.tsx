@@ -3,12 +3,17 @@
 import {
   AppstoreOutlined,
   CaretRightOutlined,
+  CommentOutlined,
+  CustomerServiceOutlined,
+  FontSizeOutlined,
   MobileOutlined,
   PauseOutlined,
+  QuestionCircleOutlined,
   SoundOutlined,
   ReloadOutlined,
   StepBackwardOutlined,
   StepForwardOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -19,6 +24,7 @@ import {
   Flex,
   InputNumber,
   Popconfirm,
+  Popover,
   Segmented,
   Select,
   Switch,
@@ -27,12 +33,31 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import ListenVolume, { useListen } from "@/components/ListenVolume";
 import { COLORS } from "@/app/theme";
-import { api, errorMessage, upload, type SceneData, type VideoDetail, type VideoOptions } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  upload,
+  type SceneData,
+  type SceneLayer,
+  type SceneSound,
+  type VideoDetail,
+  type VideoOptions,
+} from "@/lib/api";
+import AutoEditPanel from "./preview/AutoEditPanel";
 import ClipTrim from "./preview/ClipTrim";
 import { coveredBy } from "./preview/coverage";
 import { useHistory } from "./preview/history";
 import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
+import { LayerList, LayerTools } from "./preview/LayerPanel";
+import LayerStage from "./preview/LayerStage";
+import { NoteBar, NoteTools } from "./preview/NotePanel";
+import { SoundList, SoundStage, SoundTools } from "./preview/SoundPanel";
+import { musicGain } from "./preview/sounds";
+import SceneEffects from "./preview/SceneEffects";
+import SceneInspector from "./preview/SceneInspector";
+import { colorCss } from "./preview/effects";
+import { type LockableTrack, lanesFor } from "./preview/tracks";
 import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
@@ -43,13 +68,31 @@ import "./preview/editor.css";
 const PLATFORM_KEY = "reels-studio.preview-platform";
 
 /** The editor's left column: each tool opens its panel beside it. */
-type Tool = "scene" | "frame" | "voice";
+type Tool = "scene" | "layers" | "sounds" | "auto" | "notes" | "frame" | "voice";
 const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
   { key: "scene", label: "Cảnh", icon: <AppstoreOutlined /> },
+  { key: "layers", label: "Chữ & sticker", icon: <FontSizeOutlined /> },
+  { key: "sounds", label: "Âm thanh", icon: <CustomerServiceOutlined /> },
+  { key: "auto", label: "Tự dựng", icon: <ThunderboltOutlined /> },
+  { key: "notes", label: "Góp ý", icon: <CommentOutlined /> },
   { key: "frame", label: "Khung", icon: <MobileOutlined /> },
   { key: "voice", label: "Giọng đọc", icon: <SoundOutlined /> },
 ];
 const VOICE_KEY = "reels-studio.preview-voice";
+/** The tracks each member locked, per video, in their browser only: a lock guards their own clicks, not the video. */
+const LOCKS_KEY = "reels-studio.studio-locks";
+const NO_LOCKS: Record<LockableTrack, boolean> = { scene: false, text: false, layer: false };
+/** A layer's fields as the api takes them back ("Hoàn tác" of a removal adds it again). */
+const LAYER_FIELDS = ["kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation"] as const;
+
+function savedLocks(videoId: number): Record<LockableTrack, boolean> {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(LOCKS_KEY) ?? "{}")[videoId];
+    return { scene: saved?.scene === true, text: saved?.text === true, layer: saved?.layer === true };
+  } catch {
+    return NO_LOCKS;
+  }
+}
 
 // The renderer's timing and motion (reels_render.timeline, options, graph): keep these in step with it.
 const XFADE_MS = 400;
@@ -180,8 +223,15 @@ export default function VideoPreview({
   const [boxes, setBoxes] = useState<Record<string, { width: number; height: number }>>({});
   // Editing from the preview: what the editor allows, the text box being dragged, and where a drop applies.
   const editor = useEditor();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const editable = !editor.locked && !editor.readOnly;
+  // A locked track keeps its own changes out of reach: the scenes' (seconds, order, clip, split, delete) or the text's.
+  const [locks, setLocks] = useState(() => savedLocks(video.id));
+  const scenesEditable = editable && !locks.scene;
+  const textEditable = editable && !locks.text;
+  const layersEditable = editable && !locks.layer;
+  // The text or sticker layer picked on the phone or in "Chỉnh cảnh N" (outlined, open, removed by Delete).
+  const [pickedLayer, setPickedLayer] = useState<number | null>(null);
   const [dragged, setDragged] = useState<{ sceneId: number; centre: [number, number] } | null>(null);
   const [scope, setScope] = useState<"scene" | "all">("scene");
   // The clip frame the trim bar asks the phone to show while its window is dragged.
@@ -255,8 +305,9 @@ export default function VideoPreview({
       return next;
     });
     if (music.current) {
-      // The music runs from the video's start, so a preview from a later scene starts it that far in.
-      const offset = startOf(index) + fromMs / 1000;
+      // The music runs from the video's start (and the song from its chosen second), so a preview from a later
+      // scene starts it that far in.
+      const offset = video.music_start + startOf(index) + fromMs / 1000;
       const length = music.current.duration;
       music.current.currentTime = Number.isFinite(length) && length > 0 ? offset % length : offset;
       if (play) void music.current.play().catch(() => undefined);
@@ -324,8 +375,10 @@ export default function VideoPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.run, playing, ended]);
 
+  /** The music's level now: the video's, the scene's own level, ducking, the listener's; a browser stops at 1. */
   function musicLevel(duckedNow: boolean, factor: number) {
-    return (video.music_volume / 100) * (duckedNow && video.options.ducking ? DUCKED : 1) * factor;
+    const level = (video.music_volume / 100) * musicGain(scene?.music_level ?? null);
+    return Math.min(1, level * (duckedNow && video.options.ducking ? DUCKED : 1) * factor);
   }
 
   // A new listening level applies at once to what is playing; the browser's voice takes it from its next scene.
@@ -431,7 +484,7 @@ export default function VideoPreview({
       return;
     }
     audio.volume = musicLevel(false, listenRef.current);
-    const offset = scenes.slice(0, start).reduce((sum, item) => sum + item.fitted_seconds, 0);
+    const offset = video.music_start + scenes.slice(0, start).reduce((sum, item) => sum + item.fitted_seconds, 0);
     const begin = () => {
       audio.currentTime = audio.duration > 0 ? offset % audio.duration : 0;
       void audio.play().catch(() => undefined);
@@ -465,6 +518,19 @@ export default function VideoPreview({
     } catch {
       // A browser that refuses storage just forgets the choice.
     }
+  }
+
+  function toggleLock(track: LockableTrack) {
+    setLocks((current) => {
+      const next = { ...current, [track]: !current[track] };
+      try {
+        const all = JSON.parse(window.localStorage.getItem(LOCKS_KEY) ?? "{}");
+        window.localStorage.setItem(LOCKS_KEY, JSON.stringify({ ...all, [video.id]: next }));
+      } catch {
+        // A browser that refuses storage just forgets the locks when the studio closes.
+      }
+      return next;
+    });
   }
 
   function toggle() {
@@ -530,6 +596,10 @@ export default function VideoPreview({
       } else if (key === "video_start") back.video_start = target.video?.start ?? 0;
       else if (key === "text") back.text = target.text;
       else if (key === "text_position") back.text_position = target.text_position;
+      else if (key === "transition") back.transition = target.transition;
+      else if (key === "color") back.color = target.color;
+      else if (key === "video_speed") back.video_speed = target.video?.speed ?? 1;
+      else if (key === "music_level") back.music_level = target.music_level;
     }
     return back;
   }
@@ -539,6 +609,168 @@ export default function VideoPreview({
     return history.run({ label, redo: patchOf(target.id, body), undo: patchOf(target.id, backOf(target, body)) });
   }
   const patchScene = (body: Record<string, unknown>) => changeScene("sửa cảnh", scene, body);
+
+  /** The newest layer of a scene in a saved video: the one just added. */
+  const newestLayer = (saved: VideoDetail, sceneId: number) =>
+    [saved.title_scene, ...saved.scenes].find((item) => item?.id === sceneId)?.layers.at(-1)?.id ?? null;
+
+  /** A text or sticker layer added to the scene shown, from the playhead's second in it; picked once added. */
+  function addLayer(body: Record<string, unknown>) {
+    const target = scene;
+    if (!target || target.is_title) return;
+    // Rounded down, so the new layer already shows at the playhead.
+    const into = Math.floor((position() - startOf(phase.index)) * 10) / 10;
+    const start = Math.min(Math.max(0, into), Math.max(0, target.fitted_seconds - 0.5));
+    let made: number | null = null;
+    void history.run({
+      label: body.kind === "text" ? "thêm chữ" : "thêm sticker",
+      redo: async () => {
+        const saved = await api<VideoDetail>("/layers", "POST", { scene_id: target.id, start, ...body });
+        made = newestLayer(saved, target.id);
+        setPickedLayer(made);
+        return saved;
+      },
+      undo: () => api<VideoDetail>(`/layers/${made}`, "DELETE"),
+    });
+  }
+
+  /** A change to one layer, kept for "Hoàn tác". */
+  function changeLayer(layer: SceneLayer, label: string, body: Record<string, unknown>) {
+    const back = Object.fromEntries(Object.keys(body).map((key) => [key, layer[key as keyof SceneLayer]]));
+    void history.run({
+      label,
+      redo: () => api<VideoDetail>(`/layers/${layer.id}`, "PATCH", body),
+      undo: () => api<VideoDetail>(`/layers/${layer.id}`, "PATCH", back),
+    });
+  }
+
+  /** The newest sound of a scene in a saved video: the one just added. */
+  const newestSound = (saved: VideoDetail, sceneId: number) =>
+    [saved.title_scene, ...saved.scenes].find((item) => item?.id === sceneId)?.sounds.at(-1)?.id ?? null;
+
+  /** A sound effect added to the scene shown, at the playhead's second in it. */
+  function addSound(sound: string) {
+    const target = scene;
+    if (!target) return;
+    const into = Math.floor((position() - startOf(phase.index)) * 10) / 10;
+    const start = Math.min(Math.max(0, into), Math.max(0, target.fitted_seconds - 0.1));
+    let made: number | null = null;
+    void history.run({
+      label: "thêm âm",
+      redo: async () => {
+        const saved = await api<VideoDetail>("/sounds", "POST", { scene_id: target.id, sound, start });
+        made = newestSound(saved, target.id);
+        return saved;
+      },
+      undo: () => api<VideoDetail>(`/sounds/${made}`, "DELETE"),
+    });
+  }
+
+  function changeSound(sound: SceneSound, label: string, body: Record<string, unknown>) {
+    const back = Object.fromEntries(Object.keys(body).map((key) => [key, sound[key as keyof SceneSound]]));
+    void history.run({
+      label,
+      redo: () => api<VideoDetail>(`/sounds/${sound.id}`, "PATCH", body),
+      undo: () => api<VideoDetail>(`/sounds/${sound.id}`, "PATCH", back),
+    });
+  }
+
+  function removeSound(sound: SceneSound, sceneId: number) {
+    let current = sound.id;
+    const fields = { sound: sound.sound, start: sound.start, volume: sound.volume };
+    void history.run({
+      label: "xoá âm",
+      redo: () => api<VideoDetail>(`/sounds/${current}`, "DELETE"),
+      undo: async () => {
+        const saved = await api<VideoDetail>("/sounds", "POST", { scene_id: sceneId, ...fields });
+        current = newestSound(saved, sceneId) ?? current;
+        return saved;
+      },
+    });
+  }
+
+  /**
+   * "Tự dựng": a template on the whole video, kept for "Hoàn tác", which removes the sounds and layers it added and
+   * puts each scene's transition, colour and music level back.
+   */
+  function applyTemplate(template: "app" | number, name: string) {
+    const before = new Map(
+      scenes.map((item) => [
+        item.id,
+        {
+          transition: item.transition,
+          color: item.color,
+          music_level: item.music_level,
+          layers: new Set(item.layers.map((layer) => layer.id)),
+          sounds: new Set(item.sounds.map((sound) => sound.id)),
+        },
+      ]),
+    );
+    let added: { layers: number[]; sounds: number[] } = { layers: [], sounds: [] };
+    void history.run({
+      label: `áp mẫu ${name}`,
+      redo: async () => {
+        const saved = await api<VideoDetail>("/edit-templates/apply", "POST", { video_id: video.id, template });
+        const after = [saved.title_scene, ...saved.scenes].filter((item): item is SceneData => item !== null);
+        added = {
+          layers: after.flatMap((item) =>
+            item.layers.filter((layer) => !before.get(item.id)?.layers.has(layer.id)).map((layer) => layer.id),
+          ),
+          sounds: after.flatMap((item) =>
+            item.sounds.filter((sound) => !before.get(item.id)?.sounds.has(sound.id)).map((sound) => sound.id),
+          ),
+        };
+        return saved;
+      },
+      undo: async () => {
+        for (const id of added.layers) await api<VideoDetail>(`/layers/${id}`, "DELETE");
+        for (const id of added.sounds) await api<VideoDetail>(`/sounds/${id}`, "DELETE");
+        let saved: VideoDetail | null = null;
+        for (const [id, look] of before) {
+          const body = { transition: look.transition, color: look.color, music_level: look.music_level };
+          const scene = scenes.find((item) => item.id === id);
+          // The title scene never had a transition or a colour of its own: only its music level goes back.
+          saved = await api<VideoDetail>(
+            `/scenes/${id}`,
+            "PATCH",
+            scene?.is_title ? { music_level: look.music_level } : body,
+          );
+        }
+        return saved ?? api<VideoDetail>(`/videos/${video.id}`);
+      },
+    });
+  }
+
+  /** A comment at a second ("Góp ý"); not an edit of the video, so not in "Hoàn tác". */
+  function addNote(at: number, text: string) {
+    return save(() => api<VideoDetail>("/notes", "POST", { video_id: video.id, at: Math.round(at * 10) / 10, text }));
+  }
+
+  /** "Bài nhạc bắt đầu từ giây": the video's, kept for "Hoàn tác". */
+  function changeMusicStart(seconds: number) {
+    const before = video.music_start;
+    void history.run({
+      label: "đổi đoạn nhạc",
+      redo: () => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { music_start: seconds }),
+      undo: () => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { music_start: before }),
+    });
+  }
+
+  /** A layer removed; "Hoàn tác" adds it back (on top of the scene's others). */
+  function removeLayer(layer: SceneLayer, sceneId: number) {
+    let current = layer.id;
+    const fields = Object.fromEntries(LAYER_FIELDS.map((key) => [key, layer[key]]));
+    setPickedLayer(null);
+    void history.run({
+      label: "xoá lớp",
+      redo: () => api<VideoDetail>(`/layers/${current}`, "DELETE"),
+      undo: async () => {
+        const saved = await api<VideoDetail>("/layers", "POST", { scene_id: sceneId, ...fields });
+        current = newestLayer(saved, sceneId) ?? current;
+        return saved;
+      },
+    });
+  }
 
   /** A text box dropped on the stage: this scene's own place, or the place of every content scene. */
   function dropBox(centre: [number, number]) {
@@ -604,6 +836,55 @@ export default function VideoPreview({
     });
   }
 
+  /**
+   * Where "Tách cảnh" would cut the scene on the stage: the playhead's second in it, in tenths, when both parts would
+   * last at least a second (the title scene is never split).
+   */
+  function splitPoint(): number | null {
+    if (!scene || scene.is_title) return null;
+    const within = Math.round((position() - startOf(phase.index)) * 10) / 10;
+    return within >= 1 && within <= scene.seconds - 1 ? within : null;
+  }
+
+  /** "Tách cảnh": the scene ends at the playhead and its rest becomes a new silent scene; kept for "Hoàn tác". */
+  function splitScene() {
+    const at = splitPoint();
+    if (at === null) {
+      message.info("Đưa đầu phát vào giữa cảnh (cách hai đầu cảnh ít nhất 1 giây) để tách.");
+      return;
+    }
+    const target = scene;
+    let made: number | null = null;
+    void history.run({
+      label: "tách cảnh",
+      redo: async () => {
+        const saved = await api<VideoDetail>(`/scenes/${target.id}/split`, "POST", { at });
+        const ids = saved.scenes.map((item) => item.id);
+        made = ids[ids.indexOf(target.id) + 1] ?? null;
+        return saved;
+      },
+      undo: async () => {
+        if (made !== null) await api<VideoDetail>(`/scenes/${made}`, "DELETE");
+        return api<VideoDetail>(`/scenes/${target.id}`, "PATCH", {
+          seconds: target.seconds,
+          seconds_auto: target.seconds_auto,
+        });
+      },
+    });
+  }
+
+  function confirmRemove() {
+    if (!scene || scene.is_title) return;
+    modal.confirm({
+      title: `Xoá ${label(phase.index).toLowerCase()}?`,
+      content: "Không hoàn tác được.",
+      okText: "Xoá",
+      okButtonProps: { danger: true },
+      cancelText: "Huỷ",
+      onOk: () => removeScene(),
+    });
+  }
+
   async function removeScene() {
     const index = phase.index;
     if (await save(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))) {
@@ -620,9 +901,11 @@ export default function VideoPreview({
         : upload<VideoDetail>(`/scenes/${target.id}/image`, file),
     );
   }
-  // The box follows the pointer only while the preview stands still on a scene.
+  // The box follows the pointer only while the preview stands still on a scene, and not while the text is locked.
   const still = !playing || ended;
-  const canDrag = editable && still;
+  // The picked layer, while it is still on the scene shown.
+  const picked = scene?.layers.find((layer) => layer.id === pickedLayer) ?? null;
+  const canDrag = textEditable && still;
 
   // The current box, where it is (or is being dragged to), and what of the chosen app would cover it.
   const boxSize = scene?.textbox_url ? boxes[scene.textbox_url] : undefined;
@@ -633,8 +916,9 @@ export default function VideoPreview({
   const covered = boxSize && boxCorner ? coveredBy(platform, boxCorner, boxSize) : [];
   const snapped = dragged && scene && dragged.sceneId === scene.id ? dragged.centre : null;
 
-  // Shortcuts while the drawer is open, unless a field is being typed in: Space plays or pauses, the arrows change
-  // scene, [ and ] take or add a tenth of a second, Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and redo.
+  // Shortcuts while the studio is open, unless a field is being typed in: Space plays or pauses, the arrows change
+  // scene, [ and ] take or add a tenth of a second, S splits the scene at the playhead, Delete removes it (asked
+  // first), Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and redo.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
@@ -655,9 +939,22 @@ export default function VideoPreview({
         goTo(phase.index - 1, false);
       } else if (event.key === "ArrowRight" && phase.index < scenes.length - 1) {
         goTo(phase.index + 1, false);
-      } else if ((event.key === "[" || event.key === "]") && editable && scene) {
+      } else if ((event.key === "[" || event.key === "]") && scenesEditable && scene) {
         const next = Math.round((scene.seconds + (event.key === "]" ? 0.1 : -0.1)) * 10) / 10;
         if (next >= 1 && next <= 10) void changeScene("đổi số giây", scene, { seconds: next });
+      } else if (event.key.toLowerCase() === "s" && !mod && scenesEditable && still) {
+        event.preventDefault();
+        splitScene();
+      } else if ((event.key === "Delete" || event.key === "Backspace") && still && picked && scene) {
+        // A picked layer goes first: the scene stays.
+        event.preventDefault();
+        if (layersEditable) removeLayer(picked, scene.id);
+      } else if ((event.key === "Delete" || event.key === "Backspace") && scenesEditable && still) {
+        event.preventDefault();
+        confirmRemove();
+      } else if (event.key === "Escape" && picked) {
+        event.stopPropagation();
+        setPickedLayer(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -688,12 +985,29 @@ export default function VideoPreview({
         onClick={() => goTo(phase.index + 1, false)}
       />
       <ListenVolume />
+      <Popover
+        trigger="click"
+        title="Phím tắt và cách sửa"
+        content={
+          <ul data-testid="preview-shortcuts" style={{ margin: 0, paddingLeft: 18, maxWidth: 340, fontSize: 13 }}>
+            <li>Cách: phát / dừng; ← →: cảnh trước / sau</li>
+            <li>[ ]: bớt / thêm 0,1 giây cho cảnh</li>
+            <li>S: tách cảnh tại đầu phát; Delete: xoá cảnh</li>
+            <li>Ctrl+Z: hoàn tác; Ctrl+Shift+Z: làm lại</li>
+            <li>Tạm dừng rồi kéo hoặc bấm đúp vào chữ trên điện thoại để dời hoặc sửa chữ</li>
+            <li>Kéo mép một cảnh trên thanh thời gian để đổi số giây, kéo cả đoạn để đổi thứ tự</li>
+            <li>Bấm ổ khoá cạnh tên tầng để khỏi lỡ tay sửa tầng đó</li>
+          </ul>
+        }
+      >
+        <Button aria-label="Phím tắt" icon={<QuestionCircleOutlined />} />
+      </Popover>
     </>
   );
 
   return (
     // A drawer from the right, so the page it previews stays in sight beside it, wide enough to lay the preview out
-    // like a video editor: the tools on the left, the phone in the middle, the timeline along the bottom.
+    // like a video editor: the tools on the left, the phone in the middle, the timeline's tracks along the bottom.
     <Drawer
       open
       placement="right"
@@ -759,29 +1073,35 @@ export default function VideoPreview({
                   ))}
                 </Flex>
               </div>
-              {scene && (
-                <SceneEditor
-                  key={`${scene.id}-${scene.seconds}`}
-                  scene={scene}
-                  label={label(phase.index)}
-                  editable={editable}
-                  still={!playing || ended}
-                  scope={scope}
-                  onScope={setScope}
-                  onPatch={patchScene}
-                  onResetPosition={() =>
-                    void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
-                  }
-                />
-              )}
-              {editable && (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  Tạm dừng để sửa trên điện thoại: kéo hoặc bấm đúp vào chữ, kéo mép hay kéo cả đoạn trên thanh thời
-                  gian. Kéo đầu phát hoặc bấm vào thước giờ để tới đúng giây cần xem. Phím: cách để phát/dừng, ← →
-                  chuyển cảnh, [ ] bớt/thêm 0,1 giây, Ctrl+Z hoàn tác.
-                </Typography.Text>
-              )}
             </>
+          )}
+
+          {tool === "layers" && <LayerTools scene={scene} editable={layersEditable} onAdd={addLayer} />}
+
+          {tool === "auto" && <AutoEditPanel editable={editable} videoId={video.id} onApply={applyTemplate} />}
+
+          {tool === "notes" && (
+            <NoteTools
+              notes={video.notes}
+              busy={Boolean(video.active_job)}
+              canSend={editable}
+              onSeek={seekAt}
+              onRemove={(note) => void save(() => api<VideoDetail>(`/notes/${note.id}`, "DELETE"))}
+              onSend={() => void save(() => api<VideoDetail>(`/notes/send/${video.id}`, "POST"))}
+            />
+          )}
+
+          {tool === "sounds" && (
+            <SoundTools
+              key={video.music_start}
+              scene={scene}
+              editable={editable}
+              musicStart={video.music_start}
+              hasMusic={Boolean(video.music)}
+              listen={listen}
+              onAdd={addSound}
+              onMusicStart={changeMusicStart}
+            />
           )}
 
           {tool === "frame" && (
@@ -897,6 +1217,9 @@ export default function VideoPreview({
             {editable && still && scene && (
               <PreviewToolbar
                 editable={editable}
+                scenesLocked={locks.scene}
+                canSplit={splitPoint() !== null}
+                onSplit={splitScene}
                 isTitle={scene.is_title}
                 canUndo={history.canUndo}
                 canRedo={history.canRedo}
@@ -1017,6 +1340,27 @@ export default function VideoPreview({
                   {platform !== "none" && (
                     <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
                   )}
+                  {scene && scene.layers.length > 0 && (
+                    <LayerStage
+                      key={scene.id}
+                      layers={scene.layers}
+                      elapsed={() => position() - startOf(phase.index)}
+                      stage={stage}
+                      selected={pickedLayer}
+                      editable={layersEditable && still}
+                      onSelect={setPickedLayer}
+                      onMove={(layer, x, y) => changeLayer(layer, "di chuyển lớp", { x, y })}
+                    />
+                  )}
+                  {scene && scene.sounds.length > 0 && (
+                    <SoundStage
+                      key={`sounds-${phase.run}`}
+                      sounds={scene.sounds}
+                      elapsed={() => position() - startOf(phase.index)}
+                      playing={playing && !ended}
+                      listen={listen}
+                    />
+                  )}
                   {guide && <SafeZone />}
                 </div>
               </Phone>
@@ -1035,7 +1379,7 @@ export default function VideoPreview({
                   key={`${scene.id}-${scene.video.start}-${scene.seconds}`}
                   clip={scene.video}
                   seconds={scene.seconds}
-                  editable={editable}
+                  editable={scenesEditable}
                   onSeek={setSeek}
                   onCommit={(part) =>
                     void changeScene("cắt clip", scene, { video_start: part.start, seconds: part.seconds }).finally(
@@ -1056,12 +1400,73 @@ export default function VideoPreview({
           </Flex>
         </div>
 
+        {/* "Chỉnh cảnh N": the scene being shown, all of it, beside the phone (under the tools on a narrower screen). */}
+        <div className="preview-editor__inspector">
+          {scene && (
+            <SceneInspector
+              key={scene.id}
+              scene={scene}
+              label={label(phase.index)}
+              voiceEnabled={video.voice_enabled}
+              generating={video.active_job?.kind === "image" && video.active_job.scene_id === scene.id}
+              sounds={
+                <SoundList
+                  scene={scene}
+                  editable={editable}
+                  hasMusic={Boolean(video.music)}
+                  onMusicLevel={(music_level) => void changeScene("đổi mức nhạc", scene, { music_level })}
+                  onPatch={changeSound}
+                  onRemove={(sound) => removeSound(sound, scene.id)}
+                />
+              }
+              layers={
+                <LayerList
+                  scene={scene}
+                  selected={pickedLayer}
+                  editable={layersEditable}
+                  onSelect={setPickedLayer}
+                  onPatch={changeLayer}
+                  onRemove={(layer) => removeLayer(layer, scene.id)}
+                />
+              }
+              effects={
+                <SceneEffects
+                  scene={scene}
+                  videoTransition={video.options.transition}
+                  editable={scenesEditable}
+                  onPatch={(name, body) => void changeScene(name, scene, body)}
+                />
+              }
+              timing={
+                <SceneEditor
+                  key={`${scene.id}-${scene.seconds}`}
+                  scene={scene}
+                  editable={scenesEditable}
+                  textEditable={textEditable}
+                  locked={editable && (locks.scene || locks.text)}
+                  still={!playing || ended}
+                  scope={scope}
+                  onScope={setScope}
+                  onPatch={patchScene}
+                  onResetPosition={() =>
+                    void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
+                  }
+                />
+              }
+            />
+          )}
+        </div>
+
         <div className="preview-editor__timeline">
           <PreviewTimeline
             scenes={scenes}
             current={phase.index}
-            editable={editable}
+            editable={scenesEditable}
             label={label}
+            lanes={lanesFor(video.options.captions, Boolean(video.music))}
+            musicName={video.music?.name ?? null}
+            locks={locks}
+            onLock={toggleLock}
             position={position}
             controls={transport}
             onSeek={seekAt}
@@ -1069,11 +1474,20 @@ export default function VideoPreview({
             onSeconds={(index, value) => void changeScene("đổi số giây", scenes[index], { seconds: value })}
             onFollowVoice={(index) => void changeScene("khớp lời đọc", scenes[index], { seconds_auto: true })}
             onReorder={reorder}
+            marks={video.notes.map((note) => ({
+              id: note.id,
+              at: note.at,
+              label: note.text,
+              done: note.status === "done",
+            }))}
           />
+          <div style={{ marginTop: 6 }}>
+            <NoteBar position={position} disabled={editor.readOnly} onAdd={addNote} />
+          </div>
         </div>
       </div>
       <audio ref={music} src={video.music?.url} loop preload="auto" />
-      <audio ref={narration} preload="none" />
+      <audio ref={narration} preload="none" data-testid="preview-narration" />
     </Drawer>
   );
 }
@@ -1138,7 +1552,10 @@ function SceneLayer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a seek is a new `from`; the clip's own values are read then
   }, [from]);
-  const { transition, motion, zoom } = video.options;
+  const { motion, zoom } = video.options;
+  // The scene's own transition into it, else the video's; and its colour, graded on the picture only (not the box).
+  const transition = scene.transition ?? video.options.transition;
+  const grade = colorCss(scene.color);
   const end = ZOOMS[zoom];
   // The frame without text when there is one, so the box stays still while the picture moves; else the preview.
   const picture = scene.frame_url ?? scene.preview_url;
@@ -1257,14 +1674,31 @@ function SceneLayer({
             event.currentTarget.currentTime = (scene.video?.start ?? 0) + from * (scene.video?.speed ?? 1);
             event.currentTarget.playbackRate = scene.video?.speed ?? 1;
           }}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+          data-color={scene.color ?? undefined}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            filter: grade,
+          }}
         />
       ) : picture ? (
         // eslint-disable-next-line @next/next/no-img-element -- frames are drawn by the api; next/image adds nothing
         <img
           src={picture}
           alt=""
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", ...motionStyle }}
+          data-color={scene.color ?? undefined}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            filter: grade,
+            ...motionStyle,
+          }}
         />
       ) : (
         <Flex align="center" justify="center" style={{ position: "absolute", inset: 0, background: "#262626" }}>
@@ -1319,13 +1753,14 @@ function SafeZone() {
 }
 
 /**
- * "Chỉnh cảnh này": the scene's seconds (or "Tự khớp lời đọc"), the part of its clip it shows, and where its text
- * sits, saved at once as on the scene cards. Shown while the preview stands still, read-only while the page is.
+ * "Thời lượng và vị trí chữ" in "Chỉnh cảnh N": the scene's seconds (or "Tự khớp lời đọc"), the part of its clip it
+ * shows, and where its text sits, saved at once as on the scene cards; read-only while the page is.
  */
 function SceneEditor({
   scene,
-  label,
   editable,
+  textEditable,
+  locked,
   still,
   scope,
   onScope,
@@ -1333,8 +1768,12 @@ function SceneEditor({
   onResetPosition,
 }: {
   scene: SceneData;
-  label: string;
+  /** The scene's seconds can change (edit mode, the scenes' track not locked). */
   editable: boolean;
+  /** Its text box can move (edit mode, the text's track not locked). */
+  textEditable: boolean;
+  /** A track is locked on the timeline, so some of this is read-only for now. */
+  locked: boolean;
   still: boolean;
   scope: "scene" | "all";
   onScope: (scope: "scene" | "all") => void;
@@ -1353,12 +1792,17 @@ function SceneEditor({
     }
   };
   return (
-    <Flex vertical gap={10} data-testid="preview-scene-editor">
-      <Typography.Text strong>Chỉnh {label.toLowerCase()}</Typography.Text>
-      {!editable && (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Bấm “Chỉnh sửa” trên trang video (và chờ job xong) để sửa ngay tại đây.
+    <Flex vertical gap={10}>
+      {locked ? (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-locked">
+          Có tầng đang khoá trên thanh thời gian: mở ổ khoá cạnh tên tầng để sửa tầng đó.
         </Typography.Text>
+      ) : (
+        !editable && (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Bấm “Chỉnh sửa” trên trang video (và chờ job xong) để sửa ngay tại đây.
+          </Typography.Text>
+        )
       )}
       <Flex align="center" gap={8} wrap>
         <InputNumber
@@ -1403,7 +1847,7 @@ function SceneEditor({
       {scene.textbox_url && (
         <Flex vertical gap={6}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {still && editable
+            {still && textEditable
               ? "Kéo hộp chữ trên màn hình để đổi chỗ (trên điện thoại: chạm giữ rồi kéo), bấm đúp để sửa chữ."
               : "Tạm dừng ở cảnh này để kéo hộp chữ."}
           </Typography.Text>
@@ -1418,10 +1862,10 @@ function SceneEditor({
                   { value: "scene", label: "Cảnh này" },
                   { value: "all", label: "Mọi cảnh" },
                 ]}
-                disabled={!editable}
+                disabled={!textEditable}
               />
               {scene.text_position && (
-                <Button size="small" type="link" disabled={!editable} onClick={onResetPosition}>
+                <Button size="small" type="link" disabled={!textEditable} onClick={onResetPosition}>
                   Về vị trí chung
                 </Button>
               )}

@@ -165,9 +165,33 @@ Built:
   - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
     play the video in the browser before any render, in a drawer from the right that leaves a strip
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
-    the scene list and "Chỉnh cảnh N"; "Khung": the app frame and the safe zone; "Giọng đọc"), its
-    panel beside it, the phone in the middle on grey and the timeline along the bottom (on a screen
-    under 900 px they stack: phone, timeline, tools, panel). It plays each scene for its seconds (lengthened to fit its narration), the frame
+    the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
+    playhead's second for 2 s, never to the title scene; "Âm thanh": every sound effect with "Nghe" and "Thêm"
+    (added to the scene shown at the playhead), and "Bài nhạc bắt đầu từ giây" when the video has music; "Tự dựng":
+    each "Mẫu dựng" (the app's "Gợi ý của app" first, then the team's) with what it does and "Áp cho cả video"
+    (undone with Ctrl+Z), and "Lưu video này thành mẫu"; "Góp ý":
+    the notes in the order of the video (second, who, Chưa gửi / Chờ AI sửa / Đã sửa, the AI's answer, "Xoá") and
+    "Nhờ AI sửa (N góp ý)", asked first since it costs one AI call; "Khung":
+    the app frame and the safe zone; "Giọng
+    đọc"), its panel beside it, the
+    phone in the middle on grey, "Chỉnh cảnh N" on the right and the timeline along the bottom (up to
+    1280 px wide "Chỉnh cảnh N" sits under the tools' panel; under 900 px they stack: phone, timeline,
+    tools, panel, "Chỉnh cảnh N"). "Chỉnh cảnh N" holds everything about the scene shown, in folding
+    sections: "Nội dung" (the scene card's own "Chữ trên màn hình" and "Lời đọc" fields), "Thời lượng và
+    vị trí chữ" (below), "Ảnh của cảnh" / "Video của cảnh" (the card's upload, paste, Google, TikTok, "Chọn
+    từ kho ảnh/video", "Đã dùng trong nhóm", "Tìm ảnh" and "Tạo ảnh AI", with "Chỉnh khung" for a photo and
+    "Xoá video" for a clip; the phone shows the picture) and, folded, "Tìm ảnh: từ khoá và prompt AI". These
+    are the same fields as on the scene card and save the same way, so the card and the studio always agree.
+    "Chữ & sticker (N)" lists the scene's layers; the one picked (on the phone or in the list) opens for its words,
+    "Kiểu chữ", size, "Hiệu ứng vào", start and length, and "Xoá lớp". On the phone each layer shows for its own
+    seconds as the render lays it on; while paused it is picked with a click (outlined) and dragged to a new place;
+    Delete removes the picked layer instead of the scene, Esc lets it go. Every layer change can be undone.
+    "Âm thanh (N)" sets "Nhạc ở cảnh này" (Theo video, Tắt nhạc, Nhạc nhỏ, Nhạc to; shown when the video has music)
+    and lists the scene's sound effects, each with "Nghe", its second, its level and "Xoá"; also undone with Ctrl+Z.
+    The keys and how to edit on the phone sit behind "Phím tắt" (?) in the timeline's header. Under the timeline
+    "Góp ý tại 00:04,2: gõ rồi Enter" keeps a comment at the playhead's second (even in "Xem"); each shows as a dot
+    on the ruler (yellow until answered, then green) that goes to its second. It plays each
+    scene for its seconds (lengthened to fit its narration), the frame
     without text moving like the video's motion setting with the exact text box on top where the
     render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
     the music from where that scene falls in the video (lowered while narration plays when ducking
@@ -179,8 +203,8 @@ Built:
     those scenes. "Giọng tạm của trình duyệt", folded, lists the browser's Vietnamese voices, the most
     natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser, and suggests Edge
     when only robotic ones exist; a browser without a Vietnamese voice says so and those scenes stay
-    silent. "Chỉnh cảnh N" edits the scene being shown, saved at once as on its card (read-only until
-    "Chỉnh sửa" and while a job runs): its seconds with "Tự khớp lời đọc" (typing them turns it off), the
+    silent. "Thời lượng và vị trí chữ" edits the scene being shown, saved at once as on its card (read-only
+    until "Chỉnh sửa" and while a job runs): its seconds with "Tự khớp lời đọc" (typing them turns it off), the
     narration's length; for a clip, a two-handle "Đoạn clip" slider (the left end is "Bắt đầu từ giây", the
     span the scene's seconds at the clip's speed); and, while the preview is paused, the text box dragged
     on the phone itself, kept inside the safe zone as the render places it, for "Cảnh này" or "Mọi cảnh",
@@ -190,11 +214,25 @@ Built:
     under the app's right-hand buttons or caption is outlined in red with "Hộp chữ bị … che"; on a touch screen the
     box moves after a short hold, and a quick swipe across the phone changes scene. On the timeline a segment's
     right edge drags its seconds (1–10, by tenths; a double-click goes back to "Tự khớp lời đọc") and a content
-    scene's segment drags to a new place. A scene with a clip gets a trim bar under the phone: the window moves the
-    start, its ends set the start and the seconds, and the phone shows the frame being chosen. A toolbar beside the
-    phone has "Hoàn tác" / "Làm lại" (also Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) for these changes, a new photo or clip,
-    the video's "Chuyển cảnh", "Thêm cảnh sau cảnh này" and "Xoá cảnh" (asked first; neither of the last two can be
-    undone). Keys: Space plays or pauses, ← → change scene, [ ] take or add 0.1 s. The video plays inside a phone with the chosen app's own
+    scene's segment drags to a new place. Under the scenes' track the timeline has a track each for what plays with
+    them, named in a column at its left: "Chữ" (each scene's on-screen text across the scene), "Lớp" (each text
+    or sticker layer for its seconds; a click goes to its first second), "Âm" (each sound effect while it is heard;
+    a click goes to its second), "Giọng" (the
+    narration from 0.2 s into its scene for the MP3's length; dashed, as "Giọng tạm", while only the browser's voice
+    reads it), "Phụ đề" (only when the video's captions are on; never on the title scene) and "Nhạc" (the music's
+    name across the video, only when it has music). A click on a block plays its scene (on "Nhạc", goes to that
+    second). The "Cảnh" and "Chữ" tracks have a padlock: a locked "Cảnh" track keeps the seconds' edges, the
+    reorder drag, the trim bar, [ ], "Tách cảnh", "Thêm cảnh" and "Xoá cảnh" out of reach; a locked "Chữ" track
+    keeps the text box from moving or being typed over; a locked "Lớp" track takes no new layer and keeps the
+    layers as they are. Locks are each member's own, per video, remembered in the
+    browser, and "Chỉnh cảnh N" says when one is on. A scene with a clip gets a trim bar under the phone: the
+    window moves the start, its ends set the start and the seconds, and the phone shows the frame being chosen. A
+    toolbar beside the phone has "Hoàn tác" / "Làm lại" (also Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) for these changes, a
+    new photo or clip, the video's "Chuyển cảnh", "Tách cảnh tại đầu phát" (S; the scene ends at the playhead, at
+    least 1 s from either end, and the rest becomes a new silent scene without text showing the same photo or the
+    clip from where the first part stops; it can be undone), "Thêm cảnh sau cảnh này" and "Xoá cảnh" (Delete; asked
+    first; neither of the last two can be undone). Keys: Space plays or pauses, ← → change scene, [ ] take or add
+    0.1 s. The video plays inside a phone with the chosen app's own
     screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and
@@ -648,6 +686,51 @@ relied on (samples in the PR that added them).
 - **Transition:** Mờ dần (the 0.4 s crossfade above), Cắt thẳng (hard cut; each scene is exactly its
   seconds), Trượt (the next scene slides in from the right over 0.4 s). The total length is the
   same for all three.
+- **Cỡ chữ** (`text_size` for the content scenes, `title_text_size` for the title; on "Thiết lập" › Chữ and on
+  Cấu hình › Thiết lập mặc định): Lớn (the original template: the largest font that fits, the title 96 down to
+  64 px in at most 5 lines, a scene 84 down to 60 px in 3), Vừa or Nhỏ. Vừa and Nhỏ start from the font Lớn would
+  choose ×0,82 and ×0,68, never below 54 / 44 px for the title and 50 / 42 px for a scene, and shrink further only
+  to fit, so they are smaller even for a long title, and a text too long for Lớn may fit at a smaller size (the
+  "Chữ tràn hộp" check follows the size chosen). Requested by members: a long title filled half the screen.
+- **A scene's own effects** ([reels_render/effects.py](../worker/src/reels_render/effects.py)), set in the
+  studio's "Chỉnh cảnh N › Hiệu ứng", content scenes only (the title opens the video and is its cover):
+  the transition into the scene, one of Mờ dần, Cắt thẳng, Trượt sang trái, Trượt lên, Quét ngang, Phóng
+  vào, Mở vòng tròn, Qua màu đen, Chớp trắng, Hoà tan, Nhoè ngang, Vỡ điểm ảnh ("Theo cả video" takes the
+  video's); and a colour preset graded on the picture only, never the text box: Gốc (as shot), Tự nhiên,
+  Tươi sáng, Rực rỡ, Điện ảnh, Xanh cam, Phim cũ, Phim mờ, Nắng vàng, Ấm, Lạnh, Đêm xanh, Trầm, Pastel,
+  Đen trắng. Every transition takes 0.4 s around the boundary, so the length never changes; a Cắt thẳng among
+  other transitions cuts 0.2 s before the boundary. The phone shows each with CSS, close to the MP4 but not
+  the same (no curves or per-tone colour in CSS). A clip's speed (0,5× to 2×) is offered there too. Sample:
+  [samples/hieu-ung.json](../samples/hieu-ung.json) shows every transition and colour.
+- **Text and sticker layers** ([reels_render/layers.py](../worker/src/reels_render/layers.py)), content scenes
+  only, any number per scene, each for its own seconds from its own second of the scene (cut at the scene's
+  end), centred where it was dropped and kept inside the frame, on top of everything (captions included). A text
+  layer: its words (`*word*` in the accent colour, line breaks kept), Chữ viền (white, black outline, yellow
+  accent) or a box (Hộp vàng, Hộp đen, Hộp trắng, Hộp đỏ), Nhỏ / Vừa / Lớn. A sticker, drawn by the render core
+  itself (no image files): Mũi tên xuống, Mũi tên phải, Khoanh tròn, Ngôi sao, Trái tim, Dấu tích, Dấu X, Nhãn
+  MỚI, Nhãn HOT, Nhãn SALE, at 160, 240 or 340 px. Entrance: Hiện ngay, Mờ dần, Trượt lên (from 120 px lower),
+  Trượt từ trái (from off the frame), each over 0.3 s and fading in. The studio shows the exact picture the render
+  lays on. Sample: [samples/lop-chu-sticker.json](../samples/lop-chu-sticker.json).
+- **Sound** ([reels_render/sounds.py](../worker/src/reels_render/sounds.py)), any scene, the title included.
+  Sound effects made by FFmpeg itself (no sound files, so nothing to license): Vút, Lướt nhanh, Ting, Bụp, Tách,
+  Bùm, Dâng lên, Hoàn thành, Sai rồi, Tiền về, Nhịp tim; each from its own second of the scene, at Nhỏ (×0,5), Vừa
+  or To (×1,6), added over the music and narration. A scene's own music level: Tắt nhạc, Nhạc nhỏ (×0,4) or Nhạc to
+  (×1,6), else the video's. "Bài nhạc bắt đầu từ giây" skips the song's intro for the whole video (0–600 s; past
+  the end the song loops from its start). The studio plays the same sounds (the api makes them with the same
+  filters) at their seconds, but a browser cannot play louder than full, so "To" and "Nhạc to" may sound like
+  "Vừa" there. Sample: [samples/am-thanh.json](../samples/am-thanh.json), rendered with any music.
+- **Mẫu dựng** ([autoedit.py](../api/src/reels_api/autoedit.py)): the effects above as rules for any video: the
+  transitions into the content scenes in turn, one colour, sounds on every content scene and on the title, the
+  title's music level, and layers on the last scene. "Gợi ý của app": Phóng vào, Trượt sang trái, Mờ dần, Quét
+  ngang in turn, a soft "Vút" at the start of every content scene, a soft "Dâng lên" on the title, and "Lưu video lại
+  *để xem sau nhé!*" sliding up near the top of the last scene. Applying a template replaces the transitions and
+  colour and adds its sounds and layers (never the same one twice). A team template is saved from a video in the
+  studio (its scenes' transitions, most used colour, the first content scene's sounds that has any, the title's
+  sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename, remove) and picks the
+  one put on every new video as soon as its scenes are written (AI script, clone or "Tự viết"); none by default.
+  "Tạo video" with "AI viết kịch bản" has the box **"AI gợi ý hiệu ứng"** (off by default): the AI then picks each
+  scene's transition, colour, a sound and a few lines of text in the same call (see
+  [content.md](content.md#script-generation-contract)), changeable in the studio like any effect.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied
