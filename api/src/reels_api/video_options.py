@@ -12,6 +12,7 @@ from reels_render.options import (
     CAPTIONS,
     MOTIONS,
     TEXT_COLORS,
+    TEXT_SIZE_NAMES,
     TEXT_STYLES,
     TITLE_STYLES,
     TITLE_TEXT_STYLES,
@@ -49,6 +50,9 @@ DEFAULTS: dict = {
     "title_accent_color": "auto",
     "title_box_opacity": "auto",
     "captions": "off",
+    # The text box's size, the content scenes' and the title's ("large": the original template).
+    "text_size": "large",
+    "title_text_size": "large",
     # The content scenes' text box centre in the frame, [x, y]; None: the template's place. A scene's own wins.
     "text_position": None,
 }
@@ -65,6 +69,8 @@ LOOK_FIELDS = (
     "title_box_color",
     "title_accent_color",
     "title_box_opacity",
+    "text_size",
+    "title_text_size",
 )
 # Left out of the MP4 fingerprint while unused, so videos rendered before each existed stay current.
 LATER_LOOK_FIELDS = LOOK_FIELDS[2:]
@@ -89,6 +95,8 @@ CHOICES = {
     "title_text_style": TITLE_TEXT_STYLES,
     "title_box_opacity": BOX_OPACITIES,
     "captions": CAPTIONS,
+    "text_size": TEXT_SIZE_NAMES,
+    "title_text_size": TEXT_SIZE_NAMES,
 }
 
 
@@ -109,6 +117,8 @@ LABELS = {
     "title_accent_color": "Màu chữ đánh dấu tiêu đề",
     "title_box_opacity": "Độ trong của hộp tiêu đề",
     "captions": "Phụ đề theo giọng",
+    "text_size": "Cỡ chữ",
+    "title_text_size": "Cỡ chữ tiêu đề",
     "ducking": "Nhỏ nhạc khi có giọng",
     "voice_enabled": "Giọng đọc",
 }
@@ -201,7 +211,14 @@ def text_look(video: Video) -> tuple[str, ...]:
 
 
 # What a content scene's box is drawn with; the title's depends on every look field.
-SCENE_LOOK_FIELDS = ("text_style", "text_color", "box_color", "accent_color", "box_opacity")
+SCENE_LOOK_FIELDS = ("text_style", "text_color", "box_color", "accent_color", "box_opacity", "text_size")
+
+
+def text_size(video: Video | None, is_title: bool) -> str:
+    """The size a scene's text box is drawn at (reels_render.textbox.TEXT_SIZES)."""
+    if video is None:
+        return DEFAULTS["text_size"]
+    return effective(video)["title_text_size" if is_title else "text_size"]
 
 
 def preview_look(video: Video, is_title: bool) -> list[str]:

@@ -1,0 +1,10 @@
+Đây là kịch bản video ngắn hiện tại, cảnh theo thứ tự, mỗi cảnh ghi giây nó chiếm trong video:
+[kịch bản hiện tại]
+
+Thành viên trong nhóm đã xem video và để lại các góp ý dưới đây, mỗi góp ý gắn với một giây và một cảnh:
+[góp ý]
+
+Sửa video theo đúng các góp ý. Chỉ đổi những cảnh được góp ý nhắc tới, giữ giọng văn của video và quy tắc an toàn:
+nói "tốt cho", "hỗ trợ", không hứa chữa khỏi bệnh. Chữ trên màn hình tối đa 10 từ (cảnh tiêu đề tối đa 12 từ),
+bọc *từ* để tô đỏ, xuống dòng để ngắt dòng. Lời đọc 8–15 từ, không có dấu *. Nếu góp ý muốn thêm một dòng chữ
+ở một giây, thêm một lớp chữ ngắn (tối đa 8 từ) đúng giây đó. Góp ý nào không làm được thì trả lời vì sao.

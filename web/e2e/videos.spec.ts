@@ -512,7 +512,7 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(voiceBox.getByRole("button", { name: /^Tạo giọng ElevenLabs/ })).toHaveCount(0);
 
   // The listener's own volume: muting and the slider change what plays here, never the video's settings.
-  const narration = preview.locator("audio").nth(1);
+  const narration = preview.getByTestId("preview-narration");
   const volume = () => narration.evaluate((element: HTMLAudioElement) => element.volume);
   await expect.poll(volume).toBe(1);
   await preview.getByRole("button", { name: "Tắt tiếng" }).click();
@@ -529,6 +529,312 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
   preview = page.getByRole("dialog", { name: "Xem trước video" });
   await expect(preview.getByRole("slider", { name: "Âm lượng nghe" })).toHaveAttribute("aria-valuenow", "50");
+});
+
+test("studio: tracks under the scenes, a locked track, and a scene split at the playhead then undone", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+
+  // The tracks under the scenes: each scene's text, and its narration, dashed while only the browser reads it.
+  const timeline = studio.getByTestId("preview-timeline");
+  const names = timeline.getByTestId("timeline-tracks");
+  await expect(names).toContainText("Cảnh");
+  await expect(names).toContainText("Chữ");
+  await expect(names).toContainText("Giọng");
+  await expect(timeline.getByTestId("lane-text")).toHaveCount(6);
+  await expect(timeline.getByTestId("lane-voice").first()).toHaveAttribute("aria-label", /^Giọng: Giọng tạm: /);
+  // A block of a track plays its scene.
+  await timeline.getByTestId("lane-text").nth(2).click();
+  await expect(studio.getByTestId("preview-scene")).toContainText("Cảnh 2");
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+
+  // Cảnh 1 made 4 seconds long, then the playhead 1.5 to 2 seconds into it.
+  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const seconds = studio.getByTestId("preview-scene-editor").getByLabel("Số giây của cảnh");
+  await seconds.fill("4");
+  await seconds.press("Enter");
+  await expect(timeline.getByRole("button", { name: "Xem Cảnh 1" })).toContainText("4s");
+  const titleLabel = await timeline.getByRole("button", { name: "Xem Cảnh tiêu đề" }).innerText();
+  const titleSeconds = Number(titleLabel.match(/([\d,]+)s/)![1].replace(",", "."));
+  const playhead = timeline.getByRole("slider", { name: "Đầu phát" });
+  await playhead.focus();
+  await page.keyboard.press("Home");
+  for (let step = 0; step < Math.ceil((titleSeconds + 1.5) / 0.5); step += 1) await page.keyboard.press("ArrowRight");
+  await expect(studio.getByTestId("preview-scene")).toContainText("Cảnh 1");
+
+  // Locked, the scenes' track keeps "Tách cảnh" and the seconds' edges out of reach.
+  const toolbar = studio.getByTestId("preview-toolbar");
+  const split = toolbar.getByRole("button", { name: "Tách cảnh tại đầu phát (S)" });
+  await expect(split).toBeEnabled();
+  await names.getByRole("button", { name: "Khoá tầng Cảnh" }).click();
+  await expect(split).toBeDisabled();
+  await expect(timeline.getByTestId("timeline-edge")).toHaveCount(0);
+  await expect(studio.getByTestId("preview-locked")).toBeVisible();
+  await names.getByRole("button", { name: "Mở khoá tầng Cảnh" }).click();
+  await expect(timeline.getByTestId("timeline-edge")).toHaveCount(6);
+
+  // S splits Cảnh 1 at the playhead: its rest becomes a new scene of the same picture, without text.
+  await playhead.focus();
+  await page.keyboard.press("s");
+  await expect(timeline.getByRole("button", { name: /^Xem Cảnh \d$/ })).toHaveCount(6);
+  await expect(timeline.getByTestId("lane-text")).toHaveCount(6);
+  await expect(page.getByTestId("scene")).toHaveCount(6);
+  // "Hoàn tác" puts the scene back whole.
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByRole("button", { name: /^Xem Cảnh \d$/ })).toHaveCount(5);
+  await expect(page.getByTestId("scene")).toHaveCount(5);
+
+  // "Chỉnh cảnh 1" beside the phone holds the scene card's own fields: text typed here is the card's text too.
+  const inspector = studio.getByTestId("preview-scene-editor");
+  await expect(inspector).toContainText("Chỉnh cảnh 1");
+  const text = inspector.getByLabel("Chữ trên màn hình");
+  await text.fill("Rau mầm *tươi* mỗi ngày");
+  await text.blur();
+  await expect(inspector.getByText("Đã lưu")).toBeVisible();
+  await expect(timeline.getByTestId("lane-text").nth(1)).toHaveText("Rau mầm tươi mỗi ngày");
+  await expect(page.getByTestId("scene").first().getByLabel("Chữ trên màn hình")).toHaveValue(
+    "Rau mầm *tươi* mỗi ngày",
+  );
+  // Its photo's actions are here too, and the search terms fold away until opened.
+  await expect(inspector.getByRole("button", { name: "Chọn từ kho ảnh/video" })).toBeVisible();
+  await inspector.getByText("Tìm ảnh: từ khoá và prompt AI").click();
+  await expect(inspector.getByLabel("Từ khóa tìm ảnh")).toBeVisible();
+  // The keys and how to edit sit behind "Phím tắt".
+  await studio.getByRole("button", { name: "Phím tắt" }).click();
+  await expect(page.getByTestId("preview-shortcuts")).toContainText("S: tách cảnh tại đầu phát");
+});
+
+test("studio effects: a scene's own transition and colour, drawn on the phone and undone", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const inspector = studio.getByTestId("preview-scene-editor");
+
+  // The title scene opens the video and is its cover: no effects of its own.
+  await expect(inspector).toContainText("không có chuyển cảnh hay màu riêng");
+
+  await studio.getByRole("button", { name: "Xem Cảnh 2" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const effects = inspector.getByTestId("scene-effects");
+  const transition = effects.getByLabel("Chuyển cảnh vào cảnh này");
+  await expect(effects).toContainText("Theo cả video (Mờ dần)");
+  await chooseOption(page, transition, "Mở vòng tròn");
+  await expect(effects).toContainText("Mở vòng tròn");
+
+  // A colour preset is drawn on the phone's picture, the text box left as it is.
+  const colors = effects.getByRole("group", { name: "Màu của cảnh" });
+  await colors.getByRole("button", { name: "Đen trắng" }).click();
+  await expect(colors.getByRole("button", { name: "Đen trắng" })).toHaveAttribute("aria-pressed", "true");
+  const picture = studio.getByTestId("preview-stage").locator("[data-color]");
+  await expect(picture).toHaveAttribute("data-color", "mono");
+  await expect.poll(() => picture.evaluate((element) => getComputedStyle(element).filter)).toContain("saturate(0)");
+
+  // "Hoàn tác" takes the colour back off, then the transition.
+  await page.keyboard.press("Control+z");
+  await expect(colors.getByRole("button", { name: "Gốc" })).toHaveAttribute("aria-pressed", "true");
+  await expect(picture).toHaveCount(0);
+  await page.keyboard.press("Control+z");
+  await expect(effects).toContainText("Theo cả video (Mờ dần)");
+});
+
+test("studio layers: a sticker and a text over a scene, changed, removed with Delete and put back", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await expect(timeline.getByTestId("timeline-tracks")).toContainText("Lớp");
+
+  // Not on the title scene: it is the video's cover.
+  await studio.getByRole("tab", { name: "Chữ & sticker" }).click();
+  const tools = studio.getByTestId("layer-tools");
+  await expect(tools.getByRole("button", { name: "Thêm chữ" })).toBeDisabled();
+
+  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  await tools.getByRole("button", { name: "Thêm sticker Trái tim" }).click();
+  await tools.getByRole("button", { name: "Thêm chữ" }).click();
+  const layers = studio.getByTestId("preview-stage").getByTestId("preview-layer");
+  await expect(layers).toHaveCount(2);
+  await expect(layers.first()).toBeVisible();
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(2);
+
+  // The text just added is open in "Chỉnh cảnh 1": its words and its look.
+  const inspector = studio.getByTestId("preview-scene-editor");
+  const words = inspector.getByLabel("Chữ của lớp", { exact: true });
+  await words.fill("Giảm *50%*");
+  await words.blur();
+  await expect(timeline.getByTestId("lane-layers").nth(1)).toHaveText("Chữ: Giảm 50%");
+  await chooseOption(page, inspector.getByLabel("Kiểu chữ của lớp"), "Hộp vàng");
+  // A new look is a new picture from the api.
+  const textPicture = layers.nth(1);
+  await expect(inspector.getByTitle("Hộp vàng", { exact: true })).toBeVisible();
+  await expect(textPicture).toHaveAttribute("src", /image\.png\?v=/);
+
+  // Delete takes the picked layer, not the scene; Ctrl+Z puts it back.
+  await timeline.getByRole("slider", { name: "Đầu phát" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(1);
+  await expect(page.getByTestId("scene")).toHaveCount(5);
+  await expect(studio.getByRole("button", { name: "Hoàn tác: xoá lớp (Ctrl+Z)" })).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(2);
+
+  // Locked, the layers' track takes no new layer.
+  await timeline.getByTestId("timeline-tracks").getByRole("button", { name: "Khoá tầng Lớp" }).click();
+  await expect(tools.getByRole("button", { name: "Thêm sticker Trái tim" })).toBeDisabled();
+});
+
+test("studio sounds: a sound effect added at the playhead, heard, made louder and undone", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await expect(timeline.getByTestId("timeline-tracks")).toContainText("Âm");
+
+  // Each sound is made by the api with the render's own FFmpeg filters, to hear before adding it.
+  const heard = await page.request.get("/api/sounds/library/ding.mp3");
+  expect(heard.status()).toBe(200);
+  expect(heard.headers()["content-type"]).toBe("audio/mpeg");
+
+  await timeline.getByRole("button", { name: "Xem Cảnh 2" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  await studio.getByRole("tab", { name: "Âm thanh" }).click();
+  await studio.getByTestId("sound-tools").getByRole("button", { name: "Thêm âm Ting" }).click();
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(1);
+  await expect(timeline.getByTestId("lane-sounds")).toHaveText("Ting");
+
+  // "Âm thanh (1)" in "Chỉnh cảnh 2": its level.
+  const inspector = studio.getByTestId("preview-scene-editor");
+  await expect(inspector).toContainText("Âm thanh (1)");
+  const row = inspector.getByTestId("sound-row");
+  await row.getByText("To", { exact: true }).click();
+  await expect(row.getByRole("radio", { name: "To" })).toBeChecked();
+
+  // "Hoàn tác" twice: back to "Vừa", then the sound is gone.
+  await timeline.getByRole("slider", { name: "Đầu phát" }).focus();
+  await page.keyboard.press("Control+z");
+  await expect(row.getByRole("radio", { name: "Vừa" })).toBeChecked();
+  await expect(studio.getByRole("button", { name: "Hoàn tác: thêm âm (Ctrl+Z)" })).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(0);
+});
+
+test("studio notes: a comment at the playhead, sent to the AI, which fixes the scene and answers", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await timeline.getByRole("button", { name: "Xem Cảnh 2" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+
+  // Typed under the timeline, kept at the playhead's second, shown as a dot on the ruler.
+  const box = studio.getByLabel("Góp ý tại đầu phát");
+  await box.fill("Chữ cảnh này dài quá, thêm dòng giảm giá");
+  await box.press("Enter");
+  await expect(box).toHaveValue("");
+  await expect(timeline.getByTestId("note-mark")).toHaveCount(1);
+  await studio.getByRole("tab", { name: "Góp ý" }).click();
+  const tools = studio.getByTestId("note-tools");
+  await expect(tools.getByTestId("note")).toContainText("Chưa gửi");
+
+  // "Nhờ AI sửa" asks first (it costs an AI call), then the job changes Cảnh 2 and answers the note.
+  await tools.getByRole("button", { name: "Nhờ AI sửa (1 góp ý)" }).click();
+  await page.getByRole("button", { name: "Gửi", exact: true }).click();
+  await expect(tools.getByTestId("note")).toContainText("Đã sửa", { timeout: 60_000 });
+  await expect(tools.getByTestId("note-reply")).toHaveText("↳ Đã sửa theo góp ý 1.");
+  await expect(timeline.getByTestId("lane-text").nth(2)).toHaveText("Đã sửa theo góp ý");
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(1);
+  await expect(page.getByTestId("scene").nth(1).getByLabel("Chữ trên màn hình")).toHaveValue("Đã sửa\n*theo góp ý*");
+});
+
+test("auto edit: the app's template on a video, undone, saved as the team's and put on every new video", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+
+  // "Gợi ý của app": a sound on every scene, a closing line on the last one; Ctrl+Z takes it all back.
+  await studio.getByRole("tab", { name: "Tự dựng" }).click();
+  const panel = studio.getByTestId("auto-edit");
+  await panel.getByRole("button", { name: "Áp mẫu Gợi ý của app" }).click();
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(6);
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(1);
+
+  // Its look, saved as the team's own template.
+  await panel.getByLabel("Tên mẫu mới").fill("Vườn nhà");
+  await panel.getByRole("button", { name: "Lưu" }).click();
+  await expect(panel.getByTestId("template")).toHaveCount(2);
+  await expect(panel.getByTestId("template").nth(1)).toContainText("Âm mỗi cảnh: Vút");
+
+  await expect(studio.getByRole("button", { name: "Hoàn tác: áp mẫu Gợi ý của app (Ctrl+Z)" })).toBeVisible();
+  await timeline.getByRole("slider", { name: "Đầu phát" }).focus();
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(0);
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Cấu hình › Mẫu dựng: "Vườn nhà" for every new video, put on as soon as its script is written.
+  await page.goto("/settings/templates");
+  await expect(page.getByTestId("template-card")).toHaveCount(2);
+  await chooseOption(page, page.getByLabel("Mẫu cho video mới"), "Vườn nhà");
+  await expect(page.getByTestId("template-card").nth(1)).toContainText("Video mới tự áp");
+  await newVideoWithScript(page, "cải mầm cho người mới");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Xem trước video" }).getByTestId("preview-timeline").getByTestId("lane-sounds"),
+  ).toHaveCount(6);
+});
+
+test("AI suggested effects: chosen when making the video, the script comes with each scene's effects", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("rau mầm trồng tại nhà");
+  await dialog.getByRole("checkbox", { name: "AI gợi ý hiệu ứng" }).check();
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  await uploadPhotos(page);
+
+  // The (fake) AI gave every scene a transition, the first a "Ting" and the second a line of text.
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await expect(timeline.getByTestId("lane-sounds")).toHaveText(["Ting"]);
+  await expect(timeline.getByTestId("lane-layers")).toHaveText(["Chữ: Dễ trồng"]);
+  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  await expect(studio.getByTestId("scene-effects")).toContainText("Mở vòng tròn");
 });
 
 /** A rendered video with its Page connected, open on its own page. */
@@ -1733,6 +2039,23 @@ test("text settings from an api without the colour options still open, on Theo k
   const text = page.getByTestId("text-settings");
   await expect(text.getByRole("radio", { name: "Nền Theo kiểu" })).toHaveAttribute("aria-checked", "true");
   await expect(text.getByRole("radio", { name: "Đánh dấu Theo kiểu" })).toHaveAttribute("aria-checked", "true");
+});
+
+test("text size: a smaller size on Thiết lập redraws the scenes' previews, the title on its own", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  const scenePreview = page.getByTestId("scene").first().getByTestId("scene-preview");
+  const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const [sceneBefore, titleBefore] = [await scenePreview.getAttribute("src"), await titlePreview.getAttribute("src")];
+  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  const text = page.getByTestId("text-settings");
+  await text.getByLabel("Cỡ chữ", { exact: true }).getByText("Nhỏ", { exact: true }).click();
+  await expect(scenePreview).not.toHaveAttribute("src", sceneBefore ?? "");
+
+  await text.getByText("Tiêu đề", { exact: true }).click();
+  await text.getByLabel("Cỡ chữ tiêu đề", { exact: true }).getByText("Vừa", { exact: true }).click();
+  await expect(titlePreview).not.toHaveAttribute("src", titleBefore ?? "");
 });
 
 /** A dialog's box once its zoom-in has finished, so what is measured or dragged is where it stays. */

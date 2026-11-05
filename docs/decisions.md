@@ -31,6 +31,68 @@ The queue is moved with "Lên"/"Xuống" rather than dragging.
 Everything about a Page sits on its card: "Kết nối Fanpage" becomes **"Quản lý Page"**, its own menu item under
 "Video", out of the Cài đặt group, on the member's choice over a separate "Hàng chờ" page. This is the "Quản lý Page"
 menu the 2026-11-03 entry on token checks kept for when there was more to show; its address stays `/fanpages`.
+## 2026-11-05 — "Xem trước" grows into a studio with tracks, one phase at a time; the render core stays FFmpeg
+
+Asked by a member (namtc), from CapCut's editor: more editing in the preview, with effects. Chosen over a free
+timeline (clips, text and sound anywhere on any track, independent of the scenes), which would rewrite the data
+model and the render core: the scene stays the backbone and tracks are added around it, in phases, all on one
+branch (`feature/studio-editor`, the member's choice):
+
+1. Tracks and tools on what exists (this entry): "Chữ", "Giọng", "Phụ đề" and "Nhạc" under the scenes, padlocks on
+   "Cảnh" and "Chữ" (each member's own, in the browser), and "Tách cảnh" at the playhead (S), which the api does as
+   `POST /scenes/{id}/split`: the rest of the scene becomes a silent scene with its own copy of the picture.
+2. Per-scene transitions, colour presets and clip speed in the render.
+3. Text and sticker layers with their own times and entrance effects.
+4. Sound effects and music sections.
+5. Comments at a second sent to the AI, and "AI tại mốc" (a picture or a line of text made for that second).
+
+Every look stays a named preset (2026-11-01: "never free colour or size sliders"); each effect is written twice,
+for FFmpeg and for the preview's CSS, and a phase that changes the render is done only when a person has watched a
+sample MP4. AIEV (github.com/notivn/AIEVv2, MIT) was read for reference: its colour presets (FFmpeg filter chains)
+and transition curves may be adapted with its notice kept; its Remotion engine (paid above 3 people) and its sound
+effects (no licence records) are not used. The drawer keeps its size (2026-11-05 above): a full-screen studio was
+considered and left to the owner.
+
+Then, on the member's choice, a "Chỉnh cảnh N" panel beside the phone holds the scene's content too (text,
+narration, photo or clip and how to find one, search terms), so a scene is made without leaving the studio. It uses
+the scene card's own field components, so nothing is built twice and the video page keeps every field: removing
+the duplicated fields from the cards (seconds, clip start, text place) was considered and dropped, since the page
+stays the place to work on a phone and where "Render" points at what blocks it. Effects from phase 2 on live only
+in the studio.
+
+Phase 2: each content scene may set its own transition in (12 named, FFmpeg's `xfade`) and a colour preset (14
+named, adapted from AIEV's); the video's transition stays the default, and the title scene gets neither, so the
+first frame stays the cover the api draws without them. A cut among transitions is a one-frame fade at the
+crossfade's offset rather than a different timeline, so the video's length and every narration stay where they
+were. The part after "Tách cảnh" cuts in.
+
+Phase 3: text and sticker layers, each its own row (`scene_layers`) saved on its own like the scene fields, so the
+"one block with a version" idea above was not needed. Stickers are shapes the render core draws (no image files,
+so nothing to license); text, styles, sizes and entrances are named presets. The api draws a layer's picture with
+the render core, so the phone shows what the MP4 lays on. The title scene takes none, as for the effects.
+
+Phase 4: sound effects are made by FFmpeg's own source filters, not downloaded, for the same reason as the
+stickers (AIEV's bundled sounds have no licence records, and a laugh or a voice cannot be made this way, so there is
+none). Music is still one song per video; instead of several songs, a scene can set its own music level and the
+video where the song starts. Several songs in one video are left until the team asks for them.
+
+Phase 5: "Góp ý" and "AI tại mốc" are one flow. A note is a comment at a second, kept for teammates as well as
+the AI; "Nhờ AI sửa" sends every open note to one `revise` job (asked first: one AI call), which may change the
+scenes' text and narration and add text layers at a second, and answers each note. It goes through the job queue
+like every LLM call, its prompt words are app data per group ("Prompt sửa theo góp ý"), and the notes are fenced in
+the prompt as the members' words. A separate "AI writes one line here" button was dropped as the same thing as a
+note asking for it. AI pictures for a scene stay the existing "Tạo ảnh AI".
+
+Automatic effects, on the member's choice (all three): "Tự dựng" puts a template on a video by fixed rules (no AI),
+"Gợi ý của app" being the app's own template; the team saves its own templates from a video it likes and may pick
+one for every new video (none by default, so nothing changes until a member chooses); and "AI gợi ý hiệu ứng" is an
+option when making a video with AI. All three use the same named presets and the same apply, and stay changeable
+by hand in the studio.
+
+"Cỡ chữ" (Lớn, Vừa, Nhỏ) for the scenes' and the title's text box, from members' feedback that a long title filled
+the screen. A preset, as sizes stay presets (2026-11-01). Vừa and Nhỏ scale the font Lớn would pick rather than only
+lowering its maximum, since Lớn already shrinks long text and a lower maximum alone changed nothing there. Lớn stays
+the default, so existing videos and their MP4s are unchanged until a member picks another size.
 
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 

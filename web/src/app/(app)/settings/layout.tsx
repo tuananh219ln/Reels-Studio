@@ -1,6 +1,12 @@
 "use client";
 
-import { ControlOutlined, PictureOutlined, RobotOutlined, ShoppingOutlined } from "@ant-design/icons";
+import {
+  ControlOutlined,
+  PictureOutlined,
+  RobotOutlined,
+  ShoppingOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import { Flex, Grid, Tabs, Typography } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
@@ -13,6 +19,7 @@ const CONFIG_TABS = [
     hint: "Video mới bắt đầu thế nào",
     icon: <ControlOutlined />,
   },
+  { key: "/settings/templates", label: "Mẫu dựng", hint: "Hiệu ứng áp sẵn cho video", icon: <ThunderboltOutlined /> },
   { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản", icon: <RobotOutlined /> },
   { key: "/settings/sources", label: "Nguồn tư liệu", hint: "Kho ảnh, ảnh AI, giọng đọc", icon: <PictureOutlined /> },
   {

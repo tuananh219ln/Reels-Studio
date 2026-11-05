@@ -25,8 +25,12 @@ from .models import (
     PostMetrics,
     Publication,
     Scene,
+    SceneLayer,
+    SceneSound,
     TopicPlanItem,
+    User,
     Video,
+    VideoNote,
 )
 from .script_rules import MAX_SECONDS as MAX_SCENE_SECONDS
 from .script_rules import MIN_SECONDS as MIN_SCENE_SECONDS
@@ -34,7 +38,7 @@ from .script_rules import Checks, SceneInput, check_script, plain_title, text_pr
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
-from .video_options import effective, look_signature, preview_look, render_options, voice_id, voice_speed
+from .video_options import effective, look_signature, preview_look, render_options, text_size, voice_id, voice_speed
 
 STATUS_LABELS = {
     "draft": "Nháp",
@@ -62,6 +66,7 @@ JOB_KINDS = {
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
     "plan": "Tạo kế hoạch 30 ngày",
+    "revise": "AI sửa theo góp ý",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -113,6 +118,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang kiểm tra bài trên Facebook, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
+    if job.kind == "revise":
+        raise ApiError(409, "video_locked", "AI đang sửa video theo góp ý, chưa lưu")
     raise ApiError(409, "video_locked", "Video đang viết kịch bản, chưa lưu")
 
 
@@ -219,6 +226,29 @@ def text_position(video: Video, scene: Scene) -> list[int] | None:
     return effective(video)["text_position"]
 
 
+LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation")
+
+
+def layer_fields(layer: SceneLayer) -> dict:
+    """A layer as the render script and the studio read it (reels_render.layers.Layer)."""
+    return {field: getattr(layer, field) for field in LAYER_FIELDS}
+
+
+def layer_payload(layer: SceneLayer) -> dict:
+    # Its picture changes only with what is drawn, not with where or when it shows.
+    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style)
+    return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
+
+
+def sound_fields(sound: SceneSound) -> dict:
+    """A sound effect as the render script reads it (reels_render.sounds.SceneSound)."""
+    return {"sound": sound.sound, "start": sound.start, "volume": sound.volume}
+
+
+def sound_payload(sound: SceneSound) -> dict:
+    return {"id": sound.id, **sound_fields(sound), "url": f"/api/sounds/library/{sound.sound}.mp3"}
+
+
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
     """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume, narration); captions and
     keywords are left out."""
@@ -233,12 +263,20 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             *([scene.video_key, scene.video_start] if scene.video_key else []),
             *([["video_speed", scene.video_speed]] if scene.video_speed not in (None, 1) else []),
             *([["text_position", *position]] if (position := text_position(video, scene)) else []),
+            # The studio's effects join only when set, so MP4s rendered before they existed stay current.
+            *([["transition", scene.transition]] if scene.transition else []),
+            *([["color", scene.color]] if scene.color else []),
+            *([["layers", [layer_fields(layer) for layer in scene.layers]]] if scene.layers else []),
+            *([["sounds", [sound_fields(sound) for sound in scene.sounds]]] if scene.sounds else []),
+            *([["music_level", scene.music_level]] if scene.music_level else []),
         ]
         for scene in every
     ]
     # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
     # stored with, so they are not flagged as outdated.
-    data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
+    # The song's start joins only when moved, so MP4s rendered before it existed stay current.
+    music = [video.music_key, video.music_volume, *([["music_start", video.music_start]] if video.music_start else [])]
+    data = [parts, music] if video.music_key else parts
     voices = [
         voice_signature(spoken(video, scene), *_voice(video)) if spoken(video, scene) else None for scene in every
     ]
@@ -292,6 +330,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             clip_seconds,
             bool(scene.keywords or scene.keywords_en),
             scene.video_speed,
+            text_size(video, scene.is_title),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -462,6 +501,7 @@ def _version(*parts: object) -> str:
 
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
+    size = text_size(video, scene.is_title)
     voice_seconds = made_voice_seconds(video, scene)
     style = preview_look(video, scene.is_title)
     position = text_position(video, scene)
@@ -513,10 +553,15 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start)}" if still else None,
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
-            if scene.text.strip() and text_problem(scene.text, scene.is_title) is None
+            if scene.text.strip() and text_problem(scene.text, scene.is_title, size) is None
             else None
         ),
-        "text_problem": text_problem(scene.text, scene.is_title),
+        "text_problem": text_problem(scene.text, scene.is_title, size),
+        "transition": scene.transition,
+        "color": scene.color,
+        "layers": [layer_payload(layer) for layer in scene.layers],
+        "sounds": [sound_payload(sound) for sound in scene.sounds],
+        "music_level": scene.music_level,
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
     }
@@ -543,6 +588,37 @@ def script_writer(db: DbSession, video_id: int) -> str | None:
 
 def title_of(video: Video, title: Scene | None) -> str:
     return plain_title(title.text) if title is not None and title.text.strip() else ""
+
+
+def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> list[dict]:
+    """The studio's notes in the order of the video, each with the scene playing at its second now."""
+    every = ([title] if title else []) + scenes
+    ends, end = [], 0.0
+    for scene in every:
+        end += fit_seconds(scene.seconds, made_voice_seconds(video, scene))
+        ends.append(end)
+    rows = db.execute(
+        select(VideoNote, User.name)
+        .join(User, User.id == VideoNote.created_by_id)
+        .where(VideoNote.video_id == video.id)
+        .order_by(VideoNote.at, VideoNote.id)
+    ).all()
+    payload = []
+    for note, author in rows:
+        index = next((number for number, value in enumerate(ends) if note.at < value), len(every) - 1)
+        payload.append(
+            {
+                "id": note.id,
+                "at": note.at,
+                "scene_id": every[index].id if every else None,
+                "text": note.text,
+                "status": note.status,
+                "reply": note.reply,
+                "created_by": author,
+                "created_at": note.created_at.isoformat(),
+            }
+        )
+    return payload
 
 
 def video_payload(db: DbSession, video: Video) -> dict:
@@ -607,6 +683,9 @@ def video_payload(db: DbSession, video: Video) -> dict:
         if video.music_key
         else None,
         "music_volume": video.music_volume,
+        "music_start": video.music_start,
+        "ai_effects": video.ai_effects,
+        "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id), by_page),

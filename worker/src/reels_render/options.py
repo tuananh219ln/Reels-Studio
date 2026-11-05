@@ -19,6 +19,7 @@ TEXT_COLORS = ("auto", "white", "black", "yellow", "red")  # "auto": the style's
 TITLE_STYLES = ("same", "yellow")  # "same": the title scene is drawn like the other scenes
 TITLE_TEXT_STYLES = ("same", *TEXT_STYLES)  # "same": no look of its own (title_style decides)
 CAPTIONS = ("off", "phrase", "word")
+TEXT_SIZE_NAMES = ("large", "medium", "small")  # textbox.TEXT_SIZES
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,8 @@ class RenderOptions:
     title_box_color: str = "auto"
     title_accent_color: str = "auto"
     title_box_opacity: str = "auto"
+    text_size: str = "large"  # the content scenes' text box (textbox.TEXT_SIZES); "large" is the original
+    title_text_size: str = "large"  # the title scene's
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
@@ -53,6 +56,8 @@ class RenderOptions:
             ("title_text_style", self.title_text_style, TITLE_TEXT_STYLES),
             ("title_box_opacity", self.title_box_opacity, BOX_OPACITIES),
             ("captions", self.captions, CAPTIONS),
+            ("text_size", self.text_size, TEXT_SIZE_NAMES),
+            ("title_text_size", self.title_text_size, TEXT_SIZE_NAMES),
         ):
             if value not in allowed:
                 raise InputError(f"Tuỳ chọn {name} không hợp lệ: {value!r} (chọn một trong {', '.join(allowed)})")

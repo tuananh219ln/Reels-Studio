@@ -1,0 +1,105 @@
+{
+  "title": {
+    "text": "HIỆU ỨNG\n*CHUYỂN CẢNH VÀ MÀU*",
+    "seconds": 2.5,
+    "image": "xuong-khop/00-tieu-de.jpg"
+  },
+  "scenes": [
+    {
+      "text": "Mờ dần\n*Tự nhiên*",
+      "seconds": 2.5,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "transition": "fade",
+      "color": "natural"
+    },
+    {
+      "text": "Cắt thẳng\n*Tươi sáng*",
+      "seconds": 2.5,
+      "image": "xuong-khop/02-sua-chua.jpg",
+      "transition": "cut",
+      "color": "bright"
+    },
+    {
+      "text": "Trượt sang trái\n*Rực rỡ*",
+      "seconds": 2.5,
+      "image": "xuong-khop/03-dau-phu.jpg",
+      "transition": "slide",
+      "color": "vivid"
+    },
+    {
+      "text": "Trượt lên\n*Điện ảnh*",
+      "seconds": 2.5,
+      "image": "xuong-khop/04-rau-cai.jpg",
+      "transition": "slide_up",
+      "color": "cinematic"
+    },
+    {
+      "text": "Quét ngang\n*Xanh cam*",
+      "seconds": 2.5,
+      "image": "xuong-khop/05-vung-den.jpg",
+      "transition": "wipe",
+      "color": "teal_orange"
+    },
+    {
+      "text": "Phóng vào\n*Phim cũ*",
+      "seconds": 2.5,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "transition": "zoom",
+      "color": "vintage"
+    },
+    {
+      "text": "Mở vòng tròn\n*Phim mờ*",
+      "seconds": 2.5,
+      "image": "xuong-khop/02-sua-chua.jpg",
+      "transition": "circle",
+      "color": "matte"
+    },
+    {
+      "text": "Qua màu đen\n*Nắng vàng*",
+      "seconds": 2.5,
+      "image": "xuong-khop/03-dau-phu.jpg",
+      "transition": "black",
+      "color": "golden"
+    },
+    {
+      "text": "Chớp trắng\n*Ấm*",
+      "seconds": 2.5,
+      "image": "xuong-khop/04-rau-cai.jpg",
+      "transition": "flash",
+      "color": "warm"
+    },
+    {
+      "text": "Hoà tan\n*Lạnh*",
+      "seconds": 2.5,
+      "image": "xuong-khop/05-vung-den.jpg",
+      "transition": "dissolve",
+      "color": "cool"
+    },
+    {
+      "text": "Nhoè ngang\n*Đêm xanh*",
+      "seconds": 2.5,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "transition": "blur",
+      "color": "night"
+    },
+    {
+      "text": "Vỡ điểm ảnh\n*Trầm*",
+      "seconds": 2.5,
+      "image": "xuong-khop/02-sua-chua.jpg",
+      "transition": "pixel",
+      "color": "moody"
+    },
+    {
+      "text": "Mờ dần\n*Pastel*",
+      "seconds": 2.5,
+      "image": "xuong-khop/03-dau-phu.jpg",
+      "color": "pastel"
+    },
+    {
+      "text": "Mờ dần\n*Đen trắng*",
+      "seconds": 2.5,
+      "image": "xuong-khop/04-rau-cai.jpg",
+      "color": "mono"
+    }
+  ]
+}

@@ -170,6 +170,35 @@ TITLE_STYLE = BoxStyle(max_size=96, min_size=64, max_lines=5)
 SCENE_STYLE = BoxStyle(max_size=84, min_size=60, max_lines=3)
 
 
+@dataclass(frozen=True)
+class TextSize:
+    label: str
+    title: BoxStyle
+    scene: BoxStyle
+
+
+# The text box's size (options.text_size, options.title_text_size). The largest size that fits is used, down to the
+# smallest; "large" is the original template, the others fit longer text in a smaller box.
+TEXT_SIZES = {
+    "large": TextSize("Lớn", TITLE_STYLE, SCENE_STYLE),
+    "medium": TextSize(
+        "Vừa", BoxStyle(max_size=80, min_size=54, max_lines=5), BoxStyle(max_size=70, min_size=50, max_lines=3)
+    ),
+    "small": TextSize(
+        "Nhỏ", BoxStyle(max_size=64, min_size=44, max_lines=5), BoxStyle(max_size=58, min_size=42, max_lines=3)
+    ),
+}
+
+
+# Vừa and Nhỏ take the font Lớn would choose and scale it down, so they come out smaller even for long text that
+# already shrinks at Lớn; their own styles keep the floor.
+SIZE_FACTORS = {"medium": 0.82, "small": 0.68}
+
+
+def box_style(size: str, is_title: bool) -> BoxStyle:
+    return TEXT_SIZES[size].title if is_title else TEXT_SIZES[size].scene
+
+
 class TextFitError(ValueError):
     pass
 
@@ -263,6 +292,23 @@ def layout_text(lines: list[list[Run]], style: BoxStyle) -> TextLayout:
             f"chữ quá dài: ở cỡ tối thiểu {style.min_size}px vẫn cần {needed_lines} dòng, tối đa {style.max_lines} dòng"
         )
     raise TextFitError(f"có từ quá dài, không vừa hộp rộng {MAX_BOX_WIDTH}px ở cỡ tối thiểu {style.min_size}px")
+
+
+def layout_sized(lines: list[list[Run]], size: str, is_title: bool) -> TextLayout:
+    """The box's layout at a text size (TEXT_SIZES): Lớn picks the largest font that fits; Vừa and Nhỏ start from
+    that font scaled down (SIZE_FACTORS), never below their own floor, and shrink further only to fit."""
+    large = box_style("large", is_title)
+    if size == "large":
+        return layout_text(lines, large)
+    style = box_style(size, is_title)
+    try:
+        chosen = layout_text(lines, large).font_size
+    except TextFitError:
+        chosen = large.min_size
+    target = max(style.min_size, round(chosen * SIZE_FACTORS[size]))
+    return layout_text(
+        lines, BoxStyle(max_size=target, min_size=min(style.min_size, target), max_lines=style.max_lines)
+    )
 
 
 def render_box(layout: TextLayout, palette: Palette = PALETTES["yellow"]) -> Image.Image:
