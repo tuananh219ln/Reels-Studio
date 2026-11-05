@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — The video list shows a TikTok version on its source's card, and filters by topic group
+
+Asked by a member (namtc): the list showed the Facebook video and its TikTok version as two cards with the same
+title. Only the display changes: "A TikTok version is its own video" (2026-11-03) stays, since the two are different
+files with different products, states and ways of posting. On `/videos` the version is a small "TikTok · Nháp" /
+"TikTok · Đã đăng" link on its source's card or row (`variant_of_id` and `tiktok_posted` on each row); it is listed
+on its own when a platform is chosen or its source is filtered out. A Facebook clone for another Page keeps its own
+card: it is a real variant, posted to another Page. A "Mọi nhóm chủ đề" filter, remembered in the browser, keeps one
+group's videos; it is a filter rather than a section per group, so the newest videos stay at the top.
+
 ## 2026-11-05 — Photo search follows the topic group; the group's own pictures can be reused
 
 Asked by the owner (namtc07): with several topic groups (Sức khỏe, Vườn rau tại nhà) the scenes' search

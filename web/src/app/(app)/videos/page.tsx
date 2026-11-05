@@ -62,6 +62,7 @@ const STANDOUT_TIMES = 10;
 
 type Sort = "new" | "views";
 const VIEW_KEY = "reels-studio.videos-view";
+const GROUP_KEY = "reels-studio.videos-group";
 
 type StatusFilter = "all" | "draft" | "working" | "done" | "failed" | "outdated";
 
@@ -96,6 +97,14 @@ export default function VideosPage() {
   const [creator, setCreator] = useState<string | null>(null);
   const [platform, setPlatform] = useState<"all" | "facebook" | "tiktok">("all");
   const [fanpage, setFanpage] = useState<string | null>(null);
+  // The topic group shown, remembered in this browser: a member usually works on one group at a time.
+  const [group, setGroup] = useState<string | null>(() => {
+    try {
+      return window.localStorage.getItem(GROUP_KEY);
+    } catch {
+      return null;
+    }
+  });
   const [view, chooseView] = useRememberedView(VIEW_KEY);
   const [sort, setSort] = useState<Sort>("new");
 
@@ -146,13 +155,30 @@ export default function VideosPage() {
       .catch((err) => message.error(errorMessage(err)));
   }, [router, message]);
 
+  function chooseGroup(next: string | null) {
+    setGroup(next);
+    try {
+      if (next) {
+        window.localStorage.setItem(GROUP_KEY, next);
+      } else {
+        window.localStorage.removeItem(GROUP_KEY);
+      }
+    } catch {
+      // A browser that refuses storage just forgets the choice.
+    }
+  }
+
   const match = STATUS_FILTERS.find((item) => item.value === status)!.match;
   const kept = (rows ?? []).filter(
     (row) =>
       match(row) &&
       (!creator || row.created_by === creator) &&
       (platform === "all" || row.platform === platform) &&
-      (!fanpage || Boolean(row.post?.fanpages.includes(fanpage))),
+      (!fanpage || Boolean(row.post?.fanpages.includes(fanpage))) &&
+      (!group || row.knowledge_topic === group),
+  );
+  const groups = [...new Set((rows ?? []).flatMap((row) => (row.knowledge_topic ? [row.knowledge_topic] : [])))].sort(
+    (a, b) => a.localeCompare(b, "vi"),
   );
   const creators = [...new Set((rows ?? []).map((row) => row.created_by))]
     .filter((name) => name !== me.name)
@@ -161,9 +187,15 @@ export default function VideosPage() {
     a.localeCompare(b, "vi"),
   );
   // The api lists the newest first; "Nhiều view nhất" puts videos without views after, newest first among them.
-  const shown = sort === "views" ? [...kept].sort((a, b) => (b.post?.views ?? -1) - (a.post?.views ?? -1)) : kept;
+  const sorted = sort === "views" ? [...kept].sort((a, b) => (b.post?.views ?? -1) - (a.post?.views ?? -1)) : kept;
+  const { shown, versions } = withVersions(sorted, platform === "all");
   const filtered =
-    Boolean(query.trim()) || status !== "all" || Boolean(creator) || platform !== "all" || Boolean(fanpage);
+    Boolean(query.trim()) ||
+    status !== "all" ||
+    Boolean(creator) ||
+    platform !== "all" ||
+    Boolean(fanpage) ||
+    Boolean(group);
 
   return (
     <>
@@ -212,6 +244,14 @@ export default function VideosPage() {
           style={{ width: 160 }}
         />
         <FilterSelect<string>
+          aria-label="Lọc theo nhóm chủ đề"
+          placeholder="Mọi nhóm chủ đề"
+          value={group}
+          onChange={(value) => chooseGroup(value ?? null)}
+          options={groups.map((name) => ({ value: name, label: name }))}
+          style={{ width: 170 }}
+        />
+        <FilterSelect<string>
           aria-label="Người tạo"
           placeholder="Cả đội"
           value={creator}
@@ -253,12 +293,12 @@ export default function VideosPage() {
         <Row gutter={[16, 16]}>
           {shown.map((row) => (
             <Col key={row.id} xs={24} md={12} xl={8} xxl={6} style={{ display: "flex" }}>
-              <VideoCard row={row} />
+              <VideoCard row={row} versions={versions.get(row.id) ?? []} />
             </Col>
           ))}
         </Row>
       ) : (
-        <VideoTable rows={shown} />
+        <VideoTable rows={shown} versions={versions} />
       )}
       <NewVideoModal
         key={opened}
@@ -272,6 +312,70 @@ export default function VideosPage() {
       />
     </>
   );
+}
+
+/**
+ * A TikTok version goes on its source's card instead of a card of its own, so the same video is not listed twice.
+ * It keeps its own card when its source is filtered out, and every card shows alone when `together` is off (a
+ * platform is chosen).
+ */
+function withVersions(rows: VideoRow[], together: boolean): { shown: VideoRow[]; versions: Map<number, VideoRow[]> } {
+  const versions = new Map<number, VideoRow[]>();
+  if (!together) {
+    return { shown: rows, versions };
+  }
+  const listed = new Set(rows.map((row) => row.id));
+  const shown: VideoRow[] = [];
+  for (const row of rows) {
+    if (row.variant_of_id !== null && listed.has(row.variant_of_id)) {
+      versions.set(row.variant_of_id, [...(versions.get(row.variant_of_id) ?? []), row]);
+    } else {
+      shown.push(row);
+    }
+  }
+  return { shown, versions };
+}
+
+/** "TikTok · Nháp", "TikTok · Đã đăng": the versions on a card or row, each opening its own page. */
+function VersionLinks({ versions }: { versions: VideoRow[] }) {
+  const router = useRouter();
+  const { token } = theme.useToken();
+  return versions.map((version) => {
+    const open = (event: React.SyntheticEvent) => {
+      // Inside the card's own link: open the version, not the card.
+      event.preventDefault();
+      event.stopPropagation();
+      router.push(`/videos/${version.id}`);
+    };
+    return (
+      <span
+        key={version.id}
+        role="link"
+        tabIndex={0}
+        aria-label={`Mở bản TikTok: ${version.title || version.topic}`}
+        data-testid="video-version"
+        onClick={open}
+        onKeyDown={(event) => event.key === "Enter" && open(event)}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "0 8px",
+          lineHeight: "22px",
+          borderRadius: 11,
+          border: `1px solid ${token.colorBorderSecondary}`,
+          fontSize: 12,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span style={{ color: token.colorTextSecondary }}>TikTok</span>
+        <StatusText tone={version.tiktok_posted ? "success" : cardTone(version)}>
+          {version.tiktok_posted ? "Đã đăng" : version.status_label}
+        </StatusText>
+      </span>
+    );
+  });
 }
 
 /** "800", "12,4K", "1,2M": how the team says view counts. */
@@ -325,7 +429,7 @@ function cardTone(row: VideoRow): StatusTone {
 
 /** A card on its side. The thumbnail is left as it is but for its views, in the corner as on a profile grid; the
  * text reads top to bottom: what it is, where it went, how it did, and who made it. */
-function VideoCard({ row }: { row: VideoRow }) {
+function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
   const { token } = theme.useToken();
   const name = row.title || row.topic;
   const post = row.post;
@@ -445,6 +549,11 @@ function VideoCard({ row }: { row: VideoRow }) {
               {row.created_by}, {shortDate(row.created_at, false)}
             </Typography.Text>
           </Flex>
+          {versions.length > 0 && (
+            <Flex gap={6} wrap style={{ marginTop: 6 }}>
+              <VersionLinks versions={versions} />
+            </Flex>
+          )}
           {/* Said on a line of its own, so the status line never breaks. */}
           {warning && (
             <Typography.Text style={{ ...small, color: token.colorWarningText }}>
@@ -464,7 +573,7 @@ function VideoCard({ row }: { row: VideoRow }) {
 }
 
 /** "Dạng danh sách": one row per video, to scan many at once. */
-function VideoTable({ rows }: { rows: VideoRow[] }) {
+function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number, VideoRow[]> }) {
   const router = useRouter();
   return (
     <Card styles={{ body: { padding: 0 } }}>
@@ -503,6 +612,7 @@ function VideoTable({ rows }: { rows: VideoRow[] }) {
                     {row.post.state === "posted" ? "Đã đăng" : "Đã lên lịch"}
                   </StatusText>
                 )}
+                <VersionLinks versions={versions.get(row.id) ?? []} />
               </Flex>
             ),
           },

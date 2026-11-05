@@ -697,6 +697,9 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
         for row in db.scalars(select(PostMetrics).where(PostMetrics.publication_id.in_([p.id for p, _ in posts]))):
             readings[(row.publication_id, row.window)] = row
     by_page = analytics.medians(db) if posts else {}
+    on_tiktok = set(
+        db.scalars(select(Publication.video_id).where(Publication.video_id.in_(ids), Publication.platform == "tiktok"))
+    )
     by_video: dict[int, list[tuple[Publication, str]]] = {}
     for post, page in posts:
         by_video.setdefault(post.video_id, []).append((post, page or ""))
@@ -711,6 +714,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
             "knowledge_topic": groups.get(video.knowledge_topic_id),
             "plan_day": days.get(video.id),
             "post": _post_summary(live, later, readings, by_page),
+            # A TikTok version posted by hand: the card it sits on says "Đã đăng" for it.
+            "tiktok_posted": video.id in on_tiktok,
         }
     return extras
 
@@ -776,6 +781,8 @@ def list_payload(
         "topic": video.topic,
         "title": title_of(video, title),
         "platform": video.platform,
+        # The video a TikTok version was made from: the list shows the version on its source's card.
+        "variant_of_id": video.variant_of_id,
         "has_tiktok_version": video.id in family[0],
         "cloned": video.id in family[1],
         "created_by": video.created_by.name,
@@ -783,5 +790,5 @@ def list_payload(
         **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
-        **(extras or {"knowledge_topic": None, "plan_day": None, "post": None}),
+        **(extras or {"knowledge_topic": None, "plan_day": None, "post": None, "tiktok_posted": False}),
     }

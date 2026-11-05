@@ -273,12 +273,17 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await expect(cards).toHaveCount(1);
   await chooseOption(page, page.getByLabel("Người tạo"), "Của tôi");
   await expect(cards).toHaveCount(1);
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm chủ đề"), "Sức khỏe");
+  await expect(cards).toHaveCount(1);
 
-  // The list view shows one row per video; the choice is remembered in this browser.
+  // The list view shows one row per video; the choice, and the topic group, are remembered in this browser.
   await page.getByTitle("Dạng danh sách").click();
   await expect(page.getByTestId("video-row")).toHaveCount(1);
   await page.reload();
   await expect(page.getByTestId("video-row")).toHaveCount(1);
+  await expect(page.locator(".ant-select").filter({ has: page.getByLabel("Lọc theo nhóm chủ đề") })).toContainText(
+    "Sức khỏe",
+  );
   await page.getByTestId("video-row").first().click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
   await page.goto("/videos");

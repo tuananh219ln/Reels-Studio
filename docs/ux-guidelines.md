@@ -92,8 +92,11 @@ Built:
   AI's self-review.
 - **Video list** (`/videos`): "Tạo video"; then, on one row, the search by title or topic and the filters:
   status (Nháp, Đang xử lý, Xong, Lỗi, MP4 cần render lại), platform, Fanpage (any Page the video is out on
-  or set for) and creator ("Của tôi" first, then the team), each showing "Mọi trạng thái", "Mọi nền tảng",
-  "Mọi Fanpage" or "Cả đội" while empty; sort "Mới nhất" or "Nhiều view nhất". Two views, remembered in the browser; a click opens the video:
+  or set for), topic group (remembered in the browser) and creator ("Của tôi" first, then the team), each
+  showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi nhóm chủ đề" or "Cả đội" while empty; sort
+  "Mới nhất" or "Nhiều view nhất". A TikTok version sits on its source's card (or row) as a small "TikTok ·
+  Nháp" / "TikTok · Đã đăng" link that opens it, not on a card of its own; it gets its own card when a platform
+  is chosen or its source is filtered out. Two views, remembered in the browser; a click opens the video:
   - a grid of cards on their side (1 to 4 a row by width), equal in height. The 92 px thumbnail is
     left as it is (or a grey tile with an icon) but for one dark badge in its corner, as on a profile
     grid: the views ("12,4K", the latest readings of every live post added up) or the scheduled day.
@@ -324,7 +327,7 @@ Built:
     phẩm" with "Sửa thông tin", the product form, until it meets the rules and offers "Chọn". The
     products picker shows only the video's platform's products;
   - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
-    new video is tagged "TikTok" (on the list too, which filters by platform) and both pages link
+    new video is tagged "TikTok" (on the list it sits on its source's card, see above) and both pages link
     to each other. A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
     copy buttons, the cart's products, a checklist, and "Đã đăng tay" (one of the member's TikTok
     accounts and the post's link), with the recorded posts below;
