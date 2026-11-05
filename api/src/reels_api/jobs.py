@@ -173,7 +173,7 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
             raise JobFailure("Video chưa thuộc nhóm chủ đề nào trong Kho kiến thức")
         if job.kind == "clone":
             # The snapshot from the moment "Nhân bản" was pressed: later edits of the source do not count.
-            prompt = build_clone_prompt(topic.clone_prompt, video.clone_source, topic.banned_words)
+            prompt = build_clone_prompt(topic.clone_prompt, video.clone_source, topic.banned_words, topic.photo_hint)
         else:
             # A video made from a 30-day plan idea writes to that idea's pain and hook.
             idea = plans.idea_of_video(db, video.id)
@@ -182,6 +182,7 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
                 video.topic,
                 topic.banned_words,
                 (idea.pain_group, idea.pain, idea.hook) if idea else None,
+                photo_hint=topic.photo_hint,
             )
 
         call, count_call = _llm(db, job, call)

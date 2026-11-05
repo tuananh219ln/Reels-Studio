@@ -234,6 +234,29 @@ async function newVideoWithScript(page: Page, topic: string) {
   await uploadPhotos(page);
 }
 
+test("a scene reuses a photo another video of its group already uses", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "canxi cho người lớn tuổi");
+  await newVideoWithScript(page, "rau xanh cho người lớn tuổi");
+
+  await page.getByTestId("scene").first().getByRole("button", { name: "Đã dùng trong nhóm" }).click();
+  const picker = page.getByRole("dialog", { name: "Ảnh/video đã dùng trong nhóm" });
+  const items = picker.getByTestId("group-media-item");
+  await expect(items.first()).toBeVisible();
+  await picker.getByLabel("Tìm ảnh đã dùng").fill("khong co tu nay");
+  await expect(picker.getByText("Không có ảnh nào khớp")).toBeVisible();
+  await picker.getByLabel("Tìm ảnh đã dùng").fill("");
+  // The scene has its own photo already, so using another one asks first.
+  await items.first().getByRole("button", { name: "Dùng" }).click();
+  await page
+    .getByRole("dialog", { name: "Thay ảnh/video hiện tại của cảnh này?" })
+    .getByRole("button", { name: "Đổi" })
+    .click();
+  await expect(page.getByText("Đã dùng cho cảnh này")).toBeVisible();
+  await expect(picker).toBeHidden();
+});
+
 test("video list: status and creator filters, grid or list view remembered", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
@@ -904,23 +927,29 @@ test("photos from other sites: paste a photo or its link, drag one from another 
   await jobFinished(page);
   const scenes = page.getByTestId("scene");
 
-  // "Tìm trên Google" opens Google Ảnh on the scene's first keyword, tall photos only.
+  // "Tìm trên Google" lists the scene's keywords; the one picked opens Google Ảnh, tall photos only.
   await page.context().route("https://www.google.com/**", (route) => route.fulfill({ body: "Google Ảnh" }));
-  const opened = page.waitForEvent("popup");
   await scenes.nth(0).getByRole("button", { name: "Tìm trên Google" }).click();
+  const second = page.locator(".ant-dropdown:visible").getByRole("menuitem").nth(1);
+  const picked = (await second.innerText()).trim();
+  const opened = page.waitForEvent("popup");
+  await second.click();
   const google = new URL((await opened).url());
   expect(google.pathname).toBe("/search");
-  expect(google.searchParams.get("q")).toBeTruthy();
+  expect(google.searchParams.get("q")).toBe(picked);
   expect(google.searchParams.get("udm")).toBe("2");
   expect(google.searchParams.get("tbs")).toBe("iar:t");
 
-  // "Tìm trên TikTok" opens TikTok's video search on the same keyword.
+  // "Tìm trên TikTok" offers the Vietnamese keywords; the second one opens TikTok's video search. Google's menu
+  // fades out first, or the same keyword would be found in both menus.
+  await expect(page.locator(".ant-dropdown:visible")).toHaveCount(0);
   await page.context().route("https://www.tiktok.com/**", (route) => route.fulfill({ body: "TikTok" }));
-  const tiktokOpened = page.waitForEvent("popup");
   await scenes.nth(0).getByRole("button", { name: "Tìm trên TikTok" }).click();
+  const tiktokOpened = page.waitForEvent("popup");
+  await page.locator(".ant-dropdown:visible").getByRole("menuitem", { name: picked, exact: true }).click();
   const tiktok = new URL((await tiktokOpened).url());
   expect(tiktok.pathname).toBe("/search/video");
-  expect(tiktok.searchParams.get("q")).toBe(google.searchParams.get("q"));
+  expect(tiktok.searchParams.get("q")).toBe(picked);
 
   // "Dán ảnh/link" without clipboard permission opens a box; a copied thumbnail's data: address is uploaded.
   await scenes.nth(0).getByRole("button", { name: "Dán ảnh/link" }).click();

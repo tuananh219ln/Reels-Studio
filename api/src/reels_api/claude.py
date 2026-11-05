@@ -31,11 +31,12 @@ Các trường:
   nguyên văn tiêu đề nào), 8–12 từ.
   Khi đọc, cảnh có lời đọc chỉ đọc lời đọc, không đọc chữ trên màn hình: chữ là nhãn ngắn, lời đọc là phần diễn giải.
   Tổng số từ của "title_voice" và mọi "voice" không quá 150 từ.
-- "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh tiêu đề, xếp từ cụ thể đến chung
-  (món tiêu biểu nhất của chủ đề trước, nhóm món sau).
+- "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh tiêu đề, tả đúng thứ chính hiện trong khung
+  hình (món ăn, cây, đồ vật hay việc đang làm, kèm trạng thái nếu cần, vd "cây cải đang mọc" chứ không chỉ "cải"),
+  xếp từ cụ thể đến chung (thứ tiêu biểu nhất của chủ đề trước, nhóm chung sau).
 - "title_keywords_en": 2–4 từ khóa tiếng Anh tương ứng để tìm ở các kho ảnh phương Tây (Pixabay, Pexels —
-  hai kho này đánh chỉ mục bằng tiếng Anh): dịch tên món/nguyên liệu sang tiếng Anh phổ thông, xếp từ cụ thể
-  đến chung, không để tên riêng tiếng Việt.
+  hai kho này đánh chỉ mục bằng tiếng Anh): dịch sang tiếng Anh phổ thông, giữ trạng thái và bối cảnh, xếp từ
+  cụ thể đến chung, không để tên riêng tiếng Việt.
 - "title_image_prompt": prompt tạo ảnh AI cho cảnh tiêu đề, viết bằng tiếng Anh: tả món hoặc cảnh tiêu biểu nhất của
   chủ đề (đồ vật, cách bày, góc chụp) trong 1 câu; không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm
   phong cách chung.
@@ -52,10 +53,11 @@ Các trường:
   - "image_prompt": prompt tạo ảnh AI cho cảnh, viết bằng tiếng Anh, 1 câu tả đúng thứ trong ảnh (món/nguyên liệu
     cụ thể của cảnh, cách bày, góc chụp); không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm phong cách
     chung;
-  - "keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh, xếp từ cụ thể đến chung
-    (tên món/nguyên liệu cụ thể của cảnh trước, nhóm chung sau).
-  - "keywords_en": 2–4 từ khóa tiếng Anh tương ứng cho các kho ảnh phương Tây: dịch tên món/nguyên liệu
-    sang tiếng Anh phổ thông, xếp từ cụ thể đến chung, không để tên riêng tiếng Việt.
+  - "keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh, tả đúng thứ chính hiện trong khung hình của
+    cảnh (món ăn, cây, đồ vật hay việc đang làm, kèm trạng thái nếu cần), xếp từ cụ thể đến chung (thứ cụ thể
+    của cảnh trước, nhóm chung sau).
+  - "keywords_en": 2–4 từ khóa tiếng Anh tương ứng cho các kho ảnh phương Tây: dịch sang tiếng Anh phổ thông,
+    giữ trạng thái và bối cảnh, xếp từ cụ thể đến chung, không để tên riêng tiếng Việt.
 - "caption": caption theo yêu cầu trong prompt; không có yêu cầu thì viết ngắn gọn; không ghi hashtag trong caption.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
 - "affiliates": 2 sản phẩm affiliate phù hợp, mỗi sản phẩm một chuỗi.
@@ -154,7 +156,11 @@ class GeneratedScript:
 
 
 def build_script_prompt(
-    template: str, topic: str, banned_words: list[str], idea: tuple[str, str, str] | None = None
+    template: str,
+    topic: str,
+    banned_words: list[str],
+    idea: tuple[str, str, str] | None = None,
+    photo_hint: str = "",
 ) -> str:
     """`idea`: the pain group, viewer's pain and hook angle of the 30-day plan idea the video was made from; each one
     the plan has fills its placeholder, or is appended when the prompt has none."""
@@ -165,10 +171,10 @@ def build_script_prompt(
             for (placeholder, label), value in zip(IDEA_PLACEHOLDERS, idea, strict=True)
             if value
         ]
-    return _assemble(fill_placeholders(template, placeholders), banned_words)
+    return _assemble(fill_placeholders(template, placeholders), banned_words, photo_hint)
 
 
-def build_clone_prompt(template: str, source: dict, banned_words: list[str]) -> str:
+def build_clone_prompt(template: str, source: dict, banned_words: list[str], photo_hint: str = "") -> str:
     """`source` is the snapshot taken when "Nhân bản" was pressed (see routes_videos.clone_snapshot)."""
     return _assemble(
         fill_placeholders(
@@ -181,6 +187,7 @@ def build_clone_prompt(template: str, source: dict, banned_words: list[str]) -> 
             ],
         ),
         banned_words,
+        photo_hint,
     )
 
 
@@ -195,12 +202,17 @@ def fill_placeholders(template: str, placeholders: list[tuple[str, str, str]]) -
     return "\n\n".join([body.rstrip(), *missing]) if missing else body
 
 
-def _assemble(body: str, banned_words: list[str]) -> str:
+def _assemble(body: str, banned_words: list[str], photo_hint: str = "") -> str:
     parts = [body]
     if banned_words:
         quoted = ", ".join(f'"{word}"' for word in banned_words)
         parts.append(
             f"Từ cấm, không được dùng trong tiêu đề, chữ trên màn hình, lời đọc, caption và bình luận ghim: {quoted}."
+        )
+    if photo_hint.strip():
+        parts.append(
+            "Ảnh của nhóm chủ đề này: "
+            f"{photo_hint.strip()}\nViết từ khóa tìm ảnh (tiếng Việt và tiếng Anh) và prompt ảnh AI theo đúng gợi ý này."
         )
     parts.append(OUTPUT_FORMAT)
     return "\n\n".join(parts)

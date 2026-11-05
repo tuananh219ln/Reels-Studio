@@ -138,6 +138,20 @@ def test_topic_replaces_the_placeholder_and_banned_words_and_format_follow():
     assert prompt.endswith(OUTPUT_FORMAT)
 
 
+def test_a_photo_hint_comes_before_the_format_and_none_adds_nothing():
+    hint = "cây rau đang mọc trong chậu, không phải món đã nấu"
+    prompt = build_script_prompt("[Chủ đề]", "rau muống", [], photo_hint=f"  {hint} ")
+    assert f"Ảnh của nhóm chủ đề này: {hint}\n" in prompt and prompt.endswith(OUTPUT_FORMAT)
+    assert "Ảnh của nhóm chủ đề này" not in build_script_prompt("[Chủ đề]", "rau muống", [], photo_hint=" ")
+    source = {"title": "T", "topic": "rau", "script": "S", "request": "R"}
+    assert hint in build_clone_prompt("[tiêu đề]", source, [], hint)
+
+
+def test_keywords_describe_what_is_in_the_frame_not_only_dishes():
+    assert "thứ chính hiện trong khung hình" in OUTPUT_FORMAT
+    assert "tên món/nguyên liệu cụ thể của cảnh trước" not in OUTPUT_FORMAT
+
+
 def test_topic_is_appended_when_the_placeholder_was_removed():
     prompt = build_script_prompt("Viết kịch bản 5 món.", "tim mạch", [])
     assert prompt.startswith("Viết kịch bản 5 món.\n\nChủ đề: tim mạch\n\n")
