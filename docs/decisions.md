@@ -11,6 +11,19 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — CI does not test the same code twice
+
+Asked by the owner (namtc07), changing the 2026-11-03 entry's "a push to `main` still runs every job
+before it deploys". Each PR ran api pytest three times and E2E twice on the same files: as a draft, when
+marked ready, and after the merge. Now marking a PR ready reruns api, worker and web only if they did not
+pass on that commit (a draft run cancelled by marking it ready counts as not passed), and a push to
+`main` deploys without testing again when its files are exactly the merged PR's last commit and every
+check (api, worker, web, the image job, E2E) passed there. The "Protect main" ruleset requires a PR to
+be up to date with `main` before merging, so a merge, squash or rebase leaves the tested files; if that
+rule is ever turned off, or a push does not come from a merged PR, or GitHub cannot be asked, every job
+runs before deploying as before. The 2026-10-31 rule that only CI deploys, after every test passes,
+holds: the tests that passed are the ones on those exact files.
+
 ## 2026-11-05 — Photo search follows the topic group; the group's own pictures can be reused
 
 Asked by the owner (namtc07): with several topic groups (Sức khỏe, Vườn rau tại nhà) the scenes' search

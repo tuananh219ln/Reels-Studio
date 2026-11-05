@@ -56,9 +56,12 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   image builds and the render parity test inside the worker image, worker pytest with FFmpeg, web
   typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on four
   machines at once, each taking every 4th test of `playwright test --list`. A draft PR runs only the
-  quick jobs (api, worker, web); E2E and the image job run once it is ready for review. A PR that
-  changes only `docs/` or `.md` files runs no CI. A push to `main` runs every job and, if all of them
-  pass, deploys in order, each waiting for Coolify to report `finished`: the api (it runs the
+  quick jobs (api, worker, web); E2E and the image job run once it is ready for review, and the quick
+  jobs run again then only if they did not pass on that commit. A PR that changes only `docs/` or
+  `.md` files runs no CI. A push to `main` runs every job, unless its files are exactly the merged
+  PR's last commit and every check passed there (the `passed` job; `main` requires PRs to be up to
+  date before merging, so this holds for a merge, squash or rebase). Then, with every check passed,
+  it deploys in order, each waiting for Coolify to report `finished`: the api (it runs the
   migrations), then the worker, then `npm run deploy` in `web/`. Coolify auto-deploy must stay off,
   or a push deploys before the tests pass.
 - **Database URL:** the api's `DATABASE_URL` is the Postgres internal URL Coolify shows
