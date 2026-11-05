@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
+from .layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
 from .markup import MarkupError, Run, parse_scene_text
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 
@@ -34,6 +35,7 @@ class Scene:
     text_position: tuple[int, int] | None = None  # the text box's centre in the frame; None: the template's place
     transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
     color: str | None = None  # effects.COLOR_PRESETS; None: as shot
+    layers: tuple[Layer, ...] = ()  # text and sticker layers over the scene, in the order they are laid on
 
 
 @dataclass(frozen=True)
@@ -117,6 +119,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
     if transition is not None and number == 0:
         raise InputError(f'{label}: không có "transition", vì không có cảnh nào trước nó')
     color = _parse_preset(item.get("color"), "color", COLOR_PRESETS, label)
+    layers = _parse_layers(item.get("layers"), label)
     if video is not None and image.strip():
         raise InputError(f'{label}: chỉ dùng một trong "image" hoặc "video"')
     keywords = _parse_keywords(item.get("keywords"), label)
@@ -156,7 +159,56 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         text_position=text_position,
         transition=transition,
         color=color,
+        layers=layers,
     )
+
+
+def _number(value: object, field: str, label: str, low: float, high: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise InputError(f'{label}: "{field}" phải là số')
+    if not low <= value <= high:
+        raise InputError(f'{label}: "{field}" phải từ {low:g} đến {high:g} (đang là {value:g})')
+    return value
+
+
+def _parse_layers(value: object, label: str) -> tuple[Layer, ...]:
+    """A scene's text and sticker layers, in the order they are laid on."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise InputError(f'{label}: "layers" phải là danh sách lớp')
+    layers = []
+    for number, item in enumerate(value, start=1):
+        where = f"{label}, lớp {number}"
+        if not isinstance(item, dict):
+            raise InputError(f"{where}: phải là một object")
+        kind = item.get("kind")
+        if kind not in ("text", "sticker"):
+            raise InputError(f'{where}: "kind" phải là "text" hoặc "sticker"')
+        text, sticker = item.get("text", ""), item.get("sticker", "")
+        if kind == "text" and (not isinstance(text, str) or not text.strip()):
+            raise InputError(f'{where}: lớp chữ cần "text"')
+        if kind == "sticker":
+            _parse_preset(sticker, "sticker", STICKERS, where)
+        layer = Layer(
+            kind=kind,
+            text=text if kind == "text" else "",
+            sticker=sticker if kind == "sticker" else "",
+            start=float(_number(item.get("start", 0), "start", where, 0, 1e6)),
+            seconds=float(_number(item.get("seconds", 2), "seconds", where, 0.1, 1e6)),
+            x=int(_number(item.get("x", FRAME_WIDTH // 2), "x", where, 0, FRAME_WIDTH)),
+            y=int(_number(item.get("y", FRAME_HEIGHT // 2), "y", where, 0, FRAME_HEIGHT)),
+            size=_parse_preset(item.get("size", "medium"), "size", SIZES, where),
+            style=_parse_preset(item.get("style", "outline"), "style", TEXT_STYLES, where),
+            animation=_parse_preset(item.get("animation", "fade"), "animation", ANIMATIONS, where),
+        )
+        if kind == "text":
+            try:
+                render_layer(layer)
+            except ValueError as err:
+                raise InputError(f"{where}: {err}") from None
+        layers.append(layer)
+    return tuple(layers)
 
 
 def _parse_preset(value: object, field: str, presets: dict, label: str) -> str | None:

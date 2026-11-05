@@ -104,6 +104,25 @@ export type JobInfo = {
   finished_at: string | null;
 };
 
+/** A text or sticker layer over a scene (reels_render.layers): its own seconds, place, look and entrance. */
+export type SceneLayer = {
+  id: number;
+  kind: "text" | "sticker";
+  text: string;
+  sticker: string;
+  /** Seconds into its scene. */
+  start: number;
+  seconds: number;
+  /** Its centre in the 1080×1920 frame; the picture is kept inside the frame. */
+  x: number;
+  y: number;
+  size: string;
+  style: string;
+  animation: string;
+  /** The exact picture the render lays on. */
+  image_url: string;
+};
+
 export type SceneData = {
   id: number;
   video_id: number;
@@ -146,6 +165,8 @@ export type SceneData = {
   transition: string | null;
   /** Its colour preset, null for the picture as shot. The title scene has neither. */
   color: string | null;
+  /** Text and sticker layers over the scene, in the order they are laid on (the last on top). */
+  layers: SceneLayer[];
   blocking: string[];
   warnings: string[];
 };

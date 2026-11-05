@@ -1,13 +1,24 @@
 import type { SceneData } from "@/lib/api";
+import { layerName } from "./layers";
 
 /** The tracks under the scenes on the studio's timeline. */
-export type Lane = { key: "text" | "voice" | "captions" | "music"; name: string };
+export type Lane = { key: "text" | "layers" | "voice" | "captions" | "music"; name: string };
 
 /** The tracks a member can lock so a stray drag or key changes nothing on them; remembered in their browser. */
-export type LockableTrack = "scene" | "text";
+export type LockableTrack = "scene" | "text" | "layer";
 
-/** One block on a track: which scene it belongs to (null: the whole video), where it is, what it says. */
-export type Span = { index: number | null; start: number; length: number; label: string; tentative?: boolean };
+/**
+ * One block on a track: which scene it belongs to (null: the whole video), where it is, what it says. A click plays
+ * its scene, or, with `seek`, goes to that second.
+ */
+export type Span = {
+  index: number | null;
+  start: number;
+  length: number;
+  label: string;
+  tentative?: boolean;
+  seek?: boolean;
+};
 
 // The renderer's timing (reels_render.timeline): the narration starts this long into its scene and leaves this much
 // of it after it ends. Keep in step with VOICE_LEAD_MS and VOICE_TAIL_MS in VideoPreview.tsx.
@@ -20,6 +31,7 @@ const plain = (text: string) => text.replaceAll("*", "").replace(/\s+/g, " ").tr
 export function lanesFor(captions: "off" | "phrase" | "word", music: boolean): Lane[] {
   return [
     { key: "text", name: "Chữ" },
+    { key: "layers", name: "Lớp" },
     { key: "voice", name: "Giọng" },
     ...(captions !== "off" ? [{ key: "captions" as const, name: "Phụ đề" }] : []),
     ...(music ? [{ key: "music" as const, name: "Nhạc" }] : []),
@@ -58,6 +70,21 @@ export function laneSpans(
     if (key === "text") {
       const text = plain(scene.text);
       if (text) spans.push({ index, start, length, label: text });
+      return;
+    }
+    if (key === "layers") {
+      // Each text or sticker layer for its seconds, cut at its scene's end as the render cuts it.
+      for (const layer of scene.layers) {
+        if (layer.start >= length) continue;
+        const label = `${layer.kind === "text" ? "Chữ" : "Sticker"}: ${layerName(layer)}`;
+        spans.push({
+          index,
+          start: start + layer.start,
+          length: Math.min(layer.seconds, length - layer.start),
+          label,
+          seek: true,
+        });
+      }
       return;
     }
     if (!scene.spoken_text || (key === "captions" && scene.is_title)) {

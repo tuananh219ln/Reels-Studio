@@ -165,7 +165,9 @@ Built:
   - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
     play the video in the browser before any render, in a drawer from the right that leaves a strip
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
-    the scene list; "Khung": the app frame and the safe zone; "Giọng đọc"), its panel beside it, the
+    the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
+    playhead's second for 2 s, never to the title scene; "Khung": the app frame and the safe zone; "Giọng
+    đọc"), its panel beside it, the
     phone in the middle on grey, "Chỉnh cảnh N" on the right and the timeline along the bottom (up to
     1280 px wide "Chỉnh cảnh N" sits under the tools' panel; under 900 px they stack: phone, timeline,
     tools, panel, "Chỉnh cảnh N"). "Chỉnh cảnh N" holds everything about the scene shown, in folding
@@ -174,6 +176,10 @@ Built:
     từ kho ảnh/video", "Đã dùng trong nhóm", "Tìm ảnh" and "Tạo ảnh AI", with "Chỉnh khung" for a photo and
     "Xoá video" for a clip; the phone shows the picture) and, folded, "Tìm ảnh: từ khoá và prompt AI". These
     are the same fields as on the scene card and save the same way, so the card and the studio always agree.
+    "Chữ & sticker (N)" lists the scene's layers; the one picked (on the phone or in the list) opens for its words,
+    "Kiểu chữ", size, "Hiệu ứng vào", start and length, and "Xoá lớp". On the phone each layer shows for its own
+    seconds as the render lays it on; while paused it is picked with a click (outlined) and dragged to a new place;
+    Delete removes the picked layer instead of the scene, Esc lets it go. Every layer change can be undone.
     The keys and how to edit on the phone sit behind "Phím tắt" (?) in the timeline's header. It plays each
     scene for its seconds (lengthened to fit its narration), the frame
     without text moving like the video's motion setting with the exact text box on top where the
@@ -199,13 +205,15 @@ Built:
     box moves after a short hold, and a quick swipe across the phone changes scene. On the timeline a segment's
     right edge drags its seconds (1–10, by tenths; a double-click goes back to "Tự khớp lời đọc") and a content
     scene's segment drags to a new place. Under the scenes' track the timeline has a track each for what plays with
-    them, named in a column at its left: "Chữ" (each scene's on-screen text across the scene), "Giọng" (the
+    them, named in a column at its left: "Chữ" (each scene's on-screen text across the scene), "Lớp" (each text
+    or sticker layer for its seconds; a click goes to its first second), "Giọng" (the
     narration from 0.2 s into its scene for the MP3's length; dashed, as "Giọng tạm", while only the browser's voice
     reads it), "Phụ đề" (only when the video's captions are on; never on the title scene) and "Nhạc" (the music's
     name across the video, only when it has music). A click on a block plays its scene (on "Nhạc", goes to that
     second). The "Cảnh" and "Chữ" tracks have a padlock: a locked "Cảnh" track keeps the seconds' edges, the
     reorder drag, the trim bar, [ ], "Tách cảnh", "Thêm cảnh" and "Xoá cảnh" out of reach; a locked "Chữ" track
-    keeps the text box from moving or being typed over. Locks are each member's own, per video, remembered in the
+    keeps the text box from moving or being typed over; a locked "Lớp" track takes no new layer and keeps the
+    layers as they are. Locks are each member's own, per video, remembered in the
     browser, and "Chỉnh cảnh N" says when one is on. A scene with a clip gets a trim bar under the phone: the
     window moves the start, its ends set the start and the seconds, and the phone shows the frame being chosen. A
     toolbar beside the phone has "Hoàn tác" / "Làm lại" (also Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) for these changes, a
@@ -677,6 +685,15 @@ relied on (samples in the PR that added them).
   other transitions cuts 0.2 s before the boundary. The phone shows each with CSS, close to the MP4 but not
   the same (no curves or per-tone colour in CSS). A clip's speed (0,5× to 2×) is offered there too. Sample:
   [samples/hieu-ung.json](../samples/hieu-ung.json) shows every transition and colour.
+- **Text and sticker layers** ([reels_render/layers.py](../worker/src/reels_render/layers.py)), content scenes
+  only, any number per scene, each for its own seconds from its own second of the scene (cut at the scene's
+  end), centred where it was dropped and kept inside the frame, on top of everything (captions included). A text
+  layer: its words (`*word*` in the accent colour, line breaks kept), Chữ viền (white, black outline, yellow
+  accent) or a box (Hộp vàng, Hộp đen, Hộp trắng, Hộp đỏ), Nhỏ / Vừa / Lớn. A sticker, drawn by the render core
+  itself (no image files): Mũi tên xuống, Mũi tên phải, Khoanh tròn, Ngôi sao, Trái tim, Dấu tích, Dấu X, Nhãn
+  MỚI, Nhãn HOT, Nhãn SALE, at 160, 240 or 340 px. Entrance: Hiện ngay, Mờ dần, Trượt lên (from 120 px lower),
+  Trượt từ trái (from off the frame), each over 0.3 s and fading in. The studio shows the exact picture the render
+  lays on. Sample: [samples/lop-chu-sticker.json](../samples/lop-chu-sticker.json).
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied

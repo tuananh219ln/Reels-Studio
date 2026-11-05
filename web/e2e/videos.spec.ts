@@ -647,6 +647,58 @@ test("studio effects: a scene's own transition and colour, drawn on the phone an
   await expect(effects).toContainText("Theo cả video (Mờ dần)");
 });
 
+test("studio layers: a sticker and a text over a scene, changed, removed with Delete and put back", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await expect(timeline.getByTestId("timeline-tracks")).toContainText("Lớp");
+
+  // Not on the title scene: it is the video's cover.
+  await studio.getByRole("tab", { name: "Chữ & sticker" }).click();
+  const tools = studio.getByTestId("layer-tools");
+  await expect(tools.getByRole("button", { name: "Thêm chữ" })).toBeDisabled();
+
+  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  await tools.getByRole("button", { name: "Thêm sticker Trái tim" }).click();
+  await tools.getByRole("button", { name: "Thêm chữ" }).click();
+  const layers = studio.getByTestId("preview-stage").getByTestId("preview-layer");
+  await expect(layers).toHaveCount(2);
+  await expect(layers.first()).toBeVisible();
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(2);
+
+  // The text just added is open in "Chỉnh cảnh 1": its words and its look.
+  const inspector = studio.getByTestId("preview-scene-editor");
+  const words = inspector.getByLabel("Chữ của lớp", { exact: true });
+  await words.fill("Giảm *50%*");
+  await words.blur();
+  await expect(timeline.getByTestId("lane-layers").nth(1)).toHaveText("Chữ: Giảm 50%");
+  await chooseOption(page, inspector.getByLabel("Kiểu chữ của lớp"), "Hộp vàng");
+  // A new look is a new picture from the api.
+  const textPicture = layers.nth(1);
+  await expect(inspector.getByTitle("Hộp vàng", { exact: true })).toBeVisible();
+  await expect(textPicture).toHaveAttribute("src", /image\.png\?v=/);
+
+  // Delete takes the picked layer, not the scene; Ctrl+Z puts it back.
+  await timeline.getByRole("slider", { name: "Đầu phát" }).focus();
+  await page.keyboard.press("Delete");
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(1);
+  await expect(page.getByTestId("scene")).toHaveCount(5);
+  await expect(studio.getByRole("button", { name: "Hoàn tác: xoá lớp (Ctrl+Z)" })).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(2);
+
+  // Locked, the layers' track takes no new layer.
+  await timeline.getByTestId("timeline-tracks").getByRole("button", { name: "Khoá tầng Lớp" }).click();
+  await expect(tools.getByRole("button", { name: "Thêm sticker Trái tim" })).toBeDisabled();
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);

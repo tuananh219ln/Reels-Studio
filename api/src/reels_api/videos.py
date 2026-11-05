@@ -25,6 +25,7 @@ from .models import (
     PostMetrics,
     Publication,
     Scene,
+    SceneLayer,
     TopicPlanItem,
     Video,
 )
@@ -219,6 +220,20 @@ def text_position(video: Video, scene: Scene) -> list[int] | None:
     return effective(video)["text_position"]
 
 
+LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation")
+
+
+def layer_fields(layer: SceneLayer) -> dict:
+    """A layer as the render script and the studio read it (reels_render.layers.Layer)."""
+    return {field: getattr(layer, field) for field in LAYER_FIELDS}
+
+
+def layer_payload(layer: SceneLayer) -> dict:
+    # Its picture changes only with what is drawn, not with where or when it shows.
+    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style)
+    return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
+
+
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
     """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume, narration); captions and
     keywords are left out."""
@@ -236,6 +251,7 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             # The studio's effects join only when set, so MP4s rendered before they existed stay current.
             *([["transition", scene.transition]] if scene.transition else []),
             *([["color", scene.color]] if scene.color else []),
+            *([["layers", [layer_fields(layer) for layer in scene.layers]]] if scene.layers else []),
         ]
         for scene in every
     ]
@@ -522,6 +538,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "text_problem": text_problem(scene.text, scene.is_title),
         "transition": scene.transition,
         "color": scene.color,
+        "layers": [layer_payload(layer) for layer in scene.layers],
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
     }

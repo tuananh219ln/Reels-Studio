@@ -807,6 +807,10 @@ def split_scene(
     elif scene.image_key:
         rest.image_key = new_key(video.id, f"scene-{rest.id}", Path(scene.image_key).suffix.lstrip("."))
         storage.save_file(rest.image_key, storage.path(scene.image_key))
+    # Layers that start after the cut go with the rest, still at the same moment of the video.
+    for layer in list(scene.layers):
+        if layer.start >= at:
+            layer.scene_id, layer.start = rest.id, round(layer.start - at, 2)
     scene.seconds, scene.seconds_auto = at, False
     return _saved(db, video)
 

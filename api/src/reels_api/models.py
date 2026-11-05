@@ -255,6 +255,31 @@ class Scene(Base):
     color: Mapped[str | None] = mapped_column(String(24))
 
     video: Mapped[Video] = relationship(back_populates="scenes")
+    layers: Mapped[list["SceneLayer"]] = relationship(
+        back_populates="scene", order_by="SceneLayer.position", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class SceneLayer(Base):
+    """A text or sticker layer over a scene for its own seconds (reels_render.layers), added in the studio."""
+
+    __tablename__ = "scene_layers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)  # laid on in this order, the last on top
+    kind: Mapped[str] = mapped_column(String(8))  # "text" | "sticker"
+    text: Mapped[str] = mapped_column(Text, default="")
+    sticker: Mapped[str] = mapped_column(String(24), default="")
+    start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene
+    seconds: Mapped[float] = mapped_column(Float, default=2)
+    x: Mapped[int] = mapped_column(Integer, default=540)  # its centre in the 1080×1920 frame
+    y: Mapped[int] = mapped_column(Integer, default=960)
+    size: Mapped[str] = mapped_column(String(8), default="medium")
+    style: Mapped[str] = mapped_column(String(16), default="outline")
+    animation: Mapped[str] = mapped_column(String(16), default="fade")
+
+    scene: Mapped[Scene] = relationship(back_populates="layers")
 
 
 class Job(Base):

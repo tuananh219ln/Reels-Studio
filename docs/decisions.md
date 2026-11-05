@@ -46,6 +46,11 @@ first frame stays the cover the api draws without them. A cut among transitions 
 crossfade's offset rather than a different timeline, so the video's length and every narration stay where they
 were. The part after "Tách cảnh" cuts in.
 
+Phase 3: text and sticker layers, each its own row (`scene_layers`) saved on its own like the scene fields, so the
+"one block with a version" idea above was not needed. Stickers are shapes the render core draws (no image files,
+so nothing to license); text, styles, sizes and entrances are named presets. The api draws a layer's picture with
+the render core, so the phone shows what the MP4 lays on. The title scene takes none, as for the effects.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

@@ -56,6 +56,7 @@ from .videos import (
     active_job,
     auto_seconds,
     is_published,
+    layer_fields,
     made_voice_seconds,
     new_key,
     pending_publication,
@@ -393,6 +394,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data["transition"] = scene.transition
             if scene.color and not scene.is_title:
                 data["color"] = scene.color
+            if scene.layers and not scene.is_title:
+                data["layers"] = [layer_fields(layer) for layer in scene.layers]
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
                 data["voice_text"] = spoken(video, scene)

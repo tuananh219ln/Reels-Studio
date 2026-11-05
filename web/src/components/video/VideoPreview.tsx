@@ -3,6 +3,7 @@
 import {
   AppstoreOutlined,
   CaretRightOutlined,
+  FontSizeOutlined,
   MobileOutlined,
   PauseOutlined,
   QuestionCircleOutlined,
@@ -29,12 +30,22 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import ListenVolume, { useListen } from "@/components/ListenVolume";
 import { COLORS } from "@/app/theme";
-import { api, errorMessage, upload, type SceneData, type VideoDetail, type VideoOptions } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  upload,
+  type SceneData,
+  type SceneLayer,
+  type VideoDetail,
+  type VideoOptions,
+} from "@/lib/api";
 import ClipTrim from "./preview/ClipTrim";
 import { coveredBy } from "./preview/coverage";
 import { useHistory } from "./preview/history";
 import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
+import { LayerList, LayerTools } from "./preview/LayerPanel";
+import LayerStage from "./preview/LayerStage";
 import SceneEffects from "./preview/SceneEffects";
 import SceneInspector from "./preview/SceneInspector";
 import { colorCss } from "./preview/effects";
@@ -49,21 +60,24 @@ import "./preview/editor.css";
 const PLATFORM_KEY = "reels-studio.preview-platform";
 
 /** The editor's left column: each tool opens its panel beside it. */
-type Tool = "scene" | "frame" | "voice";
+type Tool = "scene" | "layers" | "frame" | "voice";
 const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
   { key: "scene", label: "Cảnh", icon: <AppstoreOutlined /> },
+  { key: "layers", label: "Chữ & sticker", icon: <FontSizeOutlined /> },
   { key: "frame", label: "Khung", icon: <MobileOutlined /> },
   { key: "voice", label: "Giọng đọc", icon: <SoundOutlined /> },
 ];
 const VOICE_KEY = "reels-studio.preview-voice";
 /** The tracks each member locked, per video, in their browser only: a lock guards their own clicks, not the video. */
 const LOCKS_KEY = "reels-studio.studio-locks";
-const NO_LOCKS: Record<LockableTrack, boolean> = { scene: false, text: false };
+const NO_LOCKS: Record<LockableTrack, boolean> = { scene: false, text: false, layer: false };
+/** A layer's fields as the api takes them back ("Hoàn tác" of a removal adds it again). */
+const LAYER_FIELDS = ["kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation"] as const;
 
 function savedLocks(videoId: number): Record<LockableTrack, boolean> {
   try {
     const saved = JSON.parse(window.localStorage.getItem(LOCKS_KEY) ?? "{}")[videoId];
-    return { scene: saved?.scene === true, text: saved?.text === true };
+    return { scene: saved?.scene === true, text: saved?.text === true, layer: saved?.layer === true };
   } catch {
     return NO_LOCKS;
   }
@@ -204,6 +218,9 @@ export default function VideoPreview({
   const [locks, setLocks] = useState(() => savedLocks(video.id));
   const scenesEditable = editable && !locks.scene;
   const textEditable = editable && !locks.text;
+  const layersEditable = editable && !locks.layer;
+  // The text or sticker layer picked on the phone or in "Chỉnh cảnh N" (outlined, open, removed by Delete).
+  const [pickedLayer, setPickedLayer] = useState<number | null>(null);
   const [dragged, setDragged] = useState<{ sceneId: number; centre: [number, number] } | null>(null);
   const [scope, setScope] = useState<"scene" | "all">("scene");
   // The clip frame the trim bar asks the phone to show while its window is dragged.
@@ -578,6 +595,56 @@ export default function VideoPreview({
   }
   const patchScene = (body: Record<string, unknown>) => changeScene("sửa cảnh", scene, body);
 
+  /** The newest layer of a scene in a saved video: the one just added. */
+  const newestLayer = (saved: VideoDetail, sceneId: number) =>
+    [saved.title_scene, ...saved.scenes].find((item) => item?.id === sceneId)?.layers.at(-1)?.id ?? null;
+
+  /** A text or sticker layer added to the scene shown, from the playhead's second in it; picked once added. */
+  function addLayer(body: Record<string, unknown>) {
+    const target = scene;
+    if (!target || target.is_title) return;
+    // Rounded down, so the new layer already shows at the playhead.
+    const into = Math.floor((position() - startOf(phase.index)) * 10) / 10;
+    const start = Math.min(Math.max(0, into), Math.max(0, target.fitted_seconds - 0.5));
+    let made: number | null = null;
+    void history.run({
+      label: body.kind === "text" ? "thêm chữ" : "thêm sticker",
+      redo: async () => {
+        const saved = await api<VideoDetail>("/layers", "POST", { scene_id: target.id, start, ...body });
+        made = newestLayer(saved, target.id);
+        setPickedLayer(made);
+        return saved;
+      },
+      undo: () => api<VideoDetail>(`/layers/${made}`, "DELETE"),
+    });
+  }
+
+  /** A change to one layer, kept for "Hoàn tác". */
+  function changeLayer(layer: SceneLayer, label: string, body: Record<string, unknown>) {
+    const back = Object.fromEntries(Object.keys(body).map((key) => [key, layer[key as keyof SceneLayer]]));
+    void history.run({
+      label,
+      redo: () => api<VideoDetail>(`/layers/${layer.id}`, "PATCH", body),
+      undo: () => api<VideoDetail>(`/layers/${layer.id}`, "PATCH", back),
+    });
+  }
+
+  /** A layer removed; "Hoàn tác" adds it back (on top of the scene's others). */
+  function removeLayer(layer: SceneLayer, sceneId: number) {
+    let current = layer.id;
+    const fields = Object.fromEntries(LAYER_FIELDS.map((key) => [key, layer[key]]));
+    setPickedLayer(null);
+    void history.run({
+      label: "xoá lớp",
+      redo: () => api<VideoDetail>(`/layers/${current}`, "DELETE"),
+      undo: async () => {
+        const saved = await api<VideoDetail>("/layers", "POST", { scene_id: sceneId, ...fields });
+        current = newestLayer(saved, sceneId) ?? current;
+        return saved;
+      },
+    });
+  }
+
   /** A text box dropped on the stage: this scene's own place, or the place of every content scene. */
   function dropBox(centre: [number, number]) {
     const point: [number, number] = [Math.round(centre[0]), Math.round(centre[1])];
@@ -709,6 +776,8 @@ export default function VideoPreview({
   }
   // The box follows the pointer only while the preview stands still on a scene, and not while the text is locked.
   const still = !playing || ended;
+  // The picked layer, while it is still on the scene shown.
+  const picked = scene?.layers.find((layer) => layer.id === pickedLayer) ?? null;
   const canDrag = textEditable && still;
 
   // The current box, where it is (or is being dragged to), and what of the chosen app would cover it.
@@ -749,9 +818,16 @@ export default function VideoPreview({
       } else if (event.key.toLowerCase() === "s" && !mod && scenesEditable && still) {
         event.preventDefault();
         splitScene();
+      } else if ((event.key === "Delete" || event.key === "Backspace") && still && picked && scene) {
+        // A picked layer goes first: the scene stays.
+        event.preventDefault();
+        if (layersEditable) removeLayer(picked, scene.id);
       } else if ((event.key === "Delete" || event.key === "Backspace") && scenesEditable && still) {
         event.preventDefault();
         confirmRemove();
+      } else if (event.key === "Escape" && picked) {
+        event.stopPropagation();
+        setPickedLayer(null);
       }
     };
     window.addEventListener("keydown", onKey);
@@ -872,6 +948,8 @@ export default function VideoPreview({
               </div>
             </>
           )}
+
+          {tool === "layers" && <LayerTools scene={scene} editable={layersEditable} onAdd={addLayer} />}
 
           {tool === "frame" && (
             <>
@@ -1109,6 +1187,18 @@ export default function VideoPreview({
                   {platform !== "none" && (
                     <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
                   )}
+                  {scene && scene.layers.length > 0 && (
+                    <LayerStage
+                      key={scene.id}
+                      layers={scene.layers}
+                      elapsed={() => position() - startOf(phase.index)}
+                      stage={stage}
+                      selected={pickedLayer}
+                      editable={layersEditable && still}
+                      onSelect={setPickedLayer}
+                      onMove={(layer, x, y) => changeLayer(layer, "di chuyển lớp", { x, y })}
+                    />
+                  )}
                   {guide && <SafeZone />}
                 </div>
               </Phone>
@@ -1157,6 +1247,16 @@ export default function VideoPreview({
               label={label(phase.index)}
               voiceEnabled={video.voice_enabled}
               generating={video.active_job?.kind === "image" && video.active_job.scene_id === scene.id}
+              layers={
+                <LayerList
+                  scene={scene}
+                  selected={pickedLayer}
+                  editable={layersEditable}
+                  onSelect={setPickedLayer}
+                  onPatch={changeLayer}
+                  onRemove={(layer) => removeLayer(layer, scene.id)}
+                />
+              }
               effects={
                 <SceneEffects
                   scene={scene}

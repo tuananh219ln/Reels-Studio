@@ -163,6 +163,19 @@ A scene may hold an uploaded video clip instead of a photo
   timing stay the timeline's; when every boundary is a cut the scenes are joined with `concat` as before), and a
   colour is one more filter step on the scene's picture before its text box is overlaid. The colour presets'
   filter chains are adapted from AIEV (MIT, notice in `effects.py`).
+- **Layers:** `scene_layers` (migration 0038; one row per text or sticker layer, deleted with its scene) holds
+  `kind`, `text` or `sticker`, `start` (seconds into the scene), `seconds`, `x`/`y` (the centre), `size`,
+  `style` and `animation`, all named presets of [layers.py](../worker/src/reels_render/layers.py), and `position`
+  (laid on in that order). [routes_layers.py](../api/src/reels_api/routes_layers.py) under `/api/layers` adds
+  (`POST`, with `scene_id`; refused on the title scene), changes (`PATCH /{id}`, any field but `kind`) and removes
+  (`DELETE /{id}`) one layer under the video's lock, each returning the video like the scene endpoints, and draws
+  `GET /{id}/image.png` (and `/stickers/{name}.png` for the picker) with the render core's own `render_layer`, so
+  the studio's phone shows the exact picture. The scene payload lists its layers with that URL, versioned by
+  what is drawn. The job writes them into the scene's script entry and they join the render fingerprint, both only
+  when a scene has any. "Tách cảnh" moves the layers starting after the cut to the new scene, at the same moment.
+  The render draws each picture once, loops it (`-loop 1 -t end`) so the entrance can fade its alpha in, and lays
+  it on after the captions with `overlay` enabled between its start and its end (cut at the scene's end); a slide
+  moves the overlay's x or y over the same 0.3 s.
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.

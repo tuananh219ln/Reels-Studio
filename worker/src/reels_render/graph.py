@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
+from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 from .timeline import FPS, VOICE_LEAD, XFADE_FRAMES, Timeline
@@ -45,6 +46,38 @@ class CaptionInput:
     y: int
     start: float
     end: float
+
+
+@dataclass(frozen=True)
+class LayerInput:
+    """One layer's picture laid at (x, y) from `start` to `end` seconds of the video, coming in by `animation`."""
+
+    image: Path | None
+    x: int
+    y: int
+    start: float
+    end: float
+    animation: str = "fade"
+
+
+def _layer_chains(layers: list[LayerInput], first_input: int, previous: str) -> tuple[list[str], str]:
+    """Each layer over the video in order, after the captions. Its picture is looped for as long as it is shown, so
+    an entrance can fade its alpha in; a slide moves the overlay's position over the same ANIMATION_SECONDS."""
+    chains = []
+    for index, layer in enumerate(layers):
+        start, end, length = f"{layer.start:.3f}", f"{layer.end:.3f}", f"{ANIMATION_SECONDS:.3f}"
+        fade = f",fade=t=in:st={start}:d={length}:alpha=1" if layer.animation != "none" else ""
+        chains.append(f"[{first_input + index}:v]format=rgba{fade}[l{index}]")
+        progress = f"min(1,max(0,(t-{start})/{length}))"
+        x, y = str(layer.x), str(layer.y)
+        if layer.animation == "slide_left":
+            x = f"'{layer.x}-({layer.x}+w)*(1-{progress})'"
+        elif layer.animation == "slide_up":
+            y = f"'{layer.y}+{SLIDE_UP_PX}*(1-{progress})'"
+        label = f"o{index}"
+        chains.append(f"[{previous}][l{index}]overlay=x={x}:y={y}:enable='between(t,{start},{end})'[{label}]")
+        previous = label
+    return chains, previous
 
 
 def zoom_expression(clip_frames: int, motion: str = "zoom_in", zoom_end: float = ZOOM_END) -> str:
@@ -121,11 +154,13 @@ def build_filter_graph(
     speeds: list[float] | None = None,
     transitions: list[str | None] | None = None,
     colors: list[str | None] | None = None,
+    layers: list[LayerInput] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
     marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is never used.
-    A scene's `transitions` entry replaces the video's transition into it, and its `colors` entry grades it."""
+    A scene's `transitions` entry replaces the video's transition into it, and its `colors` entry grades it.
+    The `layers` pictures come last among the inputs and go on top, after the captions."""
     count = len(box_positions)
     clips = clips or [False] * count
     speeds = speeds or [1.0] * count
@@ -168,6 +203,8 @@ def build_filter_graph(
             f":enable='between(t,{caption.start:.3f},{caption.end:.3f})'[{label}]"
         )
         previous = label
+    layer_chains, previous = _layer_chains(layers or [], first_caption + len(captions), previous)
+    chains += layer_chains
     chains.append(f"[{previous}]format=yuv420p[vout]")
 
     total = _seconds(timeline.total_frames)
@@ -228,6 +265,7 @@ def build_ffmpeg_args(
     output: Path,
     options: RenderOptions = DEFAULT_OPTIONS,
     captions: list[CaptionInput] | None = None,
+    layers: list[LayerInput] | None = None,
 ) -> list[str]:
     argv = [ffmpeg, "-hide_banner", "-nostdin", "-v", "error", "-y"]
     for scene in scenes:
@@ -242,6 +280,9 @@ def build_ffmpeg_args(
             argv += ["-i", str(scene.voice)]
     for caption in captions or []:
         argv += ["-i", str(caption.image)]
+    for layer in layers or []:
+        # Looped up to where it leaves, so its entrance has frames to fade in on.
+        argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{layer.end:.3f}", "-i", str(layer.image)]
     graph = build_filter_graph(
         [(scene.box_x, scene.box_y) for scene in scenes],
         timeline,
@@ -253,6 +294,7 @@ def build_ffmpeg_args(
         [scene.video_speed for scene in scenes],
         [scene.transition for scene in scenes],
         [scene.color for scene in scenes],
+        layers,
     )
     argv += [
         "-filter_complex",

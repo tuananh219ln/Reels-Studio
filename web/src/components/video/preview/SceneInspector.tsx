@@ -23,6 +23,7 @@ export default function SceneInspector({
   generating,
   timing,
   effects,
+  layers,
 }: {
   scene: SceneData;
   label: string;
@@ -32,6 +33,8 @@ export default function SceneInspector({
   timing: React.ReactNode;
   /** "Hiệu ứng": the scene's transition, colour and clip speed (SceneEffects). */
   effects: React.ReactNode;
+  /** "Chữ & sticker": the scene's layers (LayerList). */
+  layers: React.ReactNode;
 }) {
   return (
     <Flex vertical gap={8} data-testid="preview-scene-editor">
@@ -42,7 +45,7 @@ export default function SceneInspector({
       <Collapse
         size="small"
         ghost
-        defaultActiveKey={["content", "timing", "effects", "media"]}
+        defaultActiveKey={["content", "layers", "timing", "effects", "media"]}
         items={[
           {
             key: "content",
@@ -54,6 +57,9 @@ export default function SceneInspector({
               </Flex>
             ),
           },
+          ...(scene.is_title
+            ? []
+            : [{ key: "layers", label: `Chữ & sticker (${scene.layers.length})`, children: layers }]),
           { key: "timing", label: "Thời lượng và vị trí chữ", children: timing },
           { key: "effects", label: "Hiệu ứng", children: effects },
           {

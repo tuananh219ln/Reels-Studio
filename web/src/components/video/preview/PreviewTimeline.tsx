@@ -30,6 +30,7 @@ const NAMES = 84;
 
 const LANE_LOOK: Record<Lane["key"], { background: string; color: string }> = {
   text: { background: "#fde7c8", color: "#7c3d00" },
+  layers: { background: "#ffd6ec", color: "#8a0a4b" },
   voice: { background: "#cfe3ff", color: "#0b3d91" },
   captions: { background: "#fff3b0", color: "#5c4a00" },
   music: { background: "#ddd5f7", color: "#3b2a7a" },
@@ -332,8 +333,10 @@ export default function PreviewTimeline({
               <TrackName
                 name={lane.name}
                 height={LANE}
-                locked={lane.key === "text" ? locks.text : undefined}
-                onLock={lane.key === "text" ? () => onLock("text") : undefined}
+                locked={lane.key === "text" ? locks.text : lane.key === "layers" ? locks.layer : undefined}
+                onLock={
+                  lane.key === "text" ? () => onLock("text") : lane.key === "layers" ? () => onLock("layer") : undefined
+                }
               />
             </div>
           ))}
@@ -518,12 +521,18 @@ export default function PreviewTimeline({
             {lanes.map((lane, row) =>
               laneSpans(lane.key, scenes, starts, lengths, musicName).map((span) => (
                 <button
-                  key={`${lane.key}-${span.index ?? "all"}`}
+                  key={`${lane.key}-${span.index ?? "all"}-${span.start}`}
                   type="button"
                   data-testid={`lane-${lane.key}`}
                   title={span.label}
                   aria-label={`${lane.name}: ${span.label}`}
-                  onClick={(event) => (span.index !== null ? onJump(span.index) : onSeek(secondAt(event.clientX)))}
+                  onClick={(event) =>
+                    span.seek
+                      ? onSeek(span.start)
+                      : span.index !== null
+                        ? onJump(span.index)
+                        : onSeek(secondAt(event.clientX))
+                  }
                   style={{
                     position: "absolute",
                     left: xOf(span.start) + 1,

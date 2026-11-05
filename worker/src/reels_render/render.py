@@ -6,8 +6,9 @@ from pathlib import Path
 from . import ffmpeg
 from .captions import plan_captions
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
-from .graph import CaptionInput, SceneInput, build_ffmpeg_args
+from .graph import CaptionInput, LayerInput, SceneInput, build_ffmpeg_args
 from .images import normalize_image
+from .layers import layer_corner, render_layer
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .script import Scene, Script
 from .stock import find_stock_images
@@ -74,7 +75,7 @@ def render_video(
         if found.missing:
             raise MissingImagesError([scene.label for scene in found.missing])
         script = found.script
-        inputs, captions = [], []
+        inputs, captions, layers = [], [], []
         scene_start = 0
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             if scene.video is not None:
@@ -107,6 +108,19 @@ def render_video(
                             end=cue.end,
                         )
                     )
+            # Each layer from its start into the scene, for its seconds, but never past the scene's end.
+            scene_end = (scene_start + timeline.scene_frames[index]) / FPS
+            for number, layer in enumerate(scene.layers):
+                start = scene_start / FPS + layer.start
+                if start >= scene_end:
+                    continue
+                picture = render_layer(layer)
+                path = work_dir / f"layer-{index:02d}-{number:02d}.png"
+                picture.save(path)
+                left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
+                layers.append(
+                    LayerInput(path, left, top, start, min(start + layer.seconds, scene_end), layer.animation)
+                )
             scene_start += timeline.scene_frames[index]
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(
@@ -139,6 +153,7 @@ def render_video(
             temp.resolve(),
             options,
             captions,
+            layers,
         )
         try:
             ffmpeg.run(argv, "FFmpeg render lỗi")
