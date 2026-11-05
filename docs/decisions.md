@@ -11,6 +11,36 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — "Từ video mẫu": a script learned from a sample video, with clips cut from it, in one of four ways
+
+Asked by a member (namtc): paste a link or upload a video, and have the AI analyse it and write a script, make the
+video and pick its pictures. Choices, as agreed with the member:
+
+- **The AI sees stills and words, not the video.** The worker takes up to 16 stills and sends them as images with
+  the sample's words, written down by ElevenLabs Speech-to-Text (`scribe_v2`, the narration's key; no new
+  provider). A silent sample, or no ElevenLabs key, works from the stills alone.
+- **Scenes show the sample itself.** The member preferred the sample's own pictures to stock photos, and chose the
+  stronger option of a clip over a still: the AI names a stretch of the sample per scene (2–10 s) and the job cuts
+  it as the scene's clip. A scene without one gets "Tự tìm ảnh" as usual. The risk is the one taken for TikTok
+  clips (2026-11-03): the member who brings the sample is responsible for it; the prompts still ask for new words,
+  never copied or translated sentences.
+- **Four ways, chosen in the dialog, each described there:** "Nhanh" (one call sees the stills and writes the
+  analysis and the script, the cheapest and the best at picking clips), "Hai bước tự động" (analysis with the
+  stills, then writing from the analysis without them), "Duyệt phân tích trước" (the member edits the analysis,
+  then "Viết kịch bản") and "Dùng mẫu đã học" (another video from a sample already analysed, no new download or
+  analysis).
+- **A sample is kept until someone deletes it** (`video_references`), for clips and for "Dùng mẫu đã học"; videos
+  made from it keep their own clips when it goes.
+- **Sources:** a TikTok or YouTube (Shorts) link through yt-dlp, a video file's link, or an upload; 100 MB and
+  3 minutes at most. Facebook and Instagram Reels are left out (yt-dlp is often asked to log in there): download
+  the video and upload it. A scene's pasted link stays TikTok-only.
+- **Prompts are app data** ("Prompt text is app data", 2026-10-31): "Prompt học từ video mẫu" and "Prompt phân
+  tích video mẫu" per group on `/knowledge`, empty meaning the defaults; the clip stretches and the analysis
+  fields are part of the output format, in code.
+- **Long work in the job queue:** the request only stores the link or file; download, stills, words and LLM calls
+  run in the `learn` job. The migration is 0037; `feature/studio-editor` also has 0037–0040, so whichever merges
+  second renumbers its own.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

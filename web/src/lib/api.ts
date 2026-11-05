@@ -93,7 +93,7 @@ export type VideoRowPost = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish" | "unpublish" | "check" | "image" | "photos" | "voice";
+  kind: "script" | "clone" | "learn" | "render" | "publish" | "unpublish" | "check" | "image" | "photos" | "voice";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";

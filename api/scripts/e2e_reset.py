@@ -30,6 +30,7 @@ from reels_api.models import (
     Setting,
     User,
     Video,
+    VideoReference,
 )
 from reels_api.script_rules import DEFAULT_BANNED_WORDS
 from reels_api.security import hash_password
@@ -52,6 +53,7 @@ def main() -> int:
             Job,
             Scene,
             Video,
+            VideoReference,
             Fanpage,
             AffiliateProduct,
             AffiliateAccount,
