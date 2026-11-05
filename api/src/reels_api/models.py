@@ -17,6 +17,7 @@ from sqlalchemy import (
     false,
     func,
     text,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -324,9 +325,38 @@ class Fanpage(Base):
     # The member whose Page it is: only they set its Shopee account, whose links its comments carry.
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     shopee_account_id: Mapped[int | None] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="SET NULL"))
+    # The one topic group the Page posts; its queue takes its owner's videos of that group (page_queue.py).
+    knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
+    # "HH:MM" in Vietnam, when its queue posts; None: the group's posting times.
+    post_times: Mapped[list | None] = mapped_column(JSONB)
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
+
+
+class PageQueueItem(Base):
+    """A rendered video waiting in a Page's queue: the worker gives the first one the Page's next free posting time and
+    schedules it on Facebook (page_queue.py). The row goes once the post is made; one it could not post keeps why."""
+
+    __tablename__ = "page_queue_items"
+    __table_args__ = (
+        Index("uq_page_queue_items_video_id", "video_id", unique=True),
+        Index("ix_page_queue_items_fanpage_id_position", "fanpage_id", "position"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer)
+    auto_comment: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    added_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+    fanpage: Mapped[Fanpage] = relationship()
+    video: Mapped[Video] = relationship()
+    added_by: Mapped[User] = relationship()
 
 
 class FanpageFollowers(Base):
