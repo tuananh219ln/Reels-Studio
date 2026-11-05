@@ -37,6 +37,7 @@ import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
 import PublishCard, { PublishButton } from "@/components/video/PublishCard";
+import QueueButton from "@/components/video/QueueButton";
 import TikTokCard from "@/components/video/TikTokCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
@@ -665,6 +666,7 @@ export default function VideoPage() {
                                     Tải MP4
                                   </Button>
                                   {video.platform === "facebook" && <PublishButton video={video} />}
+                                  {video.platform === "facebook" && <QueueButton video={video} />}
                                 </Flex>
                               </Flex>
                             </Card>

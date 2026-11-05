@@ -73,11 +73,15 @@ app replaces CapCut, so the output is a finished MP4.
    public and delete a public one from Facebook. "Bài đăng" lists posts on their way, failed (with
    "Thử lại"), posted, scheduled, cancelled and deleted under status tabs, and its "Lịch" view shows
    the posted and scheduled ones in a month, both in Vietnam time. The worker checks each Page's token twice a day (and on "Kiểm tra ngay"), so a
-   broken one shows on "Kết nối Fanpage" and in "Đăng" before a post fails, and keeps the Page's
+   broken one shows on "Quản lý Page" and in "Đăng" before a post fails, and keeps the Page's
    followers with this week's gain, and its views, reach and engagements by day from Page Insights.
    "Bình luận" gathers visitors' comments under the app's reels on every Page, to answer as the
-   Page, hide or set aside. Opening "Kết nối Fanpage", "Bài đăng" or "Bình luận" asks the worker
+   Page, hide or set aside. Opening "Quản lý Page", "Bài đăng" or "Bình luận" asks the worker
    to read again what it has not read in 15 minutes, so nobody has to press a button first.
+   **Posting queues on "Quản lý Page"** (built): each Page posts one topic group at its own posting times, or the group's.
+   A member adds a rendered video they have watched with "Thêm vào hàng chờ"; it goes to their own
+   Page of the video's group, and the worker schedules the first video of each queue at the Page's
+   next free time within 48 hours, through the usual publish job.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections

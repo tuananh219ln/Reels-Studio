@@ -278,7 +278,8 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, "Từ video mẫu" learn and analyse prompts (`learn_prompt`, `analyze_prompt`; empty: the defaults in `prompts/`), banned words, `photo_hint` ("Gợi ý tìm ảnh", added to both prompts for the photo keywords; empty: nothing added); its 30-day plan's prompt (empty: the default), start date (day 1, Vietnam time), ideas per day for the AI (3–5), its posting times (`plan_post_times`, 1–5 "HH:MM", the n-th idea of a day suggested at the n-th), the AI's last plan as a draft (`plan_draft`) until a member saves or drops it, and `video_target`, the number of videos its trial counts towards ("Tiến độ verdict", null: no banner). Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
 | `topic_plan_items` | One idea of a topic group's 30-day plan ([plans.py](../api/src/reels_api/plans.py), [routes_plans.py](../api/src/reels_api/routes_plans.py)): day (1–30, or null: the group's Backlog), place in the day (or the Backlog), topic, pain group, pain, hook, the video made from it (unique; `SET NULL` when the video is deleted), who changed it. At most 5 a day (300 in the Backlog) and no topic twice, checked by the api under a lock on the topic group. Its status is read from the video and its posts (Đã lên lịch, Đã đăng). Deleted with the group. Saving an imported or AI plan replaces the 30 days and keeps the Backlog, but for an idea the new plan puts on a day; an idea with the topic of one that had a video keeps that video. |
 | `scenes` | Belongs to a video; the title scene or a content scene, order, seconds (and `seconds_auto`, "Tự khớp lời đọc": once the narration is made the seconds become its length plus the pauses around it, within 1–10 s; typing the seconds turns it off; on for the scenes the app writes, off for scenes from before 0034), on-screen text with `*red*` markup, voice text, Vietnamese and English stock-search keywords, image prompt, the stored photo and where it came from (upload, `ai:<model>` for a generated one, or the stock photo's URL), the reason a photo is missing, the optional clip with its length and start time, the last narration MP3 with its length and the signature it was made from, and where a member dragged its text box (`text_x`, `text_y`, the box centre; null: the video's place in `videos.options.text_position`, else the template's). Whether its photo is the app's unchecked pick (`image_auto`). |
-| `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last, and the worker's last check of its token: when, its error (null when it worked), when a member asked for one, the followers it read, and what went wrong reading its Page Insights (`insights_error`). |
+| `fanpages` | A connected Facebook Page: its id and name, the Page's encrypted token and its last characters, in use or stopped, who changed it last, and the worker's last check of its token: when, its error (null when it worked), when a member asked for one, the followers it read, and what went wrong reading its Page Insights (`insights_error`); the one topic group it posts (`knowledge_topic_id`, `SET NULL` when the group is deleted) and its own posting times (`post_times`, "HH:MM" in Vietnam; null: the group's). |
+| `page_queue_items` | A rendered video waiting in a Page's posting queue ([page_queue.py](../api/src/reels_api/page_queue.py), [routes_queue.py](../api/src/reels_api/routes_queue.py)): the Page, the video (unique: one queue at a time; deleted with the video or the Page), its place, whether its post writes the affiliate comment, who added it and when, and when the worker last tried it and why it could not schedule it then (`tried_at`, `error`). The row is deleted once its post is made. |
 | `fanpage_followers` | A Page's followers on one day in Vietnam time, the last number read that day; one row per Page and day. |
 | `fanpage_insights` | A Page's views, reach and engagements for one day from Page Insights (Facebook's day), each null when not given; the last 7 days are rewritten at each check. |
 | `page_comments` | A visitor's top-level comment under a reel the app posted: Facebook's id, author name, text, time, whether the Page answered it (on Facebook or through the app) or it is hidden, "Bỏ qua", and the reply or hide a member asked for, with when it was sent, Facebook's id of the reply, the error and who handled it. |
@@ -361,6 +362,20 @@ Planned:
     timer, and a later re-render never changes what was scheduled. Facebook then publishes by itself,
     so the app counts a scheduled post as published once its time has passed. Changing the time is
     done in Meta Business Suite.
+  - **The Page queues** (each Page's card on "Quản lý Page", and "Thêm vào hàng chờ" on the video). Once a minute, beside the post checks, the worker's `page_queue.fill` gives
+    each Page in use whose last token check worked, and whose queue is not empty, at most one post: the first
+    video of its queue that can go is given the Page's next free posting time (its own `post_times`, else its
+    group's) between 30 minutes and 48 hours ahead. A time is free when no open post of the Page is within 30
+    minutes of it, so a post scheduled by hand takes its time too. The worker then makes the `publications` row
+    (pending, scheduled at that time, made by the member who queued it) and a `publish` job, exactly what "Đăng"
+    with "Hẹn giờ" makes, and deletes the queue row. A video that cannot go (no or an outdated MP4, the Page
+    already holds this MP4, a job or a post on its way) stays in the queue with the reason (`error`) and the next
+    one goes instead. Only 48 hours are filled because Facebook keeps the MP4 sent with a scheduled reel. Nothing
+    in the request calls Facebook: `POST /api/queue` (`{video_id, fanpage_id?, auto_comment}`; without a Page,
+    the member's own Page in use of the video's topic group, the shorter queue of two), `DELETE
+    /api/queue/items/{id}` (the member who added it or the Page's owner), `POST /api/queue/pages/{id}/order` and
+    `PATCH /api/queue/pages/{id}` (`knowledge_topic_id`, `post_times`; the Page's owner only), `GET /api/queue`
+    (every Page in use with its free times and queue) and `GET /api/queue/videos/{id}`.
   - **Checking a post against Facebook.** Nothing tells the app about a change made in Meta Business
     Suite or a reel Facebook drops, so a `check` job reads the reel and records what Facebook says:
     live (published, or scheduled with Facebook's time), or closed, as with "Xóa", deleted if it may
@@ -460,7 +475,7 @@ Planned:
     followers (on the Page and as that day's `fanpage_followers` row); it never changes
     `updated_at`, which is a member's change. A failed check waits like any other, never looping.
     "Kiểm tra ngay", `POST /api/fanpages/{id}/check`, only sets `check_requested_at` (422 for a
-    stopped Page); opening "Kết nối Fanpage" calls `POST /api/fanpages/freshen`, which asks it for every Page in use
+    stopped Page); opening "Quản lý Page" calls `POST /api/fanpages/freshen`, which asks it for every Page in use
     checked over 15 minutes ago and not asked yet, and opening "Bình luận" calls `POST /api/comments/freshen`, which
     makes every followed reel read over 15 minutes ago due. `GET /api/fanpages` gives each Page `check` (`checked_at`, `error`, `pending`,
     `followers`, and `followers_this_week`, counted from the last number before this week's Monday,

@@ -150,15 +150,17 @@ test("music library page from the menu", async ({ page }) => {
   await expect(page.getByText("Chưa có bài nhạc nào")).toBeVisible();
 });
 
-test("Kết nối Fanpage opens from inside the Cài đặt menu group", async ({ page }) => {
+test("Quản lý Page opens from the menu, outside the Cài đặt group", async ({ page }) => {
   await loginAsSeed(page);
   const settings = page.getByRole("menuitem", { name: "Cài đặt" });
-  const fanpages = page.getByRole("menuitem", { name: "Kết nối Fanpage" });
+  const fanpages = page.getByRole("menuitem", { name: "Quản lý Page" });
   await expect(fanpages).toBeVisible();
+  // Folding Cài đặt away leaves it in the menu: it is no longer a setting.
   await settings.click();
-  await expect(fanpages).toBeHidden();
-  await settings.click();
+  await expect(page.getByRole("menuitem", { name: "Cấu hình" })).toBeHidden();
+  await expect(fanpages).toBeVisible();
   await fanpages.click();
+  await expect(page.getByRole("heading", { name: "Quản lý Page" })).toBeVisible();
   await expect(page).toHaveURL(/\/fanpages$/);
   // Once the list has loaded with no Page yet, "Thêm Fanpage" is both in the header and in the empty state.
   await expect(page.getByText("Chưa kết nối Fanpage nào")).toBeVisible();
@@ -168,7 +170,7 @@ test("Kết nối Fanpage opens from inside the Cài đặt menu group", async (
 test("the worker checks a connected Page's token and shows its followers", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
   const card = page.getByTestId("fanpage-card");
   // The worker checks a newly connected Page within seconds; the page asks again until it has.
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -182,7 +184,7 @@ test("the worker checks a connected Page's token and shows its followers", async
 test("a Page stopped and never posted to can be deleted", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
   await page.getByRole("button", { name: "Thao tác với Trang Dưỡng Sinh" }).click();
   await page.getByRole("menuitem", { name: "Ngừng dùng" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Ngừng dùng" }).click();

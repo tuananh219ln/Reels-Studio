@@ -19,7 +19,7 @@ from sqlalchemy import Connection, Engine, create_engine, inspect, select, text,
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
-from . import affiliate_rounds, comments_inbox, config, fanpages, metrics, post_comments
+from . import affiliate_rounds, comments_inbox, config, fanpages, metrics, page_queue, post_comments
 from .jobs import queue_post_checks, work_dir
 from .models import Job
 from .sessions import now
@@ -134,6 +134,7 @@ def serve(factory: sessionmaker, lock: Connection) -> None:
         lock.execute(text("SELECT 1"))
         if time.monotonic() >= next_checks:
             queue_checks(factory)
+            page_queue.fill_due(factory)
             next_checks = time.monotonic() + POST_CHECK_SECONDS
         if time.monotonic() >= next_metrics:
             metrics.measure_due(factory)

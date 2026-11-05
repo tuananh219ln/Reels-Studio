@@ -35,6 +35,7 @@ const SETTINGS_GROUP = "group:settings";
 
 const NAV = [
   { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
+  { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý Page" },
   {
     key: POST_GROUP,
     icon: <NotificationOutlined />,
@@ -56,7 +57,6 @@ const NAV = [
     children: [
       // One page with tabs: Thiết lập mặc định, Mô hình AI, Nguồn tư liệu (settings/layout.tsx).
       { key: "/settings", icon: <ControlOutlined />, label: "Cấu hình" },
-      { key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" },
       { key: "/chatgpt", icon: <ApiOutlined />, label: "Kết nối ChatGPT" },
     ],
   },

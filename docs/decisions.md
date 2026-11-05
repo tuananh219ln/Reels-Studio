@@ -11,6 +11,27 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — Each Page has a posting queue, filled by the worker at the Page's posting times
+
+Asked by a member (namtc): with 5 Pages each, scheduling every video by hand did not scale. Each Page posts one topic
+group (`fanpages.knowledge_topic_id`, migration 0044) at its own posting times or, by default, at the group's
+(2026-11-04, "posting times"). "Thêm vào hàng chờ" on a rendered video puts it in the queue of the member's own Page
+of the video's group; it is pressed by hand, after watching the MP4, so a video with a wrong text or a weak picture
+never goes out unseen. Videos going into the queue by themselves once rendered were left for later (issue #108).
+
+Once a minute the worker gives each healthy Page with a queue at most one post: the first video that can go, at the
+next free posting time within 48 hours. It makes the same pending post and `publish` job as "Đăng" with "Hẹn giờ",
+so "Scheduling uses Facebook's own scheduling" (2026-10-31) still holds: the worker only chooses the time, and
+Facebook publishes. It is the first time the worker starts a post a member did not press "Đăng" for; the member who
+queued the video is recorded as the post's author. 48 hours only, since Facebook keeps the MP4 sent with a scheduled
+reel and a later edit would not reach it. A video that cannot go stays in the queue with why, and the next one goes.
+Only the Page's owner sets its group and times and reorders its queue, as for its Shopee account (2026-11-03).
+The queue is moved with "Lên"/"Xuống" rather than dragging.
+
+Everything about a Page sits on its card: "Kết nối Fanpage" becomes **"Quản lý Page"**, its own menu item under
+"Video", out of the Cài đặt group, on the member's choice over a separate "Hàng chờ" page. This is the "Quản lý Page"
+menu the 2026-11-03 entry on token checks kept for when there was more to show; its address stays `/fanpages`.
+
 ## 2026-11-05 — "Từ video mẫu": a script learned from a sample video, with clips cut from it, in one of four ways
 
 Asked by a member (namtc): paste a link or upload a video, and have the AI analyse it and write a script, make the
