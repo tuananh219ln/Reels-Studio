@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
+
+Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)
+stays, on the member's choice, so a strip of the page is still in sight; it only grows to the screen's width less
+64 px. Inside: a tools column ("Cảnh", "Khung", "Giọng đọc") with its panel, the phone in the middle, the timeline
+along the bottom. The timeline gets a ruler in seconds, scene segments showing their picture, a zoom and a playhead
+that goes to any second, paused; playing on from there starts the clip, motion, music and ElevenLabs narration at
+that point, while the browser's voice, which cannot start mid-sentence, waits for the next scene. No "Lưu"/"Huỷ":
+changes still save at once (2026-11-02, "edit mode stays without Lưu/Huỷ"). Splitting a scene at the playhead,
+TikTok's "Áp dụng độ mờ" and a full-page editor were left out.
+
 ## 2026-11-05 — CI does not test the same code twice
 
 Asked by the owner (namtc07), changing the 2026-11-03 entry's "a push to `main` still runs every job

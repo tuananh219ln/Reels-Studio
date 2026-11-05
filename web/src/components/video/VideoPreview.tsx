@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  AppstoreOutlined,
   CaretRightOutlined,
+  MobileOutlined,
   PauseOutlined,
+  SoundOutlined,
   ReloadOutlined,
   StepBackwardOutlined,
   StepForwardOutlined,
@@ -18,7 +21,6 @@ import {
   Popconfirm,
   Segmented,
   Select,
-  Space,
   Switch,
   Typography,
 } from "antd";
@@ -36,8 +38,17 @@ import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
 import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
+import "./preview/editor.css";
 
 const PLATFORM_KEY = "reels-studio.preview-platform";
+
+/** The editor's left column: each tool opens its panel beside it. */
+type Tool = "scene" | "frame" | "voice";
+const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
+  { key: "scene", label: "Cảnh", icon: <AppstoreOutlined /> },
+  { key: "frame", label: "Khung", icon: <MobileOutlined /> },
+  { key: "voice", label: "Giọng đọc", icon: <SoundOutlined /> },
+];
 const VOICE_KEY = "reels-studio.preview-voice";
 
 // The renderer's timing and motion (reels_render.timeline, options, graph): keep these in step with it.
@@ -62,9 +73,20 @@ const SPEECH_GRACE_MS = 15_000;
 // The phone's outer size over its screen (Stageshow's iPhone: a 402 × 874 pt screen, a 13 pt band each side).
 const PHONE_RATIO = (402 + 26) / (874 + 26);
 
-/** The phone's width: as tall as fits the drawer's height, never wider than a small screen. */
+/** Below this width the editor stacks (preview/editor.css): phone, timeline, tools, panel, and the drawer scrolls. */
+const STACKED = 900;
+
+/**
+ * The phone's width. Side by side it is as tall as fits between the drawer's header and the timeline (about 330 px of
+ * the screen's height together); stacked, it takes most of the screen's height and leaves room for the toolbar
+ * beside it.
+ */
 function phoneWidth(): number {
-  const height = Math.min(window.innerHeight * 0.74, 760);
+  if (window.innerWidth <= STACKED) {
+    const height = Math.min(window.innerHeight * 0.74, 760);
+    return Math.round(Math.min(height * PHONE_RATIO, window.innerWidth - 104));
+  }
+  const height = Math.max(Math.min(window.innerHeight - 330, 760), 360);
   return Math.round(Math.min(height * PHONE_RATIO, window.innerWidth - 48));
 }
 
@@ -96,7 +118,11 @@ function vietnameseVoices(): SpeechSynthesisVoice[] {
     .sort((a, b) => rank(a) - rank(b));
 }
 
-type Phase = { index: number; prev: number | null; run: number };
+/**
+ * The scene on the stage. `run` starts its clock and narration again; `view` mounts its picture again (a seek while
+ * paused inside the same scene keeps it, so a clip only moves to the new frame); `from` is how far in it starts, in ms.
+ */
+type Phase = { index: number; prev: number | null; run: number; view: number; from: number };
 
 /**
  * "Xem trước": the video played in the browser before any render, from the scenes' own frames, text boxes, clips,
@@ -119,7 +145,13 @@ export default function VideoPreview({
     () => [video.title_scene, ...video.scenes].filter((scene): scene is SceneData => scene !== null),
     [video.title_scene, video.scenes],
   );
-  const [phase, setPhase] = useState<Phase>({ index: Math.min(start, scenes.length - 1), prev: null, run: 0 });
+  const [phase, setPhase] = useState<Phase>({
+    index: Math.min(start, scenes.length - 1),
+    prev: null,
+    run: 0,
+    view: 0,
+    from: 0,
+  });
   const [playing, setPlaying] = useState(true);
   const [ended, setEnded] = useState(false);
   // The app frame drawn over the video, Reels by default; each member's choice is remembered in their browser.
@@ -132,6 +164,7 @@ export default function VideoPreview({
     }
   });
   const [guide, setGuide] = useState(false);
+  const [tool, setTool] = useState<Tool>("scene");
   const [width, setWidth] = useState(phoneWidth);
   const [statusTime] = useState(clockNow);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -159,8 +192,11 @@ export default function VideoPreview({
   const stage = useRef<HTMLDivElement>(null);
   const music = useRef<HTMLAudioElement>(null);
   const narration = useRef<HTMLAudioElement>(null);
-  // How long the current scene has played, across pauses, and which parts of it have finished.
-  const clock = useRef({ run: 0, playedMs: 0 });
+  // How long the current scene has played, across pauses (since: when it last started playing), and which parts of
+  // it have finished.
+  const clock = useRef<{ run: number; playedMs: number; since: number | null }>({ run: 0, playedMs: 0, since: null });
+  // A seek while paused: "Tiếp tục" then starts the scene again from that point, narration included.
+  const sought = useRef(false);
   const done = useRef({ run: 0, time: false, voice: false });
   // The listener's own level multiplies the video's mix, and the narration lowers the music while it plays.
   const { factor: listen } = useListen();
@@ -197,22 +233,56 @@ export default function VideoPreview({
     };
   }, []);
 
-  /** Moves to a scene and plays it from its start; the scene before it stays underneath during the transition. */
-  function goTo(index: number, keepPrev: boolean) {
+  /**
+   * Moves to a scene, `fromMs` into it, playing or paused there; the scene before it stays underneath during the
+   * transition when it is kept.
+   */
+  function goTo(index: number, keepPrev: boolean, fromMs = 0, play = true) {
     setEnded(false);
-    setPlaying(true);
+    setPlaying(play);
+    sought.current = !play;
     setPhase((current) => {
-      const next = { index, prev: keepPrev ? current.index : null, run: current.run + 1 };
-      clock.current = { run: next.run, playedMs: 0 };
+      // A paused seek within the scene on the stage keeps its picture; anything else shows it afresh.
+      const same = !play && !keepPrev && current.index === index;
+      const next = {
+        index,
+        prev: keepPrev ? current.index : null,
+        run: current.run + 1,
+        view: same ? current.view : current.view + 1,
+        from: fromMs,
+      };
+      clock.current = { run: next.run, playedMs: fromMs, since: null };
       return next;
     });
     if (music.current) {
       // The music runs from the video's start, so a preview from a later scene starts it that far in.
-      const offset = scenes.slice(0, index).reduce((sum, item) => sum + item.fitted_seconds, 0);
+      const offset = startOf(index) + fromMs / 1000;
       const length = music.current.duration;
       music.current.currentTime = Number.isFinite(length) && length > 0 ? offset % length : offset;
-      void music.current.play().catch(() => undefined);
+      if (play) void music.current.play().catch(() => undefined);
+      else music.current.pause();
     }
+  }
+
+  /** Where a scene starts, in seconds from the video's start. */
+  function startOf(index: number): number {
+    return scenes.slice(0, index).reduce((sum, item) => sum + item.fitted_seconds, 0);
+  }
+
+  /** Where the preview is now, in seconds from the video's start (read every frame by the timeline). */
+  function position(): number {
+    if (ended) return total;
+    const { playedMs, since } = clock.current;
+    const played = playedMs + (since !== null ? performance.now() - since : 0);
+    return startOf(phase.index) + Math.min(played, durationMs) / 1000;
+  }
+
+  /** The playhead put on a second: that scene, that far in, paused there to look or edit. */
+  function seekAt(at: number) {
+    let index = 0;
+    while (index < scenes.length - 1 && at >= startOf(index + 1)) index += 1;
+    const within = Math.max(0, at - startOf(index)) * 1000;
+    goTo(index, false, Math.min(within, Math.max(0, scenes[index].fitted_seconds * 1000 - 1)), false);
   }
 
   /** Called when the scene's time is up and when its narration has finished: both move it on. */
@@ -240,12 +310,14 @@ export default function VideoPreview({
     }
     const run = phase.run;
     const began = performance.now();
+    clock.current.since = began;
     const left = Math.max(0, durationMs - clock.current.playedMs);
     const timer = window.setTimeout(() => finished(run, "time"), left);
     return () => {
       window.clearTimeout(timer);
       if (clock.current.run === run) {
         clock.current.playedMs += performance.now() - began;
+        clock.current.since = null;
       }
     };
     // Restarted only by a new scene or by play/pause; `finished` reads the phase it was made with.
@@ -285,18 +357,30 @@ export default function VideoPreview({
       duck(false);
       timers.push(window.setTimeout(() => finished(run, "voice"), VOICE_TAIL_MS));
     };
-    if (scene?.voice_url && player) {
+    // How far into the narration the scene starts: a seek lands inside it, past it, or still before it.
+    const into = phase.from - VOICE_LEAD_MS;
+    const voiceMs = scene?.voice_seconds != null ? scene.voice_seconds * 1000 : null;
+    if (!playing) {
+      // A seek while paused: nothing speaks until "Tiếp tục" starts the scene again from there.
+    } else if (scene?.voice_url && player && !(voiceMs !== null && into >= voiceMs)) {
       const audio = player;
       audio.src = scene.voice_url;
       audio.volume = Math.min(1, video.options.voice_volume) * listenRef.current;
+      audio.currentTime = Math.max(0, into / 1000);
       audio.onended = voiceDone;
       audio.onerror = voiceDone;
       timers.push(
-        window.setTimeout(() => {
-          duck(true);
-          void audio.play().catch(voiceDone);
-        }, VOICE_LEAD_MS),
+        window.setTimeout(
+          () => {
+            duck(true);
+            void audio.play().catch(voiceDone);
+          },
+          Math.max(0, -into),
+        ),
       );
+    } else if (phase.from > VOICE_LEAD_MS) {
+      // Past the narration's start: the browser's voice cannot start mid-sentence, so the scene plays without it.
+      timers.push(window.setTimeout(() => finished(run, "voice"), 0));
     } else if (text && voice) {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.voice = voice;
@@ -310,7 +394,7 @@ export default function VideoPreview({
           duck(true);
           window.speechSynthesis.cancel();
           window.speechSynthesis.speak(utterance);
-        }, VOICE_LEAD_MS),
+        }, VOICE_LEAD_MS - phase.from),
       );
       timers.push(window.setTimeout(voiceDone, durationMs + SPEECH_GRACE_MS));
     } else {
@@ -386,6 +470,11 @@ export default function VideoPreview({
   function toggle() {
     if (ended) {
       goTo(0, false);
+      return;
+    }
+    if (!playing && sought.current) {
+      // After a seek the scene starts again from there, with its narration from the same point.
+      goTo(phase.index, false, clock.current.playedMs, true);
       return;
     }
     const next = !playing;
@@ -575,372 +664,414 @@ export default function VideoPreview({
     return () => window.removeEventListener("keydown", onKey);
   });
 
+  const transport = (
+    <>
+      <Button aria-label="Từ đầu" icon={<ReloadOutlined />} onClick={() => goTo(0, false)} />
+      <Button
+        aria-label="Cảnh trước"
+        icon={<StepBackwardOutlined />}
+        disabled={phase.index === 0}
+        onClick={() => goTo(phase.index - 1, false)}
+      />
+      <Button
+        type="primary"
+        icon={ended ? <ReloadOutlined /> : playing ? <PauseOutlined /> : <CaretRightOutlined />}
+        onClick={toggle}
+        style={{ minWidth: 120 }}
+      >
+        {ended ? "Xem lại" : playing ? "Tạm dừng" : "Tiếp tục"}
+      </Button>
+      <Button
+        aria-label="Cảnh sau"
+        icon={<StepForwardOutlined />}
+        disabled={phase.index >= scenes.length - 1}
+        onClick={() => goTo(phase.index + 1, false)}
+      />
+      <ListenVolume />
+    </>
+  );
+
   return (
-    // A drawer from the right, so the page it previews stays in sight beside it.
+    // A drawer from the right, so the page it previews stays in sight beside it, wide enough to lay the preview out
+    // like a video editor: the tools on the left, the phone in the middle, the timeline along the bottom.
     <Drawer
       open
       placement="right"
       title="Xem trước video"
       aria-label="Xem trước video"
       onClose={onClose}
-      size="min(820px, 100vw)"
+      size="max(min(100vw, 820px), calc(100vw - 64px))"
       destroyOnHidden
-      styles={{ body: { paddingTop: 8 } }}
+      styles={{ body: { padding: 0, display: "flex", minHeight: 0 } }}
     >
-      <Flex wrap gap={24} justify="center">
-        <Flex gap={8} align="flex-start">
-          {editable && still && scene && (
-            <PreviewToolbar
-              editable={editable}
-              isTitle={scene.is_title}
-              canUndo={history.canUndo}
-              canRedo={history.canRedo}
-              undoLabel={history.undoLabel}
-              redoLabel={history.redoLabel}
-              transition={video.options.transition}
-              onUndo={() => void history.undo()}
-              onRedo={() => void history.redo()}
-              onMedia={replaceMedia}
-              onTransition={changeTransition}
-              onAddAfter={() => void addAfter()}
-              onDelete={() => void removeScene()}
-            />
-          )}
-          <Flex vertical gap={10} align="center">
-            {/* A real phone's geometry around the frame: the 9:16 video sits under the status bar, as the apps show it. */}
-            <Phone width={width} frame="pro" dark wallpaper="#000" time={statusTime}>
-              <div
-                ref={stage}
-                data-testid="preview-stage"
-                // A quick swipe across the phone (a finger or the mouse) moves to the next or the previous scene.
-                onPointerDown={(event) => {
-                  swipe.current = { x: event.clientX, y: event.clientY, at: performance.now() };
-                }}
-                onPointerUp={(event) => {
-                  const start = swipe.current;
-                  swipe.current = null;
-                  if (!start || dragged || typing) return;
-                  const dx = event.clientX - start.x;
-                  const dy = event.clientY - start.y;
-                  if (Math.abs(dx) > 60 && Math.abs(dy) < 50 && performance.now() - start.at < 600) {
-                    const next = phase.index + (dx < 0 ? 1 : -1);
-                    if (next >= 0 && next < scenes.length) goTo(next, false);
-                  }
-                }}
-                style={{
-                  position: "relative",
-                  width: "100%",
-                  aspectRatio: `${FRAME_WIDTH} / ${FRAME_HEIGHT}`,
-                  overflow: "hidden",
-                  background: "#000",
-                  containerType: "inline-size",
-                }}
-              >
-                {phase.prev !== null && scenes[phase.prev] && (
-                  <SceneLayer
-                    key={`prev-${phase.run}`}
-                    video={video}
-                    scene={scenes[phase.prev]}
-                    playing={false}
-                    entering={false}
-                    atEnd
-                    boxes={boxes}
-                    onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
-                  />
-                )}
-                {scene && (
-                  <SceneLayer
-                    key={`scene-${phase.run}`}
-                    video={video}
-                    scene={scene}
-                    playing={playing && !ended}
-                    entering={phase.prev !== null}
-                    boxes={boxes}
-                    onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
-                    stage={stage}
-                    centre={dragged?.sceneId === scene.id ? dragged.centre : null}
-                    onDrag={canDrag ? (centre) => setDragged({ sceneId: scene.id, centre }) : undefined}
-                    onDrop={canDrag ? dropBox : undefined}
-                    onEditText={canDrag ? () => setTyping({ sceneId: scene.id, value: scene.text }) : undefined}
-                    warn={covered.length > 0}
-                    seekTo={seek}
-                  />
-                )}
-                {/* Guides while dragging: the frame's middle, which the box snaps to when it comes near. */}
-                {snapped && snapped[0] === FRAME_WIDTH / 2 && <span data-testid="guide-x" style={guideStyle("x")} />}
-                {snapped && snapped[1] === FRAME_HEIGHT / 2 && <span data-testid="guide-y" style={guideStyle("y")} />}
-                {typing && scene && typing.sceneId === scene.id && boxCorner && boxSize && (
-                  <textarea
-                    aria-label="Chữ trên màn hình"
-                    autoFocus
-                    // Opened with the whole text chosen, so typing replaces it and an arrow key keeps it.
-                    onFocus={(event) => event.currentTarget.select()}
-                    value={typing.value}
-                    onChange={(event) => setTyping({ sceneId: scene.id, value: event.target.value })}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        event.stopPropagation();
-                        setTyping(null);
-                      } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-                        event.currentTarget.blur();
-                      }
-                    }}
-                    onBlur={() => {
-                      const value = typing.value;
-                      setTyping(null);
-                      if (value !== scene.text) void changeScene("sửa chữ", scene, { text: value });
-                    }}
-                    style={{
-                      position: "absolute",
-                      left: percent(boxCorner[0], FRAME_WIDTH),
-                      top: percent(boxCorner[1], FRAME_HEIGHT),
-                      width: percent(Math.max(boxSize.width, 560), FRAME_WIDTH),
-                      minHeight: percent(boxSize.height, FRAME_HEIGHT),
-                      zIndex: 3,
-                      padding: 6,
-                      fontSize: 13,
-                      lineHeight: 1.4,
-                      borderRadius: 6,
-                      border: `2px solid ${COLORS.primary}`,
-                      background: "rgba(255, 255, 255, 0.95)",
-                      resize: "vertical",
-                      fontFamily: "inherit",
-                    }}
-                  />
-                )}
-                {platform !== "none" && (
-                  <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
-                )}
-                {guide && <SafeZone />}
+      <div className="preview-editor">
+        <div className="preview-editor__rail" role="tablist" aria-label="Công cụ xem trước">
+          {TOOLS.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              role="tab"
+              aria-selected={tool === item.key}
+              className="preview-editor__tool"
+              onClick={() => setTool(item.key)}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="preview-editor__panel" role="tabpanel">
+          {tool === "scene" && (
+            <>
+              <div>
+                <Typography.Text strong style={{ display: "block", marginBottom: 6 }}>
+                  Các cảnh
+                </Typography.Text>
+                <Flex vertical gap={4} style={{ maxHeight: 260, overflowY: "auto" }}>
+                  {scenes.map((item, index) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => goTo(index, false)}
+                      style={{
+                        display: "flex",
+                        gap: 8,
+                        alignItems: "center",
+                        padding: "6px 8px",
+                        border: `1px solid ${index === phase.index ? COLORS.primary : COLORS.border}`,
+                        borderRadius: 6,
+                        background: index === phase.index ? COLORS.primaryBg : COLORS.surface,
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                    >
+                      <Typography.Text strong style={{ flex: "none", fontSize: 13 }}>
+                        {label(index)}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" ellipsis style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
+                        {item.text.replaceAll("*", "").replace(/\s+/g, " ").trim() || "(không có chữ)"}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ flex: "none", fontSize: 12 }}>
+                        {seconds(item.fitted_seconds)}s
+                      </Typography.Text>
+                    </button>
+                  ))}
+                </Flex>
               </div>
-            </Phone>
-            {covered.length > 0 && (
-              <Typography.Text
-                type="danger"
-                style={{ fontSize: 12, alignSelf: "stretch", maxWidth: width }}
-                data-testid="preview-covered"
-              >
-                Hộp chữ bị {covered.join(" và ")} của {PLATFORM_LABELS[platform as Platform]} che. Kéo chữ vào giữa hơn.
-              </Typography.Text>
-            )}
-            <PreviewTimeline
-              scenes={scenes}
-              current={phase.index}
-              run={phase.run}
-              running={playing && !ended}
-              editable={editable}
-              label={label}
-              onJump={(index) => goTo(index, false)}
-              onSeconds={(index, value) => void changeScene("đổi số giây", scenes[index], { seconds: value })}
-              onFollowVoice={(index) => void changeScene("khớp lời đọc", scenes[index], { seconds_auto: true })}
-              onReorder={reorder}
-            />
-            {scene?.video && still && (
-              <ClipTrim
-                key={`${scene.id}-${scene.video.start}-${scene.seconds}`}
-                clip={scene.video}
-                seconds={scene.seconds}
-                editable={editable}
-                onSeek={setSeek}
-                onCommit={(part) =>
-                  void changeScene("cắt clip", scene, { video_start: part.start, seconds: part.seconds }).finally(() =>
-                    setSeek(null),
-                  )
+              {scene && (
+                <SceneEditor
+                  key={`${scene.id}-${scene.seconds}`}
+                  scene={scene}
+                  label={label(phase.index)}
+                  editable={editable}
+                  still={!playing || ended}
+                  scope={scope}
+                  onScope={setScope}
+                  onPatch={patchScene}
+                  onResetPosition={() =>
+                    void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
+                  }
+                />
+              )}
+              {editable && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  Tạm dừng để sửa trên điện thoại: kéo hoặc bấm đúp vào chữ, kéo mép hay kéo cả đoạn trên thanh thời
+                  gian. Kéo đầu phát hoặc bấm vào thước giờ để tới đúng giây cần xem. Phím: cách để phát/dừng, ← →
+                  chuyển cảnh, [ ] bớt/thêm 0,1 giây, Ctrl+Z hoàn tác.
+                </Typography.Text>
+              )}
+            </>
+          )}
+
+          {tool === "frame" && (
+            <>
+              <div>
+                <Typography.Text strong style={{ display: "block", marginBottom: 6 }}>
+                  Khung ứng dụng
+                </Typography.Text>
+                <Segmented
+                  block
+                  aria-label="Khung ứng dụng"
+                  value={platform}
+                  onChange={(value) => choosePlatform(value as Platform | "none")}
+                  options={[
+                    ...(Object.keys(PLATFORM_LABELS) as Platform[]).map((key) => ({
+                      value: key,
+                      label: PLATFORM_LABELS[key],
+                    })),
+                    { value: "none", label: "Không" },
+                  ]}
+                />
+                <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, marginTop: 6 }}>
+                  Giao diện mô phỏng của app trên điện thoại: chữ và hình bị che chỗ nào thì sẽ bị che như vậy khi đăng.
+                </Typography.Text>
+              </div>
+              <Flex align="center" gap={8}>
+                <Switch checked={guide} onChange={setGuide} aria-label="Vùng an toàn" size="small" />
+                <Typography.Text>Đường vùng an toàn của mẫu</Typography.Text>
+              </Flex>
+            </>
+          )}
+
+          {tool === "voice" && (
+            <Flex vertical gap={8} data-testid="preview-voice">
+              <Typography.Text strong>Giọng đọc</Typography.Text>
+              {/* The video's ElevenLabs voice, the same choice as "Thiết lập": a new one makes the narration again. */}
+              <VoicePicker
+                values={{ ...video.options, voice_enabled: video.voice_enabled }}
+                disabled={!editable}
+                onChange={({ voice_id }) =>
+                  void save(() => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { options: { voice_id } }))
                 }
               />
-            )}
-            <Flex justify="space-between" style={{ width: "100%" }}>
-              <Typography.Text strong data-testid="preview-scene">
-                {label(phase.index)}, {seconds(scene?.fitted_seconds ?? 0)} giây
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {voicing
+                  ? "ElevenLabs đang đọc các cảnh, xong sẽ tự dùng giọng thật."
+                  : missingVoice
+                    ? `${unvoiced} cảnh chưa có giọng ElevenLabs (lời đọc mới hoặc vừa đổi giọng), đang đọc tạm bằng giọng trình duyệt.`
+                    : "Mọi cảnh đã có giọng ElevenLabs. Đổi giọng thì các cảnh được đọc lại khi tạo giọng hoặc render."}
               </Typography.Text>
-              <Typography.Text type="secondary">
-                {phase.index + 1}/{scenes.length} cảnh, {seconds(total)} giây
-              </Typography.Text>
-            </Flex>
-            <Space wrap>
-              <Button
-                aria-label="Cảnh trước"
-                icon={<StepBackwardOutlined />}
-                disabled={phase.index === 0}
-                onClick={() => goTo(phase.index - 1, false)}
-              />
-              <Button
-                type="primary"
-                icon={ended ? <ReloadOutlined /> : playing ? <PauseOutlined /> : <CaretRightOutlined />}
-                onClick={toggle}
-                style={{ minWidth: 120 }}
-              >
-                {ended ? "Xem lại" : playing ? "Tạm dừng" : "Tiếp tục"}
-              </Button>
-              <Button
-                aria-label="Cảnh sau"
-                icon={<StepForwardOutlined />}
-                disabled={phase.index >= scenes.length - 1}
-                onClick={() => goTo(phase.index + 1, false)}
-              />
-              <Button aria-label="Từ đầu" icon={<ReloadOutlined />} onClick={() => goTo(0, false)} />
-              <ListenVolume />
-            </Space>
-            {editable && (
-              <Typography.Text type="secondary" style={{ fontSize: 12, textAlign: "center", maxWidth: width }}>
-                Tạm dừng để sửa trên điện thoại: kéo hoặc bấm đúp vào chữ, kéo mép hay kéo cả đoạn trên thanh thời gian.
-                Phím: cách để phát/dừng, ← → chuyển cảnh, [ ] bớt/thêm 0,1 giây, Ctrl+Z hoàn tác.
-              </Typography.Text>
-            )}
-          </Flex>
-        </Flex>
-
-        <Flex vertical gap={16} style={{ flex: "1 1 260px", minWidth: 0, maxWidth: 360 }}>
-          <div>
-            <Typography.Text strong style={{ display: "block", marginBottom: 6 }}>
-              Khung ứng dụng
-            </Typography.Text>
-            <Segmented
-              block
-              aria-label="Khung ứng dụng"
-              value={platform}
-              onChange={(value) => choosePlatform(value as Platform | "none")}
-              options={[
-                ...(Object.keys(PLATFORM_LABELS) as Platform[]).map((key) => ({
-                  value: key,
-                  label: PLATFORM_LABELS[key],
-                })),
-                { value: "none", label: "Không" },
-              ]}
-            />
-            <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, marginTop: 6 }}>
-              Giao diện mô phỏng của app trên điện thoại: chữ và hình bị che chỗ nào thì sẽ bị che như vậy khi đăng.
-            </Typography.Text>
-          </div>
-          <Flex align="center" gap={8}>
-            <Switch checked={guide} onChange={setGuide} aria-label="Vùng an toàn" size="small" />
-            <Typography.Text>Đường vùng an toàn của mẫu</Typography.Text>
-          </Flex>
-          <div>
-            <Typography.Text strong style={{ display: "block", marginBottom: 6 }}>
-              Các cảnh
-            </Typography.Text>
-            <Flex vertical gap={4} style={{ maxHeight: 260, overflowY: "auto" }}>
-              {scenes.map((item, index) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => goTo(index, false)}
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    alignItems: "center",
-                    padding: "6px 8px",
-                    border: `1px solid ${index === phase.index ? COLORS.primary : COLORS.border}`,
-                    borderRadius: 6,
-                    background: index === phase.index ? COLORS.primaryBg : COLORS.surface,
-                    cursor: "pointer",
-                    textAlign: "left",
-                  }}
+              {(missingVoice || voicing) && (
+                <Popconfirm
+                  title="Tạo giọng thật bằng ElevenLabs?"
+                  description={`ElevenLabs đọc ${unvoiced} cảnh, tốn credit một lần. Render sau đó dùng lại, không tốn thêm.`}
+                  okText="Tạo giọng"
+                  cancelText="Thôi"
+                  onConfirm={onMakeVoices}
+                  disabled={voicing || Boolean(video.active_job)}
                 >
-                  <Typography.Text strong style={{ flex: "none", fontSize: 13 }}>
-                    {label(index)}
-                  </Typography.Text>
-                  <Typography.Text type="secondary" ellipsis style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
-                    {item.text.replaceAll("*", "").replace(/\s+/g, " ").trim() || "(không có chữ)"}
-                  </Typography.Text>
-                  <Typography.Text type="secondary" style={{ flex: "none", fontSize: 12 }}>
-                    {seconds(item.fitted_seconds)}s
-                  </Typography.Text>
-                </button>
-              ))}
+                  <Button block loading={voicing} disabled={!voicing && Boolean(video.active_job)}>
+                    Tạo giọng ElevenLabs cho {unvoiced} cảnh
+                  </Button>
+                </Popconfirm>
+              )}
+              {missingVoice && (
+                <Collapse
+                  size="small"
+                  ghost
+                  items={[
+                    {
+                      key: "browser",
+                      label: "Giọng tạm của trình duyệt",
+                      children: (
+                        <Flex vertical gap={8}>
+                          {voices.length > 0 ? (
+                            <Select
+                              aria-label="Giọng trình duyệt"
+                              value={voice?.voiceURI}
+                              onChange={chooseVoice}
+                              options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
+                            />
+                          ) : (
+                            <Alert
+                              type="warning"
+                              showIcon
+                              data-testid="preview-no-voice"
+                              title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử."
+                            />
+                          )}
+                          {voices.length > 0 && !voices.some((item) => NATURAL.test(item.name)) && (
+                            <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-edge-tip">
+                              Giọng tự nhiên hơn: mở trang này bằng Microsoft Edge để có giọng HoaiMy, NamMinh.
+                            </Typography.Text>
+                          )}
+                        </Flex>
+                      ),
+                    },
+                  ]}
+                />
+              )}
             </Flex>
-          </div>
-          {scene && (
-            <SceneEditor
-              key={`${scene.id}-${scene.seconds}`}
-              scene={scene}
-              label={label(phase.index)}
-              editable={editable}
-              still={!playing || ended}
-              scope={scope}
-              onScope={setScope}
-              onPatch={patchScene}
-              onResetPosition={() =>
-                void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
-              }
-            />
           )}
-          <Flex vertical gap={8} data-testid="preview-voice">
-            <Typography.Text strong>Giọng đọc</Typography.Text>
-            {/* The video's ElevenLabs voice, the same choice as "Thiết lập": a new one makes the narration again. */}
-            <VoicePicker
-              values={{ ...video.options, voice_enabled: video.voice_enabled }}
-              disabled={!editable}
-              onChange={({ voice_id }) =>
-                void save(() => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { options: { voice_id } }))
-              }
-            />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {voicing
-                ? "ElevenLabs đang đọc các cảnh, xong sẽ tự dùng giọng thật."
-                : missingVoice
-                  ? `${unvoiced} cảnh chưa có giọng ElevenLabs (lời đọc mới hoặc vừa đổi giọng), đang đọc tạm bằng giọng trình duyệt.`
-                  : "Mọi cảnh đã có giọng ElevenLabs. Đổi giọng thì các cảnh được đọc lại khi tạo giọng hoặc render."}
-            </Typography.Text>
-            {(missingVoice || voicing) && (
-              <Popconfirm
-                title="Tạo giọng thật bằng ElevenLabs?"
-                description={`ElevenLabs đọc ${unvoiced} cảnh, tốn credit một lần. Render sau đó dùng lại, không tốn thêm.`}
-                okText="Tạo giọng"
-                cancelText="Thôi"
-                onConfirm={onMakeVoices}
-                disabled={voicing || Boolean(video.active_job)}
-              >
-                <Button block loading={voicing} disabled={!voicing && Boolean(video.active_job)}>
-                  Tạo giọng ElevenLabs cho {unvoiced} cảnh
-                </Button>
-              </Popconfirm>
-            )}
-            {missingVoice && (
-              <Collapse
-                size="small"
-                ghost
-                items={[
-                  {
-                    key: "browser",
-                    label: "Giọng tạm của trình duyệt",
-                    children: (
-                      <Flex vertical gap={8}>
-                        {voices.length > 0 ? (
-                          <Select
-                            aria-label="Giọng trình duyệt"
-                            value={voice?.voiceURI}
-                            onChange={chooseVoice}
-                            options={voices.map((item) => ({ value: item.voiceURI, label: item.name }))}
-                          />
-                        ) : (
-                          <Alert
-                            type="warning"
-                            showIcon
-                            data-testid="preview-no-voice"
-                            title="Trình duyệt này không có giọng tiếng Việt, nên cảnh chưa có giọng đọc sẽ im lặng. Dùng Edge hoặc Chrome để nghe thử."
-                          />
-                        )}
-                        {voices.length > 0 && !voices.some((item) => NATURAL.test(item.name)) && (
-                          <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-edge-tip">
-                            Giọng tự nhiên hơn: mở trang này bằng Microsoft Edge để có giọng HoaiMy, NamMinh.
-                          </Typography.Text>
-                        )}
-                      </Flex>
-                    ),
-                  },
-                ]}
-              />
-            )}
-          </Flex>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+
+          <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: "auto" }}>
             Bản xem trước gần đúng, chưa phải MP4. Cảnh đã có giọng ElevenLabs (sau một lần render hoặc “Tạo giọng
             ElevenLabs”) dùng giọng đó, cảnh khác dùng giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm
             chỉ có khi render.
           </Typography.Text>
-        </Flex>
-      </Flex>
+        </div>
+
+        <div className="preview-editor__stage">
+          <Flex gap={8} align="flex-start">
+            {editable && still && scene && (
+              <PreviewToolbar
+                editable={editable}
+                isTitle={scene.is_title}
+                canUndo={history.canUndo}
+                canRedo={history.canRedo}
+                undoLabel={history.undoLabel}
+                redoLabel={history.redoLabel}
+                transition={video.options.transition}
+                onUndo={() => void history.undo()}
+                onRedo={() => void history.redo()}
+                onMedia={replaceMedia}
+                onTransition={changeTransition}
+                onAddAfter={() => void addAfter()}
+                onDelete={() => void removeScene()}
+              />
+            )}
+            <Flex vertical gap={10} align="center" style={{ width }}>
+              {/* A real phone's geometry around the frame: the 9:16 video sits under the status bar, as the apps show it. */}
+              <Phone width={width} frame="pro" dark wallpaper="#000" time={statusTime}>
+                <div
+                  ref={stage}
+                  data-testid="preview-stage"
+                  // A quick swipe across the phone (a finger or the mouse) moves to the next or the previous scene.
+                  onPointerDown={(event) => {
+                    swipe.current = { x: event.clientX, y: event.clientY, at: performance.now() };
+                  }}
+                  onPointerUp={(event) => {
+                    const start = swipe.current;
+                    swipe.current = null;
+                    if (!start || dragged || typing) return;
+                    const dx = event.clientX - start.x;
+                    const dy = event.clientY - start.y;
+                    if (Math.abs(dx) > 60 && Math.abs(dy) < 50 && performance.now() - start.at < 600) {
+                      const next = phase.index + (dx < 0 ? 1 : -1);
+                      if (next >= 0 && next < scenes.length) goTo(next, false);
+                    }
+                  }}
+                  style={{
+                    position: "relative",
+                    width: "100%",
+                    aspectRatio: `${FRAME_WIDTH} / ${FRAME_HEIGHT}`,
+                    overflow: "hidden",
+                    background: "#000",
+                    containerType: "inline-size",
+                  }}
+                >
+                  {phase.prev !== null && scenes[phase.prev] && (
+                    <SceneLayer
+                      key={`prev-${phase.view}`}
+                      video={video}
+                      scene={scenes[phase.prev]}
+                      playing={false}
+                      entering={false}
+                      atEnd
+                      boxes={boxes}
+                      onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
+                    />
+                  )}
+                  {scene && (
+                    <SceneLayer
+                      key={`scene-${phase.view}`}
+                      video={video}
+                      scene={scene}
+                      playing={playing && !ended}
+                      entering={phase.prev !== null}
+                      from={phase.from / 1000}
+                      boxes={boxes}
+                      onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
+                      stage={stage}
+                      centre={dragged?.sceneId === scene.id ? dragged.centre : null}
+                      onDrag={canDrag ? (centre) => setDragged({ sceneId: scene.id, centre }) : undefined}
+                      onDrop={canDrag ? dropBox : undefined}
+                      onEditText={canDrag ? () => setTyping({ sceneId: scene.id, value: scene.text }) : undefined}
+                      warn={covered.length > 0}
+                      seekTo={seek}
+                    />
+                  )}
+                  {/* Guides while dragging: the frame's middle, which the box snaps to when it comes near. */}
+                  {snapped && snapped[0] === FRAME_WIDTH / 2 && <span data-testid="guide-x" style={guideStyle("x")} />}
+                  {snapped && snapped[1] === FRAME_HEIGHT / 2 && <span data-testid="guide-y" style={guideStyle("y")} />}
+                  {typing && scene && typing.sceneId === scene.id && boxCorner && boxSize && (
+                    <textarea
+                      aria-label="Chữ trên màn hình"
+                      autoFocus
+                      // Opened with the whole text chosen, so typing replaces it and an arrow key keeps it.
+                      onFocus={(event) => event.currentTarget.select()}
+                      value={typing.value}
+                      onChange={(event) => setTyping({ sceneId: scene.id, value: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.stopPropagation();
+                          setTyping(null);
+                        } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                          event.currentTarget.blur();
+                        }
+                      }}
+                      onBlur={() => {
+                        const value = typing.value;
+                        setTyping(null);
+                        if (value !== scene.text) void changeScene("sửa chữ", scene, { text: value });
+                      }}
+                      style={{
+                        position: "absolute",
+                        left: percent(boxCorner[0], FRAME_WIDTH),
+                        top: percent(boxCorner[1], FRAME_HEIGHT),
+                        width: percent(Math.max(boxSize.width, 560), FRAME_WIDTH),
+                        minHeight: percent(boxSize.height, FRAME_HEIGHT),
+                        zIndex: 3,
+                        padding: 6,
+                        fontSize: 13,
+                        lineHeight: 1.4,
+                        borderRadius: 6,
+                        border: `2px solid ${COLORS.primary}`,
+                        background: "rgba(255, 255, 255, 0.95)",
+                        resize: "vertical",
+                        fontFamily: "inherit",
+                      }}
+                    />
+                  )}
+                  {platform !== "none" && (
+                    <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
+                  )}
+                  {guide && <SafeZone />}
+                </div>
+              </Phone>
+              {covered.length > 0 && (
+                <Typography.Text
+                  type="danger"
+                  style={{ fontSize: 12, alignSelf: "stretch" }}
+                  data-testid="preview-covered"
+                >
+                  Hộp chữ bị {covered.join(" và ")} của {PLATFORM_LABELS[platform as Platform]} che. Kéo chữ vào giữa
+                  hơn.
+                </Typography.Text>
+              )}
+              {scene?.video && still && (
+                <ClipTrim
+                  key={`${scene.id}-${scene.video.start}-${scene.seconds}`}
+                  clip={scene.video}
+                  seconds={scene.seconds}
+                  editable={editable}
+                  onSeek={setSeek}
+                  onCommit={(part) =>
+                    void changeScene("cắt clip", scene, { video_start: part.start, seconds: part.seconds }).finally(
+                      () => setSeek(null),
+                    )
+                  }
+                />
+              )}
+              <Flex justify="space-between" gap={8} style={{ width: "100%" }}>
+                <Typography.Text strong data-testid="preview-scene">
+                  {label(phase.index)}, {seconds(scene?.fitted_seconds ?? 0)} giây
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  {phase.index + 1}/{scenes.length} cảnh
+                </Typography.Text>
+              </Flex>
+            </Flex>
+          </Flex>
+        </div>
+
+        <div className="preview-editor__timeline">
+          <PreviewTimeline
+            scenes={scenes}
+            current={phase.index}
+            editable={editable}
+            label={label}
+            position={position}
+            controls={transport}
+            onSeek={seekAt}
+            onJump={(index) => goTo(index, false)}
+            onSeconds={(index, value) => void changeScene("đổi số giây", scenes[index], { seconds: value })}
+            onFollowVoice={(index) => void changeScene("khớp lời đọc", scenes[index], { seconds_auto: true })}
+            onReorder={reorder}
+          />
+        </div>
+      </div>
       <audio ref={music} src={video.music?.url} loop preload="auto" />
       <audio ref={narration} preload="none" />
     </Drawer>
@@ -954,6 +1085,7 @@ function SceneLayer({
   playing,
   entering,
   atEnd = false,
+  from = 0,
   boxes,
   onBox,
   stage,
@@ -969,6 +1101,8 @@ function SceneLayer({
   playing: boolean;
   entering: boolean;
   atEnd?: boolean;
+  /** How far into the scene it starts or stands, in seconds (the playhead moved there). */
+  from?: number;
   boxes: Record<string, { width: number; height: number }>;
   onBox: (url: string, size: { width: number; height: number }) => void;
   /** With these, the box is dragged on the stage: its centre while moving, and where it is dropped. */
@@ -994,6 +1128,16 @@ function SceneLayer({
       element.currentTime = seekTo;
     }
   }, [seekTo]);
+  // A seek while paused within the same scene keeps the clip and moves it to the frame at that point.
+  // Only a new `from` moves it: pausing alone leaves the clip where it stopped.
+  useEffect(() => {
+    const element = clipRef.current;
+    if (element && element.readyState >= 1) {
+      element.pause();
+      element.currentTime = (scene.video?.start ?? 0) + from * (scene.video?.speed ?? 1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a seek is a new `from`; the clip's own values are read then
+  }, [from]);
   const { transition, motion, zoom } = video.options;
   const end = ZOOMS[zoom];
   // The frame without text when there is one, so the box stays still while the picture moves; else the preview.
@@ -1085,7 +1229,8 @@ function SceneLayer({
     animationTimingFunction: "linear",
     animationFillMode: "both",
     // The scene going out holds its last frame while the next one comes in.
-    animationDelay: atEnd ? `-${scene.fitted_seconds}s` : "0s",
+    // A scene started part-way (the playhead moved there) shows the motion that far along.
+    animationDelay: atEnd ? `-${scene.fitted_seconds}s` : `-${from}s`,
     animationPlayState: playing && !atEnd ? "running" : "paused",
   } as React.CSSProperties;
   const enter =
@@ -1109,7 +1254,7 @@ function SceneLayer({
           autoPlay={playing}
           preload="auto"
           onLoadedMetadata={(event) => {
-            event.currentTarget.currentTime = scene.video?.start ?? 0;
+            event.currentTarget.currentTime = (scene.video?.start ?? 0) + from * (scene.video?.speed ?? 1);
             event.currentTarget.playbackRate = scene.video?.speed ?? 1;
           }}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}

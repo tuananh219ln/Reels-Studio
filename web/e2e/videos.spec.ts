@@ -455,6 +455,33 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   const editor = preview.getByTestId("preview-scene-editor");
   await expect(editor).toContainText("Chỉnh cảnh 2");
   await expect(editor.getByLabel("Số giây của cảnh")).toBeVisible();
+
+  // The timeline: a ruler in seconds and a playhead that goes to any second, paused there.
+  const timeline = preview.getByTestId("preview-timeline");
+  await expect(timeline.getByTestId("timeline-ruler")).toContainText("00:00");
+  const playhead = timeline.getByRole("slider", { name: "Đầu phát" });
+  await playhead.focus();
+  await page.keyboard.press("Home");
+  await expect(now).toContainText("Cảnh tiêu đề");
+  await expect(timeline.getByTestId("preview-time")).toHaveText("00:00,0");
+  await expect(preview.getByRole("button", { name: "Tiếp tục" })).toBeVisible();
+  await page.keyboard.press("End");
+  await expect(now).toContainText("Cảnh 5");
+  await page.keyboard.press("Home");
+  for (let step = 0; step < 3; step += 1) await page.keyboard.press("ArrowRight");
+  await expect(timeline.getByTestId("preview-time")).toHaveText("00:01,5");
+  await expect(preview.getByRole("button", { name: "Tiếp tục" })).toBeVisible();
+  // Zooming in spreads the scenes wider than the timeline, which then scrolls.
+  const viewport = timeline.getByTestId("timeline-viewport");
+  await timeline.getByRole("button", { name: "Phóng to thanh thời gian" }).click();
+  await timeline.getByRole("button", { name: "Phóng to thanh thời gian" }).click();
+  await expect.poll(() => viewport.evaluate((element) => element.scrollWidth > element.clientWidth + 10)).toBe(true);
+  await timeline.getByRole("button", { name: "Thu nhỏ thanh thời gian" }).click();
+  await timeline.getByRole("button", { name: "Thu nhỏ thanh thời gian" }).click();
+  await expect.poll(() => viewport.evaluate((element) => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+
+  // The app frame and the safe zone are under "Khung" in the tools column.
+  await preview.getByRole("tab", { name: "Khung" }).click();
   await preview.getByRole("switch", { name: "Vùng an toàn" }).click();
   await expect(preview.getByTestId("preview-safe-zone")).toBeVisible();
   await preview.getByText("TikTok", { exact: true }).click();
@@ -474,6 +501,7 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(preview.getByTestId("platform-frame")).toHaveCount(0);
 
   // "Tạo giọng ElevenLabs": the fake reads the scenes without narration, after a confirmation.
+  await preview.getByRole("tab", { name: "Giọng đọc" }).click();
   const voiceBox = preview.getByTestId("preview-voice");
   await expect(voiceBox).toContainText("chưa có giọng ElevenLabs");
   await expect(voiceBox.getByLabel("Giọng đọc")).toBeVisible();

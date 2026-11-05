@@ -77,15 +77,6 @@ body {
   }
 }
 
-@keyframes preview-progress {
-  from {
-    width: 0;
-  }
-  to {
-    width: 100%;
-  }
-}
-
 /* Scene card: the picture column's actions read as one list, left-aligned, the same type, never wider than
    the column (a long label such as "Tìm ảnh (Openverse)" ends in "…"). */
 .scene-action.ant-btn {
