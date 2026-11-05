@@ -914,7 +914,7 @@ test("photos from other sites: paste a photo or its link, drag one from another 
   // "Tìm trên Google" lists the scene's keywords; the one picked opens Google Ảnh, tall photos only.
   await page.context().route("https://www.google.com/**", (route) => route.fulfill({ body: "Google Ảnh" }));
   await scenes.nth(0).getByRole("button", { name: "Tìm trên Google" }).click();
-  const second = page.getByRole("menuitem").nth(1);
+  const second = page.locator(".ant-dropdown:visible").getByRole("menuitem").nth(1);
   const picked = (await second.innerText()).trim();
   const opened = page.waitForEvent("popup");
   await second.click();
@@ -924,11 +924,13 @@ test("photos from other sites: paste a photo or its link, drag one from another 
   expect(google.searchParams.get("udm")).toBe("2");
   expect(google.searchParams.get("tbs")).toBe("iar:t");
 
-  // "Tìm trên TikTok" offers the Vietnamese keywords; the second one opens TikTok's video search.
+  // "Tìm trên TikTok" offers the Vietnamese keywords; the second one opens TikTok's video search. Google's menu
+  // fades out first, or the same keyword would be found in both menus.
+  await expect(page.locator(".ant-dropdown:visible")).toHaveCount(0);
   await page.context().route("https://www.tiktok.com/**", (route) => route.fulfill({ body: "TikTok" }));
   await scenes.nth(0).getByRole("button", { name: "Tìm trên TikTok" }).click();
   const tiktokOpened = page.waitForEvent("popup");
-  await page.getByRole("menuitem", { name: picked, exact: true }).click();
+  await page.locator(".ant-dropdown:visible").getByRole("menuitem", { name: picked, exact: true }).click();
   const tiktok = new URL((await tiktokOpened).url());
   expect(tiktok.pathname).toBe("/search/video");
   expect(tiktok.searchParams.get("q")).toBe(picked);
