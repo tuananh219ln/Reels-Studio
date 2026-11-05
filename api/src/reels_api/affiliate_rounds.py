@@ -3,6 +3,8 @@ Shopee, a failure is recorded where members see it and waits for the next round 
 
 - Suggestions: a video's product ideas (`videos.affiliates`, written by the script) searched with the asking member's
   own Shopee account; the products that meet the rules, best first, become drafts of the team's list.
+- Lookups: a product added by its link, or imported from Shopee Affiliate's file, is read once to fill its name,
+  shop, stars, sales, price and commission.
 - The daily check: an approved product found through the API is read again once a day; one Shopee no longer offers, or
   that stopped meeting the rules, goes back to draft.
 - Orders: each Shopee account's orders of the last days, read once a day, with the video and Page their link named.
@@ -36,6 +38,7 @@ PER_KEYWORD = 5
 SEARCH_RESULTS = 20
 CHECK_EVERY = timedelta(days=1)
 CHECK_BATCH = 5
+LOOKUP_BATCH = 10  # pasted links and imported rows read per round
 REPORT_EVERY = timedelta(days=1)
 REPORT_BATCH = 2
 REPORT_DAYS = 30  # orders change status for a while (pending, completed, cancelled), so the month is read again
@@ -51,6 +54,21 @@ def _usable_account(db: DbSession, user_id: int | None) -> AffiliateAccount | No
         .order_by(AffiliateAccount.id)
     )
     return next((account for account in accounts if affiliate.credentials(account)), None)
+
+
+def team_account(db: DbSession, user_id: int | None) -> AffiliateAccount | None:
+    """The Shopee account that reads a product of the team's list: the member's own, else any member's in use. What
+    Shopee says about a product is not private (decisions, 2026-11-03)."""
+    return _usable_account(db, user_id) or next(
+        (
+            account
+            for account in db.scalars(
+                select(AffiliateAccount).where(AffiliateAccount.platform == "shopee").order_by(AffiliateAccount.id)
+            )
+            if affiliate.credentials(account)
+        ),
+        None,
+    )
 
 
 def ask_after_script(db: DbSession, video: Video, user_id: int) -> None:
@@ -146,16 +164,7 @@ def check_offer(db: DbSession, product: AffiliateProduct) -> None:
     """Read an approved product again; it goes back to draft when Shopee no longer offers it or it fails the rules.
     Commits."""
     product.offer_checked_at = now()
-    account = _usable_account(db, product.created_by_id) or next(
-        (
-            account
-            for account in db.scalars(
-                select(AffiliateAccount).where(AffiliateAccount.platform == "shopee").order_by(AffiliateAccount.id)
-            )
-            if affiliate.credentials(account)
-        ),
-        None,
-    )
+    account = team_account(db, product.created_by_id)
     if account is None:
         db.commit()
         return
@@ -174,6 +183,42 @@ def check_offer(db: DbSession, product: AffiliateProduct) -> None:
             product.status, product.checked_at, product.checked_by_id = "draft", None, None
             log.info("Product %s no longer meets the rules, back to draft", product.id)
     db.commit()
+
+
+def lookup(db: DbSession, product: AffiliateProduct) -> None:
+    """Fill a product added by its link (or imported) with what Shopee says about it now. A failure is kept on the
+    product for the member to see; nothing is retried by itself. Commits."""
+    product.lookup_requested_at = None
+    account = team_account(db, product.lookup_by_id)
+    if account is None:
+        product.lookup_error = "Chưa có tài khoản Shopee có App ID và Secret để lấy thông tin, hãy sửa tay"
+        db.commit()
+        return
+    try:
+        item_id = product.shopee_item_id or shopee.item_id_of(shopee.resolve(product.url or product.page_url or ""))
+        if item_id is None:
+            raise shopee.ShopeeError("Link không dẫn tới một sản phẩm Shopee, hãy kiểm tra lại link")
+        twin = db.scalar(
+            select(AffiliateProduct).where(
+                AffiliateProduct.shopee_item_id == item_id, AffiliateProduct.id != product.id
+            )
+        )
+        if twin is not None:
+            raise shopee.ShopeeError(f"Sản phẩm đã có trong danh sách: {twin.name}")
+        offer = shopee.offer(affiliate.credentials(account), item_id)
+        if offer is None:
+            raise shopee.ShopeeError("Shopee không có hoa hồng affiliate cho sản phẩm này")
+    except shopee.ShopeeError as err:
+        product.lookup_error = err.message
+        db.commit()
+        log.warning("Could not read product %s from Shopee: %s %s", product.id, err.message, err.detail)
+        return
+    product.shopee_item_id, product.lookup_error = item_id, None
+    _fill(product, offer)
+    if product.status == "approved" and affiliate.problems(product):
+        product.status, product.checked_at, product.checked_by_id = "draft", None, None
+    db.commit()
+    log.info("Read product %s (item %s) from Shopee", product.id, item_id)
 
 
 def _target(db: DbSession, sub_ids: list[str]) -> tuple[int | None, int | None]:
@@ -255,6 +300,19 @@ def run_round(factory: sessionmaker) -> None:
             )
         ),
         lambda db, video_id: suggest(db, db.get(Video, video_id)),
+    )
+    _each(
+        factory,
+        "product lookups",
+        lambda db: list(
+            db.scalars(
+                select(AffiliateProduct.id)
+                .where(AffiliateProduct.lookup_requested_at.is_not(None))
+                .order_by(AffiliateProduct.lookup_requested_at, AffiliateProduct.id)
+                .limit(LOOKUP_BATCH)
+            )
+        ),
+        lambda db, product_id: lookup(db, db.get(AffiliateProduct, product_id)),
     )
     _each(
         factory,

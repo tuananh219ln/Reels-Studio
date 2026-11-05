@@ -64,7 +64,7 @@ export default function ProductModal({
 
   return (
     <FormDrawer
-      title={adding ? "Thêm sản phẩm" : "Sửa sản phẩm"}
+      title={adding ? "Nhập tay sản phẩm" : "Sửa sản phẩm"}
       open={target !== null}
       onClose={onClose}
       onOk={() => form.submit()}

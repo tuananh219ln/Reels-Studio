@@ -103,8 +103,11 @@ How the prompt is built (built, compact version):
   written. Narration reads only the voice text of a scene that has one
   ([rules](architecture.md#video-pipeline)), so the opening line and every voice text together stay
   within 150 words; at these lengths a script reaches at most 117 words, about 40 seconds of speech
-  at about 2.9 words per second. The worked example opens each voice text with the dish, so a
-  listener hears what the scene is about, then tells its benefit; the model copies the example
+  at about 2.9 words per second. A scene whose on-screen text opens with the name of a dish, product
+  or thing opens its voice text with that name and a comma ("Rau muống, ..."), so a listener hears what
+  the scene is about, then its benefit; the worked example does so. When a voice text opens with the
+  first line of its on-screen text and nothing marks a pause, narration adds the comma itself
+  ([videos.py](../api/src/reels_api/videos.py) `pause_after_name`), so older scripts read the same way; the model copies the example
   closely, so none of its voice texts describes cooking. A topic's prompt can ask for something
   else. Only scripts and clones written after a change to these rules follow them; existing
   videos keep their voice texts until their script is written again.

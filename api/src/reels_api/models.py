@@ -217,6 +217,9 @@ class Scene(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
     text: Mapped[str] = mapped_column(Text, default="")
     seconds: Mapped[float] = mapped_column(Float)
+    # "Tự khớp lời đọc": once its narration is made, the scene lasts as long as it (videos.auto_seconds). Typing the
+    # seconds turns it off. The scenes the app writes (script, "Tự viết", "Thêm cảnh") start on; older ones off.
+    seconds_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     keywords: Mapped[list] = mapped_column(JSONB, default=list)
     # The same search terms in English: Western stock libraries (Pixabay, Pexels) index in English,
     # so their searches use these; the Vietnamese list stays for Openverse and for display.
@@ -556,6 +559,10 @@ class AffiliateProduct(Base):
     shopee_item_id: Mapped[int | None] = mapped_column(BigInteger)
     commission_end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     offer_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the daily check, last done
+    # A pasted link or an imported row waits for the worker to read the product from Shopee (affiliate_rounds.lookup).
+    lookup_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    lookup_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    lookup_error: Mapped[str | None] = mapped_column(Text)
     shop_name: Mapped[str] = mapped_column(String(200))
     shop_type: Mapped[str] = mapped_column(String(16))  # a key of routes_affiliate.SHOP_TYPES
     rating: Mapped[float] = mapped_column(Float)

@@ -28,6 +28,8 @@ from .models import (
     TopicPlanItem,
     Video,
 )
+from .script_rules import MAX_SECONDS as MAX_SCENE_SECONDS
+from .script_rules import MIN_SECONDS as MIN_SCENE_SECONDS
 from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
 from .storage import DirectoryStorage
@@ -146,12 +148,41 @@ def screen_speech(scene: Scene) -> str:
     return " ".join(line if line.endswith(PAUSE_ENDS) else f"{line}." for line in lines if line)
 
 
+def scene_name(scene: Scene) -> str:
+    """What a content scene is about: the first line of its on-screen text, without its list number or marks
+    ("Rau muống" of "Rau muống / Khoảng 3 tuần cắt ngọn")."""
+    if scene.is_title:
+        return ""
+    lines = LIST_NUMBER.sub("", scene.text.replace("*", "")).strip().splitlines()
+    return plain_title(lines[0]).rstrip(".,:;!?…").strip() if lines else ""
+
+
+def pause_after_name(voice: str, name: str) -> str:
+    """A voice text that opens with the scene's name gets a comma after it when nothing marks the pause, so the
+    narration says "Rau muống, ngâm hạt…" instead of running the name into the sentence."""
+    if not name or not voice.casefold().startswith(name.casefold()):
+        return voice
+    rest = voice[len(name) :]
+    if not rest or not rest[0].isspace() or rest.lstrip()[:1] in (*PAUSE_ENDS, "-", "–", "—"):
+        return voice
+    # The case is kept: the voice reads "Ngâm" and "ngâm" alike, and a name such as "Phú Quốc" must stay as written.
+    return f"{voice[: len(name)]}, {rest.lstrip()}"
+
+
 def spoken(video: Video, scene: Scene) -> str:
-    """The narration this scene gets in the next render: its voice text, else its on-screen text; empty when it has
-    neither or the video's narration is off."""
+    """The narration this scene gets in the next render: its voice text (with a pause after the scene's name), else
+    its on-screen text; empty when it has neither or the video's narration is off."""
     if not video.voice_enabled:
         return ""
-    return scene.voice_text if scene.voice_text.strip() else screen_speech(scene)
+    if scene.voice_text.strip():
+        return pause_after_name(scene.voice_text, scene_name(scene))
+    return screen_speech(scene)
+
+
+def auto_seconds(voice_seconds: float) -> float:
+    """A scene's seconds when they follow its narration: the narration and the pauses around it, in tenths, within
+    the 1–10 seconds a scene may be set to. A longer narration still lengthens the scene at render (fit_seconds)."""
+    return min(MAX_SCENE_SECONDS, max(MIN_SCENE_SECONDS, fit_seconds(0, voice_seconds)))
 
 
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
@@ -443,6 +474,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "is_title": scene.is_title,
         "text": scene.text,
         "seconds": scene.seconds,
+        "seconds_auto": scene.seconds_auto,
         "keywords": scene.keywords,
         "keywords_en": scene.keywords_en,
         "image_prompt": scene.image_prompt,

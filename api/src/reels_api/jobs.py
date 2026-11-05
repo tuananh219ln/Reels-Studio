@@ -54,6 +54,7 @@ from .videos import (
     LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
     active_job,
+    auto_seconds,
     is_published,
     made_voice_seconds,
     new_key,
@@ -248,6 +249,7 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
             position=0,
             text=script.titles[0],
             seconds=TITLE_SECONDS,
+            seconds_auto=True,
             keywords=script.title_keywords,
             keywords_en=script.title_keywords_en,
             image_prompt=script.title_image_prompt,
@@ -262,6 +264,7 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 position=position,
                 text=scene.text,
                 seconds=scene.seconds,
+                seconds_auto=True,
                 keywords=scene.keywords,
                 keywords_en=scene.keywords_en,
                 image_prompt=scene.image_prompt,
@@ -327,6 +330,9 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             voice_signature(text, voice_id(video), voice_speed(video)),
             seconds,
         )
+        # "Tự khớp lời đọc": the scene now lasts as long as its narration, shorter or longer than before.
+        if scene.seconds_auto:
+            scene.seconds = auto_seconds(seconds)
         db.commit()
         if old and old != key:
             storage.delete(old)

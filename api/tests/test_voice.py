@@ -12,7 +12,7 @@ from reels_api import config, source_keys
 from reels_api.models import Job, Scene, Video
 from reels_api.storage import DirectoryStorage
 from reels_api.tts import voice_signature
-from reels_api.videos import render_signature, split_scenes, spoken
+from reels_api.videos import auto_seconds, render_signature, split_scenes, spoken
 from reels_render.ffmpeg import probe
 
 needs_ffmpeg = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg/ffprobe không có trên PATH")
@@ -444,3 +444,105 @@ def test_a_voice_job_fails_with_elevenlabs_reason(committed, voiced, fakes):
     jobs.run_job(job_id, committed, storage)
     job = job_row(committed, job_id)
     assert (job.status, job.error) == ("failed", "Cảnh 1: Tài khoản ElevenLabs đã hết ký tự (credit), cần nạp thêm")
+
+
+# --- The scene's name before its narration ---
+
+
+@pytest.mark.parametrize(
+    ("text", "voice_text", "expected"),
+    [
+        ("Rau muống\nKhoảng *3 tuần* cắt ngọn", "Rau muống Ngâm hạt qua đêm", "Rau muống, Ngâm hạt qua đêm"),
+        ("2. Cá nhỏ\nĂn cả xương", "cá nhỏ có canxi", "cá nhỏ, có canxi"),
+        ("Rau muống\nKhoảng 3 tuần", "Rau muống, ngâm hạt", "Rau muống, ngâm hạt"),
+        ("Rau muống\nKhoảng 3 tuần", "Rau muống. Ngâm hạt", "Rau muống. Ngâm hạt"),
+        ("Rau muống\nKhoảng 3 tuần", "Rau muống – ngâm hạt", "Rau muống – ngâm hạt"),
+        ("Rau muống\nKhoảng 3 tuần", "Rau muốngxanh", "Rau muốngxanh"),
+        ("Rau muống\nKhoảng 3 tuần", "Ngâm hạt qua đêm", "Ngâm hạt qua đêm"),
+        ("Rau muống", "Rau muống", "Rau muống"),
+    ],
+)
+def test_a_voice_text_opening_with_the_scene_name_pauses_after_it(db, me, storage, text, voice_text, expected):
+    video = make_video(db, storage, me)
+    scene = first_scene(db, video)
+    scene.text, scene.voice_text = text, voice_text
+    assert spoken(video, scene) == expected
+
+
+def test_the_title_voice_is_read_as_written(db, me, storage):
+    video = make_video(db, storage, me)
+    title, _ = split_scenes(db, video)
+    title.text, title.voice_text = "RAU MUỐNG\nDỄ TRỒNG", "RAU MUỐNG dễ trồng nhất"
+    assert spoken(video, title) == "RAU MUỐNG dễ trồng nhất"
+
+
+# --- Seconds that follow the narration ---
+
+
+def test_auto_seconds_cover_the_narration_within_a_scene_s_limits():
+    assert auto_seconds(3.0) == pytest.approx(3.6)  # 0.2 before, 0.4 after
+    assert auto_seconds(0.2) == 1  # a scene lasts at least a second
+    assert auto_seconds(12.0) == 10  # longer narration lengthens the scene at render instead (fit_seconds)
+
+
+@needs_ffmpeg
+def test_a_voice_job_sets_the_seconds_of_a_scene_that_follows_its_narration(committed, voiced, fakes):
+    from reels_api import jobs
+
+    user, storage, video_id = voiced
+    with committed() as db:
+        scene = first_scene(db, db.get(Video, video_id))
+        scene.seconds, scene.seconds_auto = 8, True
+        db.commit()
+    job_id = add_job(committed, video_id, user.id, kind="voice", status="running")
+    jobs.run_job(job_id, committed, storage)
+    assert job_row(committed, job_id).status == "done"
+    with committed() as db:
+        scene = first_scene(db, db.get(Video, video_id))
+        # Shorter than the 8 s it was set to: the scene now ends with its narration.
+        assert scene.seconds == auto_seconds(scene.voice_seconds) < 8
+
+
+@needs_ffmpeg
+def test_a_scene_set_by_hand_keeps_its_seconds_after_the_voice_job(committed, voiced, fakes):
+    from reels_api import jobs
+
+    user, storage, video_id = voiced
+    with committed() as db:
+        scene = first_scene(db, db.get(Video, video_id))
+        scene.seconds, scene.seconds_auto = 8, False
+        db.commit()
+    job_id = add_job(committed, video_id, user.id, kind="voice", status="running")
+    jobs.run_job(job_id, committed, storage)
+    with committed() as db:
+        assert first_scene(db, db.get(Video, video_id)).seconds == 8
+
+
+def test_typing_seconds_stops_following_and_khop_loi_doc_follows_at_once(an, db, me, storage):
+    video = make_video(db, storage, me)
+    scene = first_scene(db, video)
+    text = spoken(video, scene)
+    # A narration already made for the current text, as the voice job leaves it.
+    scene.voice_key, scene.voice_seconds = "videos/x/voice.mp3", 2.5
+    scene.voice_signature = voice_signature(text, config.DEFAULT_VOICE_ID, video_options_speed(video))
+    scene.seconds_auto = True
+    db.flush()
+    payload = an.patch(f"/api/scenes/{scene.id}", json={"seconds": 6}).json()
+    assert (payload["scenes"][0]["seconds"], payload["scenes"][0]["seconds_auto"]) == (6, False)
+    payload = an.patch(f"/api/scenes/{scene.id}", json={"seconds_auto": True}).json()
+    assert payload["scenes"][0]["seconds_auto"] is True
+    assert payload["scenes"][0]["seconds"] == pytest.approx(auto_seconds(2.5))
+
+
+def test_new_scenes_follow_their_narration(an, db, me, storage):
+    video = make_video(db, storage, me)
+    payload = an.post(f"/api/videos/{video.id}/scenes").json()
+    assert payload["scenes"][-1]["seconds_auto"] is True
+    # Scenes from before keep the seconds they were given.
+    assert payload["scenes"][0]["seconds_auto"] is False
+
+
+def video_options_speed(video):
+    from reels_api.video_options import voice_speed
+
+    return voice_speed(video)

@@ -157,12 +157,29 @@ Built:
     render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
     the music from where that scene falls in the video (lowered while narration plays when ducking
     is on). Narration: the ElevenLabs MP3 when one was made for the current text (by a render or
-    by "Tạo giọng thật"), else the browser's own Vietnamese voice (free, at the video's speed). While
-    some scenes lack the MP3, a "Giọng đọc" section lists the browser's Vietnamese voices, the most
-    natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser; suggests Edge
-    when only robotic ones exist; and offers "Tạo giọng thật (ElevenLabs)", which asks first (it
-    costs credit once) and queues a job reading only those scenes. A browser without a Vietnamese
-    voice says so and those scenes stay silent. The video plays inside a phone with the chosen app's own
+    by "Tạo giọng ElevenLabs"), else the browser's own Vietnamese voice (free, at the video's speed). The
+    "Giọng đọc" section picks the video's ElevenLabs voice with "Nghe thử" (the same choice as "Thiết lập";
+    a new voice makes each scene's narration again), says how many scenes lack the MP3, and offers
+    "Tạo giọng ElevenLabs cho N cảnh", which asks first (it costs credit once) and queues a job reading only
+    those scenes. "Giọng tạm của trình duyệt", folded, lists the browser's Vietnamese voices, the most
+    natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser, and suggests Edge
+    when only robotic ones exist; a browser without a Vietnamese voice says so and those scenes stay
+    silent. "Chỉnh cảnh N" edits the scene being shown, saved at once as on its card (read-only until
+    "Chỉnh sửa" and while a job runs): its seconds with "Tự khớp lời đọc" (typing them turns it off), the
+    narration's length; for a clip, a two-handle "Đoạn clip" slider (the left end is "Bắt đầu từ giây", the
+    span the scene's seconds at the clip's speed); and, while the preview is paused, the text box dragged
+    on the phone itself, kept inside the safe zone as the render places it, for "Cảnh này" or "Mọi cảnh",
+    with "Về vị trí chung". While paused and editable, the phone itself is edited: a double-click on the text box
+    types its on-screen text in place (opened with it all chosen; leaving the field or Ctrl+Enter saves, Esc
+    cancels); the box snaps to the frame's middle with a guide line; with a TikTok/Reels/Shorts frame on, a box
+    under the app's right-hand buttons or caption is outlined in red with "Hộp chữ bị … che"; on a touch screen the
+    box moves after a short hold, and a quick swipe across the phone changes scene. On the timeline a segment's
+    right edge drags its seconds (1–10, by tenths; a double-click goes back to "Tự khớp lời đọc") and a content
+    scene's segment drags to a new place. A scene with a clip gets a trim bar under the phone: the window moves the
+    start, its ends set the start and the seconds, and the phone shows the frame being chosen. A toolbar beside the
+    phone has "Hoàn tác" / "Làm lại" (also Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) for these changes, a new photo or clip,
+    the video's "Chuyển cảnh", "Thêm cảnh sau cảnh này" and "Xoá cảnh" (asked first; neither of the last two can be
+    undone). Keys: Space plays or pauses, ← → change scene, [ ] take or add 0.1 s. The video plays inside a phone with the chosen app's own
     screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and
@@ -366,9 +383,19 @@ Built:
     the copied text;
   - "Sản phẩm": products ranked by expected commission per order, with their platform tag ("Tìm qua
     API" for those Shopee's search found), shop, type, rating, sales, price, and status; filters by name
-    or shop, topic group, platform and status; "Thêm sản phẩm" (platform first; the link is optional
-    for TikTok Shop), "Sửa", "Xoá", "Duyệt", "Bỏ duyệt", "Xuất CSV". A row that fails the rules shows
-    why, in yellow;
+    or shop, topic group, platform and status; "Thêm sản phẩm" opens a drawer with two tabs, "Dán link
+    Shopee" (a topic group and one link per line, up to 50; the rest is read from Shopee, so it needs a
+    Shopee account with App ID somewhere in the team and says so when there is none) and "Nhập file"
+    (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in; rows left out are listed by number, and
+    without an App ID the drawer says stars, sales and shop type are still to fill in); "Nhập file" on
+    the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
+    platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
+    Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
+    a "Lấy lại thông tin" button. A Shopee draft whose stars, sales and shop type nobody has read (a row
+    of the file, or a link, with no App ID in the team) says they are to be filled in by hand, links its
+    Shopee page, and takes the three on the row itself (shop type, stars, sales, "Lưu"; the same save as
+    "Sửa"), so it can be approved without opening "Sửa" for each one. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
+    "Xuất CSV". A row that fails the rules shows why, in yellow;
   - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
     row per video and Page; nobody else's.
 - **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee

@@ -47,6 +47,8 @@ Các trường:
     có chất gì, tốt cho phần nào của cơ thể, hợp với ai (nói vì sao, không lặp lại nguyên văn chữ trên màn hình); còn chỗ
     thì thêm một mẹo ăn ngắn (ăn lúc nào, ăn bao nhiêu); không mô tả cách nấu hay các bước chế biến; giọng mềm như
     "tốt cho", "hỗ trợ", không hứa chữa bệnh; không dùng *dấu sao*, viết số và đơn vị thành chữ khi cần đọc rõ;
+    khi dòng đầu của chữ trên màn hình là tên món, sản phẩm hay thứ được nói tới, lời đọc mở đầu bằng đúng tên đó rồi
+    dấu phẩy ("Rau muống, ...") để người xem nghe rõ đang nói về gì;
   - "image_prompt": prompt tạo ảnh AI cho cảnh, viết bằng tiếng Anh, 1 câu tả đúng thứ trong ảnh (món/nguyên liệu
     cụ thể của cảnh, cách bày, góc chụp); không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm phong cách
     chung;
@@ -75,28 +77,28 @@ Ví dụ đầy đủ:
   "title_keywords_en": ["fried whitebait", "calcium rich food"],
   "title_image_prompt": "Five calcium-rich Vietnamese dishes on one wooden table: fried anchovies, tofu, greens, yogurt and black sesame, top-down view",
   "scenes": [
-    {"text": "Cá nhỏ ăn cả xương\\nGiàu *canxi*, rẻ, dễ tìm", "seconds": 4,
-     "voice": "Cá nhỏ có canxi ngay trong phần xương, hỗ trợ xương chắc, nhớ nhai kỹ.",
+    {"text": "Cá nhỏ\\nĂn cả xương, giàu *canxi*", "seconds": 4,
+     "voice": "Cá nhỏ, có canxi ngay trong phần xương, hỗ trợ xương chắc, nhớ nhai kỹ.",
      "image_prompt": "A plate of crispy fried anchovies on a wooden table, close-up from a 45-degree angle",
      "keywords": ["cá cơm chiên giòn", "cá nhỏ", "món cá"],
      "keywords_en": ["fried whitebait", "small fish", "fish dish"]},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
-     "voice": "Sữa chua có canxi và lợi khuẩn, tốt cho tiêu hóa, mỗi ngày một hũ.",
+     "voice": "Sữa chua, có canxi và lợi khuẩn, tốt cho tiêu hóa, mỗi ngày một hũ.",
      "image_prompt": "A small glass jar of plain white yogurt with a spoon on a wooden table, eye-level close-up",
      "keywords": ["hũ sữa chua", "sữa chua"],
      "keywords_en": ["yogurt cup", "yogurt"]},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
-     "voice": "Đậu phụ có đạm và canxi, mềm dễ nhai, hợp với người răng yếu.",
+     "voice": "Đậu phụ, có đạm và canxi, mềm dễ nhai, hợp với người răng yếu.",
      "image_prompt": "A plate of golden pan-fried tofu cubes on a wooden table, top-down view",
      "keywords": ["đậu phụ rán", "đậu phụ", "món đậu"],
      "keywords_en": ["fried tofu", "tofu", "tofu dish"]},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
-     "voice": "Rau cải xanh có vitamin K, giúp cơ thể giữ canxi cho xương chắc hơn.",
+     "voice": "Rau cải xanh, có vitamin K, giúp cơ thể giữ canxi cho xương chắc hơn.",
      "image_prompt": "A bunch of fresh Vietnamese mustard greens on a wooden table, top-down view",
      "keywords": ["rau cải xanh", "rau xanh"],
      "keywords_en": ["green vegetables", "leafy greens"]},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
-     "voice": "Vừng đen giàu canxi và chất béo tốt, mỗi sáng một thìa nhỏ là đủ.",
+     "voice": "Vừng đen, giàu canxi và chất béo tốt, mỗi sáng một thìa nhỏ là đủ.",
      "image_prompt": "A small bowl of roasted black sesame seeds on a wooden table, close-up",
      "keywords": ["vừng đen rang", "vừng đen"],
      "keywords_en": ["black sesame seeds", "black sesame"]}

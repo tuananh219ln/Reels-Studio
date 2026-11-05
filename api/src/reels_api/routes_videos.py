@@ -65,6 +65,7 @@ from .videos import (
     LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
     active_job,
+    auto_seconds,
     ensure_unlocked,
     list_extras,
     list_payload,
@@ -138,7 +139,8 @@ class VideoPatchBody(BaseModel):
 
 class ScenePatchBody(BaseModel):
     text: str | None = None
-    seconds: float | None = None
+    seconds: float | None = None  # typing the seconds turns "Tự khớp lời đọc" off
+    seconds_auto: bool | None = None  # true: the seconds follow the narration (at once when it is already made)
     keywords: list[str] | None = None
     keywords_en: list[str] | None = None
     image_prompt: str | None = None
@@ -297,7 +299,17 @@ def hand_written_scenes(script: str) -> list[tuple[str, str]]:
 def _write_by_hand(db: DbSession, video: Video, topic: str, scenes: list[tuple[str, str]]) -> None:
     video.hand_written = True
     video.title_options = [topic]
-    db.add(Scene(video_id=video.id, is_title=True, position=0, text=topic, seconds=TITLE_SECONDS, keywords=[]))
+    db.add(
+        Scene(
+            video_id=video.id,
+            is_title=True,
+            position=0,
+            text=topic,
+            seconds=TITLE_SECONDS,
+            seconds_auto=True,
+            keywords=[],
+        )
+    )
     for position, (text, voice) in enumerate(scenes, start=1):
         db.add(
             Scene(
@@ -307,6 +319,7 @@ def _write_by_hand(db: DbSession, video: Video, topic: str, scenes: list[tuple[s
                 text=text,
                 voice_text=voice,
                 seconds=NEW_SCENE_SECONDS,
+                seconds_auto=True,
                 keywords=[],
                 keywords_en=[],
                 image_prompt="",
@@ -714,6 +727,7 @@ def add_scene(video_id: int, me: Session = Depends(current_member), db: DbSessio
             position=(last or 0) + 1,
             text="",
             seconds=NEW_SCENE_SECONDS,
+            seconds_auto=True,
             keywords=[],
             keywords_en=[],
             image_prompt="",
@@ -758,6 +772,9 @@ def patch_scene(
         if not math.isfinite(body.seconds) or not 0 <= body.seconds <= 100 * MAX_SECONDS:
             raise invalid("Số giây không hợp lệ")
         scene.seconds = round(body.seconds, 2)
+        scene.seconds_auto = False
+    if body.seconds_auto is not None:
+        scene.seconds_auto = body.seconds_auto
     if "keywords" in fields and body.keywords is not None:
         keywords = _clean_list(body.keywords, MAX_KEYWORD_LENGTH, "Từ khóa")
         if len(keywords) > MAX_KEYWORDS:
@@ -803,10 +820,19 @@ def patch_scene(
         new_x, new_y = position if position else (None, None)
         moved = (new_x, new_y) != (scene.text_x, scene.text_y)
         scene.text_x, scene.text_y = new_x, new_y
+    _follow_voice(video, scene)
     if scene.is_title and (text_changed or start_changed or moved):
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
     return _saved(db, video)
+
+
+def _follow_voice(video: Video, scene: Scene) -> None:
+    """A scene on "Tự khớp lời đọc" whose narration is already made takes its length now; otherwise the voice job
+    sets it when it makes the narration."""
+    made = made_voice_seconds(video, scene)
+    if scene.seconds_auto and made is not None:
+        scene.seconds = auto_seconds(made)
 
 
 @router.delete("/scenes/{scene_id}")
@@ -968,6 +994,7 @@ def _attach_clip(db: DbSession, storage: DirectoryStorage, scene_id: int, upload
     scene.image_auto = False
     playable = clip.seconds - (1 if scene.is_title else 2) * CROSSFADE_SIDE_SECONDS
     scene.seconds = max(MIN_SECONDS, min(MAX_CLIP_SCENE_SECONDS, math.floor(round(playable * 10, 6)) / 10))
+    _follow_voice(video, scene)
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)

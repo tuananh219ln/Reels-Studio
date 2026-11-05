@@ -84,7 +84,7 @@ function Field({ label, children, hint }: { label: string; children: React.React
   );
 }
 
-function VoicePicker({ values, onChange, disabled }: Props) {
+export function VoicePicker({ values, onChange, disabled }: Props) {
   const voices = useVoices();
   const audio = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
