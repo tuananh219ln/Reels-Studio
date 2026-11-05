@@ -1,15 +1,17 @@
 "use client";
 
 import { Button, Empty, Flex, Table, Typography } from "antd";
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { COLORS } from "@/app/theme";
 
-const WIDTH = 720;
+// Drawn at the width it is shown, so its 11 px text stays 11 px on any screen.
+const DEFAULT_WIDTH = 720;
 const HEIGHT = 240;
 const PAD = { left: 52, right: 14, top: 14, bottom: 28 };
 // Under the plot, a row for the marks of the days with a post.
 const POSTS_ROW = 18;
-const LABELS = 6;
+// About one date label per 110 px.
+const LABEL_WIDTH = 110;
 
 /** "05/11" from "2026-11-05": a day of the period, already in Vietnam time. */
 export function shortDay(day: string): string {
@@ -54,6 +56,14 @@ export default function DailyChart({
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const [table, setTable] = useState(false);
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  const [WIDTH, setWidth] = useState(DEFAULT_WIDTH);
+  useEffect(() => {
+    if (!frame) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(280, Math.round(entry.contentRect.width))));
+    observer.observe(frame);
+    return () => observer.disconnect();
+  }, [frame]);
   const known = values.filter((value): value is number => value !== null);
   if (known.length === 0) {
     return (
@@ -79,7 +89,7 @@ export default function DailyChart({
     else runs.push([index]);
   });
   const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, n) => n * step);
-  const every = Math.max(1, Math.ceil(days.length / LABELS));
+  const every = Math.max(1, Math.ceil(days.length / Math.max(2, Math.floor(WIDTH / LABEL_WIDTH))));
 
   function onMove(event: MouseEvent<SVGSVGElement>) {
     const box = event.currentTarget.getBoundingClientRect();
@@ -91,7 +101,7 @@ export default function DailyChart({
   const hovered = hover !== null ? values[hover] : null;
   return (
     <div data-testid={testId}>
-      <div style={{ position: "relative" }}>
+      <div ref={setFrame} style={{ position: "relative" }}>
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
           width="100%"
@@ -117,7 +127,7 @@ export default function DailyChart({
             </g>
           ))}
           {days.map((day, index) =>
-            index % every === 0 || index === days.length - 1 ? (
+            (index % every === 0 && days.length - 1 - index >= every / 2) || index === days.length - 1 ? (
               <text
                 key={day}
                 x={x(index)}

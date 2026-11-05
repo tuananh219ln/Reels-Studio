@@ -480,7 +480,15 @@ export default function FanpageDashboardPage() {
               />
             </Card>
           )}
-          <Tabs activeKey={tab} onChange={setTab} items={tabs(data, queue, setQueue)} />
+          <Tabs
+            activeKey={tab}
+            onChange={setTab}
+            items={tabs(data, queue, (overview) => {
+              setQueue(overview);
+              // A new group or posting times change the week's free times.
+              void load();
+            })}
+          />
         </Flex>
       )}
     </>
