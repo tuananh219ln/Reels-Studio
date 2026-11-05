@@ -51,6 +51,11 @@ Phase 3: text and sticker layers, each its own row (`scene_layers`) saved on its
 so nothing to license); text, styles, sizes and entrances are named presets. The api draws a layer's picture with
 the render core, so the phone shows what the MP4 lays on. The title scene takes none, as for the effects.
 
+Phase 4: sound effects are made by FFmpeg's own source filters, not downloaded, for the same reason as the
+stickers (AIEV's bundled sounds have no licence records, and a laugh or a voice cannot be made this way, so there is
+none). Music is still one song per video; instead of several songs, a scene can set its own music level and the
+video where the song starts. Several songs in one video are left until the team asks for them.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

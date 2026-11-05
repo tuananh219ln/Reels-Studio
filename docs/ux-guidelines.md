@@ -166,7 +166,9 @@ Built:
     play the video in the browser before any render, in a drawer from the right that leaves a strip
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
     the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
-    playhead's second for 2 s, never to the title scene; "Khung": the app frame and the safe zone; "Giọng
+    playhead's second for 2 s, never to the title scene; "Âm thanh": every sound effect with "Nghe" and "Thêm"
+    (added to the scene shown at the playhead), and "Bài nhạc bắt đầu từ giây" when the video has music; "Khung":
+    the app frame and the safe zone; "Giọng
     đọc"), its panel beside it, the
     phone in the middle on grey, "Chỉnh cảnh N" on the right and the timeline along the bottom (up to
     1280 px wide "Chỉnh cảnh N" sits under the tools' panel; under 900 px they stack: phone, timeline,
@@ -180,6 +182,8 @@ Built:
     "Kiểu chữ", size, "Hiệu ứng vào", start and length, and "Xoá lớp". On the phone each layer shows for its own
     seconds as the render lays it on; while paused it is picked with a click (outlined) and dragged to a new place;
     Delete removes the picked layer instead of the scene, Esc lets it go. Every layer change can be undone.
+    "Âm thanh (N)" sets "Nhạc ở cảnh này" (Theo video, Tắt nhạc, Nhạc nhỏ, Nhạc to; shown when the video has music)
+    and lists the scene's sound effects, each with "Nghe", its second, its level and "Xoá"; also undone with Ctrl+Z.
     The keys and how to edit on the phone sit behind "Phím tắt" (?) in the timeline's header. It plays each
     scene for its seconds (lengthened to fit its narration), the frame
     without text moving like the video's motion setting with the exact text box on top where the
@@ -206,7 +210,8 @@ Built:
     right edge drags its seconds (1–10, by tenths; a double-click goes back to "Tự khớp lời đọc") and a content
     scene's segment drags to a new place. Under the scenes' track the timeline has a track each for what plays with
     them, named in a column at its left: "Chữ" (each scene's on-screen text across the scene), "Lớp" (each text
-    or sticker layer for its seconds; a click goes to its first second), "Giọng" (the
+    or sticker layer for its seconds; a click goes to its first second), "Âm" (each sound effect while it is heard;
+    a click goes to its second), "Giọng" (the
     narration from 0.2 s into its scene for the MP3's length; dashed, as "Giọng tạm", while only the browser's voice
     reads it), "Phụ đề" (only when the video's captions are on; never on the title scene) and "Nhạc" (the music's
     name across the video, only when it has music). A click on a block plays its scene (on "Nhạc", goes to that
@@ -694,6 +699,14 @@ relied on (samples in the PR that added them).
   MỚI, Nhãn HOT, Nhãn SALE, at 160, 240 or 340 px. Entrance: Hiện ngay, Mờ dần, Trượt lên (from 120 px lower),
   Trượt từ trái (from off the frame), each over 0.3 s and fading in. The studio shows the exact picture the render
   lays on. Sample: [samples/lop-chu-sticker.json](../samples/lop-chu-sticker.json).
+- **Sound** ([reels_render/sounds.py](../worker/src/reels_render/sounds.py)), any scene, the title included.
+  Sound effects made by FFmpeg itself (no sound files, so nothing to license): Vút, Lướt nhanh, Ting, Bụp, Tách,
+  Bùm, Dâng lên, Hoàn thành, Sai rồi, Tiền về, Nhịp tim; each from its own second of the scene, at Nhỏ (×0,5), Vừa
+  or To (×1,6), added over the music and narration. A scene's own music level: Tắt nhạc, Nhạc nhỏ (×0,4) or Nhạc to
+  (×1,6), else the video's. "Bài nhạc bắt đầu từ giây" skips the song's intro for the whole video (0–600 s; past
+  the end the song loops from its start). The studio plays the same sounds (the api makes them with the same
+  filters) at their seconds, but a browser cannot play louder than full, so "To" and "Nhạc to" may sound like
+  "Vừa" there. Sample: [samples/am-thanh.json](../samples/am-thanh.json), rendered with any music.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied

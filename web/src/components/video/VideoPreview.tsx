@@ -3,6 +3,7 @@
 import {
   AppstoreOutlined,
   CaretRightOutlined,
+  CustomerServiceOutlined,
   FontSizeOutlined,
   MobileOutlined,
   PauseOutlined,
@@ -36,6 +37,7 @@ import {
   upload,
   type SceneData,
   type SceneLayer,
+  type SceneSound,
   type VideoDetail,
   type VideoOptions,
 } from "@/lib/api";
@@ -46,6 +48,8 @@ import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
 import { LayerList, LayerTools } from "./preview/LayerPanel";
 import LayerStage from "./preview/LayerStage";
+import { SoundList, SoundStage, SoundTools } from "./preview/SoundPanel";
+import { musicGain } from "./preview/sounds";
 import SceneEffects from "./preview/SceneEffects";
 import SceneInspector from "./preview/SceneInspector";
 import { colorCss } from "./preview/effects";
@@ -60,10 +64,11 @@ import "./preview/editor.css";
 const PLATFORM_KEY = "reels-studio.preview-platform";
 
 /** The editor's left column: each tool opens its panel beside it. */
-type Tool = "scene" | "layers" | "frame" | "voice";
+type Tool = "scene" | "layers" | "sounds" | "frame" | "voice";
 const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
   { key: "scene", label: "Cảnh", icon: <AppstoreOutlined /> },
   { key: "layers", label: "Chữ & sticker", icon: <FontSizeOutlined /> },
+  { key: "sounds", label: "Âm thanh", icon: <CustomerServiceOutlined /> },
   { key: "frame", label: "Khung", icon: <MobileOutlined /> },
   { key: "voice", label: "Giọng đọc", icon: <SoundOutlined /> },
 ];
@@ -294,8 +299,9 @@ export default function VideoPreview({
       return next;
     });
     if (music.current) {
-      // The music runs from the video's start, so a preview from a later scene starts it that far in.
-      const offset = startOf(index) + fromMs / 1000;
+      // The music runs from the video's start (and the song from its chosen second), so a preview from a later
+      // scene starts it that far in.
+      const offset = video.music_start + startOf(index) + fromMs / 1000;
       const length = music.current.duration;
       music.current.currentTime = Number.isFinite(length) && length > 0 ? offset % length : offset;
       if (play) void music.current.play().catch(() => undefined);
@@ -363,8 +369,10 @@ export default function VideoPreview({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase.run, playing, ended]);
 
+  /** The music's level now: the video's, the scene's own level, ducking, the listener's; a browser stops at 1. */
   function musicLevel(duckedNow: boolean, factor: number) {
-    return (video.music_volume / 100) * (duckedNow && video.options.ducking ? DUCKED : 1) * factor;
+    const level = (video.music_volume / 100) * musicGain(scene?.music_level ?? null);
+    return Math.min(1, level * (duckedNow && video.options.ducking ? DUCKED : 1) * factor);
   }
 
   // A new listening level applies at once to what is playing; the browser's voice takes it from its next scene.
@@ -470,7 +478,7 @@ export default function VideoPreview({
       return;
     }
     audio.volume = musicLevel(false, listenRef.current);
-    const offset = scenes.slice(0, start).reduce((sum, item) => sum + item.fitted_seconds, 0);
+    const offset = video.music_start + scenes.slice(0, start).reduce((sum, item) => sum + item.fitted_seconds, 0);
     const begin = () => {
       audio.currentTime = audio.duration > 0 ? offset % audio.duration : 0;
       void audio.play().catch(() => undefined);
@@ -585,6 +593,7 @@ export default function VideoPreview({
       else if (key === "transition") back.transition = target.transition;
       else if (key === "color") back.color = target.color;
       else if (key === "video_speed") back.video_speed = target.video?.speed ?? 1;
+      else if (key === "music_level") back.music_level = target.music_level;
     }
     return back;
   }
@@ -626,6 +635,61 @@ export default function VideoPreview({
       label,
       redo: () => api<VideoDetail>(`/layers/${layer.id}`, "PATCH", body),
       undo: () => api<VideoDetail>(`/layers/${layer.id}`, "PATCH", back),
+    });
+  }
+
+  /** The newest sound of a scene in a saved video: the one just added. */
+  const newestSound = (saved: VideoDetail, sceneId: number) =>
+    [saved.title_scene, ...saved.scenes].find((item) => item?.id === sceneId)?.sounds.at(-1)?.id ?? null;
+
+  /** A sound effect added to the scene shown, at the playhead's second in it. */
+  function addSound(sound: string) {
+    const target = scene;
+    if (!target) return;
+    const into = Math.floor((position() - startOf(phase.index)) * 10) / 10;
+    const start = Math.min(Math.max(0, into), Math.max(0, target.fitted_seconds - 0.1));
+    let made: number | null = null;
+    void history.run({
+      label: "thêm âm",
+      redo: async () => {
+        const saved = await api<VideoDetail>("/sounds", "POST", { scene_id: target.id, sound, start });
+        made = newestSound(saved, target.id);
+        return saved;
+      },
+      undo: () => api<VideoDetail>(`/sounds/${made}`, "DELETE"),
+    });
+  }
+
+  function changeSound(sound: SceneSound, label: string, body: Record<string, unknown>) {
+    const back = Object.fromEntries(Object.keys(body).map((key) => [key, sound[key as keyof SceneSound]]));
+    void history.run({
+      label,
+      redo: () => api<VideoDetail>(`/sounds/${sound.id}`, "PATCH", body),
+      undo: () => api<VideoDetail>(`/sounds/${sound.id}`, "PATCH", back),
+    });
+  }
+
+  function removeSound(sound: SceneSound, sceneId: number) {
+    let current = sound.id;
+    const fields = { sound: sound.sound, start: sound.start, volume: sound.volume };
+    void history.run({
+      label: "xoá âm",
+      redo: () => api<VideoDetail>(`/sounds/${current}`, "DELETE"),
+      undo: async () => {
+        const saved = await api<VideoDetail>("/sounds", "POST", { scene_id: sceneId, ...fields });
+        current = newestSound(saved, sceneId) ?? current;
+        return saved;
+      },
+    });
+  }
+
+  /** "Bài nhạc bắt đầu từ giây": the video's, kept for "Hoàn tác". */
+  function changeMusicStart(seconds: number) {
+    const before = video.music_start;
+    void history.run({
+      label: "đổi đoạn nhạc",
+      redo: () => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { music_start: seconds }),
+      undo: () => api<VideoDetail>(`/videos/${video.id}`, "PATCH", { music_start: before }),
     });
   }
 
@@ -951,6 +1015,19 @@ export default function VideoPreview({
 
           {tool === "layers" && <LayerTools scene={scene} editable={layersEditable} onAdd={addLayer} />}
 
+          {tool === "sounds" && (
+            <SoundTools
+              key={video.music_start}
+              scene={scene}
+              editable={editable}
+              musicStart={video.music_start}
+              hasMusic={Boolean(video.music)}
+              listen={listen}
+              onAdd={addSound}
+              onMusicStart={changeMusicStart}
+            />
+          )}
+
           {tool === "frame" && (
             <>
               <div>
@@ -1199,6 +1276,15 @@ export default function VideoPreview({
                       onMove={(layer, x, y) => changeLayer(layer, "di chuyển lớp", { x, y })}
                     />
                   )}
+                  {scene && scene.sounds.length > 0 && (
+                    <SoundStage
+                      key={`sounds-${phase.run}`}
+                      sounds={scene.sounds}
+                      elapsed={() => position() - startOf(phase.index)}
+                      playing={playing && !ended}
+                      listen={listen}
+                    />
+                  )}
                   {guide && <SafeZone />}
                 </div>
               </Phone>
@@ -1247,6 +1333,16 @@ export default function VideoPreview({
               label={label(phase.index)}
               voiceEnabled={video.voice_enabled}
               generating={video.active_job?.kind === "image" && video.active_job.scene_id === scene.id}
+              sounds={
+                <SoundList
+                  scene={scene}
+                  editable={editable}
+                  hasMusic={Boolean(video.music)}
+                  onMusicLevel={(music_level) => void changeScene("đổi mức nhạc", scene, { music_level })}
+                  onPatch={changeSound}
+                  onRemove={(sound) => removeSound(sound, scene.id)}
+                />
+              }
               layers={
                 <LayerList
                   scene={scene}

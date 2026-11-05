@@ -10,6 +10,7 @@ from pathlib import Path
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
 from .options import DEFAULT_OPTIONS, RenderOptions
+from .sounds import MUSIC_LEVELS, SOUNDS
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 from .timeline import FPS, VOICE_LEAD, XFADE_FRAMES, Timeline
 
@@ -35,6 +36,7 @@ class SceneInput:
     video_speed: float = 1.0
     transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
     color: str | None = None  # effects.COLOR_PRESETS; None: as shot
+    music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
 
 
 @dataclass(frozen=True)
@@ -46,6 +48,15 @@ class CaptionInput:
     y: int
     start: float
     end: float
+
+
+@dataclass(frozen=True)
+class SoundInput:
+    """One sound effect (sounds.SOUNDS) heard from `start` seconds of the video, at `gain`."""
+
+    sound: str
+    start: float
+    gain: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -155,12 +166,16 @@ def build_filter_graph(
     transitions: list[str | None] | None = None,
     colors: list[str | None] | None = None,
     layers: list[LayerInput] | None = None,
+    sounds: list[SoundInput] | None = None,
+    music_levels: list[str | None] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
     marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is never used.
     A scene's `transitions` entry replaces the video's transition into it, and its `colors` entry grades it.
-    The `layers` pictures come last among the inputs and go on top, after the captions."""
+    The `layers` pictures come last among the inputs and go on top, after the captions. The `sounds` are made in
+    the graph itself and mixed over the music and narration; a scene's `music_levels` entry sets the music's level
+    for its seconds."""
     count = len(box_positions)
     clips = clips or [False] * count
     speeds = speeds or [1.0] * count
@@ -208,16 +223,19 @@ def build_filter_graph(
     chains.append(f"[{previous}]format=yuv420p[vout]")
 
     total = _seconds(timeline.total_frames)
-    bed = "aout" if not any(voices or []) else "bed"
+    # With sound effects the mix of music and narration is "base", and each effect is added on top of it.
+    out = "base" if sounds else "aout"
+    bed = out if not any(voices or []) else "bed"
     if music_volume is None:
         # A silent bed instead of no audio stream, so the narration always has something to be mixed onto.
         chains.append(f"anullsrc=r={AUDIO_RATE}:cl=stereo,atrim=duration={total}[{bed}]")
     else:
         music = 2 * len(box_positions)
         fade_start = max(0.0, timeline.total_seconds - MUSIC_FADE_SECONDS)
+        levels = music_level_expression(timeline, music_levels or [None] * count)
         chains.append(
             f"[{music}:a]aresample={AUDIO_RATE},aformat=channel_layouts=stereo,"
-            f"volume={music_volume:.4f},atrim=duration={total},"
+            f"volume={music_volume:.4f},{f"volume='{levels}':eval=frame," if levels else ''}atrim=duration={total},"
             f"afade=t=out:st={fade_start:.6f}:d={MUSIC_FADE_SECONDS}[{bed}]"
         )
     if bed == "bed":
@@ -231,8 +249,37 @@ def build_filter_graph(
             chains.append(f"[bed][voicekey]{DUCKING}[ducked]")
             bed, voice = "ducked", "voicemix"
         # amerge + pan adds the two tracks at full level; amix would halve both (FFmpeg 4.3 has no normalize=0).
-        chains.append(f"[{bed}][{voice}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[aout]")
+        chains.append(f"[{bed}][{voice}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{out}]")
+    chains += _sound_chains(sounds or [], timeline.total_frames * AUDIO_RATE // FPS)
     return ";".join(chains)
+
+
+def music_level_expression(timeline: Timeline, levels: list[str | None]) -> str | None:
+    """The music's level over time: each scene with its own level multiplies the video's for its seconds."""
+    parts, start = [], 0
+    for frames, level in zip(timeline.scene_frames, levels):
+        if level is not None:
+            parts.append(
+                f"if(between(t,{_seconds(start)},{_seconds(start + frames)}),{MUSIC_LEVELS[level].gain:.4f},1)"
+            )
+        start += frames
+    return "*".join(parts) or None
+
+
+def _sound_chains(sounds: list[SoundInput], samples: int) -> list[str]:
+    """Each effect made by its source filter, at its level, delayed to its second and as long as the video, then
+    added to the mix at full level as the narration is (amerge + pan, see above)."""
+    chains, previous = [], "base"
+    for index, item in enumerate(sounds):
+        delay = round(item.start * 1000)
+        chains.append(
+            f"{SOUNDS[item.sound].source},aformat=sample_rates={AUDIO_RATE}:channel_layouts=stereo,"
+            f"volume={item.gain:.4f},adelay={delay}|{delay},apad,atrim=end_sample={samples}[fx{index}]"
+        )
+        label = "aout" if index == len(sounds) - 1 else f"mix{index}"
+        chains.append(f"[{previous}][fx{index}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{label}]")
+        previous = label
+    return chains
 
 
 def _voice_chains(voices: list[bool], timeline: Timeline, first_input: int) -> list[str]:
@@ -266,6 +313,8 @@ def build_ffmpeg_args(
     options: RenderOptions = DEFAULT_OPTIONS,
     captions: list[CaptionInput] | None = None,
     layers: list[LayerInput] | None = None,
+    sounds: list[SoundInput] | None = None,
+    music_start: float = 0.0,
 ) -> list[str]:
     argv = [ffmpeg, "-hide_banner", "-nostdin", "-v", "error", "-y"]
     for scene in scenes:
@@ -274,7 +323,8 @@ def build_ffmpeg_args(
             argv += ["-ss", f"{scene.video_start:.3f}", "-max_pixels", str(MAX_CLIP_PIXELS)]
         argv += ["-i", str(scene.image), "-i", str(scene.text_box)]
     if music is not None:
-        argv += ["-stream_loop", "-1", "-i", str(music)]
+        # Looped, and from where the member chose in the song.
+        argv += ["-stream_loop", "-1", *(["-ss", f"{music_start:.3f}"] if music_start else []), "-i", str(music)]
     for scene in scenes:
         if scene.voice is not None:
             argv += ["-i", str(scene.voice)]
@@ -295,6 +345,8 @@ def build_ffmpeg_args(
         [scene.transition for scene in scenes],
         [scene.color for scene in scenes],
         layers,
+        sounds,
+        [scene.music_level for scene in scenes],
     )
     argv += [
         "-filter_complex",

@@ -1,8 +1,9 @@
 import type { SceneData } from "@/lib/api";
 import { layerName } from "./layers";
+import { soundLabel, soundSeconds } from "./sounds";
 
 /** The tracks under the scenes on the studio's timeline. */
-export type Lane = { key: "text" | "layers" | "voice" | "captions" | "music"; name: string };
+export type Lane = { key: "text" | "layers" | "voice" | "sounds" | "captions" | "music"; name: string };
 
 /** The tracks a member can lock so a stray drag or key changes nothing on them; remembered in their browser. */
 export type LockableTrack = "scene" | "text" | "layer";
@@ -33,6 +34,7 @@ export function lanesFor(captions: "off" | "phrase" | "word", music: boolean): L
     { key: "text", name: "Chữ" },
     { key: "layers", name: "Lớp" },
     { key: "voice", name: "Giọng" },
+    { key: "sounds", name: "Âm" },
     ...(captions !== "off" ? [{ key: "captions" as const, name: "Phụ đề" }] : []),
     ...(music ? [{ key: "music" as const, name: "Nhạc" }] : []),
   ];
@@ -70,6 +72,15 @@ export function laneSpans(
     if (key === "text") {
       const text = plain(scene.text);
       if (text) spans.push({ index, start, length, label: text });
+      return;
+    }
+    if (key === "sounds") {
+      // Each sound effect for as long as it is heard, from its second of the scene.
+      for (const sound of scene.sounds) {
+        if (sound.start >= length) continue;
+        const heard = Math.min(soundSeconds(sound.sound), length - sound.start);
+        spans.push({ index, start: start + sound.start, length: heard, label: soundLabel(sound.sound), seek: true });
+      }
       return;
     }
     if (key === "layers") {

@@ -31,6 +31,7 @@ const NAMES = 84;
 const LANE_LOOK: Record<Lane["key"], { background: string; color: string }> = {
   text: { background: "#fde7c8", color: "#7c3d00" },
   layers: { background: "#ffd6ec", color: "#8a0a4b" },
+  sounds: { background: "#c9f2dd", color: "#0b5a32" },
   voice: { background: "#cfe3ff", color: "#0b3d91" },
   captions: { background: "#fff3b0", color: "#5c4a00" },
   music: { background: "#ddd5f7", color: "#3b2a7a" },

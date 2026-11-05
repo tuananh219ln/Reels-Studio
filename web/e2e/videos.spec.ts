@@ -699,6 +699,44 @@ test("studio layers: a sticker and a text over a scene, changed, removed with De
   await expect(tools.getByRole("button", { name: "Thêm sticker Trái tim" })).toBeDisabled();
 });
 
+test("studio sounds: a sound effect added at the playhead, heard, made louder and undone", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await expect(timeline.getByTestId("timeline-tracks")).toContainText("Âm");
+
+  // Each sound is made by the api with the render's own FFmpeg filters, to hear before adding it.
+  const heard = await page.request.get("/api/sounds/library/ding.mp3");
+  expect(heard.status()).toBe(200);
+  expect(heard.headers()["content-type"]).toBe("audio/mpeg");
+
+  await timeline.getByRole("button", { name: "Xem Cảnh 2" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  await studio.getByRole("tab", { name: "Âm thanh" }).click();
+  await studio.getByTestId("sound-tools").getByRole("button", { name: "Thêm âm Ting" }).click();
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(1);
+  await expect(timeline.getByTestId("lane-sounds")).toHaveText("Ting");
+
+  // "Âm thanh (1)" in "Chỉnh cảnh 2": its level.
+  const inspector = studio.getByTestId("preview-scene-editor");
+  await expect(inspector).toContainText("Âm thanh (1)");
+  const row = inspector.getByTestId("sound-row");
+  await row.getByText("To", { exact: true }).click();
+  await expect(row.getByRole("radio", { name: "To" })).toBeChecked();
+
+  // "Hoàn tác" twice: back to "Vừa", then the sound is gone.
+  await timeline.getByRole("slider", { name: "Đầu phát" }).focus();
+  await page.keyboard.press("Control+z");
+  await expect(row.getByRole("radio", { name: "Vừa" })).toBeChecked();
+  await expect(studio.getByRole("button", { name: "Hoàn tác: thêm âm (Ctrl+Z)" })).toBeVisible();
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(0);
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);

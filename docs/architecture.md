@@ -176,6 +176,17 @@ A scene may hold an uploaded video clip instead of a photo
   The render draws each picture once, loops it (`-loop 1 -t end`) so the entrance can fade its alpha in, and lays
   it on after the captions with `overlay` enabled between its start and its end (cut at the scene's end); a slide
   moves the overlay's x or y over the same 0.3 s.
+- **Sound:** `scene_sounds` (migration 0039; `sound`, `start` into the scene, `volume`, deleted with its scene),
+  `scenes.music_level` and `videos.music_start`, all named presets or bounded numbers of
+  [sounds.py](../worker/src/reels_render/sounds.py). [routes_sounds.py](../api/src/reels_api/routes_sounds.py)
+  under `/api/sounds` adds, changes and removes one sound under the video's lock and serves
+  `/library/{name}.mp3`, made once per api process by the render core's `make_sound`; `music_level` is set by
+  `PATCH /scenes/{id}` and `music_start` by `PATCH /videos/{id}`. The job writes the sounds and the level into
+  the scene's script entry when set and passes `music_start` to `render_video`; each joins the fingerprint only
+  when set. "Tách cảnh" moves the sounds after the cut like the layers and copies the level. In the graph each
+  sound is its own source filter (`aevalsrc`/`anoisesrc`), delayed to its second, padded to the video's length and
+  added with amerge + pan after the narration; a scene's level is a `volume` expression on the music over its
+  seconds, and the song's start an input seek (`-stream_loop -1 -ss`).
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.

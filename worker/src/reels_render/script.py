@@ -9,6 +9,7 @@ from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
 from .layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
 from .markup import MarkupError, Run, parse_scene_text
+from .sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS, SceneSound
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 MIN_SCENE_SECONDS = 1
@@ -36,6 +37,8 @@ class Scene:
     transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
     color: str | None = None  # effects.COLOR_PRESETS; None: as shot
     layers: tuple[Layer, ...] = ()  # text and sticker layers over the scene, in the order they are laid on
+    sounds: tuple[SceneSound, ...] = ()  # sound effects heard during the scene
+    music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
 
 
 @dataclass(frozen=True)
@@ -120,6 +123,8 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f'{label}: không có "transition", vì không có cảnh nào trước nó')
     color = _parse_preset(item.get("color"), "color", COLOR_PRESETS, label)
     layers = _parse_layers(item.get("layers"), label)
+    sounds = _parse_sounds(item.get("sounds"), label)
+    music_level = _parse_preset(item.get("music_level"), "music_level", MUSIC_LEVELS, label)
     if video is not None and image.strip():
         raise InputError(f'{label}: chỉ dùng một trong "image" hoặc "video"')
     keywords = _parse_keywords(item.get("keywords"), label)
@@ -160,6 +165,8 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         transition=transition,
         color=color,
         layers=layers,
+        sounds=sounds,
+        music_level=music_level,
     )
 
 
@@ -209,6 +216,27 @@ def _parse_layers(value: object, label: str) -> tuple[Layer, ...]:
                 raise InputError(f"{where}: {err}") from None
         layers.append(layer)
     return tuple(layers)
+
+
+def _parse_sounds(value: object, label: str) -> tuple[SceneSound, ...]:
+    """A scene's sound effects, each from its own second of the scene."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise InputError(f'{label}: "sounds" phải là danh sách âm thanh')
+    sounds = []
+    for number, item in enumerate(value, start=1):
+        where = f"{label}, âm {number}"
+        if not isinstance(item, dict):
+            raise InputError(f"{where}: phải là một object")
+        sounds.append(
+            SceneSound(
+                sound=_parse_preset(item.get("sound"), "sound", SOUNDS, where),
+                start=float(_number(item.get("start", 0), "start", where, 0, 1e6)),
+                volume=_parse_preset(item.get("volume", "normal"), "volume", SOUND_VOLUMES, where),
+            )
+        )
+    return tuple(sounds)
 
 
 def _parse_preset(value: object, field: str, presets: dict, label: str) -> str | None:

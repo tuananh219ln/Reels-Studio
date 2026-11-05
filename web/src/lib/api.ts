@@ -123,6 +123,17 @@ export type SceneLayer = {
   image_url: string;
 };
 
+/** A sound effect heard from a second of its scene (reels_render.sounds), made by FFmpeg. */
+export type SceneSound = {
+  id: number;
+  sound: string;
+  /** Seconds into its scene. */
+  start: number;
+  volume: string;
+  /** The sound as the render makes it. */
+  url: string;
+};
+
 export type SceneData = {
   id: number;
   video_id: number;
@@ -167,6 +178,9 @@ export type SceneData = {
   color: string | null;
   /** Text and sticker layers over the scene, in the order they are laid on (the last on top). */
   layers: SceneLayer[];
+  sounds: SceneSound[];
+  /** The music's level during the scene ("off", "low", "high"); null: the video's. */
+  music_level: string | null;
   blocking: string[];
   warnings: string[];
 };
@@ -199,6 +213,8 @@ export type VideoDetail = VideoRow & {
   mp4: { url: string; download_url: string; seconds: number; render_seconds: number; rendered_at: string } | null;
   music: { url: string; name: string | null } | null;
   music_volume: number;
+  /** Where in the song the music starts, in seconds. */
+  music_start: number;
   voice_enabled: boolean;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;

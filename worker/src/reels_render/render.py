@@ -6,11 +6,12 @@ from pathlib import Path
 from . import ffmpeg
 from .captions import plan_captions
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
-from .graph import CaptionInput, LayerInput, SceneInput, build_ffmpeg_args
+from .graph import CaptionInput, LayerInput, SceneInput, SoundInput, build_ffmpeg_args
 from .images import normalize_image
 from .layers import layer_corner, render_layer
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .script import Scene, Script
+from .sounds import SOUND_VOLUMES
 from .stock import find_stock_images
 from .textbox import (
     CAPTION_GAP,
@@ -39,6 +40,7 @@ def render_video(
     music_volume: float = DEFAULT_MUSIC_VOLUME,
     on_warning: Callable[[str], None] | None = None,
     options: RenderOptions = DEFAULT_OPTIONS,
+    music_start: float = 0.0,
 ) -> Path:
     """Render the script to an MP4 and return the output path.
 
@@ -75,7 +77,7 @@ def render_video(
         if found.missing:
             raise MissingImagesError([scene.label for scene in found.missing])
         script = found.script
-        inputs, captions, layers = [], [], []
+        inputs, captions, layers, sounds = [], [], [], []
         scene_start = 0
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             if scene.video is not None:
@@ -121,6 +123,12 @@ def render_video(
                 layers.append(
                     LayerInput(path, left, top, start, min(start + layer.seconds, scene_end), layer.animation)
                 )
+            # Each sound effect from its second of the scene, unless that is past the scene's end.
+            for sound in scene.sounds:
+                if scene_start / FPS + sound.start < scene_end:
+                    sounds.append(
+                        SoundInput(sound.sound, scene_start / FPS + sound.start, SOUND_VOLUMES[sound.volume].gain)
+                    )
             scene_start += timeline.scene_frames[index]
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(
@@ -134,6 +142,7 @@ def render_video(
                     video_speed=scene.video_speed,
                     transition=scene.transition,
                     color=scene.color,
+                    music_level=scene.music_level,
                 )
             )
 
@@ -154,6 +163,8 @@ def render_video(
             options,
             captions,
             layers,
+            sounds,
+            music_start,
         )
         try:
             ffmpeg.run(argv, "FFmpeg render lỗi")

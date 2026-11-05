@@ -24,6 +24,7 @@ export default function SceneInspector({
   timing,
   effects,
   layers,
+  sounds,
 }: {
   scene: SceneData;
   label: string;
@@ -35,6 +36,8 @@ export default function SceneInspector({
   effects: React.ReactNode;
   /** "Chữ & sticker": the scene's layers (LayerList). */
   layers: React.ReactNode;
+  /** "Âm thanh": the music's level here and the scene's sound effects (SoundList). */
+  sounds: React.ReactNode;
 }) {
   return (
     <Flex vertical gap={8} data-testid="preview-scene-editor">
@@ -45,7 +48,7 @@ export default function SceneInspector({
       <Collapse
         size="small"
         ghost
-        defaultActiveKey={["content", "layers", "timing", "effects", "media"]}
+        defaultActiveKey={["content", "layers", "sounds", "timing", "effects", "media"]}
         items={[
           {
             key: "content",
@@ -60,6 +63,7 @@ export default function SceneInspector({
           ...(scene.is_title
             ? []
             : [{ key: "layers", label: `Chữ & sticker (${scene.layers.length})`, children: layers }]),
+          { key: "sounds", label: `Âm thanh (${scene.sounds.length})`, children: sounds },
           { key: "timing", label: "Thời lượng và vị trí chữ", children: timing },
           { key: "effects", label: "Hiệu ứng", children: effects },
           {

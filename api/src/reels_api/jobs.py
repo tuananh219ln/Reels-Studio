@@ -64,6 +64,7 @@ from .videos import (
     render_signature,
     run_checks,
     scene_marks,
+    sound_fields,
     split_scenes,
     spoken,
     text_position,
@@ -396,6 +397,10 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data["color"] = scene.color
             if scene.layers and not scene.is_title:
                 data["layers"] = [layer_fields(layer) for layer in scene.layers]
+            if scene.sounds:
+                data["sounds"] = [sound_fields(sound) for sound in scene.sounds]
+            if scene.music_level:
+                data["music_level"] = scene.music_level
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
                 data["voice_text"] = spoken(video, scene)
@@ -412,6 +417,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 output,
                 music=music,
                 music_volume=video.music_volume / 100,
+                music_start=video.music_start,
                 options=render_options(video),
             )
             seconds = float(probe(find_tools().ffprobe, output)["format"]["duration"])

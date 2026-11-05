@@ -26,6 +26,7 @@ from .models import (
     Publication,
     Scene,
     SceneLayer,
+    SceneSound,
     TopicPlanItem,
     Video,
 )
@@ -234,6 +235,15 @@ def layer_payload(layer: SceneLayer) -> dict:
     return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
 
 
+def sound_fields(sound: SceneSound) -> dict:
+    """A sound effect as the render script reads it (reels_render.sounds.SceneSound)."""
+    return {"sound": sound.sound, "start": sound.start, "volume": sound.volume}
+
+
+def sound_payload(sound: SceneSound) -> dict:
+    return {"id": sound.id, **sound_fields(sound), "url": f"/api/sounds/library/{sound.sound}.mp3"}
+
+
 def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> str:
     """Fingerprint of what changes the MP4 (text, seconds, photo, order, music, volume, narration); captions and
     keywords are left out."""
@@ -252,12 +262,16 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             *([["transition", scene.transition]] if scene.transition else []),
             *([["color", scene.color]] if scene.color else []),
             *([["layers", [layer_fields(layer) for layer in scene.layers]]] if scene.layers else []),
+            *([["sounds", [sound_fields(sound) for sound in scene.sounds]]] if scene.sounds else []),
+            *([["music_level", scene.music_level]] if scene.music_level else []),
         ]
         for scene in every
     ]
     # Without music or narration the fingerprint keeps the format MP4s rendered before those existed were
     # stored with, so they are not flagged as outdated.
-    data = [parts, [video.music_key, video.music_volume]] if video.music_key else parts
+    # The song's start joins only when moved, so MP4s rendered before it existed stay current.
+    music = [video.music_key, video.music_volume, *([["music_start", video.music_start]] if video.music_start else [])]
+    data = [parts, music] if video.music_key else parts
     voices = [
         voice_signature(spoken(video, scene), *_voice(video)) if spoken(video, scene) else None for scene in every
     ]
@@ -539,6 +553,8 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "transition": scene.transition,
         "color": scene.color,
         "layers": [layer_payload(layer) for layer in scene.layers],
+        "sounds": [sound_payload(sound) for sound in scene.sounds],
+        "music_level": scene.music_level,
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
     }
@@ -629,6 +645,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         if video.music_key
         else None,
         "music_volume": video.music_volume,
+        "music_start": video.music_start,
         "voice_enabled": video.voice_enabled,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id), by_page),

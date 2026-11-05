@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
+from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
 
 from . import (
@@ -100,6 +101,7 @@ MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
 MAX_LIST_ITEMS = 20
 NEW_SCENE_SECONDS = 4
+MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 TITLE_SECONDS = 3  # as the script job gives the title scene
 # "Tự viết": a pasted script's limits, well past what a 90-second video can hold.
 MAX_SCRIPT_LENGTH = 5000
@@ -133,6 +135,7 @@ class VideoPatchBody(BaseModel):
     pinned_comment: str | None = None
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
+    music_start: object = None  # seconds into the song where the video's music starts
     voice_enabled: bool | None = None
     options: dict | None = None  # some of video_options.DEFAULTS
     reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
@@ -152,6 +155,7 @@ class ScenePatchBody(BaseModel):
     image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
     transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
     color: object = None  # its colour preset; null: as shot
+    music_level: object = None  # the music's level during the scene (reels_render.sounds); null: the video's
 
 
 class PublishBody(BaseModel):
@@ -379,6 +383,13 @@ def patch_video(
         if not 0 <= body.music_volume <= 100:
             raise invalid("Âm lượng phải từ 0 đến 100%")
         video.music_volume = body.music_volume
+    if "music_start" in fields:
+        start = body.music_start
+        if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start):
+            raise invalid("Giây bắt đầu của bài nhạc phải là số")
+        if not 0 <= start <= MAX_MUSIC_START:
+            raise invalid(f"Giây bắt đầu của bài nhạc phải từ 0 đến {MAX_MUSIC_START}")
+        video.music_start = round(start, 1)
     if "voice_enabled" in fields and body.voice_enabled is not None:
         video.voice_enabled = body.voice_enabled
     look = video_options.text_look(video)
@@ -796,6 +807,7 @@ def split_scene(
         # The same picture goes on, so it cuts in rather than showing a transition into itself.
         transition="cut",
         color=scene.color,
+        music_level=scene.music_level,
     )
     db.add(rest)
     db.flush()
@@ -808,9 +820,9 @@ def split_scene(
         rest.image_key = new_key(video.id, f"scene-{rest.id}", Path(scene.image_key).suffix.lstrip("."))
         storage.save_file(rest.image_key, storage.path(scene.image_key))
     # Layers that start after the cut go with the rest, still at the same moment of the video.
-    for layer in list(scene.layers):
-        if layer.start >= at:
-            layer.scene_id, layer.start = rest.id, round(layer.start - at, 2)
+    for item in [*scene.layers, *scene.sounds]:
+        if item.start >= at:
+            item.scene_id, item.start = rest.id, round(item.start - at, 2)
     scene.seconds, scene.seconds_auto = at, False
     return _saved(db, video)
 
@@ -892,6 +904,11 @@ def patch_scene(
         if value is not None and (not isinstance(value, str) or value not in presets):
             raise invalid(f"{name} không hợp lệ: {value!r}")
         setattr(scene, field, value)
+    if "music_level" in fields:
+        level = body.music_level
+        if level is not None and (not isinstance(level, str) or level not in MUSIC_LEVELS):
+            raise invalid(f"Mức nhạc không hợp lệ: {level!r}")
+        scene.music_level = level
     _follow_voice(video, scene)
     if scene.is_title and (text_changed or start_changed or moved):
         title, _ = split_scenes(db, video)

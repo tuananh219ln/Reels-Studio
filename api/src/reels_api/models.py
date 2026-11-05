@@ -187,6 +187,8 @@ class Video(Base):
     music_key: Mapped[str | None] = mapped_column(String(200))
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
+    # Where in the song the video's music starts, in seconds ("Bài nhạc bắt đầu từ giây").
+    music_start: Mapped[float] = mapped_column(Float, default=0, server_default="0")
     voice_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # The video's own settings (video_options.DEFAULTS keys); None renders the original template.
     options: Mapped[dict | None] = mapped_column(JSONB)
@@ -253,11 +255,30 @@ class Scene(Base):
     # its colour preset, None for the picture as shot. The title scene has neither.
     transition: Mapped[str | None] = mapped_column(String(16))
     color: Mapped[str | None] = mapped_column(String(24))
+    # The music's level during this scene (reels_render.sounds.MUSIC_LEVELS); None: the video's.
+    music_level: Mapped[str | None] = mapped_column(String(8))
 
     video: Mapped[Video] = relationship(back_populates="scenes")
     layers: Mapped[list["SceneLayer"]] = relationship(
         back_populates="scene", order_by="SceneLayer.position", cascade="all, delete-orphan", passive_deletes=True
     )
+    sounds: Mapped[list["SceneSound"]] = relationship(
+        back_populates="scene", order_by="SceneSound.id", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class SceneSound(Base):
+    """A sound effect heard from a second of its scene (reels_render.sounds), added in the studio."""
+
+    __tablename__ = "scene_sounds"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
+    sound: Mapped[str] = mapped_column(String(24))
+    start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene
+    volume: Mapped[str] = mapped_column(String(8), default="normal")
+
+    scene: Mapped[Scene] = relationship(back_populates="sounds")
 
 
 class SceneLayer(Base):
