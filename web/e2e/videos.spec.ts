@@ -611,6 +611,42 @@ test("studio: tracks under the scenes, a locked track, and a scene split at the 
   await expect(page.getByTestId("preview-shortcuts")).toContainText("S: tách cảnh tại đầu phát");
 });
 
+test("studio effects: a scene's own transition and colour, drawn on the phone and undone", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const inspector = studio.getByTestId("preview-scene-editor");
+
+  // The title scene opens the video and is its cover: no effects of its own.
+  await expect(inspector).toContainText("không có chuyển cảnh hay màu riêng");
+
+  await studio.getByRole("button", { name: "Xem Cảnh 2" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const effects = inspector.getByTestId("scene-effects");
+  const transition = effects.getByLabel("Chuyển cảnh vào cảnh này");
+  await expect(effects).toContainText("Theo cả video (Mờ dần)");
+  await chooseOption(page, transition, "Mở vòng tròn");
+  await expect(effects).toContainText("Mở vòng tròn");
+
+  // A colour preset is drawn on the phone's picture, the text box left as it is.
+  const colors = effects.getByRole("group", { name: "Màu của cảnh" });
+  await colors.getByRole("button", { name: "Đen trắng" }).click();
+  await expect(colors.getByRole("button", { name: "Đen trắng" })).toHaveAttribute("aria-pressed", "true");
+  const picture = studio.getByTestId("preview-stage").locator("[data-color]");
+  await expect(picture).toHaveAttribute("data-color", "mono");
+  await expect.poll(() => picture.evaluate((element) => getComputedStyle(element).filter)).toContain("saturate(0)");
+
+  // "Hoàn tác" takes the colour back off, then the transition.
+  await page.keyboard.press("Control+z");
+  await expect(colors.getByRole("button", { name: "Gốc" })).toHaveAttribute("aria-pressed", "true");
+  await expect(picture).toHaveCount(0);
+  await page.keyboard.press("Control+z");
+  await expect(effects).toContainText("Theo cả video (Mờ dần)");
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);

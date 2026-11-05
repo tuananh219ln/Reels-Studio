@@ -389,6 +389,10 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
             if position := text_position(video, scene):
                 data["text_position"] = position
+            if scene.transition and not scene.is_title:
+                data["transition"] = scene.transition
+            if scene.color and not scene.is_title:
+                data["color"] = scene.color
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
                 data["voice_text"] = spoken(video, scene)

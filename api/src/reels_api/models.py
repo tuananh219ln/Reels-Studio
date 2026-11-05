@@ -249,6 +249,10 @@ class Scene(Base):
     # scenes, else the template's. The renderer keeps the box inside the platforms' safe zone.
     text_x: Mapped[int | None] = mapped_column(Integer)
     text_y: Mapped[int | None] = mapped_column(Integer)
+    # The studio's per-scene effects (reels_render.effects): the transition into this scene, None for the video's;
+    # its colour preset, None for the picture as shot. The title scene has neither.
+    transition: Mapped[str | None] = mapped_column(String(16))
+    color: Mapped[str | None] = mapped_column(String(24))
 
     video: Mapped[Video] = relationship(back_populates="scenes")
 

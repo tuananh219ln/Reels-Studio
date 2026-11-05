@@ -233,6 +233,9 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             *([scene.video_key, scene.video_start] if scene.video_key else []),
             *([["video_speed", scene.video_speed]] if scene.video_speed not in (None, 1) else []),
             *([["text_position", *position]] if (position := text_position(video, scene)) else []),
+            # The studio's effects join only when set, so MP4s rendered before they existed stay current.
+            *([["transition", scene.transition]] if scene.transition else []),
+            *([["color", scene.color]] if scene.color else []),
         ]
         for scene in every
     ]
@@ -517,6 +520,8 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
             else None
         ),
         "text_problem": text_problem(scene.text, scene.is_title),
+        "transition": scene.transition,
+        "color": scene.color,
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
     }

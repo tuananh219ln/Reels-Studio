@@ -15,6 +15,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.textbox import FRAME_WIDTH
 
@@ -149,6 +150,8 @@ class ScenePatchBody(BaseModel):
     video_speed: float | None = None
     text_position: object = None  # the text box centre [x, y]; null: back to the video's (or template's)
     image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
+    transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
+    color: object = None  # its colour preset; null: as shot
 
 
 class PublishBody(BaseModel):
@@ -790,6 +793,9 @@ def split_scene(
         keywords_en=list(scene.keywords_en),
         image_prompt=scene.image_prompt,
         image_source=scene.image_source,
+        # The same picture goes on, so it cuts in rather than showing a transition into itself.
+        transition="cut",
+        color=scene.color,
     )
     db.add(rest)
     db.flush()
@@ -873,6 +879,15 @@ def patch_scene(
         new_x, new_y = position if position else (None, None)
         moved = (new_x, new_y) != (scene.text_x, scene.text_y)
         scene.text_x, scene.text_y = new_x, new_y
+    for field, presets, name in (("transition", SCENE_TRANSITIONS, "Chuyển cảnh"), ("color", COLOR_PRESETS, "Màu")):
+        if field not in fields:
+            continue
+        value = getattr(body, field)
+        if value is not None and scene.is_title:
+            raise invalid(f"Cảnh tiêu đề không có {name.lower()} riêng")
+        if value is not None and (not isinstance(value, str) or value not in presets):
+            raise invalid(f"{name} không hợp lệ: {value!r}")
+        setattr(scene, field, value)
     _follow_voice(video, scene)
     if scene.is_title and (text_changed or start_changed or moved):
         title, _ = split_scenes(db, video)

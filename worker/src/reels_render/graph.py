@@ -7,6 +7,7 @@ drive colons or backslashes) is ever escaped into the graph.
 from dataclasses import dataclass
 from pathlib import Path
 
+from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 from .timeline import FPS, VOICE_LEAD, XFADE_FRAMES, Timeline
@@ -18,7 +19,6 @@ AUDIO_RATE = 48000
 # A clip's headers can lie about its size (H.264 may switch mid-stream); the decoder refuses larger frames.
 MAX_CLIP_PIXELS = 4096 * 2304
 MUSIC_FADE_SECONDS = 1.5
-XFADE_NAMES = {"fade": "fade", "slide": "slideleft"}
 # Ducking: the music drops to about a quarter while narration plays and comes back in 0.4 s.
 DUCKING = "sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400"
 
@@ -32,6 +32,8 @@ class SceneInput:
     voice: Path | None = None
     video_start: float | None = None
     video_speed: float = 1.0
+    transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
+    color: str | None = None  # effects.COLOR_PRESETS; None: as shot
 
 
 @dataclass(frozen=True)
@@ -68,7 +70,14 @@ def _seconds(frames: int) -> str:
     return f"{frames / FPS:.6f}"
 
 
-def _photo_chain(source: int, frames: int, label: str, options: RenderOptions = DEFAULT_OPTIONS) -> str:
+def _graded(color: str | None) -> str:
+    """The scene's colour preset as a filter step, graded on the picture alone (the text box goes on after)."""
+    return f"{COLOR_PRESETS[color].filter}," if color else ""
+
+
+def _photo_chain(
+    source: int, frames: int, label: str, options: RenderOptions = DEFAULT_OPTIONS, color: str | None = None
+) -> str:
     scale_w, scale_h = FRAME_WIDTH * PRESCALE, FRAME_HEIGHT * PRESCALE
     zoom = zoom_expression(frames, options.motion, options.zoom_end)
     return (
@@ -76,11 +85,11 @@ def _photo_chain(source: int, frames: int, label: str, options: RenderOptions = 
         f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
         f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion)}':y='ih/2-(ih/zoom/2)'"
         f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
-        f"format=yuv420p[{label}]"
+        f"{_graded(color)}format=yuv420p[{label}]"
     )
 
 
-def _clip_chain(source: int, frames: int, label: str, speed: float = 1.0) -> str:
+def _clip_chain(source: int, frames: int, label: str, speed: float = 1.0, color: str | None = None) -> str:
     """A clip already moves, so it gets no zoom. `setpts` first plays it at its speed, then `fps` turns it, like
     phone footage with a variable frame rate, into constant 30 fps; `tpad` holds the last frame when the clip ends
     before the scene, and `trim` cuts it to the timeline's exact frame count so the crossfade offsets stay
@@ -90,10 +99,15 @@ def _clip_chain(source: int, frames: int, label: str, speed: float = 1.0) -> str
     return (
         f"[{source}:v]setpts={timing},fps={FPS},"
         f"scale={FRAME_WIDTH}:{FRAME_HEIGHT}:force_original_aspect_ratio=increase:out_range=tv,"
-        f"crop={FRAME_WIDTH}:{FRAME_HEIGHT},format=yuv420p,setsar=1,"
+        f"crop={FRAME_WIDTH}:{FRAME_HEIGHT},format=yuv420p,setsar=1,{_graded(color)}"
         f"tpad=stop_mode=clone:stop_duration={_seconds(frames)},trim=end_frame={frames}"
         f"[{label}]"
     )
+
+
+def _boundary_transitions(count: int, options: RenderOptions, transitions: list[str | None]) -> list[str]:
+    """The transition at each boundary, into scenes 1…count-1: the scene's own, else the video's."""
+    return [transitions[index] or options.transition for index in range(1, count)]
 
 
 def build_filter_graph(
@@ -105,37 +119,45 @@ def build_filter_graph(
     options: RenderOptions = DEFAULT_OPTIONS,
     captions: list[CaptionInput] | None = None,
     speeds: list[float] | None = None,
+    transitions: list[str | None] | None = None,
+    colors: list[str | None] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
-    marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is never used."""
-    clips = clips or [False] * len(box_positions)
-    speeds = speeds or [1.0] * len(box_positions)
+    marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is never used.
+    A scene's `transitions` entry replaces the video's transition into it, and its `colors` entry grades it."""
+    count = len(box_positions)
+    clips = clips or [False] * count
+    speeds = speeds or [1.0] * count
+    colors = colors or [None] * count
+    boundaries = _boundary_transitions(count, options, transitions or [None] * count)
     captions = captions or []
-    # A hard cut joins the scenes end to end, so each clip is exactly its scene; a crossfade or slide overlaps
-    # half a transition on each side of a boundary instead.
-    cut = options.transition == "cut"
+    # When every boundary is a hard cut the scenes join end to end, so each clip is exactly its scene; otherwise
+    # every clip overlaps half a transition on each side of a boundary, and a cut among them is a one-frame fade at
+    # the same offset, so the total length and every narration stay where the timeline put them.
+    cut = all(name == "cut" for name in boundaries)
     lengths = timeline.scene_frames if cut else timeline.clip_frames
     chains: list[str] = []
     for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, lengths)):
         image, box = 2 * index, 2 * index + 1
         if clips[index]:
-            chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index]))
+            chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index], colors[index]))
         else:
-            chains.append(_photo_chain(image, frames, f"bg{index}", options))
+            chains.append(_photo_chain(image, frames, f"bg{index}", options, colors[index]))
         chains.append(f"[bg{index}][{box}:v]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
 
     if cut:
-        joined = "".join(f"[v{index}]" for index in range(len(box_positions)))
-        chains.append(f"{joined}concat=n={len(box_positions)}:v=1:a=0[x0]")
+        joined = "".join(f"[v{index}]" for index in range(count))
+        chains.append(f"{joined}concat=n={count}:v=1:a=0[x0]")
         previous = "x0"
     else:
         previous = "v0"
-        for index, offset in enumerate(timeline.xfade_offsets, start=1):
+        for index, (offset, name) in enumerate(zip(timeline.xfade_offsets, boundaries), start=1):
             label = f"x{index}"
+            xfade = SCENE_TRANSITIONS[name].xfade
             chains.append(
-                f"[{previous}][v{index}]xfade=transition={XFADE_NAMES[options.transition]}"
-                f":duration={_seconds(XFADE_FRAMES)}:offset={_seconds(offset)}[{label}]"
+                f"[{previous}][v{index}]xfade=transition={xfade or 'fade'}"
+                f":duration={_seconds(XFADE_FRAMES if xfade else 1)}:offset={_seconds(offset)}[{label}]"
             )
             previous = label
     first_caption = 2 * len(box_positions) + (music_volume is not None) + sum(voices or [])
@@ -229,6 +251,8 @@ def build_ffmpeg_args(
         options,
         captions,
         [scene.video_speed for scene in scenes],
+        [scene.transition for scene in scenes],
+        [scene.color for scene in scenes],
     )
     argv += [
         "-filter_complex",

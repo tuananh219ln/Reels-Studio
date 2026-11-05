@@ -40,6 +40,12 @@ the duplicated fields from the cards (seconds, clip start, text place) was consi
 stays the place to work on a phone and where "Render" points at what blocks it. Effects from phase 2 on live only
 in the studio.
 
+Phase 2: each content scene may set its own transition in (12 named, FFmpeg's `xfade`) and a colour preset (14
+named, adapted from AIEV's); the video's transition stays the default, and the title scene gets neither, so the
+first frame stays the cover the api draws without them. A cut among transitions is a one-frame fade at the
+crossfade's offset rather than a different timeline, so the video's length and every narration stay where they
+were. The part after "Tách cảnh" cuts in.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

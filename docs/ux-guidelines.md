@@ -667,6 +667,16 @@ relied on (samples in the PR that added them).
 - **Transition:** Mờ dần (the 0.4 s crossfade above), Cắt thẳng (hard cut; each scene is exactly its
   seconds), Trượt (the next scene slides in from the right over 0.4 s). The total length is the
   same for all three.
+- **A scene's own effects** ([reels_render/effects.py](../worker/src/reels_render/effects.py)), set in the
+  studio's "Chỉnh cảnh N › Hiệu ứng", content scenes only (the title opens the video and is its cover):
+  the transition into the scene, one of Mờ dần, Cắt thẳng, Trượt sang trái, Trượt lên, Quét ngang, Phóng
+  vào, Mở vòng tròn, Qua màu đen, Chớp trắng, Hoà tan, Nhoè ngang, Vỡ điểm ảnh ("Theo cả video" takes the
+  video's); and a colour preset graded on the picture only, never the text box: Gốc (as shot), Tự nhiên,
+  Tươi sáng, Rực rỡ, Điện ảnh, Xanh cam, Phim cũ, Phim mờ, Nắng vàng, Ấm, Lạnh, Đêm xanh, Trầm, Pastel,
+  Đen trắng. Every transition takes 0.4 s around the boundary, so the length never changes; a Cắt thẳng among
+  other transitions cuts 0.2 s before the boundary. The phone shows each with CSS, close to the MP4 but not
+  the same (no curves or per-tone colour in CSS). A clip's speed (0,5× to 2×) is offered there too. Sample:
+  [samples/hieu-ung.json](../samples/hieu-ung.json) shows every transition and colour.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied

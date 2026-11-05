@@ -5,6 +5,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
 from .markup import MarkupError, Run, parse_scene_text
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
@@ -31,6 +32,8 @@ class Scene:
     video_speed: float = 1.0  # how fast the clip plays; the scene's seconds stay its length on screen
     voice_text: str = ""  # what the narration says, for captions
     text_position: tuple[int, int] | None = None  # the text box's centre in the frame; None: the template's place
+    transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
+    color: str | None = None  # effects.COLOR_PRESETS; None: as shot
 
 
 @dataclass(frozen=True)
@@ -110,6 +113,10 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f"{label}: không tìm thấy file lời đọc {voice}")
     video, video_start, video_speed = _parse_video(item, label, base_dir)
     text_position = _parse_position(item.get("text_position"), label)
+    transition = _parse_preset(item.get("transition"), "transition", SCENE_TRANSITIONS, label)
+    if transition is not None and number == 0:
+        raise InputError(f'{label}: không có "transition", vì không có cảnh nào trước nó')
+    color = _parse_preset(item.get("color"), "color", COLOR_PRESETS, label)
     if video is not None and image.strip():
         raise InputError(f'{label}: chỉ dùng một trong "image" hoặc "video"')
     keywords = _parse_keywords(item.get("keywords"), label)
@@ -147,7 +154,17 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         video_speed=video_speed,
         voice_text=voice_text,
         text_position=text_position,
+        transition=transition,
+        color=color,
     )
+
+
+def _parse_preset(value: object, field: str, presets: dict, label: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in presets:
+        raise InputError(f'{label}: "{field}" không hợp lệ: {value!r} (chọn một trong {", ".join(presets)})')
+    return value
 
 
 def _parse_position(value: object, label: str) -> tuple[int, int] | None:

@@ -152,7 +152,17 @@ A scene may hold an uploaded video clip instead of a photo
   lasts `at` seconds; a new scene right after it (the later scenes move down one place) lasts the rest, with no
   text or voice text (so it is silent), the same keywords and image prompt, and its own copy of the photo or clip:
   a clip keeps its speed and starts `at` × speed later. Both parts have "Tự khớp lời đọc" off. Undoing it deletes
-  the new scene and puts the first part's seconds back.
+  the new scene and puts the first part's seconds back. The new scene keeps the colour and cuts in
+  (`transition` "cut"), since the same picture goes on.
+- **Effects:** `scenes.transition` (the transition into the scene; null: the video's `options.transition`) and
+  `scenes.color` (a colour preset; null: as shot), migration 0037, both named presets of
+  [effects.py](../worker/src/reels_render/effects.py) set by `PATCH /scenes/{id}` (null clears; the title scene
+  refuses both). The job writes them into the scene's script entry only when set, and they join the render
+  fingerprint only when set, so MP4s made before stay current. In the graph each boundary takes the scene's own
+  `xfade` (a "cut" among transitions is a one-frame fade at the crossfade's offset, so the length and narration
+  timing stay the timeline's; when every boundary is a cut the scenes are joined with `concat` as before), and a
+  colour is one more filter step on the scene's picture before its text box is overlaid. The colour presets'
+  filter chains are adapted from AIEV (MIT, notice in `effects.py`).
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.

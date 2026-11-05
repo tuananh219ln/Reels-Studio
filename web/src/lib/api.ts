@@ -142,6 +142,10 @@ export type SceneData = {
   frame_url: string | null;
   textbox_url: string | null;
   text_problem: string | null;
+  /** The studio's effects (reels_render.effects): the transition into this scene, null for the video's one. */
+  transition: string | null;
+  /** Its colour preset, null for the picture as shot. The title scene has neither. */
+  color: string | null;
   blocking: string[];
   warnings: string[];
 };

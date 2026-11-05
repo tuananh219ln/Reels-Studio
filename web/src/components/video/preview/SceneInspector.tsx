@@ -22,6 +22,7 @@ export default function SceneInspector({
   voiceEnabled,
   generating,
   timing,
+  effects,
 }: {
   scene: SceneData;
   label: string;
@@ -29,6 +30,8 @@ export default function SceneInspector({
   /** An image job is making this scene's photo. */
   generating: boolean;
   timing: React.ReactNode;
+  /** "Hiệu ứng": the scene's transition, colour and clip speed (SceneEffects). */
+  effects: React.ReactNode;
 }) {
   return (
     <Flex vertical gap={8} data-testid="preview-scene-editor">
@@ -39,7 +42,7 @@ export default function SceneInspector({
       <Collapse
         size="small"
         ghost
-        defaultActiveKey={["content", "timing", "media"]}
+        defaultActiveKey={["content", "timing", "effects", "media"]}
         items={[
           {
             key: "content",
@@ -52,6 +55,7 @@ export default function SceneInspector({
             ),
           },
           { key: "timing", label: "Thời lượng và vị trí chữ", children: timing },
+          { key: "effects", label: "Hiệu ứng", children: effects },
           {
             key: "media",
             label: scene.video ? "Video của cảnh" : "Ảnh của cảnh",

@@ -118,6 +118,8 @@ def render_video(
                     voice=voice,
                     video_start=video_start,
                     video_speed=scene.video_speed,
+                    transition=scene.transition,
+                    color=scene.color,
                 )
             )
 

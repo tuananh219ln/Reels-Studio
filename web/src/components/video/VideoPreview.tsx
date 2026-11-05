@@ -35,7 +35,9 @@ import { coveredBy } from "./preview/coverage";
 import { useHistory } from "./preview/history";
 import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
+import SceneEffects from "./preview/SceneEffects";
 import SceneInspector from "./preview/SceneInspector";
+import { colorCss } from "./preview/effects";
 import { type LockableTrack, lanesFor } from "./preview/tracks";
 import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
@@ -563,6 +565,9 @@ export default function VideoPreview({
       } else if (key === "video_start") back.video_start = target.video?.start ?? 0;
       else if (key === "text") back.text = target.text;
       else if (key === "text_position") back.text_position = target.text_position;
+      else if (key === "transition") back.transition = target.transition;
+      else if (key === "color") back.color = target.color;
+      else if (key === "video_speed") back.video_speed = target.video?.speed ?? 1;
     }
     return back;
   }
@@ -1152,6 +1157,14 @@ export default function VideoPreview({
               label={label(phase.index)}
               voiceEnabled={video.voice_enabled}
               generating={video.active_job?.kind === "image" && video.active_job.scene_id === scene.id}
+              effects={
+                <SceneEffects
+                  scene={scene}
+                  videoTransition={video.options.transition}
+                  editable={scenesEditable}
+                  onPatch={(name, body) => void changeScene(name, scene, body)}
+                />
+              }
               timing={
                 <SceneEditor
                   key={`${scene.id}-${scene.seconds}`}
@@ -1258,7 +1271,10 @@ function SceneLayer({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a seek is a new `from`; the clip's own values are read then
   }, [from]);
-  const { transition, motion, zoom } = video.options;
+  const { motion, zoom } = video.options;
+  // The scene's own transition into it, else the video's; and its colour, graded on the picture only (not the box).
+  const transition = scene.transition ?? video.options.transition;
+  const grade = colorCss(scene.color);
   const end = ZOOMS[zoom];
   // The frame without text when there is one, so the box stays still while the picture moves; else the preview.
   const picture = scene.frame_url ?? scene.preview_url;
@@ -1377,14 +1393,31 @@ function SceneLayer({
             event.currentTarget.currentTime = (scene.video?.start ?? 0) + from * (scene.video?.speed ?? 1);
             event.currentTarget.playbackRate = scene.video?.speed ?? 1;
           }}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+          data-color={scene.color ?? undefined}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            filter: grade,
+          }}
         />
       ) : picture ? (
         // eslint-disable-next-line @next/next/no-img-element -- frames are drawn by the api; next/image adds nothing
         <img
           src={picture}
           alt=""
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", ...motionStyle }}
+          data-color={scene.color ?? undefined}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            filter: grade,
+            ...motionStyle,
+          }}
         />
       ) : (
         <Flex align="center" justify="center" style={{ position: "absolute", inset: 0, background: "#262626" }}>

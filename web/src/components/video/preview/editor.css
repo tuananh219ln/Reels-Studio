@@ -169,3 +169,146 @@
     overflow: visible;
   }
 }
+
+/* The transitions into a scene beyond the video's fade and slide (globals.css), named `preview-<transition>` after
+   reels_render.effects.SCENE_TRANSITIONS: close to FFmpeg's xfade, played by the incoming scene over 0.4 s. */
+@keyframes preview-slide_up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes preview-wipe {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes preview-zoom {
+  from {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes preview-circle {
+  from {
+    clip-path: circle(0% at 50% 50%);
+  }
+  to {
+    clip-path: circle(75% at 50% 50%);
+  }
+}
+
+@keyframes preview-black {
+  0% {
+    opacity: 0;
+    filter: brightness(0);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(0);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes preview-flash {
+  0% {
+    opacity: 0;
+    filter: brightness(3);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(3);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes preview-dissolve {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes preview-blur {
+  from {
+    opacity: 0;
+    filter: blur(24px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes preview-pixel {
+  from {
+    opacity: 0;
+    filter: blur(14px) contrast(1.6);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0) contrast(1);
+  }
+}
+
+/* "Màu" in "Chỉnh cảnh N": each preset drawn on the scene's own picture. */
+.preview-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+}
+
+.preview-color {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #e7e8ea;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  color: #5f6670;
+  cursor: pointer;
+}
+
+.preview-color:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.preview-color[aria-pressed="true"] {
+  border-color: #c2410c;
+  color: #c2410c;
+  box-shadow: 0 0 0 1px #c2410c;
+}
+
+.preview-color img,
+.preview-color span:first-child {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #3a3a3a;
+}
