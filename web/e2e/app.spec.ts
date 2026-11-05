@@ -177,8 +177,68 @@ test("the worker checks a connected Page's token and shows its followers", async
   await expect(card.getByText("1.200", { exact: true })).toBeVisible();
   await card.getByRole("button", { name: "Kiểm tra ngay" }).click();
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
-  await card.getByRole("button", { name: "30 ngày" }).click();
-  await expect(page.getByRole("dialog", { name: /Số liệu 30 ngày/ })).toBeVisible();
+});
+
+test("a Page's card opens its dashboard, with a period and five tabs", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
+  await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
+  // The card keeps one line on posting; the whole of it is on the dashboard.
+  await expect(card.getByTestId("page-schedule-line")).toHaveText(
+    "Chưa gắn nhóm chủ đề, chưa có giờ đăng, 0 video trong hàng chờ",
+  );
+  await expect(card.getByTestId("page-queue")).toHaveCount(0);
+  // A click on the card itself, not on its controls, opens the Page.
+  await card.getByText("Số liệu 7 ngày", { exact: false }).click();
+  await expect(page).toHaveURL(/\/fanpages\/\d+$/);
+  await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
+  // The menu still shows where the member is.
+  await expect(page.getByRole("menuitem", { name: "Quản lý Page" })).toHaveClass(/ant-menu-item-selected/);
+
+  // Tổng quan: four figures, each against the period before, the views chart, the latest post and the token.
+  await expect(page.getByTestId("figure-tile")).toHaveCount(4);
+  await expect(page.getByText("so với 28 ngày trước", { exact: false }).first()).toBeVisible();
+  await expect(page.getByTestId("latest-post")).toContainText("Chưa có bài nào app đăng lên Page này.");
+  await expect(page.getByTestId("token-status")).toContainText("Hoạt động");
+  await expect(page.getByTestId("figure-tile").filter({ hasText: "Người theo dõi mới" })).toContainText(
+    "Hiện có 1.200",
+  );
+
+  // The period changes every figure.
+  await page.getByText("7 ngày", { exact: true }).click();
+  await expect(page.getByText("so với 7 ngày trước", { exact: false }).first()).toBeVisible();
+
+  await page.getByRole("tab", { name: "Lượt xem" }).click();
+  const views = page.getByRole("tabpanel", { name: "Lượt xem" });
+  await expect(views.getByTestId("figure-tile")).toHaveCount(3);
+  await expect(views.getByText("Thời gian xem TB")).toBeVisible();
+  await expect(views.getByRole("switch", { name: "Hoạt động đăng" })).toBeChecked();
+
+  await page.getByRole("tab", { name: "Tương tác" }).click();
+  const engagement = page.getByRole("tabpanel", { name: "Tương tác" });
+  for (const name of ["Cảm xúc", "Bình luận", "Chia sẻ"]) {
+    await expect(engagement.getByTestId("figure-tile").filter({ hasText: name })).toBeVisible();
+  }
+
+  await page.getByRole("tab", { name: "Đối tượng" }).click();
+  await expect(page.getByTestId("followers-now")).toHaveText("1.200");
+  // Today's reading is one point of the followers chart; hovering it names the day.
+  const chart = page.getByTestId("followers-chart");
+  await expect(chart.getByRole("img")).toBeVisible();
+  await chart.getByRole("img").hover();
+  await expect(chart.getByTestId("chart-tooltip")).toBeVisible();
+  await chart.getByRole("button", { name: "Xem bảng" }).click();
+  await expect(chart.getByRole("cell", { name: "1.200" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  const schedule = page.getByRole("tabpanel", { name: "Lịch đăng" });
+  await expect(schedule.getByTestId("page-queue")).toContainText("Hàng chờ trống.");
+  await expect(schedule.getByTestId("scheduled-strip")).toContainText("Page chưa có giờ đăng");
+
+  await page.getByRole("link", { name: "Quay lại Quản lý Page" }).click();
+  await expect(page).toHaveURL(/\/fanpages$/);
 });
 
 test("a Page stopped and never posted to can be deleted", async ({ page }) => {

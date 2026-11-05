@@ -569,25 +569,49 @@ Built:
   - **Quản lý Page** (`/fanpages`, its own menu item under "Video", outside Cài đặt): a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid
     that fits as many cards of at least 320 px as the width allows. A card shows the Page's initial,
-    its name linking to the Page on Facebook, its id and the token's last four characters, and a tag:
+    its name linking to the Page's dashboard, its id and the token's last four characters, and a tag:
     "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line
     pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers
     in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
-    under the owner line, "Đăng theo lịch": the topic group the Page posts and its posting times (tags
-    such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
-    line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the rest), then "Hàng chờ (N)":
-    each waiting video's number, cover, title (opening the video), who added it and when, the reason
-    in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ khỏi hàng
-    chờ", confirmed); an empty queue says how to add one;
-    then a footer line with when it was last checked and two icon buttons, "Số liệu 30 ngày" (a
-    dialog with the numbers day by day) and "Kiểm tra ngay". Opening the page checks by itself the
-    Pages not checked in 15 minutes. The "⋯" menu has
+    under the owner line one grey line on posting: its topic group, its posting times and "N video
+    trong hàng chờ" (all of it is on the dashboard's "Lịch đăng" tab);
+    then a footer line with when it was last checked and the icon button "Kiểm tra ngay". A click
+    anywhere on the card but its controls opens the Page's dashboard. Opening the page checks by itself the
+    Pages not checked in 15 minutes. The "⋯" menu has "Mở trên Facebook",
     "Dán token mới", which must reach that Page, and "Ngừng dùng" (confirmed). Stopped Pages are
     folded into "Đã ngừng dùng (N)" at the bottom, each with its post count, "Dùng lại", and "Xóa"
     for one that never had a post (confirmed; it removes the token and the numbers); for one with
     posts "Xóa" is greyed out with why. "Thêm Fanpage" takes a token, "Kiểm tra token" lists the
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
+  - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
+    app already reads): "← Quản lý Page" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
+    (28 at first) and "Kiểm tra ngay"; a grey line naming the period (Vietnam time, today included) and that each
+    number is set against the same number of days just before. Every figure is a tile: its name (an ⓘ tip where
+    the number needs one), the value, and "↑ 12% so với 28 ngày trước" in green or "↓" in red, the arrow always
+    there so the direction is not colour alone; "Chưa có 28 ngày trước để so" when there is nothing to compare.
+    Daily charts are one orange line over a pale area, a gap where Facebook gave no number, a crosshair and a
+    tooltip with the day and value on hover, and "Xem bảng" for the numbers as a table. Five tabs:
+    - **Tổng quan**: tiles Lượt xem, Tiếp cận, Tương tác and Người theo dõi mới ("Hiện có N"); the daily views
+      chart; "Bài đăng mới nhất" (cover, title opening the video, when it went live, its views, reach, reactions,
+      comments, shares, average watch time and when they were read); "Đã lên lịch, 7 ngày tới" (the next six of
+      the week's scheduled posts and free posting times, in time order, "Khung trống" for a free one); "Kết nối"
+      (the token's status, its last check, and a Page Insights error if any).
+    - **Lượt xem**: tiles Lượt xem, Tiếp cận and Thời gian xem TB (the average watch time of the period's posts,
+      weighted by their views); the daily chart, switched between views and reach, with a "Hoạt động đăng"
+      switch (on at first) that puts a grey dot under each day the app posted, and the period's post count.
+    - **Tương tác**: the Tương tác tile and its daily chart, then Cảm xúc, Bình luận and Chia sẻ summed from the
+      latest reading of the period's posts, each with a tip saying it is approximate.
+    - **Đối tượng**: Người theo dõi mới and the current count, and the followers chart.
+    - **Lịch đăng**: "Đăng theo lịch" (as it was on the card): the topic group the Page posts and its posting
+      times (tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
+      line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the
+      rest), then "Hàng chờ (N)": each waiting video's number, cover, title (opening the video), who added it
+      and when, the reason in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ
+      khỏi hàng chờ", confirmed); an empty queue says how to add one. Beside it the whole week of scheduled
+      posts and free times.
+    Numbers Facebook does not give are not shown (followers against non-followers, content types, traffic
+    sources, unfollows, 3-second and 1-minute views). An unknown Page shows "Không tìm thấy Fanpage".
 
 Phones (below 992 px wide; built):
 

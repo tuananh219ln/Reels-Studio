@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, facebook, fanpages
+from . import affiliate, facebook, fanpages, page_dashboard
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session
@@ -230,6 +230,19 @@ def page_insights(
         }
         for row in fanpages.insights_of(db, fanpage_id)
     ]
+
+
+@router.get("/{fanpage_id}/dashboard")
+def page_dashboard_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """One Page's dashboard for the last `days` days (7, 28 or 90), each figure against the period before it."""
+    if days not in page_dashboard.PERIODS:
+        raise invalid("Khoảng thời gian chỉ được là 7, 28 hoặc 90 ngày")
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    return page_dashboard.dashboard(db, row, days)
 
 
 @router.delete("/{fanpage_id}")

@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined } from "@ant-design/icons";
-import { App, Button, Divider, Flex, Popconfirm, Select, Spin, Typography } from "antd";
+import { App, Button, Flex, Popconfirm, Select, Spin, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { api, errorMessage, formatDateTime, type QueueOverview, type QueuePage } from "@/lib/api";
@@ -11,8 +11,8 @@ const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/;
 // The next few free times are enough to see when the queue will post; the rest is a count.
 const SHOWN_SLOTS = 3;
 
-/** The part of a Page's card on "Quản lý Page" about posting: its topic group and posting times (its owner changes
- * them), the free times ahead, and its queue of videos, which the worker schedules one by one at those times. */
+/** "Đăng theo lịch" on a Page's "Lịch đăng" tab: its topic group and posting times (its owner changes them), the free
+ * times ahead, and its queue of videos, which the worker schedules one by one at those times. */
 export default function PageQueueSection({
   page,
   overview,
@@ -54,11 +54,6 @@ export default function PageQueueSection({
   return (
     <Spin spinning={busy}>
       <Flex vertical gap={8} data-testid="page-queue">
-        <Divider plain style={{ margin: "2px 0" }} titlePlacement="start">
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Đăng theo lịch
-          </Typography.Text>
-        </Divider>
         {page.mine ? (
           <Flex vertical gap={6}>
             <Select

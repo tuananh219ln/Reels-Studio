@@ -305,7 +305,7 @@ Planned:
     timer, and a later re-render never changes what was scheduled. Facebook then publishes by itself,
     so the app counts a scheduled post as published once its time has passed. Changing the time is
     done in Meta Business Suite.
-  - **The Page queues** (each Page's card on "Quản lý Page", and "Thêm vào hàng chờ" on the video). Once a minute, beside the post checks, the worker's `page_queue.fill` gives
+  - **The Page queues** (the "Lịch đăng" tab of a Page's dashboard on "Quản lý Page", and "Thêm vào hàng chờ" on the video). Once a minute, beside the post checks, the worker's `page_queue.fill` gives
     each Page in use whose last token check worked, and whose queue is not empty, at most one post: the first
     video of its queue that can go is given the Page's next free posting time (its own `post_times`, else its
     group's) between 30 minutes and 48 hours ahead. A time is free when no open post of the Page is within 30
@@ -430,6 +430,16 @@ Planned:
     `read_insights`, a retired metric) is kept as `insights_error`, never as a broken connection.
     The list gives each Page `insights` (`last_7_days` sums and `error`), and
     `GET /api/fanpages/{id}/insights` its last 30 days with the followers of each day.
+    `GET /api/fanpages/{id}/dashboard?days=7|28|90` ([page_dashboard.py](../api/src/reels_api/page_dashboard.py))
+    is one Page's dashboard, worked out on each request and never stored: the period is the last `days` days in
+    Vietnam time, today included, and each figure (`value`, `previous`, `change` as a fraction, null with nothing
+    to compare) is set against the same number of days before it. `series` has every day of the period with its
+    Page Insights numbers, its followers reading and the app's posts that went live that day; `totals` sums views,
+    reach and engagements, counts the posts and gives `followers_gain` (the last reading in the period less the
+    last one before it); `post_numbers` sums reactions, comments and shares and weights the average watch time by
+    views over the latest readings of the period's posts (close to, not exactly, what the Page earned then);
+    `latest_post` is the newest live post with its latest reading; `upcoming` the posts waiting for their time in
+    the next 7 days and the Page's free posting times then (`page_queue.free_slots`). Other `days` are a 422.
     `DELETE /api/fanpages/{id}` removes a stopped Page with no post at all (409 otherwise), its
     followers and numbers going with it; each listed Page carries `posts`, its count of posts.
   - **What the numbers mean** ([analytics.py](../api/src/reels_api/analytics.py)) is worked out from

@@ -267,13 +267,61 @@ export type Fanpage = {
   };
 };
 
-/** One day of a Page's numbers (api GET /fanpages/{id}/insights). */
-export type FanpageDay = {
-  day: string;
-  views: number | null;
-  reach: number | null;
-  engagements: number | null;
+/** A number of a period with the same of the period before it; `change` is a fraction (0.25 is +25 %), null when
+ * there is nothing to compare with. */
+export type DashboardFigure = { value: number | null; previous: number | null; change: number | null };
+
+export type DashboardVideo = { id: number; title: string; thumbnail_url: string | null };
+
+/** One Page's dashboard over the last `days` days in Vietnam time (api GET /fanpages/{id}/dashboard). */
+export type PageDashboard = {
+  page: {
+    id: number;
+    page_id: string;
+    name: string;
+    active: boolean;
+    owner: { id: number; name: string } | null;
+    token_tail: string;
+    check: Fanpage["check"];
+    insights_error: string | null;
+  };
+  days: number;
+  start: string;
+  end: string;
+  /** Each day of the period, oldest first; `posts` counts the app's posts that went live that day. */
+  series: {
+    day: string;
+    views: number | null;
+    reach: number | null;
+    engagements: number | null;
+    followers: number | null;
+    posts: number;
+  }[];
+  totals: Record<"views" | "reach" | "engagements" | "followers_gain" | "posts", DashboardFigure>;
   followers: number | null;
+  /** Summed from the latest reading of the period's posts: close to, not exactly, what the Page earned then. */
+  post_numbers: Record<"reactions" | "comments" | "shares" | "avg_watch_seconds", DashboardFigure>;
+  latest_post: {
+    id: number;
+    remote_id: string | null;
+    live_at: string;
+    video: DashboardVideo;
+    numbers: {
+      views: number | null;
+      reach: number | null;
+      reactions: number | null;
+      comments: number | null;
+      shares: number | null;
+      avg_watch_seconds: number | null;
+      measured_at: string;
+    } | null;
+  } | null;
+  /** The next week: posts waiting for their time, and posting times no post takes yet. */
+  upcoming: {
+    posts: { id: number; status: string; scheduled_at: string; video: DashboardVideo }[];
+    free_slots: string[];
+    post_times: string[];
+  };
 };
 
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
