@@ -147,6 +147,62 @@ A scene may hold an uploaded video clip instead of a photo
 - **Trim:** the editor's "Cắt video" dialog picks a start, an end and a speed on the clip and saves
   `video_start`, `video_speed` and `seconds` in one `PATCH /scenes/{id}`, with the seconds the part
   divided by the speed, less its crossfades; the api checks them as for typed values.
+- **Split:** "Tách cảnh" in the preview calls `POST /scenes/{id}/split` with `at`, seconds into a content scene
+  (1 s to `seconds` − 1 s; the title scene is refused). The scene keeps its text, voice text and narration and
+  lasts `at` seconds; a new scene right after it (the later scenes move down one place) lasts the rest, with no
+  text or voice text (so it is silent), the same keywords and image prompt, and its own copy of the photo or clip:
+  a clip keeps its speed and starts `at` × speed later. Both parts have "Tự khớp lời đọc" off. Undoing it deletes
+  the new scene and puts the first part's seconds back. The new scene keeps the colour and cuts in
+  (`transition` "cut"), since the same picture goes on.
+- **Effects:** `scenes.transition` (the transition into the scene; null: the video's `options.transition`) and
+  `scenes.color` (a colour preset; null: as shot), migration 0037, both named presets of
+  [effects.py](../worker/src/reels_render/effects.py) set by `PATCH /scenes/{id}` (null clears; the title scene
+  refuses both). The job writes them into the scene's script entry only when set, and they join the render
+  fingerprint only when set, so MP4s made before stay current. In the graph each boundary takes the scene's own
+  `xfade` (a "cut" among transitions is a one-frame fade at the crossfade's offset, so the length and narration
+  timing stay the timeline's; when every boundary is a cut the scenes are joined with `concat` as before), and a
+  colour is one more filter step on the scene's picture before its text box is overlaid. The colour presets'
+  filter chains are adapted from AIEV (MIT, notice in `effects.py`).
+- **Layers:** `scene_layers` (migration 0038; one row per text or sticker layer, deleted with its scene) holds
+  `kind`, `text` or `sticker`, `start` (seconds into the scene), `seconds`, `x`/`y` (the centre), `size`,
+  `style` and `animation`, all named presets of [layers.py](../worker/src/reels_render/layers.py), and `position`
+  (laid on in that order). [routes_layers.py](../api/src/reels_api/routes_layers.py) under `/api/layers` adds
+  (`POST`, with `scene_id`; refused on the title scene), changes (`PATCH /{id}`, any field but `kind`) and removes
+  (`DELETE /{id}`) one layer under the video's lock, each returning the video like the scene endpoints, and draws
+  `GET /{id}/image.png` (and `/stickers/{name}.png` for the picker) with the render core's own `render_layer`, so
+  the studio's phone shows the exact picture. The scene payload lists its layers with that URL, versioned by
+  what is drawn. The job writes them into the scene's script entry and they join the render fingerprint, both only
+  when a scene has any. "Tách cảnh" moves the layers starting after the cut to the new scene, at the same moment.
+  The render draws each picture once, loops it (`-loop 1 -t end`) so the entrance can fade its alpha in, and lays
+  it on after the captions with `overlay` enabled between its start and its end (cut at the scene's end); a slide
+  moves the overlay's x or y over the same 0.3 s.
+- **Sound:** `scene_sounds` (migration 0039; `sound`, `start` into the scene, `volume`, deleted with its scene),
+  `scenes.music_level` and `videos.music_start`, all named presets or bounded numbers of
+  [sounds.py](../worker/src/reels_render/sounds.py). [routes_sounds.py](../api/src/reels_api/routes_sounds.py)
+  under `/api/sounds` adds, changes and removes one sound under the video's lock and serves
+  `/library/{name}.mp3`, made once per api process by the render core's `make_sound`; `music_level` is set by
+  `PATCH /scenes/{id}` and `music_start` by `PATCH /videos/{id}`. The job writes the sounds and the level into
+  the scene's script entry when set and passes `music_start` to `render_video`; each joins the fingerprint only
+  when set. "Tách cảnh" moves the sounds after the cut like the layers and copies the level. In the graph each
+  sound is its own source filter (`aevalsrc`/`anoisesrc`), delayed to its second, padded to the video's length and
+  added with amerge + pan after the narration; a scene's level is a `volume` expression on the music over its
+  seconds, and the song's start an input seek (`-stream_loop -1 -ss`).
+- **Notes:** `video_notes` (migration 0040; `at` seconds from the video's start, `text`, `status` open → sent →
+  done, the AI's `reply`, who wrote it) and `knowledge_topics.revise_prompt`. [routes_notes.py](../api/src/reels_api/routes_notes.py)
+  under `/api/notes` adds a note at a second within the video (any member, in any mode: a note changes nothing),
+  changes or removes one that is not with the AI, and `POST /send/{video_id}` queues one `revise` job for every
+  open note (refused while another job runs) and marks them sent. The job ([revise.py](../api/src/reels_api/revise.py))
+  calls the team's LLM once (twice when the answer is unusable), applies what the rules allow and answers each
+  note; a failed job opens its notes again. The video payload lists the notes with the scene playing at each.
+- **Edit templates:** `edit_templates` (migration 0041; a name and the template as JSON) and the app setting
+  `edit_template_default` ("app", a template id, or null). [routes_templates.py](../api/src/reels_api/routes_templates.py)
+  under `/api/edit-templates` lists them (the app's own first, each with Vietnamese summary lines), saves one from
+  a video, renames, removes (also clearing the default it was), sets the default, and `POST /apply` puts one on a
+  video under its lock. `autoedit.apply_default` runs after the script or clone job writes the scenes and after
+  "Tự viết". The studio's undo of an apply deletes the layers and sounds it added and patches each scene's
+  transition, colour and music level back. `videos.ai_effects` (migration 0042) keeps "AI gợi ý hiệu ứng"; the
+  script job then appends `autoedit.EFFECTS_FORMAT` to its prompt and `autoedit.apply_ai_effects` puts the
+  answer's per-scene `effects` on after the default template, leaving out anything outside the presets.
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.

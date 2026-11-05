@@ -6,21 +6,21 @@ from pathlib import Path
 from . import ffmpeg
 from .captions import plan_captions
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
-from .graph import CaptionInput, SceneInput, build_ffmpeg_args
+from .graph import CaptionInput, LayerInput, SceneInput, SoundInput, build_ffmpeg_args
 from .images import normalize_image
+from .layers import layer_corner, render_layer
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .script import Scene, Script
+from .sounds import SOUND_VOLUMES
 from .stock import find_stock_images
 from .textbox import (
     CAPTION_GAP,
     FRAME_WIDTH,
     SCENE_BOX_BOTTOM,
-    SCENE_STYLE,
-    TITLE_STYLE,
     TextFitError,
     caption_y,
     empty_box,
-    layout_text,
+    layout_sized,
     place_box,
     render_box,
     render_caption,
@@ -38,6 +38,7 @@ def render_video(
     music_volume: float = DEFAULT_MUSIC_VOLUME,
     on_warning: Callable[[str], None] | None = None,
     options: RenderOptions = DEFAULT_OPTIONS,
+    music_start: float = 0.0,
 ) -> Path:
     """Render the script to an MP4 and return the output path.
 
@@ -59,8 +60,8 @@ def render_video(
     layouts = []
     for index, scene in enumerate(script.all_scenes):
         try:
-            style = TITLE_STYLE if index == 0 else SCENE_STYLE
-            layouts.append(layout_text(scene.lines, style) if scene.lines else None)
+            size = options.title_text_size if index == 0 else options.text_size
+            layouts.append(layout_sized(scene.lines, size, is_title=index == 0) if scene.lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
@@ -74,7 +75,7 @@ def render_video(
         if found.missing:
             raise MissingImagesError([scene.label for scene in found.missing])
         script = found.script
-        inputs, captions = [], []
+        inputs, captions, layers, sounds = [], [], [], []
         scene_start = 0
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             if scene.video is not None:
@@ -107,6 +108,25 @@ def render_video(
                             end=cue.end,
                         )
                     )
+            # Each layer from its start into the scene, for its seconds, but never past the scene's end.
+            scene_end = (scene_start + timeline.scene_frames[index]) / FPS
+            for number, layer in enumerate(scene.layers):
+                start = scene_start / FPS + layer.start
+                if start >= scene_end:
+                    continue
+                picture = render_layer(layer)
+                path = work_dir / f"layer-{index:02d}-{number:02d}.png"
+                picture.save(path)
+                left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
+                layers.append(
+                    LayerInput(path, left, top, start, min(start + layer.seconds, scene_end), layer.animation)
+                )
+            # Each sound effect from its second of the scene, unless that is past the scene's end.
+            for sound in scene.sounds:
+                if scene_start / FPS + sound.start < scene_end:
+                    sounds.append(
+                        SoundInput(sound.sound, scene_start / FPS + sound.start, SOUND_VOLUMES[sound.volume].gain)
+                    )
             scene_start += timeline.scene_frames[index]
             voice = scene.voice.resolve() if scene.voice is not None else None
             inputs.append(
@@ -118,6 +138,9 @@ def render_video(
                     voice=voice,
                     video_start=video_start,
                     video_speed=scene.video_speed,
+                    transition=scene.transition,
+                    color=scene.color,
+                    music_level=scene.music_level,
                 )
             )
 
@@ -137,6 +160,9 @@ def render_video(
             temp.resolve(),
             options,
             captions,
+            layers,
+            sounds,
+            music_start,
         )
         try:
             ffmpeg.run(argv, "FFmpeg render lỗi")

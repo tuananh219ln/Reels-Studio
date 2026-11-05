@@ -8,7 +8,7 @@ import unicodedata
 from dataclasses import dataclass, field
 
 from reels_render.markup import MarkupError, parse_scene_text
-from reels_render.textbox import SCENE_STYLE, TITLE_STYLE, TextFitError, layout_text
+from reels_render.textbox import TextFitError, layout_sized
 from reels_render.timeline import FPS, HALF_XFADE, fit_seconds
 
 MIN_SECONDS = 1
@@ -38,6 +38,7 @@ class SceneInput:
     clip_seconds: float | None = None  # what is left of the scene's clip after its start time
     has_keywords: bool = True  # Vietnamese or English photo keywords, for "Tìm ảnh" and the picker
     clip_speed: float = 1.0  # a scene takes this many seconds of clip for each second it lasts
+    text_size: str = "large"  # the size its text box is drawn at (reels_render.textbox.TEXT_SIZES)
 
 
 @dataclass(frozen=True)
@@ -57,7 +58,7 @@ def count_words(text: str) -> int:
     return len(text.replace("*", "").replace("\n", " ").split())
 
 
-def text_problem(text: str, is_title: bool) -> str | None:
+def text_problem(text: str, is_title: bool, size: str = "large") -> str | None:
     """Why reels_render would refuse this text, or None. Also the reason shown instead of a preview."""
     if not text.strip():
         return None  # a scene without text simply has no box
@@ -66,7 +67,7 @@ def text_problem(text: str, is_title: bool) -> str | None:
     except MarkupError as err:
         return f"Chữ sai cách đánh dấu: {err}"
     try:
-        layout_text(lines, TITLE_STYLE if is_title else SCENE_STYLE)
+        layout_sized(lines, size, is_title)
     except TextFitError as err:
         return f"Chữ tràn hộp: {err}"
     return None
@@ -96,7 +97,7 @@ def check_script(
 
     every = ([title] if title else []) + scenes
     for index, scene in enumerate(every):
-        problem = text_problem(scene.text, scene.is_title)
+        problem = text_problem(scene.text, scene.is_title, scene.text_size)
         if problem:
             block(Issue(problem, scene.id))
         if not scene.has_image:
