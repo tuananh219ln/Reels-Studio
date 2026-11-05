@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
@@ -957,6 +958,62 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
     .getByRole("dialog", { name: /^Bài đăng ngày / })
     .getByRole("link", { name: "Mở video" })
     .click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+});
+
+test("a posted video is a row of its Page's Nội dung tab, with columns to choose and a CSV file", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  await openPublish(page);
+  await confirmPost(page);
+  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await page.getByRole("tab", { name: "Nội dung" }).click();
+  const tab = page.getByRole("tabpanel", { name: "Nội dung" });
+  const table = tab.getByTestId("content-table");
+  const rows = table.locator("tbody tr.ant-table-row");
+  await expect(rows).toHaveCount(1);
+  await expect(tab).toContainText("1 bài app đăng trong 28 ngày");
+  await expect(rows.getByText("Đã đăng", { exact: true })).toBeVisible();
+  // A fresh reel has no numbers until the worker reads them; "Cập nhật view" in the row's menu asks for them.
+  await expect(tab).toContainText("Cần ít nhất 5 bài có view 48 giờ để so với trung vị.");
+  await rows.getByRole("button", { name: "Thao tác với bài" }).click();
+  await expect(page.getByRole("menuitem", { name: "Mở reel trên Facebook" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Cập nhật view" }).click();
+  await expect(rows.getByRole("cell", { name: "1.200", exact: true })).toBeVisible({ timeout: 30_000 });
+  for (const value of ["900", "40", "5", "3", "4", "8,4 giây"]) {
+    await expect(rows.getByRole("cell", { name: value, exact: true })).toBeVisible();
+  }
+
+  // A number column sorts, most first.
+  await table.getByRole("columnheader", { name: "Lượt xem" }).click();
+  await expect(table.getByRole("columnheader", { name: "Lượt xem" })).toHaveAttribute("aria-sort", "descending");
+
+  // "Cột" hides a column, and the choice stays in this browser.
+  await tab.getByRole("button", { name: "Cột" }).click();
+  await page.getByRole("checkbox", { name: "Tiếp cận" }).uncheck();
+  await expect(table.getByRole("columnheader", { name: "Tiếp cận" })).toHaveCount(0);
+  await page.reload();
+  await page.getByRole("tab", { name: "Nội dung" }).click();
+  await expect(table.getByRole("columnheader", { name: "Lượt xem" })).toBeVisible();
+  await expect(table.getByRole("columnheader", { name: "Tiếp cận" })).toHaveCount(0);
+
+  // The file has the shown columns of the shown rows, the title first and the reel's link last.
+  const download = page.waitForEvent("download");
+  await tab.getByRole("button", { name: "Xuất CSV" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^noi-dung-page-\d+-28-ngay\.csv$/);
+  const text = (await readFile(await file.path(), "utf-8")).replace(/^﻿/, "");
+  const [header, line] = text.split("\r\n");
+  expect(header).toBe(
+    "Tiêu đề,Lên lúc,Trạng thái,Lượt xem,Cảm xúc,Bình luận,Chia sẻ,Theo dõi,Xem TB,View 48 giờ,So với trung vị,Link reel",
+  );
+  expect(line).toContain(",Đã đăng,1200,40,5,3,4,8.4,,,https://www.facebook.com/reel/");
+
+  // The title opens the video.
+  await rows.getByRole("link").first().click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 

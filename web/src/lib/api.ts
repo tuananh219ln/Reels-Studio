@@ -450,6 +450,46 @@ export type PageDashboard = {
   };
 };
 
+/** One post the app made to a Page, on the dashboard's "Nội dung" tab (api page_dashboard.content). */
+export type PageContentPost = {
+  id: number;
+  /** "deleted": taken off Facebook after going live. */
+  status: "published" | "deleted";
+  live_at: string;
+  closed_at: string | null;
+  /** The reel on Facebook; null once it is taken down. */
+  url: string | null;
+  video: DashboardVideo;
+  /** The latest reading; null until the worker has read the post. */
+  numbers: {
+    views: number | null;
+    reach: number | null;
+    reactions: number | null;
+    comments: number | null;
+    shares: number | null;
+    avg_watch_seconds: number | null;
+    /** Follows the reel brought the Page. */
+    followers: number | null;
+    measured_at: string;
+  } | null;
+  views_48h: number | null;
+  /** The 48-hour views as a multiple of the Page's median; null until the Page has enough measured posts. */
+  times_median: number | null;
+  /** "Cập nhật view" takes only a reel that is on Facebook. */
+  can_refresh: boolean;
+  /** A reading was asked for and the worker has not run it yet. */
+  pending: boolean;
+  error: string | null;
+};
+
+export type PageContent = {
+  days: number;
+  start: string;
+  end: string;
+  median: { views: number | null; samples: number; min_samples: number };
+  posts: PageContentPost[];
+};
+
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {
   voice_id: string;
