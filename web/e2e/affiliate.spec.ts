@@ -159,7 +159,7 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await clone.getByRole("button", { name: "Tạo bản TikTok" }).click();
   await expect(page).not.toHaveURL(source);
   await expect(page.getByTestId("video-platform")).toHaveText("TikTok");
-  await expect(page.getByTestId("variants")).toContainText("Bản TikTok của");
+  await expect(page.getByTestId("variants")).toContainText("Bản Facebook gốc:");
   await expect(page.getByRole("button", { name: "Tạo bản TikTok" })).toHaveCount(0);
 
   // On the list the version sits on its source's card, not on a card of its own, and opens from there.

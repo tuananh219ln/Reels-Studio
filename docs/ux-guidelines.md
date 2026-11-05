@@ -341,7 +341,8 @@ Built:
     products picker shows only the video's platform's products;
   - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
     new video is tagged "TikTok" (on the list it sits on its source's card, see above) and both pages link
-    to each other. A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
+    to each other: "Bản TikTok: …" on the Facebook video, "Bản Facebook gốc: …" on the TikTok version (the two
+    usually share a title, so the label says where the link goes). A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
     copy buttons, the cart's products, a checklist, and "Đã đăng tay" (one of the member's TikTok
     accounts and the post's link), with the recorded posts below;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
