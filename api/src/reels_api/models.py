@@ -120,6 +120,10 @@ class KnowledgeTopic(Base):
     # "Gợi ý tìm ảnh": what the group's photos show (growing plants, not cooked dishes...), added to the script and
     # clone prompts so the AI writes the scenes' search keywords and image prompts for it. Empty: nothing added.
     photo_hint: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # "Từ video mẫu" (reference.py): the prompt that writes a script from a sample video, and the one that analyses
+    # the sample on its own (ways B, C and D). Empty: the default in prompts/.
+    learn_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
+    analyze_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
     # The 30-day plan (plans.py): its prompt (empty: the default one), the date of day 1 in Vietnam, how many ideas
     # a day the AI is asked for, and the AI's last plan, kept for a member to look at before it replaces the plan.
     plan_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -161,6 +165,28 @@ class TopicPlanItem(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class VideoReference(Base):
+    """A sample video members learn from ("Từ video mẫu", reference.py): its file stays stored so scene clips can be
+    cut from it, by any number of videos. `frames` are the stills the AI looks at: [{"second", "key", "note"}], the
+    note written by the analysis. `analysis` is empty until the AI analysed it; members may edit it."""
+
+    __tablename__ = "video_references"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_url: Mapped[str | None] = mapped_column(Text)  # None: an uploaded file
+    source_name: Mapped[str] = mapped_column(String(300))  # the link or the uploaded file's name, display only
+    video_key: Mapped[str | None] = mapped_column(String(200))  # None until a link is downloaded by the job
+    seconds: Mapped[float | None] = mapped_column(Float)
+    transcript: Mapped[str] = mapped_column(Text, default="", server_default="")
+    frames: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    analysis: Mapped[str] = mapped_column(Text, default="", server_default="")
+    analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    created_by: Mapped[User] = relationship()
+
+
 class Video(Base):
     __tablename__ = "videos"
 
@@ -193,6 +219,10 @@ class Video(Base):
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
+    # "Từ video mẫu": the sample video the script is learned from and the way it was asked for (reference.MODES:
+    # quick, twostep, review, reuse). Deleting the sample keeps the video and its clips.
+    reference_id: Mapped[int | None] = mapped_column(ForeignKey("video_references.id", ondelete="SET NULL"), index=True)
+    reference_mode: Mapped[str | None] = mapped_column(String(16))
     # Where the video is made for: facebook (a Reel, Shopee links) or tiktok (posted by hand, TikTok Shop's cart). A
     # TikTok version is its own video, cloned from the Facebook one it names in `variant_of_id`.
     platform: Mapped[str] = mapped_column(String(16), default="facebook", server_default="facebook")
@@ -272,7 +302,7 @@ class Job(Base):
     # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge), which belongs to a topic group.
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
-    # script | clone | render | publish | unpublish | check | image | photos | voice | plan
+    # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

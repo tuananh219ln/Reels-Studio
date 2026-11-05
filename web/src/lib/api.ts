@@ -189,6 +189,8 @@ export type VideoDetail = VideoRow & {
   /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
   script_by: string | null;
   clone_of: { title: string; request: string } | null;
+  /** "Từ video mẫu": the sample video the script is learned from; null for other videos. */
+  reference: VideoSample | null;
   /** The 30-day plan idea the video was made from. */
   plan_idea:
     | (PlanIdeaFields & {
@@ -203,6 +205,41 @@ export type VideoDetail = VideoRow & {
   video_blocking: string[];
   video_warnings: { field: string; message: string }[];
   can_render: boolean;
+};
+
+/** "Từ video mẫu": the way a video is learned from its sample (api reference.MODES). */
+export type SampleMode = "quick" | "twostep" | "review" | "reuse";
+
+/** A still of a sample video, with what the AI wrote it shows. */
+export type SampleFrame = { second: number; note: string; url: string };
+
+export type VideoSample = {
+  /** null once the sample was deleted; the video keeps its script and clips. */
+  id: number | null;
+  mode: SampleMode;
+  mode_label: string;
+  source_name: string | null;
+  source_url: string | null;
+  seconds: number | null;
+  transcript: string;
+  analysis: string;
+  frames: SampleFrame[];
+  /** Way "review": the analysis is written and waits for a member before "Viết kịch bản". */
+  awaiting_review: boolean;
+};
+
+/** A sample video learned before, for "Dùng mẫu đã học". */
+export type SampleSummary = {
+  id: number;
+  source_name: string;
+  source_url: string | null;
+  seconds: number | null;
+  analyzed: boolean;
+  analysis: string;
+  cover_url: string | null;
+  video_count: number;
+  created_by: string;
+  created_at: string;
 };
 
 export type VideoLink = { id: number; title: string; platform: VideoPlatform };
@@ -232,6 +269,9 @@ export type KnowledgeTopic = {
   banned_words: string[];
   /** "Gợi ý tìm ảnh": what the group's photos show, added to the script prompts for the search keywords. */
   photo_hint: string;
+  /** "Từ video mẫu": empty means the default prompt. */
+  learn_prompt: string;
+  analyze_prompt: string;
   video_count: number;
 };
 
@@ -355,6 +395,8 @@ export type Knowledge = {
   topics: KnowledgeTopic[];
   default_script_prompt: string;
   default_clone_prompt: string;
+  default_learn_prompt: string;
+  default_analyze_prompt: string;
 };
 
 /** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. A null day is the Backlog. */
@@ -730,6 +772,18 @@ export async function upload<T>(path: string, file: File, fields: Record<string,
     }
   }
   // No Content-Type header: the browser sets the multipart boundary itself.
+  return send<T>(path, { method: "POST", body: form });
+}
+
+/** A multipart form, with or without a file (the file goes only when given). */
+export async function postForm<T>(path: string, fields: Record<string, string>, file?: File | null): Promise<T> {
+  const form = new FormData();
+  for (const [name, value] of Object.entries(fields)) {
+    form.append(name, value);
+  }
+  if (file) {
+    form.append("file", file);
+  }
   return send<T>(path, { method: "POST", body: form });
 }
 

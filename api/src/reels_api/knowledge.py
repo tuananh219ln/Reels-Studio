@@ -23,6 +23,16 @@ def default_clone_prompt() -> str:
     return _prompt_file("clone_default.txt")
 
 
+@cache
+def default_learn_prompt() -> str:
+    return _prompt_file("learn_default.txt")
+
+
+@cache
+def default_analyze_prompt() -> str:
+    return _prompt_file("analyze_default.txt")
+
+
 def all_topics(db: DbSession) -> list[KnowledgeTopic]:
     return list(db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.id)))
 
