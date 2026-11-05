@@ -4,7 +4,11 @@ name: CI/CD
 # passes: the api on Coolify first (it runs the migrations), then the worker on Coolify, then the web
 # app on Cloudflare, so the new web never talks to an old API. Setup steps are in the README.
 # A draft PR runs the quick checks only (lint, typecheck, pytest); E2E and the image builds run once
-# it is marked ready for review, and on every push to main. A PR that changes only docs runs nothing.
+# it is marked ready for review. A PR that changes only docs runs nothing.
+# Nothing already tested runs twice (the "passed" job): marking a PR ready reruns the quick checks only
+# if they did not pass on that commit, and a push to main deploys without testing again when the code
+# is exactly the merged PR's last commit and every check passed there (main requires PRs to be up to
+# date, so a merge, squash or rebase leaves the same files). Any other push to main runs every check.
 
 on:
   pull_request:
@@ -22,9 +26,55 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Which checks already passed on this exact code. Outputs "quick" (api, worker, web) when a PR is
+  # marked ready, "all" (every check) on a push to main. On any doubt or error the checks run.
+  passed:
+    if: github.event.action == 'ready_for_review' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      checks: read
+      pull-requests: read
+      contents: read
+    outputs:
+      quick: ${{ steps.check.outputs.quick }}
+      all: ${{ steps.check.outputs.all }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          quick='["api (1)","api (2)","api (3)","api (4)","worker","web"]'
+          all='["api (1)","api (2)","api (3)","api (4)","worker","web","api-image","e2e (1)","e2e (2)","e2e (3)","e2e (4)"]'
+          # The latest run of each named check on a commit; true when every wanted one succeeded.
+          passed() {
+            gh api --paginate "repos/$REPO/commits/$1/check-runs?per_page=100" \
+              -q '.check_runs[] | select(.app.slug == "github-actions") | {id, name, conclusion}' |
+              jq -s --argjson want "$2" \
+                '(group_by(.name) | map(max_by(.id)) | map(select(.conclusion == "success") | .name)) as $ok
+                 | all($want[]; . as $n | $ok | index($n) != null)'
+          }
+          tree() { gh api "repos/$REPO/commits/$1" -q .commit.tree.sha; }
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            echo "quick=$(passed "$PR_HEAD" "$quick")" | tee -a "$GITHUB_OUTPUT"
+          else
+            head=$(gh api "repos/$REPO/commits/$GITHUB_SHA/pulls" \
+              -q '[.[] | select(.merged_at != null and .base.ref == "main")][0].head.sha // empty')
+            echo "Merged PR's last commit: ${head:-none}"
+            if [ -n "$head" ] && [ "$(tree "$GITHUB_SHA")" = "$(tree "$head")" ]; then
+              echo "all=$(passed "$head" "$all")" | tee -a "$GITHUB_OUTPUT"
+            else
+              echo "all=false" | tee -a "$GITHUB_OUTPUT"
+            fi
+          fi
+
   # api pytest on four machines at once, each running every 4th test (PYTEST_SHARD, tests/conftest.py).
   # Every job has a timeout: without one a hung step bills up to six hours.
   api:
+    needs: passed
+    if: ${{ !cancelled() && needs.passed.outputs.quick != 'true' && needs.passed.outputs.all != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -68,7 +118,10 @@ jobs:
 
   # The production images and the render parity test inside the worker image, beside the api tests.
   api-image:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: passed
+    if: >-
+      ${{ !cancelled() && needs.passed.outputs.all != 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     services:
@@ -99,6 +152,8 @@ jobs:
               ! grep -q SKIPPED /tmp/parity.log"
 
   worker:
+    needs: passed
+    if: ${{ !cancelled() && needs.passed.outputs.quick != 'true' && needs.passed.outputs.all != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -118,6 +173,8 @@ jobs:
       - run: python -m pytest -q -rs
 
   web:
+    needs: passed
+    if: ${{ !cancelled() && needs.passed.outputs.quick != 'true' && needs.passed.outputs.all != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -140,7 +197,10 @@ jobs:
 
   # E2E on four machines at once, each with its own Postgres, api, worker and web build.
   e2e:
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    needs: passed
+    if: >-
+      ${{ !cancelled() && needs.passed.outputs.all != 'true' &&
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
@@ -204,8 +264,13 @@ jobs:
           npm run e2e -- --test-list e2e-shard.txt
 
   deploy-api:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [api, api-image, worker, web, e2e]
+    # Deploys when every check passed in this run, or all of them passed on the merged PR's last commit.
+    if: >-
+      ${{ !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' &&
+      (needs.passed.outputs.all == 'true' ||
+      (needs.api.result == 'success' && needs.api-image.result == 'success' && needs.worker.result == 'success' &&
+      needs.web.result == 'success' && needs.e2e.result == 'success')) }}
+    needs: [passed, api, api-image, worker, web, e2e]
     runs-on: ubuntu-latest
     # Each of the two Coolify deployments is followed for up to 15 minutes.
     timeout-minutes: 35
