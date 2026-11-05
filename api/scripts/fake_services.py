@@ -107,6 +107,24 @@ def script_json(topic: str, seconds: float = 4, scene_count: int = 5) -> dict:
     }
 
 
+def analysis_json(frame_count: int) -> dict:
+    return {
+        "phan_tich": "Hook: câu hỏi gây tò mò ở giây đầu.\nCấu trúc: 3 món, mỗi món 3 giây.\nKêu gọi: lưu video.",
+        "khung_hinh": [f"Khung {n}: bát cháo trên bàn gỗ" for n in range(1, frame_count + 1)],
+    }
+
+
+def learned_json(topic: str, seconds: float = 4, with_analysis: bool = False) -> dict:
+    """A script learned from a sample video: the title and the first two scenes show stretches of the sample."""
+    script = script_json(topic, seconds)
+    script["title_clip"] = {"tu": 0, "den": 3}
+    for index, scene in enumerate(script["scenes"]):
+        scene["clip"] = {"tu": 1 + index, "den": 4 + index} if index < 2 else None
+    if with_analysis:
+        script["phan_tich"] = "Hook: câu hỏi ở giây đầu.\nNhịp: đổi cảnh mỗi 3 giây."
+    return script
+
+
 PAIN_GROUPS = ["Huyết áp và tim mạch", "Đường huyết", "Xương khớp", "Mất ngủ", "Tiêu hóa và gan", "Da và tóc"]
 
 
@@ -166,6 +184,23 @@ class FakeServices:
         self.claude_replies: list[object] = []  # str (raw text) or dict (JSON); empty: a valid script
         self.claude_hang = False
         self.claude_prompts: list[str] = []
+        # How many images each LLM request carried, in step with claude_prompts ("Từ video mẫu" sends stills).
+        self.claude_image_counts: list[int] = []
+        # ElevenLabs Speech-to-Text: what it says it heard, and the files it was sent.
+        self.stt_mode = "ok"  # ok | quota
+        self.stt_words: list[dict] = [
+            {"text": "Ba", "start": 0.2, "end": 0.4, "type": "word"},
+            {"text": "món", "start": 0.4, "end": 0.6, "type": "word"},
+            {"text": "ăn", "start": 0.6, "end": 0.8, "type": "word"},
+            {"text": "sáng", "start": 0.8, "end": 1.0, "type": "word"},
+            {"text": "tốt", "start": 1.0, "end": 1.2, "type": "word"},
+            {"text": "cho", "start": 1.2, "end": 1.4, "type": "word"},
+            {"text": "tim.", "start": 1.4, "end": 1.6, "type": "word"},
+            {"text": "Món", "start": 3.1, "end": 3.3, "type": "word"},
+            {"text": "đầu", "start": 3.3, "end": 3.5, "type": "word"},
+            {"text": "tiên.", "start": 3.5, "end": 3.8, "type": "word"},
+        ]
+        self.stt_requests: list[dict] = []  # {"model_id", "bytes"}
         # The OpenAI-compatible chat shares claude_replies and claude_prompts; these record what only it sees.
         self.chat_requests: list[dict] = []  # {"model", "authorization"}
         self.chat_finish_reason = "stop"
@@ -294,15 +329,28 @@ class FakeServices:
     # --- request handling ---
 
     def _claude(self, body: dict) -> tuple[int, dict]:
-        prompt = body["messages"][-1]["content"]
+        content = body["messages"][-1]["content"]
+        images = 0
+        if isinstance(content, list):
+            # Images (Anthropic "image" blocks, OpenAI "image_url" parts) then the text.
+            images = sum(1 for part in content if part.get("type") in ("image", "image_url"))
+            content = "\n".join(part.get("text", "") for part in content if part.get("type") == "text")
+        prompt = content
         with self.lock:
             self.claude_prompts.append(prompt)
+            self.claude_image_counts.append(images)
             reply = self.claude_replies.pop(0) if self.claude_replies else None
         while self.claude_hang:
             time.sleep(0.2)
         plan = re.search(r"chỉ lập ngày (\d+) đến ngày (\d+), mỗi ngày đúng (\d+) ý tưởng", prompt)
+        frames = re.search(r'"khung_hinh": đúng (\d+) chuỗi', prompt)
         if reply is None and plan:
             reply = plan_json(*(int(number) for number in plan.groups()))
+        elif reply is None and frames:
+            reply = analysis_json(int(frames.group(1)))
+        elif reply is None and "THÊM VÀO OBJECT JSON TRÊN" in prompt:
+            topic = prompt.split("theo đúng khung đó:\n", 1)[-1].split("\n", 1)[0].strip() or "sức khỏe"
+            reply = learned_json(topic, self.default_seconds, with_analysis='"phan_tich"' in prompt)
         elif reply is None and "<gop-y>" in prompt:
             reply = revise_json(prompt)
         elif reply is None:
@@ -683,6 +731,25 @@ class FakeServices:
                 return 500, {"error": {"message": "Service unavailable", "code": 2}}
         return 200, {"success": True}
 
+    def _speech_to_text(self, key: str | None, content_type: str, raw: bytes) -> tuple[int, dict]:
+        message = BytesParser(policy=email_policy.default).parsebytes(
+            f"Content-Type: {content_type}\r\n\r\n".encode() + raw
+        )
+        fields = {part.get_param("name", header="content-disposition"): part for part in message.iter_parts()}
+        with self.lock:
+            self.stt_requests.append(
+                {
+                    "model_id": fields["model_id"].get_content() if "model_id" in fields else None,
+                    "bytes": len(fields["file"].get_payload(decode=True) or b"") if "file" in fields else 0,
+                }
+            )
+        if key != ELEVENLABS_KEY:
+            return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
+        if self.stt_mode == "quota":
+            return 401, {"detail": {"status": "quota_exceeded", "message": "This request exceeds your quota"}}
+        text = " ".join(word["text"] for word in self.stt_words)
+        return 200, {"language_code": "vie", "language_probability": 0.97, "text": text, "words": self.stt_words}
+
     def _reel_cover(self, video_id: str, content_type: str, raw: bytes) -> tuple[int, dict]:
         """Video Thumbnails: a multipart form with the image as `source`."""
         message = BytesParser(policy=email_policy.default).parsebytes(
@@ -1026,6 +1093,11 @@ class FakeServices:
                 if path == "/openverse/v1/auth_tokens/token/":
                     form = dict(urllib.parse.parse_qsl(raw.decode()))
                     self._send(*fake._openverse_token(form))
+                    return
+                if path == "/v1/speech-to-text":
+                    self._send(
+                        *fake._speech_to_text(self.headers.get("xi-api-key"), self.headers.get("Content-Type", ""), raw)
+                    )
                     return
                 if path == "/shopee/graphql":
                     self._send(*fake._shopee(self.headers.get("Authorization"), raw))

@@ -174,6 +174,140 @@ def check_clip(path: Path) -> Clip:
     return Clip(extension, seconds)
 
 
+@dataclass(frozen=True)
+class Sample:
+    """A sample video ("Từ video mẫu", reference.py) as ffprobe read it."""
+
+    demuxer: str
+    extension: str
+    seconds: float
+    has_audio: bool
+
+
+def probe_sample(path: Path) -> Sample:
+    """A sample video's container, length and whether it has sound; anything but a readable MP4/MOV/WebM with a
+    usable video stream is refused like an upload. Its size and length are judged by the caller."""
+    demuxer, extension, data = _probe(path)
+    streams = data.get("streams", [])
+    videos = [stream for stream in streams if stream.get("codec_type") == "video"]
+    if not videos or videos[0].get("codec_name") not in CODECS:
+        raise UploadRejected(_REFUSED)
+    width, height = int(videos[0].get("width") or 0), int(videos[0].get("height") or 0)
+    if not width or not height or width * height > MAX_FRAME_PIXELS:
+        raise UploadRejected(_REFUSED)
+    seconds = _length(data)
+    if seconds is None:
+        raise UploadRejected("Không đọc được độ dài video")
+    has_audio = any(stream.get("codec_type") == "audio" for stream in streams)
+    return Sample(demuxer, extension, seconds, has_audio)
+
+
+def still_jpeg(path: Path, sample: Sample, second: float, width: int) -> bytes:
+    """The frame at `second`, at most `width` pixels wide, as JPEG."""
+    return _run(
+        [
+            _tool("ffmpeg"),
+            "-v",
+            "error",
+            "-nostdin",
+            "-ss",
+            f"{second:.3f}",
+            "-max_pixels",
+            str(MAX_FRAME_PIXELS),
+            "-f",
+            sample.demuxer,
+            "-i",
+            str(path),
+            "-map",
+            "0:v:0",
+            "-frames:v",
+            "1",
+            "-vf",
+            f"scale='min({width},iw)':-2",
+            "-q:v",
+            "4",
+            "-f",
+            "image2pipe",
+            "-c:v",
+            "mjpeg",
+            "-",
+        ]
+    )
+
+
+def sound_mp3(path: Path, sample: Sample, target: Path) -> None:
+    """The first audio stream as a small mono MP3, enough for speech-to-text."""
+    _run(
+        [
+            _tool("ffmpeg"),
+            "-v",
+            "error",
+            "-nostdin",
+            "-y",
+            "-f",
+            sample.demuxer,
+            "-i",
+            str(path),
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-c:a",
+            "libmp3lame",
+            "-b:a",
+            "48k",
+            str(target),
+        ]
+    )
+
+
+def cut_part(path: Path, sample: Sample, start: float, length: float, target: Path) -> None:
+    """`length` seconds from `start` as an H.264 MP4 without sound, its short side raised to MIN_SHORT_SIDE when
+    smaller (a YouTube video may come at 360p), so it passes check_clip like any scene clip. Re-encoded, not copied:
+    a copy can only start on a keyframe, seconds away from the chosen moment."""
+    short = MIN_SHORT_SIDE
+    _run(
+        [
+            _tool("ffmpeg"),
+            "-v",
+            "error",
+            "-nostdin",
+            "-y",
+            "-ss",
+            f"{start:.3f}",
+            "-max_pixels",
+            str(MAX_FRAME_PIXELS),
+            "-f",
+            sample.demuxer,
+            "-i",
+            str(path),
+            "-t",
+            f"{length:.3f}",
+            "-map",
+            "0:v:0",
+            "-an",
+            "-vf",
+            f"scale=w='if(lte(iw,ih),max(iw,{short}),-2)':h='if(lte(iw,ih),-2,max(ih,{short}))',setsar=1",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "veryfast",
+            "-crf",
+            "20",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            "-f",
+            "mp4",
+            str(target),
+        ]
+    )
+
+
 def _seconds(value: object) -> float | None:
     try:
         seconds = float(value)

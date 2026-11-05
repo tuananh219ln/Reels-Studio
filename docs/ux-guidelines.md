@@ -70,7 +70,7 @@ Built:
 
 - **Login** and **user management**.
 - **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, "Cách
-  viết" ("AI viết kịch bản" or "Tự viết") and the topic group; below it the topic. The footer has a
+  viết" ("AI viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group; below it the topic. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
   button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
@@ -90,6 +90,16 @@ Built:
   the button reads "Tạo video". The video page opens with the scenes ready to edit. The title card
   says "Kịch bản tự viết, không qua AI", and "Nội dung đăng" shows a yellow warning in place of the
   AI's self-review.
+  "Từ video mẫu" learns the script from a sample video: every group can be picked (the group's
+  sample prompts have defaults) and the plan's ideas are not listed. "Cách làm" picks one of four
+  ways, with what it does written under the choice: "Nhanh" (the default), "Hai bước tự động",
+  "Duyệt phân tích trước" and "Dùng mẫu đã học". The first three take the sample under "Video mẫu":
+  "Dán link" (TikTok, YouTube Shorts or a video file's link) or "Tải video lên" (a drop zone for one
+  MP4, MOV or WebM, 100 MB and 3 minutes at most); "Dùng mẫu đã học" instead lists the samples
+  learned before (link or file name, length, how many videos) and shows the chosen one's analysis.
+  The topic field reads "Chủ đề hoặc yêu cầu cho video mới". The main button reads "Viết kịch bản",
+  or "Phân tích video mẫu" for "Duyệt phân tích trước". "Tạo thêm video từ mẫu này" on a video page
+  opens the dialog (`/videos?reference=<id>`) on "Dùng mẫu đã học" with that sample chosen.
 - **Video list** (`/videos`): "Tạo video"; then, on one row, the search by title or topic and the filters:
   status (Cần làm: a draft older than 2 days, a failed job, an MP4 behind the edits, or a finished video not out
   on Facebook or TikTok; Nháp, Đang xử lý, Xong, Lỗi, MP4 cần render lại), platform, Fanpage (any Page the video
@@ -117,6 +127,15 @@ Built:
   banner per topic group whose plan has a today: "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video"
   with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
+  A video made "Từ video mẫu" has a "Video mẫu" card above the scenes: the sample's link (opens in a
+  new tab) or file name, its length and the way chosen; the AI's analysis, the stills (a strip of
+  small 9:16 pictures with their second, what the AI saw in each on hover) and the sample's words
+  folded under "Lời thoại video mẫu". Before the script these show open; once it is written they fold
+  under "Xem phân tích, khung hình và lời thoại". In "Duyệt phân tích trước" the analysis waits in a
+  text box with "Viết kịch bản" (saves the edit, then writes; the header's "Viết kịch bản" is hidden
+  meanwhile) and "Lưu phân tích". The card's header has "Tạo thêm video từ mẫu này" once the sample is
+  analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
+  scripts and clips; the card then says the sample was deleted).
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
   as a small player beside its length, with the listening volume under it, "Tải MP4", "Đăng" and "Thêm vào hàng chờ", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
   đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
