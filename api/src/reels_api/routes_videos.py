@@ -21,6 +21,7 @@ from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
 
 from . import (
+    autoedit,
     clips,
     frames,
     image_providers,
@@ -278,6 +279,7 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         idea.video_id = video.id
     if manual:
         _write_by_hand(db, video, topic, scenes)
+        autoedit.apply_default(db, video)
     else:
         _enqueue(db, video, "script", me)
     return _saved(db, video)

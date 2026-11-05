@@ -167,7 +167,9 @@ Built:
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
     the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
     playhead's second for 2 s, never to the title scene; "Âm thanh": every sound effect with "Nghe" and "Thêm"
-    (added to the scene shown at the playhead), and "Bài nhạc bắt đầu từ giây" when the video has music; "Góp ý":
+    (added to the scene shown at the playhead), and "Bài nhạc bắt đầu từ giây" when the video has music; "Tự dựng":
+    each "Mẫu dựng" (the app's "Gợi ý của app" first, then the team's) with what it does and "Áp cho cả video"
+    (undone with Ctrl+Z), and "Lưu video này thành mẫu"; "Góp ý":
     the notes in the order of the video (second, who, Chưa gửi / Chờ AI sửa / Đã sửa, the AI's answer, "Xoá") and
     "Nhờ AI sửa (N góp ý)", asked first since it costs one AI call; "Khung":
     the app frame and the safe zone; "Giọng
@@ -711,6 +713,15 @@ relied on (samples in the PR that added them).
   the end the song loops from its start). The studio plays the same sounds (the api makes them with the same
   filters) at their seconds, but a browser cannot play louder than full, so "To" and "Nhạc to" may sound like
   "Vừa" there. Sample: [samples/am-thanh.json](../samples/am-thanh.json), rendered with any music.
+- **Mẫu dựng** ([autoedit.py](../api/src/reels_api/autoedit.py)): the effects above as rules for any video: the
+  transitions into the content scenes in turn, one colour, sounds on every content scene and on the title, the
+  title's music level, and layers on the last scene. "Gợi ý của app": Phóng vào, Trượt sang trái, Mờ dần, Quét
+  ngang in turn, a soft "Vút" at the start of every content scene, a soft "Dâng lên" on the title, and "Lưu video lại
+  *để xem sau nhé!*" sliding up near the top of the last scene. Applying a template replaces the transitions and
+  colour and adds its sounds and layers (never the same one twice). A team template is saved from a video in the
+  studio (its scenes' transitions, most used colour, the first content scene's sounds that has any, the title's
+  sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename, remove) and picks the
+  one put on every new video as soon as its scenes are written (AI script, clone or "Tự viết"); none by default.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied

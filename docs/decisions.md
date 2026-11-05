@@ -63,6 +63,12 @@ like every LLM call, its prompt words are app data per group ("Prompt sửa theo
 the prompt as the members' words. A separate "AI writes one line here" button was dropped as the same thing as a
 note asking for it. AI pictures for a scene stay the existing "Tạo ảnh AI".
 
+Automatic effects, on the member's choice (all three): "Tự dựng" puts a template on a video by fixed rules (no AI),
+"Gợi ý của app" being the app's own template; the team saves its own templates from a video it likes and may pick
+one for every new video (none by default, so nothing changes until a member chooses); and "AI gợi ý hiệu ứng" is an
+option when making a video with AI. All three use the same named presets and the same apply, and stay changeable
+by hand in the studio.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

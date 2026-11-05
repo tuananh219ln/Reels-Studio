@@ -768,6 +768,49 @@ test("studio notes: a comment at the playhead, sent to the AI, which fixes the s
   await expect(page.getByTestId("scene").nth(1).getByLabel("Chữ trên màn hình")).toHaveValue("Đã sửa\n*theo góp ý*");
 });
 
+test("auto edit: the app's template on a video, undone, saved as the team's and put on every new video", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+
+  // "Gợi ý của app": a sound on every scene, a closing line on the last one; Ctrl+Z takes it all back.
+  await studio.getByRole("tab", { name: "Tự dựng" }).click();
+  const panel = studio.getByTestId("auto-edit");
+  await panel.getByRole("button", { name: "Áp mẫu Gợi ý của app" }).click();
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(6);
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(1);
+
+  // Its look, saved as the team's own template.
+  await panel.getByLabel("Tên mẫu mới").fill("Vườn nhà");
+  await panel.getByRole("button", { name: "Lưu" }).click();
+  await expect(panel.getByTestId("template")).toHaveCount(2);
+  await expect(panel.getByTestId("template").nth(1)).toContainText("Âm mỗi cảnh: Vút");
+
+  await expect(studio.getByRole("button", { name: "Hoàn tác: áp mẫu Gợi ý của app (Ctrl+Z)" })).toBeVisible();
+  await timeline.getByRole("slider", { name: "Đầu phát" }).focus();
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByTestId("lane-sounds")).toHaveCount(0);
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+
+  // Cấu hình › Mẫu dựng: "Vườn nhà" for every new video, put on as soon as its script is written.
+  await page.goto("/settings/templates");
+  await expect(page.getByTestId("template-card")).toHaveCount(2);
+  await chooseOption(page, page.getByLabel("Mẫu cho video mới"), "Vườn nhà");
+  await expect(page.getByTestId("template-card").nth(1)).toContainText("Video mới tự áp");
+  await newVideoWithScript(page, "cải mầm cho người mới");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Xem trước video" }).getByTestId("preview-timeline").getByTestId("lane-sounds"),
+  ).toHaveCount(6);
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);

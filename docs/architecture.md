@@ -194,6 +194,13 @@ A scene may hold an uploaded video clip instead of a photo
   open note (refused while another job runs) and marks them sent. The job ([revise.py](../api/src/reels_api/revise.py))
   calls the team's LLM once (twice when the answer is unusable), applies what the rules allow and answers each
   note; a failed job opens its notes again. The video payload lists the notes with the scene playing at each.
+- **Edit templates:** `edit_templates` (migration 0041; a name and the template as JSON) and the app setting
+  `edit_template_default` ("app", a template id, or null). [routes_templates.py](../api/src/reels_api/routes_templates.py)
+  under `/api/edit-templates` lists them (the app's own first, each with Vietnamese summary lines), saves one from
+  a video, renames, removes (also clearing the default it was), sets the default, and `POST /apply` puts one on a
+  video under its lock. `autoedit.apply_default` runs after the script or clone job writes the scenes and after
+  "Tự viết". The studio's undo of an apply deletes the layers and sounds it added and patches each scene's
+  transition, colour and music level back.
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.

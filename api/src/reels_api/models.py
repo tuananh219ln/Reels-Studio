@@ -305,6 +305,18 @@ class SceneLayer(Base):
     scene: Mapped[Scene] = relationship(back_populates="layers")
 
 
+class EditTemplate(Base):
+    """A team's "Mẫu dựng", saved from a video it likes (autoedit.Template as JSON)."""
+
+    __tablename__ = "edit_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    data: Mapped[dict] = mapped_column(JSONB)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class VideoNote(Base):
     """A member's comment at a second of the video ("Góp ý" in the studio), sent to the AI with "Nhờ AI sửa"."""
 

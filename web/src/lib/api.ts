@@ -134,6 +134,20 @@ export type SceneSound = {
   url: string;
 };
 
+/** A "Mẫu dựng": the app's own ("app") or the team's, with what it does in Vietnamese lines. */
+export type EditTemplate = {
+  id: "app" | number;
+  name: string;
+  builtin: boolean;
+  summary: string[];
+};
+
+export type EditTemplates = {
+  templates: EditTemplate[];
+  /** The template put on every new video; null for none. */
+  default: "app" | number | null;
+};
+
 /** A member's comment at a second of the video ("Góp ý"), sent to the AI with "Nhờ AI sửa". */
 export type VideoNote = {
   id: number;

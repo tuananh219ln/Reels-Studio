@@ -13,6 +13,7 @@ import {
   ReloadOutlined,
   StepBackwardOutlined,
   StepForwardOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -42,6 +43,7 @@ import {
   type VideoDetail,
   type VideoOptions,
 } from "@/lib/api";
+import AutoEditPanel from "./preview/AutoEditPanel";
 import ClipTrim from "./preview/ClipTrim";
 import { coveredBy } from "./preview/coverage";
 import { useHistory } from "./preview/history";
@@ -66,11 +68,12 @@ import "./preview/editor.css";
 const PLATFORM_KEY = "reels-studio.preview-platform";
 
 /** The editor's left column: each tool opens its panel beside it. */
-type Tool = "scene" | "layers" | "sounds" | "notes" | "frame" | "voice";
+type Tool = "scene" | "layers" | "sounds" | "auto" | "notes" | "frame" | "voice";
 const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
   { key: "scene", label: "Cảnh", icon: <AppstoreOutlined /> },
   { key: "layers", label: "Chữ & sticker", icon: <FontSizeOutlined /> },
   { key: "sounds", label: "Âm thanh", icon: <CustomerServiceOutlined /> },
+  { key: "auto", label: "Tự dựng", icon: <ThunderboltOutlined /> },
   { key: "notes", label: "Góp ý", icon: <CommentOutlined /> },
   { key: "frame", label: "Khung", icon: <MobileOutlined /> },
   { key: "voice", label: "Giọng đọc", icon: <SoundOutlined /> },
@@ -686,6 +689,58 @@ export default function VideoPreview({
     });
   }
 
+  /**
+   * "Tự dựng": a template on the whole video, kept for "Hoàn tác", which removes the sounds and layers it added and
+   * puts each scene's transition, colour and music level back.
+   */
+  function applyTemplate(template: "app" | number, name: string) {
+    const before = new Map(
+      scenes.map((item) => [
+        item.id,
+        {
+          transition: item.transition,
+          color: item.color,
+          music_level: item.music_level,
+          layers: new Set(item.layers.map((layer) => layer.id)),
+          sounds: new Set(item.sounds.map((sound) => sound.id)),
+        },
+      ]),
+    );
+    let added: { layers: number[]; sounds: number[] } = { layers: [], sounds: [] };
+    void history.run({
+      label: `áp mẫu ${name}`,
+      redo: async () => {
+        const saved = await api<VideoDetail>("/edit-templates/apply", "POST", { video_id: video.id, template });
+        const after = [saved.title_scene, ...saved.scenes].filter((item): item is SceneData => item !== null);
+        added = {
+          layers: after.flatMap((item) =>
+            item.layers.filter((layer) => !before.get(item.id)?.layers.has(layer.id)).map((layer) => layer.id),
+          ),
+          sounds: after.flatMap((item) =>
+            item.sounds.filter((sound) => !before.get(item.id)?.sounds.has(sound.id)).map((sound) => sound.id),
+          ),
+        };
+        return saved;
+      },
+      undo: async () => {
+        for (const id of added.layers) await api<VideoDetail>(`/layers/${id}`, "DELETE");
+        for (const id of added.sounds) await api<VideoDetail>(`/sounds/${id}`, "DELETE");
+        let saved: VideoDetail | null = null;
+        for (const [id, look] of before) {
+          const body = { transition: look.transition, color: look.color, music_level: look.music_level };
+          const scene = scenes.find((item) => item.id === id);
+          // The title scene never had a transition or a colour of its own: only its music level goes back.
+          saved = await api<VideoDetail>(
+            `/scenes/${id}`,
+            "PATCH",
+            scene?.is_title ? { music_level: look.music_level } : body,
+          );
+        }
+        return saved ?? api<VideoDetail>(`/videos/${video.id}`);
+      },
+    });
+  }
+
   /** A comment at a second ("Góp ý"); not an edit of the video, so not in "Hoàn tác". */
   function addNote(at: number, text: string) {
     return save(() => api<VideoDetail>("/notes", "POST", { video_id: video.id, at: Math.round(at * 10) / 10, text }));
@@ -1022,6 +1077,8 @@ export default function VideoPreview({
           )}
 
           {tool === "layers" && <LayerTools scene={scene} editable={layersEditable} onAdd={addLayer} />}
+
+          {tool === "auto" && <AutoEditPanel editable={editable} videoId={video.id} onApply={applyTemplate} />}
 
           {tool === "notes" && (
             <NoteTools

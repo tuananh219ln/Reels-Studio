@@ -22,6 +22,7 @@ from reels_render.script import parse_script
 from . import (
     affiliate_rounds,
     auto_photos,
+    autoedit,
     config,
     facebook,
     fanpages,
@@ -306,6 +307,8 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 voice_text=scene.voice,
             )
         )
+    # The team's "Mẫu dựng" for new videos, if one is chosen.
+    autoedit.apply_default(db, video)
 
 
 # --- Render ---
