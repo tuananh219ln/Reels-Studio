@@ -33,6 +33,7 @@ import { coveredBy } from "./preview/coverage";
 import { useHistory } from "./preview/history";
 import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
+import { type LockableTrack, lanesFor } from "./preview/tracks";
 import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
@@ -50,6 +51,18 @@ const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
   { key: "voice", label: "Giọng đọc", icon: <SoundOutlined /> },
 ];
 const VOICE_KEY = "reels-studio.preview-voice";
+/** The tracks each member locked, per video, in their browser only: a lock guards their own clicks, not the video. */
+const LOCKS_KEY = "reels-studio.studio-locks";
+const NO_LOCKS: Record<LockableTrack, boolean> = { scene: false, text: false };
+
+function savedLocks(videoId: number): Record<LockableTrack, boolean> {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(LOCKS_KEY) ?? "{}")[videoId];
+    return { scene: saved?.scene === true, text: saved?.text === true };
+  } catch {
+    return NO_LOCKS;
+  }
+}
 
 // The renderer's timing and motion (reels_render.timeline, options, graph): keep these in step with it.
 const XFADE_MS = 400;
@@ -180,8 +193,12 @@ export default function VideoPreview({
   const [boxes, setBoxes] = useState<Record<string, { width: number; height: number }>>({});
   // Editing from the preview: what the editor allows, the text box being dragged, and where a drop applies.
   const editor = useEditor();
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const editable = !editor.locked && !editor.readOnly;
+  // A locked track keeps its own changes out of reach: the scenes' (seconds, order, clip, split, delete) or the text's.
+  const [locks, setLocks] = useState(() => savedLocks(video.id));
+  const scenesEditable = editable && !locks.scene;
+  const textEditable = editable && !locks.text;
   const [dragged, setDragged] = useState<{ sceneId: number; centre: [number, number] } | null>(null);
   const [scope, setScope] = useState<"scene" | "all">("scene");
   // The clip frame the trim bar asks the phone to show while its window is dragged.
@@ -467,6 +484,19 @@ export default function VideoPreview({
     }
   }
 
+  function toggleLock(track: LockableTrack) {
+    setLocks((current) => {
+      const next = { ...current, [track]: !current[track] };
+      try {
+        const all = JSON.parse(window.localStorage.getItem(LOCKS_KEY) ?? "{}");
+        window.localStorage.setItem(LOCKS_KEY, JSON.stringify({ ...all, [video.id]: next }));
+      } catch {
+        // A browser that refuses storage just forgets the locks when the studio closes.
+      }
+      return next;
+    });
+  }
+
   function toggle() {
     if (ended) {
       goTo(0, false);
@@ -604,6 +634,55 @@ export default function VideoPreview({
     });
   }
 
+  /**
+   * Where "Tách cảnh" would cut the scene on the stage: the playhead's second in it, in tenths, when both parts would
+   * last at least a second (the title scene is never split).
+   */
+  function splitPoint(): number | null {
+    if (!scene || scene.is_title) return null;
+    const within = Math.round((position() - startOf(phase.index)) * 10) / 10;
+    return within >= 1 && within <= scene.seconds - 1 ? within : null;
+  }
+
+  /** "Tách cảnh": the scene ends at the playhead and its rest becomes a new silent scene; kept for "Hoàn tác". */
+  function splitScene() {
+    const at = splitPoint();
+    if (at === null) {
+      message.info("Đưa đầu phát vào giữa cảnh (cách hai đầu cảnh ít nhất 1 giây) để tách.");
+      return;
+    }
+    const target = scene;
+    let made: number | null = null;
+    void history.run({
+      label: "tách cảnh",
+      redo: async () => {
+        const saved = await api<VideoDetail>(`/scenes/${target.id}/split`, "POST", { at });
+        const ids = saved.scenes.map((item) => item.id);
+        made = ids[ids.indexOf(target.id) + 1] ?? null;
+        return saved;
+      },
+      undo: async () => {
+        if (made !== null) await api<VideoDetail>(`/scenes/${made}`, "DELETE");
+        return api<VideoDetail>(`/scenes/${target.id}`, "PATCH", {
+          seconds: target.seconds,
+          seconds_auto: target.seconds_auto,
+        });
+      },
+    });
+  }
+
+  function confirmRemove() {
+    if (!scene || scene.is_title) return;
+    modal.confirm({
+      title: `Xoá ${label(phase.index).toLowerCase()}?`,
+      content: "Không hoàn tác được.",
+      okText: "Xoá",
+      okButtonProps: { danger: true },
+      cancelText: "Huỷ",
+      onOk: () => removeScene(),
+    });
+  }
+
   async function removeScene() {
     const index = phase.index;
     if (await save(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))) {
@@ -620,9 +699,9 @@ export default function VideoPreview({
         : upload<VideoDetail>(`/scenes/${target.id}/image`, file),
     );
   }
-  // The box follows the pointer only while the preview stands still on a scene.
+  // The box follows the pointer only while the preview stands still on a scene, and not while the text is locked.
   const still = !playing || ended;
-  const canDrag = editable && still;
+  const canDrag = textEditable && still;
 
   // The current box, where it is (or is being dragged to), and what of the chosen app would cover it.
   const boxSize = scene?.textbox_url ? boxes[scene.textbox_url] : undefined;
@@ -633,8 +712,9 @@ export default function VideoPreview({
   const covered = boxSize && boxCorner ? coveredBy(platform, boxCorner, boxSize) : [];
   const snapped = dragged && scene && dragged.sceneId === scene.id ? dragged.centre : null;
 
-  // Shortcuts while the drawer is open, unless a field is being typed in: Space plays or pauses, the arrows change
-  // scene, [ and ] take or add a tenth of a second, Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and redo.
+  // Shortcuts while the studio is open, unless a field is being typed in: Space plays or pauses, the arrows change
+  // scene, [ and ] take or add a tenth of a second, S splits the scene at the playhead, Delete removes it (asked
+  // first), Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) undo and redo.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
@@ -655,9 +735,15 @@ export default function VideoPreview({
         goTo(phase.index - 1, false);
       } else if (event.key === "ArrowRight" && phase.index < scenes.length - 1) {
         goTo(phase.index + 1, false);
-      } else if ((event.key === "[" || event.key === "]") && editable && scene) {
+      } else if ((event.key === "[" || event.key === "]") && scenesEditable && scene) {
         const next = Math.round((scene.seconds + (event.key === "]" ? 0.1 : -0.1)) * 10) / 10;
         if (next >= 1 && next <= 10) void changeScene("đổi số giây", scene, { seconds: next });
+      } else if (event.key.toLowerCase() === "s" && !mod && scenesEditable && still) {
+        event.preventDefault();
+        splitScene();
+      } else if ((event.key === "Delete" || event.key === "Backspace") && scenesEditable && still) {
+        event.preventDefault();
+        confirmRemove();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -693,7 +779,7 @@ export default function VideoPreview({
 
   return (
     // A drawer from the right, so the page it previews stays in sight beside it, wide enough to lay the preview out
-    // like a video editor: the tools on the left, the phone in the middle, the timeline along the bottom.
+    // like a video editor: the tools on the left, the phone in the middle, the timeline's tracks along the bottom.
     <Drawer
       open
       placement="right"
@@ -764,7 +850,9 @@ export default function VideoPreview({
                   key={`${scene.id}-${scene.seconds}`}
                   scene={scene}
                   label={label(phase.index)}
-                  editable={editable}
+                  editable={scenesEditable}
+                  textEditable={textEditable}
+                  locked={editable && (locks.scene || locks.text)}
                   still={!playing || ended}
                   scope={scope}
                   onScope={setScope}
@@ -778,7 +866,8 @@ export default function VideoPreview({
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   Tạm dừng để sửa trên điện thoại: kéo hoặc bấm đúp vào chữ, kéo mép hay kéo cả đoạn trên thanh thời
                   gian. Kéo đầu phát hoặc bấm vào thước giờ để tới đúng giây cần xem. Phím: cách để phát/dừng, ← →
-                  chuyển cảnh, [ ] bớt/thêm 0,1 giây, Ctrl+Z hoàn tác.
+                  chuyển cảnh, [ ] bớt/thêm 0,1 giây, S tách cảnh tại đầu phát, Delete xoá cảnh, Ctrl+Z hoàn tác. Bấm ổ
+                  khoá cạnh tên tầng để khỏi lỡ tay sửa tầng đó.
                 </Typography.Text>
               )}
             </>
@@ -897,6 +986,9 @@ export default function VideoPreview({
             {editable && still && scene && (
               <PreviewToolbar
                 editable={editable}
+                scenesLocked={locks.scene}
+                canSplit={splitPoint() !== null}
+                onSplit={splitScene}
                 isTitle={scene.is_title}
                 canUndo={history.canUndo}
                 canRedo={history.canRedo}
@@ -1035,7 +1127,7 @@ export default function VideoPreview({
                   key={`${scene.id}-${scene.video.start}-${scene.seconds}`}
                   clip={scene.video}
                   seconds={scene.seconds}
-                  editable={editable}
+                  editable={scenesEditable}
                   onSeek={setSeek}
                   onCommit={(part) =>
                     void changeScene("cắt clip", scene, { video_start: part.start, seconds: part.seconds }).finally(
@@ -1060,8 +1152,12 @@ export default function VideoPreview({
           <PreviewTimeline
             scenes={scenes}
             current={phase.index}
-            editable={editable}
+            editable={scenesEditable}
             label={label}
+            lanes={lanesFor(video.options.captions, Boolean(video.music))}
+            musicName={video.music?.name ?? null}
+            locks={locks}
+            onLock={toggleLock}
             position={position}
             controls={transport}
             onSeek={seekAt}
@@ -1326,6 +1422,8 @@ function SceneEditor({
   scene,
   label,
   editable,
+  textEditable,
+  locked,
   still,
   scope,
   onScope,
@@ -1334,7 +1432,12 @@ function SceneEditor({
 }: {
   scene: SceneData;
   label: string;
+  /** The scene's seconds can change (edit mode, the scenes' track not locked). */
   editable: boolean;
+  /** Its text box can move (edit mode, the text's track not locked). */
+  textEditable: boolean;
+  /** A track is locked on the timeline, so some of this is read-only for now. */
+  locked: boolean;
   still: boolean;
   scope: "scene" | "all";
   onScope: (scope: "scene" | "all") => void;
@@ -1355,10 +1458,16 @@ function SceneEditor({
   return (
     <Flex vertical gap={10} data-testid="preview-scene-editor">
       <Typography.Text strong>Chỉnh {label.toLowerCase()}</Typography.Text>
-      {!editable && (
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Bấm “Chỉnh sửa” trên trang video (và chờ job xong) để sửa ngay tại đây.
+      {locked ? (
+        <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-locked">
+          Có tầng đang khoá trên thanh thời gian: mở ổ khoá cạnh tên tầng để sửa tầng đó.
         </Typography.Text>
+      ) : (
+        !editable && (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Bấm “Chỉnh sửa” trên trang video (và chờ job xong) để sửa ngay tại đây.
+          </Typography.Text>
+        )
       )}
       <Flex align="center" gap={8} wrap>
         <InputNumber
@@ -1403,7 +1512,7 @@ function SceneEditor({
       {scene.textbox_url && (
         <Flex vertical gap={6}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {still && editable
+            {still && textEditable
               ? "Kéo hộp chữ trên màn hình để đổi chỗ (trên điện thoại: chạm giữ rồi kéo), bấm đúp để sửa chữ."
               : "Tạm dừng ở cảnh này để kéo hộp chữ."}
           </Typography.Text>
@@ -1418,10 +1527,10 @@ function SceneEditor({
                   { value: "scene", label: "Cảnh này" },
                   { value: "all", label: "Mọi cảnh" },
                 ]}
-                disabled={!editable}
+                disabled={!textEditable}
               />
               {scene.text_position && (
-                <Button size="small" type="link" disabled={!editable} onClick={onResetPosition}>
+                <Button size="small" type="link" disabled={!textEditable} onClick={onResetPosition}>
                   Về vị trí chung
                 </Button>
               )}

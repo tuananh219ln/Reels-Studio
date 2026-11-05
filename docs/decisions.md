@@ -11,6 +11,28 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — "Xem trước" grows into a studio with tracks, one phase at a time; the render core stays FFmpeg
+
+Asked by a member (namtc), from CapCut's editor: more editing in the preview, with effects. Chosen over a free
+timeline (clips, text and sound anywhere on any track, independent of the scenes), which would rewrite the data
+model and the render core: the scene stays the backbone and tracks are added around it, in phases, all on one
+branch (`feature/studio-editor`, the member's choice):
+
+1. Tracks and tools on what exists (this entry): "Chữ", "Giọng", "Phụ đề" and "Nhạc" under the scenes, padlocks on
+   "Cảnh" and "Chữ" (each member's own, in the browser), and "Tách cảnh" at the playhead (S), which the api does as
+   `POST /scenes/{id}/split`: the rest of the scene becomes a silent scene with its own copy of the picture.
+2. Per-scene transitions, colour presets and clip speed in the render.
+3. Text and sticker layers with their own times and entrance effects.
+4. Sound effects and music sections.
+5. Comments at a second sent to the AI, and "AI tại mốc" (a picture or a line of text made for that second).
+
+Every look stays a named preset (2026-11-01: "never free colour or size sliders"); each effect is written twice,
+for FFmpeg and for the preview's CSS, and a phase that changes the render is done only when a person has watched a
+sample MP4. AIEV (github.com/notivn/AIEVv2, MIT) was read for reference: its colour presets (FFmpeg filter chains)
+and transition curves may be adapted with its notice kept; its Remotion engine (paid above 3 people) and its sound
+effects (no licence records) are not used. The drawer keeps its size (2026-11-05 above): a full-screen studio was
+considered and left to the owner.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

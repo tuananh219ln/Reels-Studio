@@ -5,6 +5,7 @@ import {
   PictureOutlined,
   PlusOutlined,
   RedoOutlined,
+  ScissorOutlined,
   SwapOutlined,
   UndoOutlined,
 } from "@ant-design/icons";
@@ -20,10 +21,14 @@ const TRANSITIONS = [
 
 /**
  * The small bar beside the phone while the preview stands still: undo and redo what was changed here, a new photo or
- * clip for the scene, the video's transition, a new scene after this one, and removing it (asked first).
+ * clip for the scene, the video's transition, splitting the scene at the playhead, a new scene after this one, and
+ * removing it (asked first). The scene's own buttons rest while the scenes' track is locked.
  */
 export default function PreviewToolbar({
   editable,
+  scenesLocked,
+  canSplit,
+  onSplit,
   isTitle,
   canUndo,
   canRedo,
@@ -38,6 +43,10 @@ export default function PreviewToolbar({
   onDelete,
 }: {
   editable: boolean;
+  scenesLocked: boolean;
+  /** The playhead stands at least a second inside a content scene. */
+  canSplit: boolean;
+  onSplit: () => void;
   isTitle: boolean;
   canUndo: boolean;
   canRedo: boolean;
@@ -52,6 +61,7 @@ export default function PreviewToolbar({
   onDelete: () => void;
 }) {
   const file = useRef<HTMLInputElement>(null);
+  const sceneEditable = editable && !scenesLocked;
   const button = (title: string, icon: React.ReactNode, onClick: () => void, disabled = false) => (
     <Tooltip title={title} placement="left">
       <Button aria-label={title} icon={icon} onClick={onClick} disabled={disabled || !editable} />
@@ -70,7 +80,7 @@ export default function PreviewToolbar({
         <Button
           aria-label="Đổi ảnh/video của cảnh"
           icon={<PictureOutlined />}
-          disabled={!editable}
+          disabled={!sceneEditable}
           onClick={() => file.current?.click()}
         />
       </Tooltip>
@@ -103,7 +113,13 @@ export default function PreviewToolbar({
           <Button aria-label="Chuyển cảnh" icon={<SwapOutlined />} disabled={!editable} />
         </Tooltip>
       </Popover>
-      {button("Thêm cảnh sau cảnh này", <PlusOutlined />, onAddAfter)}
+      {button(
+        isTitle ? "Cảnh tiêu đề không tách được" : "Tách cảnh tại đầu phát (S)",
+        <ScissorOutlined />,
+        onSplit,
+        scenesLocked || isTitle || !canSplit,
+      )}
+      {button("Thêm cảnh sau cảnh này", <PlusOutlined />, onAddAfter, scenesLocked)}
       <Popconfirm
         title="Xoá cảnh này?"
         description="Không hoàn tác được."
@@ -111,10 +127,10 @@ export default function PreviewToolbar({
         cancelText="Huỷ"
         okButtonProps={{ danger: true }}
         onConfirm={onDelete}
-        disabled={!editable || isTitle}
+        disabled={!sceneEditable || isTitle}
       >
-        <Tooltip title={isTitle ? "Cảnh tiêu đề không xoá được" : "Xoá cảnh"} placement="left">
-          <Button aria-label="Xoá cảnh" danger icon={<DeleteOutlined />} disabled={!editable || isTitle} />
+        <Tooltip title={isTitle ? "Cảnh tiêu đề không xoá được" : "Xoá cảnh (Delete)"} placement="left">
+          <Button aria-label="Xoá cảnh" danger icon={<DeleteOutlined />} disabled={!sceneEditable || isTitle} />
         </Tooltip>
       </Popconfirm>
     </Flex>

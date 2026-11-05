@@ -190,11 +190,22 @@ Built:
     under the app's right-hand buttons or caption is outlined in red with "Hộp chữ bị … che"; on a touch screen the
     box moves after a short hold, and a quick swipe across the phone changes scene. On the timeline a segment's
     right edge drags its seconds (1–10, by tenths; a double-click goes back to "Tự khớp lời đọc") and a content
-    scene's segment drags to a new place. A scene with a clip gets a trim bar under the phone: the window moves the
-    start, its ends set the start and the seconds, and the phone shows the frame being chosen. A toolbar beside the
-    phone has "Hoàn tác" / "Làm lại" (also Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) for these changes, a new photo or clip,
-    the video's "Chuyển cảnh", "Thêm cảnh sau cảnh này" and "Xoá cảnh" (asked first; neither of the last two can be
-    undone). Keys: Space plays or pauses, ← → change scene, [ ] take or add 0.1 s. The video plays inside a phone with the chosen app's own
+    scene's segment drags to a new place. Under the scenes' track the timeline has a track each for what plays with
+    them, named in a column at its left: "Chữ" (each scene's on-screen text across the scene), "Giọng" (the
+    narration from 0.2 s into its scene for the MP3's length; dashed, as "Giọng tạm", while only the browser's voice
+    reads it), "Phụ đề" (only when the video's captions are on; never on the title scene) and "Nhạc" (the music's
+    name across the video, only when it has music). A click on a block plays its scene (on "Nhạc", goes to that
+    second). The "Cảnh" and "Chữ" tracks have a padlock: a locked "Cảnh" track keeps the seconds' edges, the
+    reorder drag, the trim bar, [ ], "Tách cảnh", "Thêm cảnh" and "Xoá cảnh" out of reach; a locked "Chữ" track
+    keeps the text box from moving or being typed over. Locks are each member's own, per video, remembered in the
+    browser, and "Chỉnh cảnh N" says when one is on. A scene with a clip gets a trim bar under the phone: the
+    window moves the start, its ends set the start and the seconds, and the phone shows the frame being chosen. A
+    toolbar beside the phone has "Hoàn tác" / "Làm lại" (also Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y) for these changes, a
+    new photo or clip, the video's "Chuyển cảnh", "Tách cảnh tại đầu phát" (S; the scene ends at the playhead, at
+    least 1 s from either end, and the rest becomes a new silent scene without text showing the same photo or the
+    clip from where the first part stops; it can be undone), "Thêm cảnh sau cảnh này" and "Xoá cảnh" (Delete; asked
+    first; neither of the last two can be undone). Keys: Space plays or pauses, ← → change scene, [ ] take or add
+    0.1 s. The video plays inside a phone with the chosen app's own
     screen drawn over it, "Khung ứng
     dụng": Reels (the default), TikTok, Shorts or "Không". Each is laid out like the app (top bar,
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and

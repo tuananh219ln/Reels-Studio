@@ -531,6 +531,67 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(preview.getByRole("slider", { name: "Âm lượng nghe" })).toHaveAttribute("aria-valuenow", "50");
 });
 
+test("studio: tracks under the scenes, a locked track, and a scene split at the playhead then undone", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+
+  // The tracks under the scenes: each scene's text, and its narration, dashed while only the browser reads it.
+  const timeline = studio.getByTestId("preview-timeline");
+  const names = timeline.getByTestId("timeline-tracks");
+  await expect(names).toContainText("Cảnh");
+  await expect(names).toContainText("Chữ");
+  await expect(names).toContainText("Giọng");
+  await expect(timeline.getByTestId("lane-text")).toHaveCount(6);
+  await expect(timeline.getByTestId("lane-voice").first()).toHaveAttribute("aria-label", /^Giọng: Giọng tạm: /);
+  // A block of a track plays its scene.
+  await timeline.getByTestId("lane-text").nth(2).click();
+  await expect(studio.getByTestId("preview-scene")).toContainText("Cảnh 2");
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+
+  // Cảnh 1 made 4 seconds long, then the playhead 1.5 to 2 seconds into it.
+  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const seconds = studio.getByTestId("preview-scene-editor").getByLabel("Số giây của cảnh");
+  await seconds.fill("4");
+  await seconds.press("Enter");
+  await expect(timeline.getByRole("button", { name: "Xem Cảnh 1" })).toContainText("4s");
+  const titleLabel = await timeline.getByRole("button", { name: "Xem Cảnh tiêu đề" }).innerText();
+  const titleSeconds = Number(titleLabel.match(/([\d,]+)s/)![1].replace(",", "."));
+  const playhead = timeline.getByRole("slider", { name: "Đầu phát" });
+  await playhead.focus();
+  await page.keyboard.press("Home");
+  for (let step = 0; step < Math.ceil((titleSeconds + 1.5) / 0.5); step += 1) await page.keyboard.press("ArrowRight");
+  await expect(studio.getByTestId("preview-scene")).toContainText("Cảnh 1");
+
+  // Locked, the scenes' track keeps "Tách cảnh" and the seconds' edges out of reach.
+  const toolbar = studio.getByTestId("preview-toolbar");
+  const split = toolbar.getByRole("button", { name: "Tách cảnh tại đầu phát (S)" });
+  await expect(split).toBeEnabled();
+  await names.getByRole("button", { name: "Khoá tầng Cảnh" }).click();
+  await expect(split).toBeDisabled();
+  await expect(timeline.getByTestId("timeline-edge")).toHaveCount(0);
+  await expect(studio.getByTestId("preview-locked")).toBeVisible();
+  await names.getByRole("button", { name: "Mở khoá tầng Cảnh" }).click();
+  await expect(timeline.getByTestId("timeline-edge")).toHaveCount(6);
+
+  // S splits Cảnh 1 at the playhead: its rest becomes a new scene of the same picture, without text.
+  await playhead.focus();
+  await page.keyboard.press("s");
+  await expect(timeline.getByRole("button", { name: /^Xem Cảnh \d$/ })).toHaveCount(6);
+  await expect(timeline.getByTestId("lane-text")).toHaveCount(6);
+  await expect(page.getByTestId("scene")).toHaveCount(6);
+  // "Hoàn tác" puts the scene back whole.
+  await page.keyboard.press("Control+z");
+  await expect(timeline.getByRole("button", { name: /^Xem Cảnh \d$/ })).toHaveCount(5);
+  await expect(page.getByTestId("scene")).toHaveCount(5);
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);

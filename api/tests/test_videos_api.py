@@ -229,6 +229,45 @@ def test_add_delete_and_reorder_scenes_with_the_last_order_winning(an, binh, db,
     assert an.delete(f"/api/scenes/{title_id(db, video)}").status_code == 409
 
 
+def test_split_cuts_a_scene_at_a_second_into_two_with_their_own_photo(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=2)
+    a, b = scene_ids(db, video)
+    photo = db.scalar(select(Scene.image_key).where(Scene.id == a))
+
+    saved = an.post(f"/api/scenes/{a}/split", json={"at": 1.5})
+    assert saved.status_code == 200, saved.json()
+    first, second, last = saved.json()["scenes"]
+    assert (first["id"], last["id"]) == (a, b)
+    # The first part keeps the text and its narration; the part after is a silent scene of the same picture.
+    assert (first["seconds"], first["seconds_auto"], first["text"]) == (1.5, False, SCENE_TEXT)
+    assert (second["seconds"], second["seconds_auto"], second["text"], second["spoken_text"]) == (2.5, False, "", "")
+    assert second["has_image"] is True
+    new_photo = db.scalar(select(Scene.image_key).where(Scene.id == second["id"]))
+    assert new_photo != photo and storage.exists(new_photo) and storage.exists(photo)
+    assert an.delete(f"/api/scenes/{second['id']}").status_code == 200
+    assert storage.exists(photo), "deleting one part leaves the other's photo"
+
+    for at in (0.5, 3.6, "giữa"):
+        refused = an.post(f"/api/scenes/{a}/split", json={"at": at})
+        assert refused.status_code == 422, at
+    assert an.post(f"/api/scenes/{title_id(db, video)}/split", json={"at": 1.5}).status_code == 409
+
+
+@needs_ffmpeg
+def test_split_of_a_clip_starts_the_second_part_where_the_first_ends(an, db, me, storage, tmp_path):
+    video = make_video(db, storage, me, scene_count=1)
+    target = scene_ids(db, video)[0]
+    an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip_bytes(tmp_path, seconds=6))})
+    an.patch(f"/api/scenes/{target}", json={"video_start": 1, "video_speed": 0.5, "seconds": 4})
+
+    first, second = an.post(f"/api/scenes/{target}/split", json={"at": 1}).json()["scenes"]
+    assert (first["video"]["start"], first["seconds"]) == (1, 1)
+    # One second of the scene at half speed is half a second of the clip.
+    assert (second["video"]["start"], second["video"]["speed"], second["seconds"]) == (1.5, 0.5, 3)
+    keys = db.scalars(select(Scene.video_key).where(Scene.video_id == video.id, Scene.is_title.is_(False))).all()
+    assert len(set(keys)) == 2 and all(storage.exists(key) for key in keys)
+
+
 # --- Locking and jobs ---
 
 
@@ -256,6 +295,7 @@ def test_every_change_is_refused_while_a_job_is_queued_or_running(an, db, me, st
         an.patch(f"/api/videos/{video.id}", json={"caption": "x"}),
         an.post(f"/api/videos/{video.id}/scenes"),
         an.delete(f"/api/scenes/{first}"),
+        an.post(f"/api/scenes/{first}/split", json={"at": 2}),
         an.put(f"/api/videos/{video.id}/scene-order", json={"ids": [second, first]}),
         an.post(f"/api/scenes/{first}/image", files=photo),
         an.post(f"/api/scenes/{first}/find-image"),

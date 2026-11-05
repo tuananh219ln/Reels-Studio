@@ -1,10 +1,11 @@
 "use client";
 
-import { ZoomInOutlined, ZoomOutOutlined } from "@ant-design/icons";
+import { LockOutlined, UnlockOutlined, ZoomInOutlined, ZoomOutOutlined } from "@ant-design/icons";
 import { Button, Flex, Slider, Tooltip, Typography } from "antd";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { COLORS } from "@/app/theme";
 import type { SceneData } from "@/lib/api";
+import { type Lane, type LockableTrack, laneSpans } from "./tracks";
 
 const MIN = 1;
 const MAX = 10;
@@ -21,6 +22,18 @@ const STEPS = [1, 2, 5, 10, 15, 30, 60];
 const LABEL_PX = 56;
 const RULER = 22;
 const TRACK = 56;
+/** The thinner tracks under the scenes (text, narration, captions, music) and the gap between tracks. */
+const LANE = 24;
+const GAP = 4;
+/** The column of track names at the timeline's left. */
+const NAMES = 84;
+
+const LANE_LOOK: Record<Lane["key"], { background: string; color: string }> = {
+  text: { background: "#fde7c8", color: "#7c3d00" },
+  voice: { background: "#cfe3ff", color: "#0b3d91" },
+  captions: { background: "#fff3b0", color: "#5c4a00" },
+  music: { background: "#ddd5f7", color: "#3b2a7a" },
+};
 
 const tenth = (value: number) => Math.round(value * 10) / 10;
 const shown = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
@@ -36,17 +49,23 @@ export function clockLabel(value: number, tenths = false): string {
 }
 
 /**
- * The timeline under the phone, laid out like a video editor's: a ruler in seconds, one segment per scene as long as
- * it plays (with its picture repeated along it), a playhead that follows the preview and can be dragged or clicked to
- * any second, and a zoom from the whole video to a few seconds across. A click on a segment plays that scene. While
- * editing, a segment's right edge drags its seconds (double-click: back to its narration's length), and a content
- * scene's segment drags along the track to a new place.
+ * The studio's timeline under the phone, laid out like a video editor's: a ruler in seconds, the scenes' track (one
+ * segment per scene as long as it plays, its picture repeated along it), and under it the tracks of what plays with
+ * them: the on-screen text, the narration, the captions and the music. A playhead follows the preview and can be
+ * dragged or clicked to any second, and a zoom goes from the whole video to a few seconds across. A click on any
+ * block plays its scene. While editing, a segment's right edge drags its seconds (double-click: back to its
+ * narration's length), and a content scene's segment drags along the track to a new place. The scenes' and the
+ * text's tracks can be locked so a stray drag changes neither.
  */
 export default function PreviewTimeline({
   scenes,
   current,
   editable,
   label,
+  lanes,
+  musicName,
+  locks,
+  onLock,
   position,
   controls,
   onSeek,
@@ -57,8 +76,14 @@ export default function PreviewTimeline({
 }: {
   scenes: SceneData[];
   current: number;
+  /** The scenes' track can be changed (the page is in edit mode and the track is not locked). */
   editable: boolean;
   label: (index: number) => string;
+  /** The tracks under the scenes, in order (tracks.ts). */
+  lanes: Lane[];
+  musicName: string | null;
+  locks: Record<LockableTrack, boolean>;
+  onLock: (track: LockableTrack) => void;
   /** Where the preview is, in seconds from the video's start; read every frame for the playhead. */
   position: () => number;
   /** The play buttons, shown at the left of the timeline's header. */
@@ -100,6 +125,8 @@ export default function PreviewTimeline({
   const step = STEPS.find((value) => value * perSecond >= LABEL_PX) ?? 120;
   const ticks = Array.from({ length: Math.floor(total / step) + 1 }, (_, index) => index * step);
   const xOf = (seconds: number) => PAD + seconds * perSecond;
+  const lanesTop = RULER + 4 + TRACK + GAP;
+  const height = lanesTop + lanes.length * (LANE + GAP) + 6;
 
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -292,231 +319,317 @@ export default function PreviewTimeline({
           />
         </Flex>
       </Flex>
-      <div
-        ref={viewport}
-        data-testid="timeline-viewport"
-        style={{
-          overflowX: "auto",
-          overflowY: "hidden",
-          borderTop: `1px solid ${COLORS.border}`,
-          paddingBottom: 6,
-        }}
-      >
+      <Flex style={{ borderTop: `1px solid ${COLORS.border}`, minWidth: 0 }}>
+        {/* The tracks' names, with a lock on those a drag or a key can change. */}
         <div
-          ref={inner}
-          style={{ position: "relative", width: xOf(total) + PAD, height: RULER + TRACK + 10 }}
-          data-zoom={zoom}
+          data-testid="timeline-tracks"
+          style={{ flex: "none", width: NAMES, height, borderRight: `1px solid ${COLORS.border}` }}
         >
-          {/* The ruler: a press anywhere on it moves the playhead there, and dragging scrubs. */}
-          <div
-            data-testid="timeline-ruler"
-            onPointerDown={startScrub}
-            // Clipped, so the last label never widens the track past the video's end.
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: 0,
-              height: RULER,
-              cursor: "pointer",
-              overflow: "hidden",
-            }}
-          >
-            {ticks.map((at) => (
-              <span
-                key={at}
-                style={{
-                  position: "absolute",
-                  left: xOf(at),
-                  top: 0,
-                  height: RULER,
-                  borderLeft: `1px solid ${COLORS.border}`,
-                  paddingLeft: 4,
-                  fontSize: 11,
-                  lineHeight: `${RULER - 6}px`,
-                  color: COLORS.textSecondary,
-                  fontVariantNumeric: "tabular-nums",
-                  userSelect: "none",
-                  pointerEvents: "none",
-                }}
-              >
-                {clockLabel(at)}
-              </span>
-            ))}
-            {ticks
-              .filter((at) => at + step / 2 < total)
-              .map((at) => (
-                <span
-                  key={`half-${at}`}
-                  style={{
-                    position: "absolute",
-                    left: xOf(at + step / 2),
-                    bottom: 0,
-                    height: 5,
-                    borderLeft: `1px solid ${COLORS.border}`,
-                    pointerEvents: "none",
-                  }}
-                />
-              ))}
-          </div>
-          {scenes.map((item, index) => {
-            const picture = item.preview_url ?? item.frame_url;
-            const segmentWidth = Math.max(lengths[index] * perSecond - 2, 4);
-            return (
-              <div
-                key={item.id}
-                style={{
-                  position: "absolute",
-                  left: xOf(starts[index]) + 1,
-                  top: RULER + 4,
-                  width: segmentWidth,
-                  height: TRACK,
-                  opacity: moving?.index === index ? 0.4 : 1,
-                  boxShadow:
-                    moving && moving.to === index && moving.index !== index ? `-3px 0 0 ${COLORS.primary}` : undefined,
-                }}
-              >
-                <button
-                  type="button"
-                  aria-label={`Xem ${label(index)}`}
-                  aria-current={index === current ? "true" : undefined}
-                  onPointerDown={(event) => startPress(event, index)}
-                  onClick={() => {
-                    if (!dragged.current) onJump(index);
-                  }}
-                  style={{
-                    position: "relative",
-                    display: "block",
-                    width: "100%",
-                    height: "100%",
-                    padding: 0,
-                    border: 0,
-                    borderRadius: 6,
-                    cursor: editable && !item.is_title ? "grab" : "pointer",
-                    overflow: "hidden",
-                    // The scene's picture along it, as an editor's film strip.
-                    backgroundColor: "#3a3a3a",
-                    backgroundImage: picture ? `url("${picture}")` : undefined,
-                    backgroundSize: "auto 100%",
-                    backgroundRepeat: "repeat-x",
-                    outline: index === current ? `2px solid ${COLORS.brand}` : undefined,
-                    outlineOffset: -2,
-                    touchAction: "none",
-                  }}
-                >
-                  <span
-                    style={{
-                      position: "absolute",
-                      left: 4,
-                      top: 4,
-                      maxWidth: "calc(100% - 8px)",
-                      overflow: "hidden",
-                      whiteSpace: "nowrap",
-                      textOverflow: "ellipsis",
-                      padding: "1px 5px",
-                      borderRadius: 4,
-                      fontSize: 11,
-                      color: "#fff",
-                      background: "rgba(0, 0, 0, 0.55)",
-                    }}
-                  >
-                    {label(index)}, {shown(lengths[index])}s
-                  </span>
-                </button>
-                {editable && (
-                  <Tooltip
-                    open={resizing?.index === index ? true : undefined}
-                    title={
-                      resizing?.index === index
-                        ? `${shown(resizing.seconds)} giây`
-                        : `Kéo để đổi số giây (${shown(item.seconds)}), bấm đúp để khớp lời đọc`
-                    }
-                  >
-                    <span
-                      role="separator"
-                      aria-label={`Số giây ${label(index)}`}
-                      aria-valuenow={item.seconds}
-                      aria-valuemin={MIN}
-                      aria-valuemax={MAX}
-                      data-testid="timeline-edge"
-                      onPointerDown={(event) => startResize(event, index)}
-                      onDoubleClick={() => onFollowVoice(index)}
-                      style={{
-                        position: "absolute",
-                        right: -6,
-                        top: 0,
-                        width: 12,
-                        height: TRACK,
-                        cursor: "ew-resize",
-                        touchAction: "none",
-                        zIndex: 1,
-                        display: "flex",
-                        justifyContent: "center",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 4,
-                          height: 24,
-                          background: "#fff",
-                          borderRadius: 2,
-                          boxShadow: "0 0 0 1px #0004",
-                        }}
-                      />
-                    </span>
-                  </Tooltip>
-                )}
-              </div>
-            );
-          })}
-          {/* The playhead: a line over the ruler and the track, dragged by its handle or moved with the arrow keys. */}
-          <div
-            ref={head}
-            role="slider"
-            tabIndex={0}
-            aria-label="Đầu phát"
-            aria-valuemin={0}
-            aria-valuemax={tenth(total)}
-            aria-valuenow={0}
-            data-testid="timeline-playhead"
-            onPointerDown={startScrub}
-            onKeyDown={(event) => {
-              const by = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
-              const to = event.key === "Home" ? 0 : event.key === "End" ? total : null;
-              if (!by && to === null) return;
-              event.preventDefault();
-              event.stopPropagation();
-              onSeek(to ?? Math.min(total, Math.max(0, position() + by * (event.shiftKey ? 1 : 0.5))));
-            }}
-            style={{
-              position: "absolute",
-              left: -7,
-              top: 0,
-              width: 14,
-              height: RULER + TRACK + 8,
-              cursor: "ew-resize",
-              touchAction: "none",
-              zIndex: 2,
-              transform: `translateX(${PAD}px)`,
-              outline: "none",
-            }}
-          >
-            <span
+          <div style={{ height: RULER + 4 }} />
+          <TrackName name="Cảnh" height={TRACK} locked={locks.scene} onLock={() => onLock("scene")} />
+          {lanes.map((lane) => (
+            <div key={lane.key} style={{ marginTop: GAP }}>
+              <TrackName
+                name={lane.name}
+                height={LANE}
+                locked={lane.key === "text" ? locks.text : undefined}
+                onLock={lane.key === "text" ? () => onLock("text") : undefined}
+              />
+            </div>
+          ))}
+        </div>
+        <div
+          ref={viewport}
+          data-testid="timeline-viewport"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflowX: "auto",
+            overflowY: "hidden",
+            paddingBottom: 6,
+          }}
+        >
+          <div ref={inner} style={{ position: "relative", width: xOf(total) + PAD, height }} data-zoom={zoom}>
+            {/* The ruler: a press anywhere on it moves the playhead there, and dragging scrubs. */}
+            <div
+              data-testid="timeline-ruler"
+              onPointerDown={startScrub}
+              // Clipped, so the last label never widens the track past the video's end.
               style={{
                 position: "absolute",
-                left: 1,
+                left: 0,
+                right: 0,
                 top: 0,
-                width: 12,
-                height: 14,
-                borderRadius: "3px 3px 6px 6px",
-                background: COLORS.text,
+                height: RULER,
+                cursor: "pointer",
+                overflow: "hidden",
               }}
-            />
-            <span style={{ position: "absolute", left: 6, top: 10, bottom: 0, width: 2, background: COLORS.text }} />
+            >
+              {ticks.map((at) => (
+                <span
+                  key={at}
+                  style={{
+                    position: "absolute",
+                    left: xOf(at),
+                    top: 0,
+                    height: RULER,
+                    borderLeft: `1px solid ${COLORS.border}`,
+                    paddingLeft: 4,
+                    fontSize: 11,
+                    lineHeight: `${RULER - 6}px`,
+                    color: COLORS.textSecondary,
+                    fontVariantNumeric: "tabular-nums",
+                    userSelect: "none",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {clockLabel(at)}
+                </span>
+              ))}
+              {ticks
+                .filter((at) => at + step / 2 < total)
+                .map((at) => (
+                  <span
+                    key={`half-${at}`}
+                    style={{
+                      position: "absolute",
+                      left: xOf(at + step / 2),
+                      bottom: 0,
+                      height: 5,
+                      borderLeft: `1px solid ${COLORS.border}`,
+                      pointerEvents: "none",
+                    }}
+                  />
+                ))}
+            </div>
+            {scenes.map((item, index) => {
+              const picture = item.preview_url ?? item.frame_url;
+              const segmentWidth = Math.max(lengths[index] * perSecond - 2, 4);
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    position: "absolute",
+                    left: xOf(starts[index]) + 1,
+                    top: RULER + 4,
+                    width: segmentWidth,
+                    height: TRACK,
+                    opacity: moving?.index === index ? 0.4 : 1,
+                    boxShadow:
+                      moving && moving.to === index && moving.index !== index
+                        ? `-3px 0 0 ${COLORS.primary}`
+                        : undefined,
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-label={`Xem ${label(index)}`}
+                    aria-current={index === current ? "true" : undefined}
+                    onPointerDown={(event) => startPress(event, index)}
+                    onClick={() => {
+                      if (!dragged.current) onJump(index);
+                    }}
+                    style={{
+                      position: "relative",
+                      display: "block",
+                      width: "100%",
+                      height: "100%",
+                      padding: 0,
+                      border: 0,
+                      borderRadius: 6,
+                      cursor: editable && !item.is_title ? "grab" : "pointer",
+                      overflow: "hidden",
+                      // The scene's picture along it, as an editor's film strip.
+                      backgroundColor: "#3a3a3a",
+                      backgroundImage: picture ? `url("${picture}")` : undefined,
+                      backgroundSize: "auto 100%",
+                      backgroundRepeat: "repeat-x",
+                      outline: index === current ? `2px solid ${COLORS.brand}` : undefined,
+                      outlineOffset: -2,
+                      touchAction: "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: 4,
+                        top: 4,
+                        maxWidth: "calc(100% - 8px)",
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                        padding: "1px 5px",
+                        borderRadius: 4,
+                        fontSize: 11,
+                        color: "#fff",
+                        background: "rgba(0, 0, 0, 0.55)",
+                      }}
+                    >
+                      {label(index)}, {shown(lengths[index])}s
+                    </span>
+                  </button>
+                  {editable && (
+                    <Tooltip
+                      open={resizing?.index === index ? true : undefined}
+                      title={
+                        resizing?.index === index
+                          ? `${shown(resizing.seconds)} giây`
+                          : `Kéo để đổi số giây (${shown(item.seconds)}), bấm đúp để khớp lời đọc`
+                      }
+                    >
+                      <span
+                        role="separator"
+                        aria-label={`Số giây ${label(index)}`}
+                        aria-valuenow={item.seconds}
+                        aria-valuemin={MIN}
+                        aria-valuemax={MAX}
+                        data-testid="timeline-edge"
+                        onPointerDown={(event) => startResize(event, index)}
+                        onDoubleClick={() => onFollowVoice(index)}
+                        style={{
+                          position: "absolute",
+                          right: -6,
+                          top: 0,
+                          width: 12,
+                          height: TRACK,
+                          cursor: "ew-resize",
+                          touchAction: "none",
+                          zIndex: 1,
+                          display: "flex",
+                          justifyContent: "center",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: 4,
+                            height: 24,
+                            background: "#fff",
+                            borderRadius: 2,
+                            boxShadow: "0 0 0 1px #0004",
+                          }}
+                        />
+                      </span>
+                    </Tooltip>
+                  )}
+                </div>
+              );
+            })}
+            {lanes.map((lane, row) =>
+              laneSpans(lane.key, scenes, starts, lengths, musicName).map((span) => (
+                <button
+                  key={`${lane.key}-${span.index ?? "all"}`}
+                  type="button"
+                  data-testid={`lane-${lane.key}`}
+                  title={span.label}
+                  aria-label={`${lane.name}: ${span.label}`}
+                  onClick={(event) => (span.index !== null ? onJump(span.index) : onSeek(secondAt(event.clientX)))}
+                  style={{
+                    position: "absolute",
+                    left: xOf(span.start) + 1,
+                    top: lanesTop + row * (LANE + GAP),
+                    width: Math.max(span.length * perSecond - 2, 4),
+                    height: LANE,
+                    padding: "0 6px",
+                    border: span.tentative ? `1px dashed ${LANE_LOOK[lane.key].color}` : 0,
+                    borderRadius: 4,
+                    background: LANE_LOOK[lane.key].background,
+                    color: LANE_LOOK[lane.key].color,
+                    opacity: span.index !== null && span.index !== current ? 0.75 : 1,
+                    fontSize: 11,
+                    lineHeight: `${LANE - 2}px`,
+                    textAlign: "left",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    cursor: "pointer",
+                  }}
+                >
+                  {span.label}
+                </button>
+              )),
+            )}
+            {/* The playhead: a line over the ruler and every track, dragged by its handle or moved with the arrow keys. */}
+            <div
+              ref={head}
+              role="slider"
+              tabIndex={0}
+              aria-label="Đầu phát"
+              aria-valuemin={0}
+              aria-valuemax={tenth(total)}
+              aria-valuenow={0}
+              data-testid="timeline-playhead"
+              onPointerDown={startScrub}
+              onKeyDown={(event) => {
+                const by = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+                const to = event.key === "Home" ? 0 : event.key === "End" ? total : null;
+                if (!by && to === null) return;
+                event.preventDefault();
+                event.stopPropagation();
+                onSeek(to ?? Math.min(total, Math.max(0, position() + by * (event.shiftKey ? 1 : 0.5))));
+              }}
+              style={{
+                position: "absolute",
+                left: -7,
+                top: 0,
+                width: 14,
+                height: height - 2,
+                cursor: "ew-resize",
+                touchAction: "none",
+                zIndex: 2,
+                transform: `translateX(${PAD}px)`,
+                outline: "none",
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  left: 1,
+                  top: 0,
+                  width: 12,
+                  height: 14,
+                  borderRadius: "3px 3px 6px 6px",
+                  background: COLORS.text,
+                }}
+              />
+              <span style={{ position: "absolute", left: 6, top: 10, bottom: 0, width: 2, background: COLORS.text }} />
+            </div>
           </div>
         </div>
-      </div>
+      </Flex>
+    </Flex>
+  );
+}
+
+/** A track's name at the timeline's left, with its lock when the track has one. */
+function TrackName({
+  name,
+  height,
+  locked,
+  onLock,
+}: {
+  name: string;
+  height: number;
+  locked?: boolean;
+  onLock?: () => void;
+}) {
+  return (
+    <Flex align="center" justify="space-between" gap={2} style={{ height, paddingLeft: 8, paddingRight: 2 }}>
+      <Typography.Text style={{ fontSize: 12 }} type={locked ? "secondary" : undefined}>
+        {name}
+      </Typography.Text>
+      {onLock && (
+        <Tooltip title={locked ? `Mở khoá tầng ${name}` : `Khoá tầng ${name}: không kéo, sửa hay xoá được`}>
+          <Button
+            type="text"
+            size="small"
+            aria-label={locked ? `Mở khoá tầng ${name}` : `Khoá tầng ${name}`}
+            aria-pressed={locked}
+            icon={locked ? <LockOutlined /> : <UnlockOutlined />}
+            onClick={onLock}
+          />
+        </Tooltip>
+      )}
     </Flex>
   );
 }

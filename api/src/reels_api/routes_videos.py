@@ -162,6 +162,10 @@ class SceneOrderBody(BaseModel):
     ids: list[int]
 
 
+class SplitBody(BaseModel):
+    at: float  # seconds into the scene where the second part begins
+
+
 def invalid(message: str) -> ApiError:
     return ApiError(422, "invalid_value", message)
 
@@ -749,6 +753,55 @@ def reorder_scenes(
     ordered += [scene for scene in scenes if scene not in ordered]
     for position, scene in enumerate(ordered, start=1):
         scene.position = position
+    return _saved(db, video)
+
+
+@router.post("/scenes/{scene_id}/split")
+def split_scene(
+    scene_id: int,
+    body: SplitBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Tách cảnh" in the studio: the scene ends at `at` and a new scene right after it shows the rest of the same
+    photo or clip, as its own file, silent and without text. The first part keeps the text and the narration."""
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    if scene.is_title:
+        raise ApiError(409, "title_scene", "Không tách được cảnh tiêu đề")
+    latest = round(scene.seconds - MIN_SECONDS, 2)
+    if not math.isfinite(body.at) or not MIN_SECONDS <= body.at <= latest:
+        raise invalid(f"Chỉ tách được từ giây {MIN_SECONDS:g} đến {max(latest, MIN_SECONDS):g} của cảnh")
+    at = round(body.at, 2)
+    later = db.scalars(
+        select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False), Scene.position > scene.position)
+    ).all()
+    for other in later:
+        other.position += 1
+    rest = Scene(
+        video_id=video.id,
+        is_title=False,
+        position=scene.position + 1,
+        text="",
+        seconds=round(scene.seconds - at, 2),
+        seconds_auto=False,
+        keywords=list(scene.keywords),
+        keywords_en=list(scene.keywords_en),
+        image_prompt=scene.image_prompt,
+        image_source=scene.image_source,
+    )
+    db.add(rest)
+    db.flush()
+    if scene.video_key:
+        rest.video_key = new_key(video.id, f"clip-{rest.id}", Path(scene.video_key).suffix.lstrip("."))
+        storage.save_file(rest.video_key, storage.path(scene.video_key))
+        rest.video_seconds, rest.video_speed = scene.video_seconds, scene.video_speed
+        rest.video_start = round(scene.video_start + at * scene.video_speed, 2)
+    elif scene.image_key:
+        rest.image_key = new_key(video.id, f"scene-{rest.id}", Path(scene.image_key).suffix.lstrip("."))
+        storage.save_file(rest.image_key, storage.path(scene.image_key))
+    scene.seconds, scene.seconds_auto = at, False
     return _saved(db, video)
 
 

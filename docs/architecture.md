@@ -147,6 +147,12 @@ A scene may hold an uploaded video clip instead of a photo
 - **Trim:** the editor's "Cắt video" dialog picks a start, an end and a speed on the clip and saves
   `video_start`, `video_speed` and `seconds` in one `PATCH /scenes/{id}`, with the seconds the part
   divided by the speed, less its crossfades; the api checks them as for typed values.
+- **Split:** "Tách cảnh" in the preview calls `POST /scenes/{id}/split` with `at`, seconds into a content scene
+  (1 s to `seconds` − 1 s; the title scene is refused). The scene keeps its text, voice text and narration and
+  lasts `at` seconds; a new scene right after it (the later scenes move down one place) lasts the rest, with no
+  text or voice text (so it is silent), the same keywords and image prompt, and its own copy of the photo or clip:
+  a clip keeps its speed and starts `at` × speed later. Both parts have "Tự khớp lời đọc" off. Undoing it deletes
+  the new scene and puts the first part's seconds back.
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.
