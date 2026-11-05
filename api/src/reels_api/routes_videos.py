@@ -438,8 +438,10 @@ def write_script(video_id: int, me: Session = Depends(current_member), db: DbSes
     video = lock_video(db, video_id)
     if video.has_script:
         raise ApiError(409, "script_exists", "Video đã có kịch bản")
-    # A cancelled clone draft reruns the clone with the snapshot and change request it was made with.
-    _enqueue(db, video, "clone" if video.clone_source else "script", me)
+    # A cancelled clone draft reruns the clone with the snapshot and change request it was made with; a video made
+    # from a sample video writes from it again, and in the way "review" this is how the edited analysis is written.
+    kind = "learn" if video.reference_mode else ("clone" if video.clone_source else "script")
+    _enqueue(db, video, kind, me)
     return _saved(db, video)
 
 
@@ -1812,6 +1814,9 @@ class TopicPatchBody(BaseModel):
     revise_prompt: str | None = None  # "" goes back to the default
     banned_words: list[str] | None = None
     photo_hint: str | None = None
+    # "Từ video mẫu": empty brings back the default prompt.
+    learn_prompt: str | None = None
+    analyze_prompt: str | None = None
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -1829,12 +1834,16 @@ def _knowledge_payload(db: DbSession) -> dict:
                 "revise_prompt": topic.revise_prompt,
                 "banned_words": topic.banned_words,
                 "photo_hint": topic.photo_hint,
+                "learn_prompt": topic.learn_prompt,
+                "analyze_prompt": topic.analyze_prompt,
                 "video_count": counts.get(topic.id, 0),
             }
             for topic in knowledge.all_topics(db)
         ],
         "default_script_prompt": knowledge.default_script_prompt(),
         "default_clone_prompt": knowledge.default_clone_prompt(),
+        "default_learn_prompt": knowledge.default_learn_prompt(),
+        "default_analyze_prompt": knowledge.default_analyze_prompt(),
         "default_revise_prompt": knowledge.default_revise_prompt(),
     }
 
@@ -1854,6 +1863,14 @@ def _prompt(raw: str) -> str:
     value = unicodedata.normalize("NFC", raw.replace("\r\n", "\n")).strip()
     if not value:
         raise invalid("Prompt không được để trống")
+    if len(value) > 20000:
+        raise invalid("Prompt dài quá 20000 ký tự")
+    return value
+
+
+def _optional_prompt(raw: str) -> str:
+    """A prompt that may be left empty, for its default to be used."""
+    value = unicodedata.normalize("NFC", raw.replace("\r\n", "\n")).strip()
     if len(value) > 20000:
         raise invalid("Prompt dài quá 20000 ký tự")
     return value
@@ -1900,6 +1917,10 @@ def patch_topic(
         if len(hint) > MAX_PHOTO_HINT_LENGTH:
             raise invalid(f"Gợi ý tìm ảnh dài quá {MAX_PHOTO_HINT_LENGTH} ký tự")
         topic.photo_hint = hint
+    if body.learn_prompt is not None:
+        topic.learn_prompt = _optional_prompt(body.learn_prompt)
+    if body.analyze_prompt is not None:
+        topic.analyze_prompt = _optional_prompt(body.analyze_prompt)
     topic.updated_by_id = me.user_id
     db.commit()
     return _knowledge_payload(db)
