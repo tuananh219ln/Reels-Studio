@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.layers import Layer, render_layer
 
+from . import video_options
 from .claude import ClaudeError, fill_placeholders
 from .models import Scene, SceneLayer, Video, VideoNote
 from .script_rules import text_problem
@@ -169,7 +170,7 @@ def apply(db: DbSession, scenes: list[Scene], revision: Revision) -> list[str]:
         name = "cảnh tiêu đề" if scene.is_title else f"cảnh {number}"
         text, voice = item.get("text"), item.get("voice")
         if isinstance(text, str):
-            problem = text_problem(text.strip(), scene.is_title)
+            problem = text_problem(text.strip(), scene.is_title, video_options.text_size(scene.video, scene.is_title))
             if problem or len(text) > 500:
                 skipped.append(f"chữ {name}: {problem or 'dài quá'}")
             else:

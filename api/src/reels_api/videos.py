@@ -38,7 +38,7 @@ from .script_rules import Checks, SceneInput, check_script, plain_title, text_pr
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
-from .video_options import effective, look_signature, preview_look, render_options, voice_id, voice_speed
+from .video_options import effective, look_signature, preview_look, render_options, text_size, voice_id, voice_speed
 
 STATUS_LABELS = {
     "draft": "Nháp",
@@ -330,6 +330,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             clip_seconds,
             bool(scene.keywords or scene.keywords_en),
             scene.video_speed,
+            text_size(video, scene.is_title),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -500,6 +501,7 @@ def _version(*parts: object) -> str:
 
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
+    size = text_size(video, scene.is_title)
     voice_seconds = made_voice_seconds(video, scene)
     style = preview_look(video, scene.is_title)
     position = text_position(video, scene)
@@ -551,10 +553,10 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start)}" if still else None,
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
-            if scene.text.strip() and text_problem(scene.text, scene.is_title) is None
+            if scene.text.strip() and text_problem(scene.text, scene.is_title, size) is None
             else None
         ),
-        "text_problem": text_problem(scene.text, scene.is_title),
+        "text_problem": text_problem(scene.text, scene.is_title, size),
         "transition": scene.transition,
         "color": scene.color,
         "layers": [layer_payload(layer) for layer in scene.layers],

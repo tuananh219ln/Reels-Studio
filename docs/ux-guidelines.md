@@ -686,6 +686,12 @@ relied on (samples in the PR that added them).
 - **Transition:** Mờ dần (the 0.4 s crossfade above), Cắt thẳng (hard cut; each scene is exactly its
   seconds), Trượt (the next scene slides in from the right over 0.4 s). The total length is the
   same for all three.
+- **Cỡ chữ** (`text_size` for the content scenes, `title_text_size` for the title; on "Thiết lập" › Chữ and on
+  Cấu hình › Thiết lập mặc định): Lớn (the original template: the largest font that fits, the title 96 down to
+  64 px in at most 5 lines, a scene 84 down to 60 px in 3), Vừa or Nhỏ. Vừa and Nhỏ start from the font Lớn would
+  choose ×0,82 and ×0,68, never below 54 / 44 px for the title and 50 / 42 px for a scene, and shrink further only
+  to fit, so they are smaller even for a long title, and a text too long for Lớn may fit at a smaller size (the
+  "Chữ tràn hộp" check follows the size chosen). Requested by members: a long title filled half the screen.
 - **A scene's own effects** ([reels_render/effects.py](../worker/src/reels_render/effects.py)), set in the
   studio's "Chỉnh cảnh N › Hiệu ứng", content scenes only (the title opens the video and is its cover):
   the transition into the scene, one of Mờ dần, Cắt thẳng, Trượt sang trái, Trượt lên, Quét ngang, Phóng

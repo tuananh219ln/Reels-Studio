@@ -378,6 +378,9 @@ export type VideoOptions = {
   title_accent_color: string;
   title_box_opacity: VideoOptions["box_opacity"];
   captions: "off" | "phrase" | "word";
+  /** The text box's size ("Cỡ chữ"): the content scenes' and the title's; "large" is the original template. */
+  text_size: "large" | "medium" | "small";
+  title_text_size: "large" | "medium" | "small";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
 };

@@ -69,6 +69,11 @@ one for every new video (none by default, so nothing changes until a member choo
 option when making a video with AI. All three use the same named presets and the same apply, and stay changeable
 by hand in the studio.
 
+"Cỡ chữ" (Lớn, Vừa, Nhỏ) for the scenes' and the title's text box, from members' feedback that a long title filled
+the screen. A preset, as sizes stay presets (2026-11-01). Vừa and Nhỏ scale the font Lớn would pick rather than only
+lowering its maximum, since Lớn already shrinks long text and a lower maximum alone changed nothing there. Lớn stays
+the default, so existing videos and their MP4s are unchanged until a member picks another size.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

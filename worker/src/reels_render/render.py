@@ -17,12 +17,10 @@ from .textbox import (
     CAPTION_GAP,
     FRAME_WIDTH,
     SCENE_BOX_BOTTOM,
-    SCENE_STYLE,
-    TITLE_STYLE,
     TextFitError,
     caption_y,
     empty_box,
-    layout_text,
+    layout_sized,
     place_box,
     render_box,
     render_caption,
@@ -62,8 +60,8 @@ def render_video(
     layouts = []
     for index, scene in enumerate(script.all_scenes):
         try:
-            style = TITLE_STYLE if index == 0 else SCENE_STYLE
-            layouts.append(layout_text(scene.lines, style) if scene.lines else None)
+            size = options.title_text_size if index == 0 else options.text_size
+            layouts.append(layout_sized(scene.lines, size, is_title=index == 0) if scene.lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     # A scene with narration is lengthened to fit it; its seconds are the minimum.

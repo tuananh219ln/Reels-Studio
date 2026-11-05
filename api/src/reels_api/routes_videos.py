@@ -1724,9 +1724,11 @@ def scene_frame(
 def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> Response:
     """The exact box image the renderer overlays on this scene (transparent around it)."""
     scene = _scene(db, scene_id)
-    if not scene.text.strip() or text_problem(scene.text, scene.is_title) is not None:
+    video = db.get(Video, scene.video_id)
+    size = video_options.text_size(video, scene.is_title)
+    if not scene.text.strip() or text_problem(scene.text, scene.is_title, size) is not None:
         raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
-    box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(db.get(Video, scene.video_id)))
+    box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(video))
     buffer = io.BytesIO()
     box.save(buffer, "PNG")
     return Response(buffer.getvalue(), media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})

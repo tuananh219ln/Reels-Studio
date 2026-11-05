@@ -2041,6 +2041,23 @@ test("text settings from an api without the colour options still open, on Theo k
   await expect(text.getByRole("radio", { name: "Đánh dấu Theo kiểu" })).toHaveAttribute("aria-checked", "true");
 });
 
+test("text size: a smaller size on Thiết lập redraws the scenes' previews, the title on its own", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  const scenePreview = page.getByTestId("scene").first().getByTestId("scene-preview");
+  const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const [sceneBefore, titleBefore] = [await scenePreview.getAttribute("src"), await titlePreview.getAttribute("src")];
+  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  const text = page.getByTestId("text-settings");
+  await text.getByLabel("Cỡ chữ", { exact: true }).getByText("Nhỏ", { exact: true }).click();
+  await expect(scenePreview).not.toHaveAttribute("src", sceneBefore ?? "");
+
+  await text.getByText("Tiêu đề", { exact: true }).click();
+  await text.getByLabel("Cỡ chữ tiêu đề", { exact: true }).getByText("Vừa", { exact: true }).click();
+  await expect(titlePreview).not.toHaveAttribute("src", titleBefore ?? "");
+});
+
 /** A dialog's box once its zoom-in has finished, so what is measured or dragged is where it stays. */
 async function settledBox(page: Page, locator: ReturnType<Page["locator"]>) {
   await expect(page.locator('.ant-modal[class*="zoom"]')).toHaveCount(0);
