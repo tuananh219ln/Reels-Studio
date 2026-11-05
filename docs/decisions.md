@@ -25,6 +25,27 @@ keywords were written as for food, so a gardening scene found cooked dishes.
 - **"Đã dùng trong nhóm"** copies a photo or clip another video of the same group uses into a scene. A copy, not a
   shared file, so deleting either video never breaks the other; a photo keeps its source for a copyright claim.
   Limited to the same group: groups are separate channels' material.
+## 2026-11-05 — A Shopee product from an ordinary shop can be approved
+
+Asked by the owner (namtc07): good seed products from "Shop thường" could not be approved. Replaces, for Shopee only,
+the shop type rule of "Products per platform" (2026-11-03) and "Affiliate products are approved by fixed rules"
+(2026-10-31): any shop type passes. At least 4.7 stars, 100 sales, no banned word and a commission not expired still
+apply, and Shopee Mall still ranks first among equal money per order. TikTok Shop's proposed shop rule is unchanged.
+Search suggestions now include ordinary shops meeting the other rules.
+
+## 2026-11-05 — An affiliate link can be pasted on the video, with or without an App ID
+
+Asked by namtc07 while the team's Shopee App ID waits for Shopee's approval: getting one product meant downloading
+Shopee Affiliate's "Lấy link hàng loạt" file and importing it. Changes one point of "Shopee products are added by
+their link or Shopee Affiliate's file" (2026-11-05, below): pasting without an App ID was refused there.
+
+- **"Dán link aff" on the video** (`POST /api/affiliate-products/videos/{id}/links`): each Shopee link becomes a
+  product of the video's topic group (one already listed, by its link or item id, is reused) and is listed under
+  "Sản phẩm gợi ý từ Shopee" as "Link đã dán", where "Chọn" approves and attaches it as for a search result. A new
+  search keeps these rows (`affiliate_suggestions.keyword` = "Link đã dán", no migration).
+- **Without an App ID in the team** the draft holds only the link; "Sửa thông tin" opens the product form on the
+  video to fill in name, shop, type, stars, sales, price and commission. With one, the worker reads it as before.
+- The "Thêm sản phẩm" drawer on /affiliate is unchanged: it still asks for an App ID and points to the file.
 
 ## 2026-11-05 — CI takes FFmpeg and Playwright's libraries without the apt mirror; every job has a timeout
 

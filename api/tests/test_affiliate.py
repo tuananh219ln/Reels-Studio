@@ -167,7 +167,6 @@ def test_banned_words_come_from_the_products_own_topic_group(an, db):
 @pytest.mark.parametrize(
     "fields, reason",
     [
-        ({"shop_type": "other"}, "Shop phải là"),
         ({"rating": 4.6}, "dưới 4.7 sao"),
         ({"sold": 99}, "dưới 100"),
         ({"name": "Trà đặc trị mất ngủ"}, "đặc trị"),
@@ -179,6 +178,12 @@ def test_a_product_below_the_bar_cannot_be_approved(an, db, fields, reason):
     refused = an.post(f"{URL}/{product['id']}/approve")
     assert refused.status_code == 409 and reason in refused.json()["message"]
     assert an.get(URL).json()[0]["status"] == "draft"
+
+
+def test_a_shopee_product_from_an_ordinary_shop_can_be_approved(an, db):
+    product = add(an, db, shop_type="other")
+    assert product["problems"] == []
+    assert an.post(f"{URL}/{product['id']}/approve").json()["status"] == "approved"
 
 
 def test_saving_an_approved_product_unchanged_keeps_its_approval(an, db):
@@ -219,6 +224,26 @@ def test_unapprove_and_delete(an, db):
     assert an.delete(f"{URL}/{product['id']}").json() == {"ok": True}
     assert an.get(URL).json() == []
     assert an.delete(f"{URL}/{product['id']}").status_code == 404
+
+
+def test_several_products_are_approved_at_once_and_those_below_the_bar_stay_drafts(an, db):
+    good, low = add(an, db, name="Nồi hầm"), add(an, db, name="Sữa hạt", rating=4.2)
+    already = add_approved(an, db, name="Vừng đen")
+    ids = [good["id"], low["id"], already["id"]]
+    assert an.post(f"{URL}/approve", json={"product_ids": ids}).json() == {"approved": 1, "skipped": 1}
+    statuses = {row["name"]: row["status"] for row in an.get(URL).json()}
+    assert statuses == {"Nồi hầm": "approved", "Sữa hạt": "draft", "Vừng đen": "approved"}
+    assert an.post(f"{URL}/approve", json={"product_ids": []}).status_code == 422
+
+
+def test_several_products_are_deleted_at_once_and_one_already_gone_is_passed_over(an, db):
+    first, second = add(an, db, name="Nồi hầm"), add_approved(an, db, name="Sữa hạt")
+    kept = add(an, db, name="Vừng đen")
+    an.delete(f"{URL}/{second['id']}")
+    response = an.post(f"{URL}/delete", json={"product_ids": [first["id"], second["id"]]})
+    assert response.json() == {"deleted": 1}
+    assert [row["id"] for row in an.get(URL).json()] == [kept["id"]]
+    assert an.post(f"{URL}/delete", json={"product_ids": []}).status_code == 422
 
 
 def csv_rows(an, query="") -> list[list[str]]:

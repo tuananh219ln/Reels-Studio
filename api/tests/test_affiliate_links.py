@@ -1,12 +1,13 @@
 """Adding Shopee products by their link or by Shopee Affiliate's "Lấy link hàng loạt" file: the worker reads the rest."""
 
 import pytest
-from conftest import client_for, first_topic, login, make_user
+from conftest import client_for, first_topic, login, make_user, make_video
 from fake_services import SHOPEE_APP_ID, SHOPEE_SECRET, shopee_offer
 from sqlalchemy import select
 
 from reels_api import affiliate_rounds, shopee
 from reels_api.models import AffiliateProduct
+from reels_api.sessions import now
 
 PRODUCTS = "/api/affiliate-products"
 SHORT = "https://s.shopee.vn/4LKghKN3cR"
@@ -170,6 +171,67 @@ def test_a_product_without_an_affiliate_offer_says_so(an, db, fakes):
     paste(an, db, "https://shopee.vn/product/1/42")
     run_lookups(db)
     assert "không có hoa hồng" in only_product(an)["lookup_error"]
+
+
+# Pasting links on a video ("Dán link aff")
+
+
+def paste_on(an, video, *links: str):
+    return an.post(f"{PRODUCTS}/videos/{video.id}/links", json={"links": list(links)})
+
+
+def test_without_an_app_id_a_link_pasted_on_a_video_is_a_draft_holding_only_the_link(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=1)
+    response = paste_on(an, video, f"  {SHORT}  ")
+    assert response.status_code == 200, response.text
+    pasted = next(group for group in response.json()["keywords"] if group["pasted"])
+    (row,) = pasted["products"]
+    assert (row["url"], row["status"], row["lookup"]) == (SHORT, "draft", None)
+    assert row["knowledge_topic_id"] == first_topic(db).id
+    assert row["problems"], "the rest is filled in by hand before it can be chosen"
+    chosen = an.post(f"{PRODUCTS}/videos/{video.id}/choose", json={"product_id": row["id"]})
+    assert chosen.status_code == 409
+
+
+def test_with_an_app_id_a_link_pasted_on_a_video_is_read_by_the_worker_and_can_be_chosen(an, db, me, storage, fakes):
+    with_shopee_account(an)
+    video = make_video(db, storage, me, scene_count=1)
+    fakes.shopee_short_links["4LKghKN3cR"] = REDIRECT
+    fakes.shopee_items[45113237093] = shopee_offer(45113237093, "Hạt giống rau muống", sales=2500)
+    (row,) = next(group for group in paste_on(an, video, SHORT).json()["keywords"] if group["pasted"])["products"]
+    assert row["lookup"] == "pending"
+    run_lookups(db)
+    chosen = an.post(f"{PRODUCTS}/videos/{video.id}/choose", json={"product_id": row["id"]}).json()
+    assert chosen["attached_ids"] == [row["id"]]
+
+
+def test_a_link_already_listed_is_reused_and_pasting_twice_lists_it_once(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=1)
+    import_file(an, db, FILE_HEADER + FILE_ROW)
+    paste_on(an, video, SHORT)
+    groups = paste_on(an, video, SHORT, "https://shopee.vn/product/1346703635/45113237093").json()["keywords"]
+    (pasted,) = [group for group in groups if group["pasted"]]
+    assert [row["name"] for row in pasted["products"]] == ["Combo 3 Gói Hạt Giống Rau Ăn Lá (Rau Muống, Mồng Tơi)"]
+    assert len(an.get(PRODUCTS).json()) == 1
+
+
+def test_a_new_search_keeps_the_pasted_links(an, db, me, storage, fakes):
+    with_shopee_account(an)
+    video = make_video(db, storage, me, scene_count=1)
+    paste_on(an, video, "https://shopee.vn/product/1/42")
+    video.suggest_requested_at, video.suggest_by_id = now(), me.id
+    db.commit()
+    affiliate_rounds.suggest(db, video)
+    groups = an.get(f"{PRODUCTS}/videos/{video.id}/suggestions").json()["keywords"]
+    assert [group["keyword"] for group in groups if group["pasted"]] == [affiliate_rounds.PASTED]
+    assert any(not group["pasted"] for group in groups)
+
+
+@pytest.mark.parametrize("link", ["https://lazada.vn/products/abc", "javascript:alert(1)"])
+def test_only_shopee_links_are_pasted_on_a_video(an, db, me, storage, link):
+    video = make_video(db, storage, me, scene_count=1)
+    assert paste_on(an, video, link).status_code == 422
+    assert an.get(PRODUCTS).json() == []
 
 
 # Importing Shopee Affiliate's file

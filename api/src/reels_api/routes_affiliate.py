@@ -90,6 +90,14 @@ class ChooseBody(BaseModel):
     product_id: int
 
 
+class ProductIdsBody(BaseModel):
+    product_ids: list[int]
+
+
+class VideoLinksBody(BaseModel):
+    links: list[str]
+
+
 def _text(value: str, label: str, limit: int) -> str:
     value = " ".join(unicodedata.normalize("NFC", value).split())
     if not value:
@@ -406,7 +414,10 @@ def _suggestions(db: DbSession, video: Video) -> dict:
         "state": "pending" if video.suggest_requested_at else ("failed" if video.suggest_error else "idle"),
         "error": video.suggest_error,
         "at": video.suggested_at.isoformat() if video.suggested_at else None,
-        "keywords": [{"keyword": keyword, "products": products} for keyword, products in keywords.items()],
+        "keywords": [
+            {"keyword": keyword, "products": products, "pasted": keyword == affiliate_rounds.PASTED}
+            for keyword, products in keywords.items()
+        ],
         "attached_ids": [product.id for product in affiliate.products_of(db, video.id)],
     }
 
@@ -459,6 +470,42 @@ def choose_suggestion(
         ):
             if is_published(post):
                 post.comment_requested_at = now()
+    db.commit()
+    return _suggestions(db, video)
+
+
+@router.post("/videos/{video_id}/links")
+def paste_video_links(
+    video_id: int, body: VideoLinksBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Dán link aff" on the video: each Shopee link becomes a product of the video's topic group, listed with the
+    video's suggestions for "Chọn". With a Shopee account with App ID in the team the worker reads the rest; without
+    one, the draft holds only the link and a member fills in the rest by hand. The request never calls Shopee."""
+    video = _video(db, video_id)
+    if video.platform != "facebook":
+        raise invalid("Chỉ video Facebook mới gắn sản phẩm Shopee; video TikTok gắn giỏ TikTok Shop trong app TikTok")
+    if video.knowledge_topic_id is None:
+        raise invalid("Video chưa thuộc nhóm chủ đề nào, hãy thêm sản phẩm ở trang Affiliate")
+    topic = _topic(db, video.knowledge_topic_id)
+    links = _shopee_links(body.links)
+    ask = affiliate_rounds.team_account(db, me.user_id) is not None
+    products = [product for product, _ in _from_links(db, topic, links, me.user_id, ask).values()]
+    listed = set(
+        db.scalars(
+            select(AffiliateSuggestion.product_id).where(
+                AffiliateSuggestion.video_id == video.id, AffiliateSuggestion.keyword == affiliate_rounds.PASTED
+            )
+        )
+    )
+    rank = len(listed)
+    for product in dict.fromkeys(products):
+        if product.id not in listed:
+            rank += 1
+            db.add(
+                AffiliateSuggestion(
+                    video_id=video.id, keyword=affiliate_rounds.PASTED, product_id=product.id, rank=rank
+                )
+            )
     db.commit()
     return _suggestions(db, video)
 
@@ -559,7 +606,21 @@ def add_links(body: LinksBody, me: Session = Depends(current_member), db: DbSess
     """ "Thêm sản phẩm": a member pastes Shopee links and the worker reads each product within seconds (name, shop,
     stars, sales, price, commission); the request itself never calls Shopee."""
     topic = _topic(db, body.knowledge_topic_id)
-    links = list(dict.fromkeys(link.strip() for link in body.links if link.strip()))
+    links = _shopee_links(body.links)
+    if affiliate_rounds.team_account(db, me.user_id) is None:
+        raise invalid(NO_SHOPEE_ACCOUNT)
+    added, skipped = 0, []
+    for link, (_, new) in _from_links(db, topic, links, me.user_id, ask=True).items():
+        if new:
+            added += 1
+        else:
+            skipped.append(link)
+    db.commit()
+    return {"added": added, "skipped": skipped}
+
+
+def _shopee_links(raw: list[str]) -> list[str]:
+    links = list(dict.fromkeys(link.strip() for link in raw if link.strip()))
     if not links:
         raise invalid("Dán ít nhất một link sản phẩm Shopee")
     if len(links) > MAX_LINKS:
@@ -567,14 +628,29 @@ def add_links(body: LinksBody, me: Session = Depends(current_member), db: DbSess
     for link in links:
         if not shopee.is_shopee_link(_url(link)):
             raise invalid(f"Không phải link Shopee: {link[:80]}")
-    if affiliate_rounds.team_account(db, me.user_id) is None:
-        raise invalid(NO_SHOPEE_ACCOUNT)
+    return links
+
+
+def _from_links(
+    db: DbSession, topic: KnowledgeTopic, links: list[str], user_id: int, ask: bool
+) -> dict[str, tuple[AffiliateProduct, bool]]:
+    """The product of each link: the one already listed (False), else a new draft named by its link (True), which the
+    worker reads when `ask`; without, a member fills it in by hand."""
     items = {link: shopee.item_id_of(link) for link in links}
-    known_items, known_links = _known(db, {item for item in items.values() if item}, set(links))
-    added, skipped = 0, []
+    known_items, _ = _known(db, {item for item in items.values() if item}, set())
+    by_link = {
+        link: row
+        for row in db.scalars(
+            select(AffiliateProduct).where(or_(AffiliateProduct.url.in_(links), AffiliateProduct.page_url.in_(links)))
+        )
+        for link in (row.url, row.page_url)
+        if link
+    }
+    found: dict[str, tuple[AffiliateProduct, bool]] = {}
     for link, item_id in items.items():
-        if link in known_links or (item_id and item_id in known_items):
-            skipped.append(link)
+        known = by_link.get(link) or (known_items.get(item_id) if item_id else None)
+        if known is not None:
+            found[link] = (known, False)
             continue
         product = AffiliateProduct(
             knowledge_topic_id=topic.id,
@@ -591,15 +667,15 @@ def add_links(body: LinksBody, me: Session = Depends(current_member), db: DbSess
             sold=0,
             price=0,
             commission_rate=0,
-            created_by_id=me.user_id,
+            created_by_id=user_id,
         )
-        _waiting(product, me.user_id, ask=True)
+        _waiting(product, user_id, ask)
         db.add(product)
         if item_id:
             known_items[item_id] = product
-        added += 1
-    db.commit()
-    return {"added": added, "skipped": skipped}
+        found[link] = (product, True)
+    db.flush()
+    return found
 
 
 @router.post("/import", status_code=201)
@@ -725,6 +801,48 @@ def unapprove_product(product_id: int, me: Session = Depends(current_member), db
     db.commit()
     db.refresh(product)
     return _payload(product)
+
+
+@router.post("/approve")
+def approve_products(
+    body: ProductIdsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Duyệt" several products at once, ticked in the list: those meeting the rules are approved, the others (and
+    those Shopee is still being read for) stay drafts and are counted; one already approved is left as it is."""
+    ids = set(body.product_ids)
+    if not ids:
+        raise invalid("Chọn ít nhất một sản phẩm để duyệt")
+    if len(ids) > MAX_IMPORT_ROWS:
+        raise invalid(f"Mỗi lần duyệt tối đa {MAX_IMPORT_ROWS} sản phẩm")
+    approved = skipped = 0
+    at = datetime.now(UTC)
+    for product in db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(ids))):
+        if product.status == "approved":
+            continue
+        if product.lookup_requested_at is not None or affiliate.problems(product):
+            skipped += 1
+            continue
+        product.status, product.checked_at, product.checked_by_id = "approved", at, me.user_id
+        approved += 1
+    db.commit()
+    return {"approved": approved, "skipped": skipped}
+
+
+@router.post("/delete")
+def delete_products(
+    body: ProductIdsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Xoá" several products at once, ticked in the list; one already gone is passed over."""
+    ids = set(body.product_ids)
+    if not ids:
+        raise invalid("Chọn ít nhất một sản phẩm để xoá")
+    if len(ids) > MAX_IMPORT_ROWS:
+        raise invalid(f"Mỗi lần xoá tối đa {MAX_IMPORT_ROWS} sản phẩm")
+    products = list(db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(ids))))
+    for product in products:
+        db.delete(product)
+    db.commit()
+    return {"deleted": len(products)}
 
 
 @router.delete("/{product_id}")

@@ -113,8 +113,17 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
   await uploadPhotos(page);
+  const bar = page.getByTestId("render-bar");
+  await expect(bar.getByTestId("render-bar-summary")).toContainText("5 cảnh");
+  await expect(bar.getByTestId("render-bar-summary")).toContainText("chưa có MP4");
   await page.getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+  // The bar says the render is on its way, wherever the member has scrolled, and when it is done.
+  await expect(bar.getByTestId("render-bar-job")).toBeVisible();
+  await expect(page.getByText("Đã render xong MP4")).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Xong");
+  await expect(bar.getByTestId("render-bar-job")).toHaveCount(0);
+  await expect(bar).toContainText("MP4 đã theo bản mới nhất.");
+  await expect(bar.getByRole("button", { name: "Render lại" })).toBeEnabled();
 
   await openPublish(page);
   await page.getByRole("radio", { name: "Hẹn giờ" }).click();
@@ -148,6 +157,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   // "Xong" saves the field being typed in, then locks the page again.
   await page.getByRole("button", { name: "Xong" }).click();
   await expect(page.getByText("MP4 chưa cập nhật theo bản sửa")).toBeVisible();
+  await expect(bar.getByTestId("render-bar-outdated")).toBeVisible();
   await expect(page.getByRole("button", { name: "Chỉnh sửa" })).toBeVisible();
   await expect(text).toHaveAttribute("readonly", "");
   await expect(text).toHaveValue("Sữa chua\nThêm *đạm*");
@@ -736,6 +746,12 @@ test("a posted reel takes an approved product and its link goes in the pinned co
   await expect(page.getByText("Đã bỏ duyệt: Trà sen")).toBeVisible();
   await chooseOption(page, page.getByLabel("Lọc theo nền tảng"), "TikTok");
   await expect(page.getByText("Không có video nào khớp")).toBeVisible();
+
+  // By product: the videos it is attached to, and the count beside its name.
+  await chooseOption(page, page.getByLabel("Lọc theo nền tảng"), "Facebook");
+  await chooseOption(page, page.getByLabel("Lọc theo sản phẩm", { exact: true }), "Vừng đen rang (1 video)");
+  await expect(page.getByText("Đã bỏ duyệt: Trà sen")).toBeVisible();
+  await expect(linked.getByText("Tất cả (1)")).toBeVisible();
 });
 
 /** Gives the title and every content scene a photo, as a member does after the script is written. */

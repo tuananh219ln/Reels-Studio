@@ -545,7 +545,8 @@ export type AffiliateSuggestions = {
   state: "idle" | "pending" | "failed";
   error: string | null;
   at: string | null;
-  keywords: { keyword: string; products: AffiliateProduct[] }[];
+  /** `pasted`: the links a member pasted on the video ("Dán link aff"), kept when a new search replaces the rest. */
+  keywords: { keyword: string; products: AffiliateProduct[]; pasted: boolean }[];
   attached_ids: number[];
 };
 
