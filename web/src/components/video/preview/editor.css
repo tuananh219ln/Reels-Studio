@@ -1,0 +1,132 @@
+/* "Xem trước" laid out like a video editor: the tools on the left, their panel beside them, the phone in the middle and
+   the timeline along the bottom. On a narrow screen they stack: phone, timeline, tools, panel. Colours are the app's
+   theme (src/app/theme.ts). */
+.preview-editor {
+  display: grid;
+  flex: 1;
+  grid-template-columns: 76px minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "rail panel stage"
+    "timeline timeline timeline";
+  width: 100%;
+  min-height: 0;
+}
+
+.preview-editor__rail {
+  grid-area: rail;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 6px;
+  border-right: 1px solid #e7e8ea;
+}
+
+.preview-editor__tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #5f6670;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.preview-editor__tool .anticon {
+  font-size: 20px;
+}
+
+.preview-editor__tool:hover {
+  background: #f6f6f7;
+}
+
+.preview-editor__tool[aria-selected="true"] {
+  background: #eeeff1;
+  color: #c2410c;
+}
+
+.preview-editor__tool:focus-visible {
+  outline: 2px solid #c2410c;
+  outline-offset: -2px;
+}
+
+.preview-editor__panel {
+  grid-area: panel;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  border-right: 1px solid #e7e8ea;
+}
+
+.preview-editor__stage {
+  grid-area: stage;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 0;
+  overflow: auto;
+  padding: 16px;
+  background: #f6f6f7;
+}
+
+.preview-editor__timeline {
+  grid-area: timeline;
+  min-width: 0;
+  padding: 8px 16px 4px;
+  border-top: 1px solid #e7e8ea;
+}
+
+/* Keep 900px in step with STACKED in VideoPreview.tsx. */
+@media (max-width: 900px) {
+  .preview-editor {
+    /* As tall as its content: the drawer's body scrolls instead of squeezing the rows. */
+    flex: none;
+    align-self: flex-start;
+    min-height: auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    grid-template-areas:
+      "stage"
+      "timeline"
+      "rail"
+      "panel";
+  }
+
+  .preview-editor__rail {
+    flex-direction: row;
+    padding: 6px 12px;
+    border-right: 0;
+    border-top: 1px solid #e7e8ea;
+    border-bottom: 1px solid #e7e8ea;
+  }
+
+  .preview-editor__tool {
+    flex-direction: row;
+    gap: 6px;
+    padding: 6px 10px;
+  }
+
+  .preview-editor__tool .anticon {
+    font-size: 16px;
+  }
+
+  .preview-editor__panel {
+    min-height: auto;
+    overflow: visible;
+    border-right: 0;
+  }
+
+  .preview-editor__stage {
+    min-height: auto;
+    overflow: visible;
+  }
+}

@@ -163,8 +163,11 @@ Built:
     counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
     on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
   - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
-    play the video in the browser before any render, in a drawer from the right (the page stays
-    in sight beside it): each scene for its seconds (lengthened to fit its narration), the frame
+    play the video in the browser before any render, in a drawer from the right that leaves a strip
+    of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
+    the scene list and "Chỉnh cảnh N"; "Khung": the app frame and the safe zone; "Giọng đọc"), its
+    panel beside it, the phone in the middle on grey and the timeline along the bottom (on a screen
+    under 900 px they stack: phone, timeline, tools, panel). It plays each scene for its seconds (lengthened to fit its narration), the frame
     without text moving like the video's motion setting with the exact text box on top where the
     render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
     the music from where that scene falls in the video (lowered while narration plays when ducking
@@ -198,10 +201,17 @@ Built:
     hashtags on one line, the music's name, the navigation bar; Shorts' red progress line), with
     generic icons and the video's Page as the channel, so the member sees what each app covers.
     The choice is remembered in the browser. A switch adds the template's safe zone as a yellow
-    dashed box. Under the phone a timeline has one segment per scene, as long as the scene, the
-    current one filling as it plays; a click jumps there. Beside it, the scene list (name, text,
-    seconds) also jumps. Buttons: previous scene, "Tạm dừng" / "Tiếp tục" ("Xem lại" at the end),
-    next scene, back to the start. A note says it is close to the MP4 but not the MP4 (captions and the audio mix come
+    dashed box. The timeline has a ruler in whole seconds ("00:07"), one segment per scene as long
+    as the scene with its picture repeated along it and "Cảnh N, Xs" on it (the current one
+    outlined), and a playhead that follows the preview. A click on a segment plays that scene; a
+    press or drag on the ruler or the playhead goes to that second and pauses there (← → on the
+    focused playhead move 0.5 s, 1 s with Shift; Home and End go to the ends), and "Tiếp tục" plays
+    on from there: the clip, the motion, the music and an ElevenLabs narration from that point, the
+    browser's voice only from a scene's start (it cannot start mid-sentence). Its header holds the
+    buttons (back to the start, previous scene, "Tạm dừng" / "Tiếp tục" ("Xem lại" at the end),
+    next scene, the listening volume), the time ("00:01,5 / 00:08,0") and a zoom (1× fits the whole
+    video, up to 8×; the track then scrolls and follows the playhead while playing). The scene list
+    under "Cảnh" (name, text, seconds) also jumps. A note says it is close to the MP4 but not the MP4 (captions and the audio mix come
     only with a render). It is available in view mode too;
   - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
     viết bởi …"); edit the title scene and every content scene (text with `*word*` in
@@ -331,7 +341,8 @@ Built:
     products picker shows only the video's platform's products;
   - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
     new video is tagged "TikTok" (on the list it sits on its source's card, see above) and both pages link
-    to each other. A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
+    to each other: "Bản TikTok: …" on the Facebook video, "Bản Facebook gốc: …" on the TikTok version (the two
+    usually share a title, so the label says where the link goes). A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
     copy buttons, the cart's products, a checklist, and "Đã đăng tay" (one of the member's TikTok
     accounts and the post's link), with the recorded posts below;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp

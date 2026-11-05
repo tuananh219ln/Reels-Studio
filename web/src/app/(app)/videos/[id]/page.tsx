@@ -354,7 +354,8 @@ export default function VideoPage() {
             <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="variants">
               {video.variant_of && (
                 <>
-                  Bản TikTok của{" "}
+                  {/* The link goes to the Facebook video this TikTok version was made from; both share a title. */}
+                  Bản Facebook gốc:{" "}
                   <Link prefetch={false} href={`/videos/${video.variant_of.id}`}>
                     {video.variant_of.title}
                   </Link>
