@@ -118,9 +118,13 @@ Built:
   with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
-  as a small player beside its length, with the listening volume under it, "Tải MP4" and "Đăng", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
+  as a small player beside its length, with the listening volume under it, "Tải MP4", "Đăng" and "Thêm vào hàng chờ", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
   đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
+  "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
+  ("Page của tôi cho nhóm “…”" by default, or any Page in use) and "Tự bình luận"; once queued, the button
+  becomes "Trong hàng chờ của “Page”" (linking to Quản lý Page), with the reason when it could not be
+  scheduled and "Bỏ khỏi hàng chờ"; it comes back once the worker has scheduled the post.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
   counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
   one when clicked, opening the scene that holds it. While a job runs, the bar says which one with
@@ -439,9 +443,10 @@ Built:
   accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
   link), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá"; "Thêm tài khoản"
   is in the tab's header.
-- **Kết nối Fanpage**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
+- **Quản lý Page**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
-  này". A Page is not handed to another member from the app.
+  này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
+  group and posting times and reorders its queue; others read them as a line.
 - **Đăng bài**, a menu group. Nothing is posted or approved here: a member reviews and posts a
   video from "Đăng" on its page; "Bài đăng" only retries a failed post.
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or
@@ -522,7 +527,8 @@ Built:
   Each row: the video title with its kind and job number under it, a status tag with an icon, who
   started it, start with the duration under it, AI call count with the model that wrote a script
   ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
-- **Cài đặt**, a menu group, last in the sidebar, with two pages: **Cấu hình** and **Kết nối Fanpage**.
+- **Cài đặt**, a menu group, last in the sidebar, with one page: **Cấu hình** (Pages moved out to
+  **Quản lý Page**, its own menu item under "Video", since a Page's queue is daily work).
   Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with four tabs, each
   its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all four.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
@@ -560,13 +566,19 @@ Built:
     side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
     model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
-  - **Kết nối Fanpage** (`/fanpages`, the group's second page, not a tab): a line of counts (đang
+  - **Quản lý Page** (`/fanpages`, its own menu item under "Video", outside Cài đặt): a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid
     that fits as many cards of at least 320 px as the width allows. A card shows the Page's initial,
     its name linking to the Page on Facebook, its id and the token's last four characters, and a tag:
     "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line
     pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers
     in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
+    under the owner line, "Đăng theo lịch": the topic group the Page posts and its posting times (tags
+    such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
+    line saying whose times they are and the free times in the next 48 hours, then "Hàng chờ (N)":
+    each waiting video's number, cover, title (opening the video), who added it and when, the reason
+    in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ khỏi hàng
+    chờ", confirmed); an empty queue says how to add one;
     then a footer line with when it was last checked and two icon buttons, "Số liệu 30 ngày" (a
     dialog with the numbers day by day) and "Kiểm tra ngay". Opening the page checks by itself the
     Pages not checked in 15 minutes. The "⋯" menu has

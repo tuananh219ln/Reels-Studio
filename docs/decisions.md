@@ -28,6 +28,10 @@ reel and a later edit would not reach it. A video that cannot go stays in the qu
 Only the Page's owner sets its group and times and reorders its queue, as for its Shopee account (2026-11-03).
 The queue is moved with "Lên"/"Xuống" rather than dragging.
 
+Everything about a Page sits on its card: "Kết nối Fanpage" becomes **"Quản lý Page"**, its own menu item under
+"Video", out of the Cài đặt group, on the member's choice over a separate "Hàng chờ" page. This is the "Quản lý Page"
+menu the 2026-11-03 entry on token checks kept for when there was more to show; its address stays `/fanpages`.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)

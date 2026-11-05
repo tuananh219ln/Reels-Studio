@@ -305,7 +305,7 @@ Planned:
     timer, and a later re-render never changes what was scheduled. Facebook then publishes by itself,
     so the app counts a scheduled post as published once its time has passed. Changing the time is
     done in Meta Business Suite.
-  - **The Page queues ("Hàng chờ").** Once a minute, beside the post checks, the worker's `page_queue.fill` gives
+  - **The Page queues** (each Page's card on "Quản lý Page", and "Thêm vào hàng chờ" on the video). Once a minute, beside the post checks, the worker's `page_queue.fill` gives
     each Page in use whose last token check worked, and whose queue is not empty, at most one post: the first
     video of its queue that can go is given the Page's next free posting time (its own `post_times`, else its
     group's) between 30 minutes and 48 hours ahead. A time is free when no open post of the Page is within 30
@@ -418,7 +418,7 @@ Planned:
     followers (on the Page and as that day's `fanpage_followers` row); it never changes
     `updated_at`, which is a member's change. A failed check waits like any other, never looping.
     "Kiểm tra ngay", `POST /api/fanpages/{id}/check`, only sets `check_requested_at` (422 for a
-    stopped Page); opening "Kết nối Fanpage" calls `POST /api/fanpages/freshen`, which asks it for every Page in use
+    stopped Page); opening "Quản lý Page" calls `POST /api/fanpages/freshen`, which asks it for every Page in use
     checked over 15 minutes ago and not asked yet, and opening "Bình luận" calls `POST /api/comments/freshen`, which
     makes every followed reel read over 15 minutes ago due. `GET /api/fanpages` gives each Page `check` (`checked_at`, `error`, `pending`,
     `followers`, and `followers_this_week`, counted from the last number before this week's Monday,

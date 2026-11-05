@@ -28,7 +28,7 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await expect(page.getByText("Shopee nhận App ID và Secret này")).toBeVisible();
 
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Kết nối Fanpage" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await expect(owner).toContainText("Thuộc: bạn");
   await chooseOption(page, owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh"), "Shopee: Shopee của An");

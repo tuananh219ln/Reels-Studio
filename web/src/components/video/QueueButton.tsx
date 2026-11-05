@@ -60,11 +60,10 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
     return (
       <Flex align="center" gap={8} wrap data-testid="video-queue">
         <Typography.Text>
-          Trong{" "}
-          <Link prefetch={false} href="/queue">
-            hàng chờ
-          </Link>{" "}
-          của “{item.fanpage}”
+          Trong hàng chờ của{" "}
+          <Link prefetch={false} href="/fanpages">
+            “{item.fanpage}”
+          </Link>
         </Typography.Text>
         {item.error && <Typography.Text type="warning">{item.error}</Typography.Text>}
         <Popconfirm title="Bỏ video khỏi hàng chờ?" okText="Bỏ" cancelText="Không" onConfirm={() => remove(item)}>
@@ -120,8 +119,8 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
           </Checkbox>
           <Typography.Text type="secondary">
             Khung giờ của mỗi Page đặt ở{" "}
-            <Link prefetch={false} href="/queue">
-              Hàng chờ
+            <Link prefetch={false} href="/fanpages">
+              Quản lý Page
             </Link>
             .
           </Typography.Text>

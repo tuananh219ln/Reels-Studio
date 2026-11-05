@@ -12,7 +12,6 @@ import {
   MenuOutlined,
   EditOutlined,
   FacebookOutlined,
-  FieldTimeOutlined,
   NotificationOutlined,
   PlaySquareOutlined,
   SettingOutlined,
@@ -36,13 +35,13 @@ const SETTINGS_GROUP = "group:settings";
 
 const NAV = [
   { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
+  { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý Page" },
   {
     key: POST_GROUP,
     icon: <NotificationOutlined />,
     label: "Đăng bài",
     children: [
       { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
-      { key: "/queue", icon: <FieldTimeOutlined />, label: "Hàng chờ" },
       { key: "/comments", icon: <CommentOutlined />, label: "Bình luận" },
     ],
   },
@@ -58,7 +57,6 @@ const NAV = [
     children: [
       // One page with tabs: Thiết lập mặc định, Mô hình AI, Nguồn tư liệu (settings/layout.tsx).
       { key: "/settings", icon: <ControlOutlined />, label: "Cấu hình" },
-      { key: "/fanpages", icon: <FacebookOutlined />, label: "Kết nối Fanpage" },
       { key: "/chatgpt", icon: <ApiOutlined />, label: "Kết nối ChatGPT" },
     ],
   },

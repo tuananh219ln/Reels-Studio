@@ -106,7 +106,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
           <Typography.Text>
             Chưa có Fanpage nào đang dùng. Vào{" "}
             <Link prefetch={false} href="/fanpages">
-              Kết nối Fanpage
+              Quản lý Page
             </Link>{" "}
             để thêm.
           </Typography.Text>

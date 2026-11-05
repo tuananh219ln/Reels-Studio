@@ -37,13 +37,17 @@ import {
   type Fanpage,
   type FanpageChoice,
   type FanpageDay,
+  type QueueOverview,
 } from "@/lib/api";
+import PageQueueSection from "@/components/PageQueueSection";
+import { usePolling } from "@/lib/polling";
 import PageHeader from "@/components/PageHeader";
 import { COLORS } from "@/app/theme";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import FormDrawer from "@/components/FormDrawer";
 import StatusText from "@/components/StatusText";
 
+const QUEUE_REFRESH_MS = 30_000;
 const number = (value: number) => value.toLocaleString("vi-VN");
 const count = (value: number | null) => (value === null ? "—" : number(value));
 const pageUrl = (row: Fanpage) => `https://www.facebook.com/${row.page_id}`;
@@ -157,20 +161,26 @@ function OwnerLine({
   );
 }
 
-/** A Page in use, compact: who it is, whether its token works, its numbers, and what a member can do with it. */
+/** A Page in use, compact: who it is, whether its token works, its numbers, how it posts on a schedule, and what a
+ * member can do with it. */
 function PageCard({
   row,
   accounts,
+  queue,
   onRows,
+  onQueue,
   onDays,
   onToken,
 }: {
   row: Fanpage;
   accounts: AffiliateAccount[];
+  queue: QueueOverview | null;
   onRows: (rows: Fanpage[]) => void;
+  onQueue: (overview: QueueOverview) => void;
   onDays: (row: Fanpage) => void;
   onToken: (row: Fanpage) => void;
 }) {
+  const scheduled = queue?.pages.find((page) => page.id === row.id);
   const { message, modal } = App.useApp();
   const { check, insights } = row;
   const week = insights.last_7_days;
@@ -257,6 +267,7 @@ function PageCard({
         </Typography.Text>
       )}
       <OwnerLine row={row} accounts={accounts} onRows={onRows} />
+      {queue && scheduled && <PageQueueSection page={scheduled} overview={queue} onChanged={onQueue} />}
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
@@ -556,6 +567,7 @@ export default function FanpagesPage() {
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
   const [days, setDays] = useState<Fanpage | null>(null);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
+  const [queue, setQueue] = useState<QueueOverview | null>(null);
 
   useEffect(() => {
     // Without them a Page shows its owner but offers no account to choose.
@@ -574,6 +586,13 @@ export default function FanpagesPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
   }, [load]);
+  // The queues change as the worker schedules their videos: read them again now and then.
+  const loadQueue = useCallback(() => api<QueueOverview>("/queue").then(setQueue, () => undefined), []);
+  useEffect(() => {
+    void loadQueue();
+  }, [loadQueue, rows]);
+  usePolling(loadQueue, QUEUE_REFRESH_MS);
+
   // Pages not checked lately are checked again on opening, without pressing "Kiểm tra ngay" on each.
   useFreshenOnOpen("/fanpages/freshen", load);
 
@@ -592,7 +611,7 @@ export default function FanpagesPage() {
   return (
     <>
       <PageHeader
-        title="Kết nối Fanpage"
+        title="Quản lý Page"
         actions={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
             Thêm Fanpage
@@ -638,7 +657,9 @@ export default function FanpagesPage() {
                 key={row.id}
                 row={row}
                 accounts={accounts}
+                queue={queue}
                 onRows={setRows}
+                onQueue={setQueue}
                 onDays={setDays}
                 onToken={setReplacing}
               />

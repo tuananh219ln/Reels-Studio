@@ -10,9 +10,9 @@ test.beforeEach(() => resetDatabase());
 /** "Sức khỏe" is the topic group the migrations make; its default posting times start at 07:00. */
 const GROUP = "Sức khỏe";
 
-async function openQueue(page: Page) {
-  await page.getByRole("menuitem", { name: "Hàng chờ" }).click();
-  return page.getByTestId("queue-page").filter({ hasText: "Trang Dưỡng Sinh" });
+async function openPage(page: Page) {
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  return page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" }).getByTestId("page-queue");
 }
 
 async function renderedVideo(page: Page) {
@@ -46,10 +46,10 @@ async function renderedVideo(page: Page) {
   await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
 }
 
-test("a Page's owner gives it a topic group and its own posting times on Hàng chờ", async ({ page }) => {
+test("a Page's owner gives it a topic group and its own posting times on Quản lý Page", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
-  const card = await openQueue(page);
+  const card = await openPage(page);
   await expect(card).toContainText("Chưa có giờ đăng: hãy gắn nhóm chủ đề hoặc nhập giờ riêng.");
   await expect(card).toContainText("Hàng chờ trống.");
 
@@ -75,7 +75,7 @@ test("a rendered video added to its Page's queue is scheduled there by the worke
   test.setTimeout(300_000);
   await loginAsSeed(page);
   await connectFacebook(page);
-  const card = await openQueue(page);
+  const card = await openPage(page);
   await chooseOption(page, card.getByLabel("Nhóm chủ đề của Trang Dưỡng Sinh"), GROUP);
   await expect(card).toContainText("Theo giờ đăng của nhóm chủ đề (giờ Việt Nam).");
   await page.getByRole("menuitem", { name: "Video" }).click();
@@ -93,6 +93,6 @@ test("a rendered video added to its Page's queue is scheduled there by the worke
   await expect(page.getByTestId("video-queue")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "unordered-list Thêm vào hàng chờ" })).toBeVisible();
 
-  const after = await openQueue(page);
+  const after = await openPage(page);
   await expect(after).toContainText("Hàng chờ trống.");
 });
