@@ -93,7 +93,7 @@ export type VideoRowPost = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "render" | "publish" | "unpublish" | "check" | "image" | "photos" | "voice";
+  kind: "script" | "clone" | "render" | "publish" | "unpublish" | "check" | "image" | "photos" | "voice" | "revise";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";
@@ -132,6 +132,21 @@ export type SceneSound = {
   volume: string;
   /** The sound as the render makes it. */
   url: string;
+};
+
+/** A member's comment at a second of the video ("Góp ý"), sent to the AI with "Nhờ AI sửa". */
+export type VideoNote = {
+  id: number;
+  /** Seconds from the video's start. */
+  at: number;
+  /** The scene playing at that second now. */
+  scene_id: number | null;
+  text: string;
+  /** open: not sent yet; sent: waiting for the AI; done: answered. */
+  status: "open" | "sent" | "done";
+  reply: string;
+  created_by: string;
+  created_at: string;
 };
 
 export type SceneData = {
@@ -215,6 +230,7 @@ export type VideoDetail = VideoRow & {
   music_volume: number;
   /** Where in the song the music starts, in seconds. */
   music_start: number;
+  notes: VideoNote[];
   voice_enabled: boolean;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
@@ -270,6 +286,8 @@ export type KnowledgeTopic = {
   name: string;
   script_prompt: string;
   clone_prompt: string;
+  /** "Prompt sửa theo góp ý"; "" uses the default. */
+  revise_prompt: string;
   banned_words: string[];
   /** "Gợi ý tìm ảnh": what the group's photos show, added to the script prompts for the search keywords. */
   photo_hint: string;
@@ -396,6 +414,7 @@ export type Knowledge = {
   topics: KnowledgeTopic[];
   default_script_prompt: string;
   default_clone_prompt: string;
+  default_revise_prompt: string;
 };
 
 /** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. A null day is the Backlog. */

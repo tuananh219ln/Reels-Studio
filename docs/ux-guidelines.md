@@ -167,7 +167,9 @@ Built:
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
     the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
     playhead's second for 2 s, never to the title scene; "Âm thanh": every sound effect with "Nghe" and "Thêm"
-    (added to the scene shown at the playhead), and "Bài nhạc bắt đầu từ giây" when the video has music; "Khung":
+    (added to the scene shown at the playhead), and "Bài nhạc bắt đầu từ giây" when the video has music; "Góp ý":
+    the notes in the order of the video (second, who, Chưa gửi / Chờ AI sửa / Đã sửa, the AI's answer, "Xoá") and
+    "Nhờ AI sửa (N góp ý)", asked first since it costs one AI call; "Khung":
     the app frame and the safe zone; "Giọng
     đọc"), its panel beside it, the
     phone in the middle on grey, "Chỉnh cảnh N" on the right and the timeline along the bottom (up to
@@ -184,7 +186,9 @@ Built:
     Delete removes the picked layer instead of the scene, Esc lets it go. Every layer change can be undone.
     "Âm thanh (N)" sets "Nhạc ở cảnh này" (Theo video, Tắt nhạc, Nhạc nhỏ, Nhạc to; shown when the video has music)
     and lists the scene's sound effects, each with "Nghe", its second, its level and "Xoá"; also undone with Ctrl+Z.
-    The keys and how to edit on the phone sit behind "Phím tắt" (?) in the timeline's header. It plays each
+    The keys and how to edit on the phone sit behind "Phím tắt" (?) in the timeline's header. Under the timeline
+    "Góp ý tại 00:04,2: gõ rồi Enter" keeps a comment at the playhead's second (even in "Xem"); each shows as a dot
+    on the ruler (yellow until answered, then green) that goes to its second. It plays each
     scene for its seconds (lengthened to fit its narration), the frame
     without text moving like the video's motion setting with the exact text box on top where the
     render puts it, clips from their start time, the video's transition (crossfade, cut or slide),

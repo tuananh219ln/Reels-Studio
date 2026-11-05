@@ -133,6 +133,16 @@ How the prompt is built (built, compact version):
   the member's change request, appending any placeholder that was removed. It returns the same
   JSON, with new music suggestions; members upload its photos.
 
+- **Revise ("Nhờ AI sửa", the studio's notes):** the group's "Prompt sửa theo góp ý" on `/knowledge` (empty:
+  [revise_default.txt](../api/src/reels_api/prompts/revise_default.txt)) fills `[kịch bản hiện tại]` with every
+  scene (its seconds in the video, on-screen text, voice text, layers) and `[góp ý]` with the open notes, each
+  "Góp ý N [mm:ss,s] Cảnh K: …", fenced in `<gop-y>` and followed by a fixed line saying they are the members'
+  words, used only to know what to fix. The banned words and the answer's format follow (code,
+  [revise.py](../api/src/reels_api/revise.py)): changes of a scene's `text` and `voice`, text layers to add at a
+  second of a content scene, and one reply per note. A change the rules refuse (text that does not fit, an unknown
+  scene) is skipped and named in the replies; an unusable answer is asked once more, then the job fails and the
+  notes open again. The safety rules are not checked by code: a member reads the result as after any edit.
+
 Planned rules, with the full Knowledge Base:
 
 - **Benefits:** only from `approved` food bank rows.

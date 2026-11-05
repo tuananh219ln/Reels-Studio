@@ -3,6 +3,7 @@
 import {
   AppstoreOutlined,
   CaretRightOutlined,
+  CommentOutlined,
   CustomerServiceOutlined,
   FontSizeOutlined,
   MobileOutlined,
@@ -48,6 +49,7 @@ import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
 import { LayerList, LayerTools } from "./preview/LayerPanel";
 import LayerStage from "./preview/LayerStage";
+import { NoteBar, NoteTools } from "./preview/NotePanel";
 import { SoundList, SoundStage, SoundTools } from "./preview/SoundPanel";
 import { musicGain } from "./preview/sounds";
 import SceneEffects from "./preview/SceneEffects";
@@ -64,11 +66,12 @@ import "./preview/editor.css";
 const PLATFORM_KEY = "reels-studio.preview-platform";
 
 /** The editor's left column: each tool opens its panel beside it. */
-type Tool = "scene" | "layers" | "sounds" | "frame" | "voice";
+type Tool = "scene" | "layers" | "sounds" | "notes" | "frame" | "voice";
 const TOOLS: { key: Tool; label: string; icon: React.ReactNode }[] = [
   { key: "scene", label: "Cảnh", icon: <AppstoreOutlined /> },
   { key: "layers", label: "Chữ & sticker", icon: <FontSizeOutlined /> },
   { key: "sounds", label: "Âm thanh", icon: <CustomerServiceOutlined /> },
+  { key: "notes", label: "Góp ý", icon: <CommentOutlined /> },
   { key: "frame", label: "Khung", icon: <MobileOutlined /> },
   { key: "voice", label: "Giọng đọc", icon: <SoundOutlined /> },
 ];
@@ -683,6 +686,11 @@ export default function VideoPreview({
     });
   }
 
+  /** A comment at a second ("Góp ý"); not an edit of the video, so not in "Hoàn tác". */
+  function addNote(at: number, text: string) {
+    return save(() => api<VideoDetail>("/notes", "POST", { video_id: video.id, at: Math.round(at * 10) / 10, text }));
+  }
+
   /** "Bài nhạc bắt đầu từ giây": the video's, kept for "Hoàn tác". */
   function changeMusicStart(seconds: number) {
     const before = video.music_start;
@@ -1014,6 +1022,17 @@ export default function VideoPreview({
           )}
 
           {tool === "layers" && <LayerTools scene={scene} editable={layersEditable} onAdd={addLayer} />}
+
+          {tool === "notes" && (
+            <NoteTools
+              notes={video.notes}
+              busy={Boolean(video.active_job)}
+              canSend={editable}
+              onSeek={seekAt}
+              onRemove={(note) => void save(() => api<VideoDetail>(`/notes/${note.id}`, "DELETE"))}
+              onSend={() => void save(() => api<VideoDetail>(`/notes/send/${video.id}`, "POST"))}
+            />
+          )}
 
           {tool === "sounds" && (
             <SoundTools
@@ -1398,7 +1417,16 @@ export default function VideoPreview({
             onSeconds={(index, value) => void changeScene("đổi số giây", scenes[index], { seconds: value })}
             onFollowVoice={(index) => void changeScene("khớp lời đọc", scenes[index], { seconds_auto: true })}
             onReorder={reorder}
+            marks={video.notes.map((note) => ({
+              id: note.id,
+              at: note.at,
+              label: note.text,
+              done: note.status === "done",
+            }))}
           />
+          <div style={{ marginTop: 6 }}>
+            <NoteBar position={position} disabled={editor.readOnly} onAdd={addNote} />
+          </div>
         </div>
       </div>
       <audio ref={music} src={video.music?.url} loop preload="auto" />

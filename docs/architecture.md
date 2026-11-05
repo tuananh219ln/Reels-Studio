@@ -187,6 +187,13 @@ A scene may hold an uploaded video clip instead of a photo
   sound is its own source filter (`aevalsrc`/`anoisesrc`), delayed to its second, padded to the video's length and
   added with amerge + pan after the narration; a scene's level is a `volume` expression on the music over its
   seconds, and the song's start an input seek (`-stream_loop -1 -ss`).
+- **Notes:** `video_notes` (migration 0040; `at` seconds from the video's start, `text`, `status` open → sent →
+  done, the AI's `reply`, who wrote it) and `knowledge_topics.revise_prompt`. [routes_notes.py](../api/src/reels_api/routes_notes.py)
+  under `/api/notes` adds a note at a second within the video (any member, in any mode: a note changes nothing),
+  changes or removes one that is not with the AI, and `POST /send/{video_id}` queues one `revise` job for every
+  open note (refused while another job runs) and marks them sent. The job ([revise.py](../api/src/reels_api/revise.py))
+  calls the team's LLM once (twice when the answer is unusable), applies what the rules allow and answers each
+  note; a failed job opens its notes again. The video payload lists the notes with the scene playing at each.
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.

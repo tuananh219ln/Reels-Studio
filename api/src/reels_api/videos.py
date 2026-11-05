@@ -28,7 +28,9 @@ from .models import (
     SceneLayer,
     SceneSound,
     TopicPlanItem,
+    User,
     Video,
+    VideoNote,
 )
 from .script_rules import MAX_SECONDS as MAX_SCENE_SECONDS
 from .script_rules import MIN_SECONDS as MIN_SCENE_SECONDS
@@ -64,6 +66,7 @@ JOB_KINDS = {
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
     "plan": "Tạo kế hoạch 30 ngày",
+    "revise": "AI sửa theo góp ý",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -115,6 +118,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang kiểm tra bài trên Facebook, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
+    if job.kind == "revise":
+        raise ApiError(409, "video_locked", "AI đang sửa video theo góp ý, chưa lưu")
     raise ApiError(409, "video_locked", "Video đang viết kịch bản, chưa lưu")
 
 
@@ -583,6 +588,37 @@ def title_of(video: Video, title: Scene | None) -> str:
     return plain_title(title.text) if title is not None and title.text.strip() else ""
 
 
+def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> list[dict]:
+    """The studio's notes in the order of the video, each with the scene playing at its second now."""
+    every = ([title] if title else []) + scenes
+    ends, end = [], 0.0
+    for scene in every:
+        end += fit_seconds(scene.seconds, made_voice_seconds(video, scene))
+        ends.append(end)
+    rows = db.execute(
+        select(VideoNote, User.name)
+        .join(User, User.id == VideoNote.created_by_id)
+        .where(VideoNote.video_id == video.id)
+        .order_by(VideoNote.at, VideoNote.id)
+    ).all()
+    payload = []
+    for note, author in rows:
+        index = next((number for number, value in enumerate(ends) if note.at < value), len(every) - 1)
+        payload.append(
+            {
+                "id": note.id,
+                "at": note.at,
+                "scene_id": every[index].id if every else None,
+                "text": note.text,
+                "status": note.status,
+                "reply": note.reply,
+                "created_by": author,
+                "created_at": note.created_at.isoformat(),
+            }
+        )
+    return payload
+
+
 def video_payload(db: DbSession, video: Video) -> dict:
     title, scenes = split_scenes(db, video)
     job = active_job(db, video.id)
@@ -646,6 +682,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         else None,
         "music_volume": video.music_volume,
         "music_start": video.music_start,
+        "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id), by_page),

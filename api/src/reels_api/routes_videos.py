@@ -1798,6 +1798,7 @@ class TopicPatchBody(BaseModel):
     name: str | None = None
     script_prompt: str | None = None
     clone_prompt: str | None = None
+    revise_prompt: str | None = None  # "" goes back to the default
     banned_words: list[str] | None = None
     photo_hint: str | None = None
 
@@ -1814,6 +1815,7 @@ def _knowledge_payload(db: DbSession) -> dict:
                 "name": topic.name,
                 "script_prompt": topic.script_prompt,
                 "clone_prompt": topic.clone_prompt,
+                "revise_prompt": topic.revise_prompt,
                 "banned_words": topic.banned_words,
                 "photo_hint": topic.photo_hint,
                 "video_count": counts.get(topic.id, 0),
@@ -1822,6 +1824,7 @@ def _knowledge_payload(db: DbSession) -> dict:
         ],
         "default_script_prompt": knowledge.default_script_prompt(),
         "default_clone_prompt": knowledge.default_clone_prompt(),
+        "default_revise_prompt": knowledge.default_revise_prompt(),
     }
 
 
@@ -1875,6 +1878,8 @@ def patch_topic(
         topic.script_prompt = _prompt(body.script_prompt)
     if body.clone_prompt is not None:
         topic.clone_prompt = _prompt(body.clone_prompt)
+    if body.revise_prompt is not None:
+        topic.revise_prompt = _prompt(body.revise_prompt) if body.revise_prompt.strip() else ""
     if body.banned_words is not None:
         topic.banned_words = list(
             dict.fromkeys(_clean_list(body.banned_words, MAX_KEYWORD_LENGTH, "Từ cấm", max_items=500))

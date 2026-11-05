@@ -75,6 +75,7 @@ export default function PreviewTimeline({
   onSeconds,
   onFollowVoice,
   onReorder,
+  marks = [],
 }: {
   scenes: SceneData[];
   current: number;
@@ -97,6 +98,8 @@ export default function PreviewTimeline({
   onFollowVoice: (index: number) => void;
   /** The content scenes' ids in their new order. */
   onReorder: (ids: number[]) => void;
+  /** The notes ("Góp ý") as dots on the ruler at their seconds; a click goes there. */
+  marks?: { id: number; at: number; label: string; done: boolean }[];
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
@@ -354,6 +357,29 @@ export default function PreviewTimeline({
           }}
         >
           <div ref={inner} style={{ position: "relative", width: xOf(total) + PAD, height }} data-zoom={zoom}>
+            {marks.map((mark) => (
+              <Tooltip key={mark.id} title={mark.label}>
+                <button
+                  type="button"
+                  aria-label={`Góp ý ${clockLabel(mark.at, true)}: ${mark.label}`}
+                  data-testid="note-mark"
+                  onClick={() => onSeek(mark.at)}
+                  style={{
+                    position: "absolute",
+                    zIndex: 3,
+                    left: xOf(Math.min(mark.at, total)) - 5,
+                    top: RULER - 9,
+                    width: 10,
+                    height: 10,
+                    padding: 0,
+                    borderRadius: "50%",
+                    border: "1.5px solid #fff",
+                    background: mark.done ? "#16a34a" : "#f59e0b",
+                    cursor: "pointer",
+                  }}
+                />
+              </Tooltip>
+            ))}
             {/* The ruler: a press anywhere on it moves the playhead there, and dragging scrubs. */}
             <div
               data-testid="timeline-ruler"

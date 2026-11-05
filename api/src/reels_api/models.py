@@ -116,6 +116,8 @@ class KnowledgeTopic(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True)
     script_prompt: Mapped[str] = mapped_column(Text, default="")
     clone_prompt: Mapped[str] = mapped_column(Text, default="")
+    # "Nhờ AI sửa" (the studio's notes): empty uses prompts/revise_default.txt.
+    revise_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
     banned_words: Mapped[list] = mapped_column(JSONB, default=list)
     # "Gợi ý tìm ảnh": what the group's photos show (growing plants, not cooked dishes...), added to the script and
     # clone prompts so the AI writes the scenes' search keywords and image prompts for it. Empty: nothing added.
@@ -303,6 +305,21 @@ class SceneLayer(Base):
     scene: Mapped[Scene] = relationship(back_populates="layers")
 
 
+class VideoNote(Base):
+    """A member's comment at a second of the video ("Góp ý" in the studio), sent to the AI with "Nhờ AI sửa"."""
+
+    __tablename__ = "video_notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    at: Mapped[float] = mapped_column(Float)  # seconds from the video's start
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(8), default="open")  # open | sent (to a revise job) | done
+    reply: Mapped[str] = mapped_column(Text, default="")  # the AI's answer once done
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
@@ -322,7 +339,7 @@ class Job(Base):
     # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge), which belongs to a topic group.
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
-    # script | clone | render | publish | unpublish | check | image | photos | voice | plan
+    # script | clone | render | publish | unpublish | check | image | photos | voice | plan | revise
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

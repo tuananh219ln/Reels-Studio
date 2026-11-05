@@ -737,6 +737,37 @@ test("studio sounds: a sound effect added at the playhead, heard, made louder an
   await expect(timeline.getByTestId("lane-sounds")).toHaveCount(0);
 });
 
+test("studio notes: a comment at the playhead, sent to the AI, which fixes the scene and answers", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await timeline.getByRole("button", { name: "Xem Cảnh 2" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+
+  // Typed under the timeline, kept at the playhead's second, shown as a dot on the ruler.
+  const box = studio.getByLabel("Góp ý tại đầu phát");
+  await box.fill("Chữ cảnh này dài quá, thêm dòng giảm giá");
+  await box.press("Enter");
+  await expect(box).toHaveValue("");
+  await expect(timeline.getByTestId("note-mark")).toHaveCount(1);
+  await studio.getByRole("tab", { name: "Góp ý" }).click();
+  const tools = studio.getByTestId("note-tools");
+  await expect(tools.getByTestId("note")).toContainText("Chưa gửi");
+
+  // "Nhờ AI sửa" asks first (it costs an AI call), then the job changes Cảnh 2 and answers the note.
+  await tools.getByRole("button", { name: "Nhờ AI sửa (1 góp ý)" }).click();
+  await page.getByRole("button", { name: "Gửi", exact: true }).click();
+  await expect(tools.getByTestId("note")).toContainText("Đã sửa", { timeout: 60_000 });
+  await expect(tools.getByTestId("note-reply")).toHaveText("↳ Đã sửa theo góp ý 1.");
+  await expect(timeline.getByTestId("lane-text").nth(2)).toHaveText("Đã sửa theo góp ý");
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(1);
+  await expect(page.getByTestId("scene").nth(1).getByLabel("Chữ trên màn hình")).toHaveValue("Đã sửa\n*theo góp ý*");
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);

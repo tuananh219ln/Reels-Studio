@@ -56,6 +56,13 @@ stickers (AIEV's bundled sounds have no licence records, and a laugh or a voice 
 none). Music is still one song per video; instead of several songs, a scene can set its own music level and the
 video where the song starts. Several songs in one video are left until the team asks for them.
 
+Phase 5: "Góp ý" and "AI tại mốc" are one flow. A note is a comment at a second, kept for teammates as well as
+the AI; "Nhờ AI sửa" sends every open note to one `revise` job (asked first: one AI call), which may change the
+scenes' text and narration and add text layers at a second, and answers each note. It goes through the job queue
+like every LLM call, its prompt words are app data per group ("Prompt sửa theo góp ý"), and the notes are fenced in
+the prompt as the members' words. A separate "AI writes one line here" button was dropped as the same thing as a
+note asking for it. AI pictures for a scene stay the existing "Tạo ảnh AI".
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)
