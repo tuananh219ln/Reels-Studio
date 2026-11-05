@@ -132,6 +132,19 @@ How the prompt is built (built, compact version):
   `[chủ đề]`, `[kịch bản đã sửa của video gốc]`, and `[yêu cầu đổi]` from the source as edited and
   the member's change request, appending any placeholder that was removed. It returns the same
   JSON, with new music suggestions; members upload its photos.
+- **From a sample video ("Từ video mẫu"):** two more prompts per group on `/knowledge`, empty until a
+  member saves one (the defaults in [api/src/reels_api/prompts/](../api/src/reels_api/prompts/) are
+  shown and used meanwhile). "Prompt học từ video mẫu" fills `[chủ đề]` (the new video's topic or
+  request), `[lời thoại video mẫu]` (the sample's words, each line starting with its second),
+  `[phân tích video mẫu]` (empty in the quick way, which writes the analysis in the same answer) and
+  `[khung hình video mẫu]` (the stills' seconds, and what the analysis saw in each); the stills go
+  with it as images. It gets the same banned words, photo hint and JSON format as a script, plus, in
+  code, a `clip` `{tu, den}` per scene and a `title_clip`: the stretch of the sample (2–10 s, in its
+  seconds) to show behind the scene, or null. "Prompt phân tích video mẫu" (ways B, C and D, when the
+  sample has no analysis yet) fills `[lời thoại video mẫu]` and `[khung hình video mẫu]` and asks, in
+  code, for `phan_tich` and one `khung_hinh` line per still. The default prompts ask for the sample's
+  hook, structure, pace and call to action to be learned and the words to be new: no copied or
+  translated sentences, no names of the sample's channel or people, nothing promising a cure.
 
 - **"AI gợi ý hiệu ứng" (an option in "Tạo video", AI scripts only, kept as `videos.ai_effects`):** the script
   prompt gets one more part after the format (code, `autoedit.EFFECTS_FORMAT`): every scene also returns

@@ -193,6 +193,76 @@ def build_clone_prompt(template: str, source: dict, banned_words: list[str], pho
     )
 
 
+LEARN_PLACEHOLDERS = (
+    ("[chủ đề]", "Chủ đề video mới"),
+    ("[lời thoại video mẫu]", "Lời thoại video mẫu"),
+    ("[phân tích video mẫu]", "Phân tích video mẫu"),
+    ("[khung hình video mẫu]", "Khung hình video mẫu"),
+)
+NO_SPEECH = "(video mẫu không có lời nói)"
+NO_ANALYSIS = "(chưa có, hãy tự phân tích từ khung hình và lời thoại)"
+
+
+def learn_clip_format(seconds: float, with_analysis: bool) -> str:
+    """What a learn job's answer adds to the script's JSON: the stretch of the sample behind each scene, and in the
+    quick way the analysis too, since it is written in the same answer."""
+    lines = [
+        "THÊM VÀO OBJECT JSON TRÊN (bắt buộc):",
+        '- trong mỗi cảnh của "scenes", trường "clip": đoạn video mẫu làm nền cho cảnh, dạng '
+        f'{{"tu": giây bắt đầu, "den": giây kết thúc}} tính trong video mẫu (từ 0 đến {seconds:g} giây, dài 2–10 '
+        "giây, chọn theo giây của các khung hình); null nếu không đoạn nào hợp với cảnh;",
+        '- "title_clip": đoạn video mẫu cho cảnh tiêu đề, cùng dạng, hoặc null.',
+    ]
+    if with_analysis:
+        lines.append(
+            '- "phan_tich": bản phân tích video mẫu bằng tiếng Việt (một chuỗi, xuống dòng bằng \\n) theo các mục: '
+            "Hook, Cấu trúc, Nhịp, Giọng văn, Hình ảnh, Kêu gọi, Điểm nên học."
+        )
+    return "\n".join(lines)
+
+
+def analysis_format(frame_count: int) -> str:
+    return (
+        "ĐỊNH DẠNG ĐẦU RA (bắt buộc): chỉ trả về đúng một object JSON, không kèm chữ nào khác, không bọc trong ```.\n"
+        '- "phan_tich": bản phân tích bằng tiếng Việt, một chuỗi, xuống dòng bằng \\n;\n'
+        f'- "khung_hinh": đúng {frame_count} chuỗi theo thứ tự các khung, mỗi chuỗi 8–20 từ tả thứ hiện trong khung '
+        "(người, vật, hành động, chữ trên hình)."
+    )
+
+
+def build_learn_prompt(
+    template: str,
+    topic: str,
+    transcript: str,
+    analysis: str,
+    frames: str,
+    seconds: float,
+    banned_words: list[str],
+    photo_hint: str = "",
+    with_analysis: bool = False,
+) -> str:
+    """The prompt that writes a new video's script from a sample video ("Từ video mẫu"); `frames` lists the stills
+    sent with it, in order."""
+    values = (topic, transcript or NO_SPEECH, analysis or NO_ANALYSIS, frames)
+    body = fill_placeholders(
+        template,
+        [(placeholder, label, value) for (placeholder, label), value in zip(LEARN_PLACEHOLDERS, values, strict=True)],
+    )
+    return _assemble(body, banned_words, photo_hint) + "\n\n" + learn_clip_format(seconds, with_analysis)
+
+
+def build_analyze_prompt(template: str, transcript: str, frames: str, frame_count: int) -> str:
+    """The prompt that analyses a sample video on its own (ways B, C and D)."""
+    body = fill_placeholders(
+        template,
+        [
+            ("[lời thoại video mẫu]", "Lời thoại video mẫu", transcript or NO_SPEECH),
+            ("[khung hình video mẫu]", "Khung hình video mẫu", frames),
+        ],
+    )
+    return body.rstrip() + "\n\n" + analysis_format(frame_count)
+
+
 def fill_placeholders(template: str, placeholders: list[tuple[str, str, str]]) -> str:
     """Replace each placeholder; one a member deleted from the prompt is appended at the end instead."""
     body, missing = template, []
@@ -220,8 +290,8 @@ def _assemble(body: str, banned_words: list[str], photo_hint: str = "") -> str:
     return "\n\n".join(parts)
 
 
-def parse_output(raw: str) -> GeneratedScript:
-    """Claude's JSON as a script. Broken JSON, no title or no scene raise; small slips are repaired."""
+def json_object(raw: str) -> dict:
+    """The one JSON object in an LLM answer, text around it ignored; anything else raises ScriptOutputError."""
     start, end = raw.find("{"), raw.rfind("}")
     if start < 0 or end < start:
         raise ScriptOutputError("câu trả lời không có object JSON")
@@ -231,6 +301,12 @@ def parse_output(raw: str) -> GeneratedScript:
         raise ScriptOutputError(f"JSON lỗi cú pháp: {err.msg} (dòng {err.lineno}, cột {err.colno})") from None
     if not isinstance(data, dict):
         raise ScriptOutputError("JSON không phải object")
+    return data
+
+
+def parse_output(raw: str) -> GeneratedScript:
+    """Claude's JSON as a script. Broken JSON, no title or no scene raise; small slips are repaired."""
+    data = json_object(raw)
     titles = _strings(data.get("titles"))[:5]
     if not titles:
         raise ScriptOutputError("thiếu tiêu đề")

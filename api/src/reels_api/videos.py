@@ -31,6 +31,7 @@ from .models import (
     User,
     Video,
     VideoNote,
+    VideoReference,
 )
 from .script_rules import MAX_SECONDS as MAX_SCENE_SECONDS
 from .script_rules import MIN_SECONDS as MIN_SCENE_SECONDS
@@ -66,6 +67,7 @@ JOB_KINDS = {
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
     "plan": "Tạo kế hoạch 30 ngày",
+    "learn": "Học từ video mẫu",
     "revise": "AI sửa theo góp ý",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
@@ -461,6 +463,42 @@ def live_at(post: Publication) -> datetime:
     return post.scheduled_at or post.published_at or post.created_at
 
 
+REFERENCE_MODE_LABELS = {
+    "quick": "Nhanh",
+    "twostep": "Hai bước tự động",
+    "review": "Duyệt phân tích trước",
+    "reuse": "Dùng mẫu đã học",
+}
+
+
+def reference_frames(sample: VideoReference) -> list[dict]:
+    return [
+        {"second": frame["second"], "note": frame.get("note", ""), "url": f"/api/references/{sample.id}/frames/{n}.jpg"}
+        for n, frame in enumerate(sample.frames, start=1)
+    ]
+
+
+def reference_payload(db: DbSession, video: Video) -> dict | None:
+    """The sample video a video is learned from ("Từ video mẫu"), for its card on the video page."""
+    if not video.reference_mode:
+        return None
+    sample = db.get(VideoReference, video.reference_id) if video.reference_id else None
+    analyzed = bool(sample and sample.analysis.strip())
+    return {
+        "id": sample.id if sample else None,
+        "mode": video.reference_mode,
+        "mode_label": REFERENCE_MODE_LABELS.get(video.reference_mode, video.reference_mode),
+        "source_name": sample.source_name if sample else None,
+        "source_url": sample.source_url if sample else None,
+        "seconds": sample.seconds if sample else None,
+        "transcript": sample.transcript if sample else "",
+        "analysis": sample.analysis if sample else "",
+        "frames": reference_frames(sample) if sample else [],
+        # The way "review": the analysis is written and waits for a member before the script.
+        "awaiting_review": video.reference_mode == "review" and analyzed and not video.has_script,
+    }
+
+
 def thumbnail_url(video: Video) -> str | None:
     """The title-scene frame of the last render, versioned so a new render is not served from the cache."""
     return f"/api/videos/{video.id}/thumbnail.jpg?v={_version(video.thumbnail_key)}" if video.thumbnail_key else None
@@ -579,7 +617,7 @@ def script_writer(db: DbSession, video_id: int) -> str | None:
     """The provider and model of the job that wrote the video's script, so reviewers know what they read."""
     job = db.scalar(
         select(Job)
-        .where(Job.video_id == video_id, Job.kind.in_(("script", "clone")), Job.status == "done")
+        .where(Job.video_id == video_id, Job.kind.in_(("script", "clone", "learn")), Job.status == "done")
         .order_by(Job.id.desc())
         .limit(1)
     )
@@ -709,6 +747,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         }
         if video.clone_source
         else None,
+        "reference": reference_payload(db, video),
         "title_scene": scene_payload(video, title, checks) if title else None,
         "scenes": [scene_payload(video, scene, checks) for scene in scenes],
         "video_blocking": [issue.message for issue in checks.blocking if issue.scene_id is None],

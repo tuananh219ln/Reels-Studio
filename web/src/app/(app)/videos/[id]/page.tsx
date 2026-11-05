@@ -39,6 +39,7 @@ import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars
 import PublishCard, { PublishButton } from "@/components/video/PublishCard";
 import TikTokCard from "@/components/video/TikTokCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
+import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -53,6 +54,7 @@ const REFRESH_MS = 2500;
 const JOB_NAMES = {
   script: "Viết kịch bản",
   clone: "Nhân bản",
+  learn: "Học từ video mẫu",
   render: "Render",
   publish: "Đăng Facebook",
   unpublish: "Gỡ bài Facebook",
@@ -408,7 +410,8 @@ export default function VideoPage() {
                 Xong
               </Button>
             ))}
-          {!video.has_script && !job && (
+          {/* In "Duyệt phân tích trước" the "Video mẫu" card writes, after saving the edited analysis. */}
+          {!video.has_script && !job && !video.reference?.awaiting_review && (
             <Button
               type="primary"
               disabled={busy}
@@ -459,7 +462,11 @@ export default function VideoPage() {
                             ? "AI đang sửa video theo góp ý…"
                             : job.kind === "clone"
                               ? "AI đang viết kịch bản nhân bản…"
-                              : "Đang viết kịch bản…"
+                              : job.kind === "learn"
+                                ? video.reference?.mode === "review" && !video.reference.analysis
+                                  ? "AI đang xem và phân tích video mẫu…"
+                                  : "AI đang xem video mẫu và viết kịch bản…"
+                                : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={
@@ -511,8 +518,19 @@ export default function VideoPage() {
         />
       )}
 
+      {video.reference && (
+        <SampleCard
+          sample={video.reference}
+          videoId={video.id}
+          hasScript={video.has_script}
+          working={job !== null}
+          onVideo={receive}
+          onChanged={() => void load()}
+        />
+      )}
       {!video.has_script ? (
-        !job && (
+        !job &&
+        !video.reference && (
           <Card>
             <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
               Video chưa có kịch bản. Bấm “Viết kịch bản” để AI viết theo chủ đề.

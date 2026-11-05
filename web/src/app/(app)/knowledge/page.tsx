@@ -263,6 +263,41 @@ function TopicBody({
                         </>
                       }
                     />
+                    {/* Empty in the database means the default is used, so the default is what is shown. */}
+                    <PromptCard
+                      title="Prompt học từ video mẫu"
+                      field="learn_prompt"
+                      initial={topic.learn_prompt || defaults.default_learn_prompt}
+                      fallback={defaults.default_learn_prompt}
+                      update={update}
+                      help={
+                        <>
+                          Dùng khi tạo video “Từ video mẫu”: AI xem khung hình và lời thoại của video mẫu rồi viết kịch
+                          bản mới. Các chỗ điền <Typography.Text code>[chủ đề]</Typography.Text>,{" "}
+                          <Typography.Text code>[lời thoại video mẫu]</Typography.Text>,{" "}
+                          <Typography.Text code>[phân tích video mẫu]</Typography.Text> và{" "}
+                          <Typography.Text code>[khung hình video mẫu]</Typography.Text> được thay bằng dữ liệu của
+                          video mẫu; chỗ điền nào bị xóa thì thông tin đó được nối vào cuối prompt. Đoạn clip cho từng
+                          cảnh do app tự yêu cầu.
+                        </>
+                      }
+                    />
+                    <PromptCard
+                      title="Prompt phân tích video mẫu"
+                      field="analyze_prompt"
+                      initial={topic.analyze_prompt || defaults.default_analyze_prompt}
+                      fallback={defaults.default_analyze_prompt}
+                      update={update}
+                      help={
+                        <>
+                          Dùng ở các cách “Hai bước tự động”, “Duyệt phân tích trước” và “Dùng mẫu đã học”, khi AI phân
+                          tích video mẫu trước khi viết. Chỗ điền{" "}
+                          <Typography.Text code>[lời thoại video mẫu]</Typography.Text> và{" "}
+                          <Typography.Text code>[khung hình video mẫu]</Typography.Text> được thay bằng dữ liệu của
+                          video mẫu.
+                        </>
+                      }
+                    />
                     <PromptCard
                       title="Prompt sửa theo góp ý"
                       field="revise_prompt"
@@ -342,7 +377,7 @@ function PromptCard({
   help,
 }: {
   title: string;
-  field: "script_prompt" | "clone_prompt" | "revise_prompt";
+  field: "script_prompt" | "clone_prompt" | "learn_prompt" | "analyze_prompt" | "revise_prompt";
   initial: string;
   fallback: string;
   update: Update;

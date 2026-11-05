@@ -39,12 +39,14 @@ import {
   api,
   errorMessage,
   formatDateTime,
+  postForm,
   type ActiveLlm,
   type Knowledge,
   type KnowledgeTopic,
   type Plan,
   type PlanItem,
   type PlanToday,
+  type SampleSummary,
   type VideoDetail,
   type VideoRow,
   type VideoRowPost,
@@ -56,6 +58,7 @@ import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
 import { useRememberedView, type View } from "@/lib/view";
 import FormDrawer from "@/components/FormDrawer";
+import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
 
 const REFRESH_MS = 5000;
 /** From this many times its Page's median at 48 hours a post is drawn as a standout (docs/content.md). */
@@ -110,6 +113,8 @@ export default function VideosPage() {
   const [creating, setCreating] = useState(false);
   // The 30-day plan idea "Tạo video" starts from: "Làm tiếp" here, or "Tạo video" on an idea in Kho kiến thức.
   const [startItem, setStartItem] = useState<PlanItem | null>(null);
+  // The sample video "Tạo thêm video từ mẫu này" on a video page starts from ("Từ video mẫu", way "reuse").
+  const [startSample, setStartSample] = useState<number | null>(null);
   // A new dialog each time it opens, so it starts from `startItem` and nothing picked before.
   const [opened, setOpened] = useState(0);
   const [today, setToday] = useState<PlanToday[]>([]);
@@ -131,8 +136,9 @@ export default function VideosPage() {
   const [view, chooseView] = useRememberedView(VIEW_KEY);
   const [sort, setSort] = useState<Sort>("new");
 
-  function startFrom(item: PlanItem | null) {
+  function startFrom(item: PlanItem | null, sample: number | null = null) {
     setStartItem(item);
+    setStartSample(sample);
     setOpened((count) => count + 1);
     setCreating(true);
   }
@@ -165,8 +171,19 @@ export default function VideosPage() {
   }, []);
 
   // /videos?plan_item=<id>: opened from an idea's "Tạo video" in Kho kiến thức.
+  // /videos?reference=<id>: "Tạo thêm video từ mẫu này" on a video made from a sample video.
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("plan_item");
+    const params = new URLSearchParams(window.location.search);
+    const sample = Number(params.get("reference"));
+    if (sample > 0) {
+      router.replace("/videos");
+      // Opens once the sample is known to be there, so a deleted one says so instead of an empty choice.
+      api<SampleSummary>(`/references/${sample}`)
+        .then(() => startFrom(null, sample))
+        .catch((err) => message.error(errorMessage(err)));
+      return;
+    }
+    const id = params.get("plan_item");
     if (!id) {
       return;
     }
@@ -337,10 +354,12 @@ export default function VideosPage() {
         key={opened}
         open={creating}
         startItem={startItem}
+        startSample={startSample}
         today={today}
         onClose={() => {
           setCreating(false);
           setStartItem(null);
+          setStartSample(null);
         }}
       />
     </>
@@ -805,9 +824,10 @@ function PlanBanners({ today, onContinue }: { today: PlanToday[]; onContinue: (i
   );
 }
 
-type NewVideo = { topic: string; knowledge_topic_id: number; script?: string };
+type NewVideo = { topic: string; knowledge_topic_id: number; script?: string } & Partial<SampleValues>;
 
-type Mode = "ai" | "manual";
+/** "Từ video mẫu" ("sample") learns the script from a sample video (components/video/SampleFields). */
+type Mode = "ai" | "sample" | "manual";
 
 const SCRIPT_HINT = `Mỗi đoạn (cách nhau một dòng trống) là một cảnh. Dòng bắt đầu bằng “Đọc:” là lời đọc của cảnh.
 
@@ -855,11 +875,13 @@ function sameTopic(a: string, b: string): boolean {
 function NewVideoModal({
   open,
   startItem,
+  startSample,
   today,
   onClose,
 }: {
   open: boolean;
   startItem: PlanItem | null;
+  startSample: number | null;
   today: PlanToday[];
   onClose: () => void;
 }) {
@@ -873,8 +895,30 @@ function NewVideoModal({
   // The plan idea the video is made from; typing a topic by hand works as before.
   const [picked, setPicked] = useState<PlanItem | null>(startItem);
   // "Tự viết": no AI call, so any group can be used and the script is pasted or left for the video page.
-  const [mode, setMode] = useState<Mode>("ai");
+  const [mode, setMode] = useState<Mode>(startSample ? "sample" : "ai");
   const manual = mode === "manual";
+  const sample = mode === "sample";
+  // The samples learned before, for the way "Dùng mẫu đã học"; asked for once "Từ video mẫu" is chosen.
+  const [samples, setSamples] = useState<SampleSummary[] | null>(null);
+  const sampleMode = Form.useWatch("sample_mode", form);
+  const wantsSamples = open && sample && samples === null;
+  useEffect(() => {
+    if (!wantsSamples) {
+      return;
+    }
+    let live = true;
+    api<SampleSummary[]>("/references")
+      .then((list) => live && setSamples(list))
+      .catch((err) => {
+        if (live) {
+          setSamples([]);
+          message.error(errorMessage(err));
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [wantsSamples, message]);
   // "AI gợi ý hiệu ứng": the same script call also picks each scene's transition, colour, sound and a line of text.
   const [aiEffects, setAiEffects] = useState(false);
   const groupId = Form.useWatch("knowledge_topic_id", form);
@@ -919,14 +963,16 @@ function NewVideoModal({
   async function submit(values: NewVideo) {
     setBusy(true);
     try {
-      const video = await api<VideoDetail>("/videos", "POST", {
-        topic: values.topic,
-        knowledge_topic_id: values.knowledge_topic_id,
-        plan_item_id: picked?.id,
-        mode,
-        script: manual ? (values.script ?? "") : "",
-        ai_effects: !manual && aiEffects,
-      });
+      const video = sample
+        ? await fromSample(values)
+        : await api<VideoDetail>("/videos", "POST", {
+            topic: values.topic,
+            knowledge_topic_id: values.knowledge_topic_id,
+            plan_item_id: picked?.id,
+            mode,
+            script: manual ? (values.script ?? "") : "",
+            ai_effects: mode === "ai" && aiEffects,
+          });
       router.push(`/videos/${video.id}`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -934,12 +980,32 @@ function NewVideoModal({
     }
   }
 
+  /** "Từ video mẫu": the api stores the link or file and queues the learn job; the video page shows its progress. */
+  function fromSample(values: NewVideo): Promise<VideoDetail> {
+    const way = values.sample_mode ?? "quick";
+    const fields: Record<string, string> = {
+      topic: values.topic,
+      knowledge_topic_id: String(values.knowledge_topic_id),
+      mode: way,
+    };
+    if (way === "reuse") {
+      fields.reference_id = String(values.reference_id ?? "");
+      return postForm<VideoDetail>("/references/videos", fields);
+    }
+    if (values.sample_source === "file") {
+      return postForm<VideoDetail>("/references/videos", fields, values.sample_file?.[0]?.originFileObj ?? null);
+    }
+    fields.url = values.sample_url ?? "";
+    return postForm<VideoDetail>("/references/videos", fields);
+  }
+
   // The idea picked from elsewhere ("Tạo video" in Kho kiến thức) stays listed even after it is unpicked.
   const listed = sections.some((section) => section.ideas.some((idea) => idea.id === startItem?.id));
   if (startItem && !listed && startItem.knowledge_topic_id === groupId) {
     sections.unshift({ key: "picked", title: "Ý tưởng đã chọn", ideas: [startItem] });
   }
-  const ideas = sections.flatMap((section) => section.ideas);
+  // "Từ video mẫu" writes from the sample, not from a plan idea, so the ideas are not listed there.
+  const ideas = !sample ? sections.flatMap((section) => section.ideas) : [];
   const footer = (
     <Flex justify="space-between" align="center" gap={12} wrap>
       <div style={{ flex: 1, minWidth: 200, textAlign: "start" }}>
@@ -973,7 +1039,7 @@ function NewVideoModal({
           disabled={topics === null}
           onClick={() => form.submit()}
         >
-          {manual ? "Tạo video" : "Viết kịch bản"}
+          {manual ? "Tạo video" : sample && sampleMode === "review" ? "Phân tích video mẫu" : "Viết kịch bản"}
         </Button>
       </Flex>
     </Flex>
@@ -1001,6 +1067,9 @@ function NewVideoModal({
           initialValues={{
             knowledge_topic_id: startItem?.knowledge_topic_id ?? topics.find((topic) => topic.script_prompt)?.id,
             topic: startItem?.topic,
+            sample_mode: startSample ? "reuse" : "quick",
+            sample_source: "link",
+            reference_id: startSample ?? undefined,
           }}
           onValuesChange={(changed: Partial<NewVideo>) => {
             const group = changed.knowledge_topic_id;
@@ -1012,7 +1081,9 @@ function NewVideoModal({
           <Typography.Paragraph type="secondary" style={{ marginTop: -4 }}>
             {manual
               ? "Tự viết: không gọi AI, video mở ra với các cảnh để sửa tiếp."
-              : "AI viết kịch bản theo prompt của nhóm chủ đề, rồi video mở ra để duyệt và sửa."}
+              : sample
+                ? "Từ video mẫu: AI xem khung hình và lời thoại của video mẫu, viết kịch bản mới theo khung đó và cắt đoạn của video mẫu làm nền cho từng cảnh."
+                : "AI viết kịch bản theo prompt của nhóm chủ đề, rồi video mở ra để duyệt và sửa."}
           </Typography.Paragraph>
           <div
             style={{
@@ -1032,6 +1103,7 @@ function NewVideoModal({
                   onChange={(value) => setMode(value as Mode)}
                   options={[
                     { value: "ai", label: "AI viết kịch bản" },
+                    { value: "sample", label: "Từ video mẫu" },
                     { value: "manual", label: "Tự viết" },
                   ]}
                 />
@@ -1046,8 +1118,9 @@ function NewVideoModal({
                 <Select
                   options={topics.map((topic) => ({
                     value: topic.id,
-                    label: topic.script_prompt || manual ? topic.name : `${topic.name} (chưa có prompt)`,
-                    disabled: !topic.script_prompt && !manual,
+                    // Only the AI's way needs the group's script prompt; a sample video has a default prompt.
+                    label: topic.script_prompt || mode !== "ai" ? topic.name : `${topic.name} (chưa có prompt)`,
+                    disabled: !topic.script_prompt && mode === "ai",
                   }))}
                 />
               </Form.Item>
@@ -1055,7 +1128,9 @@ function NewVideoModal({
             <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
               {manual
                 ? "Nhóm chủ đề quyết định từ cấm và mặc định của video, sửa trong Kho kiến thức."
-                : "Nhóm chủ đề quyết định prompt và từ cấm dùng cho video, sửa trong Kho kiến thức."}
+                : sample
+                  ? "Nhóm chủ đề quyết định prompt học từ video mẫu và từ cấm dùng cho video, sửa trong Kho kiến thức."
+                  : "Nhóm chủ đề quyết định prompt và từ cấm dùng cho video, sửa trong Kho kiến thức."}
             </Typography.Text>
           </div>
           <Row gutter={[16, 16]}>
@@ -1136,19 +1211,23 @@ function NewVideoModal({
                   padding: ideas.length > 0 ? 16 : 0,
                 }}
               >
+                {sample && <SampleFields samples={samples} />}
                 <Form.Item
-                  label="Chủ đề"
+                  label={sample ? "Chủ đề hoặc yêu cầu cho video mới" : "Chủ đề"}
                   name="topic"
                   rules={[{ required: true, whitespace: true, message: "Hãy nhập chủ đề" }]}
                   extra={
                     manual
                       ? "Cũng là chữ cảnh tiêu đề, sửa được sau. VD: 6 món *bổ xương* cho người sau 50"
-                      : "Gõ chủ đề hoặc chọn một ý tưởng bên trái. VD: thực phẩm tốt cho xương khớp người sau 50 tuổi"
+                      : sample
+                        ? "VD: cùng kiểu này nhưng nói về hạt chia cho người tiểu đường"
+                        : "Gõ chủ đề hoặc chọn một ý tưởng bên trái. VD: thực phẩm tốt cho xương khớp người sau 50 tuổi"
                   }
                 >
                   <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
                 </Form.Item>
-                {!manual && (
+                {/* "Từ video mẫu" writes in its own call, without the effects. */}
+                {mode === "ai" && (
                   <Flex vertical gap={2} style={{ marginBottom: 16 }}>
                     <Checkbox checked={aiEffects} onChange={(event) => setAiEffects(event.target.checked)}>
                       AI gợi ý hiệu ứng
@@ -1182,7 +1261,7 @@ function NewVideoModal({
                     />
                   </>
                 )}
-                {picked && (
+                {picked && !sample && (
                   <Alert
                     type="info"
                     style={{ marginBottom: 16 }}
@@ -1206,7 +1285,7 @@ function NewVideoModal({
                     }
                   />
                 )}
-                {outsidePlan && (
+                {outsidePlan && !sample && (
                   <Alert
                     type="warning"
                     showIcon
