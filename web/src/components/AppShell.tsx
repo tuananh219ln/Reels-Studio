@@ -12,6 +12,7 @@ import {
   MenuOutlined,
   EditOutlined,
   FacebookOutlined,
+  FieldTimeOutlined,
   NotificationOutlined,
   PlaySquareOutlined,
   SettingOutlined,
@@ -41,6 +42,7 @@ const NAV = [
     label: "Đăng bài",
     children: [
       { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
+      { key: "/queue", icon: <FieldTimeOutlined />, label: "Hàng chờ" },
       { key: "/comments", icon: <CommentOutlined />, label: "Bình luận" },
     ],
   },

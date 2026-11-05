@@ -794,3 +794,39 @@ export function formatLastLogin(iso: string | null): string {
 export function errorMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : String(err);
 }
+
+/** A video waiting in a Page's posting queue ("Hàng chờ"); the worker schedules the first one at the Page's next
+ * free posting time. `error` says why it could not be scheduled the last time it was tried. */
+export type QueueItem = {
+  id: number;
+  fanpage_id: number;
+  fanpage: string;
+  video: { id: number; title: string; thumbnail_url: string | null };
+  auto_comment: boolean;
+  added_by: string;
+  added_at: string;
+  tried_at: string | null;
+  error: string | null;
+};
+
+export type QueuePage = {
+  id: number;
+  name: string;
+  owner: { id: number; name: string } | null;
+  mine: boolean;
+  topic: { id: number; name: string } | null;
+  /** "HH:MM" in Vietnam: the Page's own times, else its topic group's. */
+  post_times: string[];
+  own_times: boolean;
+  healthy: boolean;
+  check_error: string | null;
+  /** Posting times in the next `fill_ahead_hours` that no post of the Page takes yet. */
+  free_slots: string[];
+  items: QueueItem[];
+};
+
+export type QueueOverview = {
+  pages: QueuePage[];
+  topics: { id: number; name: string }[];
+  fill_ahead_hours: number;
+};
