@@ -273,17 +273,86 @@ test("video list: status and creator filters, grid or list view remembered", asy
   await expect(cards).toHaveCount(1);
   await chooseOption(page, page.getByLabel("Người tạo"), "Của tôi");
   await expect(cards).toHaveCount(1);
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm chủ đề"), "Sức khỏe (1)");
+  await expect(cards).toHaveCount(1);
 
-  // The list view shows one row per video; the choice is remembered in this browser.
+  // The list view shows one row per video; the choice, and the topic group, are remembered in this browser.
   await page.getByTitle("Dạng danh sách").click();
   await expect(page.getByTestId("video-row")).toHaveCount(1);
   await page.reload();
   await expect(page.getByTestId("video-row")).toHaveCount(1);
+  await expect(page.locator(".ant-select").filter({ has: page.getByLabel("Lọc theo nhóm chủ đề") })).toContainText(
+    "Sức khỏe",
+  );
   await page.getByTestId("video-row").first().click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
   await page.goto("/videos");
   await page.getByTitle("Dạng lưới").click();
   await expect(cards).toHaveCount(1);
+});
+
+test("video list: Cần làm, the group's week, and a TikTok nudge on a card doing well", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "canxi cho người lớn tuổi");
+  // How the list reads the video, without rendering and posting it for real: as it is, rendered and waiting, or out
+  // on a Page at 4× its median at 48 hours.
+  let as: "draft" | "done" | "posted" = "draft";
+  await page.route(
+    (url) => url.pathname === "/api/videos",
+    async (route) => {
+      const response = await route.fetch();
+      const rows = await response.json();
+      if (as !== "draft") {
+        rows[0] = { ...rows[0], status: "done", status_label: "Xong" };
+      }
+      if (as === "posted") {
+        rows[0].post = {
+          state: "posted",
+          fanpage: "Vườn nhà",
+          fanpages: ["Vườn nhà"],
+          pages: 1,
+          at: new Date().toISOString(),
+          views: 4000,
+          shares: 40,
+          share_rate: 0.01,
+          share_met: false,
+          times_median: 4,
+        };
+      }
+      await route.fulfill({ response, json: rows });
+    },
+  );
+  await page.goto("/videos");
+  const cards = page.getByTestId("video-card");
+  await expect(cards).toHaveCount(1);
+
+  // A draft made today is not yet "Cần làm"; the group's line counts this week's videos.
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Cần làm");
+  await expect(cards).toHaveCount(0);
+  await chooseOption(page, page.getByLabel("Lọc theo nhóm chủ đề"), "Sức khỏe (1)");
+  await expect(page.getByTestId("group-week")).toHaveText(
+    "Sức khỏe, tuần này (từ thứ Hai): 1 video mới, 0 đã đăng, 1 còn nháp",
+  );
+
+  // Rendered and not posted anywhere: it waits on someone.
+  as = "done";
+  await page.reload();
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Cần làm");
+  await expect(cards).toHaveCount(1);
+  await expect(page.getByTestId("card-make-tiktok")).toHaveCount(0);
+
+  // Out and doing well: no longer to do, and the card offers a TikTok version, which opens the clone drawer.
+  as = "posted";
+  await page.reload();
+  await expect(page.getByTestId("group-week")).toContainText("1 đã đăng, 0 còn nháp");
+  const nudge = page.getByTestId("card-make-tiktok");
+  await expect(nudge).toHaveText("Tạo bản TikTok");
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Cần làm");
+  await expect(cards).toHaveCount(0);
+  await page.reload();
+  await nudge.click();
+  await expect(page.getByRole("dialog", { name: "Tạo bản TikTok" })).toBeVisible();
 });
 
 test("phone width: the editor title keeps the full width and the actions sit below it", async ({ page }) => {

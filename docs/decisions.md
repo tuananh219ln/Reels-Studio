@@ -23,6 +23,22 @@ be up to date with `main` before merging, so a merge, squash or rebase leaves th
 rule is ever turned off, or a push does not come from a merged PR, or GitHub cannot be asked, every job
 runs before deploying as before. The 2026-10-31 rule that only CI deploys, after every test passes,
 holds: the tests that passed are the ones on those exact files.
+## 2026-11-05 — The video list shows a TikTok version on its source's card, and filters by topic group
+
+Asked by a member (namtc): the list showed the Facebook video and its TikTok version as two cards with the same
+title. Only the display changes: "A TikTok version is its own video" (2026-11-03) stays, since the two are different
+files with different products, states and ways of posting. On `/videos` the version is a small "TikTok · Nháp" /
+"TikTok · Đã đăng" link on its source's card or row (`variant_of_id` and `tiktok_posted` on each row); it is listed
+on its own when a platform is chosen or its source is filtered out. A Facebook clone for another Page keeps its own
+card: it is a real variant, posted to another Page. A "Mọi nhóm chủ đề" filter, remembered in the browser, keeps one
+group's videos; it is a filter rather than a section per group, so the newest videos stay at the top.
+
+Three more on the same screen, all worked out in the browser from the list's rows: the group filter counts each
+group's videos and, with a group chosen, says what was made this week; a "Cần làm" status (a draft older than 2 days,
+a failure, an outdated MP4, or a finished video not out anywhere) to start the day with; and a Facebook card at 3× its
+Page's median or more at 48 hours with no TikTok version offers "Tạo bản TikTok". 3×, not the 1× of "Bài đăng"'s
+suggestion, so the list nudges only for the clear winners. Showing TikTok's views on the version's link waits for
+TikTok's numbers (issue #46).
 
 ## 2026-11-05 — Photo search follows the topic group; the group's own pictures can be reused
 

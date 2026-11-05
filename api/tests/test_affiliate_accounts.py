@@ -445,3 +445,19 @@ def test_the_list_says_which_videos_have_a_tiktok_version_or_a_clone(an, db, me,
     rows = {row["id"]: row for row in an.get("/api/videos").json()}
     assert (rows[source.id]["has_tiktok_version"], rows[source.id]["cloned"]) == (True, False)
     assert (rows[other.id]["has_tiktok_version"], rows[other.id]["cloned"]) == (False, True)
+
+
+def test_the_list_names_a_tiktok_versions_source_and_whether_it_was_posted(an, db, me, storage):
+    source = make_video(db, storage, me, scene_count=1)
+    version = make_video(db, storage, me, scene_count=1)
+    version.platform, version.variant_of_id, version.mp4_key = "tiktok", source.id, "videos/x/video.mp4"
+    db.commit()
+    rows = {row["id"]: row for row in an.get("/api/videos").json()}
+    assert (rows[version.id]["variant_of_id"], rows[version.id]["tiktok_posted"]) == (source.id, False)
+    assert (rows[source.id]["variant_of_id"], rows[source.id]["tiktok_posted"]) == (None, False)
+
+    account = tiktok_account(an)
+    url = "https://www.tiktok.com/@an.duongsinh/video/7300000000000000001"
+    an.post(f"/api/tiktok/videos/{version.id}/posts", json={"account_id": account["id"], "url": url})
+    rows = {row["id"]: row for row in an.get("/api/videos").json()}
+    assert rows[version.id]["tiktok_posted"] is True

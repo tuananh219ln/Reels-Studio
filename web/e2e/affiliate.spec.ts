@@ -162,7 +162,15 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await expect(page.getByTestId("variants")).toContainText("Bản TikTok của");
   await expect(page.getByRole("button", { name: "Tạo bản TikTok" })).toHaveCount(0);
 
+  // On the list the version sits on its source's card, not on a card of its own, and opens from there.
   await page.getByRole("link", { name: "Danh sách video" }).click();
+  await expect(page.getByTestId("video-card")).toHaveCount(1);
+  const version = page.getByTestId("video-version");
+  await expect(version).toHaveText(/TikTok\s*Nháp/);
+  await version.click();
+  await expect(page.getByTestId("video-platform")).toHaveText("TikTok");
+  await page.goBack();
+  // Choosing a platform shows every video on its own card again.
   await chooseOption(page, page.getByLabel("Lọc theo nền tảng"), "TikTok");
   await expect(page.getByTestId("video-platform")).toHaveCount(1);
 });

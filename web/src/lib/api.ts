@@ -51,6 +51,10 @@ export type VideoRow = {
   topic: string;
   title: string;
   platform: VideoPlatform;
+  /** The video a TikTok version was made from; the list shows the version on that video's card. */
+  variant_of_id: number | null;
+  /** A TikTok post of it was recorded ("Đã đăng tay"). */
+  tiktok_posted: boolean;
   /** A TikTok version was made from it; a Facebook clone ("Nhân bản", a version for another Page) was made from it. */
   has_tiktok_version: boolean;
   cloned: boolean;
