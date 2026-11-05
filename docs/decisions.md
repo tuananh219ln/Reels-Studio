@@ -54,6 +54,7 @@ keywords were written as for food, so a gardening scene found cooked dishes.
 - **"Đã dùng trong nhóm"** copies a photo or clip another video of the same group uses into a scene. A copy, not a
   shared file, so deleting either video never breaks the other; a photo keeps its source for a copyright claim.
   Limited to the same group: groups are separate channels' material.
+
 ## 2026-11-05 — A Shopee product from an ordinary shop can be approved
 
 Asked by the owner (namtc07): good seed products from "Shop thường" could not be approved. Replaces, for Shopee only,

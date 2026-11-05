@@ -186,6 +186,12 @@ def test_a_shopee_product_from_an_ordinary_shop_can_be_approved(an, db):
     assert an.post(f"{URL}/{product['id']}/approve").json()["status"] == "approved"
 
 
+def test_a_tiktok_shop_product_from_an_ordinary_shop_still_cannot_be_approved(an, db):
+    product = add(an, db, platform="tiktok_shop", shop_type="other")
+    assert any("Shop phải là" in problem for problem in product["problems"])
+    assert an.post(f"{URL}/{product['id']}/approve").status_code == 409
+
+
 def test_saving_an_approved_product_unchanged_keeps_its_approval(an, db):
     product = add_approved(an, db)
     same = an.put(f"{URL}/{product['id']}", json=body(db)).json()
