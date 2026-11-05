@@ -24,6 +24,16 @@ def default_clone_prompt() -> str:
 
 
 @cache
+def default_learn_prompt() -> str:
+    return _prompt_file("learn_default.txt")
+
+
+@cache
+def default_analyze_prompt() -> str:
+    return _prompt_file("analyze_default.txt")
+
+
+@cache
 def default_revise_prompt() -> str:
     return _prompt_file("revise_default.txt")
 

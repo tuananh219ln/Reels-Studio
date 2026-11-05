@@ -142,20 +142,22 @@ def _check_host(parts: urllib.parse.SplitResult) -> None:
         raise RemoteMediaError("Link trỏ vào địa chỉ nội bộ, không tải được")
 
 
-def _fetch(url: str, target: Path) -> None:
-    """The link's body into `target`, at most a clip's size."""
+def _fetch(
+    url: str, target: Path, max_bytes: int = MAX_CLIP_BYTES, too_big: str = TOO_BIG, seconds: float = DEADLINE_SECONDS
+) -> None:
+    """The link's body into `target`, at most `max_bytes` (a clip's size by default) within `seconds`."""
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "image/*,video/*,*/*;q=0.5"})
-    deadline = time.monotonic() + DEADLINE_SECONDS
+    deadline = time.monotonic() + seconds
     try:
         with _opener().open(request, timeout=TIMEOUT_SECONDS) as response, open(target, "wb") as file:
             length = response.headers.get("Content-Length", "")
-            if length.isdigit() and int(length) > MAX_CLIP_BYTES:
-                raise RemoteMediaError(TOO_BIG)
+            if length.isdigit() and int(length) > max_bytes:
+                raise RemoteMediaError(too_big)
             copied = 0
             while chunk := response.read(256 * 1024):
                 copied += len(chunk)
-                if copied > MAX_CLIP_BYTES:
-                    raise RemoteMediaError(TOO_BIG)
+                if copied > max_bytes:
+                    raise RemoteMediaError(too_big)
                 file.write(chunk)
                 if time.monotonic() > deadline:
                     raise RemoteMediaError("Trang này phản hồi quá chậm, hãy thử lại hoặc tải về rồi tải lên")
@@ -175,11 +177,24 @@ def download_tiktok(url: str, folder: Path) -> Path:
     """A public TikTok video as a file in `folder`, the largest one TikTok offers, H.264 before HEVC at a size."""
     if "/photo/" in urllib.parse.urlsplit(url).path:
         raise RemoteMediaError("Đây là bài ảnh TikTok: hãy mở ảnh, sao chép ảnh rồi dán vào cảnh")
+    return _download_with_ytdlp(
+        url,
+        folder,
+        MAX_CLIP_BYTES,
+        TOO_BIG,
+        "Hãy dán link của một video TikTok (có /video/ trong link)",
+        "Không tải được video TikTok này: hãy kiểm tra video còn công khai và link đúng rồi thử lại",
+    )
+
+
+def _download_with_ytdlp(url: str, folder: Path, max_bytes: int, too_big: str, not_one: str, failed: str) -> Path:
+    """One public video of a page yt-dlp knows, as a file in `folder`: the largest one offered, H.264 before HEVC at a
+    size. A page listing many videos (a profile, a search, a playlist) is refused with `not_one`."""
     options = {
-        "outtmpl": str(folder / "tiktok.%(ext)s"),
+        "outtmpl": str(folder / "linked.%(ext)s"),
         "format": "b",
         "format_sort": ["res", "vcodec:h264"],
-        "max_filesize": MAX_CLIP_BYTES,
+        "max_filesize": max_bytes,
         "noplaylist": True,
         "socket_timeout": TIMEOUT_SECONDS,
         "retries": 1,
@@ -192,17 +207,55 @@ def download_tiktok(url: str, folder: Path) -> Path:
             # Read without downloading first: a profile or a search page lists many videos and is refused.
             info = tool.extract_info(url, download=False, process=False)
             if info is None or info.get("_type") in ("playlist", "multi_video") or "entries" in info:
-                raise RemoteMediaError("Hãy dán link của một video TikTok (có /video/ trong link)")
+                raise RemoteMediaError(not_one)
             tool.process_ie_result(info, download=True)
     except yt_dlp.utils.DownloadError:
-        raise RemoteMediaError(
-            "Không tải được video TikTok này: hãy kiểm tra video còn công khai và link đúng rồi thử lại"
-        ) from None
-    files = [path for path in folder.glob("tiktok.*") if path.suffix not in (".part", ".ytdl")]
+        raise RemoteMediaError(failed) from None
+    files = [path for path in folder.glob("linked.*") if path.suffix not in (".part", ".ytdl")]
     if not files:
         # yt-dlp skips a file over max_filesize without an error.
-        raise RemoteMediaError(TOO_BIG)
+        raise RemoteMediaError(too_big)
     return files[0]
+
+
+def is_youtube(host: str) -> bool:
+    host = host.lower().rstrip(".")
+    return host in ("youtu.be", "youtube.com") or host.endswith(".youtube.com")
+
+
+# A sample video ("Từ video mẫu", reference.py) may be longer and larger than a scene clip.
+MAX_SAMPLE_BYTES = 100 * 1024 * 1024
+SAMPLE_TOO_BIG = "Video mẫu quá 100 MB, hãy chọn video ngắn hơn"
+SAMPLE_DEADLINE_SECONDS = 180
+
+
+def download_sample(url: str, folder: Path) -> Path:
+    """A sample video from a pasted link: TikTok and YouTube pages through yt-dlp, any other link must be the video
+    file itself (MP4, MOV, WebM), fetched like a scene's link."""
+    url = check_url(url)
+    parts = urllib.parse.urlsplit(url)
+    host = parts.hostname or ""
+    if is_tiktok(host) or is_youtube(host):
+        if "/photo/" in parts.path:
+            raise RemoteMediaError("Đây là bài ảnh TikTok, không phải video")
+        return _download_with_ytdlp(
+            url,
+            folder,
+            MAX_SAMPLE_BYTES,
+            SAMPLE_TOO_BIG,
+            "Hãy dán link của một video, không phải trang cá nhân, danh sách hay kết quả tìm kiếm",
+            "Không tải được video này: hãy kiểm tra video còn công khai và link đúng, hoặc tải video về rồi tải lên",
+        )
+    _check_host(parts)
+    target = folder / "linked"
+    _fetch(url, target, MAX_SAMPLE_BYTES, SAMPLE_TOO_BIG, SAMPLE_DEADLINE_SECONDS)
+    with open(target, "rb") as file:
+        head = file.read(16)
+    if not looks_like_clip(head):
+        raise RemoteMediaError(
+            "Link này không phải video: hãy dán link TikTok, YouTube hoặc link file MP4, hoặc tải video về rồi tải lên"
+        )
+    return target
 
 
 def download(url: str, folder: Path) -> Media:

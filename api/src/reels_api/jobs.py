@@ -32,6 +32,7 @@ from . import (
     knowledge,
     llm,
     plans,
+    reference,
     revise,
     source_keys,
 )
@@ -46,7 +47,7 @@ from .clips import ClipError, frame_at
 from .facebook import FacebookError
 from .frames import jpeg_bytes
 from .imagegen import ImageGenError, generate_image
-from .models import Job, KnowledgeTopic, Publication, Scene, Video, VideoNote
+from .models import Job, KnowledgeTopic, Publication, Scene, Video, VideoNote, VideoReference
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
@@ -104,6 +105,8 @@ def run_job(
         try:
             if job.kind in ("script", "clone"):
                 run_script_job(db, job, call)
+            elif job.kind == "learn":
+                run_learn_job(db, job, storage, call)
             elif job.kind == "plan":
                 run_plan_job(db, job, call)
             elif job.kind == "render":
@@ -144,8 +147,13 @@ def run_job(
             return
         _finish(db, job_id, "done")
         log.info("Job %s done", job_id)
-        if job.kind in ("script", "clone"):
+        if job.kind in ("script", "clone") or (job.kind == "learn" and _has_script(db, job)):
             _queue_photos(db, job)
+
+
+def _has_script(db: DbSession, job: Job) -> bool:
+    video = db.get(Video, job.video_id, populate_existing=True)
+    return bool(video and video.has_script)
 
 
 def _reopen_notes(db: DbSession, job: Job) -> None:
@@ -228,6 +236,82 @@ def _llm(
 
         def call(prompt: str, label: str) -> str:
             return llm.complete(target, prompt, label)
+
+    def count_call() -> None:
+        db.execute(update(Job).where(Job.id == job.id).values(claude_calls=Job.claude_calls + 1))
+        db.commit()
+
+    return call, count_call
+
+
+# --- Learn ("Từ video mẫu") ---
+
+
+def run_learn_job(db: DbSession, job: Job, storage: DirectoryStorage, call: Callable | None) -> None:
+    """A script learned from a sample video, in the way the video was made with (reference.py). The way "review"
+    stops after the analysis; the job queued by "Viết kịch bản" then writes from the analysis as edited."""
+    video = db.get(Video, job.video_id)
+    if video.has_script:
+        return
+    topic = knowledge.topic_of(db, video)
+    if topic is None:
+        raise JobFailure("Video chưa thuộc nhóm chủ đề nào trong Kho kiến thức")
+    sample = db.get(VideoReference, video.reference_id) if video.reference_id else None
+    if sample is None:
+        raise JobFailure("Video mẫu của video này đã bị xoá, hãy tạo video mới từ video mẫu")
+    mode = video.reference_mode if video.reference_mode in reference.MODES else "quick"
+    folder = work_dir(job.id)
+    folder.mkdir(parents=True, exist_ok=True)
+    label = f"job {job.id}"
+    try:
+        reference.prepare(db, sample, storage, folder)
+        see, count_call = _seeing_llm(db, job, call)
+        analyzed_before = reference.is_analyzed(sample)
+        if mode != "quick" and not analyzed_before:
+            reference.analyze(sample, topic, storage, see, count_call, label)
+            db.commit()
+            if mode == "review":
+                # The member reads and edits the analysis, then "Viết kịch bản" queues the writing.
+                return
+        learned = reference.write(
+            video.topic,
+            sample,
+            topic,
+            storage,
+            see,
+            count_call,
+            label,
+            with_images=mode != "twostep",
+            with_analysis=mode == "quick" and not analyzed_before,
+        )
+    except reference.ReferenceError as err:
+        db.rollback()
+        raise JobFailure(err.message, err.detail) from None
+    except ClaudeError as err:
+        db.rollback()
+        raise JobFailure(err.message, err.detail) from None
+    if learned.analysis and not reference.is_analyzed(sample):
+        sample.analysis, sample.analyzed_at = learned.analysis, now()
+    save_script(db, video, learned.script)
+    db.flush()
+    title, scenes = split_scenes(db, video)
+    reference.attach_clips(storage, sample, title, scenes, learned, folder, lambda name: new_key(video.id, name, "mp4"))
+    if title is not None and title.video_key:
+        refresh_thumbnail(db, storage, video, title)
+    affiliate_rounds.ask_after_script(db, video, job.created_by_id)
+    db.commit()
+    shutil.rmtree(folder, ignore_errors=True)
+
+
+def _seeing_llm(db: DbSession, job: Job, call: Callable | None) -> tuple[reference.SeeingCall, Callable[[], None]]:
+    """Like _llm, for calls that may send a sample's stills as images."""
+    if call is None:
+        target = llm.active_target(db)
+        db.execute(update(Job).where(Job.id == job.id).values(llm_provider=target.provider, llm_model=target.model))
+        db.commit()
+
+        def call(prompt: str, label: str, images=()) -> str:
+            return llm.complete(target, prompt, label, images)
 
     def count_call() -> None:
         db.execute(update(Job).where(Job.id == job.id).values(claude_calls=Job.claude_calls + 1))

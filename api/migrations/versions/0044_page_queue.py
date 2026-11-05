@@ -1,7 +1,7 @@
 """A Page's topic group and posting times, and its posting queue (page_queue_items)
 
-Revision ID: 0037
-Revises: 0036
+Revision ID: 0044
+Revises: 0043
 Create Date: 2026-11-05
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0037"
-down_revision = "0036"
+revision = "0044"
+down_revision = "0043"
 branch_labels = None
 depends_on = None
 

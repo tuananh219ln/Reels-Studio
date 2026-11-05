@@ -8,7 +8,9 @@ With nothing set on /settings/ai the team uses Claude from the environment (ANTH
 before this page existed; ANTHROPIC_BASE_URL is also how tests reach a local fake Claude.
 """
 
+import base64
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
@@ -143,14 +145,29 @@ def label(provider: str | None, model: str | None) -> str | None:
 # --- Calls ---
 
 
-def complete(target: Target, prompt: str, label: str) -> str:
-    """One request with one user message; the answer's text. Failures raise ClaudeError with a member message."""
+def complete(target: Target, prompt: str, label: str, images: Sequence[bytes] = ()) -> str:
+    """One request with one user message; the answer's text. Failures raise ClaudeError with a member message.
+    `images` are JPEG stills sent before the text (a sample video's frames); a model that cannot read images
+    refuses the request."""
     reason = problem(target)
     if reason:
         raise ClaudeError(reason)
-    if target.kind == ANTHROPIC:
-        return _anthropic(target, prompt, label)
-    return _openai(target, prompt, label)
+    try:
+        if target.kind == ANTHROPIC:
+            return _anthropic(target, prompt, label, images)
+        return _openai(target, prompt, label, images)
+    except ClaudeError as err:
+        if images and "từ chối yêu cầu" in err.message:
+            raise ClaudeError(
+                f"{err.message}: có thể model “{target.model}” không đọc được ảnh, hãy chọn model đọc được ảnh "
+                "(vd Claude, GPT-4o, Gemini) trong Cài đặt › Mô hình AI",
+                err.detail,
+            ) from None
+        raise
+
+
+def _jpeg_base64(image: bytes) -> str:
+    return base64.b64encode(image).decode()
 
 
 def list_models(target: Target) -> list[str]:
@@ -202,7 +219,7 @@ def _anthropic_error(target: Target, err: anthropic.APIError) -> ClaudeError:
     return ClaudeError(f"Không kết nối được {name}, kiểm tra mạng và Base URL rồi thử lại", str(err))
 
 
-def _anthropic(target: Target, prompt: str, label: str) -> str:
+def _anthropic(target: Target, prompt: str, label: str, images: Sequence[bytes] = ()) -> str:
     client = _anthropic_client(target, REQUEST_TIMEOUT)
     extra = (
         {"betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
@@ -213,7 +230,7 @@ def _anthropic(target: Target, prompt: str, label: str) -> str:
         response = client.beta.messages.create(
             model=target.model,
             max_tokens=MAX_TOKENS,
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{"role": "user", "content": _anthropic_content(prompt, images)}],
             **extra,
         )
     except anthropic.APIError as err:
@@ -233,6 +250,25 @@ def _anthropic(target: Target, prompt: str, label: str) -> str:
         details = getattr(response, "stop_details", None)
         raise ClaudeError("Claude từ chối viết kịch bản cho chủ đề này, hãy đổi cách diễn đạt", str(details or ""))
     return "".join(block.text for block in response.content if block.type == "text")
+
+
+def _anthropic_content(prompt: str, images: Sequence[bytes]) -> str | list[dict]:
+    if not images:
+        return prompt
+    blocks: list[dict] = [
+        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": _jpeg_base64(image)}}
+        for image in images
+    ]
+    return [*blocks, {"type": "text", "text": prompt}]
+
+
+def _openai_content(prompt: str, images: Sequence[bytes]) -> str | list[dict]:
+    if not images:
+        return prompt
+    parts: list[dict] = [
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{_jpeg_base64(image)}"}} for image in images
+    ]
+    return [*parts, {"type": "text", "text": prompt}]
 
 
 def _openai_request(target: Target, method: str, path: str, timeout: float, body: dict | None = None):
@@ -262,9 +298,9 @@ def _openai_request(target: Target, method: str, path: str, timeout: float, body
     return response
 
 
-def _openai(target: Target, prompt: str, label: str) -> str:
+def _openai(target: Target, prompt: str, label: str, images: Sequence[bytes] = ()) -> str:
     # No max_tokens: the providers' limits differ, and a value above one's limit is refused outright.
-    body = {"model": target.model, "messages": [{"role": "user", "content": prompt}]}
+    body = {"model": target.model, "messages": [{"role": "user", "content": _openai_content(prompt, images)}]}
     response = _openai_request(target, "POST", "/chat/completions", REQUEST_TIMEOUT, body)
     try:
         data = response.json()
