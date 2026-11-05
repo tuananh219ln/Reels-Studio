@@ -245,6 +245,19 @@ def page_dashboard_view(
     return page_dashboard.dashboard(db, row, days)
 
 
+@router.get("/{fanpage_id}/content")
+def page_content_view(
+    fanpage_id: int, days: int = 28, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """The dashboard's "Nội dung" tab: the app's posts to the Page that went live in the last `days` days."""
+    if days not in page_dashboard.PERIODS:
+        raise invalid("Khoảng thời gian chỉ được là 7, 28 hoặc 90 ngày")
+    row = db.get(Fanpage, fanpage_id)
+    if row is None:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage")
+    return page_dashboard.content(db, row, days)
+
+
 @router.delete("/{fanpage_id}")
 def delete_page(fanpage_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
     """Remove a Page connected by mistake or never used, with its token and numbers. A Page in use is stopped first, so

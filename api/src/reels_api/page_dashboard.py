@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import analytics, fanpages, page_queue
+from . import analytics, facebook, fanpages, page_queue
 from .models import Fanpage, FanpageFollowers, FanpageInsights, PostMetrics, Publication, Video
 from .sessions import now
 from .videos import LIVE_POST_STATUSES, is_published, live_at, split_scenes, thumbnail_url, title_of
@@ -184,6 +184,75 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
             slot.isoformat() for slot in page_queue.free_slots(db, page, at + page_queue.FILL_LEAD, at + AHEAD)
         ],
         "post_times": page_queue.post_times(db, page),
+    }
+
+
+def _content_row(db: DbSession, post: Publication, median: analytics.Median | None) -> dict:
+    windows = {row.window: row for row in post.metrics}
+    latest, mark = windows.get("latest"), windows.get("48h")
+    published = is_published(post)
+    asked, tried = post.metrics_requested_at, post.metrics_tried_at
+    views_48h = mark.views if mark else None
+    times = analytics.times_median(views_48h, median) if views_48h is not None else None
+    return {
+        "id": post.id,
+        "status": "published" if published else post.status,
+        "live_at": live_at(post).isoformat(),
+        "closed_at": post.closed_at.isoformat() if post.closed_at else None,
+        "url": facebook.reel_url(post.remote_id) if published and post.remote_id else None,
+        "video": _video(db, db.get(Video, post.video_id)),
+        "numbers": {
+            "views": latest.views,
+            "reach": latest.reach,
+            "reactions": latest.reactions,
+            "comments": latest.comments,
+            "shares": latest.shares,
+            "avg_watch_seconds": round(latest.avg_watch_ms / 1000, 1) if latest.avg_watch_ms is not None else None,
+            "followers": latest.followers,
+            "measured_at": latest.measured_at.isoformat(),
+        }
+        if latest
+        else None,
+        "views_48h": views_48h,
+        "times_median": round(times, 1) if times is not None else None,
+        # "Cập nhật view" (POST /api/posts/{id}/metrics) takes only a reel that is on Facebook.
+        "can_refresh": published and post.remote_id is not None,
+        "pending": asked is not None and (tried is None or tried < asked),
+        "error": post.metrics_error,
+    }
+
+
+def content(db: DbSession, page: Fanpage, days: int) -> dict:
+    """The "Nội dung" tab, like Facebook's content library: every post the app made to the Page that went live in the
+    period, newest first, with its latest reading and its 48-hour views against the Page's median (analytics.py).
+    A reel taken down after going live stays, as "deleted"; posts made outside the app are not known."""
+    at = now()
+    current, _ = periods(days, _local_day(at))
+    since = datetime(current.start.year, current.start.month, current.start.day, tzinfo=analytics.VIETNAM)
+    live = func.coalesce(Publication.scheduled_at, Publication.published_at, Publication.created_at)
+    rows = db.scalars(
+        select(Publication)
+        .where(
+            Publication.fanpage_id == page.id,
+            Publication.platform == "facebook",
+            Publication.status.in_((*LIVE_POST_STATUSES, "deleted")),
+            live >= since,
+            live <= at,
+        )
+        .order_by(live.desc(), Publication.id.desc())
+    )
+    posts = [post for post in rows if post.status == "deleted" or is_published(post)]
+    median = analytics.medians(db).get(page.id)
+    return {
+        "days": days,
+        "start": current.start.isoformat(),
+        "end": current.end.isoformat(),
+        "median": {
+            "views": median.views if median else None,
+            "samples": median.samples if median else 0,
+            "min_samples": analytics.MIN_SAMPLES,
+        },
+        "posts": [_content_row(db, post, median) for post in posts],
     }
 
 
