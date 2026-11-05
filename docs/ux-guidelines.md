@@ -575,7 +575,7 @@ Built:
     in one row: followers (with this week's gain), views, reach and engagements of the last 7 days;
     under the owner line, "Đăng theo lịch": the topic group the Page posts and its posting times (tags
     such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
-    line saying whose times they are and the free times in the next 48 hours, then "Hàng chờ (N)":
+    line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the rest), then "Hàng chờ (N)":
     each waiting video's number, cover, title (opening the video), who added it and when, the reason
     in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ khỏi hàng
     chờ", confirmed); an empty queue says how to add one;

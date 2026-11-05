@@ -8,6 +8,8 @@ import { api, errorMessage, formatDateTime, type QueueOverview, type QueuePage }
 import VideoThumbnail from "@/components/VideoThumbnail";
 
 const TIME = /^([01]?\d|2[0-3]):[0-5]\d$/;
+// The next few free times are enough to see when the queue will post; the rest is a count.
+const SHOWN_SLOTS = 3;
 
 /** The part of a Page's card on "Quản lý Page" about posting: its topic group and posting times (its owner changes
  * them), the free times ahead, and its queue of videos, which the worker schedules one by one at those times. */
@@ -101,7 +103,12 @@ export default function PageQueueSection({
               : "Theo giờ đăng của nhóm chủ đề (giờ Việt Nam)."}
           {page.post_times.length > 0 &&
             (page.free_slots.length > 0
-              ? ` Khung trống trong ${overview.fill_ahead_hours} giờ tới: ${page.free_slots.map(formatDateTime).join(", ")}.`
+              ? ` Khung trống trong ${overview.fill_ahead_hours} giờ tới: ${page.free_slots
+                  .slice(0, SHOWN_SLOTS)
+                  .map(formatDateTime)
+                  .join(
+                    ", ",
+                  )}${page.free_slots.length > SHOWN_SLOTS ? ` và ${page.free_slots.length - SHOWN_SLOTS} khung khác` : ""}.`
               : ` Không còn khung trống trong ${overview.fill_ahead_hours} giờ tới.`)}
         </Typography.Text>
         {page.items.length === 0 ? (

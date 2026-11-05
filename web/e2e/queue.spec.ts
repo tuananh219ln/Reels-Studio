@@ -56,6 +56,8 @@ test("a Page's owner gives it a topic group and its own posting times on Quản 
   await chooseOption(page, card.getByLabel("Nhóm chủ đề của Trang Dưỡng Sinh"), GROUP);
   await expect(card).toContainText("Theo giờ đăng của nhóm chủ đề (giờ Việt Nam).");
   await expect(card).toContainText("Khung trống trong 48 giờ tới:");
+  // Five times a day make about ten free times in 48 hours: three are named, the rest counted.
+  await expect(card).toContainText(/ và \d+ khung khác\./);
 
   // A Page warming up posts once a day, at a time of its own.
   const times = card.getByLabel("Giờ đăng của Trang Dưỡng Sinh");
