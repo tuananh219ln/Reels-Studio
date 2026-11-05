@@ -137,6 +137,8 @@ class GeneratedScene:
     image_prompt: str
     voice: str = ""
     keywords_en: list[str] = field(default_factory=list)
+    # "AI gợi ý hiệu ứng": the scene's effects as the AI wrote them; checked against the presets when they are put on.
+    effects: object = None
 
 
 @dataclass(frozen=True)
@@ -342,6 +344,7 @@ def _scene(item: dict) -> GeneratedScene:
         image_prompt=_text(item.get("image_prompt")),
         voice=_voice(item.get("voice")),
         keywords_en=_keywords(item.get("keywords_en")),
+        effects=item.get("effects"),
     )
 
 

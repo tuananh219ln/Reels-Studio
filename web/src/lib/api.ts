@@ -93,7 +93,18 @@ export type VideoRowPost = {
 
 export type JobInfo = {
   id: number;
-  kind: "script" | "clone" | "learn" | "render" | "publish" | "unpublish" | "check" | "image" | "photos" | "voice";
+  kind:
+    | "script"
+    | "clone"
+    | "learn"
+    | "render"
+    | "publish"
+    | "unpublish"
+    | "check"
+    | "image"
+    | "photos"
+    | "voice"
+    | "revise";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";
@@ -102,6 +113,65 @@ export type JobInfo = {
   created_by: string | null;
   started_at: string | null;
   finished_at: string | null;
+};
+
+/** A text or sticker layer over a scene (reels_render.layers): its own seconds, place, look and entrance. */
+export type SceneLayer = {
+  id: number;
+  kind: "text" | "sticker";
+  text: string;
+  sticker: string;
+  /** Seconds into its scene. */
+  start: number;
+  seconds: number;
+  /** Its centre in the 1080×1920 frame; the picture is kept inside the frame. */
+  x: number;
+  y: number;
+  size: string;
+  style: string;
+  animation: string;
+  /** The exact picture the render lays on. */
+  image_url: string;
+};
+
+/** A sound effect heard from a second of its scene (reels_render.sounds), made by FFmpeg. */
+export type SceneSound = {
+  id: number;
+  sound: string;
+  /** Seconds into its scene. */
+  start: number;
+  volume: string;
+  /** The sound as the render makes it. */
+  url: string;
+};
+
+/** A "Mẫu dựng": the app's own ("app") or the team's, with what it does in Vietnamese lines. */
+export type EditTemplate = {
+  id: "app" | number;
+  name: string;
+  builtin: boolean;
+  summary: string[];
+};
+
+export type EditTemplates = {
+  templates: EditTemplate[];
+  /** The template put on every new video; null for none. */
+  default: "app" | number | null;
+};
+
+/** A member's comment at a second of the video ("Góp ý"), sent to the AI with "Nhờ AI sửa". */
+export type VideoNote = {
+  id: number;
+  /** Seconds from the video's start. */
+  at: number;
+  /** The scene playing at that second now. */
+  scene_id: number | null;
+  text: string;
+  /** open: not sent yet; sent: waiting for the AI; done: answered. */
+  status: "open" | "sent" | "done";
+  reply: string;
+  created_by: string;
+  created_at: string;
 };
 
 export type SceneData = {
@@ -142,6 +212,15 @@ export type SceneData = {
   frame_url: string | null;
   textbox_url: string | null;
   text_problem: string | null;
+  /** The studio's effects (reels_render.effects): the transition into this scene, null for the video's one. */
+  transition: string | null;
+  /** Its colour preset, null for the picture as shot. The title scene has neither. */
+  color: string | null;
+  /** Text and sticker layers over the scene, in the order they are laid on (the last on top). */
+  layers: SceneLayer[];
+  sounds: SceneSound[];
+  /** The music's level during the scene ("off", "low", "high"); null: the video's. */
+  music_level: string | null;
   blocking: string[];
   warnings: string[];
 };
@@ -174,6 +253,11 @@ export type VideoDetail = VideoRow & {
   mp4: { url: string; download_url: string; seconds: number; render_seconds: number; rendered_at: string } | null;
   music: { url: string; name: string | null } | null;
   music_volume: number;
+  /** Where in the song the music starts, in seconds. */
+  music_start: number;
+  notes: VideoNote[];
+  /** Made with "AI gợi ý hiệu ứng". */
+  ai_effects: boolean;
   voice_enabled: boolean;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
@@ -266,6 +350,8 @@ export type KnowledgeTopic = {
   name: string;
   script_prompt: string;
   clone_prompt: string;
+  /** "Prompt sửa theo góp ý"; "" uses the default. */
+  revise_prompt: string;
   banned_words: string[];
   /** "Gợi ý tìm ảnh": what the group's photos show, added to the script prompts for the search keywords. */
   photo_hint: string;
@@ -343,6 +429,9 @@ export type VideoOptions = {
   title_accent_color: string;
   title_box_opacity: VideoOptions["box_opacity"];
   captions: "off" | "phrase" | "word";
+  /** The text box's size ("Cỡ chữ"): the content scenes' and the title's; "large" is the original template. */
+  text_size: "large" | "medium" | "small";
+  title_text_size: "large" | "medium" | "small";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
 };
@@ -397,6 +486,7 @@ export type Knowledge = {
   default_clone_prompt: string;
   default_learn_prompt: string;
   default_analyze_prompt: string;
+  default_revise_prompt: string;
 };
 
 /** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. A null day is the Backlog. */

@@ -33,6 +33,11 @@ def default_analyze_prompt() -> str:
     return _prompt_file("analyze_default.txt")
 
 
+@cache
+def default_revise_prompt() -> str:
+    return _prompt_file("revise_default.txt")
+
+
 def all_topics(db: DbSession) -> list[KnowledgeTopic]:
     return list(db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.id)))
 

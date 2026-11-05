@@ -5,8 +5,11 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
+from .layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
 from .markup import MarkupError, Run, parse_scene_text
+from .sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS, SceneSound
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 MIN_SCENE_SECONDS = 1
@@ -31,6 +34,11 @@ class Scene:
     video_speed: float = 1.0  # how fast the clip plays; the scene's seconds stay its length on screen
     voice_text: str = ""  # what the narration says, for captions
     text_position: tuple[int, int] | None = None  # the text box's centre in the frame; None: the template's place
+    transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
+    color: str | None = None  # effects.COLOR_PRESETS; None: as shot
+    layers: tuple[Layer, ...] = ()  # text and sticker layers over the scene, in the order they are laid on
+    sounds: tuple[SceneSound, ...] = ()  # sound effects heard during the scene
+    music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
 
 
 @dataclass(frozen=True)
@@ -110,6 +118,13 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         raise InputError(f"{label}: không tìm thấy file lời đọc {voice}")
     video, video_start, video_speed = _parse_video(item, label, base_dir)
     text_position = _parse_position(item.get("text_position"), label)
+    transition = _parse_preset(item.get("transition"), "transition", SCENE_TRANSITIONS, label)
+    if transition is not None and number == 0:
+        raise InputError(f'{label}: không có "transition", vì không có cảnh nào trước nó')
+    color = _parse_preset(item.get("color"), "color", COLOR_PRESETS, label)
+    layers = _parse_layers(item.get("layers"), label)
+    sounds = _parse_sounds(item.get("sounds"), label)
+    music_level = _parse_preset(item.get("music_level"), "music_level", MUSIC_LEVELS, label)
     if video is not None and image.strip():
         raise InputError(f'{label}: chỉ dùng một trong "image" hoặc "video"')
     keywords = _parse_keywords(item.get("keywords"), label)
@@ -147,7 +162,89 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         video_speed=video_speed,
         voice_text=voice_text,
         text_position=text_position,
+        transition=transition,
+        color=color,
+        layers=layers,
+        sounds=sounds,
+        music_level=music_level,
     )
+
+
+def _number(value: object, field: str, label: str, low: float, high: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise InputError(f'{label}: "{field}" phải là số')
+    if not low <= value <= high:
+        raise InputError(f'{label}: "{field}" phải từ {low:g} đến {high:g} (đang là {value:g})')
+    return value
+
+
+def _parse_layers(value: object, label: str) -> tuple[Layer, ...]:
+    """A scene's text and sticker layers, in the order they are laid on."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise InputError(f'{label}: "layers" phải là danh sách lớp')
+    layers = []
+    for number, item in enumerate(value, start=1):
+        where = f"{label}, lớp {number}"
+        if not isinstance(item, dict):
+            raise InputError(f"{where}: phải là một object")
+        kind = item.get("kind")
+        if kind not in ("text", "sticker"):
+            raise InputError(f'{where}: "kind" phải là "text" hoặc "sticker"')
+        text, sticker = item.get("text", ""), item.get("sticker", "")
+        if kind == "text" and (not isinstance(text, str) or not text.strip()):
+            raise InputError(f'{where}: lớp chữ cần "text"')
+        if kind == "sticker":
+            _parse_preset(sticker, "sticker", STICKERS, where)
+        layer = Layer(
+            kind=kind,
+            text=text if kind == "text" else "",
+            sticker=sticker if kind == "sticker" else "",
+            start=float(_number(item.get("start", 0), "start", where, 0, 1e6)),
+            seconds=float(_number(item.get("seconds", 2), "seconds", where, 0.1, 1e6)),
+            x=int(_number(item.get("x", FRAME_WIDTH // 2), "x", where, 0, FRAME_WIDTH)),
+            y=int(_number(item.get("y", FRAME_HEIGHT // 2), "y", where, 0, FRAME_HEIGHT)),
+            size=_parse_preset(item.get("size", "medium"), "size", SIZES, where),
+            style=_parse_preset(item.get("style", "outline"), "style", TEXT_STYLES, where),
+            animation=_parse_preset(item.get("animation", "fade"), "animation", ANIMATIONS, where),
+        )
+        if kind == "text":
+            try:
+                render_layer(layer)
+            except ValueError as err:
+                raise InputError(f"{where}: {err}") from None
+        layers.append(layer)
+    return tuple(layers)
+
+
+def _parse_sounds(value: object, label: str) -> tuple[SceneSound, ...]:
+    """A scene's sound effects, each from its own second of the scene."""
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise InputError(f'{label}: "sounds" phải là danh sách âm thanh')
+    sounds = []
+    for number, item in enumerate(value, start=1):
+        where = f"{label}, âm {number}"
+        if not isinstance(item, dict):
+            raise InputError(f"{where}: phải là một object")
+        sounds.append(
+            SceneSound(
+                sound=_parse_preset(item.get("sound"), "sound", SOUNDS, where),
+                start=float(_number(item.get("start", 0), "start", where, 0, 1e6)),
+                volume=_parse_preset(item.get("volume", "normal"), "volume", SOUND_VOLUMES, where),
+            )
+        )
+    return tuple(sounds)
+
+
+def _parse_preset(value: object, field: str, presets: dict, label: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or value not in presets:
+        raise InputError(f'{label}: "{field}" không hợp lệ: {value!r} (chọn một trong {", ".join(presets)})')
+    return value
 
 
 def _parse_position(value: object, label: str) -> tuple[int, int] | None:

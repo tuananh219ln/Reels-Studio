@@ -15,10 +15,13 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
+from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
 
 from . import (
+    autoedit,
     clips,
     frames,
     image_providers,
@@ -99,6 +102,7 @@ MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
 MAX_LIST_ITEMS = 20
 NEW_SCENE_SECONDS = 4
+MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 TITLE_SECONDS = 3  # as the script job gives the title scene
 # "Tự viết": a pasted script's limits, well past what a 90-second video can hold.
 MAX_SCRIPT_LENGTH = 5000
@@ -123,6 +127,7 @@ class NewVideoBody(BaseModel):
     # "ai": the script job writes it; "manual" ("Tự viết"): no AI, the scenes come from `script`, or one empty scene.
     mode: Literal["ai", "manual"] = "ai"
     script: str = ""
+    ai_effects: bool = False  # "AI gợi ý hiệu ứng": the script call also picks each scene's effects (AI scripts only)
 
 
 class VideoPatchBody(BaseModel):
@@ -132,6 +137,7 @@ class VideoPatchBody(BaseModel):
     pinned_comment: str | None = None
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
+    music_start: object = None  # seconds into the song where the video's music starts
     voice_enabled: bool | None = None
     options: dict | None = None  # some of video_options.DEFAULTS
     reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
@@ -149,6 +155,9 @@ class ScenePatchBody(BaseModel):
     video_speed: float | None = None
     text_position: object = None  # the text box centre [x, y]; null: back to the video's (or template's)
     image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
+    transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
+    color: object = None  # its colour preset; null: as shot
+    music_level: object = None  # the music's level during the scene (reels_render.sounds); null: the video's
 
 
 class PublishBody(BaseModel):
@@ -160,6 +169,10 @@ class PublishBody(BaseModel):
 
 class SceneOrderBody(BaseModel):
     ids: list[int]
+
+
+class SplitBody(BaseModel):
+    at: float  # seconds into the scene where the second part begins
 
 
 def invalid(message: str) -> ApiError:
@@ -259,7 +272,13 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         raise invalid(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
     scenes = hand_written_scenes(body.script) if manual else []
     idea = _free_idea(db, body.plan_item_id, group) if body.plan_item_id is not None else None
-    video = Video(topic=topic, knowledge_topic_id=group.id, has_script=manual, created_by_id=me.user_id)
+    video = Video(
+        topic=topic,
+        knowledge_topic_id=group.id,
+        has_script=manual,
+        created_by_id=me.user_id,
+        ai_effects=body.ai_effects and not manual,
+    )
     video_options.apply_team_defaults(db, video)
     db.add(video)
     db.flush()
@@ -267,6 +286,7 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         idea.video_id = video.id
     if manual:
         _write_by_hand(db, video, topic, scenes)
+        autoedit.apply_default(db, video)
     else:
         _enqueue(db, video, "script", me)
     return _saved(db, video)
@@ -372,6 +392,13 @@ def patch_video(
         if not 0 <= body.music_volume <= 100:
             raise invalid("Âm lượng phải từ 0 đến 100%")
         video.music_volume = body.music_volume
+    if "music_start" in fields:
+        start = body.music_start
+        if isinstance(start, bool) or not isinstance(start, (int, float)) or not math.isfinite(start):
+            raise invalid("Giây bắt đầu của bài nhạc phải là số")
+        if not 0 <= start <= MAX_MUSIC_START:
+            raise invalid(f"Giây bắt đầu của bài nhạc phải từ 0 đến {MAX_MUSIC_START}")
+        video.music_start = round(start, 1)
     if "voice_enabled" in fields and body.voice_enabled is not None:
         video.voice_enabled = body.voice_enabled
     look = video_options.text_look(video)
@@ -754,6 +781,63 @@ def reorder_scenes(
     return _saved(db, video)
 
 
+@router.post("/scenes/{scene_id}/split")
+def split_scene(
+    scene_id: int,
+    body: SplitBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Tách cảnh" in the studio: the scene ends at `at` and a new scene right after it shows the rest of the same
+    photo or clip, as its own file, silent and without text. The first part keeps the text and the narration."""
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    if scene.is_title:
+        raise ApiError(409, "title_scene", "Không tách được cảnh tiêu đề")
+    latest = round(scene.seconds - MIN_SECONDS, 2)
+    if not math.isfinite(body.at) or not MIN_SECONDS <= body.at <= latest:
+        raise invalid(f"Chỉ tách được từ giây {MIN_SECONDS:g} đến {max(latest, MIN_SECONDS):g} của cảnh")
+    at = round(body.at, 2)
+    later = db.scalars(
+        select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False), Scene.position > scene.position)
+    ).all()
+    for other in later:
+        other.position += 1
+    rest = Scene(
+        video_id=video.id,
+        is_title=False,
+        position=scene.position + 1,
+        text="",
+        seconds=round(scene.seconds - at, 2),
+        seconds_auto=False,
+        keywords=list(scene.keywords),
+        keywords_en=list(scene.keywords_en),
+        image_prompt=scene.image_prompt,
+        image_source=scene.image_source,
+        # The same picture goes on, so it cuts in rather than showing a transition into itself.
+        transition="cut",
+        color=scene.color,
+        music_level=scene.music_level,
+    )
+    db.add(rest)
+    db.flush()
+    if scene.video_key:
+        rest.video_key = new_key(video.id, f"clip-{rest.id}", Path(scene.video_key).suffix.lstrip("."))
+        storage.save_file(rest.video_key, storage.path(scene.video_key))
+        rest.video_seconds, rest.video_speed = scene.video_seconds, scene.video_speed
+        rest.video_start = round(scene.video_start + at * scene.video_speed, 2)
+    elif scene.image_key:
+        rest.image_key = new_key(video.id, f"scene-{rest.id}", Path(scene.image_key).suffix.lstrip("."))
+        storage.save_file(rest.image_key, storage.path(scene.image_key))
+    # Layers that start after the cut go with the rest, still at the same moment of the video.
+    for item in [*scene.layers, *scene.sounds]:
+        if item.start >= at:
+            item.scene_id, item.start = rest.id, round(item.start - at, 2)
+    scene.seconds, scene.seconds_auto = at, False
+    return _saved(db, video)
+
+
 @router.patch("/scenes/{scene_id}")
 def patch_scene(
     scene_id: int,
@@ -822,6 +906,20 @@ def patch_scene(
         new_x, new_y = position if position else (None, None)
         moved = (new_x, new_y) != (scene.text_x, scene.text_y)
         scene.text_x, scene.text_y = new_x, new_y
+    for field, presets, name in (("transition", SCENE_TRANSITIONS, "Chuyển cảnh"), ("color", COLOR_PRESETS, "Màu")):
+        if field not in fields:
+            continue
+        value = getattr(body, field)
+        if value is not None and scene.is_title:
+            raise invalid(f"Cảnh tiêu đề không có {name.lower()} riêng")
+        if value is not None and (not isinstance(value, str) or value not in presets):
+            raise invalid(f"{name} không hợp lệ: {value!r}")
+        setattr(scene, field, value)
+    if "music_level" in fields:
+        level = body.music_level
+        if level is not None and (not isinstance(level, str) or level not in MUSIC_LEVELS):
+            raise invalid(f"Mức nhạc không hợp lệ: {level!r}")
+        scene.music_level = level
     _follow_voice(video, scene)
     if scene.is_title and (text_changed or start_changed or moved):
         title, _ = split_scenes(db, video)
@@ -1628,9 +1726,11 @@ def scene_frame(
 def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> Response:
     """The exact box image the renderer overlays on this scene (transparent around it)."""
     scene = _scene(db, scene_id)
-    if not scene.text.strip() or text_problem(scene.text, scene.is_title) is not None:
+    video = db.get(Video, scene.video_id)
+    size = video_options.text_size(video, scene.is_title)
+    if not scene.text.strip() or text_problem(scene.text, scene.is_title, size) is not None:
         raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
-    box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(db.get(Video, scene.video_id)))
+    box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(video))
     buffer = io.BytesIO()
     box.save(buffer, "PNG")
     return Response(buffer.getvalue(), media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
@@ -1711,6 +1811,7 @@ class TopicPatchBody(BaseModel):
     name: str | None = None
     script_prompt: str | None = None
     clone_prompt: str | None = None
+    revise_prompt: str | None = None  # "" goes back to the default
     banned_words: list[str] | None = None
     photo_hint: str | None = None
     # "Từ video mẫu": empty brings back the default prompt.
@@ -1730,6 +1831,7 @@ def _knowledge_payload(db: DbSession) -> dict:
                 "name": topic.name,
                 "script_prompt": topic.script_prompt,
                 "clone_prompt": topic.clone_prompt,
+                "revise_prompt": topic.revise_prompt,
                 "banned_words": topic.banned_words,
                 "photo_hint": topic.photo_hint,
                 "learn_prompt": topic.learn_prompt,
@@ -1742,6 +1844,7 @@ def _knowledge_payload(db: DbSession) -> dict:
         "default_clone_prompt": knowledge.default_clone_prompt(),
         "default_learn_prompt": knowledge.default_learn_prompt(),
         "default_analyze_prompt": knowledge.default_analyze_prompt(),
+        "default_revise_prompt": knowledge.default_revise_prompt(),
     }
 
 
@@ -1803,6 +1906,8 @@ def patch_topic(
         topic.script_prompt = _prompt(body.script_prompt)
     if body.clone_prompt is not None:
         topic.clone_prompt = _prompt(body.clone_prompt)
+    if body.revise_prompt is not None:
+        topic.revise_prompt = _prompt(body.revise_prompt) if body.revise_prompt.strip() else ""
     if body.banned_words is not None:
         topic.banned_words = list(
             dict.fromkeys(_clean_list(body.banned_words, MAX_KEYWORD_LENGTH, "Từ cấm", max_items=500))

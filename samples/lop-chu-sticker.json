@@ -1,0 +1,234 @@
+{
+  "title": {
+    "text": "LỚP CHỮ\n*VÀ STICKER*",
+    "seconds": 2,
+    "image": "xuong-khop/00-tieu-de.jpg"
+  },
+  "scenes": [
+    {
+      "text": "",
+      "seconds": 3,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "layers": [
+        {
+          "kind": "text",
+          "text": "Chữ viền\n*Hiện ngay*",
+          "start": 0.5,
+          "seconds": 2.2,
+          "x": 540,
+          "y": 700,
+          "size": "small",
+          "style": "outline",
+          "animation": "none"
+        }
+      ]
+    },
+    {
+      "text": "",
+      "seconds": 3,
+      "image": "xuong-khop/02-sua-chua.jpg",
+      "layers": [
+        {
+          "kind": "text",
+          "text": "Hộp vàng\n*Mờ dần*",
+          "start": 0.5,
+          "seconds": 2.2,
+          "x": 540,
+          "y": 700,
+          "size": "medium",
+          "style": "yellow",
+          "animation": "fade"
+        }
+      ]
+    },
+    {
+      "text": "",
+      "seconds": 3,
+      "image": "xuong-khop/03-dau-phu.jpg",
+      "layers": [
+        {
+          "kind": "text",
+          "text": "Hộp đen\n*Trượt lên*",
+          "start": 0.5,
+          "seconds": 2.2,
+          "x": 540,
+          "y": 700,
+          "size": "large",
+          "style": "dark",
+          "animation": "slide_up"
+        }
+      ]
+    },
+    {
+      "text": "",
+      "seconds": 3,
+      "image": "xuong-khop/04-rau-cai.jpg",
+      "layers": [
+        {
+          "kind": "text",
+          "text": "Hộp trắng\n*Trượt từ trái*",
+          "start": 0.5,
+          "seconds": 2.2,
+          "x": 540,
+          "y": 700,
+          "size": "small",
+          "style": "white",
+          "animation": "slide_left"
+        }
+      ]
+    },
+    {
+      "text": "",
+      "seconds": 3,
+      "image": "xuong-khop/05-vung-den.jpg",
+      "layers": [
+        {
+          "kind": "text",
+          "text": "Hộp đỏ\n*Hiện ngay*",
+          "start": 0.5,
+          "seconds": 2.2,
+          "x": 540,
+          "y": 700,
+          "size": "medium",
+          "style": "red",
+          "animation": "none"
+        }
+      ]
+    },
+    {
+      "text": "Mũi tên xuống · Mũi tên phải",
+      "seconds": 3,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "arrow_down",
+          "start": 0.4,
+          "seconds": 2.0,
+          "x": 300,
+          "y": 800,
+          "size": "large",
+          "animation": "none"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "arrow_right",
+          "start": 1.2000000000000002,
+          "seconds": 2.0,
+          "x": 780,
+          "y": 800,
+          "size": "large",
+          "animation": "fade"
+        }
+      ]
+    },
+    {
+      "text": "Khoanh tròn · Ngôi sao",
+      "seconds": 3,
+      "image": "xuong-khop/02-sua-chua.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "ring",
+          "start": 0.4,
+          "seconds": 2.0,
+          "x": 300,
+          "y": 800,
+          "size": "large",
+          "animation": "slide_up"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "star",
+          "start": 1.2000000000000002,
+          "seconds": 2.0,
+          "x": 780,
+          "y": 800,
+          "size": "large",
+          "animation": "slide_left"
+        }
+      ]
+    },
+    {
+      "text": "Trái tim · Dấu tích",
+      "seconds": 3,
+      "image": "xuong-khop/03-dau-phu.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "heart",
+          "start": 0.4,
+          "seconds": 2.0,
+          "x": 300,
+          "y": 800,
+          "size": "large",
+          "animation": "none"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "check",
+          "start": 1.2000000000000002,
+          "seconds": 2.0,
+          "x": 780,
+          "y": 800,
+          "size": "large",
+          "animation": "fade"
+        }
+      ]
+    },
+    {
+      "text": "Dấu X · Nhãn MỚI",
+      "seconds": 3,
+      "image": "xuong-khop/04-rau-cai.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "cross",
+          "start": 0.4,
+          "seconds": 2.0,
+          "x": 300,
+          "y": 800,
+          "size": "large",
+          "animation": "slide_up"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "new",
+          "start": 1.2000000000000002,
+          "seconds": 2.0,
+          "x": 780,
+          "y": 800,
+          "size": "large",
+          "animation": "slide_left"
+        }
+      ]
+    },
+    {
+      "text": "Nhãn HOT · Nhãn SALE",
+      "seconds": 3,
+      "image": "xuong-khop/05-vung-den.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "hot",
+          "start": 0.4,
+          "seconds": 2.0,
+          "x": 300,
+          "y": 800,
+          "size": "large",
+          "animation": "none"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "sale",
+          "start": 1.2000000000000002,
+          "seconds": 2.0,
+          "x": 780,
+          "y": 800,
+          "size": "large",
+          "animation": "fade"
+        }
+      ]
+    }
+  ]
+}

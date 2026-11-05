@@ -298,6 +298,22 @@ function TopicBody({
                         </>
                       }
                     />
+                    <PromptCard
+                      title="Prompt sửa theo góp ý"
+                      field="revise_prompt"
+                      initial={topic.revise_prompt || defaults.default_revise_prompt}
+                      fallback={defaults.default_revise_prompt}
+                      update={update}
+                      help={
+                        <>
+                          Dùng khi bấm “Nhờ AI sửa” trong xem trước video. Chỗ điền{" "}
+                          <Typography.Text code>[kịch bản hiện tại]</Typography.Text> được thay bằng các cảnh của video
+                          (chữ, lời đọc, lớp chữ và giây của từng cảnh), còn{" "}
+                          <Typography.Text code>[góp ý]</Typography.Text> bằng các góp ý đang chờ, kèm giây và cảnh của
+                          từng góp ý.
+                        </>
+                      }
+                    />
                   </Flex>
                 </Col>
                 <Col xs={24} xl={8}>
@@ -361,7 +377,7 @@ function PromptCard({
   help,
 }: {
   title: string;
-  field: "script_prompt" | "clone_prompt" | "learn_prompt" | "analyze_prompt";
+  field: "script_prompt" | "clone_prompt" | "learn_prompt" | "analyze_prompt" | "revise_prompt";
   initial: string;
   fallback: string;
   update: Update;

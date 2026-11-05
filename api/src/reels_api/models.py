@@ -116,6 +116,8 @@ class KnowledgeTopic(Base):
     name: Mapped[str] = mapped_column(String(100), unique=True)
     script_prompt: Mapped[str] = mapped_column(Text, default="")
     clone_prompt: Mapped[str] = mapped_column(Text, default="")
+    # "Nhờ AI sửa" (the studio's notes): empty uses prompts/revise_default.txt.
+    revise_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
     banned_words: Mapped[list] = mapped_column(JSONB, default=list)
     # "Gợi ý tìm ảnh": what the group's photos show (growing plants, not cooked dishes...), added to the script and
     # clone prompts so the AI writes the scenes' search keywords and image prompts for it. Empty: nothing added.
@@ -213,6 +215,10 @@ class Video(Base):
     music_key: Mapped[str | None] = mapped_column(String(200))
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
+    # "AI gợi ý hiệu ứng" when the video was made: its script call also picks each scene's effects.
+    ai_effects: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # Where in the song the video's music starts, in seconds ("Bài nhạc bắt đầu từ giây").
+    music_start: Mapped[float] = mapped_column(Float, default=0, server_default="0")
     voice_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     # The video's own settings (video_options.DEFAULTS keys); None renders the original template.
     options: Mapped[dict | None] = mapped_column(JSONB)
@@ -279,8 +285,83 @@ class Scene(Base):
     # scenes, else the template's. The renderer keeps the box inside the platforms' safe zone.
     text_x: Mapped[int | None] = mapped_column(Integer)
     text_y: Mapped[int | None] = mapped_column(Integer)
+    # The studio's per-scene effects (reels_render.effects): the transition into this scene, None for the video's;
+    # its colour preset, None for the picture as shot. The title scene has neither.
+    transition: Mapped[str | None] = mapped_column(String(16))
+    color: Mapped[str | None] = mapped_column(String(24))
+    # The music's level during this scene (reels_render.sounds.MUSIC_LEVELS); None: the video's.
+    music_level: Mapped[str | None] = mapped_column(String(8))
 
     video: Mapped[Video] = relationship(back_populates="scenes")
+    layers: Mapped[list["SceneLayer"]] = relationship(
+        back_populates="scene", order_by="SceneLayer.position", cascade="all, delete-orphan", passive_deletes=True
+    )
+    sounds: Mapped[list["SceneSound"]] = relationship(
+        back_populates="scene", order_by="SceneSound.id", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class SceneSound(Base):
+    """A sound effect heard from a second of its scene (reels_render.sounds), added in the studio."""
+
+    __tablename__ = "scene_sounds"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
+    sound: Mapped[str] = mapped_column(String(24))
+    start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene
+    volume: Mapped[str] = mapped_column(String(8), default="normal")
+
+    scene: Mapped[Scene] = relationship(back_populates="sounds")
+
+
+class SceneLayer(Base):
+    """A text or sticker layer over a scene for its own seconds (reels_render.layers), added in the studio."""
+
+    __tablename__ = "scene_layers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scene_id: Mapped[int] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)  # laid on in this order, the last on top
+    kind: Mapped[str] = mapped_column(String(8))  # "text" | "sticker"
+    text: Mapped[str] = mapped_column(Text, default="")
+    sticker: Mapped[str] = mapped_column(String(24), default="")
+    start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene
+    seconds: Mapped[float] = mapped_column(Float, default=2)
+    x: Mapped[int] = mapped_column(Integer, default=540)  # its centre in the 1080×1920 frame
+    y: Mapped[int] = mapped_column(Integer, default=960)
+    size: Mapped[str] = mapped_column(String(8), default="medium")
+    style: Mapped[str] = mapped_column(String(16), default="outline")
+    animation: Mapped[str] = mapped_column(String(16), default="fade")
+
+    scene: Mapped[Scene] = relationship(back_populates="layers")
+
+
+class EditTemplate(Base):
+    """A team's "Mẫu dựng", saved from a video it likes (autoedit.Template as JSON)."""
+
+    __tablename__ = "edit_templates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    data: Mapped[dict] = mapped_column(JSONB)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class VideoNote(Base):
+    """A member's comment at a second of the video ("Góp ý" in the studio), sent to the AI with "Nhờ AI sửa"."""
+
+    __tablename__ = "video_notes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    at: Mapped[float] = mapped_column(Float)  # seconds from the video's start
+    text: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(8), default="open")  # open | sent (to a revise job) | done
+    reply: Mapped[str] = mapped_column(Text, default="")  # the AI's answer once done
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Job(Base):
@@ -302,7 +383,7 @@ class Job(Base):
     # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge), which belongs to a topic group.
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
-    # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan
+    # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan | revise
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

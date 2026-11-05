@@ -413,6 +413,37 @@ function LookControls({
 }
 
 /** The text boxes (the content scenes', and the title's when it has its own look) and the narration captions. */
+const TEXT_SIZES = [
+  { value: "large", label: "Lớn" },
+  { value: "medium", label: "Vừa" },
+  { value: "small", label: "Nhỏ" },
+];
+
+/** "Cỡ chữ": the largest size that fits is used, down to the smallest of the preset; a smaller one fits more words. */
+function SizeField({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: VideoOptions["text_size"] | undefined;
+  disabled?: boolean;
+  onChange: (size: VideoOptions["text_size"]) => void;
+}) {
+  return (
+    <Field label={label} hint="Lớn như mẫu gốc; Vừa và Nhỏ cho hộp chữ gọn hơn và chứa được chữ dài hơn.">
+      <Segmented
+        aria-label={label}
+        options={TEXT_SIZES}
+        value={value ?? "large"}
+        disabled={disabled}
+        onChange={(size) => onChange(size as VideoOptions["text_size"])}
+      />
+    </Field>
+  );
+}
+
 export function TextSettings({ values, onChange, disabled }: Props) {
   const [target, setTarget] = useState<"scenes" | "title">("scenes");
   const title = titleLook(values);
@@ -434,6 +465,12 @@ export function TextSettings({ values, onChange, disabled }: Props) {
         {target === "scenes" ? (
           <>
             <LookControls look={sceneLook(values)} onChange={onChange} disabled={disabled} />
+            <SizeField
+              label="Cỡ chữ"
+              value={values.text_size}
+              disabled={disabled}
+              onChange={(text_size) => onChange({ text_size })}
+            />
             <Field
               label="Phụ đề theo giọng đọc"
               hint={
@@ -470,6 +507,12 @@ export function TextSettings({ values, onChange, disabled }: Props) {
                 disabled={disabled}
               />
             )}
+            <SizeField
+              label="Cỡ chữ tiêu đề"
+              value={values.title_text_size}
+              disabled={disabled}
+              onChange={(title_text_size) => onChange({ title_text_size })}
+            />
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               Tiêu đề cũng là ảnh thumbnail của video. Phụ đề không hiện trên cảnh tiêu đề.
             </Typography.Text>

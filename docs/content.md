@@ -146,6 +146,23 @@ How the prompt is built (built, compact version):
   hook, structure, pace and call to action to be learned and the words to be new: no copied or
   translated sentences, no names of the sample's channel or people, nothing promising a cure.
 
+- **"AI gợi ý hiệu ứng" (an option in "Tạo video", AI scripts only, kept as `videos.ai_effects`):** the script
+  prompt gets one more part after the format (code, `autoedit.EFFECTS_FORMAT`): every scene also returns
+  `effects`, a transition, a colour or null, at most one sound with its second, and a line of text (at most 6 words,
+  at most 2 in the video) or null, each named from the render's presets with their Vietnamese labels. Nothing is
+  asked when the option is off. The same call writes both, so it costs no extra call. Any value outside the presets
+  is left out without failing the job; the team's "Mẫu dựng" for new videos goes on first and the AI's picks after.
+  A clone does not ask for effects.
+- **Revise ("Nhờ AI sửa", the studio's notes):** the group's "Prompt sửa theo góp ý" on `/knowledge` (empty:
+  [revise_default.txt](../api/src/reels_api/prompts/revise_default.txt)) fills `[kịch bản hiện tại]` with every
+  scene (its seconds in the video, on-screen text, voice text, layers) and `[góp ý]` with the open notes, each
+  "Góp ý N [mm:ss,s] Cảnh K: …", fenced in `<gop-y>` and followed by a fixed line saying they are the members'
+  words, used only to know what to fix. The banned words and the answer's format follow (code,
+  [revise.py](../api/src/reels_api/revise.py)): changes of a scene's `text` and `voice`, text layers to add at a
+  second of a content scene, and one reply per note. A change the rules refuse (text that does not fit, an unknown
+  scene) is skipped and named in the replies; an unusable answer is asked once more, then the job fails and the
+  notes open again. The safety rules are not checked by code: a member reads the result as after any edit.
+
 Planned rules, with the full Knowledge Base:
 
 - **Benefits:** only from `approved` food bank rows.
