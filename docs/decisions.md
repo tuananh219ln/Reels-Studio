@@ -21,6 +21,13 @@ on its own when a platform is chosen or its source is filtered out. A Facebook c
 card: it is a real variant, posted to another Page. A "Mọi nhóm chủ đề" filter, remembered in the browser, keeps one
 group's videos; it is a filter rather than a section per group, so the newest videos stay at the top.
 
+Three more on the same screen, all worked out in the browser from the list's rows: the group filter counts each
+group's videos and, with a group chosen, says what was made this week; a "Cần làm" status (a draft older than 2 days,
+a failure, an outdated MP4, or a finished video not out anywhere) to start the day with; and a Facebook card at 3× its
+Page's median or more at 48 hours with no TikTok version offers "Tạo bản TikTok". 3×, not the 1× of "Bài đăng"'s
+suggestion, so the list nudges only for the clear winners. Showing TikTok's views on the version's link waits for
+TikTok's numbers (issue #46).
+
 ## 2026-11-05 — Photo search follows the topic group; the group's own pictures can be reused
 
 Asked by the owner (namtc07): with several topic groups (Sức khỏe, Vườn rau tại nhà) the scenes' search

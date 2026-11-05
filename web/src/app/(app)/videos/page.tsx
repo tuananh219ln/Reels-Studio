@@ -64,11 +64,33 @@ type Sort = "new" | "views";
 const VIEW_KEY = "reels-studio.videos-view";
 const GROUP_KEY = "reels-studio.videos-group";
 
-type StatusFilter = "all" | "draft" | "working" | "done" | "failed" | "outdated";
+/** From this many times its Page's median at 48 hours a Facebook video without a TikTok version suggests making one. */
+const TIKTOK_NUDGE_TIMES = 3;
+/** A draft older than this many days waits on someone ("Cần làm"). */
+const STALE_DRAFT_DAYS = 2;
+
+type StatusFilter = "all" | "todo" | "draft" | "working" | "done" | "failed" | "outdated";
+
+/** Out on Facebook (or set for later) or recorded as posted on TikTok. */
+const isOut = (row: VideoRow) => row.post !== null || row.tiktok_posted;
+
+/** "Cần làm": what waits on a member, to start the day with: a draft left for days, a failed job, an MP4 behind the
+ * edits, or a finished video not posted anywhere yet. */
+function needsWork(row: VideoRow): boolean {
+  const age = Date.now() - Date.parse(row.created_at);
+  return (
+    (row.status === "draft" && age > STALE_DRAFT_DAYS * 86_400_000) ||
+    row.status === "failed" ||
+    row.rerender_failed ||
+    row.mp4_outdated ||
+    (row.status === "done" && !isOut(row))
+  );
+}
 
 /** The status filter's groups: a job in any stage counts as "Đang xử lý". */
 const STATUS_FILTERS: { value: StatusFilter; label: string; match: (row: VideoRow) => boolean }[] = [
   { value: "all", label: "Mọi trạng thái", match: () => true },
+  { value: "todo", label: "Cần làm", match: needsWork },
   { value: "draft", label: "Nháp", match: (row) => row.status === "draft" },
   {
     value: "working",
@@ -177,9 +199,14 @@ export default function VideosPage() {
       (!fanpage || Boolean(row.post?.fanpages.includes(fanpage))) &&
       (!group || row.knowledge_topic === group),
   );
-  const groups = [...new Set((rows ?? []).flatMap((row) => (row.knowledge_topic ? [row.knowledge_topic] : [])))].sort(
-    (a, b) => a.localeCompare(b, "vi"),
-  );
+  const groupCounts = new Map<string, number>();
+  for (const row of rows ?? []) {
+    if (row.knowledge_topic) {
+      groupCounts.set(row.knowledge_topic, (groupCounts.get(row.knowledge_topic) ?? 0) + 1);
+    }
+  }
+  const groups = [...groupCounts.keys()].sort((a, b) => a.localeCompare(b, "vi"));
+  const week = group ? weekOf((rows ?? []).filter((row) => row.knowledge_topic === group)) : null;
   const creators = [...new Set((rows ?? []).map((row) => row.created_by))]
     .filter((name) => name !== me.name)
     .sort((a, b) => a.localeCompare(b, "vi"));
@@ -248,7 +275,7 @@ export default function VideosPage() {
           placeholder="Mọi nhóm chủ đề"
           value={group}
           onChange={(value) => chooseGroup(value ?? null)}
-          options={groups.map((name) => ({ value: name, label: name }))}
+          options={groups.map((name) => ({ value: name, label: `${name} (${groupCounts.get(name)})` }))}
           style={{ width: 170 }}
         />
         <FilterSelect<string>
@@ -280,6 +307,11 @@ export default function VideosPage() {
           ]}
         />
       </PageHeader>
+      {week && (
+        <Typography.Paragraph type="secondary" data-testid="group-week" style={{ marginTop: -4 }}>
+          {group}, tuần này (từ thứ Hai): {week.made} video mới, {week.out} đã đăng, {week.drafts} còn nháp
+        </Typography.Paragraph>
+      )}
       <PlanBanners today={today} onContinue={startFrom} />
       {rows === null ? (
         <Flex justify="center" style={{ padding: 48 }}>
@@ -336,46 +368,97 @@ function withVersions(rows: VideoRow[], together: boolean): { shown: VideoRow[];
   return { shown, versions };
 }
 
-/** "TikTok · Nháp", "TikTok · Đã đăng": the versions on a card or row, each opening its own page. */
-function VersionLinks({ versions }: { versions: VideoRow[] }) {
+/** The Monday 00:00 that starts this week in Vietnam time (UTC+7 all year), as a timestamp. */
+function weekStart(now = Date.now()): number {
+  const OFFSET = 7 * 3_600_000;
+  const vn = new Date(now + OFFSET);
+  const daysSinceMonday = (vn.getUTCDay() + 6) % 7;
+  return Date.UTC(vn.getUTCFullYear(), vn.getUTCMonth(), vn.getUTCDate() - daysSinceMonday) - OFFSET;
+}
+
+/** A topic group's videos made this week: how many, how many are out, how many still drafts. */
+function weekOf(rows: VideoRow[]): { made: number; out: number; drafts: number } {
+  const since = weekStart();
+  const made = rows.filter((row) => Date.parse(row.created_at) >= since);
+  return {
+    made: made.length,
+    out: made.filter(isOut).length,
+    drafts: made.filter((row) => row.status === "draft").length,
+  };
+}
+
+/** A small rounded link inside a card, which is itself a link: it opens its own page, not the card's. */
+function CardChip({
+  href,
+  label,
+  testId,
+  children,
+}: {
+  href: string;
+  label: string;
+  testId: string;
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const { token } = theme.useToken();
-  return versions.map((version) => {
-    const open = (event: React.SyntheticEvent) => {
-      // Inside the card's own link: open the version, not the card.
-      event.preventDefault();
-      event.stopPropagation();
-      router.push(`/videos/${version.id}`);
-    };
-    return (
-      <span
-        key={version.id}
-        role="link"
-        tabIndex={0}
-        aria-label={`Mở bản TikTok: ${version.title || version.topic}`}
-        data-testid="video-version"
-        onClick={open}
-        onKeyDown={(event) => event.key === "Enter" && open(event)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "0 8px",
-          lineHeight: "22px",
-          borderRadius: 11,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          fontSize: 12,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span style={{ color: token.colorTextSecondary }}>TikTok</span>
-        <StatusText tone={version.tiktok_posted ? "success" : cardTone(version)}>
-          {version.tiktok_posted ? "Đã đăng" : version.status_label}
-        </StatusText>
-      </span>
-    );
-  });
+  const open = (event: React.SyntheticEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    router.push(href);
+  };
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      aria-label={label}
+      data-testid={testId}
+      onClick={open}
+      onKeyDown={(event) => event.key === "Enter" && open(event)}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "0 8px",
+        lineHeight: "22px",
+        borderRadius: 11,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        fontSize: 12,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** "TikTok · Nháp", "TikTok · Đã đăng": the versions on a card or row, each opening its own page. */
+function VersionLinks({ versions }: { versions: VideoRow[] }) {
+  const { token } = theme.useToken();
+  return versions.map((version) => (
+    <CardChip
+      key={version.id}
+      href={`/videos/${version.id}`}
+      label={`Mở bản TikTok: ${version.title || version.topic}`}
+      testId="video-version"
+    >
+      <span style={{ color: token.colorTextSecondary }}>TikTok</span>
+      <StatusText tone={version.tiktok_posted ? "success" : cardTone(version)}>
+        {version.tiktok_posted ? "Đã đăng" : version.status_label}
+      </StatusText>
+    </CardChip>
+  ));
+}
+
+/** A Facebook video doing well at 48 hours with no TikTok version yet: the card offers to make one. */
+function wantsTikTok(row: VideoRow): boolean {
+  return (
+    row.platform === "facebook" &&
+    !row.has_tiktok_version &&
+    row.post?.state === "posted" &&
+    row.post.times_median !== null &&
+    row.post.times_median >= TIKTOK_NUDGE_TIMES
+  );
 }
 
 /** "800", "12,4K", "1,2M": how the team says view counts. */
@@ -549,9 +632,19 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
               {row.created_by}, {shortDate(row.created_at, false)}
             </Typography.Text>
           </Flex>
-          {versions.length > 0 && (
+          {(versions.length > 0 || wantsTikTok(row)) && (
             <Flex gap={6} wrap style={{ marginTop: 6 }}>
               <VersionLinks versions={versions} />
+              {wantsTikTok(row) && (
+                <CardChip
+                  href={`/videos/${row.id}?clone=tiktok`}
+                  label={`Tạo bản TikTok cho ${name}`}
+                  testId="card-make-tiktok"
+                >
+                  <PlusOutlined style={{ color: COLORS.primary }} />
+                  <span style={{ color: COLORS.primary }}>Tạo bản TikTok</span>
+                </CardChip>
+              )}
             </Flex>
           )}
           {/* Said on a line of its own, so the status line never breaks. */}
