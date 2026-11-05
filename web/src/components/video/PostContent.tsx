@@ -1,13 +1,15 @@
 "use client";
 
 import { CopyOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Card, Flex, Image, Select, Space, Tag, Typography } from "antd";
+import { App, Alert, Button, Card, Flex, Image, Input, Select, Space, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import ProductModal from "@/components/affiliate/ProductModal";
 import {
   api,
   errorMessage,
   formatDateTime,
+  type AffiliateOptions,
   type AffiliateProduct,
   type AffiliateSuggestions,
   type VideoDetail,
@@ -127,6 +129,10 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
   const { onSaved } = useEditor();
   const [data, setData] = useState<AffiliateSuggestions | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pasted, setPasted] = useState("");
+  // "Sửa thông tin" on a pasted product: the same form as on /affiliate, its choices asked for on first use.
+  const [editing, setEditing] = useState<AffiliateProduct | null>(null);
+  const [options, setOptions] = useState<AffiliateOptions | null>(null);
 
   async function copyKeyword(keyword: string) {
     try {
@@ -150,16 +156,17 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
     void load();
   }, [load, video.suggest.state]);
 
-  // While the worker searches, ask again every few seconds until it has answered.
+  // While the worker searches or reads a pasted link, ask again every few seconds until it has answered.
   const pending = data?.state === "pending";
+  const reading = !!data?.keywords.some((group) => group.products.some((product) => product.lookup === "pending"));
   useEffect(() => {
-    if (!pending) return;
+    if (!pending && !reading) return;
     const timer = setTimeout(async () => {
       await load();
       onSaved(await api<VideoDetail>(`/videos/${video.id}`));
     }, 3000);
     return () => clearTimeout(timer);
-  }, [pending, data, load, onSaved, video.id]);
+  }, [pending, reading, data, load, onSaved, video.id]);
 
   async function call(run: () => Promise<AffiliateSuggestions>) {
     setBusy(true);
@@ -177,6 +184,23 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
   const choose = (productId: number) =>
     call(() => api(`/affiliate-products/videos/${video.id}/choose`, "POST", { product_id: productId }));
   const attached = new Set(data?.attached_ids ?? video.affiliate_product_ids);
+  const searched = data?.keywords.filter((group) => !group.pasted) ?? [];
+
+  async function paste() {
+    const links = lines(pasted);
+    if (links.length === 0) return;
+    await call(() => api(`/affiliate-products/videos/${video.id}/links`, "POST", { links }));
+    setPasted("");
+  }
+
+  async function edit(product: AffiliateProduct) {
+    try {
+      setOptions(options ?? (await api<AffiliateOptions>("/affiliate-products/options")));
+      setEditing(product);
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
 
   return (
     <Flex vertical gap={6} style={{ marginBottom: 12 }} data-testid="shopee-suggestions">
@@ -189,14 +213,14 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
           disabled={video.affiliates.length === 0}
           onClick={search}
         >
-          {data?.keywords.length ? "Tìm lại" : "Tìm sản phẩm"}
+          {searched.length ? "Tìm lại" : "Tìm sản phẩm"}
         </Button>
       </Flex>
       {pending && <Typography.Text type="secondary">Đang tìm trên Shopee…</Typography.Text>}
       {data?.error && <Alert type="warning" showIcon title={data.error} />}
       {data?.at && (
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Tìm lúc {formatDateTime(data.at)}; chỉ hiện sản phẩm đạt tiêu chí (shop tin cậy, từ 4.7 sao, từ 100 lượt bán).
+          Tìm lúc {formatDateTime(data.at)}; chỉ hiện sản phẩm đạt tiêu chí (từ 4.7 sao, từ 100 lượt bán).
         </Typography.Text>
       )}
       {data?.keywords.map((group) => (
@@ -220,17 +244,46 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
                 />
               )}
               <Flex vertical gap={0} style={{ minWidth: 0, flex: 1 }}>
-                <Typography.Link href={product.page_url ?? undefined} target="_blank" rel="noreferrer" ellipsis>
+                <Typography.Link
+                  href={product.page_url ?? product.url ?? undefined}
+                  target="_blank"
+                  rel="noreferrer"
+                  ellipsis
+                >
                   {product.name}
                 </Typography.Link>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  {product.price.toLocaleString("vi-VN")}đ, {product.rating} sao, {product.sold.toLocaleString("vi-VN")}{" "}
-                  đã bán, {product.shop_type_label}, hoa hồng {product.commission_rate}% (~
-                  {product.expected_commission.toLocaleString("vi-VN")}đ/đơn)
-                </Typography.Text>
+                {product.lookup === "pending" ? (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Đang lấy thông tin từ Shopee…
+                  </Typography.Text>
+                ) : product.price === 0 ? (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Chưa có thông tin sản phẩm
+                  </Typography.Text>
+                ) : (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {product.price.toLocaleString("vi-VN")}đ, {product.rating} sao,{" "}
+                    {product.sold.toLocaleString("vi-VN")} đã bán, {product.shop_type_label}, hoa hồng{" "}
+                    {product.commission_rate}% (~{product.expected_commission.toLocaleString("vi-VN")}đ/đơn)
+                  </Typography.Text>
+                )}
+                {product.lookup === "failed" && product.lookup_error && (
+                  <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                    {product.lookup_error}
+                  </Typography.Text>
+                )}
+                {product.lookup !== "pending" && product.problems.length > 0 && !attached.has(product.id) && (
+                  <Typography.Text type="warning" style={{ fontSize: 12 }} data-testid="suggested-problems">
+                    Chưa chọn được: {product.problems.join("; ")}
+                  </Typography.Text>
+                )}
               </Flex>
               {attached.has(product.id) ? (
                 <Tag color="success">Đã chọn</Tag>
+              ) : product.problems.length > 0 ? (
+                <Button size="small" disabled={busy || product.lookup === "pending"} onClick={() => void edit(product)}>
+                  Sửa thông tin
+                </Button>
               ) : (
                 <Button size="small" disabled={busy} onClick={() => choose(product.id)}>
                   Chọn
@@ -240,7 +293,7 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
           ))}
         </Flex>
       ))}
-      {!data?.keywords.length && video.affiliates.length > 0 && (
+      {searched.length === 0 && video.affiliates.length > 0 && (
         <Space size={4} wrap>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Chưa có tài khoản Shopee có App ID? Tìm tay (bấm để copy từ khoá rồi dán vào ô tìm kiếm của Shopee
@@ -260,6 +313,31 @@ function ShopeeSuggestions({ video }: { video: VideoDetail }) {
             </Typography.Link>
           ))}
         </Space>
+      )}
+      {/* The link from Shopee Affiliate's "Lấy link" pasted straight here, without its "Lấy link hàng loạt" file. */}
+      <Flex gap={8} align="flex-start">
+        <Input.TextArea
+          aria-label="Dán link aff Shopee"
+          placeholder="Dán link aff Shopee (s.shopee.vn/…), mỗi dòng một link"
+          autoSize={{ minRows: 1, maxRows: 4 }}
+          value={pasted}
+          onChange={(event) => setPasted(event.target.value)}
+        />
+        <Button disabled={busy || lines(pasted).length === 0} onClick={() => void paste()}>
+          Thêm link
+        </Button>
+      </Flex>
+      {options && (
+        <ProductModal
+          target={editing}
+          options={options}
+          onClose={() => setEditing(null)}
+          onDone={async () => {
+            message.success("Đã lưu");
+            setEditing(null);
+            await load();
+          }}
+        />
       )}
     </Flex>
   );

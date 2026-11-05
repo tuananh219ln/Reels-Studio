@@ -117,7 +117,13 @@ Built:
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
   counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
-  one when clicked, opening the scene that holds it. The editor has:
+  one when clicked, opening the scene that holds it. While a job runs, the bar says which one with
+  a spinner and its running time ("Đang render video… 0:42 / khoảng 1:15", the estimate being the
+  last render's time), or that it is queued, with "Hủy"; a render seen to finish says "Đã render
+  xong MP4". With nothing running, it says how the MP4 stands ("Sẵn sàng render." before the first
+  one, "Bản sửa chưa có trong MP4" in orange after an edit, else "MP4 đã theo bản mới nhất."), and
+  under that a summary: content scenes, the length the scenes add up to, narration on or off, and
+  the current MP4's length. Once there is an MP4 the button reads "Render lại". The editor has:
   - **View and edit mode**, for the whole page. A video already rendered or posted opens in view
     mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
     the title choice, scene move/delete/add, every photo and clip action, "Vị trí chữ", music
@@ -308,7 +314,11 @@ Built:
     buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
     Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and
     money per order) with "Chọn", "Tìm sản phẩm" / "Tìm lại", and links to Shopee Affiliate's own
-    search when there is nothing yet; the products picker shows only the video's platform's products;
+    search when there is nothing yet. Under them, "Dán link aff Shopee" takes the links copied from
+    Shopee Affiliate's "Lấy link" (one per line) and lists them as "Link đã dán": read by the worker
+    when the team has an App ID ("Đang lấy thông tin từ Shopee…"), otherwise "Chưa có thông tin sản
+    phẩm" with "Sửa thông tin", the product form, until it meets the rules and offers "Chọn". The
+    products picker shows only the video's platform's products;
   - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
     new video is tagged "TikTok" (on the list too, which filters by platform) and both pages link
     to each other. A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
@@ -395,7 +405,13 @@ Built:
     of the file, or a link, with no App ID in the team) says they are to be filled in by hand, links its
     Shopee page, and takes the three on the row itself (shop type, stars, sales, "Lưu"; the same save as
     "Sửa"), so it can be approved without opening "Sửa" for each one. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
-    "Xuất CSV". A row that fails the rules shows why, in yellow;
+    "Xuất CSV". Rows ticked in their checkbox (only those the filters show) can be approved together with
+    "Duyệt đã chọn" (those not meeting the rules stay drafts and are counted in the message), deleted
+    together with "Xoá đã chọn", after a confirmation, or cleared with "Bỏ chọn". A row that fails the rules shows why,
+    in yellow;
+  - "Video đã đăng" also filters by product ("Lọc theo sản phẩm", "Mọi sản phẩm"): the products
+    attached to at least one video, each with how many, most used first; picking one shows only the
+    videos it is attached to;
   - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
     row per video and Page; nobody else's.
 - **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee

@@ -143,6 +143,21 @@ export default function VideoPage() {
   }, [load]);
   usePolling(load, REFRESH_MS);
 
+  // A render seen running on this page says when it is done, wherever the member has scrolled to.
+  // Only a new MP4 counts: a cancelled or failed render leaves the old one's time as it was.
+  const watchedRender = useRef<{ renderedAt: string | null } | null>(null);
+  const rendering = video?.active_job?.kind === "render";
+  const idle = video !== null && !video.active_job;
+  const renderedAt = video?.mp4?.rendered_at ?? null;
+  useEffect(() => {
+    if (rendering) {
+      watchedRender.current ??= { renderedAt };
+    } else if (idle && watchedRender.current) {
+      if (renderedAt && renderedAt !== watchedRender.current.renderedAt) message.success("Đã render xong MP4");
+      watchedRender.current = null;
+    }
+  }, [rendering, idle, renderedAt, message]);
+
   const reportFailed = useCallback((field: string, bad: boolean) => {
     if (bad) {
       failedSaves.current.add(field);
@@ -666,6 +681,8 @@ export default function VideoPage() {
           onRender={render}
           onGenerateImages={generateImages}
           onShowBlocking={showBlocking}
+          jobName={job ? JOB_NAMES[job.kind] : undefined}
+          onCancelJob={job ? () => act(() => api<VideoDetail>(`/jobs/${job.id}/cancel`, "POST")) : undefined}
           onPreview={async () => {
             // The preview shows the saved scenes: the field being typed in is saved first.
             await editor.flush();

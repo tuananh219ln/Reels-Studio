@@ -41,6 +41,8 @@ CHECK_BATCH = 5
 LOOKUP_BATCH = 10  # pasted links and imported rows read per round
 REPORT_EVERY = timedelta(days=1)
 REPORT_BATCH = 2
+# The suggestions a member pasted on the video ("Dán link aff"), kept when a search replaces the others.
+PASTED = "Link đã dán"
 REPORT_DAYS = 30  # orders change status for a while (pending, completed, cancelled), so the month is read again
 SUB_ID = re.compile(r"^([vp])(\d+)$")
 
@@ -151,8 +153,12 @@ def suggest(db: DbSession, video: Video) -> None:
         log.warning("Could not search Shopee for video %s: %s %s", video.id, err.message, err.detail)
         return
     db.flush()
-    db.query(AffiliateSuggestion).filter(AffiliateSuggestion.video_id == video.id).delete()
+    db.query(AffiliateSuggestion).filter(
+        AffiliateSuggestion.video_id == video.id, AffiliateSuggestion.keyword != PASTED
+    ).delete()
     for keyword, products in found:
+        if keyword == PASTED:
+            continue  # an idea named like the pasted list would mix into it
         for rank, product in enumerate(products, start=1):
             db.add(AffiliateSuggestion(video_id=video.id, keyword=keyword[:200], product_id=product.id, rank=rank))
     video.suggested_at, video.suggest_error = now(), None

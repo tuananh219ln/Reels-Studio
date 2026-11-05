@@ -50,6 +50,8 @@ export default function PostedVideos() {
   const [query, setQuery] = useState("");
   const [platform, setPlatform] = useState<AffiliateVideo["platform"] | null>(null);
   const [linked, setLinked] = useState<Linked>("all");
+  // "Lọc theo sản phẩm": only the videos a product is attached to, so each product shows where its link goes.
+  const [productId, setProductId] = useState<number | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -176,8 +178,22 @@ export default function PostedVideos() {
   // The search and platform narrow the videos first, so each tab counts what it would show.
   const words = folded(query.trim());
   const matching = videos.filter(
-    (video) => (platform === null || video.platform === platform) && (!words || folded(video.title).includes(words)),
+    (video) =>
+      (platform === null || video.platform === platform) &&
+      (!words || folded(video.title).includes(words)) &&
+      (productId === null || video.products.some((product) => product.id === productId)),
   );
+  // The products attached to at least one video, with how many, most used first.
+  const uses = new Map<number, { name: string; count: number }>();
+  for (const video of videos) {
+    for (const product of video.products) {
+      const seen = uses.get(product.id);
+      uses.set(product.id, { name: product.name, count: (seen?.count ?? 0) + 1 });
+    }
+  }
+  const productOptions = [...uses.entries()]
+    .sort((a, b) => b[1].count - a[1].count || a[1].name.localeCompare(b[1].name, "vi"))
+    .map(([id, { name, count }]) => ({ value: id, label: `${name} (${count} video)` }));
   const counts = Object.fromEntries(
     LINKED.map(({ value }) => [
       value,
@@ -185,7 +201,7 @@ export default function PostedVideos() {
     ]),
   ) as Record<Linked, number>;
   const shown = linked === "all" ? matching : matching.filter((video) => linkedState(video) === linked);
-  const filtered = Boolean(words) || platform !== null || linked !== "all";
+  const filtered = Boolean(words) || platform !== null || linked !== "all" || productId !== null;
 
   return (
     <>
@@ -216,6 +232,15 @@ export default function PostedVideos() {
             { value: "tiktok", label: "TikTok" },
           ]}
           style={{ width: 160 }}
+        />
+        <FilterSelect
+          aria-label="Lọc theo sản phẩm"
+          placeholder="Mọi sản phẩm"
+          value={productId}
+          onChange={(value) => setProductId(value ?? null)}
+          options={productOptions}
+          notFoundContent="Chưa video nào gắn sản phẩm"
+          style={{ width: 280, maxWidth: "100%" }}
         />
       </Flex>
       <Card styles={{ body: { padding: 0 } }}>
