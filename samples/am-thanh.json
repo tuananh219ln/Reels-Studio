@@ -1,0 +1,98 @@
+{
+  "title": {
+    "text": "ÂM THANH\n*VÀ NHẠC THEO CẢNH*",
+    "seconds": 2,
+    "image": "xuong-khop/00-tieu-de.jpg"
+  },
+  "scenes": [
+    {
+      "text": "Vút · Lướt nhanh\n*Nhạc theo video*",
+      "seconds": 3,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "sounds": [
+        {
+          "sound": "whoosh",
+          "start": 0.6
+        },
+        {
+          "sound": "swoosh",
+          "start": 1.7999999999999998
+        }
+      ]
+    },
+    {
+      "text": "Ting · Bụp\n*Tắt nhạc*",
+      "seconds": 3,
+      "image": "xuong-khop/02-sua-chua.jpg",
+      "music_level": "off",
+      "sounds": [
+        {
+          "sound": "ding",
+          "start": 0.6
+        },
+        {
+          "sound": "pop",
+          "start": 1.7999999999999998
+        }
+      ]
+    },
+    {
+      "text": "Tách · Bùm\n*Nhạc nhỏ*",
+      "seconds": 3,
+      "image": "xuong-khop/03-dau-phu.jpg",
+      "music_level": "low",
+      "sounds": [
+        {
+          "sound": "click",
+          "start": 0.6
+        },
+        {
+          "sound": "boom",
+          "start": 1.7999999999999998
+        }
+      ]
+    },
+    {
+      "text": "Dâng lên · Hoàn thành\n*Nhạc to*",
+      "seconds": 3,
+      "image": "xuong-khop/04-rau-cai.jpg",
+      "music_level": "high",
+      "sounds": [
+        {
+          "sound": "rise",
+          "start": 0.6
+        },
+        {
+          "sound": "success",
+          "start": 1.7999999999999998
+        }
+      ]
+    },
+    {
+      "text": "Sai rồi · Tiền về\n*Nhạc theo video*",
+      "seconds": 3,
+      "image": "xuong-khop/05-vung-den.jpg",
+      "sounds": [
+        {
+          "sound": "wrong",
+          "start": 0.6
+        },
+        {
+          "sound": "coin",
+          "start": 1.7999999999999998
+        }
+      ]
+    },
+    {
+      "text": "Nhịp tim\n*Nhạc theo video*",
+      "seconds": 3,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "sounds": [
+        {
+          "sound": "heartbeat",
+          "start": 0.6
+        }
+      ]
+    }
+  ]
+}

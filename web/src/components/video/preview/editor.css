@@ -1,24 +1,58 @@
-/* "Xem trước" laid out like a video editor: the tools on the left, their panel beside them, the phone in the middle and
-   the timeline along the bottom. On a narrow screen they stack: phone, timeline, tools, panel. Colours are the app's
-   theme (src/app/theme.ts). */
+/* "Xem trước" laid out like a video editor: the tools on the left, their panel beside them, the phone in the middle,
+   "Chỉnh cảnh N" on the right and the timeline along the bottom. Narrower, "Chỉnh cảnh N" goes under the tools' panel;
+   on a phone they stack: phone, timeline, tools, panel, "Chỉnh cảnh N". Colours are the app's theme
+   (src/app/theme.ts). */
 .preview-editor {
   display: grid;
   flex: 1;
-  grid-template-columns: 76px minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-columns: 76px minmax(240px, 300px) minmax(0, 1fr) minmax(300px, 360px);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    "rail panel stage"
-    "timeline timeline timeline";
+    "rail panel stage inspector"
+    "timeline timeline timeline timeline";
   width: 100%;
   min-height: 0;
+}
+
+.preview-editor__inspector {
+  grid-area: inspector;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  border-left: 1px solid #e7e8ea;
+}
+
+/* Keep 1280px in step with the docs (ux-guidelines.md, "Xem trước"). */
+@media (max-width: 1280px) and (min-width: 901px) {
+  .preview-editor {
+    grid-template-columns: 76px minmax(260px, 340px) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rail panel stage"
+      "rail inspector stage"
+      "timeline timeline timeline";
+  }
+
+  .preview-editor__panel {
+    max-height: 40vh;
+  }
+
+  .preview-editor__inspector {
+    border-left: 0;
+    border-right: 1px solid #e7e8ea;
+    border-top: 1px solid #e7e8ea;
+  }
 }
 
 .preview-editor__rail {
   grid-area: rail;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 6px;
+  gap: 2px;
+  /* Seven tools may be taller than a short screen: the column scrolls instead of running under the timeline. */
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 6px;
   border-right: 1px solid #e7e8ea;
 }
 
@@ -26,8 +60,9 @@
   display: flex;
   flex-direction: column;
   align-items: center;
+  flex: none;
   gap: 4px;
-  padding: 10px 4px;
+  padding: 8px 4px;
   border: 0;
   border-radius: 8px;
   background: transparent;
@@ -98,11 +133,22 @@
       "stage"
       "timeline"
       "rail"
-      "panel";
+      "panel"
+      "inspector";
+  }
+
+  .preview-editor__inspector {
+    min-height: auto;
+    overflow: visible;
+    border-left: 0;
+    border-top: 1px solid #e7e8ea;
   }
 
   .preview-editor__rail {
     flex-direction: row;
+    /* On a phone the tools are a row that scrolls sideways. */
+    overflow-x: auto;
+    overflow-y: hidden;
     padding: 6px 12px;
     border-right: 0;
     border-top: 1px solid #e7e8ea;
@@ -129,4 +175,147 @@
     min-height: auto;
     overflow: visible;
   }
+}
+
+/* The transitions into a scene beyond the video's fade and slide (globals.css), named `preview-<transition>` after
+   reels_render.effects.SCENE_TRANSITIONS: close to FFmpeg's xfade, played by the incoming scene over 0.4 s. */
+@keyframes preview-slide_up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes preview-wipe {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes preview-zoom {
+  from {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes preview-circle {
+  from {
+    clip-path: circle(0% at 50% 50%);
+  }
+  to {
+    clip-path: circle(75% at 50% 50%);
+  }
+}
+
+@keyframes preview-black {
+  0% {
+    opacity: 0;
+    filter: brightness(0);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(0);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes preview-flash {
+  0% {
+    opacity: 0;
+    filter: brightness(3);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(3);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes preview-dissolve {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes preview-blur {
+  from {
+    opacity: 0;
+    filter: blur(24px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes preview-pixel {
+  from {
+    opacity: 0;
+    filter: blur(14px) contrast(1.6);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0) contrast(1);
+  }
+}
+
+/* "Màu" in "Chỉnh cảnh N": each preset drawn on the scene's own picture. */
+.preview-colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+  gap: 6px;
+}
+
+.preview-color {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #e7e8ea;
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  color: #5f6670;
+  cursor: pointer;
+}
+
+.preview-color:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.preview-color[aria-pressed="true"] {
+  border-color: #c2410c;
+  color: #c2410c;
+  box-shadow: 0 0 0 1px #c2410c;
+}
+
+.preview-color img,
+.preview-color span:first-child {
+  display: block;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #3a3a3a;
 }

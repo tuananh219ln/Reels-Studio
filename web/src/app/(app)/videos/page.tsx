@@ -14,6 +14,7 @@ import {
   App,
   Button,
   Card,
+  Checkbox,
   Col,
   Empty,
   Flex,
@@ -874,6 +875,8 @@ function NewVideoModal({
   // "Tự viết": no AI call, so any group can be used and the script is pasted or left for the video page.
   const [mode, setMode] = useState<Mode>("ai");
   const manual = mode === "manual";
+  // "AI gợi ý hiệu ứng": the same script call also picks each scene's transition, colour, sound and a line of text.
+  const [aiEffects, setAiEffects] = useState(false);
   const groupId = Form.useWatch("knowledge_topic_id", form);
   const typed = Form.useWatch("topic", form) ?? "";
   const plan = today.find((group) => group.topic_id === groupId);
@@ -922,6 +925,7 @@ function NewVideoModal({
         plan_item_id: picked?.id,
         mode,
         script: manual ? (values.script ?? "") : "",
+        ai_effects: !manual && aiEffects,
       });
       router.push(`/videos/${video.id}`);
     } catch (err) {
@@ -1144,6 +1148,17 @@ function NewVideoModal({
                 >
                   <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
                 </Form.Item>
+                {!manual && (
+                  <Flex vertical gap={2} style={{ marginBottom: 16 }}>
+                    <Checkbox checked={aiEffects} onChange={(event) => setAiEffects(event.target.checked)}>
+                      AI gợi ý hiệu ứng
+                    </Checkbox>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      AI chọn luôn chuyển cảnh, màu, âm thanh và vài dòng chữ nổi bật cho từng cảnh khi viết kịch bản,
+                      trong cùng một lượt gọi. Sửa hoặc bỏ được trong xem trước video.
+                    </Typography.Text>
+                  </Flex>
+                )}
                 {manual && (
                   <>
                     <Form.Item

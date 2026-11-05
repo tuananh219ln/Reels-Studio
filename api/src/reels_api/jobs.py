@@ -22,6 +22,7 @@ from reels_render.script import parse_script
 from . import (
     affiliate_rounds,
     auto_photos,
+    autoedit,
     config,
     facebook,
     fanpages,
@@ -31,6 +32,7 @@ from . import (
     knowledge,
     llm,
     plans,
+    revise,
     source_keys,
 )
 from .claude import (
@@ -44,7 +46,7 @@ from .clips import ClipError, frame_at
 from .facebook import FacebookError
 from .frames import jpeg_bytes
 from .imagegen import ImageGenError, generate_image
-from .models import Job, KnowledgeTopic, Publication, Scene, Video
+from .models import Job, KnowledgeTopic, Publication, Scene, Video, VideoNote
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
@@ -56,6 +58,7 @@ from .videos import (
     active_job,
     auto_seconds,
     is_published,
+    layer_fields,
     made_voice_seconds,
     new_key,
     pending_publication,
@@ -63,6 +66,7 @@ from .videos import (
     render_signature,
     run_checks,
     scene_marks,
+    sound_fields,
     split_scenes,
     spoken,
     text_position,
@@ -116,6 +120,8 @@ def run_job(
                 run_voice_job(db, job, storage)
             elif job.kind == "photos":
                 auto_photos.run(db, job, storage)
+            elif job.kind == "revise":
+                run_revise_job(db, job, call)
             else:
                 raise JobFailure(f"Loại job không hỗ trợ: {job.kind}")
         except auto_photos.AutoPhotosFailed as err:
@@ -126,18 +132,31 @@ def run_job(
         except JobFailure as err:
             db.rollback()
             _finish(db, job_id, "failed", err.message, err.detail)
+            _reopen_notes(db, job)
             log.warning("Job %s failed: %s\n%s", job_id, err.message, err.detail)
             return
         except Exception:
             db.rollback()
             detail = traceback.format_exc()[-4000:]
             _finish(db, job_id, "failed", "Lỗi không mong đợi trong worker", detail)
+            _reopen_notes(db, job)
             log.exception("Job %s crashed", job_id)
             return
         _finish(db, job_id, "done")
         log.info("Job %s done", job_id)
         if job.kind in ("script", "clone"):
             _queue_photos(db, job)
+
+
+def _reopen_notes(db: DbSession, job: Job) -> None:
+    """A failed "Nhờ AI sửa" gives its notes back, to change or send again."""
+    if job.kind == "revise":
+        db.execute(
+            update(VideoNote)
+            .where(VideoNote.video_id == job.video_id, VideoNote.status == "sent")
+            .values(status="open")
+        )
+        db.commit()
 
 
 def _queue_photos(db: DbSession, job: Job) -> None:
@@ -184,6 +203,8 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
                 (idea.pain_group, idea.pain, idea.hook) if idea else None,
                 photo_hint=topic.photo_hint,
             )
+            if video.ai_effects:
+                prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
 
         call, count_call = _llm(db, job, call)
         try:
@@ -213,6 +234,22 @@ def _llm(
         db.commit()
 
     return call, count_call
+
+
+# --- Revise ---
+
+
+def run_revise_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
+    """ "Nhờ AI sửa": the notes sent with it change the scenes they point at, then each is answered."""
+    video = db.get(Video, job.video_id)
+    topic = knowledge.topic_of(db, video)
+    template = (topic.revise_prompt if topic else "") or knowledge.default_revise_prompt()
+    call, count_call = _llm(db, job, call)
+    try:
+        revise.run(db, video, template, topic.banned_words if topic else [], f"job {job.id}", count_call, call)
+    except ClaudeError as err:
+        raise JobFailure(err.message, err.detail) from None
+    db.commit()
 
 
 # --- Plan ---
@@ -272,6 +309,9 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 voice_text=scene.voice,
             )
         )
+    # The team's "Mẫu dựng" for new videos, if one is chosen, then the AI's own picks when it was asked for them.
+    autoedit.apply_default(db, video)
+    autoedit.apply_ai_effects(db, video, [scene.effects for scene in script.scenes])
 
 
 # --- Render ---
@@ -389,6 +429,16 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data = {"text": scene.text, "seconds": scene.seconds, "image": image.name}
             if position := text_position(video, scene):
                 data["text_position"] = position
+            if scene.transition and not scene.is_title:
+                data["transition"] = scene.transition
+            if scene.color and not scene.is_title:
+                data["color"] = scene.color
+            if scene.layers and not scene.is_title:
+                data["layers"] = [layer_fields(layer) for layer in scene.layers]
+            if scene.sounds:
+                data["sounds"] = [sound_fields(sound) for sound in scene.sounds]
+            if scene.music_level:
+                data["music_level"] = scene.music_level
             if spoken(video, scene):
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
                 data["voice_text"] = spoken(video, scene)
@@ -405,6 +455,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 output,
                 music=music,
                 music_volume=video.music_volume / 100,
+                music_start=video.music_start,
                 options=render_options(video),
             )
             seconds = float(probe(find_tools().ffprobe, output)["format"]["duration"])
