@@ -23,8 +23,10 @@ concurrency:
 
 jobs:
   # api pytest on four machines at once, each running every 4th test (PYTEST_SHARD, tests/conftest.py).
+  # Every job has a timeout: without one a hung step bills up to six hours.
   api:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -55,7 +57,7 @@ jobs:
             api/pyproject.toml
             worker/pyproject.toml
       # FFmpeg: the worker tests and the render parity test need it instead of being skipped.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - uses: ./.github/actions/setup-ffmpeg
       - run: pip install -e ../worker -e ".[dev]"
       # Lint and format rules live in the repo-root ruff.toml, shared with the worker.
       - run: ruff check . && ruff format --check .
@@ -68,6 +70,7 @@ jobs:
   api-image:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -97,6 +100,7 @@ jobs:
 
   worker:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: worker
@@ -108,13 +112,14 @@ jobs:
           cache: pip
           cache-dependency-path: worker/pyproject.toml
       # FFmpeg is required here so the render smoke tests run instead of being skipped.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - uses: ./.github/actions/setup-ffmpeg
       - run: pip install -e ".[dev]"
       - run: ruff check . && ruff format --check .
       - run: python -m pytest -q -rs
 
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
@@ -137,6 +142,7 @@ jobs:
   e2e:
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -168,15 +174,26 @@ jobs:
             api/pyproject.toml
             worker/pyproject.toml
       # E2E runs a real worker, which renders with FFmpeg.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+      - uses: ./.github/actions/setup-ffmpeg
       # Playwright starts the api, the worker and the fake Claude/Pixabay from api/.venv (see web/playwright.config.ts).
       - name: Install api for E2E
         working-directory: api
         run: python -m venv .venv && .venv/bin/pip install -e ../worker -e .
       - working-directory: web
         run: npm ci
-      - working-directory: web
-        run: npx playwright install --with-deps chromium
+      # The browsers are cached per Playwright version (package-lock). Its system libraries come from
+      # the slow apt mirror, so they are installed only when the runner image lacks one of them.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('web/package-lock.json') }}
+      - name: Chromium for Playwright
+        working-directory: web
+        run: |
+          npx playwright install chromium
+          missing=$(find ~/.cache/ms-playwright -type f \( -name chrome -o -name chrome-headless-shell \) \
+            -exec ldd {} \; | grep "not found" || true)
+          if [ -n "$missing" ]; then echo "$missing"; npx playwright install-deps chromium; fi
       # Every 4th test, not --shard: that splits in file order and puts all the render-heavy videos.spec.ts tests
       # on the last two machines.
       - name: E2E (shard ${{ matrix.shard }}/4)
@@ -190,6 +207,8 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: [api, api-image, worker, web, e2e]
     runs-on: ubuntu-latest
+    # Each of the two Coolify deployments is followed for up to 15 minutes.
+    timeout-minutes: 35
     environment: production
     concurrency:
       group: deploy-production
@@ -227,6 +246,7 @@ jobs:
   deploy-web:
     needs: deploy-api
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: production
     concurrency:
       group: deploy-production-web

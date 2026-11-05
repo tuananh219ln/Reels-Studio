@@ -1,0 +1,28 @@
+name: Static FFmpeg
+description: >-
+  Puts ffmpeg and ffprobe 7.1 on PATH from a static build, cached between runs. Installing Ubuntu's
+  package went through the runners' apt mirror, which at times downloads at about 57 kB/s and
+  turned a one-minute step into 14 to 19 minutes. 7.1 is the version Debian's package gives the
+  production images (python:3.12-slim).
+
+runs:
+  using: composite
+  steps:
+    - id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.local/ffmpeg
+        key: ffmpeg-static-7.1.1-${{ runner.os }}-${{ runner.arch }}
+    # Pinned by digest: the tag could be moved, the digest cannot.
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        mkdir -p ~/.local/ffmpeg
+        id=$(docker create mwader/static-ffmpeg:7.1.1@sha256:11a44711684c0b9f754c047dcd64235b8b52deab251bd0e0a86f22faa160749c)
+        docker cp "$id:/ffmpeg" ~/.local/ffmpeg/ffmpeg
+        docker cp "$id:/ffprobe" ~/.local/ffmpeg/ffprobe
+        docker rm "$id"
+    - shell: bash
+      run: |
+        echo "$HOME/.local/ffmpeg" >> "$GITHUB_PATH"
+        "$HOME/.local/ffmpeg/ffmpeg" -version | head -1

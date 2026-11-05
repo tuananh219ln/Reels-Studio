@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — CI takes FFmpeg and Playwright's libraries without the apt mirror; every job has a timeout
+
+The runners' Ubuntu mirror at times downloads at about 57 kB/s: installing FFmpeg took 14–19 minutes on
+some shards and Playwright's `--with-deps` 6 more, so one run used about 95 runner minutes instead of
+45, and the account reached its spending limit on 2026-11-05. CI now takes ffmpeg and ffprobe from a
+static 7.1.1 build (`mwader/static-ffmpeg`, pinned by digest, cached), the version Debian gives the
+production images; the render parity test still runs inside the worker image with its own FFmpeg.
+Playwright's browsers are cached, and its system libraries are installed only when the runner image
+lacks one. Every job has `timeout-minutes`, so a hung step no longer bills up to six hours. The
+2026-11-03 entry (four shards each for api and E2E, draft PRs skip E2E) is unchanged; whether to cut
+the shards is left until the run times after this change are known.
+
 ## 2026-11-05 — Scenes follow their narration; a named scene's voice text opens with its name; edits from the preview
 
 Asked by the owner (namtc07), who agreed to change the 2026-11-03 rule below:
