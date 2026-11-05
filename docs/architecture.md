@@ -106,7 +106,8 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   into the filter graph. FFmpeg is called with an argument list, not a shell.
 - **FFmpeg compatibility:** use only filters and options available since FFmpeg 4.3. The worker
   image uses Debian's FFmpeg package (7.1 at the time of writing), and CI runs the render parity
-  test inside that image.
+  test inside that image. The other CI jobs use a static FFmpeg 7.1.1 build
+  (`.github/actions/setup-ffmpeg`), cached between runs.
 - **Audio bed:** without music the video still gets a silent track. Narration is one track as long
   as the video, built per scene from exact sample counts (narration delayed 0.2 s past the
   crossfade, padded with silence), and added to the bed with `amerge` + `pan` at full level.
