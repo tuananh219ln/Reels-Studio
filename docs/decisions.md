@@ -14,7 +14,7 @@ in the MVP and described across `docs/`; this log gathers them in one place.
 ## 2026-11-05 — Each Page has a posting queue, filled by the worker at the Page's posting times
 
 Asked by a member (namtc): with 5 Pages each, scheduling every video by hand did not scale. Each Page posts one topic
-group (`fanpages.knowledge_topic_id`, migration 0037) at its own posting times or, by default, at the group's
+group (`fanpages.knowledge_topic_id`, migration 0044) at its own posting times or, by default, at the group's
 (2026-11-04, "posting times"). "Thêm vào hàng chờ" on a rendered video puts it in the queue of the member's own Page
 of the video's group; it is pressed by hand, after watching the MP4, so a video with a wrong text or a weak picture
 never goes out unseen. Videos going into the queue by themselves once rendered were left for later (issue #108).
