@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BarChartOutlined,
   DeleteOutlined,
   FacebookOutlined,
   MoreOutlined,
@@ -20,11 +19,9 @@ import {
   Empty,
   Flex,
   Input,
-  Modal,
   Popconfirm,
   Select,
   Space,
-  Table,
   Tooltip,
   Typography,
 } from "antd";
@@ -36,10 +33,11 @@ import {
   type AffiliateAccount,
   type Fanpage,
   type FanpageChoice,
-  type FanpageDay,
   type QueueOverview,
+  type QueuePage,
 } from "@/lib/api";
-import PageQueueSection from "@/components/PageQueueSection";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { usePolling } from "@/lib/polling";
 import PageHeader from "@/components/PageHeader";
 import { COLORS } from "@/app/theme";
@@ -161,26 +159,41 @@ function OwnerLine({
   );
 }
 
-/** A Page in use, compact: who it is, whether its token works, its numbers, how it posts on a schedule, and what a
- * member can do with it. */
+/** One line on how the Page posts on a schedule; the whole of it is on the Page's "Lịch đăng" tab. */
+function ScheduleLine({ page }: { page: QueuePage }) {
+  const parts = [
+    page.topic ? `Nhóm “${page.topic.name}”` : "Chưa gắn nhóm chủ đề",
+    page.post_times.length ? `đăng ${page.post_times.join(", ")}` : "chưa có giờ đăng",
+    `${page.items.length} video trong hàng chờ`,
+  ];
+  return (
+    <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="page-schedule-line">
+      {parts.join(", ")}
+    </Typography.Text>
+  );
+}
+
+// A click on these inside a card does its own thing, not open the Page's dashboard.
+const OWN_CLICK = "a, button, input, .ant-select, .ant-dropdown, .ant-popover, .ant-modal, .ant-drawer";
+
+/** A Page in use, compact: who it is, whether its token works, its numbers, a line on how it posts on a schedule, and
+ * what a member can do with it. A click anywhere else opens its dashboard. */
 function PageCard({
   row,
   accounts,
   queue,
   onRows,
-  onQueue,
-  onDays,
   onToken,
 }: {
   row: Fanpage;
   accounts: AffiliateAccount[];
   queue: QueueOverview | null;
   onRows: (rows: Fanpage[]) => void;
-  onQueue: (overview: QueueOverview) => void;
-  onDays: (row: Fanpage) => void;
   onToken: (row: Fanpage) => void;
 }) {
   const scheduled = queue?.pages.find((page) => page.id === row.id);
+  const router = useRouter();
+  const dashboard = `/fanpages/${row.id}`;
   const { message, modal } = App.useApp();
   const { check, insights } = row;
   const week = insights.last_7_days;
@@ -208,18 +221,24 @@ function PageCard({
   return (
     <Card
       size="small"
+      hoverable
       data-testid="fanpage-card"
-      style={{ height: "100%", borderColor: check.error ? COLORS.primaryBorder : undefined }}
+      style={{ height: "100%", borderColor: check.error ? COLORS.primaryBorder : undefined, cursor: "pointer" }}
       styles={{ body: { display: "flex", flexDirection: "column", gap: 10, height: "100%" } }}
+      onClick={(event) => {
+        if (!(event.target as HTMLElement).closest(OWN_CLICK)) router.push(dashboard);
+      }}
     >
       <Flex gap={10} align="center">
         <Avatar size={32} style={{ background: COLORS.primaryBg, color: COLORS.primary, flex: "none" }}>
           {row.name.trim().charAt(0).toUpperCase() || <FacebookOutlined />}
         </Avatar>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
-          <Typography.Link href={pageUrl(row)} target="_blank" rel="noreferrer" strong ellipsis>
-            {row.name}
-          </Typography.Link>
+          <Typography.Text strong ellipsis>
+            <Link prefetch={false} href={dashboard}>
+              {row.name}
+            </Link>
+          </Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
             ID {row.page_id}, token …{row.token_tail}
           </Typography.Text>
@@ -229,6 +248,15 @@ function PageCard({
           trigger={["click"]}
           menu={{
             items: [
+              {
+                key: "facebook",
+                label: (
+                  <a href={pageUrl(row)} target="_blank" rel="noreferrer">
+                    Mở trên Facebook
+                  </a>
+                ),
+                icon: <FacebookOutlined />,
+              },
               { key: "token", label: "Dán token mới", onClick: () => onToken(row) },
               { key: "stop", label: "Ngừng dùng", icon: <StopOutlined />, danger: true, onClick: stop },
             ],
@@ -267,7 +295,7 @@ function PageCard({
         </Typography.Text>
       )}
       <OwnerLine row={row} accounts={accounts} onRows={onRows} />
-      {queue && scheduled && <PageQueueSection page={scheduled} overview={queue} onChanged={onQueue} />}
+      {scheduled && <ScheduleLine page={scheduled} />}
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
         <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
@@ -275,15 +303,6 @@ function PageCard({
           {row.scheduled_posts > 0 && !check.error && `, ${row.scheduled_posts} bài hẹn giờ`}
         </Typography.Text>
         <Space size={0}>
-          <Tooltip title="Số liệu 30 ngày">
-            <Button
-              size="small"
-              type="text"
-              icon={<BarChartOutlined />}
-              aria-label="30 ngày"
-              onClick={() => onDays(row)}
-            />
-          </Tooltip>
           <Tooltip title="Kiểm tra ngay">
             <Button
               size="small"
@@ -297,53 +316,6 @@ function PageCard({
         </Space>
       </Flex>
     </Card>
-  );
-}
-
-/** The Page's numbers day by day for the last 30 days. */
-function DaysModal({ row, onClose }: { row: Fanpage | null; onClose: () => void }) {
-  const [days, setDays] = useState<FanpageDay[] | null>(null);
-  const id = row?.id;
-  useEffect(() => {
-    if (id === undefined) return;
-    let live = true;
-    api<FanpageDay[]>(`/fanpages/${id}/insights`).then(
-      (found) => live && setDays(found),
-      () => live && setDays([]),
-    );
-    return () => {
-      live = false;
-    };
-  }, [id]);
-  return (
-    <Modal
-      title={`Số liệu 30 ngày, ${row?.name ?? ""}`}
-      open={row !== null}
-      onCancel={onClose}
-      afterClose={() => setDays(null)}
-      footer={null}
-      width={720}
-    >
-      <Table<FanpageDay>
-        size="small"
-        rowKey="day"
-        loading={days === null}
-        dataSource={days ? [...days].reverse() : []}
-        pagination={false}
-        scroll={{ x: "max-content", y: 420 }}
-        locale={{ emptyText: "Chưa có số liệu: tool đọc Page Insights ở mỗi lần kiểm tra" }}
-        columns={[
-          { title: "Ngày", dataIndex: "day", render: (day: string) => day.split("-").reverse().join("/") },
-          { title: "Lượt xem", dataIndex: "views", render: count },
-          { title: "Tiếp cận", dataIndex: "reach", render: count },
-          { title: "Tương tác", dataIndex: "engagements", render: count },
-          { title: "Người theo dõi", dataIndex: "followers", render: count },
-        ]}
-      />
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        Ngày theo cách Facebook tính (giờ Thái Bình Dương), nên lệch giờ Việt Nam một chút.
-      </Typography.Text>
-    </Modal>
   );
 }
 
@@ -565,7 +537,6 @@ export default function FanpagesPage() {
   const [rows, setRows] = useState<Fanpage[] | null>(null);
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
-  const [days, setDays] = useState<Fanpage | null>(null);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
   const [queue, setQueue] = useState<QueueOverview | null>(null);
 
@@ -659,8 +630,6 @@ export default function FanpagesPage() {
                 accounts={accounts}
                 queue={queue}
                 onRows={setRows}
-                onQueue={setQueue}
-                onDays={setDays}
                 onToken={setReplacing}
               />
             ))}
@@ -670,7 +639,6 @@ export default function FanpagesPage() {
       </Flex>
       <AddModal open={adding} onClose={() => setAdding(false)} onSaved={setRows} />
       <TokenModal row={replacing} onClose={() => setReplacing(null)} onSaved={setRows} />
-      <DaysModal row={days} onClose={() => setDays(null)} />
     </>
   );
 }

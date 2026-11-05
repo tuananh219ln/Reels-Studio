@@ -11,6 +11,27 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — Each Page gets a dashboard like Facebook's, from the numbers the app already reads
+
+Asked by a member (namtc), who approved the design: with about 25 Pages in the team, a card's four 7-day numbers
+and the "Số liệu 30 ngày" table did not show how a Page was doing. A click on a Page's card on "Quản lý Page" opens
+`/fanpages/[id]`, modelled on Facebook's Professional Dashboard: one period for every tab (7, 28 or 90 days in
+Vietnam time, today included), each figure with its ↑/↓ against the same number of days just before, and tabs
+Tổng quan, Lượt xem, Tương tác, Đối tượng and Lịch đăng (`GET /api/fanpages/{id}/dashboard`). The "Số liệu 30 ngày"
+dialog goes; its table is under each chart ("Xem bảng").
+
+- **Only what the app already has**: `fanpage_insights`, `fanpage_followers` and the posts' `post_metrics`; no new
+  Facebook call, table or migration. Numbers Facebook does not give the app (followers against non-followers, content
+  types, traffic sources, unfollows, 3-second and 1-minute views) are left out rather than estimated.
+- **Reactions, comments, shares and the average watch time are the app's posts' numbers**, summed from each post's
+  latest reading for the posts that went live in the period; Page Insights has only the engagements total. A post's
+  numbers keep growing after its day and posts made outside the app are missing, so the tiles say they are
+  approximate.
+- **The posting queue moves to the Page's "Lịch đăng" tab**, changing "Everything about a Page sits on its card" of
+  the entry below: the card keeps one line (group, times, "N video trong hàng chờ"). The queue rules are unchanged.
+- **"Bài đăng" stays grouped by video** (2026-11-03); a per-post content tab on the Page ("Nội dung", like Facebook's
+  content library) and more Page Insights metrics are later phases, not built here.
+
 ## 2026-11-05 — Each Page has a posting queue, filled by the worker at the Page's posting times
 
 Asked by a member (namtc): with 5 Pages each, scheduling every video by hand did not scale. Each Page posts one topic

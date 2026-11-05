@@ -82,6 +82,11 @@ app replaces CapCut, so the output is a finished MP4.
    A member adds a rendered video they have watched with "Thêm vào hàng chờ"; it goes to their own
    Page of the video's group, and the worker schedules the first video of each queue at the Page's
    next free time within 48 hours, through the usual publish job.
+   **A dashboard per Page** (built, phase 1): a click on a Page's card opens `/fanpages/[id]`, like Facebook's
+   Professional Dashboard: views, reach, engagements and new followers over 7, 28 or 90 days against the days
+   before, daily charts with the days the app posted, the latest post's numbers, the week's scheduled posts and
+   free times, and the Page's posting queue. Only numbers the app already reads are shown. A per-post content
+   library ("Nội dung") and more Page Insights metrics are later phases.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections

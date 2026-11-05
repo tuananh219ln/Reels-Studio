@@ -10,9 +10,12 @@ test.beforeEach(() => resetDatabase());
 /** "Sức khỏe" is the topic group the migrations make; its default posting times start at 07:00. */
 const GROUP = "Sức khỏe";
 
+/** The Page's "Đăng theo lịch", on its dashboard's "Lịch đăng" tab. */
 async function openPage(page: Page) {
   await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
-  return page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" }).getByTestId("page-queue");
+  await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  return page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");
 }
 
 async function renderedVideo(page: Page) {
