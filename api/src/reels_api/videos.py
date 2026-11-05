@@ -682,6 +682,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         else None,
         "music_volume": video.music_volume,
         "music_start": video.music_start,
+        "ai_effects": video.ai_effects,
         "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
         "options": effective(video),

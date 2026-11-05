@@ -189,6 +189,8 @@ class Video(Base):
     music_key: Mapped[str | None] = mapped_column(String(200))
     music_name: Mapped[str | None] = mapped_column(String(200))  # the uploaded file's name, display only
     music_volume: Mapped[int] = mapped_column(Integer, default=25)  # percent
+    # "AI gợi ý hiệu ứng" when the video was made: its script call also picks each scene's effects.
+    ai_effects: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Where in the song the video's music starts, in seconds ("Bài nhạc bắt đầu từ giây").
     music_start: Mapped[float] = mapped_column(Float, default=0, server_default="0")
     voice_enabled: Mapped[bool] = mapped_column(Boolean, default=True)

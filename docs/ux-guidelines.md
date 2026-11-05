@@ -722,6 +722,9 @@ relied on (samples in the PR that added them).
   studio (its scenes' transitions, most used colour, the first content scene's sounds that has any, the title's
   sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename, remove) and picks the
   one put on every new video as soon as its scenes are written (AI script, clone or "Tự viết"); none by default.
+  "Tạo video" with "AI viết kịch bản" has the box **"AI gợi ý hiệu ứng"** (off by default): the AI then picks each
+  scene's transition, colour, a sound and a few lines of text in the same call (see
+  [content.md](content.md#script-generation-contract)), changeable in the studio like any effect.
 - **Motion (photos only):** Zoom vào (the default), Zoom ra (from the zoom back to 1.00), Lia ngang
   (held at the zoom, travelling left to right), Đứng yên. **Độ zoom:** Nhẹ 1.06, Vừa 1.12, Mạnh 1.18.
 - **Text box:** a team box style ("box": its box colour, opacity, text and keyword colours, copied

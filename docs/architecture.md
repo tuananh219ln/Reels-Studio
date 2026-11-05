@@ -200,7 +200,9 @@ A scene may hold an uploaded video clip instead of a photo
   a video, renames, removes (also clearing the default it was), sets the default, and `POST /apply` puts one on a
   video under its lock. `autoedit.apply_default` runs after the script or clone job writes the scenes and after
   "Tự viết". The studio's undo of an apply deletes the layers and sounds it added and patches each scene's
-  transition, colour and music level back.
+  transition, colour and music level back. `videos.ai_effects` (migration 0042) keeps "AI gợi ý hiệu ứng"; the
+  script job then appends `autoedit.EFFECTS_FORMAT` to its prompt and `autoedit.apply_ai_effects` puts the
+  answer's per-scene `effects` on after the default template, leaving out anything outside the presets.
 - **Speed:** `seconds` stays the scene's length on screen. The scene takes
   (seconds + crossfades) × speed of the clip, since the crossfades play at that speed too. The
   start time's limit does not change with the speed: a part past the clip's end only warns.

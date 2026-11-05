@@ -254,3 +254,78 @@ def summary(template: Template) -> list[str]:
         ]
         lines.append("Cảnh cuối: " + "; ".join(names))
     return lines
+
+
+# --- "AI gợi ý hiệu ứng" ---
+
+EFFECTS_MARKER = "HIỆU ỨNG CHO TỪNG CẢNH"
+MAX_AI_LAYERS = 2
+AI_LAYER_PLACE = (540, 640)  # centred, a third of the way down: clear of the scene's text box and the apps' buttons
+
+
+def _choices(presets: dict) -> str:
+    return ", ".join(f"{name} ({item.label})" for name, item in presets.items())
+
+
+EFFECTS_FORMAT = f"""{EFFECTS_MARKER} (bắt buộc): mỗi cảnh trong "scenes" có thêm trường "effects", chọn cho hợp với nội
+dung và nhịp của cảnh; không dùng cùng một hiệu ứng cho mọi cảnh, không thêm khi cảnh không cần:
+"effects": {{"transition": "...", "color": "..." hoặc null, "sounds": [{{"sound": "...", "start": giây}}],
+"layer": {{"text": "...", "start": giây, "seconds": giây}} hoặc null}}
+- "transition": cách chuyển vào cảnh này, một trong: {_choices(SCENE_TRANSITIONS)}.
+- "color": màu của ảnh cảnh, một trong: {_choices(COLOR_PRESETS)}; null để giữ màu gốc.
+- "sounds": tối đa 1 âm, "start" là giây tính từ đầu cảnh; một trong: {_choices(SOUNDS)}.
+- "layer": một dòng chữ nổi bật tối đa 6 từ (bọc *từ* để tô màu), chỉ khi thật cần; cả video tối đa {MAX_AI_LAYERS} dòng."""
+
+
+def apply_suggested(db: DbSession, scenes: list[Scene], suggestions: list[object]) -> None:
+    """The AI's effects for each content scene, in order; any value outside the presets is left out, silently."""
+    layers = 0
+    for scene, effects in zip(scenes, suggestions):
+        if not isinstance(effects, dict):
+            continue
+        if effects.get("transition") in SCENE_TRANSITIONS:
+            scene.transition = effects["transition"]
+        if effects.get("color") in COLOR_PRESETS:
+            scene.color = effects["color"]
+        sounds = effects.get("sounds")
+        for item in (sounds if isinstance(sounds, list) else [])[:1]:
+            try:
+                _add_sounds(db, scene, _sounds([item]))
+            except ValueError:
+                continue
+        layer = effects.get("layer")
+        if isinstance(layer, dict) and layers < MAX_AI_LAYERS:
+            try:
+                (item,) = _layers(
+                    [
+                        {
+                            "kind": "text",
+                            "text": layer.get("text"),
+                            "start": min(max(0, _float(layer.get("start"), 0)), max(0.0, scene.seconds - 0.3)),
+                            "seconds": min(max(0.3, _float(layer.get("seconds"), 2)), 60),
+                            "x": AI_LAYER_PLACE[0],
+                            "y": AI_LAYER_PLACE[1],
+                            "size": "medium",
+                            "style": "yellow",
+                            "animation": "fade",
+                        }
+                    ]
+                )
+            except (ValueError, TypeError):
+                continue
+            position = max((row.position for row in scene.layers), default=0) + 1
+            db.add(SceneLayer(scene_id=scene.id, position=position, **item))
+            layers += 1
+
+
+def _float(value: object, fallback: float) -> float:
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else fallback
+
+
+def apply_ai_effects(db: DbSession, video: Video, suggestions: list[object]) -> None:
+    """After the script's scenes are written, when the video was made with "AI gợi ý hiệu ứng"."""
+    if not video.ai_effects:
+        return
+    db.flush()
+    _, scenes = split_scenes(db, video)
+    apply_suggested(db, scenes, suggestions)

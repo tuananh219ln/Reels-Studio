@@ -133,6 +133,13 @@ How the prompt is built (built, compact version):
   the member's change request, appending any placeholder that was removed. It returns the same
   JSON, with new music suggestions; members upload its photos.
 
+- **"AI gợi ý hiệu ứng" (an option in "Tạo video", AI scripts only, kept as `videos.ai_effects`):** the script
+  prompt gets one more part after the format (code, `autoedit.EFFECTS_FORMAT`): every scene also returns
+  `effects`, a transition, a colour or null, at most one sound with its second, and a line of text (at most 6 words,
+  at most 2 in the video) or null, each named from the render's presets with their Vietnamese labels. Nothing is
+  asked when the option is off. The same call writes both, so it costs no extra call. Any value outside the presets
+  is left out without failing the job; the team's "Mẫu dựng" for new videos goes on first and the AI's picks after.
+  A clone does not ask for effects.
 - **Revise ("Nhờ AI sửa", the studio's notes):** the group's "Prompt sửa theo góp ý" on `/knowledge` (empty:
   [revise_default.txt](../api/src/reels_api/prompts/revise_default.txt)) fills `[kịch bản hiện tại]` with every
   scene (its seconds in the video, on-screen text, voice text, layers) and `[góp ý]` with the open notes, each

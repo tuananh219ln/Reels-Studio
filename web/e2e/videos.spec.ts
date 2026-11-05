@@ -811,6 +811,32 @@ test("auto edit: the app's template on a video, undone, saved as the team's and 
   ).toHaveCount(6);
 });
 
+test("AI suggested effects: chosen when making the video, the script comes with each scene's effects", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("rau mầm trồng tại nhà");
+  await dialog.getByRole("checkbox", { name: "AI gợi ý hiệu ứng" }).check();
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await jobFinished(page);
+  await uploadPhotos(page);
+
+  // The (fake) AI gave every scene a transition, the first a "Ting" and the second a line of text.
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await expect(timeline.getByTestId("lane-sounds")).toHaveText(["Ting"]);
+  await expect(timeline.getByTestId("lane-layers")).toHaveText(["Chữ: Dễ trồng"]);
+  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  await expect(studio.getByTestId("scene-effects")).toContainText("Mở vòng tròn");
+});
+
 /** A rendered video with its Page connected, open on its own page. */
 async function renderedVideo(page: Page) {
   await loginAsSeed(page);

@@ -127,6 +127,7 @@ class NewVideoBody(BaseModel):
     # "ai": the script job writes it; "manual" ("Tự viết"): no AI, the scenes come from `script`, or one empty scene.
     mode: Literal["ai", "manual"] = "ai"
     script: str = ""
+    ai_effects: bool = False  # "AI gợi ý hiệu ứng": the script call also picks each scene's effects (AI scripts only)
 
 
 class VideoPatchBody(BaseModel):
@@ -271,7 +272,13 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         raise invalid(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
     scenes = hand_written_scenes(body.script) if manual else []
     idea = _free_idea(db, body.plan_item_id, group) if body.plan_item_id is not None else None
-    video = Video(topic=topic, knowledge_topic_id=group.id, has_script=manual, created_by_id=me.user_id)
+    video = Video(
+        topic=topic,
+        knowledge_topic_id=group.id,
+        has_script=manual,
+        created_by_id=me.user_id,
+        ai_effects=body.ai_effects and not manual,
+    )
     video_options.apply_team_defaults(db, video)
     db.add(video)
     db.flush()

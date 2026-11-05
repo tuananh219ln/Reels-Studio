@@ -308,6 +308,12 @@ class FakeServices:
         elif reply is None:
             topic = prompt.split("Chủ đề: ", 1)[-1].split("\n", 1)[0].strip() or "sức khỏe"
             reply = script_json(topic, self.default_seconds)
+            if "HIỆU ỨNG CHO TỪNG CẢNH" in prompt:
+                # "AI gợi ý hiệu ứng": a transition on every scene, a sound on the first, a line of text on the second.
+                for index, scene in enumerate(reply["scenes"]):
+                    scene["effects"] = {"transition": ["circle", "zoom", "slide"][index % 3], "color": None}
+                reply["scenes"][0]["effects"]["sounds"] = [{"sound": "ding", "start": 0.2}]
+                reply["scenes"][1]["effects"]["layer"] = {"text": "Dễ *trồng*", "start": 0, "seconds": 1}
         text = reply if isinstance(reply, str) else json.dumps(reply, ensure_ascii=False)
         return 200, {
             "id": "msg_fake",

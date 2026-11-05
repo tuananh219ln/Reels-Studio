@@ -203,6 +203,8 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
                 (idea.pain_group, idea.pain, idea.hook) if idea else None,
                 photo_hint=topic.photo_hint,
             )
+            if video.ai_effects:
+                prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
 
         call, count_call = _llm(db, job, call)
         try:
@@ -307,8 +309,9 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 voice_text=scene.voice,
             )
         )
-    # The team's "Mẫu dựng" for new videos, if one is chosen.
+    # The team's "Mẫu dựng" for new videos, if one is chosen, then the AI's own picks when it was asked for them.
     autoedit.apply_default(db, video)
+    autoedit.apply_ai_effects(db, video, [scene.effects for scene in script.scenes])
 
 
 # --- Render ---

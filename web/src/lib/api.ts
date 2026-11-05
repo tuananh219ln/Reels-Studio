@@ -245,6 +245,8 @@ export type VideoDetail = VideoRow & {
   /** Where in the song the music starts, in seconds. */
   music_start: number;
   notes: VideoNote[];
+  /** Made with "AI gợi ý hiệu ứng". */
+  ai_effects: boolean;
   voice_enabled: boolean;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
