@@ -28,7 +28,7 @@ import {
   Typography,
 } from "antd";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
@@ -81,15 +81,20 @@ export default function VideoPage() {
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // /videos/<id>?clone=tiktok|page: a suggestion on "Bài đăng" opens the clone drawer with its request filled in.
-  const [cloning, setCloning] = useState<CloneTarget | null>(() => {
-    const asked = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("clone");
-    return asked === "tiktok" || asked === "page" ? asked : null;
-  });
+  // /videos/<id>?clone=tiktok|page: a suggestion on "Bài đăng" or a card on the list opens the clone drawer with its
+  // request filled in. Read from useSearchParams, not window.location when the state starts: after a link inside the
+  // app the address only changes once the page has rendered.
+  const askedClone = useSearchParams().get("clone");
+  const [cloning, setCloning] = useState<CloneTarget | null>(null);
+  const [seenAsk, setSeenAsk] = useState<string | null>(null);
+  if (askedClone !== seenAsk) {
+    setSeenAsk(askedClone);
+    if (askedClone === "tiktok" || askedClone === "page") setCloning(askedClone);
+  }
   // Drop the request from the address, so a reload does not open the drawer again.
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("clone")) router.replace(`/videos/${id}`);
-  }, [id, router]);
+    if (askedClone !== null) router.replace(`/videos/${id}`);
+  }, [askedClone, id, router]);
   // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Xuất bản".
   const [sideTab, setSideTab] = useState<SideTab | null>(null);
   // The two columns sit side by side from xl up; only then does the side panel stick.
