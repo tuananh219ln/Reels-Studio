@@ -37,6 +37,8 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<AffiliateProduct | "new" | null>(null);
   const [adding, setAdding] = useState<AddMode | null>(null);
+  // The rows ticked for "Xoá đã chọn"; only the ones still listed count, so a filter never deletes hidden rows.
+  const [ticked, setTicked] = useState<number[]>([]);
   const { topicId, status, platform, q } = filters;
 
   const query = useMemo(() => {
@@ -95,6 +97,38 @@ export default function Products() {
     try {
       await run();
       message.success(done);
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+    await reload();
+  }
+
+  const listed = new Set(products.map((product) => product.id));
+  const selected = ticked.filter((id) => listed.has(id));
+
+  async function approveSelected() {
+    try {
+      const { approved, skipped } = await api<{ approved: number; skipped: number }>(
+        "/affiliate-products/approve",
+        "POST",
+        { product_ids: selected },
+      );
+      const note = skipped ? `; ${skipped} sản phẩm chưa đạt tiêu chí nên vẫn là nháp` : "";
+      (skipped ? message.warning : message.success)(`Đã duyệt ${approved} sản phẩm${note}`);
+      setTicked([]);
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+    await reload();
+  }
+
+  async function deleteSelected() {
+    try {
+      const { deleted } = await api<{ deleted: number }>("/affiliate-products/delete", "POST", {
+        product_ids: selected,
+      });
+      message.success(`Đã xoá ${deleted} sản phẩm`);
+      setTicked([]);
     } catch (err) {
       message.error(errorMessage(err));
     }
@@ -311,9 +345,37 @@ export default function Products() {
           </Button>
         </Space>
       </Flex>
+      {selected.length > 0 && (
+        <Flex gap={12} align="center" wrap style={{ marginBottom: 12 }} data-testid="product-selection">
+          <Typography.Text>Đã chọn {selected.length} sản phẩm</Typography.Text>
+          <Button icon={<CheckOutlined />} onClick={() => void approveSelected()}>
+            Duyệt đã chọn
+          </Button>
+          <Popconfirm
+            title={`Xoá ${selected.length} sản phẩm đã chọn?`}
+            description="Các sản phẩm này cũng được gỡ khỏi các video đang gắn."
+            okText="Xoá"
+            cancelText="Huỷ"
+            okButtonProps={{ danger: true }}
+            onConfirm={deleteSelected}
+          >
+            <Button danger icon={<DeleteOutlined />}>
+              Xoá đã chọn
+            </Button>
+          </Popconfirm>
+          <Button type="link" onClick={() => setTicked([])}>
+            Bỏ chọn
+          </Button>
+        </Flex>
+      )}
       <Card styles={{ body: { padding: 0 } }}>
         <Table<AffiliateProduct>
           rowKey="id"
+          rowSelection={{
+            selectedRowKeys: selected,
+            onChange: (keys) => setTicked(keys as number[]),
+            getCheckboxProps: (product) => ({ "aria-label": `Chọn ${product.name}` }),
+          }}
           columns={columns}
           dataSource={products}
           loading={loading}

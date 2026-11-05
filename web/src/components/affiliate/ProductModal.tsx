@@ -81,7 +81,9 @@ export default function ProductModal({
           style={{ marginBottom: 16 }}
         />
       )}
-      <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>
+      {/* Its own name prefixes the field ids (product_name...): bare ids such as "name" clash with the account form
+          every page holds, and a label then points at the other form's box. */}
+      <Form form={form} name="product" layout="vertical" requiredMark={false} onFinish={submit}>
         <Form.Item label="Nền tảng" name="platform" rules={[{ required: true, message: "Chọn nền tảng" }]}>
           <Select
             aria-label="Nền tảng"

@@ -1,6 +1,6 @@
 import { readdirSync } from "node:fs";
 import path from "node:path";
-import { expect, test, type Browser } from "@playwright/test";
+import { expect, test, type Browser, type Page } from "@playwright/test";
 import {
   SEED,
   addUser,
@@ -316,6 +316,62 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
   await expect(product.getByTestId("quick-fill")).toHaveCount(0);
   await product.getByRole("button", { name: "Duyệt" }).click();
   await expect(product).toContainText("Đã duyệt");
+});
+
+/** One row of Shopee Affiliate's "Lấy link hàng loạt" file, without stars, sales or shop type. */
+const line = (id: number, name: string) =>
+  `${id},${name},"45,0k",0,Shop,"2,5%",₫900,https://shopee.vn/product/1/${id},\n`;
+
+async function importRows(page: Page, ...rows: string[]) {
+  await page.getByRole("button", { name: "Nhập file" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  const header =
+    "Mã sản phẩm,Tên sản phẩm,Giá,Doanh thu,Tên cửa hàng,Tỉ lệ hoa hồng,Hoa hồng,Link sản phẩm,Link ưu đãi\n";
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: "lay-link-hang-loat.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(header + rows.join("")),
+  });
+  await dialog.getByRole("button", { name: "Nhập", exact: true }).click();
+  await expect(dialog.getByText("File không có số sao, lượt bán và loại shop")).toBeVisible();
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  await expect(dialog).toBeHidden();
+}
+
+test("Affiliate: several products are ticked, then deleted or approved at once", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/affiliate");
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await importRows(page, line(11, "Hạt cải"), line(12, "Hạt dền"), line(13, "Hạt mồng tơi"));
+
+  await page.getByRole("checkbox", { name: "Chọn Hạt cải" }).check();
+  await page.getByRole("checkbox", { name: "Chọn Hạt dền" }).check();
+  const selection = page.getByTestId("product-selection");
+  await expect(selection).toContainText("Đã chọn 2 sản phẩm");
+  await selection.getByRole("button", { name: "Xoá đã chọn" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Xoá" }).click();
+  await expect(page.getByText("Đã xoá 2 sản phẩm")).toBeVisible();
+  await expect(row(page, "Hạt cải")).toHaveCount(0);
+  await expect(row(page, "Hạt dền")).toHaveCount(0);
+  await expect(row(page, "Hạt mồng tơi")).toBeVisible();
+  await expect(selection).toHaveCount(0);
+
+  // Approving several at once: an ordinary shop passes, a row still missing its figures stays a draft.
+  await importRows(page, line(14, "Hạt cải bẹ"));
+  const filled = row(page, "Hạt mồng tơi");
+  const quick = filled.getByTestId("quick-fill");
+  await chooseOption(page, quick.getByLabel("Loại shop của Hạt mồng tơi"), "Shop thường");
+  await quick.getByLabel("Số sao của Hạt mồng tơi").fill("4.8");
+  await quick.getByLabel("Lượt bán của Hạt mồng tơi").fill("250");
+  await quick.getByRole("button", { name: "Lưu" }).click();
+  await expect(filled).toContainText("4.8 / 250");
+  await page.getByRole("checkbox", { name: "Chọn Hạt mồng tơi" }).check();
+  await page.getByRole("checkbox", { name: "Chọn Hạt cải bẹ" }).check();
+  await selection.getByRole("button", { name: "Duyệt đã chọn" }).click();
+  await expect(page.getByText("Đã duyệt 1 sản phẩm; 1 sản phẩm chưa đạt tiêu chí nên vẫn là nháp")).toBeVisible();
+  await expect(filled).toContainText("Đã duyệt");
+  await expect(row(page, "Hạt cải bẹ")).toContainText("Nháp");
 });
 
 test("a new user logs in with the temporary password and must change it", async ({ page, browser }) => {

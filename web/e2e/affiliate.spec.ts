@@ -82,6 +82,40 @@ test("a new script finds Shopee products with the writer's account, and one is c
   await expect(row).toContainText("Tìm qua API");
 });
 
+test("without an App ID, an affiliate link pasted on the video is filled in by hand and chosen", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
+
+  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
+  const suggestions = page.getByTestId("shopee-suggestions");
+  await suggestions.getByLabel("Dán link aff Shopee").fill("https://s.shopee.vn/4LKghKN3cR");
+  await suggestions.getByRole("button", { name: "Thêm link" }).click();
+  const pasted = suggestions.getByTestId("suggested-product");
+  await expect(pasted).toContainText("Chưa có thông tin sản phẩm");
+  await expect(pasted.getByRole("button", { name: "Chọn" })).toHaveCount(0);
+
+  await pasted.getByRole("button", { name: "Sửa thông tin" }).click();
+  const form = page.getByRole("dialog", { name: "Sửa sản phẩm" });
+  await form.getByLabel("Tên sản phẩm").fill("Hạt giống rau muống");
+  await form.getByLabel("Tên shop").fill("Hồng Hà Seeds");
+  await chooseOption(page, form.getByLabel("Loại shop"), "Shopee Mall");
+  await form.getByLabel("Số sao").fill("4.9");
+  await form.getByLabel("Lượt bán").fill("2500");
+  await form.getByLabel("Giá (đ)").fill("45000");
+  await form.getByLabel("Hoa hồng (%)").fill("8");
+  await form.getByRole("button", { name: "Lưu" }).click();
+  await expect(form).toBeHidden();
+  await expect(pasted).toContainText("Hạt giống rau muống");
+  await pasted.getByRole("button", { name: "Chọn" }).click();
+  await expect(pasted.getByText("Đã chọn")).toBeVisible();
+});
+
 test("a pasted Shopee link is filled in by the worker and can be approved", async ({ page }) => {
   await loginAsSeed(page);
   await addShopeeAccount(page);

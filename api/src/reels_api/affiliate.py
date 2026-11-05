@@ -35,12 +35,11 @@ SHOP_TYPES = {
     # Proposed in issue #47 and waiting for the owner: TikTok Shop's own Mall, or a shop scoring at least 4.0.
     "tiktok_shop": {"mall": "TikTok Shop Mall", "trusted": "Điểm shop từ 4.0", "other": "Shop thường"},
 }
-# A high commission does not make up for a poor shop: below these a product cannot be approved.
-TRUSTED_SHOP_TYPES = {"shopee": {"mall", "preferred_plus", "preferred"}, "tiktok_shop": {"mall", "trusted"}}
-TRUSTED_SHOPS_TEXT = {
-    "shopee": "Shop phải là Shopee Mall, Yêu Thích hoặc Yêu Thích+",
-    "tiktok_shop": "Shop phải là TikTok Shop Mall hoặc có điểm shop từ 4.0",
-}
+# A high commission does not make up for a poor shop: below these a product cannot be approved. Shopee has no such
+# floor since 2026-11-05 (decisions.md): any shop type passes, its stars and sales still have to; Mall still ranks
+# first among equal commissions.
+TRUSTED_SHOP_TYPES = {"tiktok_shop": {"mall", "trusted"}}
+TRUSTED_SHOPS_TEXT = {"tiktok_shop": "Shop phải là TikTok Shop Mall hoặc có điểm shop từ 4.0"}
 MIN_RATING = 4.7
 MIN_SOLD = 100
 # Facebook's limit for a comment is 8000 characters; a comment is cut well before it.
@@ -50,7 +49,8 @@ MAX_COMMENT_LENGTH = 8000
 def problems(product: AffiliateProduct) -> list[str]:
     """Why a member may not approve this product."""
     found = []
-    if product.shop_type not in TRUSTED_SHOP_TYPES[product.platform]:
+    trusted = TRUSTED_SHOP_TYPES.get(product.platform)
+    if trusted is not None and product.shop_type not in trusted:
         found.append(TRUSTED_SHOPS_TEXT[product.platform])
     if product.rating < MIN_RATING:
         found.append(f"Đánh giá dưới {MIN_RATING} sao")
