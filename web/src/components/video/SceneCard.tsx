@@ -90,6 +90,79 @@ function parseKeywords(text: string): string[] {
     .filter(Boolean);
 }
 
+type ScenePatch = Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">> & {
+  video_start?: number;
+};
+
+const patchScene = (scene: SceneData, body: ScenePatch) => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body);
+
+/*
+ * The scene's fields, each saving itself, shared by the scene card on the video page and the studio's "Chỉnh cảnh N"
+ * panel, so a field works the same wherever it is edited.
+ */
+
+/** "Chữ trên màn hình". */
+export function SceneTextField({ scene }: { scene: SceneData }) {
+  return (
+    <AutoSaveField
+      label="Chữ trên màn hình"
+      value={scene.text}
+      multiline
+      save={(text) => patchScene(scene, { text })}
+      help={TEXT_HELP}
+      words={{ max: scene.is_title ? MAX_TITLE_WORDS : MAX_SCENE_WORDS }}
+    />
+  );
+}
+
+/** "Lời đọc", with its narration player, when the video has narration. */
+export function SceneVoiceField({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled: boolean }) {
+  return voiceEnabled ? <VoiceText scene={scene} save={(voice_text) => patchScene(scene, { voice_text })} /> : null;
+}
+
+/** "Từ khóa tìm ảnh". */
+export function SceneKeywordsField({ scene }: { scene: SceneData }) {
+  return (
+    <AutoSaveField
+      label="Từ khóa tìm ảnh"
+      value={scene.keywords.join(", ")}
+      placeholder="cụ thể nhất trước, cách nhau bằng dấu phẩy"
+      save={(text) => patchScene(scene, { keywords: parseKeywords(text) })}
+    />
+  );
+}
+
+/** "Prompt ảnh AI". */
+export function ScenePromptField({ scene }: { scene: SceneData }) {
+  return (
+    <AutoSaveField
+      label="Prompt ảnh AI"
+      help={
+        "Tả thứ có trong ảnh (món, cách bày, góc chụp), nên viết tiếng Anh. Phong cách chung (ánh sáng, khung " +
+        "dọc, không chữ) được thêm tự động, sửa ở Cài đặt › Nguồn tư liệu." +
+        (scene.is_title ? " Để trống thì dùng dòng chữ đầu của cảnh tiêu đề." : "")
+      }
+      value={scene.image_prompt}
+      multiline
+      save={(text) => patchScene(scene, { image_prompt: text })}
+    />
+  );
+}
+
+/** What blocks the scene's render, then what only warns. */
+export function SceneIssues({ scene }: { scene: SceneData }) {
+  return (
+    <>
+      {scene.blocking.map((reason) => (
+        <Alert key={reason} type="error" showIcon title={reason} data-testid="scene-blocking" />
+      ))}
+      {scene.warnings.map((warning) => (
+        <Alert key={warning} type="warning" showIcon title={warning} data-testid="scene-warning" />
+      ))}
+    </>
+  );
+}
+
 export default function SceneCard({
   scene,
   label,
@@ -115,11 +188,7 @@ export default function SceneCard({
 }) {
   const editor = useEditor();
   const frozen = editor.locked || editor.readOnly;
-  const patch = (
-    body: Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">> & {
-      video_start?: number;
-    },
-  ) => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body);
+  const patch = (body: ScenePatch) => patchScene(scene, body);
 
   return (
     <Card
@@ -188,15 +257,8 @@ export default function SceneCard({
         </Col>
         <Col xs={24} sm={15} md={16}>
           <Flex vertical gap={4}>
-            <AutoSaveField
-              label="Chữ trên màn hình"
-              value={scene.text}
-              multiline
-              save={(text) => patch({ text })}
-              help={TEXT_HELP}
-              words={{ max: scene.is_title ? MAX_TITLE_WORDS : MAX_SCENE_WORDS }}
-            />
-            {voiceEnabled && <VoiceText scene={scene} save={(voice_text) => patch({ voice_text })} />}
+            <SceneTextField scene={scene} />
+            <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
             {/* Seconds (and a clip's start) beside the keywords: short fields, one row. */}
             <Flex wrap gap={16}>
               <AutoSaveField
@@ -217,31 +279,11 @@ export default function SceneCard({
                 />
               )}
               <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                <AutoSaveField
-                  label="Từ khóa tìm ảnh"
-                  value={scene.keywords.join(", ")}
-                  placeholder="cụ thể nhất trước, cách nhau bằng dấu phẩy"
-                  save={(text) => patch({ keywords: parseKeywords(text) })}
-                />
+                <SceneKeywordsField scene={scene} />
               </div>
             </Flex>
-            <AutoSaveField
-              label="Prompt ảnh AI"
-              help={
-                "Tả thứ có trong ảnh (món, cách bày, góc chụp), nên viết tiếng Anh. Phong cách chung (ánh sáng, khung " +
-                "dọc, không chữ) được thêm tự động, sửa ở Cài đặt › Nguồn tư liệu." +
-                (scene.is_title ? " Để trống thì dùng dòng chữ đầu của cảnh tiêu đề." : "")
-              }
-              value={scene.image_prompt}
-              multiline
-              save={(text) => patch({ image_prompt: text })}
-            />
-            {scene.blocking.map((reason) => (
-              <Alert key={reason} type="error" showIcon title={reason} data-testid="scene-blocking" />
-            ))}
-            {scene.warnings.map((warning) => (
-              <Alert key={warning} type="warning" showIcon title={warning} data-testid="scene-warning" />
-            ))}
+            <ScenePromptField scene={scene} />
+            <SceneIssues scene={scene} />
           </Flex>
         </Col>
       </Row>
@@ -351,14 +393,21 @@ function stockSources(): Promise<StockSource[]> {
   return offeredSources.list;
 }
 
-function ScenePicture({
+/**
+ * The scene's photo or clip and every way to change it. `compact` (the studio, where the phone already shows the
+ * picture and trims the clip on the timeline) leaves out the large picture and its overlay, keeping "Chỉnh khung"
+ * for a photo and "Xoá video" for a clip.
+ */
+export function ScenePicture({
   scene,
   voiceEnabled,
   generating,
+  compact = false,
 }: {
   scene: SceneData;
   voiceEnabled: boolean;
   generating: boolean;
+  compact?: boolean;
 }) {
   const { message, modal } = App.useApp();
   const editor = useEditor();
@@ -558,94 +607,126 @@ function ScenePicture({
         }
       }}
     >
-      <div className="scene-media">
-        {scene.preview_url && !reason ? (
-          // A plain <img>: the preview is drawn by the api with the renderer's own code.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={scene.preview_url}
-            alt={`Xem trước ${which}`}
-            style={{ ...frame, objectFit: "cover", display: "block" }}
-            data-testid="scene-preview"
-          />
-        ) : (
-          <Flex
-            align="center"
-            justify="center"
-            data-testid="scene-no-preview"
-            style={{
-              ...frame,
-              padding: 12,
-              textAlign: "center",
-              boxSizing: "border-box",
-              background: hasPicture ? "#FFF7E6" : "#FFF1F0",
-              border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}`,
-            }}
-          >
-            <Typography.Text type="danger">{reason ?? scene.image_error ?? "Chưa có ảnh"}</Typography.Text>
-          </Flex>
-        )}
-        {/* Over the picture on hover (always on touch screens), stacked in its middle: look at the scene large
-            ("Xem"), then edit it; only the look in view mode. */}
-        {hasPicture && (
-          <div className="scene-media__overlay" data-testid="scene-media-actions">
-            <Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(true)}>
-              Xem
+      {compact && !editor.readOnly && hasPicture && (
+        <Flex gap={6} wrap>
+          {!scene.video && (
+            <Button size="small" icon={<ScissorOutlined />} disabled={off} onClick={() => setFraming(true)}>
+              Chỉnh khung
             </Button>
-            {!editor.readOnly && (
-              <>
-                <Button
-                  size="small"
-                  icon={<ScissorOutlined />}
-                  disabled={off}
-                  onClick={async () => {
-                    // The trim starts from the saved seconds and start: the one being typed is saved first.
-                    await editor.flush();
-                    setFraming(true);
-                  }}
-                >
-                  {scene.video ? "Cắt video" : "Chỉnh khung"}
-                </Button>
-                {canPlace && (
+          )}
+          {scene.video && (
+            <Popconfirm
+              title="Xoá video của cảnh này?"
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              disabled={off}
+              onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
+            >
+              <Button
+                size="small"
+                danger
+                aria-label="Xoá video"
+                icon={<DeleteOutlined />}
+                loading={busy === "remove"}
+                disabled={off}
+              >
+                Xoá video
+              </Button>
+            </Popconfirm>
+          )}
+        </Flex>
+      )}
+      {!compact && (
+        <div className="scene-media">
+          {scene.preview_url && !reason ? (
+            // A plain <img>: the preview is drawn by the api with the renderer's own code.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={scene.preview_url}
+              alt={`Xem trước ${which}`}
+              style={{ ...frame, objectFit: "cover", display: "block" }}
+              data-testid="scene-preview"
+            />
+          ) : (
+            <Flex
+              align="center"
+              justify="center"
+              data-testid="scene-no-preview"
+              style={{
+                ...frame,
+                padding: 12,
+                textAlign: "center",
+                boxSizing: "border-box",
+                background: hasPicture ? "#FFF7E6" : "#FFF1F0",
+                border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}`,
+              }}
+            >
+              <Typography.Text type="danger">{reason ?? scene.image_error ?? "Chưa có ảnh"}</Typography.Text>
+            </Flex>
+          )}
+          {/* Over the picture on hover (always on touch screens), stacked in its middle: look at the scene large
+            ("Xem"), then edit it; only the look in view mode. */}
+          {hasPicture && (
+            <div className="scene-media__overlay" data-testid="scene-media-actions">
+              <Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(true)}>
+                Xem
+              </Button>
+              {!editor.readOnly && (
+                <>
                   <Button
                     size="small"
-                    icon={<DragOutlined />}
+                    icon={<ScissorOutlined />}
                     disabled={off}
                     onClick={async () => {
-                      // The box is drawn from the saved text: the text being typed is saved first.
+                      // The trim starts from the saved seconds and start: the one being typed is saved first.
                       await editor.flush();
-                      setPlacing(true);
+                      setFraming(true);
                     }}
                   >
-                    {scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
+                    {scene.video ? "Cắt video" : "Chỉnh khung"}
                   </Button>
-                )}
-                {scene.video && (
-                  <Popconfirm
-                    title="Xoá video của cảnh này?"
-                    okText="Xoá"
-                    cancelText="Huỷ"
-                    okButtonProps={{ danger: true }}
-                    disabled={off}
-                    onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
-                  >
+                  {canPlace && (
                     <Button
                       size="small"
-                      danger
-                      aria-label="Xoá video"
-                      icon={<DeleteOutlined />}
-                      loading={busy === "remove"}
+                      icon={<DragOutlined />}
                       disabled={off}
+                      onClick={async () => {
+                        // The box is drawn from the saved text: the text being typed is saved first.
+                        await editor.flush();
+                        setPlacing(true);
+                      }}
                     >
-                      Xoá video
+                      {scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
                     </Button>
-                  </Popconfirm>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </div>
+                  )}
+                  {scene.video && (
+                    <Popconfirm
+                      title="Xoá video của cảnh này?"
+                      okText="Xoá"
+                      cancelText="Huỷ"
+                      okButtonProps={{ danger: true }}
+                      disabled={off}
+                      onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
+                    >
+                      <Button
+                        size="small"
+                        danger
+                        aria-label="Xoá video"
+                        icon={<DeleteOutlined />}
+                        loading={busy === "remove"}
+                        disabled={off}
+                      >
+                        Xoá video
+                      </Button>
+                    </Popconfirm>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {scene.image_auto && (
         // "Tự tìm ảnh" picked this photo from a stock library after the script: often the wrong dish for
         // Vietnamese food, so a member looks before rendering. Never blocks the render.
@@ -666,7 +747,7 @@ function ScenePicture({
           )}
         </Flex>
       )}
-      {scene.video && (
+      {scene.video && !compact && (
         // The clip as uploaded, without sound: the render never uses its sound either.
         <video
           src={scene.video.url}

@@ -165,9 +165,17 @@ Built:
   - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
     play the video in the browser before any render, in a drawer from the right that leaves a strip
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
-    the scene list and "Chỉnh cảnh N"; "Khung": the app frame and the safe zone; "Giọng đọc"), its
-    panel beside it, the phone in the middle on grey and the timeline along the bottom (on a screen
-    under 900 px they stack: phone, timeline, tools, panel). It plays each scene for its seconds (lengthened to fit its narration), the frame
+    the scene list; "Khung": the app frame and the safe zone; "Giọng đọc"), its panel beside it, the
+    phone in the middle on grey, "Chỉnh cảnh N" on the right and the timeline along the bottom (up to
+    1280 px wide "Chỉnh cảnh N" sits under the tools' panel; under 900 px they stack: phone, timeline,
+    tools, panel, "Chỉnh cảnh N"). "Chỉnh cảnh N" holds everything about the scene shown, in folding
+    sections: "Nội dung" (the scene card's own "Chữ trên màn hình" and "Lời đọc" fields), "Thời lượng và
+    vị trí chữ" (below), "Ảnh của cảnh" / "Video của cảnh" (the card's upload, paste, Google, TikTok, "Chọn
+    từ kho ảnh/video", "Đã dùng trong nhóm", "Tìm ảnh" and "Tạo ảnh AI", with "Chỉnh khung" for a photo and
+    "Xoá video" for a clip; the phone shows the picture) and, folded, "Tìm ảnh: từ khoá và prompt AI". These
+    are the same fields as on the scene card and save the same way, so the card and the studio always agree.
+    The keys and how to edit on the phone sit behind "Phím tắt" (?) in the timeline's header. It plays each
+    scene for its seconds (lengthened to fit its narration), the frame
     without text moving like the video's motion setting with the exact text box on top where the
     render puts it, clips from their start time, the video's transition (crossfade, cut or slide),
     the music from where that scene falls in the video (lowered while narration plays when ducking
@@ -179,8 +187,8 @@ Built:
     those scenes. "Giọng tạm của trình duyệt", folded, lists the browser's Vietnamese voices, the most
     natural first (Edge's HoaiMy/NamMinh, then Google's), remembered in the browser, and suggests Edge
     when only robotic ones exist; a browser without a Vietnamese voice says so and those scenes stay
-    silent. "Chỉnh cảnh N" edits the scene being shown, saved at once as on its card (read-only until
-    "Chỉnh sửa" and while a job runs): its seconds with "Tự khớp lời đọc" (typing them turns it off), the
+    silent. "Thời lượng và vị trí chữ" edits the scene being shown, saved at once as on its card (read-only
+    until "Chỉnh sửa" and while a job runs): its seconds with "Tự khớp lời đọc" (typing them turns it off), the
     narration's length; for a clip, a two-handle "Đoạn clip" slider (the left end is "Bắt đầu từ giây", the
     span the scene's seconds at the clip's speed); and, while the preview is paused, the text box dragged
     on the phone itself, kept inside the safe zone as the render places it, for "Cảnh này" or "Mọi cảnh",

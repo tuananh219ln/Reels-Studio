@@ -1,16 +1,47 @@
-/* "Xem trước" laid out like a video editor: the tools on the left, their panel beside them, the phone in the middle and
-   the timeline along the bottom. On a narrow screen they stack: phone, timeline, tools, panel. Colours are the app's
-   theme (src/app/theme.ts). */
+/* "Xem trước" laid out like a video editor: the tools on the left, their panel beside them, the phone in the middle,
+   "Chỉnh cảnh N" on the right and the timeline along the bottom. Narrower, "Chỉnh cảnh N" goes under the tools' panel;
+   on a phone they stack: phone, timeline, tools, panel, "Chỉnh cảnh N". Colours are the app's theme
+   (src/app/theme.ts). */
 .preview-editor {
   display: grid;
   flex: 1;
-  grid-template-columns: 76px minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-columns: 76px minmax(240px, 300px) minmax(0, 1fr) minmax(300px, 360px);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
-    "rail panel stage"
-    "timeline timeline timeline";
+    "rail panel stage inspector"
+    "timeline timeline timeline timeline";
   width: 100%;
   min-height: 0;
+}
+
+.preview-editor__inspector {
+  grid-area: inspector;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px;
+  border-left: 1px solid #e7e8ea;
+}
+
+/* Keep 1280px in step with the docs (ux-guidelines.md, "Xem trước"). */
+@media (max-width: 1280px) and (min-width: 901px) {
+  .preview-editor {
+    grid-template-columns: 76px minmax(260px, 340px) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "rail panel stage"
+      "rail inspector stage"
+      "timeline timeline timeline";
+  }
+
+  .preview-editor__panel {
+    max-height: 40vh;
+  }
+
+  .preview-editor__inspector {
+    border-left: 0;
+    border-right: 1px solid #e7e8ea;
+    border-top: 1px solid #e7e8ea;
+  }
 }
 
 .preview-editor__rail {
@@ -98,7 +129,15 @@
       "stage"
       "timeline"
       "rail"
-      "panel";
+      "panel"
+      "inspector";
+  }
+
+  .preview-editor__inspector {
+    min-height: auto;
+    overflow: visible;
+    border-left: 0;
+    border-top: 1px solid #e7e8ea;
   }
 
   .preview-editor__rail {

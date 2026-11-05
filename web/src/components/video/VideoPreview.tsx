@@ -5,6 +5,7 @@ import {
   CaretRightOutlined,
   MobileOutlined,
   PauseOutlined,
+  QuestionCircleOutlined,
   SoundOutlined,
   ReloadOutlined,
   StepBackwardOutlined,
@@ -19,6 +20,7 @@ import {
   Flex,
   InputNumber,
   Popconfirm,
+  Popover,
   Segmented,
   Select,
   Switch,
@@ -33,6 +35,7 @@ import { coveredBy } from "./preview/coverage";
 import { useHistory } from "./preview/history";
 import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
+import SceneInspector from "./preview/SceneInspector";
 import { type LockableTrack, lanesFor } from "./preview/tracks";
 import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
@@ -774,6 +777,23 @@ export default function VideoPreview({
         onClick={() => goTo(phase.index + 1, false)}
       />
       <ListenVolume />
+      <Popover
+        trigger="click"
+        title="Phím tắt và cách sửa"
+        content={
+          <ul data-testid="preview-shortcuts" style={{ margin: 0, paddingLeft: 18, maxWidth: 340, fontSize: 13 }}>
+            <li>Cách: phát / dừng; ← →: cảnh trước / sau</li>
+            <li>[ ]: bớt / thêm 0,1 giây cho cảnh</li>
+            <li>S: tách cảnh tại đầu phát; Delete: xoá cảnh</li>
+            <li>Ctrl+Z: hoàn tác; Ctrl+Shift+Z: làm lại</li>
+            <li>Tạm dừng rồi kéo hoặc bấm đúp vào chữ trên điện thoại để dời hoặc sửa chữ</li>
+            <li>Kéo mép một cảnh trên thanh thời gian để đổi số giây, kéo cả đoạn để đổi thứ tự</li>
+            <li>Bấm ổ khoá cạnh tên tầng để khỏi lỡ tay sửa tầng đó</li>
+          </ul>
+        }
+      >
+        <Button aria-label="Phím tắt" icon={<QuestionCircleOutlined />} />
+      </Popover>
     </>
   );
 
@@ -845,31 +865,6 @@ export default function VideoPreview({
                   ))}
                 </Flex>
               </div>
-              {scene && (
-                <SceneEditor
-                  key={`${scene.id}-${scene.seconds}`}
-                  scene={scene}
-                  label={label(phase.index)}
-                  editable={scenesEditable}
-                  textEditable={textEditable}
-                  locked={editable && (locks.scene || locks.text)}
-                  still={!playing || ended}
-                  scope={scope}
-                  onScope={setScope}
-                  onPatch={patchScene}
-                  onResetPosition={() =>
-                    void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
-                  }
-                />
-              )}
-              {editable && (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  Tạm dừng để sửa trên điện thoại: kéo hoặc bấm đúp vào chữ, kéo mép hay kéo cả đoạn trên thanh thời
-                  gian. Kéo đầu phát hoặc bấm vào thước giờ để tới đúng giây cần xem. Phím: cách để phát/dừng, ← →
-                  chuyển cảnh, [ ] bớt/thêm 0,1 giây, S tách cảnh tại đầu phát, Delete xoá cảnh, Ctrl+Z hoàn tác. Bấm ổ
-                  khoá cạnh tên tầng để khỏi lỡ tay sửa tầng đó.
-                </Typography.Text>
-              )}
             </>
           )}
 
@@ -1148,6 +1143,35 @@ export default function VideoPreview({
           </Flex>
         </div>
 
+        {/* "Chỉnh cảnh N": the scene being shown, all of it, beside the phone (under the tools on a narrower screen). */}
+        <div className="preview-editor__inspector">
+          {scene && (
+            <SceneInspector
+              key={scene.id}
+              scene={scene}
+              label={label(phase.index)}
+              voiceEnabled={video.voice_enabled}
+              generating={video.active_job?.kind === "image" && video.active_job.scene_id === scene.id}
+              timing={
+                <SceneEditor
+                  key={`${scene.id}-${scene.seconds}`}
+                  scene={scene}
+                  editable={scenesEditable}
+                  textEditable={textEditable}
+                  locked={editable && (locks.scene || locks.text)}
+                  still={!playing || ended}
+                  scope={scope}
+                  onScope={setScope}
+                  onPatch={patchScene}
+                  onResetPosition={() =>
+                    void save(() => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { text_position: null }))
+                  }
+                />
+              }
+            />
+          )}
+        </div>
+
         <div className="preview-editor__timeline">
           <PreviewTimeline
             scenes={scenes}
@@ -1169,7 +1193,7 @@ export default function VideoPreview({
         </div>
       </div>
       <audio ref={music} src={video.music?.url} loop preload="auto" />
-      <audio ref={narration} preload="none" />
+      <audio ref={narration} preload="none" data-testid="preview-narration" />
     </Drawer>
   );
 }
@@ -1415,12 +1439,11 @@ function SafeZone() {
 }
 
 /**
- * "Chỉnh cảnh này": the scene's seconds (or "Tự khớp lời đọc"), the part of its clip it shows, and where its text
- * sits, saved at once as on the scene cards. Shown while the preview stands still, read-only while the page is.
+ * "Thời lượng và vị trí chữ" in "Chỉnh cảnh N": the scene's seconds (or "Tự khớp lời đọc"), the part of its clip it
+ * shows, and where its text sits, saved at once as on the scene cards; read-only while the page is.
  */
 function SceneEditor({
   scene,
-  label,
   editable,
   textEditable,
   locked,
@@ -1431,7 +1454,6 @@ function SceneEditor({
   onResetPosition,
 }: {
   scene: SceneData;
-  label: string;
   /** The scene's seconds can change (edit mode, the scenes' track not locked). */
   editable: boolean;
   /** Its text box can move (edit mode, the text's track not locked). */
@@ -1456,8 +1478,7 @@ function SceneEditor({
     }
   };
   return (
-    <Flex vertical gap={10} data-testid="preview-scene-editor">
-      <Typography.Text strong>Chỉnh {label.toLowerCase()}</Typography.Text>
+    <Flex vertical gap={10}>
       {locked ? (
         <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="preview-locked">
           Có tầng đang khoá trên thanh thời gian: mở ổ khoá cạnh tên tầng để sửa tầng đó.

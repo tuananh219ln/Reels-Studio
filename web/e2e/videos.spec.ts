@@ -512,7 +512,7 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   await expect(voiceBox.getByRole("button", { name: /^Tạo giọng ElevenLabs/ })).toHaveCount(0);
 
   // The listener's own volume: muting and the slider change what plays here, never the video's settings.
-  const narration = preview.locator("audio").nth(1);
+  const narration = preview.getByTestId("preview-narration");
   const volume = () => narration.evaluate((element: HTMLAudioElement) => element.volume);
   await expect.poll(volume).toBe(1);
   await preview.getByRole("button", { name: "Tắt tiếng" }).click();
@@ -590,6 +590,25 @@ test("studio: tracks under the scenes, a locked track, and a scene split at the 
   await page.keyboard.press("Control+z");
   await expect(timeline.getByRole("button", { name: /^Xem Cảnh \d$/ })).toHaveCount(5);
   await expect(page.getByTestId("scene")).toHaveCount(5);
+
+  // "Chỉnh cảnh 1" beside the phone holds the scene card's own fields: text typed here is the card's text too.
+  const inspector = studio.getByTestId("preview-scene-editor");
+  await expect(inspector).toContainText("Chỉnh cảnh 1");
+  const text = inspector.getByLabel("Chữ trên màn hình");
+  await text.fill("Rau mầm *tươi* mỗi ngày");
+  await text.blur();
+  await expect(inspector.getByText("Đã lưu")).toBeVisible();
+  await expect(timeline.getByTestId("lane-text").nth(1)).toHaveText("Rau mầm tươi mỗi ngày");
+  await expect(page.getByTestId("scene").first().getByLabel("Chữ trên màn hình")).toHaveValue(
+    "Rau mầm *tươi* mỗi ngày",
+  );
+  // Its photo's actions are here too, and the search terms fold away until opened.
+  await expect(inspector.getByRole("button", { name: "Chọn từ kho ảnh/video" })).toBeVisible();
+  await inspector.getByText("Tìm ảnh: từ khoá và prompt AI").click();
+  await expect(inspector.getByLabel("Từ khóa tìm ảnh")).toBeVisible();
+  // The keys and how to edit sit behind "Phím tắt".
+  await studio.getByRole("button", { name: "Phím tắt" }).click();
+  await expect(page.getByTestId("preview-shortcuts")).toContainText("S: tách cảnh tại đầu phát");
 });
 
 /** A rendered video with its Page connected, open on its own page. */

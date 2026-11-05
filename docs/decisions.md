@@ -33,6 +33,13 @@ and transition curves may be adapted with its notice kept; its Remotion engine (
 effects (no licence records) are not used. The drawer keeps its size (2026-11-05 above): a full-screen studio was
 considered and left to the owner.
 
+Then, on the member's choice, a "Chỉnh cảnh N" panel beside the phone holds the scene's content too (text,
+narration, photo or clip and how to find one, search terms), so a scene is made without leaving the studio. It uses
+the scene card's own field components, so nothing is built twice and the video page keeps every field: removing
+the duplicated fields from the cards (seconds, clip start, text place) was considered and dropped, since the page
+stays the place to work on a phone and where "Render" points at what blocks it. Effects from phase 2 on live only
+in the studio.
+
 ## 2026-11-05 — "Xem trước" is laid out like a video editor, in a wider drawer, with a ruler and a playhead
 
 Asked by a member (namtc), from TikTok Studio's editor. The drawer of "The preview opens in a drawer" (2026-11-02)
