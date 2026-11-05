@@ -78,6 +78,10 @@ app replaces CapCut, so the output is a finished MP4.
    "Bình luận" gathers visitors' comments under the app's reels on every Page, to answer as the
    Page, hide or set aside. Opening "Kết nối Fanpage", "Bài đăng" or "Bình luận" asks the worker
    to read again what it has not read in 15 minutes, so nobody has to press a button first.
+   **"Hàng chờ"** (built): each Page posts one topic group at its own posting times, or the group's.
+   A member adds a rendered video they have watched with "Thêm vào hàng chờ"; it goes to their own
+   Page of the video's group, and the worker schedules the first video of each queue at the Page's
+   next free time within 48 hours, through the usual publish job.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections
