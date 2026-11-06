@@ -163,6 +163,16 @@ How the prompt is built (built, compact version):
   scene) is skipped and named in the replies; an unusable answer is asked once more, then the job fails and the
   notes open again. The safety rules are not checked by code: a member reads the result as after any edit.
 
+- **Article ("Bài viết", "AI viết"):** the group's "Prompt viết bài" on `/knowledge` (empty:
+  [article_default.txt](../api/src/reels_api/prompts/article_default.txt)) fills `[Chủ đề]`, `[Dạng bài]`,
+  `[Nhóm chủ đề]` and `[Bình luận gốc]` (the visitor's comment a "Trả lời bình luận" article answers), appending
+  those it has no placeholder for. It is assembled by the same `claude._assemble` as a script, with the banned words
+  and the article's own output format (code, `articles.output_format`): JSON with a one-line hook, a body of 3–5
+  lines (none for "Câu hỏi / thăm dò", one idea per line for "Tổng hợp / danh sách"), a closing question and at most
+  5 hashtags, with no link. The app joins hook, body and question and always ends the caption with "Tham khảo, không
+  thay thế tư vấn bác sĩ."; an unusable answer is asked once more, then the job fails. A link in the caption blocks
+  posting; a banned word or a missing disclaimer only warns.
+
 Planned rules, with the full Knowledge Base:
 
 - **Benefits:** only from `approved` food bank rows.

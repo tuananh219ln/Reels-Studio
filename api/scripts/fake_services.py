@@ -151,6 +151,16 @@ def revise_json(prompt: str) -> dict:
     }
 
 
+def article_json(topic: str) -> dict:
+    """An article caption ("Bài viết", articles.output_format) about `topic`."""
+    return {
+        "hook": f"Bạn có đang hiểu sai về {topic}?",
+        "body": "Nhiều người làm theo thói quen.\nThật ra chỉ cần đổi một chút.\nCơ thể sẽ nhẹ nhàng hơn.",
+        "question": "Bạn đã thử cách này chưa?",
+        "hashtags": ["#suckhoe", "#meovat"],
+    }
+
+
 def plan_json(first: int, last: int, per_day: int = 4) -> dict:
     """A 30-day plan answer for days `first` to `last`, every topic different."""
     return {
@@ -356,7 +366,10 @@ class FakeServices:
             time.sleep(0.2)
         plan = re.search(r"chỉ lập ngày (\d+) đến ngày (\d+), mỗi ngày đúng (\d+) ý tưởng", prompt)
         frames = re.search(r'"khung_hinh": đúng (\d+) chuỗi', prompt)
-        if reply is None and plan:
+        article = re.search(r"về chủ đề: (.+)", prompt) if '"hook": "1 dòng mở đầu"' in prompt else None
+        if reply is None and article:
+            reply = article_json(article.group(1).strip().rstrip("."))
+        elif reply is None and plan:
             reply = plan_json(*(int(number) for number in plan.groups()))
         elif reply is None and frames:
             reply = analysis_json(int(frames.group(1)))

@@ -358,6 +358,8 @@ export type KnowledgeTopic = {
   /** "Từ video mẫu": empty means the default prompt. */
   learn_prompt: string;
   analyze_prompt: string;
+  /** "Prompt viết bài" ("Bài viết"); "" uses the default. */
+  article_prompt: string;
   video_count: number;
 };
 
@@ -575,6 +577,7 @@ export type Knowledge = {
   default_learn_prompt: string;
   default_analyze_prompt: string;
   default_revise_prompt: string;
+  default_article_prompt: string;
 };
 
 /** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. A null day is the Backlog. */
@@ -672,6 +675,50 @@ export type StockSource = { id: string; label: string; available: boolean; clips
 
 /** A stock video clip in the picker's "Video" mode; `preview` is a still shown straight from the source. */
 export type ClipHit = { id: string; preview: string; url: string; seconds: number };
+
+export type ArticleKind = "kien_thuc" | "meo" | "cau_hoi" | "canh_bao" | "tra_loi_binh_luan" | "checklist";
+
+export type ArticleIssue = { message: string; field: string };
+
+/** A photo or text post for a Page ("Bài viết"; api articles.payload). A draft until posting is built. */
+export type Article = {
+  id: number;
+  knowledge_topic_id: number | null;
+  group_name: string | null;
+  kind: ArticleKind;
+  kind_label: string;
+  topic: string;
+  caption: string;
+  hashtags: string[];
+  /** The caption's first line, what a text card shows. */
+  hook: string;
+  has_image: boolean;
+  image_kind: "ai" | "link" | "text_card" | null;
+  image_kind_label: string | null;
+  image_source: string | null;
+  /** Changes with every new picture, so the browser never shows an old one. */
+  image_version: string | null;
+  source_comment: { id: number; author: string; message: string } | null;
+  status: "draft";
+  status_label: string;
+  job: { id: number; status: "queued" | "running" | "done" | "failed" | "cancelled"; error: string | null } | null;
+  /** The AI is writing it: no edits until it is done. */
+  busy: boolean;
+  /** `blocking` will stop posting (no caption, a link); `warnings` never do. */
+  checks: { blocking: ArticleIssue[]; warnings: ArticleIssue[] };
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ArticleOptions = {
+  kinds: { value: ArticleKind; label: string }[];
+  card_presets: { value: string; label: string; background: string; color: string }[];
+  disclaimer: string;
+  max_hashtags: number;
+};
+
+export type ArticleList = ArticleOptions & { articles: Article[] };
 
 /** A visitor's comment under one of the app's reels ("Bình luận"; api routes_comments.py). */
 export type PageCommentRow = {
@@ -910,12 +957,14 @@ export type PostRow = Post & {
 
 export type JobRow = {
   id: number;
-  /** null for a plan job, which belongs to a topic group. */
+  /** null for a plan job, which belongs to a topic group, and an article's job. */
   video_id: number | null;
   knowledge_topic_id: number | null;
+  article_id: number | null;
   video_title: string;
-  /** "plan": "Tạo bằng AI" of a 30-day plan, which belongs to a topic group. */
-  kind: JobInfo["kind"] | "plan";
+  /** "plan": "Tạo bằng AI" of a 30-day plan, which belongs to a topic group; "article_caption": "AI viết" of an
+   * article ("Bài viết"). */
+  kind: JobInfo["kind"] | "plan" | "article_caption";
   kind_label: string;
   status: JobInfo["status"];
   created_by: string;

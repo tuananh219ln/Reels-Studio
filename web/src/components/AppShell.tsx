@@ -12,6 +12,7 @@ import {
   MenuOutlined,
   EditOutlined,
   FacebookOutlined,
+  FileTextOutlined,
   NotificationOutlined,
   PlaySquareOutlined,
   SettingOutlined,
@@ -35,6 +36,7 @@ const SETTINGS_GROUP = "group:settings";
 
 const NAV = [
   { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
+  { key: "/articles", icon: <FileTextOutlined />, label: "Bài viết" },
   { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý Page" },
   {
     key: POST_GROUP,

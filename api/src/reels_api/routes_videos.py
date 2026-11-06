@@ -21,6 +21,7 @@ from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
 
 from . import (
+    articles,
     autoedit,
     clips,
     frames,
@@ -38,6 +39,7 @@ from .errors import ApiError
 from .models import (
     AffiliateProduct,
     AppSetting,
+    Article,
     Fanpage,
     Job,
     KnowledgeTopic,
@@ -1552,10 +1554,13 @@ def list_jobs(
     titles = {}
     rows = []
     for job in jobs:
-        # A plan job has no video: it is named after its topic group.
-        owner = job.video_id or f"topic-{job.knowledge_topic_id}"
+        # A plan job has no video: it is named after its topic group; an article's job after the article.
+        owner = job.video_id or (f"article-{job.article_id}" if job.article_id else f"topic-{job.knowledge_topic_id}")
         if owner not in titles:
-            if job.video_id is None:
+            if job.article_id is not None:
+                article = db.get(Article, job.article_id)
+                titles[owner] = f"Bài viết · {article.topic or articles.KIND_LABELS[article.kind]}"
+            elif job.video_id is None:
                 group = db.get(KnowledgeTopic, job.knowledge_topic_id)
                 titles[owner] = f"Kế hoạch 30 ngày · {group.name}"
             else:
@@ -1568,6 +1573,7 @@ def list_jobs(
                 "id": job.id,
                 "video_id": job.video_id,
                 "knowledge_topic_id": job.knowledge_topic_id,
+                "article_id": job.article_id,
                 "video_title": titles[owner],
                 "kind": job.kind,
                 "kind_label": JOB_KINDS.get(job.kind, job.kind) + (" (1 cảnh)" if job.scene_id is not None else ""),
@@ -1603,6 +1609,8 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
         raise ApiError(409, "job_not_queued", "Job đã bắt đầu chạy hoặc đã xong, không hủy được")
     job.status, job.finished_at = "cancelled", now()
     db.commit()
+    if job.article_id is not None:
+        return articles.payload(db, db.get(Article, job.article_id))
     if job.video_id is None:
         return plans.plan_payload(db, db.get(KnowledgeTopic, job.knowledge_topic_id))
     return video_payload(db, db.get(Video, job.video_id))
@@ -1610,10 +1618,12 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
 
 @router.post("/jobs/{job_id}/retry")
 def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    owner = db.execute(select(Job.video_id, Job.knowledge_topic_id).where(Job.id == job_id)).first()
+    owner = db.execute(select(Job.video_id, Job.knowledge_topic_id, Job.article_id).where(Job.id == job_id)).first()
     if owner is None:
         raise ApiError(404, "job_not_found", "Không tìm thấy job")
-    video_id, topic_id = owner
+    video_id, topic_id, article_id = owner
+    if article_id is not None:
+        return _retry_article(db, job_id, article_id, me)
     if video_id is None:
         return _retry_plan(db, job_id, topic_id, me)
     video = lock_video(db, video_id)
@@ -1643,6 +1653,16 @@ def _retry_plan(db: DbSession, job_id: int, topic_id: int, me: Session) -> dict:
         raise ApiError(409, "plan_busy", "Nhóm chủ đề đang có kế hoạch chờ hoặc đang tạo")
     db.commit()
     return plans.plan_payload(db, db.get(KnowledgeTopic, topic_id))
+
+
+def _retry_article(db: DbSession, job_id: int, article_id: int, me: Session) -> dict:
+    article = db.get(Article, article_id, with_for_update=True)
+    if db.get(Job, job_id).status != "failed":
+        raise ApiError(409, "job_not_failed", "Chỉ thử lại được job bị lỗi")
+    if not articles.enqueue_caption(db, article, me.user_id, retry_of_id=job_id):
+        raise ApiError(409, "article_busy", "Bài viết đang có việc chờ hoặc đang chạy")
+    db.commit()
+    return articles.payload(db, db.get(Article, article_id))
 
 
 # --- Files (all behind login) ---
@@ -1817,6 +1837,7 @@ class TopicPatchBody(BaseModel):
     # "Từ video mẫu": empty brings back the default prompt.
     learn_prompt: str | None = None
     analyze_prompt: str | None = None
+    article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -1836,6 +1857,7 @@ def _knowledge_payload(db: DbSession) -> dict:
                 "photo_hint": topic.photo_hint,
                 "learn_prompt": topic.learn_prompt,
                 "analyze_prompt": topic.analyze_prompt,
+                "article_prompt": topic.article_prompt,
                 "video_count": counts.get(topic.id, 0),
             }
             for topic in knowledge.all_topics(db)
@@ -1845,6 +1867,7 @@ def _knowledge_payload(db: DbSession) -> dict:
         "default_learn_prompt": knowledge.default_learn_prompt(),
         "default_analyze_prompt": knowledge.default_analyze_prompt(),
         "default_revise_prompt": knowledge.default_revise_prompt(),
+        "default_article_prompt": knowledge.default_article_prompt(),
     }
 
 
@@ -1921,6 +1944,9 @@ def patch_topic(
         topic.learn_prompt = _optional_prompt(body.learn_prompt)
     if body.analyze_prompt is not None:
         topic.analyze_prompt = _optional_prompt(body.analyze_prompt)
+    if body.article_prompt is not None:
+        article_prompt = _optional_prompt(body.article_prompt)
+        topic.article_prompt = "" if article_prompt == knowledge.default_article_prompt() else article_prompt
     topic.updated_by_id = me.user_id
     db.commit()
     return _knowledge_payload(db)

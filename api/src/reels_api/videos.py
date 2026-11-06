@@ -69,6 +69,7 @@ JOB_KINDS = {
     "plan": "Tạo kế hoạch 30 ngày",
     "learn": "Học từ video mẫu",
     "revise": "AI sửa theo góp ý",
+    "article_caption": "Viết bài viết",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")

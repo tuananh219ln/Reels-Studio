@@ -263,8 +263,15 @@ export default function JobsPage() {
           scroll={{ x: 1200 }}
           locale={{ emptyText: filtering ? "Không có job nào khớp" : "Chưa có job nào" }}
           onRow={(row) => ({
-            // A plan job has no video: it opens Kho kiến thức, where the plan is.
-            onClick: () => router.push(row.video_id === null ? "/knowledge" : `/videos/${row.video_id}`),
+            // A plan job has no video: it opens Kho kiến thức, where the plan is; an article's job opens the article.
+            onClick: () =>
+              router.push(
+                row.article_id !== null
+                  ? `/articles/${row.article_id}`
+                  : row.video_id === null
+                    ? "/knowledge"
+                    : `/videos/${row.video_id}`,
+              ),
             style: { cursor: "pointer" },
           })}
         />

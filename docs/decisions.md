@@ -11,6 +11,27 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-06 — Photo and text posts ("Bài viết") are built, with no stock photos; banned words still only warn
+
+Asked by a member (namtc), from docs/specs/bai-viet/brief.md. This reverses "photo and text posts
+(`pages_manage_posts`) wait" in the 2026-11-03 entry on "Bình luận" (and the same reason in the entry on token
+checks): an article is a cheap test of a topic before a reel is made, keeps a Page posting and gathers comments. The
+risk named then was "unoriginal content" with stock photos, so an article never takes one: its picture is a "Thẻ chữ"
+(the caption's first line on a colour, drawn by the api in the app's font), a photo from a pasted link (the link is
+kept, the member answers for it, as for TikTok clips), later an AI picture, or none, a text post being valid.
+
+- **"Banned words warn, they never block" (2026-10-31) holds for articles too**, on the brief's default: a banned word
+  in the caption is a yellow warning. A link in the caption is different: it breaks the rule that affiliate links go
+  only in the pinned comment, so it will block posting.
+- **Named "article" in code** (`articles`, `/api/articles`, `/articles`), because "post" already means a
+  `publications` row ("Bài đăng"); the menu says "Bài viết", its own item beside "Video".
+- **The caption prompt is app data and its format is code**, as for scripts: "Prompt viết bài" per group on
+  `/knowledge`, the shape of the answer in `articles.output_format`, assembled by the same `claude._assemble` (which
+  now takes the format and what the banned words apply to). The disclaimer line is added by the app, never left to
+  the AI.
+- **Built in three PRs**: this one makes and edits drafts; posting (with "never posted twice"), taking down and the
+  affiliate comment come next, then the 48-hour numbers. Articles do not go into "Bài đăng" or a Page's queue yet.
+
 ## 2026-11-06 — "Bài đăng" suggests cloning in one card, the button picks TikTok or another Page
 
 Asked by a member (namtc): "Nên làm bản TikTok" and "Nhân bản cho Page khác" listed the same winners twice. They are

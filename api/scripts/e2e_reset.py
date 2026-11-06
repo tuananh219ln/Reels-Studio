@@ -19,6 +19,7 @@ from reels_api.models import (
     AffiliateAccount,
     AffiliateProduct,
     AppSetting,
+    Article,
     EditTemplate,
     Fanpage,
     Job,
@@ -52,6 +53,7 @@ def main() -> int:
     with DbSession(create_engine(url)) as db:
         for model in (
             Job,
+            Article,
             Scene,
             Video,
             VideoReference,

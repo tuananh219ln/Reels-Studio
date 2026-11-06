@@ -21,6 +21,7 @@ from reels_render.script import parse_script
 
 from . import (
     affiliate_rounds,
+    articles,
     auto_photos,
     autoedit,
     config,
@@ -47,7 +48,7 @@ from .clips import ClipError, frame_at
 from .facebook import FacebookError
 from .frames import jpeg_bytes
 from .imagegen import ImageGenError, generate_image
-from .models import Job, KnowledgeTopic, Publication, Scene, Video, VideoNote, VideoReference
+from .models import Article, Job, KnowledgeTopic, Publication, Scene, Video, VideoNote, VideoReference
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
@@ -100,7 +101,13 @@ def run_job(
         if job is None or job.status != "running":
             log.warning("Job %s is not running (%s), skipped", job_id, job.status if job else "deleted")
             return
-        owner = f"video {job.video_id}" if job.video_id else f"topic group {job.knowledge_topic_id}"
+        owner = (
+            f"video {job.video_id}"
+            if job.video_id
+            else f"article {job.article_id}"
+            if job.article_id
+            else f"topic group {job.knowledge_topic_id}"
+        )
         log.info("Job %s (%s) for %s started", job.id, job.kind, owner)
         try:
             if job.kind in ("script", "clone"):
@@ -109,6 +116,8 @@ def run_job(
                 run_learn_job(db, job, storage, call)
             elif job.kind == "plan":
                 run_plan_job(db, job, call)
+            elif job.kind == "article_caption":
+                run_article_caption_job(db, job, call)
             elif job.kind == "render":
                 run_render_job(db, job, storage)
             elif job.kind == "image":
@@ -352,6 +361,29 @@ def run_plan_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None
         raise JobFailure(err.message, err.detail) from None
     topic = db.get(KnowledgeTopic, job.knowledge_topic_id, with_for_update=True, populate_existing=True)
     topic.plan_draft = plans.draft_payload(job.id, ideas)
+    db.commit()
+
+
+def run_article_caption_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
+    """ "AI viết" on an article: its caption and hashtags, replacing what was there (the member asked for it, and the
+    article cannot be edited while the job is queued or running)."""
+    article = db.get(Article, job.article_id)
+    if article is None:
+        raise JobFailure("Bài viết đã bị xoá")
+    if not article.topic.strip():
+        raise JobFailure("Bài viết chưa có chủ đề")
+    prompt = articles.build_prompt(
+        articles.group_of(db, article), article, articles.comment_text(article.source_comment)
+    )
+    call, count_call = _llm(db, job, call)
+    try:
+        written = articles.generate(prompt, article.kind, f"job {job.id}", count_call, call)
+    except ClaudeError as err:
+        raise JobFailure(err.message, err.detail) from None
+    article = db.get(Article, job.article_id, with_for_update=True, populate_existing=True)
+    if article is None:
+        raise JobFailure("Bài viết đã bị xoá")
+    article.caption, article.hashtags = written.caption, written.hashtags
     db.commit()
 
 
