@@ -115,6 +115,44 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum.
 - **Font:** Be Vietnam Pro Black (OFL) is bundled in the package, not installed per machine.
 
+### Media Library ("Kho tư liệu")
+
+Photos and clips gathered once and used in any scene ([routes_media.py](../api/src/reels_api/routes_media.py)).
+
+- **A dragged folder** is uploaded by the browser one file per request (`POST /api/media`, the file and its folder
+  path), like every upload: a photo with the photo rules (jpg, png, webp, 15 MB), a clip with the clip rules (50 MB,
+  MP4/MOV/WebM), a clip over a minute keeping its first minute. Folder paths are normalised (NFC, `/`, no empty or
+  dot parts, 200 characters).
+- **Pasted links** (`POST /api/media/links`, ten at a time) are downloaded with `remote_media.download`, the same
+  rules as a link pasted on a scene: public addresses only, a TikTok video through yt-dlp, a photo or a video file
+  otherwise. A link that fails is reported on its own and the others still come in. The link is kept as the item's
+  source. The web's Google Ảnh (also "Ảnh không nền", `tbs=ic:trans`) and TikTok buttons only open a search for the
+  product's name in the member's browser; the app never searches or downloads from Google by itself.
+- **Using an item** (`POST /api/media/{id}/use`) copies it into the scene through the editor's own `_store_photo` and
+  `_attach_clip`, with their locks and checks. Thumbnails are a photo, or a clip's frame at one second.
+- **MCP:** `list_media`, `view_media` (the pictures of up to eight items, so the assistant chooses by looking),
+  `add_media_from_links` and `set_scene_media_from_library`.
+
+### Render QC
+
+Every render job measures the MP4 it made before saving it ([qc.py](../api/src/reels_api/qc.py)) and stores the
+result with it (`videos.qc`, migration 0049): `{"status": "pass" | "warn" | "fail", "checks": [...]}`, each check with
+a Vietnamese label and its measure, the status being the worst check's. The thresholds follow the platforms'
+delivery specs, as AIEV's QC does:
+
+| Check | Pass | Warn | Fail |
+| --- | --- | --- | --- |
+| Format | 1080×1920 H.264, 30 fps | fps off by more than 0.5 | another size or codec; no audio track |
+| Length | 20–40 s (the channel's) | outside 20–40 s | under 5 s |
+| Loudness (EBU R128) | −14 LUFS ± 2 | ± 2–4 LU | beyond ± 4 LU; silent when narration or music is on (only a warning otherwise) |
+| True peak | ≤ −1 dBTP | −1 to −0.5 | above −0.5 |
+| Black frames (`blackdetect`, ≥ 0.25 s, not within 0.3 s of either end) | none | under 1 s | 1 s or more |
+| Frozen picture (`freezedetect`, ≥ 2 s) | none | any | — |
+| Dead air (`silencedetect` −45 dB, ≥ 1.5 s) and silence over the last 1.2 s | none | any | — |
+
+QC never fails the render: a measure FFmpeg cannot make is a warning saying so. The video page shows it under the
+MP4 ("Kiểm tra chất lượng"), and the MCP assistant reads it after each render (`docs/chatgpt.md`).
+
 ### Motion Scenes (HyperFrames)
 
 A "Cảnh động" ([motion.py](../api/src/reels_api/motion.py)) is a scene whose clip is made from HTML + GSAP that an
@@ -317,6 +355,7 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | `settings` | The prompts and banned words before `knowledge_topics`; no longer read. |
 | `llm_providers` | One row per provider set up on `/settings/ai` (the list itself is fixed in [llm.py](../api/src/reels_api/llm.py)): base URL and model (empty means the provider's default), the API key encrypted like a Fanpage token ([crypto.py](../api/src/reels_api/crypto.py)) and its last characters, who changed it last. |
 | `app_settings` | Team-wide settings from the Cài đặt pages by key: `llm_provider` (the provider that writes scripts; Claude when unset), `video_defaults` (what a new video's settings, narration switch and music level start as), `stock_sources_off` (stock sources the team turned off). |
+| `media_items` | The team's "Kho tư liệu" ([routes_media.py](../api/src/reels_api/routes_media.py), migration 0050): `kind` photo or clip, the stored file, its name, the `folder` it was dragged in with or typed ("Nồi chiên 5L/cảnh quay"), the link it was downloaded from (`source_url`), a clip's seconds, who added it and when. Using one in a scene copies the file into the video, like "Đã dùng trong nhóm", so deleting it never changes a video. |
 | `music_tracks` | The team music library: name, topics and one mood (each from a fixed list in [routes_music.py](../api/src/reels_api/routes_music.py)), source/license note, the stored MP3, who added it. Choosing a track for a video copies the file into the video's folder, so editing or deleting the track never changes a video or its render. |
 | `affiliate_products` | The team's products, typed in from the affiliate dashboard or found through Shopee's API: platform (`shopee` or `tiktok_shop`), topic group, name, the link a member pasted (none for API products: each Page gets its own), the product page and image, Shopee's item id, shop, shop type, rating, sales, price, commission rate and when it ends, draft or approved, who approved it and when, creator, when the daily check last read it, and whether the worker is to read it from Shopee
 (`lookup_requested_at`, `lookup_by_id`) or could not (`lookup_error`). Approval follows the platform's rules in [affiliate.py](../api/src/reels_api/affiliate.py) (Shopee: any shop type since 2026-11-05, at least 4.7 stars, 100 sales, no banned word, a commission not expired); changing an approved row sends it back to draft. A topic group with products cannot be deleted. |

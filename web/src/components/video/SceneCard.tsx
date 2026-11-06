@@ -8,6 +8,7 @@ import {
   DragOutlined,
   EyeOutlined,
   GoogleOutlined,
+  FolderOpenOutlined,
   HistoryOutlined,
   InboxOutlined,
   PictureOutlined,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/mediaLinks";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import GroupMediaPicker from "./GroupMediaPicker";
+import MediaLibraryPicker from "./MediaLibraryPicker";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
 import SceneViewer from "./SceneViewer";
@@ -417,6 +419,7 @@ export function ScenePicture({
   const [picking, setPicking] = useState(false);
   // "Đã dùng trong nhóm" is open.
   const [reusing, setReusing] = useState(false);
+  const [fromLibrary, setFromLibrary] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [framing, setFraming] = useState(false);
   const [viewing, setViewing] = useState(false);
@@ -887,6 +890,15 @@ export function ScenePicture({
           >
             Đã dùng trong nhóm
           </Button>
+          <Button
+            className="scene-action"
+            icon={<FolderOpenOutlined />}
+            disabled={off}
+            block
+            onClick={() => setFromLibrary(true)}
+          >
+            Kho tư liệu
+          </Button>
           <Space.Compact block>
             <Switching
               show={scene.video !== null}
@@ -1015,6 +1027,14 @@ export function ScenePicture({
         />
       )}
       {reusing && <GroupMediaPicker sceneId={scene.id} hasPicture={hasPicture} onClose={() => setReusing(false)} />}
+      {fromLibrary && (
+        <MediaLibraryPicker
+          sceneId={scene.id}
+          videoId={scene.video_id}
+          hasPicture={hasPicture}
+          onClose={() => setFromLibrary(false)}
+        />
+      )}
     </Flex>
   );
 }

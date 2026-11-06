@@ -28,6 +28,38 @@ Asked at the same time: an article now has what a video's "Nội dung đăng" ha
   for them with the writer's own account after "AI viết", or on "Tìm sản phẩm"; "Chọn" approves a product meeting the
   rules and attaches it, at most two per article; a pasted Shopee link is listed too. `affiliate_suggestions` rows
   now belong to a video or an article (migration 0049). The web's suggestion block is one component for both.
+## 2026-11-07 — "Kho tư liệu": the team's photos and clips by folder and from pasted links; Remotion stays out
+
+Asked by tuananh219ln: inputs from a folder, combined with Google photos and TikTok clips, where the Google and TikTok
+buttons open a search for the product being made and pasting the link back brings the photo or clip in. The library
+is the team's (`media_items`, migration 0050), uploaded one file per request with its folder, links downloaded with
+the rules of a link pasted on a scene; using an item copies it into the scene, as "Đã dùng trong nhóm" does
+(2026-11-05). The app still never searches Google or downloads from it by itself ("Shopee through its API, never by
+scraping", 2026-11-03): the buttons only open the member's browser on the search, and the member picks and pastes.
+The assistant chooses by looking at items (`view_media`), for the quality bar of the entries below.
+
+Remotion was asked for again, for personal use; the member agreed to drop it unless it does more than HyperFrames and
+FFmpeg, and here it does not: HyperFrames makes the motion graphics and FFmpeg cuts, joins and exports. "No Remotion"
+(2026-10-31) stands.
+
+## 2026-11-07 — Every render gets automatic QC against the platforms' delivery specs
+
+Asked by tuananh219ln for a high bar on the finished video, after AIEV's QC (`qc.ts`): the render job measures the
+MP4 it made (format, length, EBU R128 loudness against −14 LUFS, true peak against −1 dBTP, black frames, frozen
+pictures, dead air) and keeps the result with the MP4. It advises and never blocks: a failed check does not fail the
+render or stop posting, because a member may have a reason (a deliberate black beat), but the MCP assistant must fix
+failed checks before it calls a video done. Making the render itself aim at −14 LUFS (loudness normalisation in the
+render core) is a separate change, to decide once QC shows how far today's renders are from it.
+
+## 2026-11-07 — The assistant edits like the studio and checks its own frames; the finished video's bar is high
+
+Asked by tuananh219ln: finish "edit video with a Claude subscription", following AIEV, with "Tiêu chuẩn video thành
+phẩm phải rất cao". The MCP server gains the studio's editing (scene effects, order, split, delete, text and sticker
+layers, sound effects, music and narration settings) through the same handlers, presets and locks, so the assistant
+can do nothing a member cannot do on the video page and every look stays a named preset (2026-11-01). Like AIEV,
+whose agent verifies every frame before a final, the assistant can look at a scene's preview and at frames of the
+rendered MP4, and the server's instructions make that loop mandatory: plan, build, look at every scene, render, look
+at the MP4, fix, and only then report done. A person still watches the MP4 before a render change is called done.
 
 ## 2026-11-07 — "Cảnh động": Claude writes a scene in HTML + GSAP, HyperFrames renders it into the scene's clip
 

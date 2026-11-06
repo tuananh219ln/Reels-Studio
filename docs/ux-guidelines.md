@@ -342,6 +342,9 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
+  - under the MP4 on "Xuất bản", "Kiểm tra chất lượng" lists the automatic QC, failed checks first, each a
+    status dot with its label and measure; the title says "Đạt chuẩn đăng", "Đăng được, nên xem lại" or "Chưa đạt,
+    nên sửa rồi render lại". It is advice: posting is never blocked by it;
   - a "Cảnh động" shows its status under the picture: "Đang dựng cảnh động" while its job runs, then
     "Cảnh động · N giây". It is changed through the assistant; another photo or clip replaces it as usual;
   - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture
@@ -463,6 +466,14 @@ Built:
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
 - **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày, ngày N" (or "Backlog")
   with its pain group, pain and hook under the title.
+- **Kho tư liệu** (`/media`): "Thêm tư liệu" picks the product being made (approved affiliate products), which names
+  the folder and the searches; a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
+  uploading one by one with a progress bar; under it the name with "Ảnh không nền", "Ảnh Google" and "Clip TikTok",
+  which open the search in a new tab, and a box where pasting a link adds it at once ("Thêm vào kho" for typed
+  links). The library below filters by folder, Ảnh/Clip and name, as tall cards (a clip with its seconds) with "Xoá"
+  (videos that used it keep their copy). On a scene card, "Kho tư liệu" opens the same search and library in a
+  dialog, on the folder of the product attached to the video (else its topic); "Dùng" copies an item into the scene,
+  asking first when it replaces a picture.
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
