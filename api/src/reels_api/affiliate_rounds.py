@@ -25,6 +25,7 @@ from .models import (
     AffiliateConversion,
     AffiliateProduct,
     AffiliateSuggestion,
+    Article,
     Fanpage,
     Video,
 )
@@ -73,9 +74,10 @@ def team_account(db: DbSession, user_id: int | None) -> AffiliateAccount | None:
     )
 
 
-def ask_after_script(db: DbSession, video: Video, user_id: int) -> None:
-    """A Facebook video's new script asks for suggestions when its writer has a Shopee account to search with."""
-    if video.platform == "facebook" and video.affiliates and _usable_account(db, user_id):
+def ask_after_script(db: DbSession, video: Video | Article, user_id: int) -> None:
+    """A Facebook video's new script, or an article's new caption, asks for suggestions when its writer has a Shopee
+    account to search with."""
+    if getattr(video, "platform", "facebook") == "facebook" and video.affiliates and _usable_account(db, user_id):
         video.suggest_requested_at, video.suggest_by_id, video.suggest_error = now(), user_id, None
 
 
@@ -92,8 +94,11 @@ def _fill(product: AffiliateProduct, offer: shopee.Offer) -> None:
     product.offer_checked_at = now()
 
 
-def suggest(db: DbSession, video: Video) -> None:
-    """Search Shopee for the video's ideas and keep the best products meeting the rules. Commits."""
+def suggest(db: DbSession, video: Video | Article) -> None:
+    """Search Shopee for the ideas of a video, or of an article, and keep the best products meeting the rules.
+    Commits."""
+    model, target = (Article, "article_id") if isinstance(video, Article) else (Video, "video_id")
+    what = "Bài viết" if isinstance(video, Article) else "Video"
     keywords = [keyword.strip() for keyword in video.affiliates if keyword.strip()][:MAX_KEYWORDS]
     video.suggest_requested_at = None
     account = _usable_account(db, video.suggest_by_id)
@@ -102,9 +107,9 @@ def suggest(db: DbSession, video: Video) -> None:
         video.suggest_error = (
             "Người tìm không còn tài khoản Shopee đang dùng"
             if account is None
-            else "Video chưa thuộc nhóm chủ đề nào"
+            else f"{what} chưa thuộc nhóm chủ đề nào"
             if topic is None
-            else "Video chưa có gợi ý sản phẩm nào để tìm"
+            else f"{what} chưa có gợi ý sản phẩm nào để tìm"
         )
         db.commit()
         return
@@ -147,23 +152,23 @@ def suggest(db: DbSession, video: Video) -> None:
             found.append((keyword, kept))
     except shopee.ShopeeError as err:
         db.rollback()
-        video = db.get(Video, video.id)
+        video = db.get(model, video.id)
         video.suggest_requested_at, video.suggest_error = None, err.message
         db.commit()
-        log.warning("Could not search Shopee for video %s: %s %s", video.id, err.message, err.detail)
+        log.warning("Could not search Shopee for %s %s: %s %s", target, video.id, err.message, err.detail)
         return
     db.flush()
     db.query(AffiliateSuggestion).filter(
-        AffiliateSuggestion.video_id == video.id, AffiliateSuggestion.keyword != PASTED
+        getattr(AffiliateSuggestion, target) == video.id, AffiliateSuggestion.keyword != PASTED
     ).delete()
     for keyword, products in found:
         if keyword == PASTED:
             continue  # an idea named like the pasted list would mix into it
         for rank, product in enumerate(products, start=1):
-            db.add(AffiliateSuggestion(video_id=video.id, keyword=keyword[:200], product_id=product.id, rank=rank))
+            db.add(AffiliateSuggestion(**{target: video.id}, keyword=keyword[:200], product_id=product.id, rank=rank))
     video.suggested_at, video.suggest_error = now(), None
     db.commit()
-    log.info("Suggested %d products for video %s", sum(len(products) for _, products in found), video.id)
+    log.info("Suggested %d products for %s %s", sum(len(products) for _, products in found), target, video.id)
 
 
 def check_offer(db: DbSession, product: AffiliateProduct) -> None:
@@ -306,6 +311,19 @@ def run_round(factory: sessionmaker) -> None:
             )
         ),
         lambda db, video_id: suggest(db, db.get(Video, video_id)),
+    )
+    _each(
+        factory,
+        "article suggestions",
+        lambda db: list(
+            db.scalars(
+                select(Article.id)
+                .where(Article.suggest_requested_at.is_not(None))
+                .order_by(Article.suggest_requested_at)
+                .limit(SUGGEST_BATCH)
+            )
+        ),
+        lambda db, article_id: suggest(db, db.get(Article, article_id)),
     )
     _each(
         factory,

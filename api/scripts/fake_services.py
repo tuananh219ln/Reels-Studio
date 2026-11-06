@@ -156,8 +156,11 @@ def article_json(topic: str) -> dict:
     return {
         "hook": f"Bạn có đang hiểu sai về {topic}?",
         "body": "Nhiều người làm theo thói quen.\nThật ra chỉ cần đổi một chút.\nCơ thể sẽ nhẹ nhàng hơn.",
+        "note": "Ai đang có bệnh nền thì hỏi bác sĩ trước khi đổi thói quen nhé.",
         "question": "Bạn đã thử cách này chưa?",
         "hashtags": ["#suckhoe", "#meovat"],
+        "pinned_comment": "Bạn làm cách này lâu chưa, kể mình nghe với!",
+        "affiliates": ["bình giữ nhiệt"],
     }
 
 

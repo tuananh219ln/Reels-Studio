@@ -11,6 +11,24 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — An article's AI writes its own doctor reminder; articles get a pinned comment and Shopee suggestions
+
+Asked by a member (namtc) after using "Bài viết": the fixed line "Tham khảo, không thay thế tư vấn bác sĩ." the app
+added under every caption read as machine-made. This changes "The disclaimer line is added by the app, never left to
+the AI" of the 2026-11-06 entry on articles: the AI now writes one short reminder in the post's own voice when the
+post is about health (who should ask a doctor first), or none; the app adds nothing of its own and no longer warns
+about a missing sentence. That fixed disclaimer was still "deferred" for videos (docs/content.md), so nothing about
+videos changes.
+
+Asked at the same time: an article now has what a video's "Nội dung đăng" has for its comment.
+- **A pinned comment**, written by the AI with the caption and editable: the comment the worker writes under the post
+  opens with it, then the products' links; a post with a pinned comment and no product still gets the comment. A
+  change edits a comment already written. A link in it blocks posting, as in the caption.
+- **Product ideas and Shopee's suggestions**, as on a video: the AI writes up to 3 ideas; the worker searches Shopee
+  for them with the writer's own account after "AI viết", or on "Tìm sản phẩm"; "Chọn" approves a product meeting the
+  rules and attaches it, at most two per article; a pasted Shopee link is listed too. `affiliate_suggestions` rows
+  now belong to a video or an article (migration 0047). The web's suggestion block is one component for both.
+
 ## 2026-11-06 — Articles are posted as `publications` and measured by reach at 48 hours
 
 Parts 2 and 3 of docs/specs/bai-viet/brief.md, asked by a member (namtc), on the branch of the entry below.

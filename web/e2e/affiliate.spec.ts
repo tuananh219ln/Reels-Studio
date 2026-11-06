@@ -176,3 +176,30 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await chooseOption(page, page.getByLabel("Lọc theo nền tảng"), "TikTok");
   await expect(page.getByTestId("video-platform")).toHaveCount(1);
 });
+
+test("an article's AI caption finds Shopee products with the writer's account, and one goes in its comment", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await addShopeeAccount(page);
+  await page.goto("/articles");
+  await page.getByRole("button", { name: "Tạo bài viết" }).click();
+  const drawer = page.getByRole("dialog", { name: "Tạo bài viết" });
+  await drawer.getByLabel("Chủ đề của bài").fill("uống nước ấm buổi sáng");
+  await drawer.getByRole("button", { name: "Tạo bài" }).click();
+  await page.getByRole("button", { name: "AI viết" }).click();
+  await expect(page.getByLabel("Gợi ý sản phẩm")).toHaveValue("bình giữ nhiệt", { timeout: 90_000 });
+
+  const suggestions = page.getByTestId("shopee-suggestions");
+  const products = suggestions.getByTestId("suggested-product");
+  // One idea from the caption job, two products meeting the rules (the fake's third has 4.2 stars).
+  await expect(products).toHaveCount(2, { timeout: 30_000 });
+  const first = products.filter({ hasText: "bình giữ nhiệt loại 1" });
+  await first.getByRole("button", { name: "Chọn" }).click();
+  await expect(first.getByText("Đã chọn")).toBeVisible();
+  await expect(page.getByTestId("article-preview-comment")).toContainText(
+    "bình giữ nhiệt loại 1: link Shopee của Page",
+  );
+  await expect(page.getByTestId("article-preview")).toContainText("Link sản phẩm mình để ở bình luận ghim.");
+});

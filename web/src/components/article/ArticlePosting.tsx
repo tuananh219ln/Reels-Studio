@@ -17,6 +17,7 @@ import {
   type ArticlePost,
 } from "@/lib/api";
 import FormDrawer from "@/components/FormDrawer";
+import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
 import StatusText, { type StatusTone } from "@/components/StatusText";
 
 /** An article's status as a dot: a job running, waiting for its time, out, or failed. */
@@ -347,33 +348,43 @@ export function PostsCard({
   );
 }
 
-/** At most two approved Shopee products of the article's group; their links go in the comment under the post. */
-export function ProductsCard({
+/** The comment under the post: the pinned comment, then the links of at most two approved Shopee products, chosen
+ * from Shopee's suggestions for the article's product ideas (as on a video) or from the group's approved products. */
+export function CommentCard({
   article,
   options,
   disabled,
   onSaved,
+  reload,
 }: {
   article: Article;
   options: ArticleOptions | null;
   disabled: boolean;
   onSaved: (article: Article) => void;
+  reload: () => Promise<void>;
 }) {
   const { message } = App.useApp();
   const [choices, setChoices] = useState<{ id: number; name: string }[]>([]);
   const [busy, setBusy] = useState(false);
+  const [pinned, setPinned] = useState("");
+  const [ideas, setIdeas] = useState("");
+  const [editing, setEditing] = useState<"pinned" | "ideas" | null>(null);
   const max = options?.max_products ?? 2;
+
+  // A reload (the AI wrote them, a teammate changed them) shows here unless the member is typing in that field.
+  const shownPinned = editing === "pinned" ? pinned : article.pinned_comment;
+  const shownIdeas = editing === "ideas" ? ideas : article.affiliates.join("\n");
 
   useEffect(() => {
     api<{ id: number; name: string }[]>(`/articles/${article.id}/product-choices`)
       .then(setChoices)
       .catch(() => undefined);
-  }, [article.id, article.knowledge_topic_id]);
+  }, [article.id, article.knowledge_topic_id, article.products]);
 
-  async function save(ids: number[]) {
+  async function run(call: () => Promise<Article>) {
     setBusy(true);
     try {
-      onSaved(await api<Article>(`/articles/${article.id}/products`, "PUT", { product_ids: ids }));
+      onSaved(await call());
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -381,10 +392,72 @@ export function ProductsCard({
     }
   }
 
+  function savePinned() {
+    setEditing(null);
+    if (pinned !== article.pinned_comment) {
+      void run(() => api<Article>(`/articles/${article.id}`, "PATCH", { pinned_comment: pinned }));
+    }
+  }
+
+  function saveIdeas() {
+    setEditing(null);
+    const list = ideas
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (list.join("\n") !== article.affiliates.join("\n")) {
+      void run(() => api<Article>(`/articles/${article.id}`, "PATCH", { affiliates: list }));
+    }
+  }
+
   const known = new Map([...choices, ...article.products].map((product) => [product.id, product.name]));
   return (
-    <Card size="small" title="Sản phẩm affiliate (không bắt buộc)">
-      <Flex vertical gap={8}>
+    <Card size="small" title="Bình luận ghim và sản phẩm affiliate">
+      <Flex vertical gap={10}>
+        <label>
+          <Typography.Text type="secondary">Bình luận ghim</Typography.Text>
+          <Input.TextArea
+            aria-label="Bình luận ghim"
+            value={shownPinned}
+            maxLength={2000}
+            autoSize={{ minRows: 2, maxRows: 6 }}
+            disabled={disabled}
+            placeholder="Page tự bình luận dưới bài để ghim: gợi chuyện, mời người xem kể trải nghiệm. AI viết kèm caption."
+            onFocus={() => {
+              setPinned(article.pinned_comment);
+              setEditing("pinned");
+            }}
+            onChange={(event) => setPinned(event.target.value)}
+            onBlur={savePinned}
+          />
+        </label>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Khi bài lên, worker tự viết bình luận này kèm link sản phẩm đã chọn ở dưới; ghim tay trên Facebook.
+        </Typography.Text>
+        <label>
+          <Typography.Text type="secondary">Gợi ý sản phẩm (AI)</Typography.Text>
+          <Input.TextArea
+            aria-label="Gợi ý sản phẩm"
+            value={shownIdeas}
+            autoSize={{ minRows: 1, maxRows: 4 }}
+            disabled={disabled}
+            placeholder="Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
+            onFocus={() => {
+              setIdeas(article.affiliates.join("\n"));
+              setEditing("ideas");
+            }}
+            onChange={(event) => setIdeas(event.target.value)}
+            onBlur={saveIdeas}
+          />
+        </label>
+        <ShopeeSuggestions
+          base={`/affiliate-products/articles/${article.id}`}
+          ideas={article.affiliates}
+          state={article.suggest.state}
+          attachedIds={article.products.map((product) => product.id)}
+          onChanged={reload}
+        />
+        <Typography.Text strong>Sản phẩm Shopee trong bình luận (tối đa {max})</Typography.Text>
         <Select
           aria-label="Sản phẩm affiliate"
           mode="multiple"
@@ -395,7 +468,7 @@ export function ProductsCard({
           placeholder={choices.length ? `Chọn tối đa ${max} sản phẩm đã duyệt` : "Nhóm này chưa có sản phẩm đã duyệt"}
           options={[...known].map(([value, label]) => ({ value, label }))}
           optionFilterProp="label"
-          onChange={save}
+          onChange={(ids) => run(() => api<Article>(`/articles/${article.id}/products`, "PUT", { product_ids: ids }))}
         />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Link chỉ nằm trong bình luận dưới bài. Khi có sản phẩm, bài tự kết bằng câu “

@@ -14,13 +14,15 @@ from pydantic import BaseModel
 from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import affiliate, affiliate_rounds, facebook, knowledge, shopee
+from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, shopee
 from .db import get_db
 from .errors import ApiError
 from .models import (
     AffiliateAccount,
     AffiliateProduct,
     AffiliateSuggestion,
+    Article,
+    ArticleAffiliateProduct,
     KnowledgeTopic,
     Publication,
     Session,
@@ -403,10 +405,11 @@ def _video(db: DbSession, video_id: int) -> Video:
     return video
 
 
-def _suggestions(db: DbSession, video: Video) -> dict:
-    rows = db.scalars(
-        select(AffiliateSuggestion).where(AffiliateSuggestion.video_id == video.id).order_by(AffiliateSuggestion.id)
-    )
+def _suggestions(db: DbSession, video: Video | Article) -> dict:
+    """The Shopee suggestions of a video, or of an article ("Bài viết"), by product idea, and what is attached."""
+    article = isinstance(video, Article)
+    column = AffiliateSuggestion.article_id if article else AffiliateSuggestion.video_id
+    rows = db.scalars(select(AffiliateSuggestion).where(column == video.id).order_by(AffiliateSuggestion.id))
     keywords: dict[str, list[dict]] = {}
     for row in rows:
         keywords.setdefault(row.keyword, []).append(_payload(row.product))
@@ -418,7 +421,9 @@ def _suggestions(db: DbSession, video: Video) -> dict:
             {"keyword": keyword, "products": products, "pasted": keyword == affiliate_rounds.PASTED}
             for keyword, products in keywords.items()
         ],
-        "attached_ids": [product.id for product in affiliate.products_of(db, video.id)],
+        "attached_ids": [
+            product.id for product in (affiliate.article_products if article else affiliate.products_of)(db, video.id)
+        ],
     }
 
 
@@ -508,6 +513,108 @@ def paste_video_links(
             )
     db.commit()
     return _suggestions(db, video)
+
+
+# --- An article's suggestions ("Bài viết"): the same search, choice and pasted links as a video's ---
+
+
+def _article(db: DbSession, article_id: int) -> Article:
+    article = db.get(Article, article_id)
+    if article is None:
+        raise ApiError(404, "article_not_found", "Không tìm thấy bài viết (có thể đã bị xoá)")
+    return article
+
+
+def _ask_comments(db: DbSession, article: Article) -> None:
+    """A change of products edits the comments already written under the article's live posts."""
+    for post in db.scalars(
+        select(Publication).where(Publication.article_id == article.id, Publication.comment_id.is_not(None))
+    ):
+        if is_published(post):
+            post.comment_requested_at = now()
+
+
+@router.get("/articles/{article_id}/suggestions")
+def article_suggestions(
+    article_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    return _suggestions(db, _article(db, article_id))
+
+
+@router.post("/articles/{article_id}/suggestions")
+def request_article_suggestions(
+    article_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Tìm sản phẩm" on an article: the worker searches Shopee for its product ideas with the member's own account."""
+    article = _article(db, article_id)
+    if not [keyword for keyword in article.affiliates if keyword.strip()]:
+        raise invalid("Bài chưa có gợi ý sản phẩm nào để tìm, hãy thêm ở ô Gợi ý sản phẩm")
+    accounts = db.scalars(
+        select(AffiliateAccount).where(AffiliateAccount.owner_id == me.user_id, AffiliateAccount.platform == "shopee")
+    )
+    if not any(affiliate.credentials(account) for account in accounts):
+        raise invalid("Bạn chưa có tài khoản Shopee đang dùng với App ID và Secret (Cài đặt › Tài khoản affiliate)")
+    article.suggest_requested_at, article.suggest_by_id, article.suggest_error = now(), me.user_id, None
+    db.commit()
+    return _suggestions(db, article)
+
+
+@router.post("/articles/{article_id}/choose")
+def choose_for_article(
+    article_id: int, body: ChooseBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Chọn" a product for an article: approved when it meets the rules, and attached; at most MAX_PRODUCTS."""
+    article = _article(db, article_id)
+    product = _get(db, body.product_id)
+    if product.platform != "shopee":
+        raise ApiError(409, "wrong_platform", "Bài viết chỉ gắn sản phẩm Shopee")
+    attached = {row.id for row in affiliate.article_products(db, article.id)}
+    if product.id not in attached and len(attached) >= article_posts.MAX_PRODUCTS:
+        raise ApiError(409, "too_many_products", f"Bài viết gắn tối đa {article_posts.MAX_PRODUCTS} sản phẩm")
+    if product.status != "approved":
+        problems = affiliate.problems(product)
+        if problems:
+            raise ApiError(409, "product_not_approvable", f"Chưa chọn được: {'; '.join(problems)}")
+        product.status, product.checked_at, product.checked_by_id = "approved", datetime.now(UTC), me.user_id
+    elif not affiliate.usable(product):
+        raise ApiError(409, "product_not_approved", "Sản phẩm không còn đạt tiêu chí")
+    if product.id not in attached:
+        db.add(ArticleAffiliateProduct(article_id=article.id, product_id=product.id))
+        _ask_comments(db, article)
+    db.commit()
+    return _suggestions(db, article)
+
+
+@router.post("/articles/{article_id}/links")
+def paste_article_links(
+    article_id: int, body: VideoLinksBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Thêm link" on an article: each Shopee link becomes a product of its topic group, listed for "Chọn"."""
+    article = _article(db, article_id)
+    if article.knowledge_topic_id is None:
+        raise invalid("Bài chưa thuộc nhóm chủ đề nào, hãy thêm sản phẩm ở trang Affiliate")
+    topic = _topic(db, article.knowledge_topic_id)
+    links = _shopee_links(body.links)
+    ask = affiliate_rounds.team_account(db, me.user_id) is not None
+    products = [product for product, _ in _from_links(db, topic, links, me.user_id, ask).values()]
+    listed = set(
+        db.scalars(
+            select(AffiliateSuggestion.product_id).where(
+                AffiliateSuggestion.article_id == article.id, AffiliateSuggestion.keyword == affiliate_rounds.PASTED
+            )
+        )
+    )
+    rank = len(listed)
+    for product in dict.fromkeys(products):
+        if product.id not in listed:
+            rank += 1
+            db.add(
+                AffiliateSuggestion(
+                    article_id=article.id, keyword=affiliate_rounds.PASTED, product_id=product.id, rank=rank
+                )
+            )
+    db.commit()
+    return _suggestions(db, article)
 
 
 @router.get("")

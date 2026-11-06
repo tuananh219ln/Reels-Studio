@@ -19,7 +19,7 @@ import {
   ARTICLE_STATUS_TONES,
   MakeReelButton,
   PostsCard,
-  ProductsCard,
+  CommentCard,
   PublishButton,
 } from "@/components/article/ArticlePosting";
 import { usePolling } from "@/lib/polling";
@@ -64,6 +64,21 @@ function FeedPreview({
             alt="Ảnh của bài"
             style={{ width: "100%", borderRadius: 6, display: "block" }}
           />
+        )}
+        {(article.pinned_comment || article.products.length > 0) && (
+          <div
+            style={{ background: "var(--ant-color-fill-quaternary)", borderRadius: 8, padding: "8px 10px" }}
+            data-testid="article-preview-comment"
+          >
+            <Typography.Text strong style={{ fontSize: 12 }}>
+              Bình luận ghim (worker viết khi bài lên)
+            </Typography.Text>
+            <Typography.Paragraph style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 13 }}>
+              {[article.pinned_comment, ...article.products.map((product) => `${product.name}: link Shopee của Page`)]
+                .filter(Boolean)
+                .join("\n")}
+            </Typography.Paragraph>
+          </div>
         )}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Link sản phẩm (nếu có) nằm ở bình luận ghim, không nằm trong bài.
@@ -343,7 +358,7 @@ export default function ArticlePage() {
                   maxLength={5000}
                   autoSize={{ minRows: 8, maxRows: 24 }}
                   disabled={writing}
-                  placeholder={`Dòng đầu là câu mở bài (và là chữ trên Thẻ chữ). Kết bằng 1 câu hỏi và câu “${options?.disclaimer ?? "Tham khảo, không thay thế tư vấn bác sĩ."}”`}
+                  placeholder="Dòng đầu là câu mở bài (và là chữ trên Thẻ chữ). Bài sức khỏe nên có một câu nhắc nhẹ, như người quen dặn nhau, và kết bằng 1 câu hỏi."
                   onChange={(event) => {
                     typing.current.caption = true;
                     setCaption(event.target.value);
@@ -453,7 +468,7 @@ export default function ArticlePage() {
                 </div>
               </Flex>
             </Card>
-            <ProductsCard article={article} options={options} disabled={locked} onSaved={show} />
+            <CommentCard article={article} options={options} disabled={locked} onSaved={show} reload={load} />
           </Flex>
         </Col>
         <Col xs={24} lg={10}>

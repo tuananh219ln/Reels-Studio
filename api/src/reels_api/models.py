@@ -695,6 +695,14 @@ class Article(Base):
     image_key: Mapped[str | None] = mapped_column(String(200))
     image_kind: Mapped[str | None] = mapped_column(String(16))  # one of ARTICLE_IMAGE_KINDS
     image_source: Mapped[str | None] = mapped_column(Text)  # a pasted photo's link, kept for a copyright claim
+    # The comment the worker writes under the post opens with this, then the products' links (as a video's).
+    pinned_comment: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # Product ideas to search Shopee for ("Tìm sản phẩm"), and that search, as on a video (affiliate_rounds.suggest).
+    affiliates: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    suggest_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    suggested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    suggest_error: Mapped[str | None] = mapped_column(Text)
     # The visitor's comment a "tra_loi_binh_luan" article answers.
     source_comment_id: Mapped[int | None] = mapped_column(ForeignKey("page_comments.id", ondelete="SET NULL"))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -703,7 +711,7 @@ class Article(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
 
-    created_by: Mapped[User] = relationship()
+    created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
     source_comment: Mapped[PageComment | None] = relationship()
 
 
@@ -841,12 +849,14 @@ class AffiliateLink(Base):
 
 
 class AffiliateSuggestion(Base):
-    """A product Shopee's search gave for one of the video's product ideas, best first."""
+    """A product Shopee's search gave for one of the product ideas of a video, or of an article, best first."""
 
     __tablename__ = "affiliate_suggestions"
+    __table_args__ = (CheckConstraint("(video_id IS NULL) <> (article_id IS NULL)", name="one_target"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), index=True)
     keyword: Mapped[str] = mapped_column(String(200))
     product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"))
     rank: Mapped[int] = mapped_column(Integer)
