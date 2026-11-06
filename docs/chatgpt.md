@@ -32,6 +32,13 @@ service:
    `assets/photo.*`, so attach a transparent product photo first. No cost to the team's AI service.
 6. `render_video` queues the render; narration may use ElevenLabs.
 
+## The media library
+
+Members fill "Kho tư liệu" (`/media`) by dragging whole folders of their own footage and product photos, or by
+searching the product on Google Ảnh / TikTok from the page and pasting the links back. The assistant reads it with
+`list_media` (by folder, kind or name), **looks at the items** with `view_media` before choosing, adds links the
+member gives with `add_media_from_links`, and puts an item in a scene with `set_scene_media_from_library` (a copy).
+
 ## Editing like the studio, and checking the result
 
 The assistant edits with the studio's own handlers, presets and locks (nothing the web page cannot do):
