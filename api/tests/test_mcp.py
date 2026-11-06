@@ -2,6 +2,7 @@
 
 import base64
 import hashlib
+import json
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -436,6 +437,11 @@ def grant_to(client, db, registered, asked):
     return cid, details, code
 
 
+def payload(result: dict) -> dict:
+    """A tool's dict result, as the JSON text of its first content block."""
+    return json.loads(result["content"][0]["text"])
+
+
 def exchange(client, cid, code, redirect):
     data = {
         "grant_type": "authorization_code",
@@ -549,11 +555,11 @@ def test_affiliate_products_are_listed_and_only_approved_ones_attach(mcp_client,
     draft = product(db, user, name="Nồi chiên mini", status="draft")
     listed = call(mcp_client, token, "list_affiliate_products", query="Nồi chiên")
     assert not listed.get("isError"), listed
-    content = listed["structuredContent"]
+    content = payload(listed)
     assert [row["id"] for row in content["products"]] == [approved.id]
     assert content["products"][0]["price"] == 200000
     everything = call(mcp_client, token, "list_affiliate_products", query="Nồi chiên", approved_only=False)
-    assert everything["structuredContent"]["total"] == 2
+    assert payload(everything)["total"] == 2
     assert call(mcp_client, token, "set_video_products", video_id=video.id, product_ids=[draft.id])["isError"]
     attached = call(mcp_client, token, "set_video_products", video_id=video.id, product_ids=[approved.id])
     assert not attached.get("isError"), attached
