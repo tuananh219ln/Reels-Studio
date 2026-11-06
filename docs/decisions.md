@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — Every render gets automatic QC against the platforms' delivery specs
+
+Asked by tuananh219ln for a high bar on the finished video, after AIEV's QC (`qc.ts`): the render job measures the
+MP4 it made (format, length, EBU R128 loudness against −14 LUFS, true peak against −1 dBTP, black frames, frozen
+pictures, dead air) and keeps the result with the MP4. It advises and never blocks: a failed check does not fail the
+render or stop posting, because a member may have a reason (a deliberate black beat), but the MCP assistant must fix
+failed checks before it calls a video done. Making the render itself aim at −14 LUFS (loudness normalisation in the
+render core) is a separate change, to decide once QC shows how far today's renders are from it.
+
 ## 2026-11-07 — The assistant edits like the studio and checks its own frames; the finished video's bar is high
 
 Asked by tuananh219ln: finish "edit video with a Claude subscription", following AIEV, with "Tiêu chuẩn video thành

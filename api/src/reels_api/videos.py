@@ -723,6 +723,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
             "seconds": video.mp4_seconds,
             "render_seconds": video.render_seconds,
             "rendered_at": video.rendered_at.isoformat() if video.rendered_at else None,
+            # Automatic QC of this MP4 (qc.py); None for an MP4 rendered before QC existed.
+            "qc": video.qc,
         }
         if video.mp4_key
         else None,

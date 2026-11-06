@@ -49,8 +49,10 @@ QUALITY = (
     "lạm dụng; lớp chữ/sticker và cảnh động không che sản phẩm hay chữ chính. "
     '(3) Kiểm tra trước render: đọc video, sửa mọi mục blocking/warnings, gọi "Xem khung hình của cảnh" cho TỪNG '
     "cảnh và sửa chỗ chữ khó đọc, bị che hay lệch. "
-    '(4) Sau khi render xong: gọi "Xem khung hình của MP4 đã render" ở giây 0,5, giữa mỗi cảnh và các lúc chuyển '
-    "cảnh; có lỗi thì sửa rồi render lại. Chỉ báo xong khi đã tự xem MP4 và không còn lỗi, kèm danh sách đã kiểm tra."
+    "(4) Sau khi render xong: đọc video, xem mp4.qc (kiểm tra tự động: âm lượng, đỉnh tiếng, khung đen, đứng hình, "
+    "khoảng lặng, định dạng, độ dài), sửa mọi mục fail và cân nhắc mục warn; gọi "
+    '"Xem khung hình của MP4 đã render" ở giây 0,5, giữa mỗi cảnh và các lúc chuyển cảnh; có lỗi thì sửa rồi render '
+    "lại. Chỉ báo xong khi QC không còn fail và đã tự xem MP4, kèm danh sách đã kiểm tra."
 )
 
 

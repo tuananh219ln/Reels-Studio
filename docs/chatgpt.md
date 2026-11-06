@@ -48,7 +48,8 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
 
 The server's instructions hold the team's quality bar: a strong hook in the first two seconds, one idea per scene,
 short on-screen text, a clear call to buy; fix every blocking item and warning, look at every scene before
-rendering, look at the MP4's frames after it, and say the video is done only once it has, listing what it checked.
+rendering, read the MP4's automatic QC (`mp4.qc`, see [architecture.md](architecture.md#render-qc)) and fix every
+failed check, look at the MP4's frames after it, and say the video is done only once it has, listing what it checked.
 
 ## Enable and connect
 

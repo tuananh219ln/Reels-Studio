@@ -218,6 +218,8 @@ class Video(Base):
     thumbnail_key: Mapped[str | None] = mapped_column(String(200))
     mp4_key: Mapped[str | None] = mapped_column(String(200))
     mp4_seconds: Mapped[float | None] = mapped_column(Float)
+    # The MP4's automatic QC (qc.py), measured by the render job that made it: {"status", "checks": [...]}.
+    qc: Mapped[dict | None] = mapped_column(JSONB)
     render_seconds: Mapped[float | None] = mapped_column(Float)
     # Fingerprint of everything that changes the MP4, taken at render time (see videos.render_signature).
     rendered_signature: Mapped[str | None] = mapped_column(String(64))

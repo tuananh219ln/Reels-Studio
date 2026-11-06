@@ -35,6 +35,7 @@ from . import (
     llm,
     motion,
     plans,
+    qc,
     reference,
     revise,
     source_keys,
@@ -590,6 +591,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         except RenderError as err:
             raise JobFailure(str(err)) from None
         elapsed = time.monotonic() - started
+        # Measured on the file before it is saved, so the MP4 and its QC always go together.
+        video.qc = qc.measure(output, expect_sound=video.voice_enabled or bool(video.music_key))
 
         key = new_key(video.id, "video", "mp4")
         storage.save_file(key, output)
