@@ -21,6 +21,7 @@ from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
 
 from . import (
+    article_posts,
     articles,
     autoedit,
     clips,
@@ -1610,7 +1611,7 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
     job.status, job.finished_at = "cancelled", now()
     db.commit()
     if job.article_id is not None:
-        return articles.payload(db, db.get(Article, job.article_id))
+        return article_posts.payload(db, db.get(Article, job.article_id))
     if job.video_id is None:
         return plans.plan_payload(db, db.get(KnowledgeTopic, job.knowledge_topic_id))
     return video_payload(db, db.get(Video, job.video_id))
@@ -1657,12 +1658,19 @@ def _retry_plan(db: DbSession, job_id: int, topic_id: int, me: Session) -> dict:
 
 def _retry_article(db: DbSession, job_id: int, article_id: int, me: Session) -> dict:
     article = db.get(Article, article_id, with_for_update=True)
-    if db.get(Job, job_id).status != "failed":
+    job = db.get(Job, job_id)
+    if job.status != "failed":
         raise ApiError(409, "job_not_failed", "Chỉ thử lại được job bị lỗi")
-    if not articles.enqueue_caption(db, article, me.user_id, retry_of_id=job_id):
+    if job.kind == "article_caption":
+        queued = articles.enqueue_caption(db, article, me.user_id, retry_of_id=job_id)
+    else:
+        queued = article_posts.enqueue(
+            db, article, job.kind, me.user_id, publication_id=job.publication_id, retry_of_id=job_id
+        )
+    if not queued:
         raise ApiError(409, "article_busy", "Bài viết đang có việc chờ hoặc đang chạy")
     db.commit()
-    return articles.payload(db, db.get(Article, article_id))
+    return article_posts.payload(db, db.get(Article, article_id))
 
 
 # --- Files (all behind login) ---

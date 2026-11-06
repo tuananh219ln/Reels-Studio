@@ -699,8 +699,16 @@ export type Article = {
   /** Changes with every new picture, so the browser never shows an old one. */
   image_version: string | null;
   source_comment: { id: number; author: string; message: string } | null;
-  status: "draft";
+  status: "draft" | "publishing" | "pending" | "failed" | "scheduled" | "published" | "unpublishing";
   status_label: string;
+  /** Why the last "Đăng" failed, while its post still waits ("Thử lại" in Job logs or "Đăng" again). */
+  publish_error: string | null;
+  /** Its posts on Facebook, newest first, cancelled and taken-down ones included. */
+  posts: ArticlePost[];
+  /** At most `max_products` approved products; their links go in the comment, never in the caption. */
+  products: { id: number; name: string; usable: boolean }[];
+  /** What "Đăng" sends: the caption, the line pointing at the comment when products are attached, the hashtags. */
+  post_text: string;
   job: { id: number; status: "queued" | "running" | "done" | "failed" | "cancelled"; error: string | null } | null;
   /** The AI is writing it: no edits until it is done. */
   busy: boolean;
@@ -711,11 +719,59 @@ export type Article = {
   updated_at: string;
 };
 
+export type ArticleNumbers = {
+  reach: number | null;
+  shares: number | null;
+  comments: number | null;
+  reactions: number | null;
+  measured_at: string;
+};
+
+/** One post of an article on a Page (api article_posts.post_payload). */
+export type ArticlePost = {
+  id: number;
+  fanpage_id: number | null;
+  fanpage: string | null;
+  status: "pending" | "scheduled" | "published" | "cancelled" | "deleted";
+  status_label: string;
+  scheduled_at: string | null;
+  published_at: string | null;
+  live_at: string;
+  url: string | null;
+  can_take_down: boolean;
+  can_check: boolean;
+  can_measure: boolean;
+  comment: Post["comment"];
+  /** Reach is the main number: a feed post has no views. The share/reach rate is null under 50 people reached. */
+  numbers: {
+    latest: ArticleNumbers | null;
+    at_48h: ArticleNumbers | null;
+    error: string | null;
+    pending: boolean;
+    analysis: {
+      median_reach: number | null;
+      samples: number;
+      times_median: number | null;
+      share_rate: number | null;
+      /** At least 10× its Page's median: drawn bold, never stored. */
+      standout: boolean;
+    };
+  };
+  created_by: string;
+};
+
 export type ArticleOptions = {
   kinds: { value: ArticleKind; label: string }[];
   card_presets: { value: string; label: string; background: string; color: string }[];
   disclaimer: string;
   max_hashtags: number;
+  max_products: number;
+  product_line: string;
+  min_rated_reach: number;
+  share_goal: number;
+  min_samples: number;
+  /** Only from GET /articles/options: the Pages in use. */
+  fanpages?: { id: number; name: string; owner: string | null; error: string | null }[];
 };
 
 export type ArticleList = ArticleOptions & { articles: Article[] };
@@ -732,9 +788,11 @@ export type PageCommentRow = {
   error: string | null;
   handled_by: string | null;
   url: string;
+  /** The reel, or the article ("Bài viết", `article_id`), the comment is under; `reel_url` is the post on Facebook. */
   post: {
     id: number;
-    video_id: number;
+    video_id: number | null;
+    article_id: number | null;
     title: string;
     fanpage: string | null;
     fanpage_id: number | null;

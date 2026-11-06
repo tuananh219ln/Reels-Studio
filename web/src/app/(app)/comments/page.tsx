@@ -55,14 +55,17 @@ function CommentCard({ row, onChanged }: { row: PageCommentRow; onChanged: (row:
         <Typography.Paragraph style={{ margin: 0, whiteSpace: "pre-wrap" }}>{row.message}</Typography.Paragraph>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           {row.post.fanpage},{" "}
-          <Link prefetch={false} href={`/videos/${row.post.video_id}`}>
+          <Link
+            prefetch={false}
+            href={row.post.article_id ? `/articles/${row.post.article_id}` : `/videos/${row.post.video_id}`}
+          >
             {row.post.title}
           </Link>
           {row.post.reel_url && (
             <>
               {", "}
               <a href={row.post.reel_url} target="_blank" rel="noreferrer">
-                Xem Reel
+                {row.post.article_id ? "Xem bài" : "Xem Reel"}
               </a>
             </>
           )}

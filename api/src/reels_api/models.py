@@ -541,18 +541,31 @@ class AppSetting(Base):
 
 
 class Publication(Base):
-    """One post of a video to a platform; a video posted again has one row per post, kept after it is cancelled or
-    deleted. The publish job reads what to do from the video's one pending row."""
+    """One post of a video, or of an article ("Bài viết"), to a platform; posted again, it has one row per post, kept
+    after it is cancelled or deleted. The publish job reads what to do from the one pending row. Code that lists every
+    post and reads its video must keep to `video_id IS NOT NULL` (articles.py has the articles' side)."""
 
     __tablename__ = "publications"
     __table_args__ = (
         Index(
             "uq_publications_pending", "video_id", "platform", unique=True, postgresql_where=text("status = 'pending'")
         ),
+        Index(
+            "uq_publications_pending_article",
+            "article_id",
+            "platform",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+        Index("ix_publications_article_id", "article_id"),
+        CheckConstraint("(video_id IS NULL) <> (article_id IS NULL)", name="one_target"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    # An article's text as sent (caption, product line, hashtags), so a retry after a lost answer finds that very post.
+    post_text: Mapped[str | None] = mapped_column(Text)
     platform: Mapped[str] = mapped_column(String(16))  # facebook
     fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id"))
     # pending | scheduled | published | cancelled (never went live) | deleted (taken off the platform after going live)
@@ -781,18 +794,47 @@ class VideoAffiliateProduct(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
 
 
+class ArticleAffiliateProduct(Base):
+    """A product whose link goes in the comment under a posted article; at most articles.MAX_PRODUCTS per article."""
+
+    __tablename__ = "article_affiliate_products"
+
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
+
+
 class AffiliateLink(Base):
-    """A Shopee short link made with a Page's account for one video on that Page, so an order names both."""
+    """A Shopee short link made with a Page's account for one video, or one article, on that Page, so an order names
+    both."""
 
     __tablename__ = "affiliate_links"
     __table_args__ = (
-        UniqueConstraint("product_id", "account_id", "video_id", "fanpage_id", name="uq_affiliate_links_target"),
+        Index(
+            "uq_affiliate_links_video",
+            "product_id",
+            "account_id",
+            "video_id",
+            "fanpage_id",
+            unique=True,
+            postgresql_where=text("video_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_affiliate_links_article",
+            "product_id",
+            "account_id",
+            "article_id",
+            "fanpage_id",
+            unique=True,
+            postgresql_where=text("article_id IS NOT NULL"),
+        ),
+        CheckConstraint("(video_id IS NULL) <> (article_id IS NULL)", name="one_target"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"))
     account_id: Mapped[int] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="CASCADE"))
-    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
     url: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

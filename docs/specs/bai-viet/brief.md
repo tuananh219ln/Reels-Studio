@@ -105,8 +105,8 @@ Cả hai được ghi thành entry mới trong `docs/decisions.md` ở PR đầu
 - **Phase 0 (không code):** test tay 2 tuần trên Ăn Lành — 3 bài, 1 bài mỗi dạng (kiến thức, mẹo, câu hỏi), đăng tay trong Meta Business Suite ở khung giờ không phải giờ vàng của reel, đo 48h. Tiêu chí chốt TRƯỚC khi test: làm tiếp nếu có ≥1 bài đạt share/reach ≥ 0,2% với reach ≥ 50, hoặc tổng bình luận 3 bài ≥ 10; dừng nếu cả 3 bài gần như 0 tương tác. (Ngưỡng là ví dụ, chủ sản phẩm chỉnh trước khi test.)
 - **Phase 1 (MVP), 3 PR nối tiếp, mỗi PR một nhánh, PR sau bắt đầu khi PR trước đã merge:**
   1. **Soạn bài:** migration + model + `routes_articles.py` (CRUD) + job `article_caption` + Thẻ chữ + trang danh sách và màn soạn (chưa có nút Đăng) + entry decisions §0.2. Đã làm (nhánh `feature/bai-viet`); migration chỉ có `articles`, `knowledge_topics.article_prompt`, `jobs.article_id`. Ảnh AI cho bài viết chưa làm (cần job ảnh riêng), dời sang PR 2.
-  2. **Đăng:** `facebook.py` (đăng ảnh/chữ, gỡ) + mở rộng `publish`/`unpublish`/`check` + bình luận affiliate + chống trùng + nút Đăng/Gỡ trên web.
-  3. **Đo và làm reel:** mở rộng `measure_due` + analytics + số 48h trên web + nút "Làm reel từ bài này" + entry decisions §4.
+  2. **Đăng:** `facebook.py` (đăng ảnh/chữ, gỡ) + mở rộng `publish`/`unpublish`/`check` + bình luận affiliate + chống trùng + nút Đăng/Gỡ trên web. Đã làm cùng nhánh `feature/bai-viet` (migration 0046). Ảnh AI vẫn chưa làm.
+  3. **Đo và làm reel:** mở rộng `measure_due` + analytics + số 48h trên web + nút "Làm reel từ bài này" + entry decisions §4. Đã làm cùng nhánh; reach là `post_total_media_view_unique` (changelog Graph API v25).
 - **Phase 2:** bản đầy đủ "làm reel từ bài thắng" (chuyển caption thành nháp kịch bản), tuỳ biến thẻ chữ, bài viết trong "Bài đăng" và hàng chờ Page, xem trước đúng giao diện feed.
 - **Không làm:** carousel nhiều ảnh; đăng cùng nội dung lên nhiều page; post TikTok/YouTube; tự động ghim bình luận; đổi cách reel hoạt động; cờ "bài thắng"; dùng số mới nhất thay số 48h.
 

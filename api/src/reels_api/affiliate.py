@@ -13,6 +13,7 @@ from .models import (
     AffiliateAccount,
     AffiliateLink,
     AffiliateProduct,
+    ArticleAffiliateProduct,
     Fanpage,
     Publication,
     Video,
@@ -104,35 +105,64 @@ def sub_ids(video_id: int, fanpage_id: int) -> list[str]:
     return [f"v{video_id}", f"p{fanpage_id}"]
 
 
-def _link(db: DbSession, product: AffiliateProduct, post: Publication, account: AffiliateAccount | None) -> str | None:
-    """The product's link under this post: the Page's account makes its own (once, then kept); without one, the link
-    a member pasted. Raises ShopeeError when Shopee cannot make it."""
+def article_sub_ids(article_id: int, fanpage_id: int) -> list[str]:
+    """An article's link: "bv" so an order is never taken for the video with the same number."""
+    return [f"bv{article_id}", f"p{fanpage_id}"]
+
+
+def link_for(
+    db: DbSession, product: AffiliateProduct, post: Publication, account: AffiliateAccount | None
+) -> str | None:
+    """The product's link under this post (a video's or an article's): the Page's account makes its own (once, then
+    kept); without one, the link a member pasted. Raises ShopeeError when Shopee cannot make it."""
     if account is None:
         return product.url
     origin = product.page_url or product.url
     if not origin:
         return None
-    key = {"product_id": product.id, "account_id": account.id, "video_id": post.video_id, "fanpage_id": post.fanpage_id}
+    target = {"article_id": post.article_id} if post.article_id else {"video_id": post.video_id}
+    key = {"product_id": product.id, "account_id": account.id, **target, "fanpage_id": post.fanpage_id}
     kept = db.scalar(select(AffiliateLink).filter_by(**key))
     if kept is not None:
         return kept.url
-    url = shopee.short_link(credentials(account), origin, sub_ids(post.video_id, post.fanpage_id))
+    marks = (
+        article_sub_ids(post.article_id, post.fanpage_id)
+        if post.article_id
+        else sub_ids(post.video_id, post.fanpage_id)
+    )
+    url = shopee.short_link(credentials(account), origin, marks)
     db.add(AffiliateLink(**key, url=url))
     db.flush()
     log.info("Made a Shopee link for product %s on Page %s", product.id, post.fanpage_id)
     return url
 
 
+def article_products(db: DbSession, article_id: int) -> list[AffiliateProduct]:
+    return list(
+        db.scalars(
+            select(AffiliateProduct)
+            .join(ArticleAffiliateProduct)
+            .where(ArticleAffiliateProduct.article_id == article_id)
+            .order_by(AffiliateProduct.id)
+        )
+    )
+
+
 def comment_text(db: DbSession, post: Publication) -> str:
     """The comment under the post: the video's pinned comment, then "name: link" per usable attached Shopee product
     that has a link for the post's Page. Raises ShopeeError when a link cannot be made."""
-    video = db.get(Video, post.video_id)
     account = page_account(db, db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None)
+    if post.article_id is not None:
+        # An article has no pinned comment of its own: its comment is only its products' links.
+        products, opening = article_products(db, post.article_id), ""
+    else:
+        video = db.get(Video, post.video_id)
+        products, opening = products_of(db, video.id), video.pinned_comment.strip()
     lines = []
-    for product in products_of(db, video.id):
+    for product in products:
         if product.platform != "shopee" or not usable(product):
             continue
-        link = _link(db, product, post, account)
+        link = link_for(db, product, post, account)
         if link:
             lines.append(f"{product.name}: {link}")
-    return "\n".join(part for part in [video.pinned_comment.strip(), *lines] if part)[:MAX_COMMENT_LENGTH]
+    return "\n".join(part for part in [opening, *lines] if part)[:MAX_COMMENT_LENGTH]

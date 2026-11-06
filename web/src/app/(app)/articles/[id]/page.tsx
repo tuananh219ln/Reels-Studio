@@ -15,14 +15,30 @@ import {
   type PageComments,
 } from "@/lib/api";
 import StatusText from "@/components/StatusText";
+import {
+  ARTICLE_STATUS_TONES,
+  MakeReelButton,
+  PostsCard,
+  ProductsCard,
+  PublishButton,
+} from "@/components/article/ArticlePosting";
 import { usePolling } from "@/lib/polling";
 
-// While the AI writes, the page asks every 2.5 s; otherwise it waits for the member's own changes.
+// While a job runs or the worker owes an answer, the page asks every 2.5 s; otherwise it waits for the member.
 const BUSY_REFRESH_MS = 2500;
 
 /** What the article will look like in the feed: the Page's name is chosen when posting, so it is a placeholder. */
-function FeedPreview({ article, caption, hashtags }: { article: Article; caption: string; hashtags: string[] }) {
-  const text = [caption.trim(), hashtags.join(" ")].filter(Boolean).join("\n\n");
+function FeedPreview({
+  article,
+  caption,
+  productLine,
+}: {
+  article: Article;
+  caption: string;
+  productLine: string | null;
+}) {
+  const pointer = productLine && !caption.toLowerCase().includes(productLine.replace(/\.$/, "").toLowerCase());
+  const text = [caption.trim(), pointer ? productLine : "", article.hashtags.join(" ")].filter(Boolean).join("\n\n");
   return (
     <Card size="small" title="Xem trước trên Facebook" data-testid="article-preview">
       <Flex vertical gap={10}>
@@ -100,9 +116,15 @@ export default function ArticlePage() {
   }, [load]);
 
   const writing = article?.busy ?? false;
+  // The worker still owes an answer: a job, a post on its way, a comment or a reading asked for.
+  const waiting =
+    writing ||
+    (article?.posts ?? []).some(
+      (post) => post.status === "pending" || post.comment.state === "pending" || post.numbers.pending,
+    );
   const poll = useCallback(async () => {
-    if (writing) await load();
-  }, [writing, load]);
+    if (waiting) await load();
+  }, [waiting, load]);
   usePolling(poll, BUSY_REFRESH_MS);
 
   useEffect(() => {
@@ -131,7 +153,7 @@ export default function ArticlePage() {
 
   function saveTyped(field: "topic" | "caption", value: string) {
     typing.current[field] = false;
-    if (article && value !== article[field]) void save({ [field]: value });
+    return article && value !== article[field] ? save({ [field]: value }) : Promise.resolve();
   }
 
   function writeWithAi() {
@@ -173,6 +195,7 @@ export default function ArticlePage() {
 
   const locked = writing || busy !== null;
   const failed = article.job?.status === "failed" ? article.job.error : null;
+  const aiWriting = article.job?.status === "queued" || article.job?.status === "running";
 
   return (
     <Flex vertical gap={16}>
@@ -184,33 +207,53 @@ export default function ArticlePage() {
           <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
             {article.hook || article.topic || "Bài viết mới"}
           </Typography.Title>
-          {writing ? (
+          {aiWriting ? (
             <StatusText tone="active">AI đang viết…</StatusText>
           ) : (
-            <StatusText tone="idle">{article.status_label}</StatusText>
+            <StatusText tone={ARTICLE_STATUS_TONES[article.status]} data-testid="article-status">
+              {article.status_label}
+            </StatusText>
           )}
         </Flex>
-        <Popconfirm
-          title="Xoá bài viết này?"
-          okText="Xoá"
-          cancelText="Không"
-          okButtonProps={{ danger: true }}
-          onConfirm={async () => {
-            try {
-              await api(`/articles/${id}`, "DELETE");
-              router.push("/articles");
-            } catch (err) {
-              message.error(errorMessage(err));
-            }
-          }}
-        >
-          <Button danger icon={<DeleteOutlined />} disabled={writing}>
-            Xoá
-          </Button>
-        </Popconfirm>
+        <Flex gap={8} wrap>
+          <MakeReelButton article={article} />
+          <PublishButton
+            article={article}
+            options={options}
+            disabled={locked}
+            onSaved={show}
+            beforePublish={() => saveTyped("caption", caption)}
+          />
+          <Popconfirm
+            title="Xoá bài viết này?"
+            okText="Xoá"
+            cancelText="Không"
+            okButtonProps={{ danger: true }}
+            onConfirm={async () => {
+              try {
+                await api(`/articles/${id}`, "DELETE");
+                router.push("/articles");
+              } catch (err) {
+                message.error(errorMessage(err));
+              }
+            }}
+          >
+            <Button danger icon={<DeleteOutlined />} disabled={writing}>
+              Xoá
+            </Button>
+          </Popconfirm>
+        </Flex>
       </Flex>
 
       {failed && <Alert type="error" showIcon title={`AI viết chưa được: ${failed}`} />}
+      {article.publish_error && (
+        <Alert
+          type="error"
+          showIcon
+          title={`Đăng chưa được: ${article.publish_error}`}
+          description="Sửa rồi bấm Đăng lại, hoặc Thử lại trong Job logs."
+        />
+      )}
 
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={14}>
@@ -286,12 +329,12 @@ export default function ArticlePage() {
                   <Typography.Text type="secondary">Caption</Typography.Text>
                   <Button
                     icon={<RobotOutlined />}
-                    loading={busy === "caption" || writing}
+                    loading={busy === "caption" || aiWriting}
                     disabled={locked || !topic.trim()}
                     title={topic.trim() ? undefined : "Nhập chủ đề của bài trước"}
                     onClick={writeWithAi}
                   >
-                    {writing ? "AI đang viết…" : "AI viết"}
+                    {aiWriting ? "AI đang viết…" : "AI viết"}
                   </Button>
                 </Flex>
                 <Input.TextArea
@@ -410,10 +453,18 @@ export default function ArticlePage() {
                 </div>
               </Flex>
             </Card>
+            <ProductsCard article={article} options={options} disabled={locked} onSaved={show} />
           </Flex>
         </Col>
         <Col xs={24} lg={10}>
-          <FeedPreview article={article} caption={caption} hashtags={article.hashtags} />
+          <Flex vertical gap={16}>
+            <PostsCard article={article} options={options} onSaved={show} />
+            <FeedPreview
+              article={article}
+              caption={caption}
+              productLine={article.products.length ? (options?.product_line ?? null) : null}
+            />
+          </Flex>
         </Col>
       </Row>
     </Flex>

@@ -89,12 +89,15 @@ app replaces CapCut, so the output is a finished MP4.
    the "Nội dung" tab, like Facebook's content library: each post of the period with its numbers, sortable, with
    chosen columns and a CSV file. More Page Insights metrics are a later phase.
 
-   **Bài viết** (being built, [brief](specs/bai-viet/brief.md)): photo or text posts for a Page, to test a topic
-   cheaply before making a reel. Built so far (part 1): a draft per article with its topic group, kind, topic and
-   caption, typed or written by the AI ("AI viết"), up to 5 hashtags, and an optional picture: a "Thẻ chữ" (the
-   caption's first line on a colour, drawn by the api) or a photo from a pasted link. A link in the caption is
-   flagged (product links go in the pinned comment); banned words only warn. Posting, taking down, the affiliate
-   comment and the 48-hour numbers are the next parts.
+   **Bài viết** (built, [brief](specs/bai-viet/brief.md)): photo or text posts for a Page, to test a topic cheaply
+   before making a reel. An article has a topic group, kind, topic and caption, typed or written by the AI ("AI
+   viết"), up to 5 hashtags, an optional picture (a "Thẻ chữ" drawn by the api, or a photo from a pasted link; no
+   stock photos) and up to 2 approved Shopee products. "Đăng" posts it to a Page chosen then, now or at a time; the
+   worker writes the products' links in a comment under it (pinned by hand). The same caption is never posted twice
+   on one Page, and a second Page or a reel within two hours asks first. Posts are taken down and checked like reels,
+   visitors' comments under them show on "Bình luận", and their numbers are read at 48 hours: reach, shares,
+   comments, reactions, against the Page's median reach of articles. "Làm reel từ bài này" starts a video draft on
+   its topic. Articles are not in "Bài đăng", a Page's dashboard or its posting queue.
 
 9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders. Members authorize and revoke OAuth connections

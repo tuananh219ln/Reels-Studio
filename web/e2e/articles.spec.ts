@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { loginAsSeed, resetDatabase } from "./helpers";
+import { connectFacebook, loginAsSeed, resetDatabase } from "./helpers";
 
 test.beforeEach(() => resetDatabase());
 
@@ -44,4 +44,50 @@ test("Bài viết: create a draft, let the AI write the caption, make a text car
   await page.getByRole("link", { name: "Về danh sách bài viết" }).click();
   await expect(page.getByRole("link", { name: "Ngủ đủ giấc quan trọng hơn bạn nghĩ" })).toBeVisible();
   await expect(page.getByRole("cell", { name: "Kiến thức ngắn" })).toBeVisible();
+});
+
+test("Bài viết: post a text article to a Page, read its numbers, take it down, and make a reel from it", async ({
+  page,
+}) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Bài viết" }).click();
+  await page.getByRole("button", { name: "Tạo bài viết" }).click();
+  const drawer = page.getByRole("dialog", { name: "Tạo bài viết" });
+  await drawer.getByLabel("Chủ đề của bài").fill("ngâm chân nước gừng");
+  await drawer.getByRole("button", { name: "Tạo bài" }).click();
+  await expect(page).toHaveURL(/\/articles\/\d+$/);
+  const caption = page.getByLabel("Caption");
+  await caption.fill("Ngâm chân nước gừng trước khi ngủ\n\nTham khảo, không thay thế tư vấn bác sĩ.");
+  await caption.blur();
+  await expect(page.getByText("Chưa có caption", { exact: true })).toBeHidden();
+
+  await page.getByRole("button", { name: /^send Đăng$/ }).click();
+  const publish = page.getByRole("dialog", { name: "Đăng bài viết" });
+  // The one Page in use is already picked.
+  await publish.getByRole("button", { name: "Đăng", exact: true }).click();
+  await expect(page.getByTestId("article-status")).toHaveText("Đã đăng", { timeout: 60_000 });
+  const post = page.getByTestId("article-post");
+  await expect(post.getByText("Trang Dưỡng Sinh")).toBeVisible();
+  await expect(post.getByRole("link", { name: "Xem bài" })).toBeVisible();
+  await expect(post.getByText("chưa đo 48h")).toBeVisible();
+
+  await post.getByRole("button", { name: "Cập nhật số" }).click();
+  await expect(post.getByText(/Mới nhất .*30 cảm xúc · 6 bình luận · 2 chia sẻ · reach 400/)).toBeVisible({
+    timeout: 30_000,
+  });
+
+  // The same caption cannot go on the same Page twice.
+  await page.getByRole("button", { name: /^send Đăng$/ }).click();
+  await publish.getByRole("button", { name: "Đăng", exact: true }).click();
+  await expect(page.getByText("Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được")).toBeVisible();
+  await publish.getByRole("button", { name: "Huỷ" }).click();
+
+  await post.getByRole("button", { name: "Gỡ bài" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Gỡ bài" }).click();
+  await expect(post.getByText("Đã gỡ")).toBeVisible({ timeout: 60_000 });
+
+  await page.getByRole("button", { name: "Làm reel từ bài này" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Tạo video" }).click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
 });

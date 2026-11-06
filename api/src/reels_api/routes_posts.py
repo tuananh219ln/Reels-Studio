@@ -70,7 +70,8 @@ def request_comment(post_id: int, me: Session = Depends(current_member), db: DbS
     """ "Bình luận ngay" / "Cập nhật bình luận": the worker writes the affiliate comment, or edits the one it wrote, in
     its next round. The request itself never calls Facebook."""
     post = db.get(Publication, post_id, with_for_update=True)
-    if post is None:
+    # An article's post is handled on its own page (/api/articles).
+    if post is None or post.video_id is None:
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     if post.platform != "facebook" or post.remote_id is None or not is_published(post):
         raise ApiError(409, "post_not_live", "Chỉ bình luận được dưới bài đã lên Facebook")
@@ -84,7 +85,8 @@ def refresh_metrics(post_id: int, me: Session = Depends(current_member), db: DbS
     """ "Cập nhật view": the worker reads the post's numbers in its next round, within seconds. The request
     itself never calls Facebook."""
     post = db.get(Publication, post_id, with_for_update=True)
-    if post is None:
+    # An article's post is handled on its own page (/api/articles).
+    if post is None or post.video_id is None:
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     if post.platform != "facebook" or post.remote_id is None or not is_published(post):
         raise ApiError(409, "post_not_measurable", "Chỉ cập nhật view được cho bài đã đăng lên Facebook")

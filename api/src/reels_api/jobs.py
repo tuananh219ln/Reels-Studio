@@ -21,6 +21,7 @@ from reels_render.script import parse_script
 
 from . import (
     affiliate_rounds,
+    article_posts,
     articles,
     auto_photos,
     autoedit,
@@ -604,6 +605,9 @@ SETTLE_TIME = timedelta(minutes=30)
 
 
 def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    if job.article_id is not None:
+        run_article_publish_job(db, job, storage)
+        return
     video = db.get(Video, job.video_id)
     post = pending_publication(db, video.id)
     if post is None:
@@ -643,6 +647,69 @@ def run_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     log.info("Job %s posted video %s to Facebook as %s", job.id, video.id, post.remote_id)
 
 
+def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    """An article's photo or text post. Never posted twice, as a reel: what is sent is stamped before Facebook is
+    asked; a retry reads the post it got back, or, when that answer was lost, looks for the same text on the Page."""
+    article = db.get(Article, job.article_id)
+    post = article_posts.pending_post(db, article.id)
+    if post is None:
+        return
+    try:
+        page = fanpages.load_page(db, post.fanpage_id)
+        status = facebook.post_status(page, post.remote_id) if post.remote_id else None
+        if post.remote_id is None and post.finish_sent_at is not None:
+            found = facebook.find_post(page, post.post_text or "")
+            if found is not None:
+                post.remote_id = found
+                db.commit()
+                status = facebook.post_status(page, found)
+            elif now() - post.finish_sent_at < SETTLE_TIME:
+                raise JobFailure("Facebook có thể vẫn đang đăng lần trước, hãy xem Page, đợi 30 phút rồi Thử lại")
+        if status is None:
+            image = _check_article_publishable(db, article, post, storage)
+            post.post_text, post.remote_id, post.finish_sent_at = article_posts.post_text(db, article), None, now()
+            db.commit()
+            try:
+                if image is None:
+                    remote = facebook.publish_text(page, post.post_text, post.scheduled_at)
+                else:
+                    remote = facebook.publish_photo(page, post.post_text, image, post.scheduled_at)
+            except FacebookError as err:
+                # Only a refusal proves Facebook did not post it; a lost or 5xx answer proves nothing.
+                if 400 <= err.status < 500:
+                    post.finish_sent_at = None
+                    db.commit()
+                raise
+            post.remote_id = remote
+            db.commit()
+            status = facebook.post_status(page, remote)
+            if status is None:
+                raise JobFailure("Facebook không còn giữ bài vừa đăng, hãy xem Page rồi Thử lại")
+    except FacebookError as err:
+        raise JobFailure(err.message, err.detail) from None
+    post.status = "published" if status["published"] else "scheduled"
+    post.scheduled_at = (status["scheduled_at"] or post.scheduled_at) if post.status == "scheduled" else None
+    post.published_at = now()
+    db.commit()
+    log.info("Job %s posted article %s to Facebook as %s", job.id, article.id, post.remote_id)
+
+
+def _check_article_publishable(
+    db: DbSession, article: Article, post: Publication, storage: DirectoryStorage
+) -> Path | None:
+    """Also covers "Thử lại", which does not pass through the publish endpoint. The picture, if any, as a file."""
+    blocking = articles.checks(article, [])["blocking"]
+    if blocking:
+        raise JobFailure(blocking[0]["message"])
+    if post.scheduled_at is not None and post.scheduled_at < now() + MIN_SCHEDULE_LEAD:
+        raise JobFailure("Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại")
+    if article.image_key is None:
+        return None
+    if not storage.exists(article.image_key):
+        raise JobFailure("Không thấy ảnh của bài trong storage, hãy chọn lại ảnh rồi đăng")
+    return storage.path(article.image_key)
+
+
 def _set_cover(page: facebook.Page, post: Publication, storage: DirectoryStorage) -> None:
     """The reel's cover is the title scene: the first frame of the MP4 the reel holds, so it matches what was posted
     even when the title changed since. Set once the reel is live or scheduled, since Facebook may not take a cover
@@ -665,10 +732,16 @@ def run_unpublish_job(db: DbSession, job: Job) -> None:
     went_live = is_published(post)
     try:
         page = fanpages.load_page(db, post.fanpage_id)
-        status = facebook.reel_status(page, post.remote_id)
-        if status is not None:
-            went_live = went_live or (facebook.is_live(status) and not facebook.is_scheduled(status))
-            facebook.delete_reel(page, post.remote_id)
+        if post.article_id is not None:
+            status = facebook.post_status(page, post.remote_id)
+            if status is not None:
+                went_live = went_live or status["published"]
+                facebook.delete_post(page, post.remote_id)
+        else:
+            status = facebook.reel_status(page, post.remote_id)
+            if status is not None:
+                went_live = went_live or (facebook.is_live(status) and not facebook.is_scheduled(status))
+                facebook.delete_reel(page, post.remote_id)
     except FacebookError as err:
         raise JobFailure(err.message, err.detail) from None
     _close(post, went_live, job.created_by_id)
@@ -698,14 +771,16 @@ def queue_post_checks(db: DbSession) -> None:
         )
     ).all()
     for post in due:
-        # One active job per video: the check waits for the next round.
-        if active_job(db, post.video_id) is not None:
+        # One active job per video or article: the check waits for the next round.
+        busy = articles.active_job(db, post.article_id) if post.article_id else active_job(db, post.video_id)
+        if busy is not None:
             continue
         try:
             with db.begin_nested():
                 db.add(
                     Job(
                         video_id=post.video_id,
+                        article_id=post.article_id,
                         kind="check",
                         status="queued",
                         created_by_id=post.created_by_id,
@@ -726,7 +801,12 @@ def run_check_job(db: DbSession, job: Job) -> None:
         return
     try:
         page = fanpages.load_page(db, post.fanpage_id)
-        status = facebook.reel_status(page, post.remote_id)
+        if post.article_id is not None:
+            found = facebook.post_status(page, post.remote_id)
+            # A feed post is live or waiting for its time; there is no processing phase to wait for.
+            status = None if found is None else _as_reel_status(found)
+        else:
+            status = facebook.reel_status(page, post.remote_id)
     except FacebookError as err:
         raise JobFailure(err.message, err.detail) from None
     post.checked_at = now()
@@ -740,6 +820,15 @@ def run_check_job(db: DbSession, job: Job) -> None:
         _close(post, is_published(post), None)
     db.commit()
     log.info("Job %s found reel %s %s on Facebook", job.id, post.remote_id, post.status)
+
+
+def _as_reel_status(found: dict) -> dict:
+    """A feed post's status in the reel's shape, so the check reads both alike."""
+    moment = found["scheduled_at"]
+    phase = {"publish_status": "published" if found["published"] else "scheduled"}
+    if moment is not None:
+        phase["publish_time"] = moment.timestamp()
+    return {"publishing_phase": phase}
 
 
 def _finish_reel(db: DbSession, page: facebook.Page, video: Video, post: Publication) -> None:

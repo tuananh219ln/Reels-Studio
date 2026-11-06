@@ -257,4 +257,6 @@ Publishing practice:
 - **Posting windows:** 11–12h or 19–21h.
 - **Hashtags:** 3–5 per post.
 - **Metrics:** recorded 48 hours after posting.
-- **KPIs:** share/view ratio ≥ 0.2% and median views.
+- **KPIs:** share/view ratio ≥ 0.2% and median views. For an article ("Bài viết"), which has no views: share/reach
+  ≥ 0.2%, read only from a reach of 50 (under that one share is several percent), and its Page's median reach of
+  articles; comments are the main signal while reach is small.

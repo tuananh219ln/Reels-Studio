@@ -21,6 +21,7 @@ import PageHeader from "@/components/PageHeader";
 import FilterSelect from "@/components/FilterSelect";
 import FormDrawer from "@/components/FormDrawer";
 import StatusText from "@/components/StatusText";
+import { ARTICLE_STATUS_TONES, numbersLine } from "@/components/article/ArticlePosting";
 import { usePolling } from "@/lib/polling";
 
 const REFRESH_MS = 10_000;
@@ -174,11 +175,47 @@ export default function ArticlesPage() {
       key: "status",
       width: 140,
       render: (_, row) =>
-        row.busy ? (
+        row.job?.status === "queued" || row.job?.status === "running" ? (
           <StatusText tone="active">AI đang viết…</StatusText>
         ) : (
-          <StatusText tone="idle">{row.status_label}</StatusText>
+          <StatusText tone={ARTICLE_STATUS_TONES[row.status]}>{row.status_label}</StatusText>
         ),
+    },
+    {
+      title: "Page",
+      key: "pages",
+      width: 160,
+      render: (_, row) => {
+        const pages = [
+          ...new Set(
+            row.posts
+              .filter((post) => post.status === "published" || post.status === "scheduled")
+              .map((post) => post.fanpage),
+          ),
+        ];
+        return pages.length ? pages.join(", ") : "—";
+      },
+    },
+    {
+      title: "Số 48h",
+      key: "numbers",
+      width: 260,
+      render: (_, row) => {
+        const post = row.posts.find((item) => item.numbers.at_48h);
+        if (!post) {
+          return row.posts.some((item) => item.status === "published") ? (
+            <Typography.Text type="secondary">chưa đo 48h</Typography.Text>
+          ) : (
+            "—"
+          );
+        }
+        const { at_48h: mark, analysis } = post.numbers;
+        return (
+          <Typography.Text strong={analysis.standout} style={{ fontSize: 13 }}>
+            {numbersLine(mark!, analysis.share_rate)}
+          </Typography.Text>
+        );
+      },
     },
     { title: "Dạng bài", dataIndex: "kind_label", width: 170 },
     { title: "Nhóm chủ đề", dataIndex: "group_name", width: 160, render: (value) => value ?? "—" },
@@ -232,7 +269,7 @@ export default function ArticlesPage() {
             columns={columns}
             dataSource={rows}
             pagination={false}
-            scroll={{ x: 800 }}
+            scroll={{ x: 1200 }}
             locale={{ emptyText: <Empty description="Chưa có bài viết nào" /> }}
           />
         )}
