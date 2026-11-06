@@ -77,6 +77,10 @@ def _error(status: int, body: str) -> TtsError:
     detail = f"HTTP {status}: {body}"
     if "quota" in body.lower() or status == 402:
         return TtsError("Tài khoản ElevenLabs đã hết hạn mức, cần nạp thêm để tách lời thoại", detail)
+    if status == 401 and ("missing_permissions" in body or "speech_to_text" in body):
+        return TtsError(
+            "Key ElevenLabs chưa bật quyền Speech to Text: bật quyền này cho key ở trang ElevenLabs", detail
+        )
     if status == 401:
         return TtsError("Key ElevenLabs không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
     if status == 429:

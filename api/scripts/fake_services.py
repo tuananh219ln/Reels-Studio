@@ -213,7 +213,8 @@ class FakeServices:
         # How many images each LLM request carried, in step with claude_prompts ("Từ video mẫu" sends stills).
         self.claude_image_counts: list[int] = []
         # ElevenLabs Speech-to-Text: what it says it heard, and the files it was sent.
-        self.stt_mode = "ok"  # ok | quota
+        # ok | quota | no_permission (a key made without the speech_to_text permission, as ElevenLabs answers it)
+        self.stt_mode = "ok"
         self.stt_words: list[dict] = [
             {"text": "Ba", "start": 0.2, "end": 0.4, "type": "word"},
             {"text": "món", "start": 0.4, "end": 0.6, "type": "word"},
@@ -853,6 +854,16 @@ class FakeServices:
             return 401, {"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}
         if self.stt_mode == "quota":
             return 401, {"detail": {"status": "quota_exceeded", "message": "This request exceeds your quota"}}
+        if self.stt_mode == "no_permission":
+            return 401, {
+                "detail": {
+                    "type": "authentication_error",
+                    "code": "unauthorized",
+                    "message": "The API key you used is missing the permission speech_to_text to execute this "
+                    "operation.",
+                    "status": "missing_permissions",
+                }
+            }
         text = " ".join(word["text"] for word in self.stt_words)
         return 200, {"language_code": "vie", "language_probability": 0.97, "text": text, "words": self.stt_words}
 

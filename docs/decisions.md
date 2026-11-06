@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — "Từ video mẫu" learns from the stills when ElevenLabs will not write the words down
+
+Found by a member (namtc): every "Từ video mẫu" failed, pasted link or upload, with "Key ElevenLabs không hợp lệ",
+because the team's ElevenLabs key was made without the `speech_to_text` permission (it narrates fine). The words of a
+sample were always optional (2026-11-05: "A silent sample, or no ElevenLabs key, works from the stills alone"), so a
+refusal now counts as no key: a key missing the permission, no quota left or an outage leaves the words empty, is
+logged, and the job goes on from the stills. A key missing the permission is named as such in the log. To have the
+words back, turn on Speech to Text for the key on ElevenLabs.
+
 ## 2026-11-07 — An article's AI writes its own doctor reminder; articles get a pinned comment and Shopee suggestions
 
 Asked by a member (namtc) after using "Bài viết": the fixed line "Tham khảo, không thay thế tư vấn bác sĩ." the app

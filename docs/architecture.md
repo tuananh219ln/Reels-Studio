@@ -628,7 +628,8 @@ Planned:
   downloading nothing itself. The job prepares the sample once: a link is downloaded (TikTok and
   YouTube through yt-dlp, any other link must be the video file, with the pasted-link rules and a
   100 MB, 180 s limit), up to 16 stills are taken at even steps (540 px wide JPEGs) and the sound goes
-  to ElevenLabs Speech-to-Text; no key or a silent sample just leaves the words empty. Then, by way:
+  to ElevenLabs Speech-to-Text; no key, a silent sample, or ElevenLabs refusing (a key without the `speech_to_text`
+  permission, no quota left, an outage) just leaves the words empty and the job learns from the stills. Then, by way:
   `quick` makes one LLM call with the stills as images that writes the analysis and the script;
   `twostep` analyses first (with the stills; the analysis also describes each still) and writes from
   the analysis without images; `review` analyses and stops, and the member's "Viết kịch bản" (the

@@ -145,7 +145,8 @@ def _frames(storage: DirectoryStorage, reference: VideoReference, path: Path, sa
 
 
 def _transcript(db: DbSession, path: Path, sample: clips.Sample, folder: Path) -> str:
-    """What is said, or "" when the sample is silent or no ElevenLabs key is set: the stills alone still work."""
+    """What is said, or "" when the sample is silent, no ElevenLabs key is set or ElevenLabs will not write the words
+    down: the stills alone still work."""
     if not sample.has_audio:
         return ""
     key = source_keys.get(db, "elevenlabs")
@@ -161,7 +162,10 @@ def _transcript(db: DbSession, path: Path, sample: clips.Sample, folder: Path) -
     try:
         return stt.transcribe(audio, key)
     except TtsError as err:
-        raise ReferenceError(err.message, err.detail) from None
+        # The words are optional (decisions 2026-11-05): a key without the speech_to_text permission, out of quota or
+        # an ElevenLabs outage leaves the sample to its stills, as no key does, rather than failing the whole job.
+        log.warning("The sample's words are not written down: %s %s", err.message, err.detail)
+        return ""
 
 
 def frame_lines(reference: VideoReference) -> str:
