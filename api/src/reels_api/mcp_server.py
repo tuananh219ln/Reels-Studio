@@ -159,9 +159,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             log.error("MCP operation failed")
             raise ToolError("Không xử lý được yêu cầu, hãy mở Reels Studio để kiểm tra") from None
 
-    def tool(title: str, read: bool, external: bool = False):
+    def tool(title: str, read: bool, external: bool = False, images: bool = False):
+        # A tool that answers with pictures has no structured output: FastMCP has no schema for its Image.
         return mcp.tool(
             title=title,
+            structured_output=False if images else None,
             annotations=ToolAnnotations(
                 readOnlyHint=read, destructiveHint=not read, idempotentHint=read, openWorldHint=external
             ),
@@ -388,7 +390,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         return await run_in_threadpool(invoke, operation)
 
-    @tool("Xem khung hình của cảnh", read=True)
+    @tool("Xem khung hình của cảnh", read=True, images=True)
     async def view_scene(scene_id: int) -> Image:
         """Ảnh xem trước của cảnh như khi render: ảnh hoặc khung đầu clip, với chữ của cảnh đặt đúng chỗ (chưa có
         lớp chữ/sticker, chuyển cảnh và chuyển động). Xem để kiểm tra chữ có đọc được, có che sản phẩm không."""
@@ -400,7 +402,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         return await run_in_threadpool(invoke, operation)
 
-    @tool("Xem khung hình của MP4 đã render", read=True)
+    @tool("Xem khung hình của MP4 đã render", read=True, images=True)
     async def view_render_frames(
         video_id: int,
         seconds: Annotated[list[Annotated[float, Field(ge=0, le=180)]], Field(min_length=1, max_length=8)],
