@@ -83,7 +83,8 @@ def test_the_render_job_stores_the_qc_of_the_mp4_it_made(committed, short_video)
     with committed() as db:
         result = db.get(Video, video_id).qc
     checks = by_id(result)
-    # A 2-second silent test video: too short, and silent is only a warning with narration and music off.
+    # A title and one 2-second scene, silent: shorter than the channel's 20 s, and silence is only a warning with
+    # narration and music off, so the worst check is a warning.
     assert checks["format"]["status"] == "pass"
-    assert checks["duration"]["status"] == "fail" and result["status"] == "fail"
+    assert checks["duration"]["status"] == "warn" and result["status"] == "warn"
     assert checks["loudness"]["status"] == "warn" and checks["loudness"]["detail"] == "Video không có tiếng"
