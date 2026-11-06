@@ -1024,6 +1024,33 @@ def test_the_check_closes_a_reel_facebook_will_not_publish_before_its_time(commi
     assert len(fakes.reels) == 1, "a check never deletes anything"
 
 
+def test_the_check_closes_a_live_reel_deleted_on_facebook(committed, ready, fakes):
+    """The bug: a reel deleted in Meta Business Suite answers 400 (#100), not 404, so "Kiểm tra" failed and the post
+    stayed "Đã đăng" for good."""
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    fakes.reels.clear()
+    job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    post = post_of(committed, video_id)
+    assert (post.status, post.closed_by_id) == ("deleted", None)
+
+
+def test_a_reel_the_token_cannot_read_with_its_page_is_not_taken_for_deleted(committed, ready, fakes):
+    """Facebook answers the same 400 (#100) when the token lost the Page: then nothing proves the reel is gone."""
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    fakes.reels.clear()
+    fakes.facebook_page_info_refused = True
+    job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "failed"
+    assert job.error.startswith("Không đọc được trạng thái reel")
+    assert post_of(committed, video_id).status == "published"
+    take_down = run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert take_down.status == "failed"
+    assert post_of(committed, video_id).status == "published"
+
+
 def test_a_failed_check_leaves_the_post_as_it_was(committed, ready, fakes):
     user, storage, video_id = ready
     post = scheduled_post(committed, storage, ready, -1)

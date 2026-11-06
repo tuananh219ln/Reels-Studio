@@ -505,6 +505,21 @@ def hide_comment(page: Page, comment_id: str) -> None:
         raise _comment_error(err) from None
 
 
+def _gone(page: Page, err: FacebookError) -> bool:
+    """Whether a failed read or delete of a reel means Facebook no longer has it. Facebook answers a reel it deleted
+    with a 400 (#100), the same as one this token may not read, so that answer counts only while the same token still
+    reads the Page; any failure there leaves it unknown."""
+    if err.status == 404:
+        return True
+    if err.status != 400 or err.code != 100:
+        return False
+    try:
+        page_info(page)
+    except FacebookError:
+        return False
+    return True
+
+
 def reel_status(page: Page, video_id: str) -> dict | None:
     """Facebook's status of the reel, or None when it no longer has the reel. Any other failure raises: a reel
     whose state is unknown may be live, so it must never be taken for a lost one and posted again."""
@@ -513,7 +528,7 @@ def reel_status(page: Page, video_id: str) -> dict | None:
     try:
         reply = _send(urllib.request.Request(url), REQUEST_TIMEOUT)
     except FacebookError as err:
-        if err.status == 404:
+        if _gone(page, err):
             return None
         raise FacebookError(
             f"Không đọc được trạng thái reel, hãy xem Page trước khi thử lại: {err.message}", err.detail
@@ -530,7 +545,7 @@ def delete_reel(page: Page, video_id: str) -> None:
     try:
         reply = _send(urllib.request.Request(url, method="DELETE"), REQUEST_TIMEOUT)
     except FacebookError as err:
-        if err.status == 404:
+        if _gone(page, err):
             return
         if 400 <= err.status < 500 and err.status != 429:
             raise FacebookError(
