@@ -1,10 +1,32 @@
-# ChatGPT connection
+# ChatGPT and Claude connection
 
-Members can use ChatGPT to search and read the shared video library, edit a scene's text or voice
-text, edit caption/hashtags/pinned comment, create a video with a script job, and request a render.
+Members can use ChatGPT, Claude (web, Desktop, mobile) or Claude Code to search and read the shared
+video library, edit a scene's text, voice text and clip part, edit caption/hashtags/pinned comment,
+create a video with a script job or from a script the assistant writes itself, give a scene a photo
+or clip from a link, attach approved affiliate products, and request a render.
 The API uses the official MCP Python SDK with stateless Streamable HTTP and JSON responses.
-There is no additional AI call in the MCP layer: ChatGPT calls tools, and Reels Studio's existing
+There is no additional AI call in the MCP layer: the assistant calls tools, and Reels Studio's existing
 worker performs the queued jobs with the team's configured services and their normal costs.
+
+The assistant runs on the member's own plan (ChatGPT, or a Claude Pro/Max plan): each member connects
+their own account, and nothing in Reels Studio uses a member's subscription for anyone else.
+
+## Product videos with Claude
+
+The tools give the assistant what it needs to make an affiliate product video without the team's AI
+service:
+
+1. `list_affiliate_products` finds the team's Shopee/TikTok Shop products (name, price, commission,
+   photo and links), approved ones by default.
+2. `create_video_from_script` makes a "Tự viết" video from a script the assistant writes: one scene per
+   paragraph, `Đọc:` lines as the voice text. No script job, so no cost to the team's AI service.
+3. `set_scene_media_from_link` gives a scene a TikTok clip, a video file's link or a photo's link, like
+   pasting a link on the video page (same downloads, limits and refusals of local addresses). A clip's
+   part is chosen with `update_scene`'s `video_start` and `video_speed`; `add_scene` adds a scene.
+   A member's own footage is uploaded on the video page: MCP does not carry files.
+4. `set_video_products` attaches approved products (Shopee on a Facebook video, TikTok Shop on its
+   TikTok version), whose links go in the pinned comment.
+5. `render_video` queues the render; narration may use ElevenLabs.
 
 ## Enable and connect
 
@@ -13,10 +35,16 @@ worker performs the queued jobs with the team's configured services and their no
    The origin must already be in `ALLOWED_ORIGINS`. Leave the variable empty to disable MCP.
    Use the public **web** domain, not the backend domain: browser login, consent and MCP discovery
    use the same origin. HTTPS is required except on localhost/127.0.0.1 for development.
-3. Sign in to Reels Studio and open **Cài đặt → Kết nối ChatGPT** (`/chatgpt`). Copy the server URL.
-4. In ChatGPT's apps/plugins settings, add a custom MCP server with that URL and choose **OAuth**.
-   The workspace owner may need to allow custom connections. This server supports dynamic client
-   registration (DCR), public clients and S256 PKCE; it does not support CIMD or a client secret.
+3. Sign in to Reels Studio and open **Cài đặt → Kết nối ChatGPT / Claude** (`/chatgpt`). Copy the
+   server URL.
+4. Add it to the assistant:
+   - **ChatGPT:** in the apps/plugins settings, add a custom MCP server with that URL and choose
+     **OAuth**. The workspace owner may need to allow custom connections.
+   - **Claude (web, Desktop):** Settings › Connectors › add a custom connector with that URL.
+   - **Claude Code:** `claude mcp add --transport http reels-studio <URL>`, then `/mcp` to sign in.
+
+   This server supports dynamic client registration (DCR), public clients and S256 PKCE; it does not
+   support CIMD or a client secret, so Claude falls back to DCR.
 5. Connect and sign in to Reels Studio if asked. The login opens in another tab; return to the
    authorization tab and choose **Tôi đã đăng nhập, tiếp tục**. Complete any required password
    change before proceeding. The consent screen identifies your account and the requested access.
@@ -27,9 +55,17 @@ worker performs the queued jobs with the team's configured services and their no
 ChatGPT UI labels and account availability may vary. The setup follows OpenAI's
 [custom MCP connection](https://developers.openai.com/api/docs/guides/custom-mcp-server) and
 [authentication](https://developers.openai.com/plugins/build/auth) documentation. Issuer
-identification is enabled, so the only allowed redirect URI is
-`https://chatgpt.com/connector_platform_oauth_redirect`. If ChatGPT displays another URI, do not
-broaden the allowlist blindly: check its callback mode against that documentation first.
+identification is enabled, so ChatGPT's redirect URI is
+`https://chatgpt.com/connector_platform_oauth_redirect`. Claude's follow Anthropic's
+[connector authentication](https://claude.com/docs/connectors/building/authentication) page:
+`https://claude.ai/api/mcp/auth_callback` for the hosted apps (and `https://claude.com/...`, where it
+may move), and for Claude Code a loopback `http://localhost:<port>/callback` or
+`http://127.0.0.1:<port>/callback` whose port changes every session. A client may register up to
+four of these and nothing else. A loopback callback matches its registered host and path on any
+port; each grant keeps the exact callback it was asked for (`mcp_authorizations.redirect_uri`,
+migration 0047) and the code exchange must name that one. The consent screen names the app and the
+callback's host, and warns for a loopback one, as the MCP specification asks. If an app displays
+another URI, do not broaden the allowlist blindly: check its documentation first.
 
 ## Example requests
 
@@ -38,6 +74,10 @@ broaden the allowlist blindly: check its callback mode against that documentatio
 - “Lưu câu thứ hai vào cảnh tiêu đề của video 12.”
 - “Sửa lời đọc cảnh 45 thành: Ăn đa dạng giúp bổ sung nhiều chất dinh dưỡng.”
 - “Tạo video về rau xanh trong nhóm chủ đề Sức khỏe bằng dịch vụ AI đã cấu hình.”
+- “Tìm sản phẩm nồi chiên đã duyệt, viết kịch bản 5 cảnh (hook, lợi ích, giá, kêu gọi mua) và tạo
+  video tự viết trong nhóm Gia dụng.”
+- “Gắn clip TikTok này cho cảnh 2, bắt đầu từ giây 4: https://www.tiktok.com/@shop/video/…”
+- “Gắn sản phẩm đó vào video rồi render.”
 - “Render video 12; tôi đồng ý dùng giọng đọc ElevenLabs nếu còn thiếu.”
 - “Kiểm tra video 12 đã render xong chưa.”
 
@@ -49,7 +89,8 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
 
 ## Authorization and revocation
 
-- `reels:read` reads video content/status and topic-group names. `reels:write` additionally permits
+- `reels:read` reads video content/status, topic-group names and the affiliate product list (no
+  member's affiliate account or key). `reels:write` additionally permits
   the explicit write tools. Both use the member's identity; the library is shared by the team.
 - Consent is explicit, protected by the existing Origin guard and a short-lived ticket bound to
   the member's current browser session. The web page rejects framing (CSP/X-Frame-Options). A denied/used ticket cannot be reused. Authorization
@@ -58,7 +99,7 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
   the original grant. Refreshing does not extend the connection or its underlying login session.
 - All tickets/codes/access/refresh tokens are stored only as SHA-256 hashes. The resource URL is
   bound to the authorization and connection; changing the configured URL requires reconnecting.
-- **Cài đặt → Kết nối ChatGPT → Thu hồi kết nối** revokes one of your connections. Other members
+- **Cài đặt → Kết nối ChatGPT / Claude → Thu hồi kết nối** revokes one of your connections. Other members
   cannot list or revoke it. Signing out of its originating browser session, signing out every
   device, disabling the user, or forcing a password change also prevents further access. A job
   already accepted into the queue remains there; revocation does not interrupt a running job.

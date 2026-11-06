@@ -20,8 +20,14 @@ from .sessions import now
 SCOPES = {"reels:read", "reels:write"}
 ACCESS_LIFETIME = timedelta(hours=1)
 CONNECTION_LIFETIME = timedelta(days=30)
-# Issuer identification makes this the stable ChatGPT callback. No arbitrary redirect hosts or fetches.
-CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
+# The callbacks of the AI apps a member may connect; no arbitrary redirect hosts or fetches. Issuer identification
+# makes ChatGPT's stable. Claude's hosted apps (web, Desktop, mobile) share one, which may move to claude.com.
+CHATGPT_CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
+CLAUDE_CALLBACKS = ("https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback")
+HOSTED_CALLBACKS = frozenset({CHATGPT_CALLBACK, *CLAUDE_CALLBACKS})
+# Claude Code is a native client: an RFC 8252 loopback redirect on a port that changes every session.
+LOOPBACK = re.compile(r"http://(localhost|127\.0\.0\.1)(?::(\d{1,5}))?/callback")
+MAX_REDIRECTS = 4
 SERVER_POST_PATHS = frozenset({"/api/mcp", "/api/mcp/oauth/register", "/api/mcp/oauth/token", "/api/mcp/oauth/revoke"})
 
 
@@ -48,8 +54,44 @@ def public_url() -> str:
 def require_enabled() -> str:
     url = public_url()
     if not url:
-        raise ApiError(404, "mcp_disabled", "Chưa bật kết nối ChatGPT")
+        raise ApiError(404, "mcp_disabled", "Chưa bật kết nối ChatGPT / Claude")
     return url
+
+
+def _loopback(uri: str) -> tuple[str, str] | None:
+    """(host, port) of a loopback callback, or None."""
+    found = LOOPBACK.fullmatch(uri)
+    if found is None or (found.group(2) and not 0 < int(found.group(2)) < 65536):
+        return None
+    return found.group(1), found.group(2) or ""
+
+
+def allowed_redirect(uri: str) -> bool:
+    return uri in HOSTED_CALLBACKS or _loopback(uri) is not None
+
+
+def registered(redirects: str) -> list[str]:
+    """The callbacks a client registered, stored space-separated (a URI holds no space)."""
+    return redirects.split()
+
+
+def redirect_matches(redirects: str, uri: str) -> bool:
+    """`uri` is one the client registered; a loopback one matches whatever its port (RFC 8252 section 7.3)."""
+    if uri in registered(redirects):
+        return True
+    asked = _loopback(uri)
+    return asked is not None and any(
+        (known := _loopback(one)) is not None and known[0] == asked[0] for one in registered(redirects)
+    )
+
+
+def app_of(redirect: str) -> str:
+    """Which app a callback belongs to, named on the consent page and in the member's connections."""
+    if redirect == CHATGPT_CALLBACK:
+        return "ChatGPT"
+    if redirect in CLAUDE_CALLBACKS:
+        return "Claude"
+    return "Claude Code"
 
 
 class OAuthError(ApiError):

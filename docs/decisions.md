@@ -11,6 +11,33 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — Claude connects through the MCP server on each member's own plan, and makes product videos there
+
+Asked by a member (tuananh219ln), after reading AIEV (github.com/notivn/AIEVv2): edit and make affiliate product
+videos for Shopee and TikTok with a Claude subscription. AIEV runs Claude Code headless (Claude Agent SDK) on the
+user's own machine with their subscription. Doing that in the worker would put one member's Pro/Max plan behind
+a server the whole team uses, which Anthropic's terms do not allow for a third party's product and which shares
+an account; it would also add Node and the Agent SDK to the worker. Chosen instead:
+
+- **Claude calls Reels Studio, not the reverse.** The existing private MCP server ("ChatGPT connection",
+  `docs/chatgpt.md`) now also accepts Claude's hosted apps (`https://claude.ai/api/mcp/auth_callback`, and the
+  `claude.com` one it may move to) and Claude Code's loopback callback on any port. Each member connects their own
+  Claude account; the server never holds a subscription. The OAuth rules stay (DCR, public clients, S256 PKCE,
+  hashed tokens, 30 days); a grant now keeps the callback it was asked for (migration 0047) because Claude Code's
+  port changes every session, and the consent screen names the app and the callback's host.
+- **Product videos with no cost to the team's AI service:** Claude writes the script itself and makes a
+  "Tự viết" video (`create_video_from_script`), reads the team's affiliate products, gives scenes a TikTok clip
+  or a photo from a link through the same download as pasting it on the video page, picks the clip's part,
+  attaches approved products and queues the render. Narration and render keep their usual services and costs.
+- **Sources as agreed:** TikTok clips and a member's own footage (uploaded on the video page: MCP carries no
+  files) as today. Photos found on Google are picked and pasted by a member; the app never searches or downloads
+  from Google by itself, like "Shopee through its API, never by scraping" (2026-11-03). Removing a photo's
+  background ("Tách nền") is a separate, later change.
+- **The render stays FFmpeg.** "Rendering is a native FFmpeg filter graph; no MoviePy, no Remotion" (2026-10-31)
+  and "the render core stays FFmpeg" (2026-11-05) are unchanged: Remotion still needs a paid licence for this
+  team. Scenes animated with HyperFrames (Apache-2.0, HTML + GSAP rendered to a clip that FFmpeg then places)
+  were asked for and are proposed in an issue for the owner (namtc07) to decide; nothing here depends on them.
+
 ## 2026-11-06 — Articles are posted as `publications` and measured by reach at 48 hours
 
 Parts 2 and 3 of docs/specs/bai-viet/brief.md, asked by a member (namtc), on the branch of the entry below.

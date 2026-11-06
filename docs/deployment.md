@@ -96,7 +96,7 @@ when set to an empty string. Containers use real environment variables only.
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
-| `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
+| `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
 | `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
 | `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |

@@ -14,13 +14,15 @@ bản", "Render", "Tải MP4", "Thử lại", "Nhân bản".
 **Errors:** every refusal and failed job shows a plain Vietnamese reason where it happened (at the
 field, the scene, or the job banner); technical detail sits in a collapsed "Chi tiết lỗi".
 
-## ChatGPT connection
+## ChatGPT and Claude connection
 
-Cài đặt › Kết nối ChatGPT (`/chatgpt`) shows the copyable server URL and the current member's
-connections, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
-opens the same page with a consent card naming the member and explaining read/write access,
+Cài đặt › Kết nối ChatGPT / Claude (`/chatgpt`) shows the copyable server URL, how to add it in
+ChatGPT, Claude and Claude Code (with the copyable `claude mcp add` command), and the current
+member's connections, each named by its app, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
+opens the same page with a consent card titled “Cho phép <app> kết nối?”, naming the member and the
+callback's host (with a warning for Claude Code's loopback callback), explaining read/write access,
 possible script/narration costs and expiry. “Cho phép kết nối” and “Từ chối” submit to the API
-and return to ChatGPT. No credentials are displayed. Missing configuration or expired consent
+and return to the app. No credentials are displayed. Missing configuration or expired consent
 shows the API's Vietnamese message; the page uses the existing Ant Design theme and PageHeader.
 
 ## App Look
