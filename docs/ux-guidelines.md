@@ -466,6 +466,14 @@ Built:
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
 - **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày, ngày N" (or "Backlog")
   with its pain group, pain and hook under the title.
+- **Kho tư liệu** (`/media`): "Thêm tư liệu" picks the product being made (approved affiliate products), which names
+  the folder and the searches; a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
+  uploading one by one with a progress bar; under it the name with "Ảnh không nền", "Ảnh Google" and "Clip TikTok",
+  which open the search in a new tab, and a box where pasting a link adds it at once ("Thêm vào kho" for typed
+  links). The library below filters by folder, Ảnh/Clip and name, as tall cards (a clip with its seconds) with "Xoá"
+  (videos that used it keep their copy). On a scene card, "Kho tư liệu" opens the same search and library in a
+  dialog, on the folder of the product attached to the video (else its topic); "Dùng" copies an item into the scene,
+  asking first when it replaces a picture.
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that

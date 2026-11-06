@@ -11,6 +11,12 @@ export function googleImagesUrl(keyword: string): string {
   return `https://www.google.com/search?${params.toString()}`;
 }
 
+/** Google Ảnh for the keyword, transparent photos only: a product without its background, to place over a clip. */
+export function googleTransparentUrl(keyword: string): string {
+  const params = new URLSearchParams({ q: keyword, udm: "2", tbs: "ic:trans" });
+  return `https://www.google.com/search?${params.toString()}`;
+}
+
 /** TikTok's video search for the keyword; its videos are tall already. */
 export function tiktokSearchUrl(keyword: string): string {
   return `https://www.tiktok.com/search/video?${new URLSearchParams({ q: keyword }).toString()}`;

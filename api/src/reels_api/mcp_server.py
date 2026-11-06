@@ -27,6 +27,7 @@ from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 from . import clips, motion
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
+from . import routes_media as media_routes
 from . import routes_music as music_routes
 from . import routes_sounds as sound_routes
 from . import routes_videos as videos
@@ -570,6 +571,72 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             return video_link(payload)
 
         return await run_in_threadpool(invoke, operation, write=True)
+
+    # --- The team's "Kho tư liệu": folders of photos and clips members uploaded, and links downloaded into it ---
+
+    @tool("Tìm trong kho tư liệu", read=True)
+    async def list_media(
+        folder: Annotated[str, Field(max_length=200)] = "",
+        kind: Literal["photo", "clip"] | None = None,
+        query: Annotated[str, Field(max_length=200)] = "",
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=100)] = 40,
+    ) -> dict:
+        """Ảnh và clip trong kho tư liệu của nhóm (mới nhất trước), lọc theo thư mục (gồm thư mục con), loại hoặc
+        chữ trong tên; kèm danh sách thư mục. Người dùng kéo cả folder clip tự quay, ảnh sản phẩm vào kho trên web.
+        Xem hình bằng "Xem tư liệu" trước khi chọn cho cảnh."""
+
+        def operation(db, me):
+            found = media_routes.list_media(folder or None, kind, query or None, me, db)
+            keep = ("id", "kind", "name", "folder", "seconds", "source_url")
+            items = [{key: item[key] for key in keep} for item in found["items"]]
+            return {"items": items[offset : offset + limit], "total": len(items), "folders": found["folders"]}
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Xem tư liệu", read=True, images=True)
+    async def view_media(media_ids: Annotated[list[int], Field(min_length=1, max_length=8)]) -> list:
+        """Hình của tối đa 8 tư liệu (ảnh, hoặc khung hình giây 1 của clip), theo thứ tự id đưa vào, để chọn đúng
+        sản phẩm, rõ nét, hợp khung dọc cho từng cảnh."""
+
+        def operation(db, me):
+            from .models import MediaItem
+
+            shown = []
+            for media_id in media_ids:
+                item = db.get(MediaItem, media_id)
+                if item is None:
+                    raise ApiError(404, "media_not_found", f"Không tìm thấy tư liệu {media_id}")
+                try:
+                    frame = media_routes.thumb_image(get_storage(), item, width=540)
+                except (OSError, clips.ClipError):
+                    raise ApiError(404, "file_not_found", f"Không lấy được hình của tư liệu {media_id}") from None
+                shown += [f"#{item.id} {item.kind} “{item.name}” ({item.folder or 'không thư mục'})", _jpeg(frame)]
+            return shown
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Thêm vào kho từ link", read=False, external=True)
+    async def add_media_from_links(
+        urls: Annotated[list[Annotated[str, Field(max_length=2000)]], Field(min_length=1, max_length=10)],
+        folder: Annotated[str, Field(max_length=200)] = "",
+    ) -> dict:
+        """Tải về kho các link người dùng đưa hoặc đồng ý: link ảnh (Google Ảnh, ảnh sản phẩm, ảnh nền trong suốt),
+        link video TikTok hoặc file video; clip dài hơn 1 phút giữ phút đầu. Link lỗi được báo riêng, link khác vẫn
+        vào kho. Người đưa link chịu trách nhiệm bản quyền."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: media_routes.add_links(db, get_storage(), me, urls, folder), write=True
+        )
+
+    @tool("Gắn tư liệu vào cảnh", read=False)
+    async def set_scene_media_from_library(scene_id: int, media_id: int) -> dict:
+        """Dùng một ảnh hoặc clip trong kho làm hình của cảnh (bản sao riêng; thay ảnh/clip đang có). Clip thì chọn
+        đoạn bằng video_start trong "Sửa cảnh"."""
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: video_link(media_routes.use_in_scene(db, get_storage(), media_id, scene_id)),
+            write=True,
+        )
 
     @tool("Yêu cầu render", read=False, external=True)
     async def render_video(video_id: int) -> dict:

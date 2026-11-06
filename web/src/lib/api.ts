@@ -91,6 +91,25 @@ export type VideoRowPost = {
   times_median: number | null;
 };
 
+/** A photo or clip in the team's "Kho tư liệu" (api routes_media.py). */
+export type MediaItem = {
+  id: number;
+  kind: "photo" | "clip";
+  name: string;
+  folder: string;
+  source_url: string | null;
+  seconds: number | null;
+  file_url: string;
+  thumb_url: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type MediaList = { items: MediaItem[]; folders: { folder: string; count: number }[] };
+
+/** What pasting links into the library did: the items added, and each link that failed with why. */
+export type MediaLinksResult = { added: MediaItem[]; failed: { url: string; error: string }[] };
+
 /** The automatic QC of a rendered MP4 (api qc.py). */
 export type QcResult = {
   status: "pass" | "warn" | "fail";

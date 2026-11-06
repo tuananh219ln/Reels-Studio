@@ -720,6 +720,27 @@ class Article(Base):
     source_comment: Mapped[PageComment | None] = relationship()
 
 
+class MediaItem(Base):
+    """A photo or clip in the team's "Kho tư liệu" (routes_media.py): uploaded, a whole folder at a time, or downloaded
+    from a pasted link (a photo from Google Ảnh, a TikTok video). Using it in a scene copies the file, like "Đã dùng
+    trong nhóm", so deleting it never changes a video."""
+
+    __tablename__ = "media_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    kind: Mapped[str] = mapped_column(String(8))  # photo | clip
+    storage_key: Mapped[str] = mapped_column(String(200))
+    name: Mapped[str] = mapped_column(String(200))
+    # The folder it was dragged in with ("noi-chien-5L/canh-quay"), or one a member typed; "" for none.
+    folder: Mapped[str] = mapped_column(String(200), default="", server_default="", index=True)
+    source_url: Mapped[str | None] = mapped_column(Text)  # the link it came from, kept for a copyright claim
+    seconds: Mapped[float | None] = mapped_column(Float)  # a clip's length
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    created_by: Mapped[User] = relationship()
+
+
 class MusicTrack(Base):
     """A track in the team library. Choosing it for a video copies the file into the video's folder, so editing
     or deleting the track never changes a video."""

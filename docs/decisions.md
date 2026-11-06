@@ -11,6 +11,20 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — "Kho tư liệu": the team's photos and clips by folder and from pasted links; Remotion stays out
+
+Asked by tuananh219ln: inputs from a folder, combined with Google photos and TikTok clips, where the Google and TikTok
+buttons open a search for the product being made and pasting the link back brings the photo or clip in. The library
+is the team's (`media_items`, migration 0050), uploaded one file per request with its folder, links downloaded with
+the rules of a link pasted on a scene; using an item copies it into the scene, as "Đã dùng trong nhóm" does
+(2026-11-05). The app still never searches Google or downloads from it by itself ("Shopee through its API, never by
+scraping", 2026-11-03): the buttons only open the member's browser on the search, and the member picks and pastes.
+The assistant chooses by looking at items (`view_media`), for the quality bar of the entries below.
+
+Remotion was asked for again, for personal use; the member agreed to drop it unless it does more than HyperFrames and
+FFmpeg, and here it does not: HyperFrames makes the motion graphics and FFmpeg cuts, joins and exports. "No Remotion"
+(2026-10-31) stands.
+
 ## 2026-11-07 — Every render gets automatic QC against the platforms' delivery specs
 
 Asked by tuananh219ln for a high bar on the finished video, after AIEV's QC (`qc.ts`): the render job measures the
