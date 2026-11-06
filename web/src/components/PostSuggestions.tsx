@@ -1,7 +1,7 @@
 "use client";
 
-import { CopyOutlined, SendOutlined } from "@ant-design/icons";
-import { Button, Card, Col, Flex, Row, Typography } from "antd";
+import { CopyOutlined, DownOutlined, SendOutlined } from "@ant-design/icons";
+import { Button, Card, Col, Dropdown, Flex, Row, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, formatDateTime, type Fanpage, type PostRow, type VideoRow } from "@/lib/api";
@@ -57,11 +57,28 @@ export function doingWell(videos: VideoRow[], posts: PostRow[]): Winner[] {
   return winners.sort((a, b) => b.views - a.views);
 }
 
-/** Three short lists above "Bài đăng": what is made and waiting to go out, and what did well on Facebook and could be
- * made again, as a TikTok version or as a variant for another of the team's Pages. Never the same MP4 on a second
- * Page: Facebook shows a copy less and can stop paying a Page that repeats content (docs/specs/multi-platform/plan.md).
- * `posts` (every post) changes when the list is reloaded, so the videos and Pages are read again with it. A failure
- * leaves the lists out: the table below still works. */
+type CloneOption = { key: string; label: string; href: string };
+
+/** What a winner can still be cloned into: a TikTok version when it has none, a variant for another Page when it has no
+ * Facebook clone yet and is missing from a working Page (`missing`). Empty when it already has both. */
+export function cloneOptions(winner: Winner, working: string[]): { options: CloneOption[]; missing: string[] } {
+  const { video } = winner;
+  const options: CloneOption[] = [];
+  if (!video.has_tiktok_version) {
+    options.push({ key: "tiktok", label: "Bản TikTok", href: `/videos/${video.id}?clone=tiktok` });
+  }
+  const missing = video.cloned ? [] : working.filter((name) => !winner.on.has(name));
+  if (missing.length > 0) {
+    options.push({ key: "page", label: "Bản cho Page khác", href: `/videos/${video.id}?clone=page` });
+  }
+  return { options, missing };
+}
+
+/** Two short lists above "Bài đăng": what is made and waiting to go out, and what did well on Facebook and could be
+ * made again, as a TikTok version or as a variant for another of the team's Pages (one list, the button picks which).
+ * Never the same MP4 on a second Page: Facebook shows a copy less and can stop paying a Page that repeats content
+ * (docs/specs/multi-platform/plan.md). `posts` (every post) changes when the list is reloaded, so the videos and Pages
+ * are read again with it. A failure leaves the lists out: the table below still works. */
 export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) {
   const [videos, setVideos] = useState<VideoRow[] | null>(null);
   const [pages, setPages] = useState<Fanpage[] | null>(null);
@@ -79,15 +96,13 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
   const ready = readyToPost(videos, posts);
   const winners = doingWell(videos, posts);
   const working = pages.filter((page) => page.active && !page.check.error).map((page) => page.name);
-  const forTikTok = winners.filter((winner) => !winner.video.has_tiktok_version);
-  const forPages = winners
-    .filter((winner) => !winner.video.cloned)
-    .map((winner) => ({ ...winner, missing: working.filter((name) => !winner.on.has(name)) }))
-    .filter((winner) => winner.missing.length > 0);
+  const toClone = winners
+    .map((winner) => ({ winner, ...cloneOptions(winner, working) }))
+    .filter(({ options }) => options.length > 0);
 
   return (
     <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
-      <Col xs={24} lg={8} style={{ display: "flex" }}>
+      <Col xs={24} lg={12} style={{ display: "flex" }}>
         <SuggestionCard
           testId="ready-to-post"
           title="Sẵn sàng đăng"
@@ -102,35 +117,26 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
           }))}
         />
       </Col>
-      <Col xs={24} lg={8} style={{ display: "flex" }}>
+      <Col xs={24} lg={12} style={{ display: "flex" }}>
         <SuggestionCard
-          testId="make-tiktok"
-          title="Nên làm bản TikTok"
-          help="Video chạy tốt trên Facebook (từ mức view phổ biến của Page trở lên) mà chưa có bản TikTok."
-          empty="Chưa có video nào cần làm bản TikTok."
-          items={forTikTok.map((winner) => ({
+          testId="clone-suggestions"
+          title="Nhân bản"
+          help="Video chạy tốt trên Facebook (từ mức view phổ biến của Page trở lên): AI viết một bản mới cho TikTok hoặc cho Page khác chưa có, không đăng lại cùng file."
+          empty={
+            working.length < 2
+              ? "Chưa có video nào cần nhân bản. Bản cho Page khác cần ít nhất 2 Fanpage đang dùng."
+              : "Chưa có video nào cần nhân bản."
+          }
+          items={toClone.map(({ winner, options, missing }) => ({
             key: String(winner.video.id),
             video: winner.video,
-            sub: `${formatCount(winner.views)} view trên ${winner.from}`,
-            href: `/videos/${winner.video.id}?clone=tiktok`,
-            action: "Tạo bản TikTok",
-            icon: <CopyOutlined />,
-          }))}
-        />
-      </Col>
-      <Col xs={24} lg={8} style={{ display: "flex" }}>
-        <SuggestionCard
-          testId="clone-for-pages"
-          title="Nhân bản cho Page khác"
-          help="Video chạy tốt trên một Page mà Page khác chưa có: AI viết một bản khác cho Page đó, không đăng lại cùng file."
-          empty={working.length < 2 ? "Cần ít nhất 2 Fanpage đang dùng để có gợi ý." : "Chưa có video nào để nhân bản."}
-          items={forPages.map((winner) => ({
-            key: String(winner.video.id),
-            video: winner.video,
-            sub: `${formatCount(winner.views)} view trên ${winner.from}, chưa có trên ${winner.missing.join(", ")}`,
-            href: `/videos/${winner.video.id}?clone=page`,
+            sub: [
+              `${formatCount(winner.views)} view trên ${winner.from}`,
+              ...(winner.video.has_tiktok_version ? [] : ["chưa có bản TikTok"]),
+              ...(missing.length > 0 ? [`chưa có trên ${missing.join(", ")}`] : []),
+            ].join(", "),
             action: "Nhân bản",
-            icon: <CopyOutlined />,
+            options,
           }))}
         />
       </Col>
@@ -142,10 +148,40 @@ type Suggestion = {
   key: string;
   video: VideoRow;
   sub: string;
-  href: string;
   action: string;
-  icon?: React.ReactNode;
-};
+} & ({ href: string; options?: never } | { href?: never; options: CloneOption[] });
+
+/** The row's button: a link, or a menu of what to make when there is a choice (`options`). */
+function SuggestionAction({ item }: { item: Suggestion }) {
+  if (item.options) {
+    return (
+      <Dropdown
+        trigger={["click"]}
+        menu={{
+          items: item.options.map((option) => ({
+            key: option.key,
+            label: (
+              <Link prefetch={false} href={option.href}>
+                {option.label}
+              </Link>
+            ),
+          })),
+        }}
+      >
+        <Button size="small" icon={<CopyOutlined />}>
+          {item.action} <DownOutlined />
+        </Button>
+      </Dropdown>
+    );
+  }
+  return (
+    <Link prefetch={false} href={item.href}>
+      <Button size="small" icon={<SendOutlined />} title={item.action} style={{ maxWidth: 240 }}>
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.action}</span>
+      </Button>
+    </Link>
+  );
+}
 
 function SuggestionCard({
   testId,
@@ -196,11 +232,7 @@ function SuggestionCard({
                   maxWidth={360}
                 />
               </div>
-              <Link prefetch={false} href={item.href}>
-                <Button size="small" icon={item.icon ?? <SendOutlined />} title={item.action} style={{ maxWidth: 240 }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.action}</span>
-                </Button>
-              </Link>
+              <SuggestionAction item={item} />
             </Flex>
           ))}
           {items.length > SHORT && (
