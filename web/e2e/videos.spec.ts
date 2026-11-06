@@ -1026,8 +1026,10 @@ test("a rendered video waits in Sẵn sàng đăng until its Đăng there posts 
   const ready = page.getByTestId("ready-to-post");
   await expect(ready.getByTestId("suggestion")).toHaveCount(1);
   await expect(ready).toContainText("Sẵn sàng đăng (1)");
-  // One Page only: no other Page to make a variant for, and the card says why.
-  await expect(page.getByTestId("clone-for-pages")).toContainText("Cần ít nhất 2 Fanpage đang dùng để có gợi ý.");
+  // Nothing did well yet, and with one Page only there is no other Page to make a variant for: the card says both.
+  await expect(page.getByTestId("clone-suggestions")).toContainText(
+    "Chưa có video nào cần nhân bản. Bản cho Page khác cần ít nhất 2 Fanpage đang dùng.",
+  );
 
   // "Đăng" opens the video with its dialog open and the only Page picked; the address drops the request.
   await ready.getByRole("link", { name: "Đăng" }).click();
