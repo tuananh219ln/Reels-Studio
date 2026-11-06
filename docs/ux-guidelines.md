@@ -342,6 +342,8 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
+  - a "Cảnh động" shows its status under the picture: "Đang dựng cảnh động" while its job runs, then
+    "Cảnh động · N giây". It is changed through the assistant; another photo or clip replaces it as usual;
   - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture
     with "Giữ ảnh này"; keeping it, or changing the photo any other way, removes it. It never
     blocks the render;

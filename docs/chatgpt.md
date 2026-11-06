@@ -26,7 +26,11 @@ service:
    A member's own footage is uploaded on the video page: MCP does not carry files.
 4. `set_video_products` attaches approved products (Shopee on a Facebook video, TikTok Shop on its
    TikTok version), whose links go in the pinned comment.
-5. `render_video` queues the render; narration may use ElevenLabs.
+5. `set_scene_motion` turns a scene into a "Cảnh động": the assistant writes HTML + GSAP (a price that pops,
+   the product photo flying in) and the worker renders it with HyperFrames into the scene's clip
+   ([architecture.md](architecture.md#motion-scenes-hyperframes)). The scene's photo at that moment is available as
+   `assets/photo.*`, so attach a transparent product photo first. No cost to the team's AI service.
+6. `render_video` queues the render; narration may use ElevenLabs.
 
 ## Enable and connect
 

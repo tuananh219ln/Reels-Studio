@@ -32,7 +32,7 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
 | Part | Where | How it is built |
 |---|---|---|
 | `api` | Coolify application, Dockerfile build pack, base directory `/`, Dockerfile `/api/Dockerfile` | Coolify builds [api/Dockerfile](../api/Dockerfile) from git; it installs FFmpeg to check scene clips |
-| worker | Coolify application, base directory `/`, Dockerfile `/api/Dockerfile.worker`; no domain | Coolify builds [api/Dockerfile.worker](../api/Dockerfile.worker) (the api image plus FFmpeg) |
+| worker | Coolify application, base directory `/`, Dockerfile `/api/Dockerfile.worker`; no domain | Coolify builds [api/Dockerfile.worker](../api/Dockerfile.worker) (the api image plus FFmpeg, and Node 22 with the pinned HyperFrames CLI, GSAP and its headless Chrome for "Cảnh động"; the build renders a short test scene) |
 | storage | Host folder `/data/reels-storage`, owned by uid 10001, mounted at `/data/storage` in both the api and the worker | Created once by hand on the server |
 | `postgres` | Coolify standalone PostgreSQL 17, database `reels`, not public | Not redeployed by CI; Coolify Scheduled Backups |
 | `web` | Cloudflare Workers, worker `reels-studio-web` ([web/wrangler.jsonc](../web/wrangler.jsonc)) | `@opennextjs/cloudflare` in GitHub Actions |

@@ -301,6 +301,10 @@ class Scene(Base):
     color: Mapped[str | None] = mapped_column(String(24))
     # The music's level during this scene (reels_render.sounds.MUSIC_LEVELS); None: the video's.
     music_level: Mapped[str | None] = mapped_column(String(8))
+    # A "Cảnh động" (motion.py): HyperFrames markup an assistant wrote, rendered by the worker into the scene's clip.
+    # {"html", "seconds", "photo_key": a copy of the scene's photo the markup may show, "clip_key": the clip it
+    # made}. The scene shows it while video_key is still clip_key; another photo or clip simply takes its place.
+    motion: Mapped[dict | None] = mapped_column(JSONB)
 
     video: Mapped[Video] = relationship(back_populates="scenes")
     layers: Mapped[list["SceneLayer"]] = relationship(

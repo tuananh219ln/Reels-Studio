@@ -18,6 +18,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session as DbSession
 from starlette.concurrency import run_in_threadpool
 
+from . import motion
 from . import routes_affiliate as affiliate_routes
 from . import routes_videos as videos
 from .db import get_db
@@ -78,6 +79,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "Video sản phẩm: tìm sản phẩm affiliate, tự viết kịch bản (hook, lợi ích, giá, kêu gọi mua) và tạo video "
             "từ kịch bản tự viết (không tốn phí AI của nhóm), gắn clip TikTok hoặc ảnh từ link người dùng đưa cho "
             "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. "
+            "Cảnh cần chuyển động đẹp hơn (giá, giảm giá, sản phẩm bay vào) thì làm cảnh động bằng HTML + GSAP. "
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
             "Link video mở trong Reels Studio và cần đăng nhập."
         ),
@@ -250,6 +252,27 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Thêm một cảnh trống ở cuối video; đọc lại video để lấy ID cảnh mới rồi sửa nó."""
         return await run_in_threadpool(
             invoke, lambda db, me: video_link(videos.add_scene(video_id, me, db)), write=True
+        )
+
+    @tool("Làm cảnh động", read=False)
+    async def set_scene_motion(
+        scene_id: int,
+        html: Annotated[str, Field(max_length=motion.MAX_MARKUP)],
+        seconds: Annotated[float, Field(ge=motion.MIN_SECONDS, le=motion.MAX_SECONDS)],
+    ) -> dict:
+        """Biến một cảnh thành "cảnh động": bạn viết HTML + GSAP, máy chủ render bằng HyperFrames thành clip
+        1080×1920 của cảnh (job chạy nền, thường 1–3 phút; đọc lại video để xem, không gửi lại). Viết phần tử đặt
+        trong khung #root 1080×1920 (div, img, svg, <style>, <script>); font sẵn có "Be Vietnam Pro" (tiếng Việt).
+        Thêm chuyển động vào timeline GSAP có sẵn tên `tl` (đang dừng), ví dụ
+        tl.from(".gia", {scale: 0, duration: 0.5, ease: "back.out"}, 0.3); không tự tạo timeline chính. Ảnh hiện tại
+        của cảnh (ví dụ ảnh sản phẩm nền trong suốt, gắn trước bằng "Gắn ảnh hoặc clip từ link") có ở
+        assets/photo.png (hoặc .jpg/.webp theo ảnh). Không dùng địa chỉ ngoài, mạng, hẹn giờ, Date.now hay
+        Math.random. seconds: độ dài cảnh (1–10), nên bằng thời lượng lời đọc. Chữ trên màn hình của cảnh vẫn được
+        render chồng lên như mọi cảnh; để trống chữ cảnh nếu HTML đã có chữ. Không tốn phí AI của nhóm."""
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: video_link(motion.request(db, get_storage(), scene_id, html, seconds, me)),
+            write=True,
         )
 
     @tool("Gắn ảnh hoặc clip từ link", read=False, external=True)

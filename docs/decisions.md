@@ -11,6 +11,26 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — "Cảnh động": Claude writes a scene in HTML + GSAP, HyperFrames renders it into the scene's clip
+
+Approved by tuananh219ln on issue #120 ("tôi duyệt làm luôn"), for nicer affiliate product videos. Changes, for one
+kind of scene, "Every look stays a named preset" (2026-11-01): a motion scene's look is whatever the assistant
+writes. Keeps "Rendering is a native FFmpeg filter graph; no MoviePy, no Remotion" (2026-10-31) and "the render
+core stays FFmpeg" (2026-11-05): HyperFrames only makes one scene's clip, and FFmpeg makes the video from it like any
+clip; Remotion is still not used (paid licence for this team).
+
+- **Written through MCP on the member's own Claude** (`set_scene_motion`), so it costs nothing to the team's AI
+  service; there is no editor for it in the app. The scene card says "Cảnh động · N giây"; any other photo or clip
+  replaces it.
+- **Untrusted markup, checked and cut off from the network:** document and embedding tags, external scripts and
+  URLs, network, storage, timer and `eval` APIs, the clock and `Math.random` are refused before it is stored; the
+  worker's Chrome runs through a wrapper whose `--proxy-server` reaches nothing, so only HyperFrames' loopback file
+  server answers.
+- **The worker image grows** by Node 22, HyperFrames 0.9.19, GSAP 3.15.0 and HyperFrames' headless Chrome (a few
+  hundred MB), pinned; the build renders a short scene so a broken Chrome never deploys.
+- **A person watches it:** as for any change to what the render shows, a sample MP4 with a motion scene is watched
+  before this is called done.
+
 ## 2026-11-07 — Claude connects through the MCP server on each member's own plan, and makes product videos there
 
 Asked by a member (tuananh219ln), after reading AIEV (github.com/notivn/AIEVv2): edit and make affiliate product
