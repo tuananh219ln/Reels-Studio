@@ -31,8 +31,8 @@ an account; it would also add Node and the Agent SDK to the worker. Chosen inste
   attaches approved products and queues the render. Narration and render keep their usual services and costs.
 - **Sources as agreed:** TikTok clips and a member's own footage (uploaded on the video page: MCP carries no
   files) as today. Photos found on Google are picked and pasted by a member; the app never searches or downloads
-  from Google by itself, like "Shopee through its API, never by scraping" (2026-11-03). Removing a photo's
-  background ("Tách nền") is a separate, later change.
+  from Google by itself, like "Shopee through its API, never by scraping" (2026-11-03). The app does not
+  remove backgrounds: members find product photos that are already transparent.
 - **The render stays FFmpeg.** "Rendering is a native FFmpeg filter graph; no MoviePy, no Remotion" (2026-10-31)
   and "the render core stays FFmpeg" (2026-11-05) are unchanged: Remotion still needs a paid licence for this
   team. Scenes animated with HyperFrames (Apache-2.0, HTML + GSAP rendered to a clip that FFmpeg then places)
