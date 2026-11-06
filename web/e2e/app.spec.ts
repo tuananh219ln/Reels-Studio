@@ -46,6 +46,19 @@ test("the privacy policy opens without a session, for Meta's app review, and onl
   await expect(page).toHaveURL(/\/login$/);
 });
 
+test("the terms of service open without a session, for Meta's app review, and only it", async ({ page }) => {
+  const response = await page.goto("/terms");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(/\/terms$/);
+  await expect(page.getByRole("heading", { name: "Điều khoản sử dụng", level: 1 })).toBeVisible();
+  // The terms point to the privacy policy, which is public too.
+  await page.getByRole("link", { name: "Chính sách quyền riêng tư" }).click();
+  await expect(page).toHaveURL(/\/privacy$/);
+  // Only /terms itself is public: a path that merely starts with it still needs the login.
+  await page.goto("/terms-x");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test("last login is shown as dd/mm/yyyy hh:mm in Vietnam time whatever the browser time zone", async ({ browser }) => {
   const context = await browser.newContext({ baseURL: "http://localhost:3100", timezoneId: "America/New_York" });
   const page = await context.newPage();

@@ -177,6 +177,15 @@ disabled rather than deleted (2026-10-31), a Page's token goes with the Page, an
 feature needs. Questions and deletion requests go to the Page by message, the one contact a visitor surely has; a
 team email can be added later. When what the app keeps or sends changes, the page changes with it.
 
+## 2026-11-06 — A public terms page at /terms, beside /privacy
+
+The Meta app's settings take a terms of service URL next to the privacy policy, so the web app has a public page at
+`/terms` (https://reels.quangdang.xyz/terms once deployed), built like `/privacy`: Vietnamese, static, no API call,
+and the login proxy leaves exactly that path open. It says who may sign in (no self-signup), that what is posted
+must follow Meta's, TikTok's and Shopee's rules and is the poster's responsibility (banned words only warn,
+2026-10-31), that uploaders must hold the rights to their media, and links to `/privacy` for what is sent where.
+Contact goes to the Page by message, as on `/privacy`.
+
 ## 2026-11-06 — A reel deleted on Facebook is known by the 400 (#100) Facebook answers, while the Page still reads
 
 Reels deleted in Meta Business Suite could be neither checked nor deleted in the app: "Kiểm tra" and "Xóa" failed
