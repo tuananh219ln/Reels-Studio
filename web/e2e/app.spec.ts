@@ -34,6 +34,18 @@ for (const url of ["/", ...appPages, "/change-password"]) {
   });
 }
 
+test("the privacy policy opens without a session, for Meta's app review, and only it", async ({ page }) => {
+  const response = await page.goto("/privacy");
+  expect(response?.status()).toBe(200);
+  await expect(page).toHaveURL(/\/privacy$/);
+  await expect(page.getByRole("heading", { name: "Chính sách quyền riêng tư", level: 1 })).toBeVisible();
+  // Visitors' comments are kept (name and text), so the policy must say so.
+  await expect(page.getByText("tên người bình luận và nội dung bình luận")).toBeVisible();
+  // Only /privacy itself is public: a path that merely starts with it still needs the login.
+  await page.goto("/privacy-x");
+  await expect(page).toHaveURL(/\/login$/);
+});
+
 test("last login is shown as dd/mm/yyyy hh:mm in Vietnam time whatever the browser time zone", async ({ browser }) => {
   const context = await browser.newContext({ baseURL: "http://localhost:3100", timezoneId: "America/New_York" });
   const page = await context.newPage();
