@@ -511,7 +511,8 @@ Planned:
   - **What the numbers mean** ([analytics.py](../api/src/reels_api/analytics.py)) is worked out from
     the `48h` rows when asked, never stored. Each Page's median views is taken over its posts that
     went live in the last 60 days; a post is compared with it (its multiple of the median) once the
-    Page has at least 5 measured posts. `analysis` gives the Page's median and sample count, the
+    Page has at least 5 measured posts. A cancelled or deleted post counts in no median and no weekly
+    KPI; its own `48h` and `latest` rows stay, as history. `analysis` gives the Page's median and sample count, the
     post's multiple of it and its share/view at 48 hours. There is no "Video thắng" flag (dropped
     2026-11-03, see decisions). `GET /api/videos` gives each video its topic group, its plan day and
     `post`: its live or scheduled Facebook posts in one line (`state` posted or scheduled, the Page and

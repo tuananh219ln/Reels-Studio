@@ -117,6 +117,33 @@ def test_a_post_without_views_at_48_hours_is_left_out(db, me, storage, frozen):
     assert analytics.medians(db)[fanpage].samples == 5
 
 
+@pytest.mark.parametrize("status", ["deleted", "cancelled"])
+def test_a_post_taken_down_leaves_its_pages_median(an, db, me, storage, frozen, status):
+    # Four reels Facebook hid from viewers (about 1 view at 48 hours) were deleted: their numbers measure the fault,
+    # not the content, so they must not drag the Page's median down. Their own 48-hour numbers stay as history.
+    fanpage = page(db, me)
+    gone = [marked(db, storage, me, fanpage, 1) for _ in range(4)]
+    for post in gone:
+        post.status = status
+    for views in (900, 1000, 1000, 1100, 1200):
+        marked(db, storage, me, fanpage, views)
+    db.commit()
+    assert analytics.medians(db)[fanpage] == analytics.Median(1000, 5)
+    row = {row["id"]: row for row in an.get("/api/posts").json()}[gone[0].id]
+    assert row["metrics"]["at_48h"]["views"] == 1
+
+
+def test_a_post_taken_down_leaves_the_weekly_kpis(an, db, me, storage, frozen):
+    fanpage = page(db, me)
+    monday = datetime(2026, 11, 1, 17, 30, tzinfo=UTC)  # this week
+    for _ in range(3):
+        marked(db, storage, me, fanpage, 1, live=monday).status = "deleted"
+    marked(db, storage, me, fanpage, 1000, shares=3, live=monday)
+    db.commit()
+    week = an.get("/api/posts/kpis").json()["this_week"]
+    assert (week["measured"], week["median_views"], week["share_goal_met"]) == (1, 1000, 1)
+
+
 def test_a_post_not_measured_at_48_hours_yet_shows_its_pages_median_only(an, db, me, storage, frozen):
     fanpage = page(db, me)
     for _ in range(5):
