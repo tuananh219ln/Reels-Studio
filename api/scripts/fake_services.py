@@ -36,6 +36,18 @@ OPENAI_KEY = "fake-openai-key"
 OPENAI_MODELS = ["fake-gpt-mini", "models/fake-gemini-flash"]
 FACEBOOK_PAGE = "1234567"
 FACEBOOK_TOKEN = "fake-facebook-token"  # the Page's own token, the only one that can post
+# What Facebook answers for a reel it no longer has: not a 404, but the same 400 as for one the token may not read.
+GONE = (
+    400,
+    {
+        "error": {
+            "message": "Unsupported get request. Object with ID does not exist, cannot be loaded due to missing "
+            "permissions, or does not support this operation",
+            "code": 100,
+            "error_subcode": 33,
+        }
+    },
+)
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
 SHOPEE_APP_ID = "1000001"
 SHOPEE_SECRET = "fake-shopee-secret"
@@ -953,7 +965,7 @@ class FakeServices:
             self.facebook_busy_reads -= busy
         reel = self.reels.get(video_id)
         if reel is None or reel.get("lost"):
-            return 404, {"error": {"message": "Unknown video", "code": 100}}
+            return GONE
         mode = "rejected" if reel.get("rejected") else "busy" if busy else self.facebook_processing
         publishing = {
             "status": "not_started" if mode == "rejected" else "completed",
@@ -983,7 +995,7 @@ class FakeServices:
                 self.facebook_delete_refusals -= 1
                 return 403, {"error": {"message": "Permissions error", "code": 200}}
             if self.reels.pop(video_id, None) is None:
-                return 404, {"error": {"message": "Unknown video", "code": 100}}
+                return GONE
         return 200, {"success": True}
 
     def _shopee(self, authorization: str | None, raw: bytes) -> tuple[int, dict]:

@@ -45,6 +45,8 @@ export default function PostActions({
     }
   }
 
+  // Why a button that applies is greyed out: one job at a time per video.
+  const waiting = "Video đang chạy một việc khác (xem Job logs), đợi xong rồi thao tác";
   const checkTip = "Đọc lại trạng thái bài trên Facebook, khi đã hủy, đổi giờ hoặc xóa trong Meta Business Suite";
   const takeDown = (
     <Popconfirm
@@ -61,7 +63,9 @@ export default function PostActions({
       disabled={disabled || closed}
     >
       {compact ? (
-        <Tooltip title={closed ? "Bài đã hủy hoặc đã xóa" : published ? "Xóa khỏi Facebook" : "Hủy đăng"}>
+        <Tooltip
+          title={closed ? "Bài đã hủy hoặc đã xóa" : disabled ? waiting : published ? "Xóa khỏi Facebook" : "Hủy đăng"}
+        >
           <Button
             size="small"
             type="text"
@@ -113,7 +117,9 @@ export default function PostActions({
           <Button size="small" type="text" aria-label="Xem Reel" icon={<ExportOutlined />} disabled />
         )}
       </Tooltip>
-      <Tooltip title={retryJobId !== null ? "Thử đăng lại bài này" : "Chỉ thử lại được bài đăng thất bại"}>
+      <Tooltip
+        title={retryJobId === null ? "Chỉ thử lại được bài đăng thất bại" : disabled ? waiting : "Thử đăng lại bài này"}
+      >
         <Button
           size="small"
           type="text"
@@ -124,7 +130,7 @@ export default function PostActions({
           onClick={() => run("retry")}
         />
       </Tooltip>
-      <Tooltip title={live ? checkTip : "Chỉ kiểm tra được bài đã lên Facebook hoặc đã hẹn giờ"}>
+      <Tooltip title={!live ? "Chỉ kiểm tra được bài đã lên Facebook hoặc đã hẹn giờ" : disabled ? waiting : checkTip}>
         <Button
           size="small"
           type="text"

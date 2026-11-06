@@ -389,14 +389,17 @@ Planned:
     Any other queues an `unpublish` job, also replacing a queued `publish` job; a running job refuses
     with 409. The job reads the reel's status and deletes it (`DELETE /{video-id}`), and ends the post
     as deleted if the reel was ever public, else cancelled. A reel Facebook no longer has counts as
-    gone. A status read or delete that fails fails the job and leaves the post as it was.
+    gone: a 404, or the 400 (#100) Facebook really answers, which it also gives a token that lost the
+    Page, so that answer counts only while the same token still reads the Page (`facebook._gone`). The
+    "Kiểm tra" and "Thử lại" reads follow the same rule. A status read or delete that fails fails the job
+    and leaves the post as it was.
   - **Never a second post by accident.** The reel's id and its MP4 are saved before the upload, and the moment
     Facebook is asked to publish is saved before asking. A retry reads the reel's status first,
     because an attempt may have reached Facebook whatever it reported. A live reel needs nothing,
     and the app records what Facebook says. One Facebook was asked to publish and is still
     processing is waited for. A reel holding the current MP4 is finished again; whether a second
     finish is harmless is assumed, because the docs do not say. A new reel is made only when the old
-    one is gone (HTTP 404), refused, or not fully received, or when it holds an older render and
+    one is gone (as above), refused, or not fully received, or when it holds an older render and
     was never asked to publish, or was asked over 30 minutes ago. A status read that fails or says
     nothing fails the job and posts nothing.
   - The job repeats the MP4 and time checks, because "Thử lại" skips the endpoint.

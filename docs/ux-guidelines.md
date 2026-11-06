@@ -516,7 +516,8 @@ Built:
     "Đã xóa"; the views; then the same four icon buttons on every post, each with a tooltip: "Xem
     Reel" (opens the reel once public), "Thử lại" (sends a failed post's job again), "Kiểm tra", and
     "Hủy đăng" or "Xóa" with a confirmation. A button that does not apply to the post is greyed out,
-    its tooltip saying why, so the buttons line up from row to row. There is no grid here: posts are read
+    its tooltip saying why ("Video đang chạy một việc khác (xem Job logs)…" while its video has a job),
+    so the buttons line up from row to row. There is no grid here: posts are read
     as numbers, and "Video" keeps the grid for working on videos.
     A post's views stay on one line so rows stay short: the views (or "Chưa có view"), a yellow
     warning icon when the last reading failed, and an icon-only "Cập nhật view" button, which asks
