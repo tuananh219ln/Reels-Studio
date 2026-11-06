@@ -91,6 +91,31 @@ export type VideoRowPost = {
   times_median: number | null;
 };
 
+/** A photo or clip in the team's "Kho tư liệu" (api routes_media.py). */
+export type MediaItem = {
+  id: number;
+  kind: "photo" | "clip";
+  name: string;
+  folder: string;
+  source_url: string | null;
+  seconds: number | null;
+  file_url: string;
+  thumb_url: string;
+  created_by: string;
+  created_at: string;
+};
+
+export type MediaList = { items: MediaItem[]; folders: { folder: string; count: number }[] };
+
+/** What pasting links into the library did: the items added, and each link that failed with why. */
+export type MediaLinksResult = { added: MediaItem[]; failed: { url: string; error: string }[] };
+
+/** The automatic QC of a rendered MP4 (api qc.py). */
+export type QcResult = {
+  status: "pass" | "warn" | "fail";
+  checks: { id: string; label: string; status: "pass" | "warn" | "fail"; detail: string }[];
+};
+
 export type JobInfo = {
   id: number;
   kind:
@@ -253,7 +278,15 @@ export type VideoDetail = VideoRow & {
   locked: boolean;
   active_job: JobInfo | null;
   failed_job: JobInfo | null;
-  mp4: { url: string; download_url: string; seconds: number; render_seconds: number; rendered_at: string } | null;
+  mp4: {
+    url: string;
+    download_url: string;
+    seconds: number;
+    render_seconds: number;
+    rendered_at: string;
+    /** Automatic QC of this MP4; null for one rendered before QC existed. */
+    qc: QcResult | null;
+  } | null;
   music: { url: string; name: string | null } | null;
   music_volume: number;
   /** Where in the song the music starts, in seconds. */

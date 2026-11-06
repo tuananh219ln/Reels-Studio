@@ -102,7 +102,9 @@ app replaces CapCut, so the output is a finished MP4.
 
 9. **ChatGPT and Claude connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders; for product videos, Claude (on the member's own plan) also
-   writes a "Tự viết" script, gives scenes TikTok clips or photos from links and attaches affiliate products. Members authorize and revoke OAuth connections
+   writes a "Tự viết" script, gives scenes TikTok clips, photos from links or items of the "Kho tư liệu" it has looked
+   at, and attaches affiliate products. **Kho tư liệu** (built, `/media`): folders of the team's own photos and clips,
+   and links from Google Ảnh and TikTok pasted back after searching for the product. Members authorize and revoke OAuth connections
    on Cài đặt › Kết nối ChatGPT / Claude; see [chatgpt.md](chatgpt.md).
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
     comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài

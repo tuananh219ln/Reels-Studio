@@ -1,5 +1,6 @@
 """Stateless MCP transport; tools use the editor's validation, locks and job queue."""
 
+import io
 import logging
 from contextlib import contextmanager
 from typing import Annotated, Literal
@@ -8,26 +9,61 @@ from fastapi import FastAPI
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import FastMCP, Image
 from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
+from PIL import Image as PILImage
 from pydantic import AnyHttpUrl, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session as DbSession
 from starlette.concurrency import run_in_threadpool
 
-from . import motion
+from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
+from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
+from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
+
+from . import clips, motion
 from . import routes_affiliate as affiliate_routes
+from . import routes_layers as layer_routes
+from . import routes_media as media_routes
+from . import routes_music as music_routes
+from . import routes_sounds as sound_routes
 from . import routes_videos as videos
 from .db import get_db
 from .errors import ApiError
 from .mcp_auth import connection_for, public_url
-from .models import KnowledgeTopic
+from .models import KnowledgeTopic, Video
 from .storage import get_storage
 
 log = logging.getLogger(__name__)
+
+
+# The finished video must be of a high standard (owner's request, 2026-11-07), following AIEV's loop: plan, build,
+# look at every scene, render, look at the MP4's frames, fix, and only then say it is done.
+QUALITY = (
+    "Chuẩn thành phẩm rất cao. Quy trình bắt buộc: "
+    "(1) Lên kế hoạch: hook mạnh trong 2 giây đầu (vấn đề, con số hoặc kết quả), mỗi cảnh một ý, chữ trên màn hình "
+    "ngắn (tối đa khoảng 8 từ/dòng), lời đọc tự nhiên, kết bằng lời kêu gọi mua rõ ràng; video 20–40 giây. "
+    "(2) Dựng: mỗi cảnh có ảnh hoặc clip đúng sản phẩm, rõ nét, dọc; chuyển cảnh, màu và âm thanh thống nhất, không "
+    "lạm dụng; lớp chữ/sticker và cảnh động không che sản phẩm hay chữ chính. "
+    '(3) Kiểm tra trước render: đọc video, sửa mọi mục blocking/warnings, gọi "Xem khung hình của cảnh" cho TỪNG '
+    "cảnh và sửa chỗ chữ khó đọc, bị che hay lệch. "
+    "(4) Sau khi render xong: đọc video, xem mp4.qc (kiểm tra tự động: âm lượng, đỉnh tiếng, khung đen, đứng hình, "
+    "khoảng lặng, định dạng, độ dài), sửa mọi mục fail và cân nhắc mục warn; gọi "
+    '"Xem khung hình của MP4 đã render" ở giây 0,5, giữa mỗi cảnh và các lúc chuyển cảnh; có lỗi thì sửa rồi render '
+    "lại. Chỉ báo xong khi QC không còn fail và đã tự xem MP4, kèm danh sách đã kiểm tra."
+)
+
+
+def _jpeg(frame: PILImage.Image) -> Image:
+    """A frame for the assistant to look at: half size (540×960) is enough to judge text and layout."""
+    small = frame.convert("RGB")
+    small.thumbnail((540, 960))
+    buffer = io.BytesIO()
+    small.save(buffer, "JPEG", quality=82)
+    return Image(data=buffer.getvalue(), format="jpeg")
 
 
 @contextmanager
@@ -81,7 +117,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. "
             "Cảnh cần chuyển động đẹp hơn (giá, giảm giá, sản phẩm bay vào) thì làm cảnh động bằng HTML + GSAP. "
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
-            "Link video mở trong Reels Studio và cần đăng nhập."
+            "Link video mở trong Reels Studio và cần đăng nhập. " + QUALITY
         ),
         token_verifier=MemberTokenVerifier(app, resource),
         auth=AuthSettings(
@@ -126,9 +162,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             log.error("MCP operation failed")
             raise ToolError("Không xử lý được yêu cầu, hãy mở Reels Studio để kiểm tra") from None
 
-    def tool(title: str, read: bool, external: bool = False):
+    def tool(title: str, read: bool, external: bool = False, images: bool = False):
+        # A tool that answers with pictures has no structured output: FastMCP has no schema for its Image.
         return mcp.tool(
             title=title,
+            structured_output=False if images else None,
             annotations=ToolAnnotations(
                 readOnlyHint=read, destructiveHint=not read, idempotentHint=read, openWorldHint=external
             ),
@@ -319,6 +357,285 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         body = affiliate_routes.VideoProductsBody(product_ids=product_ids)
         return await run_in_threadpool(
             invoke, lambda db, me: video_link(affiliate_routes.set_video_products(video_id, body, me, db)), write=True
+        )
+
+    # --- Editing, like the studio on the video page: the same handlers, presets and locks ---
+
+    def given(**values) -> dict:
+        """Only the arguments the assistant passed: the bodies tell "not sent" from "back to the default"."""
+        return {key: value for key, value in values.items() if value is not None}
+
+    @tool("Đọc lựa chọn dựng video", read=True)
+    async def list_edit_options() -> dict:
+        """Các giá trị hợp lệ khi dựng: chuyển cảnh, màu, mức nhạc theo cảnh, kiểu/cỡ/hiệu ứng lớp chữ, sticker,
+        âm thanh và mức âm, cùng thư viện nhạc nền của nhóm (id, tên, tâm trạng). Gọi trước khi dựng."""
+
+        def operation(db, me):
+            def named(presets: dict) -> dict:
+                return {key: preset.label for key, preset in presets.items()}
+
+            tracks = music_routes.list_tracks(None, None, None, me, db)
+            return {
+                "transitions": named(SCENE_TRANSITIONS),
+                "colors": named(COLOR_PRESETS),
+                "music_levels": named(MUSIC_LEVELS),
+                "layer_styles": named(TEXT_STYLES),
+                "layer_sizes": named(SIZES),
+                "layer_animations": named(ANIMATIONS),
+                "stickers": named(STICKERS),
+                "sounds": named(SOUNDS),
+                "sound_volumes": named(SOUND_VOLUMES),
+                "music_tracks": [{key: track[key] for key in ("id", "name", "mood", "topics")} for track in tracks][
+                    :100
+                ],
+                "frame": {"width": 1080, "height": 1920},
+            }
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Xem khung hình của cảnh", read=True, images=True)
+    async def view_scene(scene_id: int) -> Image:
+        """Ảnh xem trước của cảnh như khi render: ảnh hoặc khung đầu clip, với chữ của cảnh đặt đúng chỗ (chưa có
+        lớp chữ/sticker, chuyển cảnh và chuyển động). Xem để kiểm tra chữ có đọc được, có che sản phẩm không."""
+
+        def operation(db, me):
+            response = videos.scene_preview(scene_id, me, db, get_storage())
+            with PILImage.open(io.BytesIO(response.body)) as frame:
+                return _jpeg(frame)
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Xem khung hình của MP4 đã render", read=True, images=True)
+    async def view_render_frames(
+        video_id: int,
+        seconds: Annotated[list[Annotated[float, Field(ge=0, le=180)]], Field(min_length=1, max_length=8)],
+    ) -> list[Image]:
+        """Khung hình thật của MP4 đã render ở các giây chọn (tối đa 8), để soát thành phẩm trước khi báo xong:
+        chữ, lớp chữ/sticker, cảnh động, chuyển cảnh, màu. Nên xem giây 0,5 (hook), giữa mỗi cảnh và lúc chuyển
+        cảnh. MP4 cũ hơn lần sửa cuối thì render lại trước."""
+
+        def operation(db, me):
+            video = db.get(Video, video_id)
+            if video is None or not video.mp4_key or not get_storage().exists(video.mp4_key):
+                raise ApiError(404, "no_mp4", "Video chưa có MP4: hãy render trước")
+            path = get_storage().path(video.mp4_key)
+            images = []
+            for second in seconds:
+                try:
+                    frame = clips.frame_at(path, second)
+                except clips.ClipError as err:
+                    raise ApiError(422, "frame_failed", f"Không lấy được khung ở giây {second:g}: {err}") from None
+                images.append(_jpeg(frame))
+            return images
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Hiệu ứng của cảnh", read=False)
+    async def set_scene_effects(
+        scene_id: int,
+        transition: str | None = None,
+        color: str | None = None,
+        music_level: str | None = None,
+        seconds_auto: bool | None = None,
+    ) -> dict:
+        """Đặt chuyển cảnh vào cảnh này, màu (preset), mức nhạc trong cảnh, và "Tự khớp lời đọc" (seconds_auto).
+        Giá trị lấy từ "Đọc lựa chọn dựng video"; "default" đưa về mặc định của video (chuyển cảnh, mức nhạc) hoặc
+        màu gốc. Cảnh tiêu đề không có chuyển cảnh hay màu riêng."""
+        fields = {
+            key: (None if value == "default" else value)
+            for key, value in given(transition=transition, color=color, music_level=music_level).items()
+        }
+        if seconds_auto is not None:
+            fields["seconds_auto"] = seconds_auto
+        body = videos.ScenePatchBody(**fields)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True
+        )
+
+    @tool("Sắp xếp cảnh", read=False)
+    async def reorder_scenes(video_id: int, scene_ids: Annotated[list[int], Field(max_length=60)]) -> dict:
+        """Đặt thứ tự các cảnh nội dung (không gồm cảnh tiêu đề, luôn đứng đầu); cảnh không có trong danh sách
+        giữ chỗ ở cuối."""
+        body = videos.SceneOrderBody(ids=scene_ids)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(videos.reorder_scenes(video_id, body, me, db)), write=True
+        )
+
+    @tool("Tách cảnh", read=False)
+    async def split_scene(scene_id: int, at: float) -> dict:
+        """Tách cảnh tại giây `at`: phần sau thành cảnh mới ngay sau, cùng ảnh/clip, không chữ, không lời đọc."""
+        body = videos.SplitBody(at=at)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(videos.split_scene(scene_id, body, me, db, get_storage())), write=True
+        )
+
+    @tool("Xoá cảnh", read=False)
+    async def delete_scene(scene_id: int) -> dict:
+        """Xoá một cảnh nội dung cùng ảnh, clip và lời đọc của nó. Không hoàn tác được: chỉ làm khi người dùng yêu
+        cầu. Không xoá được cảnh tiêu đề."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(videos.delete_scene(scene_id, me, db, get_storage())), write=True
+        )
+
+    @tool("Thêm lớp chữ hoặc sticker", read=False)
+    async def add_layer(
+        scene_id: int,
+        kind: Literal["text", "sticker"],
+        text: Annotated[str | None, Field(max_length=200)] = None,
+        sticker: str | None = None,
+        start: float | None = None,
+        seconds: float | None = None,
+        x: int | None = None,
+        y: int | None = None,
+        size: str | None = None,
+        style: str | None = None,
+        animation: str | None = None,
+    ) -> dict:
+        """Thêm lớp chữ (kind "text", cần text) hoặc sticker (kind "sticker", cần sticker) nổi trên cảnh trong
+        `seconds` giây từ giây `start` của cảnh; x, y là tâm trong khung 1080×1920. Kiểu, cỡ, hiệu ứng, sticker
+        lấy từ "Đọc lựa chọn dựng video". Không có trên cảnh tiêu đề."""
+        values = given(text=text, sticker=sticker, start=start, seconds=seconds, x=x, y=y)
+        values |= given(size=size, style=style, animation=animation)
+        body = layer_routes.NewLayerBody(scene_id=scene_id, kind=kind, **values)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(layer_routes.add_layer(body, me, db)), write=True
+        )
+
+    @tool("Sửa lớp chữ hoặc sticker", read=False)
+    async def update_layer(
+        layer_id: int,
+        text: Annotated[str | None, Field(max_length=200)] = None,
+        sticker: str | None = None,
+        start: float | None = None,
+        seconds: float | None = None,
+        x: int | None = None,
+        y: int | None = None,
+        size: str | None = None,
+        style: str | None = None,
+        animation: str | None = None,
+    ) -> dict:
+        """Sửa các trường được truyền của một lớp (ID lớp có trong "Đọc video", mục layers của cảnh)."""
+        values = given(text=text, sticker=sticker, start=start, seconds=seconds, x=x, y=y)
+        values |= given(size=size, style=style, animation=animation)
+        body = layer_routes.LayerBody(**values)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(layer_routes.patch_layer(layer_id, body, me, db)), write=True
+        )
+
+    @tool("Xoá lớp chữ hoặc sticker", read=False)
+    async def delete_layer(layer_id: int) -> dict:
+        """Xoá một lớp chữ hoặc sticker."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(layer_routes.delete_layer(layer_id, me, db)), write=True
+        )
+
+    @tool("Thêm âm thanh", read=False)
+    async def add_sound(scene_id: int, sound: str, start: float = 0, volume: str = "normal") -> dict:
+        """Thêm hiệu ứng âm thanh (ví dụ "ding" khi giá hiện ra) ở giây `start` của cảnh; tên và mức âm lấy từ
+        "Đọc lựa chọn dựng video"."""
+        body = sound_routes.NewSoundBody(scene_id=scene_id, sound=sound, start=start, volume=volume)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(sound_routes.add_sound(body, me, db)), write=True
+        )
+
+    @tool("Xoá âm thanh", read=False)
+    async def delete_sound(sound_id: int) -> dict:
+        """Xoá một hiệu ứng âm thanh (ID có trong "Đọc video", mục sounds của cảnh)."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(sound_routes.delete_sound(sound_id, me, db)), write=True
+        )
+
+    @tool("Nhạc nền và giọng đọc", read=False)
+    async def set_audio(
+        video_id: int,
+        music_track_id: int | None = None,
+        remove_music: bool = False,
+        music_volume: Annotated[int | None, Field(ge=0, le=100)] = None,
+        voice_enabled: bool | None = None,
+    ) -> dict:
+        """Chọn nhạc nền từ thư viện của nhóm (music_track_id, xem "Đọc lựa chọn dựng video") hoặc bỏ nhạc
+        (remove_music), đặt âm lượng nhạc 0–100, và bật/tắt giọng đọc ElevenLabs của video."""
+
+        def operation(db, me):
+            storage = get_storage()
+            payload = None
+            if remove_music:
+                payload = videos.remove_music(video_id, me, db, storage)
+            elif music_track_id is not None:
+                payload = videos.music_from_library(
+                    video_id, videos.LibraryMusicBody(track_id=music_track_id), me, db, storage
+                )
+            settings = given(music_volume=music_volume, voice_enabled=voice_enabled)
+            if settings or payload is None:
+                payload = videos.patch_video(video_id, videos.VideoPatchBody(**settings), me, db, storage)
+            return video_link(payload)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    # --- The team's "Kho tư liệu": folders of photos and clips members uploaded, and links downloaded into it ---
+
+    @tool("Tìm trong kho tư liệu", read=True)
+    async def list_media(
+        folder: Annotated[str, Field(max_length=200)] = "",
+        kind: Literal["photo", "clip"] | None = None,
+        query: Annotated[str, Field(max_length=200)] = "",
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=100)] = 40,
+    ) -> dict:
+        """Ảnh và clip trong kho tư liệu của nhóm (mới nhất trước), lọc theo thư mục (gồm thư mục con), loại hoặc
+        chữ trong tên; kèm danh sách thư mục. Người dùng kéo cả folder clip tự quay, ảnh sản phẩm vào kho trên web.
+        Xem hình bằng "Xem tư liệu" trước khi chọn cho cảnh."""
+
+        def operation(db, me):
+            found = media_routes.list_media(folder or None, kind, query or None, me, db)
+            keep = ("id", "kind", "name", "folder", "seconds", "source_url")
+            items = [{key: item[key] for key in keep} for item in found["items"]]
+            return {"items": items[offset : offset + limit], "total": len(items), "folders": found["folders"]}
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Xem tư liệu", read=True, images=True)
+    async def view_media(media_ids: Annotated[list[int], Field(min_length=1, max_length=8)]) -> list:
+        """Hình của tối đa 8 tư liệu (ảnh, hoặc khung hình giây 1 của clip), theo thứ tự id đưa vào, để chọn đúng
+        sản phẩm, rõ nét, hợp khung dọc cho từng cảnh."""
+
+        def operation(db, me):
+            from .models import MediaItem
+
+            shown = []
+            for media_id in media_ids:
+                item = db.get(MediaItem, media_id)
+                if item is None:
+                    raise ApiError(404, "media_not_found", f"Không tìm thấy tư liệu {media_id}")
+                try:
+                    frame = media_routes.thumb_image(get_storage(), item, width=540)
+                except (OSError, clips.ClipError):
+                    raise ApiError(404, "file_not_found", f"Không lấy được hình của tư liệu {media_id}") from None
+                shown += [f"#{item.id} {item.kind} “{item.name}” ({item.folder or 'không thư mục'})", _jpeg(frame)]
+            return shown
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Thêm vào kho từ link", read=False, external=True)
+    async def add_media_from_links(
+        urls: Annotated[list[Annotated[str, Field(max_length=2000)]], Field(min_length=1, max_length=10)],
+        folder: Annotated[str, Field(max_length=200)] = "",
+    ) -> dict:
+        """Tải về kho các link người dùng đưa hoặc đồng ý: link ảnh (Google Ảnh, ảnh sản phẩm, ảnh nền trong suốt),
+        link video TikTok hoặc file video; clip dài hơn 1 phút giữ phút đầu. Link lỗi được báo riêng, link khác vẫn
+        vào kho. Người đưa link chịu trách nhiệm bản quyền."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: media_routes.add_links(db, get_storage(), me, urls, folder), write=True
+        )
+
+    @tool("Gắn tư liệu vào cảnh", read=False)
+    async def set_scene_media_from_library(scene_id: int, media_id: int) -> dict:
+        """Dùng một ảnh hoặc clip trong kho làm hình của cảnh (bản sao riêng; thay ảnh/clip đang có). Clip thì chọn
+        đoạn bằng video_start trong "Sửa cảnh"."""
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: video_link(media_routes.use_in_scene(db, get_storage(), media_id, scene_id)),
+            write=True,
         )
 
     @tool("Yêu cầu render", read=False, external=True)

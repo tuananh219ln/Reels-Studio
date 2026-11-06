@@ -37,6 +37,7 @@ import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
 import PublishCard, { PublishButton } from "@/components/video/PublishCard";
+import QcCard from "@/components/video/QcCard";
 import QueueButton from "@/components/video/QueueButton";
 import TikTokCard from "@/components/video/TikTokCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
@@ -673,6 +674,7 @@ export default function VideoPage() {
                                 </Flex>
                               </Flex>
                             </Card>
+                            <QcCard qc={video.mp4.qc} />
                             {video.platform === "tiktok" ? <TikTokCard video={video} /> : <PublishCard video={video} />}
                           </>
                         ) : (
