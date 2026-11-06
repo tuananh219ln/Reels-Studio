@@ -395,6 +395,9 @@ def run_article_caption_job(db: DbSession, job: Job, call: Callable[[str, str], 
     if article is None:
         raise JobFailure("Bài viết đã bị xoá")
     article.caption, article.hashtags = written.caption, written.hashtags
+    article.pinned_comment, article.affiliates = written.pinned_comment, written.affiliates
+    # As after a video's script: its product ideas are searched on Shopee when its writer has an account to do so.
+    affiliate_rounds.ask_after_script(db, article, job.created_by_id)
     db.commit()
 
 

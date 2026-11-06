@@ -13,6 +13,7 @@ from .models import (
     AffiliateAccount,
     AffiliateLink,
     AffiliateProduct,
+    Article,
     ArticleAffiliateProduct,
     Fanpage,
     Publication,
@@ -153,8 +154,8 @@ def comment_text(db: DbSession, post: Publication) -> str:
     that has a link for the post's Page. Raises ShopeeError when a link cannot be made."""
     account = page_account(db, db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None)
     if post.article_id is not None:
-        # An article has no pinned comment of its own: its comment is only its products' links.
-        products, opening = article_products(db, post.article_id), ""
+        article = db.get(Article, post.article_id)
+        products, opening = article_products(db, article.id), article.pinned_comment.strip()
     else:
         video = db.get(Video, post.video_id)
         products, opening = products_of(db, video.id), video.pinned_comment.strip()

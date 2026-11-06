@@ -726,6 +726,11 @@ export type Article = {
   topic: string;
   caption: string;
   hashtags: string[];
+  /** What the comment the worker writes under the post opens with, before the products' links. */
+  pinned_comment: string;
+  /** Product ideas to search Shopee for ("Tìm sản phẩm"), one per line on the page. */
+  affiliates: string[];
+  suggest: { state: "idle" | "pending" | "failed" };
   /** The caption's first line, what a text card shows. */
   hook: string;
   has_image: boolean;
@@ -799,7 +804,6 @@ export type ArticlePost = {
 export type ArticleOptions = {
   kinds: { value: ArticleKind; label: string }[];
   card_presets: { value: string; label: string; background: string; color: string }[];
-  disclaimer: string;
   max_hashtags: number;
   max_products: number;
   product_line: string;

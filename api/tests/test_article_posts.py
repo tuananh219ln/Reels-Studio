@@ -23,7 +23,9 @@ from reels_api.models import (
 )
 from reels_api.storage import DirectoryStorage
 
-CAPTION = f"Ngủ đủ giấc quan trọng hơn bạn nghĩ\n\nNội dung\n\n{articles.DISCLAIMER}"
+CAPTION = (
+    "Ngủ đủ giấc quan trọng hơn bạn nghĩ\n\nNội dung\nAi có bệnh nền thì hỏi bác sĩ trước nhé.\n\nBạn ngủ mấy tiếng?"
+)
 
 
 @pytest.fixture

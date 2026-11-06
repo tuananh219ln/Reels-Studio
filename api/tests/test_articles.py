@@ -37,6 +37,9 @@ def create(an, topic_id, kind="kien_thuc", topic="Uống nước ấm buổi sá
     return response.json()
 
 
+NOTE = "Ai có bệnh nền thì hỏi bác sĩ trước nhé."
+
+
 def answer(hook="Uống nước lạnh sau khi ăn có hại?", body="Dòng 1\nDòng 2\nDòng 3", question="Bạn uống gì?", **more):
     return json.dumps({"hook": hook, "body": body, "question": question, "hashtags": ["#suckhoe"], **more})
 
@@ -58,7 +61,8 @@ def test_an_article_starts_as_a_draft_without_caption_or_picture(an, topic_id):
     listed = an.get("/api/articles").json()
     assert [row["id"] for row in listed["articles"]] == [article["id"]]
     assert [kind["value"] for kind in listed["kinds"]] == list(articles.KIND_LABELS)
-    assert listed["disclaimer"] == articles.DISCLAIMER
+    # No fixed disclaimer any more: the AI writes its own reminder (decisions 2026-11-07).
+    assert "disclaimer" not in listed
 
 
 def test_a_kind_or_group_that_does_not_exist_is_refused(an, topic_id):
@@ -81,7 +85,7 @@ def test_a_member_edits_the_caption_and_hashtags(an, topic_id):
     article = create(an, topic_id)
     saved = an.patch(
         f"/api/articles/{article['id']}",
-        json={"caption": f"Mẹo hay\n\nNội dung\n\n{articles.DISCLAIMER}", "hashtags": ["suckhoe", "#SucKhoe", "#meo"]},
+        json={"caption": f"Mẹo hay\n\nNội dung\n\n{NOTE}", "hashtags": ["suckhoe", "#SucKhoe", "#meo"]},
     ).json()
     assert saved["hook"] == "Mẹo hay"
     # "#" added, repeats (case ignored) dropped.
@@ -100,17 +104,31 @@ def test_a_link_in_the_caption_blocks_and_a_banned_word_only_warns(an, db, topic
         assert "Caption có link: link sản phẩm chỉ để ở bình luận ghim" in [
             issue["message"] for issue in saved["checks"]["blocking"]
         ], caption
-    saved = an.patch(
-        f"/api/articles/{article['id']}", json={"caption": f"Gừng chữa khỏi ho 0.5 lít\n\n{articles.DISCLAIMER}"}
-    ).json()
+    saved = an.patch(f"/api/articles/{article['id']}", json={"caption": f"Gừng chữa khỏi ho 0.5 lít\n\n{NOTE}"}).json()
     assert saved["checks"]["blocking"] == []
     assert [issue["message"] for issue in saved["checks"]["warnings"]] == ["Có từ cấm: “chữa khỏi”"]
 
 
-def test_a_caption_without_the_disclaimer_warns(an, topic_id):
+def test_a_caption_without_the_old_fixed_sentence_is_fine(an, topic_id):
     article = create(an, topic_id)
     saved = an.patch(f"/api/articles/{article['id']}", json={"caption": "Chỉ một dòng"}).json()
-    assert [issue["message"] for issue in saved["checks"]["warnings"]] == [f"Thiếu câu “{articles.DISCLAIMER}”"]
+    assert saved["checks"] == {"blocking": [], "warnings": []}
+
+
+def test_the_pinned_comment_and_product_ideas_are_edited_and_checked(an, db, topic_id):
+    first_topic(db).banned_words = ["thần dược"]
+    db.commit()
+    article = create(an, topic_id)
+    saved = an.patch(
+        f"/api/articles/{article['id']}",
+        json={"pinned_comment": "  Gừng là thần dược đó  ", "affiliates": [" bình  giữ nhiệt ", "", "bình giữ nhiệt"]},
+    ).json()
+    assert (saved["pinned_comment"], saved["affiliates"]) == ("Gừng là thần dược đó", ["bình giữ nhiệt"])
+    assert "Bình luận ghim có từ cấm: “thần dược”" in [issue["message"] for issue in saved["checks"]["warnings"]]
+    linked = an.patch(f"/api/articles/{article['id']}", json={"pinned_comment": "Mua ở shope.ee/x"}).json()
+    assert "Bình luận ghim có link: link sản phẩm do app tự thêm sau bình luận" in [
+        issue["message"] for issue in linked["checks"]["blocking"]
+    ]
 
 
 def test_an_article_is_deleted_with_its_picture(an, db, topic_id, tmp_path):
@@ -201,7 +219,8 @@ def test_the_article_prompt_uses_the_shared_assembly_and_the_group_banned_words(
     assert "Trả lời bình luận" in prompt and "Ngủ trưa bao lâu là đủ" in prompt and "Sức khỏe" in prompt
     assert "Lan: ngủ trưa 2 tiếng có sao không?" in prompt
     assert (
-        'Từ cấm, không được dùng trong dòng mở đầu, nội dung, câu hỏi và hashtag của bài viết: "thần dược".' in prompt
+        'Từ cấm, không được dùng trong dòng mở đầu, nội dung, câu nhắc, câu hỏi, hashtag và bình luận ghim của bài viết: "thần dược".'
+        in prompt
     )
     assert "nhắc lại ngắn gọn câu hỏi hoặc bình luận" in prompt
     assert prompt.endswith(articles.output_format("tra_loi_binh_luan")) and OUTPUT_FORMAT not in prompt
@@ -210,17 +229,25 @@ def test_the_article_prompt_uses_the_shared_assembly_and_the_group_banned_words(
     assert video.endswith(OUTPUT_FORMAT) and "tiêu đề, chữ trên màn hình, lời đọc, caption và bình luận ghim" in video
 
 
-def test_the_answer_becomes_hook_body_question_and_the_app_disclaimer():
+def test_the_answer_becomes_hook_body_with_the_ai_reminder_then_question():
     written = articles.parse_output(
-        answer(body=["Ý 1", "Ý 2", "Tham khảo, không thay thế tư vấn bác sĩ"], hashtags=["#a1", "b2", "#a1"]),
+        answer(
+            body=["Ý 1", "Ý 2"],
+            note=NOTE,
+            hashtags=["#a1", "b2", "#a1"],
+            pinned_comment="Kể mình nghe nhé!",
+            affiliates=["bình giữ nhiệt", " ", "ấm siêu tốc", "cốc sứ", "thừa"],
+        ),
         "kien_thuc",
     )
-    assert written.caption == (
-        f"Uống nước lạnh sau khi ăn có hại?\n\nÝ 1\nÝ 2\n\nBạn uống gì?\n\n{articles.DISCLAIMER}"
-    )
+    assert written.caption == f"Uống nước lạnh sau khi ăn có hại?\n\nÝ 1\nÝ 2\n{NOTE}\n\nBạn uống gì?"
     assert written.hashtags == ["#a1", "#b2"]
+    assert written.pinned_comment == "Kể mình nghe nhé!"
+    assert written.affiliates == ["bình giữ nhiệt", "ấm siêu tốc", "cốc sứ"]
+    # No reminder and no fixed sentence either: the app adds nothing of its own.
     question = articles.parse_output(answer(body="bị bỏ qua"), "cau_hoi")
-    assert question.caption == f"Uống nước lạnh sau khi ăn có hại?\n\nBạn uống gì?\n\n{articles.DISCLAIMER}"
+    assert question.caption == "Uống nước lạnh sau khi ăn có hại?\n\nBạn uống gì?"
+    assert "tham khảo" not in articles.output_format("meo").split('"note"')[0].lower()
     with pytest.raises(articles.ScriptOutputError, match="thiếu nội dung"):
         articles.parse_output(answer(body=""), "meo")
 
@@ -246,12 +273,15 @@ def test_the_caption_job_writes_the_caption_and_hashtags(committed, tmp_path):
 
     def call(prompt, label):
         prompts.append(prompt)
-        return answer()
+        return answer(pinned_comment="Kể mình nghe nhé!", affiliates=["chậu ngâm chân"])
 
     job, article = run_caption(committed, tmp_path, user, call, prompt="Bài [Dạng bài] về [Chủ đề]")
     assert (job.status, job.claude_calls) == ("done", 1)
     assert prompts[0].startswith("Bài Mẹo vặt về Ngâm chân nước gừng")
     assert article.caption.startswith("Uống nước lạnh sau khi ăn có hại?") and article.hashtags == ["#suckhoe"]
+    assert (article.pinned_comment, article.affiliates) == ("Kể mình nghe nhé!", ["chậu ngâm chân"])
+    # Its writer has no Shopee account, so nothing is searched.
+    assert article.suggest_requested_at is None
 
 
 def test_an_unusable_caption_answer_is_asked_once_more_then_fails(committed, tmp_path):

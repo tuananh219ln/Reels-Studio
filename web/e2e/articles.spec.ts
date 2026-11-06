@@ -22,7 +22,14 @@ test("Bài viết: create a draft, let the AI write the caption, make a text car
   const caption = page.getByLabel("Caption");
   // The worker starts a process per job, as for a video's script.
   await expect(caption).toHaveValue(/^Bạn có đang hiểu sai về uống nước ấm buổi sáng\?/, { timeout: 90_000 });
-  await expect(caption).toHaveValue(/Tham khảo, không thay thế tư vấn bác sĩ\.$/);
+  // The AI's own reminder, in the post's voice, closes the body; no fixed sentence is added, and the question ends it.
+  await expect(caption).toHaveValue(
+    /Ai đang có bệnh nền thì hỏi bác sĩ trước khi đổi thói quen nhé\.\n\nBạn đã thử cách này chưa\?$/,
+  );
+  await expect(caption).not.toHaveValue(/Tham khảo, không thay thế tư vấn bác sĩ/);
+  await expect(page.getByLabel("Bình luận ghim")).toHaveValue("Bạn làm cách này lâu chưa, kể mình nghe với!");
+  await expect(page.getByLabel("Gợi ý sản phẩm")).toHaveValue("bình giữ nhiệt");
+  await expect(page.getByTestId("article-preview-comment")).toContainText("Bạn làm cách này lâu chưa");
   await expect(page.getByText("Chưa có caption", { exact: true })).toBeHidden();
   const preview = page.getByTestId("article-preview");
   await expect(preview).toContainText("#suckhoe #meovat");
