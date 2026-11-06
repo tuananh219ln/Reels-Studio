@@ -32,6 +32,24 @@ service:
    `assets/photo.*`, so attach a transparent product photo first. No cost to the team's AI service.
 6. `render_video` queues the render; narration may use ElevenLabs.
 
+## Editing like the studio, and checking the result
+
+The assistant edits with the studio's own handlers, presets and locks (nothing the web page cannot do):
+
+- `list_edit_options` reads the presets it may use: transitions, colour presets, music levels, layer styles,
+  sizes, entrance effects, stickers, sound effects and their volumes, and the team's music library.
+- `set_scene_effects` (transition, colour, music level, "Tự khớp lời đọc"; `default` goes back to the video's),
+  `reorder_scenes`, `split_scene`, `delete_scene` (content scenes only).
+- `add_layer`, `update_layer`, `delete_layer` for text and sticker layers; `add_sound`, `delete_sound`;
+  `set_audio` for the music from the library, its volume and the narration on or off.
+- **Looking at its work**, like AIEV's "every frame verified": `view_scene` returns the scene's preview frame (the
+  photo or the clip's first frame with the scene's text placed as the render places it), and
+  `view_render_frames` returns up to eight frames of the rendered MP4 at the seconds it picks, both at 540×960.
+
+The server's instructions hold the team's quality bar: a strong hook in the first two seconds, one idea per scene,
+short on-screen text, a clear call to buy; fix every blocking item and warning, look at every scene before
+rendering, look at the MP4's frames after it, and say the video is done only once it has, listing what it checked.
+
 ## Enable and connect
 
 1. Deploy the PR through the normal CI process; migration `0021` creates the OAuth tables.

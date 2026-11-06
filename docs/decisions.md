@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — The assistant edits like the studio and checks its own frames; the finished video's bar is high
+
+Asked by tuananh219ln: finish "edit video with a Claude subscription", following AIEV, with "Tiêu chuẩn video thành
+phẩm phải rất cao". The MCP server gains the studio's editing (scene effects, order, split, delete, text and sticker
+layers, sound effects, music and narration settings) through the same handlers, presets and locks, so the assistant
+can do nothing a member cannot do on the video page and every look stays a named preset (2026-11-01). Like AIEV,
+whose agent verifies every frame before a final, the assistant can look at a scene's preview and at frames of the
+rendered MP4, and the server's instructions make that loop mandatory: plan, build, look at every scene, render, look
+at the MP4, fix, and only then report done. A person still watches the MP4 before a render change is called done.
+
 ## 2026-11-07 — "Cảnh động": Claude writes a scene in HTML + GSAP, HyperFrames renders it into the scene's clip
 
 Approved by tuananh219ln on issue #120 ("tôi duyệt làm luôn"), for nicer affiliate product videos. Changes, for one
