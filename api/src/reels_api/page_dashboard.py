@@ -93,6 +93,8 @@ def _posts(db: DbSession, page_id: int, since: datetime | None = None, limit: in
         .where(
             Publication.fanpage_id == page_id,
             Publication.platform == "facebook",
+            # Reels only: an article ("Bài viết") has no video to show and no views.
+            Publication.video_id.is_not(None),
             Publication.status.in_(LIVE_POST_STATUSES),
             at <= now(),
         )
@@ -165,6 +167,8 @@ def _upcoming(db: DbSession, page: Fanpage, at: datetime) -> dict:
         .where(
             Publication.fanpage_id == page.id,
             Publication.platform == "facebook",
+            # Reels only: an article ("Bài viết") has no video to show and no views.
+            Publication.video_id.is_not(None),
             Publication.status.in_(("pending", "scheduled")),
             and_(Publication.scheduled_at > at, Publication.scheduled_at <= at + AHEAD),
         )
@@ -235,6 +239,8 @@ def content(db: DbSession, page: Fanpage, days: int) -> dict:
         .where(
             Publication.fanpage_id == page.id,
             Publication.platform == "facebook",
+            # Reels only: an article ("Bài viết") has no video to show and no views.
+            Publication.video_id.is_not(None),
             Publication.status.in_((*LIVE_POST_STATUSES, "deleted")),
             live >= since,
             live <= at,

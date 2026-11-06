@@ -151,6 +151,16 @@ def revise_json(prompt: str) -> dict:
     }
 
 
+def article_json(topic: str) -> dict:
+    """An article caption ("Bài viết", articles.output_format) about `topic`."""
+    return {
+        "hook": f"Bạn có đang hiểu sai về {topic}?",
+        "body": "Nhiều người làm theo thói quen.\nThật ra chỉ cần đổi một chút.\nCơ thể sẽ nhẹ nhàng hơn.",
+        "question": "Bạn đã thử cách này chưa?",
+        "hashtags": ["#suckhoe", "#meovat"],
+    }
+
+
 def plan_json(first: int, last: int, per_day: int = 4) -> dict:
     """A 30-day plan answer for days `first` to `last`, every topic different."""
     return {
@@ -173,6 +183,7 @@ def plan_json(first: int, last: int, per_day: int = 4) -> dict:
 
 
 # A reel's numbers when a test sets none: what a fresh, ordinary reel gives.
+DEFAULT_ARTICLE_NUMBERS = {"reach": 400, "shares": 2, "comments": 6, "reactions": 30}
 DEFAULT_REEL_NUMBERS = {
     "views": 1200,
     "shares": 3,
@@ -250,6 +261,14 @@ class FakeServices:
         self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code", "speed"}
         self.voice_list_requests = 0
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
+        # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
+        # "photo": bytes or None}; their numbers by post id (reach, shares, comments, reactions).
+        self.page_posts: dict[str, dict] = {}
+        self.page_post_calls = 0
+        self.page_post_replies_lost = 0  # that many posts are made, then answer 500
+        self.page_post_refusals = 0  # that many posts are refused: 400 and nothing is posted
+        self.page_post_numbers: dict[str, dict] = {}
+        self.page_post_reach_retired = False  # post_total_media_view_unique is refused, (#100) like a retired metric
         self.facebook_finish_fails = 0  # that many finish calls fail: 500 without publishing
         self.facebook_finish_refusals = 0  # that many finish calls are refused: 400 without publishing
         self.facebook_busy_reads = 0  # that many status reads say "processing" before the real status
@@ -356,7 +375,10 @@ class FakeServices:
             time.sleep(0.2)
         plan = re.search(r"chỉ lập ngày (\d+) đến ngày (\d+), mỗi ngày đúng (\d+) ý tưởng", prompt)
         frames = re.search(r'"khung_hinh": đúng (\d+) chuỗi', prompt)
-        if reply is None and plan:
+        article = re.search(r"về chủ đề: (.+)", prompt) if '"hook": "1 dòng mở đầu"' in prompt else None
+        if reply is None and article:
+            reply = article_json(article.group(1).strip().rstrip("."))
+        elif reply is None and plan:
             reply = plan_json(*(int(number) for number in plan.groups()))
         elif reply is None and frames:
             reply = analysis_json(int(frames.group(1)))
@@ -743,6 +765,75 @@ class FakeServices:
                 return 500, {"error": {"message": "Service unavailable", "code": 2}}
         return 200, {"success": True}
 
+    def _page_post(self, page: str, edge: str, form: dict, photo: bytes | None) -> tuple[int, dict]:
+        """POST /{page-id}/feed (text) or /{page-id}/photos (multipart, the photo as `source`)."""
+        if form.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if page != FACEBOOK_PAGE:
+            return 400, {"error": {"message": "Unknown page", "code": 100}}
+        with self.lock:
+            self.page_post_calls += 1
+            if self.page_post_refusals:
+                self.page_post_refusals -= 1
+                return 400, {"error": {"message": "Invalid parameter", "code": 100}}
+            post_id = f"{FACEBOOK_PAGE}_{9000 + len(self.page_posts)}"
+            scheduled = form.get("scheduled_publish_time")
+            self.page_posts[post_id] = {
+                "message": form.get("message", ""),
+                "published": form.get("published", "true") != "false",
+                "scheduled": int(scheduled) if scheduled else None,
+                "photo": photo,
+                "edge": edge,
+            }
+            if self.page_post_replies_lost:
+                self.page_post_replies_lost -= 1
+                return 500, {"error": {"message": "Service unavailable", "code": 2}}
+        if edge == "photos":
+            return 200, {"id": f"photo_{post_id}", "post_id": post_id}
+        return 200, {"id": post_id}
+
+    def _page_feed(self, edge: str, query: dict) -> tuple[int, dict]:
+        """GET /{page-id}/feed (published posts) or /{page-id}/scheduled_posts, newest first."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        want = edge == "feed"
+        with self.lock:
+            data = [
+                {"id": post_id, "message": post["message"]}
+                for post_id, post in reversed(self.page_posts.items())
+                if post["published"] == want
+            ]
+        return 200, {"data": data}
+
+    def _page_post_read(self, post_id: str, query: dict) -> tuple[int, dict]:
+        """GET /{post-id}: its status, or its shares, reactions and comments counts."""
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        post = self.page_posts[post_id]
+        if "is_published" in query.get("fields", ""):
+            reply = {"id": post_id, "is_published": post["published"]}
+            if post["scheduled"]:
+                reply["scheduled_publish_time"] = post["scheduled"]
+            return 200, reply
+        numbers = self.page_post_numbers.get(post_id, DEFAULT_ARTICLE_NUMBERS)
+        reply = {
+            "id": post_id,
+            "reactions": {"data": [], "summary": {"total_count": numbers["reactions"]}},
+            "comments": {"data": [], "summary": {"total_count": numbers["comments"]}},
+        }
+        if numbers["shares"]:
+            reply["shares"] = {"count": numbers["shares"]}
+        return 200, reply
+
+    def _page_post_insights(self, post_id: str, query: dict) -> tuple[int, dict]:
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        if self.page_post_reach_retired or query.get("metric") != "post_total_media_view_unique":
+            return 400, {"error": {"message": "(#100) The value must be a valid insights metric", "code": 100}}
+        reach = self.page_post_numbers.get(post_id, DEFAULT_ARTICLE_NUMBERS)["reach"]
+        metric = {"name": "post_total_media_view_unique", "period": "lifetime", "values": [{"value": reach}]}
+        return 200, {"data": [metric]}
+
     def _speech_to_text(self, key: str | None, content_type: str, raw: bytes) -> tuple[int, dict]:
         message = BytesParser(policy=email_policy.default).parsebytes(
             f"Content-Type: {content_type}\r\n\r\n".encode() + raw
@@ -836,7 +927,11 @@ class FakeServices:
                 else:
                     comment["message"], comment["edits"] = form["message"], comment["edits"] + 1
                 return 200, {"success": True}
-            if object_id not in self.reels and object_id not in self.facebook_comments:
+            if (
+                object_id not in self.reels
+                and object_id not in self.facebook_comments
+                and object_id not in self.page_posts
+            ):
                 return 400, {"error": {"message": "Unsupported post request", "code": 100, "error_subcode": 33}}
             comment_id = f"{object_id}_{len(self.facebook_comments) + 1}"
             page = self.facebook_pages[0]
@@ -994,7 +1089,7 @@ class FakeServices:
             if self.facebook_delete_refusals:
                 self.facebook_delete_refusals -= 1
                 return 403, {"error": {"message": "Permissions error", "code": 200}}
-            if self.reels.pop(video_id, None) is None:
+            if self.reels.pop(video_id, None) is None and self.page_posts.pop(video_id, None) is None:
                 return GONE
         return 200, {"success": True}
 
@@ -1090,6 +1185,21 @@ class FakeServices:
                     video_id = path.removeprefix("/facebook/").removesuffix("/thumbnails")
                     self._send(*fake._reel_cover(video_id, self.headers.get("Content-Type", ""), raw))
                     return
+                if path.startswith("/facebook/") and path.endswith("/photos"):
+                    message = BytesParser(policy=email_policy.default).parsebytes(
+                        f"Content-Type: {self.headers.get('Content-Type', '')}\r\n\r\n".encode() + raw
+                    )
+                    parts = {
+                        part.get_param("name", header="content-disposition"): part for part in message.iter_parts()
+                    }
+                    form = {name: part.get_content() for name, part in parts.items() if name != "source"}
+                    photo = parts["source"].get_payload(decode=True) if "source" in parts else None
+                    self._send(*fake._page_post(path.split("/")[2], "photos", form, photo))
+                    return
+                if path.startswith("/facebook/") and path.endswith("/feed"):
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*fake._page_post(path.split("/")[2], "feed", form, None))
+                    return
                 if path.startswith("/facebook/") and path.endswith("/comments"):
                     form = dict(urllib.parse.parse_qsl(raw.decode()))
                     self._send(*fake._comment(path.removeprefix("/facebook/").removesuffix("/comments"), form, True))
@@ -1169,6 +1279,12 @@ class FakeServices:
                     target = parts.path.removeprefix("/facebook/")
                     if target in ("me", "me/accounts"):
                         self._send(*fake._me(target, query))
+                    elif target.endswith(("/feed", "/scheduled_posts")):
+                        self._send(*fake._page_feed(target.rsplit("/", 1)[1], query))
+                    elif target.endswith("/insights") and target.removesuffix("/insights") in fake.page_posts:
+                        self._send(*fake._page_post_insights(target.removesuffix("/insights"), query))
+                    elif target in fake.page_posts:
+                        self._send(*fake._page_post_read(target, query))
                     elif target in {page["id"] for page in fake.facebook_pages}:
                         self._send(*fake._page_info(target, query))
                     elif target.endswith("/insights"):

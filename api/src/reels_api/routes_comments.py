@@ -10,10 +10,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import comments_inbox, facebook
+from . import articles, comments_inbox, facebook
 from .db import get_db
 from .errors import ApiError
-from .models import Fanpage, PageComment, Publication, Session, Video
+from .models import Article, Fanpage, PageComment, Publication, Session, Video
 from .routes_videos import invalid
 from .sessions import current_member, now
 from .videos import split_scenes, title_of
@@ -35,10 +35,16 @@ class DismissBody(BaseModel):
 
 def _payload(db: DbSession, comment: PageComment, titles: dict[int, str]) -> dict:
     post = comment.publication
-    if post.video_id not in titles:
-        video = db.get(Video, post.video_id)
-        title, _ = split_scenes(db, video)
-        titles[post.video_id] = title_of(video, title) or video.topic
+    owner = post.video_id or -post.article_id
+    if owner not in titles:
+        if post.article_id is not None:
+            # A comment under an article ("Bài viết"): named by its first line, linked to the article.
+            article = db.get(Article, post.article_id)
+            titles[owner] = f"Bài viết: {articles.hook_of(article.caption) or article.topic}"
+        else:
+            video = db.get(Video, post.video_id)
+            title, _ = split_scenes(db, video)
+            titles[owner] = title_of(video, title) or video.topic
     return {
         "id": comment.id,
         "state": comments_inbox.state(comment),
@@ -52,10 +58,13 @@ def _payload(db: DbSession, comment: PageComment, titles: dict[int, str]) -> dic
         "post": {
             "id": post.id,
             "video_id": post.video_id,
-            "title": titles[post.video_id],
+            "article_id": post.article_id,
+            "title": titles[owner],
             "fanpage": post.fanpage.name if post.fanpage else None,
             "fanpage_id": post.fanpage_id,
-            "reel_url": facebook.reel_url(post.remote_id) if post.remote_id else None,
+            "reel_url": (facebook.post_url if post.article_id else facebook.reel_url)(post.remote_id)
+            if post.remote_id
+            else None,
         },
     }
 

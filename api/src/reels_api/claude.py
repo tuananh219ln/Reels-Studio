@@ -274,19 +274,29 @@ def fill_placeholders(template: str, placeholders: list[tuple[str, str, str]]) -
     return "\n\n".join([body.rstrip(), *missing]) if missing else body
 
 
-def _assemble(body: str, banned_words: list[str], photo_hint: str = "") -> str:
+VIDEO_TEXTS = "tiêu đề, chữ trên màn hình, lời đọc, caption và bình luận ghim"
+
+
+def _assemble(
+    body: str,
+    banned_words: list[str],
+    photo_hint: str = "",
+    output_format: str = OUTPUT_FORMAT,
+    texts: str = VIDEO_TEXTS,
+) -> str:
+    """Every LLM prompt that writes content: the members' prompt, the group's banned words and photo hint, then the
+    fixed output format. `output_format` and `texts` (what the banned words apply to) are a video script's unless an
+    article ("Bài viết") is written, so both share one assembly."""
     parts = [body]
     if banned_words:
         quoted = ", ".join(f'"{word}"' for word in banned_words)
-        parts.append(
-            f"Từ cấm, không được dùng trong tiêu đề, chữ trên màn hình, lời đọc, caption và bình luận ghim: {quoted}."
-        )
+        parts.append(f"Từ cấm, không được dùng trong {texts}: {quoted}.")
     if photo_hint.strip():
         parts.append(
             "Ảnh của nhóm chủ đề này: "
             f"{photo_hint.strip()}\nViết từ khóa tìm ảnh (tiếng Việt và tiếng Anh) và prompt ảnh AI theo đúng gợi ý này."
         )
-    parts.append(OUTPUT_FORMAT)
+    parts.append(output_format)
     return "\n\n".join(parts)
 
 

@@ -57,6 +57,7 @@ def _marks(db: DbSession, since: datetime | None = None) -> list[Mark]:
             PostMetrics.window == "48h",
             PostMetrics.views.is_not(None),
             Publication.platform == "facebook",
+            Publication.video_id.is_not(None),
             Publication.status.not_in(TAKEN_DOWN),
         )
     )
@@ -136,4 +137,56 @@ def kpis(db: DbSession) -> dict:
             "share_goal": SHARE_GOAL,
         },
         "enough_data": any(median.samples >= MIN_SAMPLES for median in by_page.values()),
+    }
+
+
+# --- Articles ("Bài viết") ---
+# A feed post has no views: its reach is the main number. Its median is its Page's, over articles only (a reel's views
+# and an article's reach are not the same count). With a small reach one share is a large share, so the share/reach
+# rate is read only from MIN_RATED_REACH people.
+MIN_RATED_REACH = 50
+WINNER_TIMES = 10
+
+
+def _article_marks(db: DbSession, since: datetime) -> list[tuple[int | None, int]]:
+    live = func.coalesce(Publication.scheduled_at, Publication.published_at, Publication.created_at)
+    query = (
+        select(Publication.fanpage_id, PostMetrics.reach)
+        .join(PostMetrics, PostMetrics.publication_id == Publication.id)
+        .where(
+            PostMetrics.window == "48h",
+            PostMetrics.reach.is_not(None),
+            Publication.platform == "facebook",
+            Publication.article_id.is_not(None),
+            Publication.status.not_in(TAKEN_DOWN),
+            live > since,
+        )
+    )
+    return [(page, reach) for page, reach in db.execute(query)]
+
+
+def article_medians(db: DbSession) -> dict[int | None, Median]:
+    """Each Page's median reach at 48 hours over its articles of the last `MEDIAN_DAYS` days (`Median.views` holds it)."""
+    reach: dict[int | None, list[int]] = {}
+    for page, value in _article_marks(db, now() - timedelta(days=MEDIAN_DAYS)):
+        reach.setdefault(page, []).append(value)
+    return {page: Median(statistics.median(values), len(values)) for page, values in reach.items()}
+
+
+def article_rate(reach: int | None, shares: int | None) -> float | None:
+    if reach is None or reach < MIN_RATED_REACH:
+        return None
+    return share_rate(reach, shares)
+
+
+def of_article_post(post: Publication, mark_reach: int | None, mark_shares: int | None, by_page: dict) -> dict:
+    median = by_page.get(post.fanpage_id)
+    times = times_median(mark_reach, median) if mark_reach is not None else None
+    return {
+        "median_reach": median.views if median else None,
+        "samples": median.samples if median else 0,
+        "times_median": round(times, 1) if times is not None else None,
+        "share_rate": article_rate(mark_reach, mark_shares),
+        # Drawn bold when shown; never stored (decisions 2026-11-03).
+        "standout": times is not None and times >= WINNER_TIMES,
     }

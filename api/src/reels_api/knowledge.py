@@ -38,6 +38,11 @@ def default_revise_prompt() -> str:
     return _prompt_file("revise_default.txt")
 
 
+@cache
+def default_article_prompt() -> str:
+    return _prompt_file("article_default.txt")
+
+
 def all_topics(db: DbSession) -> list[KnowledgeTopic]:
     return list(db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.id)))
 

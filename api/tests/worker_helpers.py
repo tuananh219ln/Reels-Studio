@@ -13,6 +13,7 @@ from sqlalchemy.orm import sessionmaker
 
 from reels_api.models import (
     AppSetting,
+    Article,
     Fanpage,
     Job,
     KnowledgeTopic,
@@ -33,10 +34,26 @@ def committed(engine):
     factory = sessionmaker(engine, expire_on_commit=False)
     yield factory
     with factory() as db:
-        for model in (TopicPlanItem, Job, Scene, Video, Fanpage, Setting, AppSetting, LlmProvider, Session, User):
+        for model in (
+            TopicPlanItem,
+            Job,
+            Article,
+            Scene,
+            Video,
+            Fanpage,
+            Setting,
+            AppSetting,
+            LlmProvider,
+            Session,
+            User,
+        ):
             db.execute(delete(model))
         db.execute(delete(KnowledgeTopic).where(KnowledgeTopic.name != "Sức khỏe"))
-        db.execute(update(KnowledgeTopic).values(plan_prompt="", plan_start_date=None, plan_per_day=4, plan_draft=None))
+        db.execute(
+            update(KnowledgeTopic).values(
+                plan_prompt="", plan_start_date=None, plan_per_day=4, plan_draft=None, article_prompt=""
+            )
+        )
         db.commit()
 
 

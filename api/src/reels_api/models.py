@@ -127,6 +127,8 @@ class KnowledgeTopic(Base):
     # the sample on its own (ways B, C and D). Empty: the default in prompts/.
     learn_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
     analyze_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # "Prompt viết bài" (articles.py): the caption of an article ("Bài viết"). Empty: prompts/article_default.txt.
+    article_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
     # The 30-day plan (plans.py): its prompt (empty: the default one), the date of day 1 in Vietnam, how many ideas
     # a day the AI is asked for, and the AI's last plan, kept for a member to look at before it replaces the plan.
     plan_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
@@ -373,6 +375,12 @@ class Job(Base):
         ),
         Index("ix_jobs_status_id", "status", "id"),
         Index(
+            "uq_jobs_active_article",
+            "article_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running')"),
+        ),
+        Index(
             "uq_jobs_active_plan",
             "knowledge_topic_id",
             unique=True,
@@ -381,10 +389,13 @@ class Job(Base):
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge), which belongs to a topic group.
+    # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge), which belongs to a topic group,
+    # and an article_caption job, which belongs to an article.
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan | revise
+    # | article_caption
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -530,18 +541,31 @@ class AppSetting(Base):
 
 
 class Publication(Base):
-    """One post of a video to a platform; a video posted again has one row per post, kept after it is cancelled or
-    deleted. The publish job reads what to do from the video's one pending row."""
+    """One post of a video, or of an article ("Bài viết"), to a platform; posted again, it has one row per post, kept
+    after it is cancelled or deleted. The publish job reads what to do from the one pending row. Code that lists every
+    post and reads its video must keep to `video_id IS NOT NULL` (articles.py has the articles' side)."""
 
     __tablename__ = "publications"
     __table_args__ = (
         Index(
             "uq_publications_pending", "video_id", "platform", unique=True, postgresql_where=text("status = 'pending'")
         ),
+        Index(
+            "uq_publications_pending_article",
+            "article_id",
+            "platform",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
+        Index("ix_publications_article_id", "article_id"),
+        CheckConstraint("(video_id IS NULL) <> (article_id IS NULL)", name="one_target"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    # An article's text as sent (caption, product line, hashtags), so a retry after a lost answer finds that very post.
+    post_text: Mapped[str | None] = mapped_column(Text)
     platform: Mapped[str] = mapped_column(String(16))  # facebook
     fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id"))
     # pending | scheduled | published | cancelled (never went live) | deleted (taken off the platform after going live)
@@ -646,6 +670,43 @@ class PageComment(Base):
     publication: Mapped[Publication] = relationship()
 
 
+ARTICLE_KINDS = ("kien_thuc", "meo", "cau_hoi", "canh_bao", "tra_loi_binh_luan", "checklist")
+ARTICLE_IMAGE_KINDS = ("ai", "link", "text_card")
+
+
+class Article(Base):
+    """A photo or text post for a Page ("Bài viết", articles.py): a cheap test of a topic before a reel is made.
+    Named "article" in code because "post" already means a `publications` row. Its posting status will come from its
+    publications, as a video's does; until then it is a draft. Without a picture it is a text-only post."""
+
+    __tablename__ = "articles"
+    __table_args__ = (
+        CheckConstraint(f"kind IN {ARTICLE_KINDS}", name="kind"),
+        CheckConstraint(f"image_kind IS NULL OR image_kind IN {ARTICLE_IMAGE_KINDS}", name="image_kind"),
+        Index("ix_articles_created_at", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
+    kind: Mapped[str] = mapped_column(String(32))  # one of ARTICLE_KINDS
+    topic: Mapped[str] = mapped_column(Text, default="", server_default="")  # what it is about ("Chủ đề")
+    caption: Mapped[str] = mapped_column(Text, default="", server_default="")
+    hashtags: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    image_key: Mapped[str | None] = mapped_column(String(200))
+    image_kind: Mapped[str | None] = mapped_column(String(16))  # one of ARTICLE_IMAGE_KINDS
+    image_source: Mapped[str | None] = mapped_column(Text)  # a pasted photo's link, kept for a copyright claim
+    # The visitor's comment a "tra_loi_binh_luan" article answers.
+    source_comment_id: Mapped[int | None] = mapped_column(ForeignKey("page_comments.id", ondelete="SET NULL"))
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    created_by: Mapped[User] = relationship()
+    source_comment: Mapped[PageComment | None] = relationship()
+
+
 class MusicTrack(Base):
     """A track in the team library. Choosing it for a video copies the file into the video's folder, so editing
     or deleting the track never changes a video."""
@@ -733,18 +794,47 @@ class VideoAffiliateProduct(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
 
 
+class ArticleAffiliateProduct(Base):
+    """A product whose link goes in the comment under a posted article; at most articles.MAX_PRODUCTS per article."""
+
+    __tablename__ = "article_affiliate_products"
+
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"), primary_key=True)
+
+
 class AffiliateLink(Base):
-    """A Shopee short link made with a Page's account for one video on that Page, so an order names both."""
+    """A Shopee short link made with a Page's account for one video, or one article, on that Page, so an order names
+    both."""
 
     __tablename__ = "affiliate_links"
     __table_args__ = (
-        UniqueConstraint("product_id", "account_id", "video_id", "fanpage_id", name="uq_affiliate_links_target"),
+        Index(
+            "uq_affiliate_links_video",
+            "product_id",
+            "account_id",
+            "video_id",
+            "fanpage_id",
+            unique=True,
+            postgresql_where=text("video_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_affiliate_links_article",
+            "product_id",
+            "account_id",
+            "article_id",
+            "fanpage_id",
+            unique=True,
+            postgresql_where=text("article_id IS NOT NULL"),
+        ),
+        CheckConstraint("(video_id IS NULL) <> (article_id IS NULL)", name="one_target"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("affiliate_products.id", ondelete="CASCADE"))
     account_id: Mapped[int] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="CASCADE"))
-    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"))
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
     url: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -314,6 +314,24 @@ function TopicBody({
                         </>
                       }
                     />
+                    <PromptCard
+                      title="Prompt viết bài"
+                      field="article_prompt"
+                      initial={topic.article_prompt || defaults.default_article_prompt}
+                      fallback={defaults.default_article_prompt}
+                      update={update}
+                      help={
+                        <>
+                          Dùng khi bấm “AI viết” ở mục Bài viết. Chỗ điền{" "}
+                          <Typography.Text code>[Chủ đề]</Typography.Text>,{" "}
+                          <Typography.Text code>[Dạng bài]</Typography.Text>,{" "}
+                          <Typography.Text code>[Nhóm chủ đề]</Typography.Text> và{" "}
+                          <Typography.Text code>[Bình luận gốc]</Typography.Text> được thay bằng thông tin của bài; chỗ
+                          nào bị xóa thì thông tin đó được nối vào cuối prompt. Câu “Tham khảo, không thay thế tư vấn
+                          bác sĩ” do app tự thêm.
+                        </>
+                      }
+                    />
                   </Flex>
                 </Col>
                 <Col xs={24} xl={8}>
@@ -377,7 +395,7 @@ function PromptCard({
   help,
 }: {
   title: string;
-  field: "script_prompt" | "clone_prompt" | "learn_prompt" | "analyze_prompt" | "revise_prompt";
+  field: "script_prompt" | "clone_prompt" | "learn_prompt" | "analyze_prompt" | "revise_prompt" | "article_prompt";
   initial: string;
   fallback: string;
   update: Update;

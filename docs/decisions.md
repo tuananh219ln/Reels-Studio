@@ -11,6 +11,52 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-06 — Articles are posted as `publications` and measured by reach at 48 hours
+
+Parts 2 and 3 of docs/specs/bai-viet/brief.md, asked by a member (namtc), on the branch of the entry below.
+
+- **An article's post is a `publications` row** with `article_id` instead of `video_id` (exactly one is set), and its
+  numbers are `post_metrics` rows, rather than tables of its own: the publish, unpublish and check jobs, the
+  affiliate comment, the visitors' comments on "Bình luận" and the 48-hour reading all work for it as for a reel.
+  What lists every post and reads its video ("Bài đăng", a Page's dashboard, the reels' medians) keeps to video posts.
+- **Never posted twice**, as a reel (2026-10-31): the text sent is stamped on the post before Facebook is asked; a
+  retry reads the post Facebook gave back, or, when that answer was lost, looks for the same text on the Page's feed
+  and scheduled posts, and posts again only after 30 minutes without finding it, as a reel's upload does.
+- **The same caption never goes twice on one Page** (compared without accents, case, hashtags or extra spaces); on
+  another Page, or within two hours of a reel scheduled on the same Page, "Đăng" asks first.
+- **Reach is an article's main number**: Post Insights' `post_total_media_view_unique`, which Meta's v25 changelog
+  names in place of the retired `post_impressions_unique`; if Facebook refuses it, only reach is left empty. Shares,
+  comments and reactions come from the post's own fields. The KPI is the team's 0.2 %, as share/reach, read only from
+  a reach of 50: below that one share is several percent. Each Page's median is of its articles only (60 days, from 5
+  measured), and an article is drawn bold from 10× it, never flagged (2026-11-03).
+- **Products**: at most two approved Shopee products, whose links go in the comment the worker writes, never in the
+  caption; the caption then ends with "Link sản phẩm mình để ở bình luận ghim.". An article's link carries the sub id
+  `bv<article>`, so an order is never taken for the video with the same number; orders are not yet shown by article.
+- **"Làm reel từ bài này"** makes a video draft on the article's topic through the usual "Tạo video" (its script job).
+- Left for later: an AI picture for an article, articles in "Bài đăng", a Page's queue or its dashboard, and orders
+  by article.
+
+## 2026-11-06 — Photo and text posts ("Bài viết") are built, with no stock photos; banned words still only warn
+
+Asked by a member (namtc), from docs/specs/bai-viet/brief.md. This reverses "photo and text posts
+(`pages_manage_posts`) wait" in the 2026-11-03 entry on "Bình luận" (and the same reason in the entry on token
+checks): an article is a cheap test of a topic before a reel is made, keeps a Page posting and gathers comments. The
+risk named then was "unoriginal content" with stock photos, so an article never takes one: its picture is a "Thẻ chữ"
+(the caption's first line on a colour, drawn by the api in the app's font), a photo from a pasted link (the link is
+kept, the member answers for it, as for TikTok clips), later an AI picture, or none, a text post being valid.
+
+- **"Banned words warn, they never block" (2026-10-31) holds for articles too**, on the brief's default: a banned word
+  in the caption is a yellow warning. A link in the caption is different: it breaks the rule that affiliate links go
+  only in the pinned comment, so it will block posting.
+- **Named "article" in code** (`articles`, `/api/articles`, `/articles`), because "post" already means a
+  `publications` row ("Bài đăng"); the menu says "Bài viết", its own item beside "Video".
+- **The caption prompt is app data and its format is code**, as for scripts: "Prompt viết bài" per group on
+  `/knowledge`, the shape of the answer in `articles.output_format`, assembled by the same `claude._assemble` (which
+  now takes the format and what the banned words apply to). The disclaimer line is added by the app, never left to
+  the AI.
+- **Built in three parts**: drafts first; posting (with "never posted twice"), taking down and the affiliate comment
+  next, then the 48-hour numbers (the entry above). Articles do not go into "Bài đăng" or a Page's queue yet.
+
 ## 2026-11-06 — "Bài đăng" suggests cloning in one card, the button picks TikTok or another Page
 
 Asked by a member (namtc): "Nên làm bản TikTok" and "Nhân bản cho Page khác" listed the same winners twice. They are

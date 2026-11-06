@@ -122,7 +122,9 @@ def measure(db: DbSession, post: Publication) -> None:
     post.metrics_tried_at = at
     try:
         page = fanpages.load_page(db, post.fanpage_id)
-        numbers = facebook.reel_insights(page, post.remote_id)
+        # An article ("Bài viết") is a feed post: reach is its main number, it has no views.
+        reader = facebook.article_insights if post.article_id is not None else facebook.reel_insights
+        numbers = reader(page, post.remote_id)
     except FacebookError as err:
         post.metrics_error = err.message
         db.commit()

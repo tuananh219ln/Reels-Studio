@@ -557,6 +557,167 @@ def delete_reel(page: Page, video_id: str) -> None:
         raise FacebookError("Facebook chưa xóa bài này, hãy xem Page rồi thử lại", str(reply))
 
 
+# --- Articles ("Bài viết"): photo and text posts on the Page's feed ---
+
+
+def post_url(post_id: str) -> str:
+    return f"https://www.facebook.com/{post_id}"
+
+
+def _schedule_fields(scheduled_at: datetime | None) -> dict[str, str]:
+    if scheduled_at is None:
+        return {"published": "true"}
+    return {"published": "false", "scheduled_publish_time": str(int(scheduled_at.timestamp()))}
+
+
+def _article_error(err: FacebookError) -> FacebookError:
+    if err.code in PERMISSION_ERRORS:
+        return FacebookError(
+            "Token Facebook chưa có quyền đăng bài lên Page (pages_manage_posts), hãy dán token mới trong Quản lý Page",
+            err.detail,
+            err.status,
+            err.code,
+        )
+    if err.message == REFUSED:
+        return FacebookError("Facebook từ chối đăng bài này", err.detail, err.status, err.code)
+    return err
+
+
+def publish_text(page: Page, message: str, scheduled_at: datetime | None) -> str:
+    """A text-only post on the Page's feed, now or at `scheduled_at`; returns the post's id. Needs
+    `pages_manage_posts`."""
+    fields = {"message": message, **_schedule_fields(scheduled_at), "access_token": page.token}
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}/feed"
+    try:
+        reply = _send(
+            urllib.request.Request(url, data=urllib.parse.urlencode(fields).encode(), method="POST"), REQUEST_TIMEOUT
+        )
+    except FacebookError as err:
+        raise _article_error(err) from None
+    if not reply.get("id"):
+        raise FacebookError("Facebook trả dữ liệu không đọc được, hãy xem Page trước khi thử lại", str(reply))
+    return str(reply["id"])
+
+
+def publish_photo(page: Page, message: str, image: Path, scheduled_at: datetime | None) -> str:
+    """A photo post with `message` as its text, now or at `scheduled_at`; returns the id of the post (not of the
+    photo), which comments, numbers and deleting go through."""
+    boundary = uuid.uuid4().hex
+    fields = {"message": message, **_schedule_fields(scheduled_at), "access_token": page.token}
+    parts = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode() + value.encode() + b"\r\n"
+        for name, value in fields.items()
+    ]
+    parts += [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="source"; filename="{image.name}"\r\n'
+        "Content-Type: application/octet-stream\r\n\r\n".encode(),
+        image.read_bytes(),
+        f"\r\n--{boundary}--\r\n".encode(),
+    ]
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}/photos"
+    headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
+    try:
+        reply = _send(urllib.request.Request(url, data=b"".join(parts), method="POST", headers=headers), UPLOAD_TIMEOUT)
+    except FacebookError as err:
+        raise _article_error(err) from None
+    post_id = reply.get("post_id") or reply.get("id")
+    if not post_id:
+        raise FacebookError("Facebook trả dữ liệu không đọc được, hãy xem Page trước khi thử lại", str(reply))
+    return str(post_id)
+
+
+def post_status(page: Page, post_id: str) -> dict | None:
+    """`{"published": bool, "scheduled_at": datetime | None}` for a feed post, or None when Facebook no longer has it.
+    Any other failure raises, as for a reel: a post whose state is unknown may be live."""
+    query = urllib.parse.urlencode({"fields": "is_published,scheduled_publish_time", "access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(post_id, safe='')}?{query}"
+    try:
+        reply = _send(urllib.request.Request(url), REQUEST_TIMEOUT)
+    except FacebookError as err:
+        if _gone(page, err):
+            return None
+        raise FacebookError(
+            f"Không đọc được trạng thái bài, hãy xem Page trước khi thử lại: {err.message}", err.detail
+        ) from None
+    if "is_published" not in reply:
+        raise FacebookError("Không đọc được trạng thái bài, hãy xem Page trước khi thử lại", str(reply))
+    moment = reply.get("scheduled_publish_time")
+    return {
+        "published": bool(reply["is_published"]),
+        "scheduled_at": datetime.fromtimestamp(int(moment), UTC)
+        if isinstance(moment, (int, float, str)) and str(moment).isdigit()
+        else None,
+    }
+
+
+def find_post(page: Page, message: str) -> str | None:
+    """The id of a post on the Page, live or scheduled, whose text is `message`: an attempt whose answer was lost may
+    have reached Facebook. Reads the newest 50 of each."""
+    for edge in ("feed", "scheduled_posts"):
+        query = urllib.parse.urlencode({"fields": "id,message", "limit": "50", "access_token": page.token})
+        url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}/{edge}?{query}"
+        try:
+            reply = _send(urllib.request.Request(url), REQUEST_TIMEOUT)
+        except FacebookError as err:
+            raise FacebookError(
+                f"Không đọc được bài trên Page để tránh đăng hai lần, hãy xem Page rồi thử lại: {err.message}",
+                err.detail,
+            ) from None
+        for post in reply.get("data") or []:
+            if (post.get("message") or "").strip() == message.strip() and post.get("id"):
+                return str(post["id"])
+    return None
+
+
+# The post's reach: people who saw it. Meta's v25 changelog retires `post_impressions_unique` and names this one instead.
+ARTICLE_REACH = "post_total_media_view_unique"
+ARTICLE_COUNTS = "shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)"
+
+
+def article_insights(page: Page, post_id: str) -> dict:
+    """A photo or text post's `reach`, `shares`, `comments` and `reactions`, each None when Facebook leaves it out;
+    `views` is always None (a feed post has no plays). Counts come from the post's own fields, reach from Post
+    Insights: a reach Facebook refuses (#100, a retired metric) leaves only reach None. Needs `read_insights`."""
+    query = urllib.parse.urlencode({"fields": ARTICLE_COUNTS, "access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(post_id, safe='')}?{query}"
+    try:
+        fields = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
+    except FacebookError as err:
+        raise _insights_error(err) from None
+    reach = None
+    query = urllib.parse.urlencode({"metric": ARTICLE_REACH, "period": "lifetime", "access_token": page.token})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(post_id, safe='')}/insights?{query}"
+    try:
+        data = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT).get("data") or []
+    except FacebookError as err:
+        if err.code != 100:
+            raise _insights_error(err) from None
+        log.warning("Facebook refused the reach of post %s: %s", post_id, err.detail)
+        data = []
+    for item in data:
+        if isinstance(item, dict) and item.get("name") == ARTICLE_REACH and item.get("values"):
+            reach = _number(item["values"][-1].get("value"))
+
+    def summary(name: str) -> int | None:
+        part = fields.get(name)
+        return _number(part.get("summary", {}).get("total_count")) if isinstance(part, dict) else None
+
+    shares = fields.get("shares")
+    return {
+        "views": None,
+        "reach": reach,
+        # Facebook leaves `shares` out of a post nobody shared.
+        "shares": _number(shares.get("count")) if isinstance(shares, dict) else 0,
+        "comments": summary("comments"),
+        "reactions": summary("reactions"),
+    }
+
+
+def delete_post(page: Page, post_id: str) -> None:
+    """Take a photo or text post off the Page, live or scheduled; one Facebook no longer has is already gone."""
+    delete_reel(page, post_id)
+
+
 def is_live(status: dict) -> bool:
     """Published, or accepted for the scheduled time."""
     return status.get("publishing_phase", {}).get("publish_status") in ("published", "scheduled")
