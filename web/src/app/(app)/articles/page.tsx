@@ -159,7 +159,7 @@ export default function ArticlesPage() {
           <ArticleThumb article={row} />
           <Flex vertical style={{ minWidth: 0 }}>
             <Link prefetch={false} href={`/articles/${row.id}`}>
-              <Typography.Text strong ellipsis style={{ maxWidth: 420 }}>
+              <Typography.Text strong ellipsis style={{ maxWidth: 320 }}>
                 {row.hook || row.topic || "(chưa có caption)"}
               </Typography.Text>
             </Link>
@@ -173,7 +173,7 @@ export default function ArticlesPage() {
     {
       title: "Trạng thái",
       key: "status",
-      width: 140,
+      width: 120,
       render: (_, row) =>
         row.job?.status === "queued" || row.job?.status === "running" ? (
           <StatusText tone="active">AI đang viết…</StatusText>
@@ -184,7 +184,7 @@ export default function ArticlesPage() {
     {
       title: "Page",
       key: "pages",
-      width: 160,
+      width: 150,
       render: (_, row) => {
         const pages = [
           ...new Set(
@@ -199,7 +199,7 @@ export default function ArticlesPage() {
     {
       title: "Số 48h",
       key: "numbers",
-      width: 260,
+      width: 230,
       render: (_, row) => {
         const post = row.posts.find((item) => item.numbers.at_48h);
         if (!post) {
@@ -217,12 +217,12 @@ export default function ArticlesPage() {
         );
       },
     },
-    { title: "Dạng bài", dataIndex: "kind_label", width: 170 },
-    { title: "Nhóm chủ đề", dataIndex: "group_name", width: 160, render: (value) => value ?? "—" },
+    { title: "Dạng bài", dataIndex: "kind_label", width: 130 },
+    { title: "Nhóm chủ đề", dataIndex: "group_name", width: 130, render: (value) => value ?? "—" },
     {
       title: "Tạo",
       key: "created",
-      width: 170,
+      width: 140,
       render: (_, row) => (
         <Flex vertical>
           <span>{formatDateTime(row.created_at)}</span>
@@ -269,7 +269,7 @@ export default function ArticlesPage() {
             columns={columns}
             dataSource={rows}
             pagination={false}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 1100 }}
             locale={{ emptyText: <Empty description="Chưa có bài viết nào" /> }}
           />
         )}
