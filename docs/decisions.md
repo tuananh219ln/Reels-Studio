@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-06 — A reel deleted on Facebook is known by the 400 (#100) Facebook answers, while the Page still reads
+
+Reels deleted in Meta Business Suite could be neither checked nor deleted in the app: "Kiểm tra" and "Xóa" failed
+with "Không đọc được trạng thái reel… Facebook không cho token này truy cập Page", and the post stayed "Đã đăng".
+The app took only an HTTP 404 for a reel Facebook no longer has, but Facebook answers 400, code 100, subcode 33,
+the same as for a reel the token may not read. Now that answer means the reel is gone only when the same token still
+reads the Page (`GET /{page-id}`); otherwise it stays unknown and nothing changes, so a token that lost the Page
+never closes a post or posts it again. It applies to the status read ("Kiểm tra", "Xóa", "Thử lại") and to the
+delete. The test fake now answers a lost reel as Facebook does.
+
 ## 2026-11-06 — "Bài đăng"'s filters move onto the list they filter
 
 On the owner's call ("làm lại UI filter"). The search, status tabs, sort and Fanpage filter sat under the title, in
