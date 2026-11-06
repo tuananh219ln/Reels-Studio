@@ -8,6 +8,8 @@ thắng" flag: it was dropped on 2026-11-03 (docs/decisions.md).
   new video look far above its first weeks, and a large Page would do the same to a small one.
 - Under `MIN_SAMPLES` measured posts a Page's median means little, so no post is compared with it.
 - A week runs Monday to Sunday in Vietnam time, like everything the app shows.
+- A post taken down (deleted or cancelled) counts in neither: its numbers stay with it as history, but a reel Facebook
+  hid or that came down early measures the fault, not the content.
 """
 
 import statistics
@@ -21,6 +23,8 @@ from .models import PostMetrics, Publication
 from .sessions import now
 
 MEDIAN_DAYS = 60
+# Statuses whose 48-hour numbers stay with the post but feed no median or KPI.
+TAKEN_DOWN = ("deleted", "cancelled")
 MIN_SAMPLES = 5
 SHARE_GOAL = 0.002
 # Vietnam has no daylight saving time, so a fixed offset needs no time zone database in the images.
@@ -49,7 +53,12 @@ def _marks(db: DbSession, since: datetime | None = None) -> list[Mark]:
     query = (
         select(Publication.id, Publication.fanpage_id, live, PostMetrics.views, PostMetrics.shares)
         .join(PostMetrics, PostMetrics.publication_id == Publication.id)
-        .where(PostMetrics.window == "48h", PostMetrics.views.is_not(None), Publication.platform == "facebook")
+        .where(
+            PostMetrics.window == "48h",
+            PostMetrics.views.is_not(None),
+            Publication.platform == "facebook",
+            Publication.status.not_in(TAKEN_DOWN),
+        )
     )
     if since is not None:
         query = query.where(live > since)

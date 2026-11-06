@@ -525,7 +525,10 @@ Built:
     one Facebook does not give), when they were read ("Đo lúc", Vietnam time), the 48-hour views
     with "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị" and the share/view, the
     "Chưa có số view, app tự đo sau khi đăng 1 giờ" note and the failed reading's reason sit in
-    tooltips, with "Xem TB N giây (N %), tiếp cận N" when Facebook gives them. The video's page
+    tooltips, with "Xem TB N giây (N %), tiếp cận N" when Facebook gives them. A cancelled or deleted
+    post's last reading is history, not bold: "Lúc xóa: N view (đo lúc …)" (or "Lúc hủy"), its failed
+    reading said in words ("Lần đo cuối lỗi: …"), and its views add nothing to the video's "Tổng view"
+    and sort after every live post's. The video's page
     shows the same numbers in full, with share/view green at 0,2 % or more, yellow under it. A post
     with numbers has "Phân tích" (an icon button on "Bài đăng", a button on the video's page). It
     opens "Phân tích bài đăng": views, average watch with its share of the posted length, reach,

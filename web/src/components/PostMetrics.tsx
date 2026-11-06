@@ -27,9 +27,21 @@ export function formatRate(value: number | null | undefined): string {
 /** The team's share/view goal (docs/content.md); the api's KPIs use the same. */
 export const SHARE_GOAL = 0.002;
 
-/** Views of a post for sorting: a post not read yet sorts after every read one. */
+/** Cancelled or deleted: its last numbers stay as history, but are no one's views any more. */
+function takenDown(post: Post): boolean {
+  return post.status === "deleted" || post.status === "cancelled";
+}
+
+/** Views of a post for sorting and totals: a post not read yet, or taken down, sorts after every read one and
+ * adds nothing. */
 export function viewsOf(post: Post): number {
-  return post.metrics.latest?.views ?? -1;
+  return takenDown(post) ? -1 : (post.metrics.latest?.views ?? -1);
+}
+
+/** "Lúc xóa: 22 view (đo lúc 05/11/2026 10:00)", a taken-down post's last reading. */
+function atClose(post: Post, latest: PostNumbers): string {
+  const when = post.status === "deleted" ? "Lúc xóa" : "Lúc hủy";
+  return `${when}: ${formatCount(latest.views)} view (đo lúc ${formatDateTime(latest.measured_at)})`;
 }
 
 function details(numbers: PostNumbers): string {
@@ -69,6 +81,7 @@ export default function PostMetrics({
   const [asking, setAsking] = useState(false);
   const { latest, at_48h: mark, error, pending, analysis } = post.metrics;
   const isPublic = post.status === "published" && post.url !== null;
+  const gone = takenDown(post);
   if (!latest && !error && !isPublic) return null;
 
   async function ask() {
@@ -107,7 +120,15 @@ export default function PostMetrics({
     return (
       <Flex align="center" gap={6} wrap={false} data-testid="post-metrics">
         <Tooltip title={tip}>
-          {latest ? (
+          {latest && gone ? (
+            <Typography.Text
+              type="secondary"
+              style={{ fontSize: 12, whiteSpace: "nowrap" }}
+              data-testid="post-views-at-close"
+            >
+              {atClose(post, latest)}
+            </Typography.Text>
+          ) : latest ? (
             <Typography.Text strong style={{ whiteSpace: "nowrap" }}>
               <EyeOutlined /> <span data-testid="post-views">{formatCount(latest.views)}</span> view
             </Typography.Text>
@@ -117,7 +138,12 @@ export default function PostMetrics({
             </Typography.Text>
           )}
         </Tooltip>
-        {error && (
+        {error && gone && (
+          <Typography.Text type="warning" style={{ fontSize: 12 }} data-testid="post-metrics-error">
+            Lần đo cuối lỗi: {error}
+          </Typography.Text>
+        )}
+        {error && !gone && (
           <Tooltip title={`Lần đo gần nhất lỗi: ${error}`}>
             <Typography.Text type="warning" data-testid="post-metrics-error">
               <WarningOutlined aria-label="Lần đo gần nhất lỗi" />
@@ -146,9 +172,15 @@ export default function PostMetrics({
     <Flex vertical gap={2} data-testid="post-metrics">
       {latest ? (
         <>
-          <Typography.Text strong>
-            <EyeOutlined /> <span data-testid="post-views">{formatCount(latest.views)}</span> view
-          </Typography.Text>
+          {gone ? (
+            <Typography.Text type="secondary" data-testid="post-views-at-close">
+              {atClose(post, latest)}
+            </Typography.Text>
+          ) : (
+            <Typography.Text strong>
+              <EyeOutlined /> <span data-testid="post-views">{formatCount(latest.views)}</span> view
+            </Typography.Text>
+          )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {details(latest)}
           </Typography.Text>
@@ -157,10 +189,18 @@ export default function PostMetrics({
               {watching(latest)}
             </Typography.Text>
           )}
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Đo lúc {formatDateTime(latest.measured_at)}
-            {mark && `, mốc 48 giờ: ${formatCount(mark.views)} view`}
-          </Typography.Text>
+          {gone ? (
+            mark && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Mốc 48 giờ: {formatCount(mark.views)} view
+              </Typography.Text>
+            )
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Đo lúc {formatDateTime(latest.measured_at)}
+              {mark && `, mốc 48 giờ: ${formatCount(mark.views)} view`}
+            </Typography.Text>
+          )}
           {mark && <Analysis analysis={analysis} />}
         </>
       ) : (

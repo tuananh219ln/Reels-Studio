@@ -1112,6 +1112,8 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await expect(tabs.getByText("Đã hủy/xóa (1)")).toBeVisible();
   await groups.getByRole("cell").last().click();
   const posts = page.getByTestId("post-rows");
+  await posts.getByRole("button", { name: "Cập nhật view" }).click();
+  await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await posts.getByRole("button", { name: "Xóa", exact: true }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Xóa", exact: true }).click();
   // Deleted, it leaves the default list too, but stays one click away.
@@ -1123,6 +1125,10 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await expect(groups).toContainText("2 bài đăng");
   await groups.getByRole("cell").last().click();
   await expect(posts.getByText("Đã xóa", { exact: true })).toBeVisible();
+  // A deleted reel's last numbers are history: said as such, not bold like a live one's, and left out of the total.
+  await expect(posts.getByTestId("post-views")).toHaveCount(0);
+  await expect(posts.getByTestId("post-views-at-close")).toContainText("Lúc xóa: 1.200 view (đo lúc ");
+  await expect(groups.getByRole("cell", { name: "1.200", exact: true })).toHaveCount(0);
   await expect(posts.getByText("Đã hủy", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
   // Who took each down and when, under its time; their action buttons are all greyed out.

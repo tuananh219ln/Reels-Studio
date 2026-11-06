@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-06 — A deleted or cancelled post's numbers are history: no median, no KPI, no total
+
+Four reels on one Page, posted through the API on 3–5 November, were hidden from other viewers by Facebook (posted
+by hand, the same content showed). Their ~1 view at 48 hours measured that fault, not the content, yet pulled the
+Page's median down, so later videos looked many times above it, and counted in the weekly KPIs. A deleted reel's
+last reading also stayed bold and was added to "Tổng view". Now a post whose status is `deleted` or `cancelled`
+feeds no Page median and no weekly KPI, its views add nothing to "Tổng view" and sort last, and its last reading is
+shown as "Lúc xóa: N view (đo lúc …)". Its `48h` and `latest` rows are kept as history and still shown with it.
+Unchanged: the 48-hour mark is written once and never again, live and scheduled posts are read as before, and
+"Cập nhật view" stays on live posts only. A post still on Facebook but hidden by it is not left out by this: it
+has to be deleted first (spec: docs/specs/metrics-deleted-posts/brief.md).
+
 ## 2026-11-05 — A Page's dashboard gets a "Nội dung" tab, one row per post, from the numbers the app already reads
 
 Phase 2 of the entry below, asked by a member (namtc): "Nội dung" on `/fanpages/[id]`, like Facebook's content
