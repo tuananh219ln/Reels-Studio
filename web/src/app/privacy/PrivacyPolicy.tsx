@@ -39,7 +39,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
       "ElevenLabs: lời đọc của video, để tạo giọng đọc.",
       "Pexels, Pixabay, Openverse: từ khoá tìm ảnh. TikTok: chỉ khi thành viên dán link clip để tải.",
       "Shopee: để lấy link tiếp thị liên kết và báo cáo.",
-      "ChatGPT: chỉ khi một thành viên tự kết nối tài khoản của mình, để soạn bản nháp video.",
+      "ChatGPT, Claude: chỉ khi một thành viên tự kết nối tài khoản của mình, để soạn bản nháp video.",
       "Cloudflare chạy phần giao diện web. Dữ liệu và file video được lưu trên máy chủ riêng của nhóm.",
     ],
   },

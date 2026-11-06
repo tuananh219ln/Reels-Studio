@@ -62,7 +62,7 @@ test("ChatGPT connects through consent, then the member revokes it", async ({ pa
   await page.goto("/chatgpt");
   await expect(page.getByText(/Kết nối #/)).toBeVisible();
   await page.getByRole("button", { name: "Thu hồi kết nối" }).click();
-  await expect(page.getByText("Bạn chưa có kết nối ChatGPT nào.")).toBeVisible();
+  await expect(page.getByText("Bạn chưa có kết nối nào.")).toBeVisible();
   expect((await rpc()).status()).toBe(401);
 });
 

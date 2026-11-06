@@ -70,6 +70,7 @@ JOB_KINDS = {
     "learn": "Học từ video mẫu",
     "revise": "AI sửa theo góp ý",
     "article_caption": "Viết bài viết",
+    "motion": "Cảnh động",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -538,6 +539,15 @@ def _version(*parts: object) -> str:
     return hashlib.sha256(json.dumps(parts, ensure_ascii=False).encode()).hexdigest()[:12]
 
 
+def motion_payload(scene: Scene) -> dict | None:
+    """A scene's motion while its clip is the one the motion made, or while that clip is being made; else None
+    (another photo or clip took its place, or its job failed)."""
+    motion = scene.motion
+    if not motion or not (motion.get("pending") or (motion.get("clip_key") and motion["clip_key"] == scene.video_key)):
+        return None
+    return {"html": motion["html"], "seconds": motion["seconds"], "pending": bool(motion.get("pending"))}
+
+
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
     size = text_size(video, scene.is_title)
@@ -601,6 +611,8 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "layers": [layer_payload(layer) for layer in scene.layers],
         "sounds": [sound_payload(sound) for sound in scene.sounds],
         "music_level": scene.music_level,
+        # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.
+        "motion": motion_payload(scene),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
     }

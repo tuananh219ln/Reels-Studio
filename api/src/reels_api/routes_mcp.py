@@ -1,9 +1,9 @@
-"""OAuth authorization-code + S256 PKCE for the private ChatGPT connection."""
+"""OAuth authorization-code + S256 PKCE for the private ChatGPT and Claude connections."""
 
 import secrets
 from datetime import timedelta
 from html import escape
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -13,13 +13,17 @@ from sqlalchemy.orm import Session as DbSession
 
 from .db import get_db
 from .mcp_auth import (
-    CALLBACK,
     CONNECTION_LIFETIME,
+    MAX_REDIRECTS,
     SCOPES,
     Enabled,
+    allowed_redirect,
+    app_of,
     member_session,
     oauth_error,
     pkce,
+    redirect_matches,
+    registered,
     require_enabled,
     rotate_tokens,
     valid_verifier,
@@ -74,30 +78,33 @@ def authorization_metadata() -> dict:
 
 
 class Registration(BaseModel):
-    redirect_uris: list[str] = Field(max_length=1)
+    redirect_uris: list[str] = Field(min_length=1, max_length=MAX_REDIRECTS)
     token_endpoint_auth_method: str = "none"
     grant_types: list[str] = Field(default=["authorization_code", "refresh_token"], max_length=2)
     response_types: list[str] = Field(default=["code"], max_length=1)
-    client_name: str = Field(default="ChatGPT", max_length=100)
+    client_name: str = Field(default="", max_length=100)
 
 
 @router.post(PREFIX + "/register", status_code=201)
 def register(body: Registration, db: DbSession = Depends(get_db)) -> JSONResponse:
+    redirects = list(dict.fromkeys(body.redirect_uris))
     if (
-        body.redirect_uris != [CALLBACK]
+        not all(allowed_redirect(uri) for uri in redirects)
         or body.token_endpoint_auth_method != "none"
         or set(body.grant_types) - {"authorization_code", "refresh_token"}
         or body.response_types != ["code"]
     ):
-        raise oauth_error("invalid_client_metadata", "Chỉ hỗ trợ kết nối ChatGPT với callback đã cho phép")
-    client = McpClient(id=new_session_token(), redirect_uri=CALLBACK)
+        raise oauth_error(
+            "invalid_client_metadata", "Chỉ hỗ trợ kết nối ChatGPT, Claude và Claude Code với callback đã cho phép"
+        )
+    client = McpClient(id=new_session_token(), redirect_uri=" ".join(redirects))
     db.add(client)
     db.commit()
     return JSONResponse(
         {
             "client_id": client.id,
-            "client_name": "ChatGPT",
-            "redirect_uris": [CALLBACK],
+            "client_name": app_of(redirects[0]),
+            "redirect_uris": redirects,
             "token_endpoint_auth_method": "none",
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
@@ -116,7 +123,7 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
     challenge = query.get("code_challenge", "")
     if (
         client is None
-        or query.get("redirect_uri") != client.redirect_uri
+        or not redirect_matches(client.redirect_uri, query.get("redirect_uri", ""))
         or query.get("response_type") != "code"
         or query.get("code_challenge_method") != "S256"
         or len(challenge) != 43
@@ -133,7 +140,7 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
     session = member_session(db, session_id) if session_id else None
     if session is None:
         return page(
-            "Đăng nhập để kết nối ChatGPT",
+            f"Đăng nhập để kết nối {app_of(query['redirect_uri'])}",
             "<p>Mở Reels Studio để đăng nhập hoặc đổi mật khẩu, rồi quay lại trang này.</p>"
             '<a href="/login" target="_blank" rel="noopener">Mở trang đăng nhập</a>'
             f'<p><a href="{escape(resource + "/oauth/authorize?" + str(request.query_params), quote=True)}">'
@@ -151,6 +158,7 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
             resource=resource,
             scopes=" ".join(sorted(set(scopes))),
             state=query.get("state", ""),
+            redirect_uri=query["redirect_uri"],
             expires_at=now() + timedelta(minutes=10),
         )
     )
@@ -180,12 +188,28 @@ def authorization_details(
         or auth.resource != require_enabled()
     ):
         raise oauth_error()
-    return JSONResponse({"email": me.user.email, "scopes": auth.scopes.split()}, headers=PRIVATE_HEADERS)
+    redirect = return_to(auth)
+    return JSONResponse(
+        {
+            "email": me.user.email,
+            "scopes": auth.scopes.split(),
+            "app": app_of(redirect),
+            # The MCP spec asks the consent screen to show where the grant goes, and to warn for a loopback one.
+            "redirect_host": urlsplit(redirect).netloc,
+            "loopback": app_of(redirect) == "Claude Code",
+        },
+        headers=PRIVATE_HEADERS,
+    )
 
 
-def callback(client: McpClient, state: str, **values) -> RedirectResponse:
-    params = {"state": state, "iss": require_enabled() + "/oauth", **values}
-    return RedirectResponse(client.redirect_uri + "?" + urlencode(params), status_code=303, headers=PRIVATE_HEADERS)
+def return_to(auth: McpAuthorization) -> str:
+    # A grant from before 0047 has no callback of its own: its client had exactly one.
+    return auth.redirect_uri or registered(auth.client.redirect_uri)[0]
+
+
+def callback(auth: McpAuthorization, **values) -> RedirectResponse:
+    params = {"state": auth.state, "iss": require_enabled() + "/oauth", **values}
+    return RedirectResponse(return_to(auth) + "?" + urlencode(params), status_code=303, headers=PRIVATE_HEADERS)
 
 
 @router.post(PREFIX + "/consent")
@@ -206,16 +230,16 @@ def consent(
         or auth.resource != require_enabled()
     ):
         raise oauth_error()
-    client = db.get(McpClient, auth.client_id)
     if decision != "allow":
-        state = auth.state
+        response = callback(auth, error="access_denied")
         db.delete(auth)
         db.commit()
-        return callback(client, state, error="access_denied")
+        return response
     code = new_session_token()
     auth.code_hash, auth.expires_at = hash_session_token(code), now() + timedelta(minutes=2)
+    response = callback(auth, code=code)
     db.commit()
-    return callback(client, auth.state, code=code)
+    return response
 
 
 @router.post(PREFIX + "/token")
@@ -243,7 +267,7 @@ def token(
             or auth.client_id != client.id
             or auth.resource != resource
             or auth.expires_at <= now()
-            or redirect_uri != client.redirect_uri
+            or redirect_uri != return_to(auth)
             or not valid_verifier(code_verifier)
             or not secrets.compare_digest(pkce(code_verifier), auth.challenge)
             or member_session(db, auth.session_id) is None
@@ -303,7 +327,12 @@ def own_connections(db: DbSession, me: Session):
 @router.get("/api/mcp/connections")
 def connections(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
     return [
-        {"id": row.id, "scopes": row.scopes, "expires_at": row.expires_at.isoformat()}
+        {
+            "id": row.id,
+            "app": app_of(registered(row.client.redirect_uri)[0]),
+            "scopes": row.scopes,
+            "expires_at": row.expires_at.isoformat(),
+        }
         for row in own_connections(db, me)
     ]
 
