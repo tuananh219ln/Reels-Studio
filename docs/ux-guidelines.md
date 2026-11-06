@@ -559,12 +559,14 @@ Built:
     with "Nhân bản" (`?clone=page`, the clone drawer with a variant request filled in). The request
     is dropped from the address at once. The same MP4 is never suggested for another Page. An empty
     card says so, or that it needs at least two Pages in use. A post updates
-    by itself once the worker has done it. Under the title, status tabs with counts: "Đang hoạt động"
-    (the default: on its way, failed, scheduled and published), "Đã đăng", "Đã hẹn lịch", "Thất
-    bại", "Đã hủy/xóa" and "Tất cả", after "Tìm theo tiêu đề"; the counts follow the search and Fanpage
-    filters. Then the Fanpage filter ("Mọi Fanpage") and "Sắp xếp" ("Giờ đăng mới nhất", the default, or
-    "Nhiều view nhất", posts not read yet last; videos follow their first post),
-    which filter the posts and keep the videos that still have one. A tab leaves the other posts out
+    by itself once the worker has done it. The list's filters sit on its own card, under the KPIs and
+    the suggestions, which they do not filter (the one page whose filters are not under its title): status
+    tabs with counts across the card's top, "Đang hoạt động" (the default: on its way, failed, scheduled
+    and published), "Đã đăng", "Đã hẹn lịch", "Thất bại", "Đã hủy/xóa" and "Tất cả"; under them "Tìm
+    theo tiêu đề", the Fanpage filter ("Mọi Fanpage") and, at the right, "Sắp xếp" ("Giờ đăng mới nhất",
+    the default, or "Nhiều view nhất", posts not read yet last; videos follow their first post). The
+    counts follow the search and Fanpage filters. They filter the posts and keep the videos that still
+    have one. A tab leaves the other posts out
     of the rows and their tags. "Không có bài đăng nào khớp" when nothing matches a filter, "Không
     có bài nào đang hoạt động" when only cancelled or deleted posts are left. "Danh sách" and "Lịch",
     at the right of the title, switch between the table and the calendar on the same page.

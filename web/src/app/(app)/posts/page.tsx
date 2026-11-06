@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
-import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tooltip, Typography } from "antd";
+import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tabs, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -131,13 +131,18 @@ function Posts() {
     );
   }
 
-  return (
+  // The filters sit on the list they filter, under the KPIs and suggestions, which they leave as they are.
+  const toolbar = (
     <>
-      <PageHeader
-        title="Bài đăng"
-        description="Theo dõi các bài đang đăng, đã hẹn lịch, đã đăng hoặc thất bại trên mọi Fanpage."
-        actions={viewSwitch}
-      >
+      <div role="group" aria-label="Lọc theo trạng thái">
+        <Tabs
+          activeKey={status}
+          onChange={(key) => setStatus(key as StatusFilter)}
+          items={FILTERS.map(({ value, label }) => ({ key: value, label: `${label} (${counts[value]})` }))}
+          tabBarStyle={{ margin: 0, padding: "0 16px" }}
+        />
+      </div>
+      <Flex wrap gap={12} align="center" style={{ padding: 16 }}>
         <Input
           aria-label="Tìm theo tiêu đề"
           prefix={<SearchOutlined />}
@@ -147,13 +152,16 @@ function Posts() {
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 320, maxWidth: "100%" }}
         />
-        <Segmented<StatusFilter>
-          aria-label="Lọc theo trạng thái"
-          value={status}
-          onChange={setStatus}
-          options={FILTERS.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
-          style={{ maxWidth: "100%", overflowX: "auto" }}
-        />
+        {pages.length > 0 && (
+          <FilterSelect
+            aria-label="Lọc theo Fanpage"
+            placeholder="Mọi Fanpage"
+            value={fanpage}
+            onChange={(value) => setFanpage(value ?? null)}
+            options={pages.map((name) => ({ value: name, label: name }))}
+            style={{ width: 220, maxWidth: "100%" }}
+          />
+        )}
         <Select
           aria-label="Sắp xếp"
           value={sort}
@@ -162,28 +170,30 @@ function Posts() {
             { value: "latest", label: "Giờ đăng mới nhất" },
             { value: "views", label: "Nhiều view nhất" },
           ]}
-          style={{ width: 180 }}
+          style={{ width: 180, marginLeft: "auto" }}
         />
-        {pages.length > 0 && (
-          <FilterSelect
-            aria-label="Lọc theo Fanpage"
-            placeholder="Mọi Fanpage"
-            value={fanpage}
-            onChange={(value) => setFanpage(value ?? null)}
-            options={pages.map((name) => ({ value: name, label: name }))}
-            style={{ width: 220 }}
-          />
-        )}
-      </PageHeader>
+      </Flex>
+    </>
+  );
+
+  return (
+    <>
+      <PageHeader
+        title="Bài đăng"
+        description="Theo dõi các bài đang đăng, đã hẹn lịch, đã đăng hoặc thất bại trên mọi Fanpage."
+        actions={viewSwitch}
+      />
       <PostKpis posts={posts} />
       <PostSuggestions posts={posts} />
-      {posts === null ? (
-        <Flex justify="center" style={{ padding: 48 }}>
-          <Spin />
-        </Flex>
-      ) : groups.length === 0 ? (
-        <Card>
+      <Card styles={{ body: { padding: 0 } }} data-testid="post-list">
+        {toolbar}
+        {posts === null ? (
+          <Flex justify="center" style={{ padding: 48 }}>
+            <Spin />
+          </Flex>
+        ) : groups.length === 0 ? (
           <Empty
+            style={{ padding: "32px 0" }}
             description={
               filtered
                 ? "Không có bài đăng nào khớp"
@@ -192,10 +202,10 @@ function Posts() {
                   : "Chưa có video nào đã đăng hoặc hẹn lịch"
             }
           />
-        </Card>
-      ) : (
-        <GroupTable groups={groups} onDone={load} />
-      )}
+        ) : (
+          <GroupTable groups={groups} onDone={load} />
+        )}
+      </Card>
     </>
   );
 }
@@ -288,22 +298,18 @@ function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void })
     },
   ];
   return (
-    <Card styles={{ body: { padding: 0 } }}>
-      <Table<Group>
-        rowKey="videoId"
-        columns={columns}
-        dataSource={groups}
-        pagination={{ pageSize: 50, hideOnSinglePage: true }}
-        scroll={{ x: 900 }}
-        onRow={() =>
-          ({ "data-testid": "post-group", style: { cursor: "pointer" } }) as React.HTMLAttributes<HTMLElement>
-        }
-        expandable={{
-          expandRowByClick: true,
-          expandedRowRender: (group) => <PostTable posts={group.posts} onDone={onDone} />,
-        }}
-      />
-    </Card>
+    <Table<Group>
+      rowKey="videoId"
+      columns={columns}
+      dataSource={groups}
+      pagination={{ pageSize: 50, hideOnSinglePage: true }}
+      scroll={{ x: 900 }}
+      onRow={() => ({ "data-testid": "post-group", style: { cursor: "pointer" } }) as React.HTMLAttributes<HTMLElement>}
+      expandable={{
+        expandRowByClick: true,
+        expandedRowRender: (group) => <PostTable posts={group.posts} onDone={onDone} />,
+      }}
+    />
   );
 }
 

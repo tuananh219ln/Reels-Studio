@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-06 — "Bài đăng"'s filters move onto the list they filter
+
+On the owner's call ("làm lại UI filter"). The search, status tabs, sort and Fanpage filter sat under the title, in
+one wrapping row with the tabs in the middle and the Fanpage filter alone on a second line, above the KPIs and the
+suggestions, which they never filtered. They now sit on the list's own card: the status tabs across its top, then
+"Tìm theo tiêu đề", "Mọi Fanpage" and "Sắp xếp" at the right, the general toolbar order. The page is the one
+exception to "search and filters on one row under the title" (ux-guidelines), because its title is followed by
+blocks the filters do not touch. Nothing else changes: the same tabs, counts, filters and sort.
+
 ## 2026-11-06 — A deleted or cancelled post's numbers are history: no median, no KPI, no total
 
 Four reels on one Page, posted through the API on 3–5 November, were hidden from other viewers by Facebook (posted
