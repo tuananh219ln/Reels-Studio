@@ -186,6 +186,10 @@ must follow Meta's, TikTok's and Shopee's rules and is the poster's responsibili
 2026-10-31), that uploaders must hold the rights to their media, and links to `/privacy` for what is sent where.
 Contact goes to the Page by message, as on `/privacy`.
 
+The TikTok developer app verifies the domain with a file served at its root, so
+`web/public/tiktokthafjQKP8W43JYUm5iG01Gsy3j5KIHeD.txt` is kept byte for byte as TikTok issued it (the login proxy
+already skips files with an extension). Delete it only if the TikTok app is removed.
+
 ## 2026-11-06 — A reel deleted on Facebook is known by the 400 (#100) Facebook answers, while the Page still reads
 
 Reels deleted in Meta Business Suite could be neither checked nor deleted in the app: "Kiểm tra" and "Xóa" failed
