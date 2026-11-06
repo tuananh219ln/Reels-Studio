@@ -592,7 +592,8 @@ Planned:
 - **One origin:** the web app calls the API through the Next.js rewrite `/api/*` → `API_URL`, so
   the session cookie is first-party and the API needs no CORS. `web/src/proxy.ts` redirects app
   pages to `/login` before rendering when there is no session cookie; the API validates the session
-  on every request.
+  on every request. Two pages need no session: `/login` and `/privacy`, the public privacy policy a
+  Meta app needs to go Live (exactly that path; it calls no API).
 - **Login:** email + password only. There is no self-signup. Google login is planned ([#54](https://github.com/tuananh219ln/Reels-Studio/issues/54)). The CLI
   `python -m reels_api create-user` creates the first user and is the
   recovery path: for an existing email it resets the password, re-enables the account, and signs out
