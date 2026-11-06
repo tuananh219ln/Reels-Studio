@@ -497,6 +497,15 @@ Planned:
     views over the latest readings of the period's posts (close to, not exactly, what the Page earned then);
     `latest_post` is the newest live post with its latest reading; `upcoming` the posts waiting for their time in
     the next 7 days and the Page's free posting times then (`page_queue.free_slots`). Other `days` are a 422.
+    `GET /api/fanpages/{id}/content?days=7|28|90` (`page_dashboard.content`) is the dashboard's "Nội dung" tab,
+    also worked out on each request: every Facebook post the app made to the Page that went live in the period
+    (Vietnam time), newest first, a reel taken down after going live included as `deleted`. Each row has the
+    video, `live_at`, `closed_at`, the reel's `url` (null once taken down), its `latest` reading (`numbers`: views,
+    reach, reactions, comments, shares, average watch time, follows, `measured_at`; null until read), `views_48h`
+    and `times_median` against the Page's median (analytics.py), `can_refresh` (a reel on Facebook, for "Cập nhật
+    view", which stays `POST /api/posts/{id}/metrics`), `pending` and the last reading `error`; `median` gives the
+    Page's median, sample count and the samples it needs. Sorting, the chosen columns and the CSV file are the
+    web's, from these rows.
     `DELETE /api/fanpages/{id}` removes a stopped Page with no post at all (409 otherwise), its
     followers and numbers going with it; each listed Page carries `posts`, its count of posts.
   - **What the numbers mean** ([analytics.py](../api/src/reels_api/analytics.py)) is worked out from

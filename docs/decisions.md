@@ -11,6 +11,23 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-05 — A Page's dashboard gets a "Nội dung" tab, one row per post, from the numbers the app already reads
+
+Phase 2 of the entry below, asked by a member (namtc): "Nội dung" on `/fanpages/[id]`, like Facebook's content
+library, lists every post the app made to the Page that went live in the dashboard's period, with the latest reading
+of each and its 48-hour views against the Page's median (`GET /api/fanpages/{id}/content`).
+
+- **Still only what the app has**: no new Facebook call, table or migration; posts made outside the app are not
+  there, and the tab says so. A reel taken down after going live stays, as "Đã gỡ", since its numbers were real.
+- **Sorting, the "Cột" choice and the CSV file are the browser's**, from the rows it already has: the file is what
+  the table shows, in its order and columns, rather than a second export on the api (unlike the products' "Xuất
+  CSV", which exports a filtered list the page does not hold). The chosen columns are remembered per browser, like
+  the list or grid choice, not per member.
+- **"Cập nhật view" is the same request as on "Bài đăng"** (`POST /api/posts/{id}/metrics`): it asks the worker,
+  never Facebook directly.
+- **"Bài đăng" stays grouped by video** (2026-11-03): the per-post view is per Page, here. More Page Insights
+  metrics remain a later phase.
+
 ## 2026-11-05 — Each Page gets a dashboard like Facebook's, from the numbers the app already reads
 
 Asked by a member (namtc), who approved the design: with about 25 Pages in the team, a card's four 7-day numbers

@@ -648,7 +648,7 @@ Built:
     the number needs one), the value, and "↑ 12% so với 28 ngày trước" in green or "↓" in red, the arrow always
     there so the direction is not colour alone; "Chưa có 28 ngày trước để so" when there is nothing to compare.
     Daily charts are one orange line over a pale area, a gap where Facebook gave no number, a crosshair and a
-    tooltip with the day and value on hover, and "Xem bảng" for the numbers as a table. Five tabs:
+    tooltip with the day and value on hover, and "Xem bảng" for the numbers as a table. Six tabs:
     - **Tổng quan**: tiles Lượt xem, Tiếp cận, Tương tác and Người theo dõi mới ("Hiện có N"); the daily views
       chart; "Bài đăng mới nhất" (cover, title opening the video, when it went live, its views, reach, reactions,
       comments, shares, average watch time and when they were read); "Đã lên lịch, 7 ngày tới" (the next six of
@@ -660,6 +660,21 @@ Built:
     - **Tương tác**: the Tương tác tile and its daily chart, then Cảm xúc, Bình luận and Chia sẻ summed from the
       latest reading of the period's posts, each with a tip saying it is approximate.
     - **Đối tượng**: Người theo dõi mới and the current count, and the followers chart.
+    - **Nội dung** (like Facebook's content library): a card titled "N bài app đăng trong 28 ngày" with "Cột"
+      and "Xuất CSV" at its right, then a table, one row per post the app made to the Page that went live in the
+      period: the post (cover and title opening the video, kept at the left when the table scrolls sideways), Lên
+      lúc, Trạng thái ("Đã đăng", or "Đã gỡ" with when in its tip), then the latest reading's Lượt xem, Tiếp cận,
+      Cảm xúc, Bình luận, Chia sẻ, Theo dõi and Xem TB, View 48 giờ and So với trung vị ("↑ 1,3×" in green from
+      the median up, "↓ 0,6×" in grey below, the arrow always there; "—" while the Page has too few measured
+      posts), numbers right-aligned in even-width figures, a ⓘ tip on the headers that need one. Every column
+      but the post sorts by a click on its header (newest first at first; a missing number sorts last). "Cột"
+      ticks the columns shown, remembered in this browser. "⋯" at the row's end: "Mở video", "Mở reel trên
+      Facebook" (greyed out once taken down) and "Cập nhật view" ("Đang đo view…" while the worker has not read
+      it; the table asks again every few seconds until it has). "Xuất CSV" saves the rows in their shown order
+      with the shown columns, the title first and the reel's link last, UTF-8 for Excel. A grey line under the
+      table says the numbers are the latest reading, that posts made outside the app are not there, and the
+      Page's 48-hour median (or how many measured posts it needs). Over 50 rows the table pages by 50; none says
+      "Chưa có bài nào app đăng lên Page này trong N ngày."
     - **Lịch đăng**: "Đăng theo lịch" (as it was on the card): the topic group the Page posts and its posting
       times (tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
       line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the

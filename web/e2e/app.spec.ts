@@ -179,7 +179,7 @@ test("the worker checks a connected Page's token and shows its followers", async
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
 });
 
-test("a Page's card opens its dashboard, with a period and five tabs", async ({ page }) => {
+test("a Page's card opens its dashboard, with a period and six tabs", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
@@ -231,6 +231,11 @@ test("a Page's card opens its dashboard, with a period and five tabs", async ({ 
   await expect(chart.getByTestId("chart-tooltip")).toBeVisible();
   await chart.getByRole("button", { name: "Xem bảng" }).click();
   await expect(chart.getByRole("cell", { name: "1.200" })).toBeVisible();
+
+  await page.getByRole("tab", { name: "Nội dung" }).click();
+  const content = page.getByRole("tabpanel", { name: "Nội dung" });
+  await expect(content).toContainText("Chưa có bài nào app đăng lên Page này trong 7 ngày.");
+  await expect(content.getByRole("button", { name: "Xuất CSV" })).toBeDisabled();
 
   await page.getByRole("tab", { name: "Lịch đăng" }).click();
   const schedule = page.getByRole("tabpanel", { name: "Lịch đăng" });

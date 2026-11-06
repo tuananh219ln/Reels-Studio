@@ -9,6 +9,7 @@ import PageHeader from "@/components/PageHeader";
 import PageQueueSection from "@/components/PageQueueSection";
 import StatusText from "@/components/StatusText";
 import VideoThumbnail from "@/components/VideoThumbnail";
+import ContentLibrary from "@/components/page/ContentLibrary";
 import DailyChart, { shortDay } from "@/components/page/DailyChart";
 import { FigureTile, TileRow, formatNumber, formatSeconds } from "@/components/page/Figures";
 import { ApiError, api, errorMessage, formatDateTime, type PageDashboard, type QueueOverview } from "@/lib/api";
@@ -501,6 +502,7 @@ function tabs(data: PageDashboard, queue: QueueOverview | null, onQueue: (overvi
     { key: "views", label: "Lượt xem", children: <Views data={data} /> },
     { key: "engagement", label: "Tương tác", children: <Engagement data={data} /> },
     { key: "audience", label: "Đối tượng", children: <Audience data={data} /> },
+    { key: "content", label: "Nội dung", children: <ContentLibrary pageId={String(data.page.id)} days={data.days} /> },
     {
       key: "schedule",
       label: "Lịch đăng",
