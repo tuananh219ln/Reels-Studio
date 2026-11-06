@@ -32,7 +32,7 @@ export default function ShopeeSuggestions({
 }: {
   base: string;
   ideas: string[];
-  /** The owner's own search state: a change reloads the list. */
+  /** The owner's own search state: a change reloads the list, as does a change of `ideas`. */
   state: string;
   attachedIds: number[];
   /** Reload the owner after a change (a choice, a search finished). */
@@ -63,10 +63,13 @@ export default function ShopeeSuggestions({
     }
   }, [base]);
 
+  // New ideas reload the list too: the owner's job writes them and asks for the search at once, and the worker can
+  // run that search between two reads of the owner, so `state` alone may never change.
+  const ideasKey = ideas.join("\n");
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
-  }, [load, state]);
+  }, [load, state, ideasKey]);
 
   // While the worker searches or reads a pasted link, ask again every few seconds until it has answered.
   const pending = data?.state === "pending";
