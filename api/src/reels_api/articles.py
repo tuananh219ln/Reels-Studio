@@ -352,6 +352,8 @@ def payload(db: DbSession, article: Article) -> dict:
         # The Shopee search of its product ideas, as a video's `suggest`.
         "suggest": {
             "state": "pending" if article.suggest_requested_at else ("failed" if article.suggest_error else "idle"),
+            "error": article.suggest_error,
+            "at": article.suggested_at.isoformat() if article.suggested_at else None,
         },
         "hook": hook_of(article.caption),
         "has_image": bool(article.image_key),

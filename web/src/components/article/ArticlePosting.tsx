@@ -454,6 +454,7 @@ export function CommentCard({
           base={`/affiliate-products/articles/${article.id}`}
           ideas={article.affiliates}
           state={article.suggest.state}
+          searchedAt={article.suggest.at}
           attachedIds={article.products.map((product) => product.id)}
           onChanged={reload}
         />
