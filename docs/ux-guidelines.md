@@ -106,7 +106,8 @@ Built:
   is out on or set for), topic group ("Sức khỏe (12)", its number of videos; remembered in the browser) and
   creator ("Của tôi" first, then the team), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
   nhóm chủ đề" or "Cả đội" while empty; sort "Mới nhất" or "Nhiều view nhất". With a group chosen, a grey line
-  under the filters counts its videos made this week (from Monday, Vietnam time): new, out, still drafts. A TikTok version sits on its source's card (or row) as a small "TikTok ·
+  under the filters counts its videos made this week (from Monday, Vietnam time): new, out, still drafts. Every card, row
+  and video page names its platform ("Facebook" or "TikTok") beside its status. A TikTok version sits on its source's card (or row) as a small "TikTok ·
   Nháp" / "TikTok · Đã đăng" link that opens it, not on a card of its own; it gets its own card when a platform
   is chosen or its source is filtered out. A Facebook video at 3× its Page's median or more at 48 hours with no
   TikTok version shows "+ Tạo bản TikTok" there instead, opening its "Tạo bản TikTok" drawer. Two views, remembered in the browser; a click opens the video:
@@ -549,17 +550,18 @@ Built:
     bài đang chờ đủ 48 giờ, sớm nhất …", "Chưa có bài nào đủ 48 giờ"), and the first card adds the posts still on their way. Under the cards, while a
     Page has fewer than 5 measured posts in 60 days, a line per such Page with a 5-step bar ("2/5
     bài") says how far it is from a median its posts can be compared with ("Gấp N× trung vị Page").
-    Between the KPIs and the table, three cards side by side (stacked on a phone), each listing up
+    Between the KPIs and the table, two cards side by side (stacked on a phone), each listing up
     to 5 videos with "Xem thêm": "Sẵn sàng đăng (N)", rendered videos whose MP4 is current and that
     have no live or scheduled post, oldest first, each with "Đăng", which opens the video with its
-    "Đăng video" dialog already open (`?publish=`); "Nên làm bản TikTok (N)", Facebook videos that
-    did well (a post reached its Page's usual 48-hour views, or the Page has too few measured posts
-    to say) and have no TikTok version, most viewed first, each with "Tạo bản TikTok"
-    (`?clone=tiktok`); and "Nhân bản cho Page khác (N)", Facebook videos that did well, have no
-    Facebook clone yet and are not on every working Page, with the Pages they are missing from, each
-    with "Nhân bản" (`?clone=page`, the clone drawer with a variant request filled in). The request
-    is dropped from the address at once. The same MP4 is never suggested for another Page. An empty
-    card says so, or that it needs at least two Pages in use. A post updates
+    "Đăng video" dialog already open (`?publish=`); and "Nhân bản (N)", Facebook videos that did well
+    (a post reached its Page's usual 48-hour views, or the Page has too few measured posts to say)
+    and can still be made again, most viewed first, with what each lacks ("chưa có bản TikTok",
+    "chưa có trên <Pages>"). Its "Nhân bản ▾" button opens a menu of what is left: "Bản TikTok" when
+    there is no TikTok version (`?clone=tiktok`), "Bản cho Page khác" when there is no Facebook clone
+    yet and a working Page lacks it (`?clone=page`, the clone drawer with a variant request filled
+    in). The request is dropped from the address at once. The same MP4 is never suggested for
+    another Page. An empty card says so, and that a variant for another Page needs at least two Pages
+    in use. A post updates
     by itself once the worker has done it. The list's filters sit on its own card, under the KPIs and
     the suggestions, which they do not filter (the one page whose filters are not under its title): status
     tabs with counts across the card's top, "Đang hoạt động" (the default: on its way, failed, scheduled

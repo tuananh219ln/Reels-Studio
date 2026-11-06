@@ -32,7 +32,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
-import VideoStatusTags from "@/components/VideoStatusTags";
+import VideoStatusTags, { platformName } from "@/components/VideoStatusTags";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import {
@@ -642,11 +642,9 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
               <StatusText tone={cardTone(row)} data-testid="video-status">
                 {post ? (post.state === "posted" ? "Đã đăng" : "Đã lên lịch") : row.status_label}
               </StatusText>
-              {row.platform === "tiktok" && (
-                <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
-                  TikTok
-                </span>
-              )}
+              <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
+                {platformName(row)}
+              </span>
             </Flex>
             <Typography.Text type="secondary" style={{ ...small, textAlign: "right", flex: "none" }}>
               {row.created_by}, {shortDate(row.created_at, false)}

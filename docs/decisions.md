@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-06 — "Bài đăng" suggests cloning in one card, the button picks TikTok or another Page
+
+Asked by a member (namtc): "Nên làm bản TikTok" and "Nhân bản cho Page khác" listed the same winners twice. They are
+now one "Nhân bản" card beside "Sẵn sàng đăng", each video once with what it still lacks, and a "Nhân bản ▾" button
+whose menu offers only what is left: "Bản TikTok" and/or "Bản cho Page khác". This changes only the display of the
+2026-11-03 entry ""Bài đăng" no longer suggests posting a video to another Page": the same "did well" reading, the
+same rules for each kind of clone, never the same MP4 on a second Page, and one LLM call only when the member confirms.
+
+Same request: on `/videos` a Facebook video's card carried only its version's "TikTok · …" link, so it read as if
+TikTok were its only platform. Every card, row and video page now says "Facebook" or "TikTok" beside the status.
+
 ## 2026-11-06 — A public privacy page at /privacy, so the Meta app can go Live
 
 The "ALSK Page Manager" Meta app was in Development mode, so the reels it published were seen only by people with a

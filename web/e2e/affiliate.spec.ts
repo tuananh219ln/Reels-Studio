@@ -145,7 +145,7 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
   const source = page.url();
 
-  // "Nhân bản cho Page khác" on "Bài đăng" opens the drawer with a variant request, and drops it from the address.
+  // "Nhân bản › Bản cho Page khác" on "Bài đăng" opens the drawer with a variant request, and drops it from the address.
   await page.goto(`${source}?clone=page`);
   const variant = page.getByRole("dialog", { name: "Nhân bản video" });
   await expect(variant.getByLabel("Yêu cầu đổi")).toHaveValue(/Viết biến thể cho Page khác/);
@@ -165,6 +165,8 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   // On the list the version sits on its source's card, not on a card of its own, and opens from there.
   await page.getByRole("link", { name: "Danh sách video" }).click();
   await expect(page.getByTestId("video-card")).toHaveCount(1);
+  // The source card says its own platform, so the TikTok link is not the only platform on it.
+  await expect(page.getByTestId("video-card").getByTestId("video-platform")).toHaveText("Facebook");
   const version = page.getByTestId("video-version");
   await expect(version).toHaveText(/TikTok\s*Nháp/);
   await version.click();

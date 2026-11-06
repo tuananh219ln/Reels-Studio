@@ -19,6 +19,11 @@ const TONES: Record<VideoRow["status"], StatusTone> = {
   failed: "danger",
 };
 
+/** The platform a video is made for, said beside its status so a Facebook video is not read as platform-less. */
+export function platformName(video: Pick<VideoRow, "platform">): string {
+  return video.platform === "tiktok" ? "TikTok" : "Facebook";
+}
+
 /** A video's status as a dot and a word, with its warnings after it in words. `only`: the status alone, or the
  * other labels alone (beside a card's title, when the status is said elsewhere). */
 export default function VideoStatusTags({ video, only }: { video: VideoRow; only?: "status" | "labels" }) {
@@ -36,11 +41,9 @@ export default function VideoStatusTags({ video, only }: { video: VideoRow; only
     <Flex vertical gap={2} style={{ fontSize: 13 }}>
       <Flex gap={10} align="center" wrap>
         {only !== "labels" && status}
-        {video.platform === "tiktok" && (
-          <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
-            TikTok
-          </span>
-        )}
+        <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
+          {platformName(video)}
+        </span>
       </Flex>
       {notes.filter(Boolean).map((note) => (
         <span key={String(note)} style={{ color: token.colorWarningText, fontSize: 12 }}>
