@@ -342,6 +342,9 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
+  - under the MP4 on "Xuất bản", "Kiểm tra chất lượng" lists the automatic QC, failed checks first, each a
+    status dot with its label and measure; the title says "Đạt chuẩn đăng", "Đăng được, nên xem lại" or "Chưa đạt,
+    nên sửa rồi render lại". It is advice: posting is never blocked by it;
   - a "Cảnh động" shows its status under the picture: "Đang dựng cảnh động" while its job runs, then
     "Cảnh động · N giây". It is changed through the assistant; another photo or clip replaces it as usual;
   - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture

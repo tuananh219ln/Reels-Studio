@@ -115,6 +115,26 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum.
 - **Font:** Be Vietnam Pro Black (OFL) is bundled in the package, not installed per machine.
 
+### Render QC
+
+Every render job measures the MP4 it made before saving it ([qc.py](../api/src/reels_api/qc.py)) and stores the
+result with it (`videos.qc`, migration 0049): `{"status": "pass" | "warn" | "fail", "checks": [...]}`, each check with
+a Vietnamese label and its measure, the status being the worst check's. The thresholds follow the platforms'
+delivery specs, as AIEV's QC does:
+
+| Check | Pass | Warn | Fail |
+| --- | --- | --- | --- |
+| Format | 1080×1920 H.264, 30 fps | fps off by more than 0.5 | another size or codec; no audio track |
+| Length | 20–40 s (the channel's) | outside 20–40 s | under 5 s |
+| Loudness (EBU R128) | −14 LUFS ± 2 | ± 2–4 LU | beyond ± 4 LU; silent when narration or music is on (only a warning otherwise) |
+| True peak | ≤ −1 dBTP | −1 to −0.5 | above −0.5 |
+| Black frames (`blackdetect`, ≥ 0.25 s, not within 0.3 s of either end) | none | under 1 s | 1 s or more |
+| Frozen picture (`freezedetect`, ≥ 2 s) | none | any | — |
+| Dead air (`silencedetect` −45 dB, ≥ 1.5 s) and silence over the last 1.2 s | none | any | — |
+
+QC never fails the render: a measure FFmpeg cannot make is a warning saying so. The video page shows it under the
+MP4 ("Kiểm tra chất lượng"), and the MCP assistant reads it after each render (`docs/chatgpt.md`).
+
 ### Motion Scenes (HyperFrames)
 
 A "Cảnh động" ([motion.py](../api/src/reels_api/motion.py)) is a scene whose clip is made from HTML + GSAP that an

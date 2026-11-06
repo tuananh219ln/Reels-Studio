@@ -91,6 +91,12 @@ export type VideoRowPost = {
   times_median: number | null;
 };
 
+/** The automatic QC of a rendered MP4 (api qc.py). */
+export type QcResult = {
+  status: "pass" | "warn" | "fail";
+  checks: { id: string; label: string; status: "pass" | "warn" | "fail"; detail: string }[];
+};
+
 export type JobInfo = {
   id: number;
   kind:
@@ -253,7 +259,15 @@ export type VideoDetail = VideoRow & {
   locked: boolean;
   active_job: JobInfo | null;
   failed_job: JobInfo | null;
-  mp4: { url: string; download_url: string; seconds: number; render_seconds: number; rendered_at: string } | null;
+  mp4: {
+    url: string;
+    download_url: string;
+    seconds: number;
+    render_seconds: number;
+    rendered_at: string;
+    /** Automatic QC of this MP4; null for one rendered before QC existed. */
+    qc: QcResult | null;
+  } | null;
   music: { url: string; name: string | null } | null;
   music_volume: number;
   /** Where in the song the music starts, in seconds. */
