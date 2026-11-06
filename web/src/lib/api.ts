@@ -104,7 +104,8 @@ export type JobInfo = {
     | "image"
     | "photos"
     | "voice"
-    | "revise";
+    | "revise"
+    | "motion";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";
@@ -221,6 +222,8 @@ export type SceneData = {
   sounds: SceneSound[];
   /** The music's level during the scene ("off", "low", "high"); null: the video's. */
   music_level: string | null;
+  /** A "Cảnh động" an assistant wrote (HTML + GSAP, rendered by HyperFrames into this scene's clip); null: none. */
+  motion: { html: string; seconds: number; pending: boolean } | null;
   blocking: string[];
   warnings: string[];
 };

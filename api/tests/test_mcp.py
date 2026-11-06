@@ -2,12 +2,13 @@
 
 import base64
 import hashlib
+import json
 from urllib.parse import parse_qs, urlparse
 
 import pytest
 from conftest import WEB_ORIGIN, login, make_user, make_video
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from reels_api.db import get_db
 from reels_api.main import create_app
@@ -412,3 +413,179 @@ def test_slow_tool_database_acquisition_does_not_stall_other_http_requests(mcp_c
         finally:
             release.set()
         assert not request.result().get("isError")
+
+
+# Claude: the hosted apps' callback, and Claude Code's loopback one on a port that changes every session.
+CLAUDE_CALLBACK = "https://claude.ai/api/mcp/auth_callback"
+
+
+def grant_to(client, db, registered, asked):
+    """A grant whose client registered `registered` and whose authorization asks to go back to `asked`."""
+    make_user(db)
+    login(client)
+    made = register(client, registered)
+    assert made.status_code == 201, made.text
+    cid = made.json()["client_id"]
+    ticket = ticket_of(authorize(client, cid, redirect_uri=asked))
+    details = client.get(f"/api/mcp/authorizations/{ticket}").json()
+    approved = client.post(
+        "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}, follow_redirects=False
+    )
+    assert approved.status_code == 303, approved.text
+    assert approved.headers["location"].startswith(asked + "?")
+    code = parse_qs(urlparse(approved.headers["location"]).query)["code"][0]
+    return cid, details, code
+
+
+def payload(result: dict) -> dict:
+    """A tool's dict result, as the JSON text of its first content block."""
+    return json.loads(result["content"][0]["text"])
+
+
+def exchange(client, cid, code, redirect):
+    data = {
+        "grant_type": "authorization_code",
+        "client_id": cid,
+        "redirect_uri": redirect,
+        "code": code,
+        "code_verifier": VERIFIER,
+        "resource": PUBLIC,
+    }
+    return client.post("/api/mcp/oauth/token", data=data)
+
+
+def test_claude_connects_through_its_hosted_callback_and_is_named_on_consent(mcp_client, db):
+    cid, details, code = grant_to(mcp_client, db, CLAUDE_CALLBACK, CLAUDE_CALLBACK)
+    assert details["app"] == "Claude"
+    assert details["redirect_host"] == "claude.ai" and details["loopback"] is False
+    tokens = exchange(mcp_client, cid, code, CLAUDE_CALLBACK)
+    assert tokens.status_code == 200, tokens.text
+    assert rpc(mcp_client, tokens.json()["access_token"], "tools/list").status_code == 200
+    assert [row["app"] for row in mcp_client.get("/api/mcp/connections").json()] == ["Claude"]
+    assert register(mcp_client, "https://claude.com/api/mcp/auth_callback").status_code == 201
+
+
+def test_claude_code_loopback_matches_any_port_but_the_exchange_needs_the_one_used(mcp_client, db):
+    cid, details, code = grant_to(mcp_client, db, "http://localhost:3118/callback", "http://localhost:40123/callback")
+    assert details["app"] == "Claude Code" and details["loopback"] is True
+    assert details["redirect_host"] == "localhost:40123"
+    assert exchange(mcp_client, cid, code, "http://localhost:3118/callback").status_code == 400
+    tokens = exchange(mcp_client, cid, code, "http://localhost:40123/callback")
+    assert tokens.status_code == 200, tokens.text
+    # Another loopback host, path or scheme is not the one registered.
+    for other in (
+        "http://127.0.0.1:40123/callback",
+        "http://localhost:40123/other",
+        "https://localhost:40123/callback",
+    ):
+        assert authorize(mcp_client, cid, redirect_uri=other).status_code == 400
+
+
+@pytest.mark.parametrize(
+    "redirect",
+    [
+        "http://localhost.evil.example/callback",
+        "http://evil.example:3118/callback",
+        "http://localhost:99999/callback",
+        "http://user@localhost:3118/callback",
+        "https://claude.ai/api/mcp/other",
+        "https://claude.ai.evil.example/api/mcp/auth_callback",
+    ],
+)
+def test_only_the_ai_apps_callbacks_can_register(mcp_client, redirect):
+    assert register(mcp_client, redirect).status_code == 400
+
+
+def test_a_client_may_register_several_allowed_callbacks_but_never_an_unknown_one(mcp_client):
+    both = ["http://localhost/callback", "http://127.0.0.1/callback"]
+    made = mcp_client.post(
+        "/api/mcp/oauth/register", json={"redirect_uris": both, "token_endpoint_auth_method": "none"}
+    )
+    assert made.status_code == 201, made.text
+    assert made.json()["redirect_uris"] == both
+    mixed = [CLAUDE_CALLBACK, "https://evil.example/callback"]
+    refused = mcp_client.post(
+        "/api/mcp/oauth/register", json={"redirect_uris": mixed, "token_endpoint_auth_method": "none"}
+    )
+    assert refused.status_code == 400
+
+
+def test_a_product_video_is_made_from_a_hand_written_script_without_an_ai_job(mcp_client, db, storage):
+    from conftest import first_topic
+
+    from reels_api.models import Video
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    script = "Nồi chiên không dầu 5 lít\nĐọc: Bếp nhỏ vẫn chiên giòn.\n\nChỉ 899 nghìn\nĐọc: Giá chỉ 899 nghìn."
+    made = call(
+        mcp_client,
+        token,
+        "create_video_from_script",
+        topic="Nồi chiên 5L",
+        knowledge_topic_id=first_topic(db).id,
+        script=script,
+    )
+    assert not made.get("isError"), made
+    video = db.scalar(select(Video).where(Video.topic == "Nồi chiên 5L"))
+    assert video.hand_written and video.has_script and video.created_by_id == user.id
+    assert db.scalar(select(Job.id).where(Job.video_id == video.id)) is None
+    scenes = db.scalars(
+        select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position)
+    ).all()
+    assert [(s.text, s.voice_text) for s in scenes] == [
+        ("Nồi chiên không dầu 5 lít", "Bếp nhỏ vẫn chiên giòn."),
+        ("Chỉ 899 nghìn", "Giá chỉ 899 nghìn."),
+    ]
+    added = call(mcp_client, token, "add_scene", video_id=video.id)
+    assert not added.get("isError"), added
+    count = select(func.count(Scene.id)).where(Scene.video_id == video.id, Scene.is_title.is_(False))
+    assert db.scalar(count) == 3
+
+
+def test_affiliate_products_are_listed_and_only_approved_ones_attach(mcp_client, db, storage):
+    from test_affiliate_accounts import product
+
+    from reels_api.models import VideoAffiliateProduct
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user)
+    approved = product(db, user, name="Nồi chiên không dầu")
+    draft = product(db, user, name="Nồi chiên mini", status="draft")
+    listed = call(mcp_client, token, "list_affiliate_products", query="Nồi chiên")
+    assert not listed.get("isError"), listed
+    content = payload(listed)
+    assert [row["id"] for row in content["products"]] == [approved.id]
+    assert content["products"][0]["price"] == 200000
+    everything = call(mcp_client, token, "list_affiliate_products", query="Nồi chiên", approved_only=False)
+    assert payload(everything)["total"] == 2
+    assert call(mcp_client, token, "set_video_products", video_id=video.id, product_ids=[draft.id])["isError"]
+    attached = call(mcp_client, token, "set_video_products", video_id=video.id, product_ids=[approved.id])
+    assert not attached.get("isError"), attached
+    chosen = select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == video.id)
+    assert db.scalars(chosen).all() == [approved.id]
+
+
+def test_a_scene_takes_a_photo_from_a_link_and_a_read_only_connection_cannot(
+    mcp_client, db, storage, fakes, monkeypatch
+):
+    from reels_api import remote_media
+    from reels_api.models import McpConnection
+
+    monkeypatch.setattr(remote_media, "is_public", lambda address: True)
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user)
+    scene = db.scalar(
+        select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position)
+    )
+    url = fakes.image_url("noi-chien")
+    saved = call(mcp_client, token, "set_scene_media_from_link", scene_id=scene.id, url=url)
+    assert not saved.get("isError"), saved
+    db.refresh(scene)
+    assert scene.image_source == url and storage.exists(scene.image_key)
+    row = db.scalar(select(McpConnection))
+    row.scopes = "reels:read"
+    db.commit()
+    assert call(mcp_client, token, "set_scene_media_from_link", scene_id=scene.id, url=url)["isError"]

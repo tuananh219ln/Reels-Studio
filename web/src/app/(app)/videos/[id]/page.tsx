@@ -64,6 +64,7 @@ const JOB_NAMES = {
   photos: "Tự tìm ảnh",
   voice: "Tạo giọng thật",
   revise: "AI sửa theo góp ý",
+  motion: "Cảnh động",
 } as const;
 
 /** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
@@ -461,13 +462,15 @@ export default function VideoPage() {
                           ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
                           : job.kind === "revise"
                             ? "AI đang sửa video theo góp ý…"
-                            : job.kind === "clone"
-                              ? "AI đang viết kịch bản nhân bản…"
-                              : job.kind === "learn"
-                                ? video.reference?.mode === "review" && !video.reference.analysis
-                                  ? "AI đang xem và phân tích video mẫu…"
-                                  : "AI đang xem video mẫu và viết kịch bản…"
-                                : "Đang viết kịch bản…"
+                            : job.kind === "motion"
+                              ? "HyperFrames đang dựng cảnh động…"
+                              : job.kind === "clone"
+                                ? "AI đang viết kịch bản nhân bản…"
+                                : job.kind === "learn"
+                                  ? video.reference?.mode === "review" && !video.reference.analysis
+                                    ? "AI đang xem và phân tích video mẫu…"
+                                    : "AI đang xem video mẫu và viết kịch bản…"
+                                  : "Đang viết kịch bản…"
           }
           description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
           action={

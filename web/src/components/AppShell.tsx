@@ -59,7 +59,7 @@ const NAV = [
     children: [
       // One page with tabs: Thiết lập mặc định, Mô hình AI, Nguồn tư liệu (settings/layout.tsx).
       { key: "/settings", icon: <ControlOutlined />, label: "Cấu hình" },
-      { key: "/chatgpt", icon: <ApiOutlined />, label: "Kết nối ChatGPT" },
+      { key: "/chatgpt", icon: <ApiOutlined />, label: "Kết nối ChatGPT / Claude" },
     ],
   },
 ];

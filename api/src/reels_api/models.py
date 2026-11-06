@@ -81,8 +81,13 @@ class McpAuthorization(Base):
     resource: Mapped[str] = mapped_column(Text)
     scopes: Mapped[str] = mapped_column(String(100))
     state: Mapped[str] = mapped_column(Text)
+    # The callback this grant goes back to: one the client registered (a loopback one on this session's port).
+    # Empty on grants made before Claude could connect, which used the client's only callback.
+    redirect_uri: Mapped[str] = mapped_column(Text, server_default="")
     code_hash: Mapped[str | None] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+    client: Mapped[McpClient] = relationship()
 
 
 class McpConnection(Base):
@@ -98,6 +103,8 @@ class McpConnection(Base):
     access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    client: Mapped[McpClient] = relationship()
 
 
 # A video is locked while it has one of these jobs; a partial unique index allows only one per video.
@@ -294,6 +301,10 @@ class Scene(Base):
     color: Mapped[str | None] = mapped_column(String(24))
     # The music's level during this scene (reels_render.sounds.MUSIC_LEVELS); None: the video's.
     music_level: Mapped[str | None] = mapped_column(String(8))
+    # A "Cảnh động" (motion.py): HyperFrames markup an assistant wrote, rendered by the worker into the scene's clip.
+    # {"html", "seconds", "photo_key": a copy of the scene's photo the markup may show, "clip_key": the clip it
+    # made}. The scene shows it while video_key is still clip_key; another photo or clip simply takes its place.
+    motion: Mapped[dict | None] = mapped_column(JSONB)
 
     video: Mapped[Video] = relationship(back_populates="scenes")
     layers: Mapped[list["SceneLayer"]] = relationship(

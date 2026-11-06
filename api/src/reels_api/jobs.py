@@ -33,6 +33,7 @@ from . import (
     image_style,
     knowledge,
     llm,
+    motion,
     plans,
     reference,
     revise,
@@ -135,6 +136,11 @@ def run_job(
                 auto_photos.run(db, job, storage)
             elif job.kind == "revise":
                 run_revise_job(db, job, call)
+            elif job.kind == "motion":
+                try:
+                    motion.run(db, job, storage)
+                except motion.MotionError as err:
+                    raise JobFailure(err.message, err.detail) from None
             else:
                 raise JobFailure(f"Loại job không hỗ trợ: {job.kind}")
         except auto_photos.AutoPhotosFailed as err:
@@ -167,7 +173,10 @@ def _has_script(db: DbSession, job: Job) -> bool:
 
 
 def _reopen_notes(db: DbSession, job: Job) -> None:
-    """A failed "Nhờ AI sửa" gives its notes back, to change or send again."""
+    """A failed "Nhờ AI sửa" gives its notes back, to change or send again; a failed "Cảnh động" stops showing as
+    being made, and its scene keeps the picture it had."""
+    if job.kind == "motion":
+        motion.fail_pending(db, job)
     if job.kind == "revise":
         db.execute(
             update(VideoNote)

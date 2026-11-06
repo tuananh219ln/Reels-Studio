@@ -1,7 +1,7 @@
 """An article's pinned comment and product ideas, and Shopee suggestions for an article as for a video
 
-Revision ID: 0047
-Revises: 0046
+Revision ID: 0049
+Revises: 0048
 Create Date: 2026-11-07
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0047"
-down_revision = "0046"
+revision = "0049"
+down_revision = "0048"
 branch_labels = None
 depends_on = None
 

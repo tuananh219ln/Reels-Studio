@@ -100,9 +100,10 @@ app replaces CapCut, so the output is a finished MP4.
    comments, reactions, against the Page's median reach of articles. "Làm reel từ bài này" starts a video draft on
    its topic. Articles are not in "Bài đăng", a Page's dashboard or its posting queue.
 
-9. **ChatGPT connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
-   text, create script jobs and request renders. Members authorize and revoke OAuth connections
-   on Cài đặt › Kết nối ChatGPT; see [chatgpt.md](chatgpt.md).
+9. **ChatGPT and Claude connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
+   text, create script jobs and request renders; for product videos, Claude (on the member's own plan) also
+   writes a "Tự viết" script, gives scenes TikTok clips or photos from links and attaches affiliate products. Members authorize and revoke OAuth connections
+   on Cài đặt › Kết nối ChatGPT / Claude; see [chatgpt.md](chatgpt.md).
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
     comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài
     đăng" shows them, sorts by views, compares each with its Page's median at 48 hours and shows the

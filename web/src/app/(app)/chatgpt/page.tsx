@@ -5,8 +5,15 @@ import { useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
 
-type Connection = { id: number; scopes: string; expires_at: string };
-type Consent = { ticket: string; email: string; scopes: string[] };
+type Connection = { id: number; app: string; scopes: string; expires_at: string };
+type Consent = {
+  ticket: string;
+  email: string;
+  scopes: string[];
+  app: string;
+  redirect_host: string;
+  loopback: boolean;
+};
 
 export default function ChatGptPage() {
   const { message } = App.useApp();
@@ -40,12 +47,12 @@ export default function ChatGptPage() {
     return () => window.removeEventListener("hashchange", load);
   }, [load]);
 
-  async function revoke(id: number) {
-    setRevoking(id);
+  async function revoke(row: Connection) {
+    setRevoking(row.id);
     try {
-      await api(`/mcp/connections/${id}`, "DELETE");
-      setConnections((rows) => rows.filter((row) => row.id !== id));
-      message.success("Đã thu hồi kết nối ChatGPT");
+      await api(`/mcp/connections/${row.id}`, "DELETE");
+      setConnections((rows) => rows.filter((other) => other.id !== row.id));
+      message.success(`Đã thu hồi kết nối ${row.app}`);
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -55,7 +62,10 @@ export default function ChatGptPage() {
 
   return (
     <>
-      <PageHeader title="Kết nối ChatGPT" description="Cấp quyền và quản lý các kết nối ChatGPT của bạn." />
+      <PageHeader
+        title="Kết nối ChatGPT / Claude"
+        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude và Claude Code của bạn."
+      />
       <Flex vertical gap={16} style={{ maxWidth: 820 }}>
         {loading && <Spin />}
         {error && <Alert type="warning" showIcon title={error} action={<Button onClick={load}>Thử lại</Button>} />}
@@ -63,22 +73,33 @@ export default function ChatGptPage() {
           <Card
             title={
               <Typography.Title level={4} style={{ margin: 0 }}>
-                Cho phép ChatGPT kết nối?
+                Cho phép {consent.app} kết nối?
               </Typography.Title>
             }
           >
             <Typography.Paragraph>
-              Bạn đang dùng tài khoản <strong>{consent.email}</strong>.
+              Bạn đang dùng tài khoản <strong>{consent.email}</strong>. Quyền sẽ được gửi về{" "}
+              <Typography.Text code>{consent.redirect_host}</Typography.Text>.
             </Typography.Paragraph>
+            {consent.loopback && (
+              <Alert
+                type="warning"
+                showIcon
+                title="Kết nối với một chương trình trên máy tính"
+                description="Chỉ cho phép nếu bạn vừa tự kết nối Reels Studio trong Claude Code trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này."
+                style={{ marginBottom: 16 }}
+              />
+            )}
             <Typography.Paragraph>
-              ChatGPT được đọc video, kịch bản, nhóm chủ đề và trạng thái công việc của cả nhóm.
+              {consent.app} được đọc video, kịch bản, nhóm chủ đề, sản phẩm affiliate và trạng thái công việc của cả
+              nhóm.
             </Typography.Paragraph>
             {consent.scopes.includes("reels:write") && (
               <Alert
                 type="warning"
                 showIcon
                 title="Quyền sửa và tạo công việc"
-                description="ChatGPT còn được sửa chữ, lời đọc, caption; tạo video và yêu cầu render. Tạo kịch bản và giọng đọc có thể dùng phí dịch vụ AI của nhóm."
+                description={`${consent.app} còn được sửa chữ, lời đọc, caption; tạo video, gắn ảnh hoặc clip từ link, gắn sản phẩm và yêu cầu render. Tạo kịch bản bằng AI của nhóm và giọng đọc có thể dùng phí dịch vụ AI của nhóm.`}
                 style={{ marginBottom: 16 }}
               />
             )}
@@ -101,36 +122,54 @@ export default function ChatGptPage() {
           </Card>
         )}
         {serverUrl && (
-          <Card title="Thêm Reels Studio vào ChatGPT">
-            <Typography.Paragraph>
-              Trong ChatGPT, mở mục ứng dụng/plugin, chọn thêm máy chủ MCP riêng và dán địa chỉ dưới đây. Chọn xác thực
-              OAuth, rồi đăng nhập và cấp quyền bằng tài khoản Reels Studio của bạn.
-            </Typography.Paragraph>
+          <Card title="Thêm Reels Studio vào ChatGPT hoặc Claude">
             <Typography.Paragraph copyable={{ text: serverUrl }} code style={{ overflowWrap: "anywhere" }}>
               {serverUrl}
             </Typography.Paragraph>
+            <Typography.Paragraph>
+              <strong>ChatGPT:</strong> mở mục ứng dụng/plugin, chọn thêm máy chủ MCP riêng, dán địa chỉ trên và chọn
+              xác thực OAuth.
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <strong>Claude (web, Desktop):</strong> mở Cài đặt › Connectors, chọn thêm connector tùy chỉnh và dán địa
+              chỉ trên.
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <strong>Claude Code:</strong> chạy lệnh dưới đây, rồi gõ <Typography.Text code>/mcp</Typography.Text> để
+              đăng nhập.
+            </Typography.Paragraph>
+            <Typography.Paragraph
+              copyable={{ text: `claude mcp add --transport http reels-studio ${serverUrl}` }}
+              code
+              style={{ overflowWrap: "anywhere" }}
+            >
+              {`claude mcp add --transport http reels-studio ${serverUrl}`}
+            </Typography.Paragraph>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
-              Quyền thêm kết nối phụ thuộc cài đặt workspace ChatGPT. Khi yêu cầu tạo kịch bản hoặc render, dịch vụ AI
-              được cấu hình trong Reels Studio vẫn có thể tính phí.
+              Sau đó đăng nhập và cấp quyền bằng tài khoản Reels Studio của bạn. Claude dùng gói Claude của chính bạn,
+              nên tự viết kịch bản trong Claude không tốn phí AI của nhóm; tạo kịch bản bằng AI của nhóm, giọng đọc và
+              render vẫn dùng dịch vụ được cấu hình trong Reels Studio.
             </Typography.Paragraph>
           </Card>
         )}
         {!loading && !error && (
           <Card title="Các kết nối của bạn">
             {!connections.length ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Bạn chưa có kết nối ChatGPT nào." />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Bạn chưa có kết nối nào." />
             ) : (
               <Flex vertical gap={16}>
                 {connections.map((row) => (
                   <Flex key={row.id} wrap gap={12} align="center" justify="space-between">
                     <div>
-                      <Typography.Text strong>Kết nối #{row.id}</Typography.Text>{" "}
+                      <Typography.Text strong>
+                        {row.app} · Kết nối #{row.id}
+                      </Typography.Text>{" "}
                       <Tag>{row.scopes.includes("reels:write") ? "Đọc và sửa" : "Chỉ đọc"}</Tag>
                       <Typography.Text type="secondary" style={{ display: "block" }}>
                         Hết hạn {formatDateTime(row.expires_at)}
                       </Typography.Text>
                     </div>
-                    <Button danger loading={revoking === row.id} onClick={() => revoke(row.id)}>
+                    <Button danger loading={revoking === row.id} onClick={() => revoke(row)}>
                       Thu hồi kết nối
                     </Button>
                   </Flex>

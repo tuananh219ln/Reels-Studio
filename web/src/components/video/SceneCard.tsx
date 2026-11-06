@@ -727,6 +727,12 @@ export function ScenePicture({
           )}
         </div>
       )}
+      {scene.motion && (
+        // A "Cảnh động" an assistant wrote through the MCP connection; changed there, replaced like any clip here.
+        <StatusText tone={scene.motion.pending ? "active" : "done"}>
+          {scene.motion.pending ? "Đang dựng cảnh động" : `Cảnh động · ${scene.motion.seconds} giây`}
+        </StatusText>
+      )}
       {scene.image_auto && (
         // "Tự tìm ảnh" picked this photo from a stock library after the script: often the wrong dish for
         // Vietnamese food, so a member looks before rendering. Never blocks the render.
