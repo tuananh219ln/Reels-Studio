@@ -108,11 +108,23 @@ failed check, look at the MP4's frames after it, and say the video is done only 
 
    This server supports dynamic client registration (DCR), public clients and S256 PKCE; it does not
    support CIMD or a client secret, so Claude falls back to DCR.
-5. Connect and sign in to Reels Studio if asked. The login opens in another tab; return to the
-   authorization tab and choose **Tôi đã đăng nhập, tiếp tục**. Complete any required password
-   change before proceeding. The consent screen identifies your account and the requested access.
-6. Choose **Cho phép kết nối**. ChatGPT receives OAuth credentials, never the member's password,
-   Reels Studio cookie, AI API keys, or Facebook tokens.
+5. Connect and sign in to Reels Studio if asked: **Đăng nhập Reels Studio** opens the login in the same
+   tab (`/login?next=...`), and once signed in (and any required password change done) it comes back to
+   the authorization request by itself. The login and password pages follow `next` only to
+   `/api/mcp/oauth/authorize?...`, never elsewhere. **Tôi đã đăng nhập, tiếp tục** remains for a member who
+   signed in another way. The consent screen is the authorize response itself (server-rendered, no script):
+   it names your account, the app, the callback's host and the requested access. It used to be a hop to
+   the web page `/chatgpt#ticket=...`, where the consent never showed in production, so nothing now
+   stands between the request and the screen. **Kết nối ChatGPT / Claude** only lists and revokes
+   connections; opening it by hand never asks for consent.
+6. Choose **Cho phép kết nối**. The answer is a short page that sends the browser on to the app's callback (a
+   refresh, and a link to click if it does not). **No OAuth step answers with an HTTP redirect**: in production
+   the web app runs on Cloudflare through OpenNext, whose `/api` proxy fetches the API and follows redirects
+   itself, so a 303 was followed server-side (the member saw Claude's "Page not found" on
+   `/api/mcp/oauth/consent`, and earlier `/chatgpt` with no ticket on `/authorize`). CI's E2E runs `next start`,
+   which does not follow them, so it cannot catch this; `test_mcp.py` asserts the pages instead.
+   The app receives OAuth credentials, never the member's password, Reels Studio cookie, AI API keys, or
+   Facebook tokens.
 7. Select the connection in a ChatGPT conversation and ask it to use Reels Studio.
 
 ChatGPT UI labels and account availability may vary. The setup follows OpenAI's
@@ -158,7 +170,9 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
   member's affiliate account or key). `reels:write` additionally permits
   the explicit write tools. Both use the member's identity; the library is shared by the team.
 - Consent is explicit, protected by the existing Origin guard and a short-lived ticket bound to
-  the member's current browser session. The web page rejects framing (CSP/X-Frame-Options). A denied/used ticket cannot be reused. Authorization
+  the member's current browser session, carried in the consent page's form. The page rejects framing (CSP
+  `frame-ancestors 'none'`), lets its form go only to this site and the callback's origin (`form-action`), and
+  uses `Referrer-Policy: same-origin` so the browser sends the Origin the guard checks. A denied/used ticket cannot be reused. Authorization
   codes expire after two minutes and are consumed under a database lock after S256 verification.
 - Access tokens last at most one hour. Refresh rotates both tokens and lasts at most 30 days from
   the original grant. Refreshing does not extend the connection or its underlying login session.

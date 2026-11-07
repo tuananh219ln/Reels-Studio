@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+from html import escape
 from urllib.parse import parse_qs, urlparse
 
 import pytest
@@ -58,8 +59,22 @@ def authorize(client, client_id, **extra):
 
 
 def ticket_of(response):
-    assert response.status_code == 303, response.text
-    return parse_qs(urlparse(response.headers["location"]).fragment)["ticket"][0]
+    """The consent screen is the authorize response itself; its form carries the ticket."""
+    import re
+
+    assert response.status_code == 200, response.text
+    return re.search(r'name="ticket" value="([^"]+)"', response.text).group(1)
+
+
+def callback_of(response):
+    """Where the consent answer sends the browser. A page, never a 303: the web proxy in production (OpenNext on
+    Cloudflare) follows redirects itself, so a 303 sent the member to Claude's 404 instead of to Claude."""
+    import re
+    from html import unescape
+
+    assert response.status_code == 200, response.text
+    assert "location" not in response.headers
+    return unescape(re.search(r'http-equiv="refresh" content="0;url=([^"]+)"', response.text).group(1))
 
 
 def grant(client, db):
@@ -67,13 +82,11 @@ def grant(client, db):
     login(client)
     client_id = register(client).json()["client_id"]
     page = authorize(client, client_id)
-    assert page.status_code == 303, page.text
     ticket = ticket_of(page)
     approved = client.post(
         "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}, follow_redirects=False
     )
-    assert approved.status_code == 303, approved.text
-    params = parse_qs(urlparse(approved.headers["location"]).query)
+    params = parse_qs(urlparse(callback_of(approved)).query)
     assert params["state"] == ["client-state"]
     assert params["iss"] == [PUBLIC + "/oauth"]
     data = {
@@ -128,6 +141,21 @@ def test_discovery_challenge_and_client_registration(mcp_client):
     assert register(mcp_client, "https://evil.example/callback").status_code == 400
 
 
+def test_the_login_link_of_the_authorize_page_comes_back_to_the_same_request(mcp_client):
+    import re
+    from html import unescape
+
+    cid = register(mcp_client).json()["client_id"]
+    page = authorize(mcp_client, cid)
+    assert page.status_code == 401
+    link = re.search(r'<a href="(/login\?next=[^"]+)">Đăng nhập Reels Studio</a>', page.text)
+    assert link, page.text
+    back = parse_qs(urlparse(unescape(link.group(1))).query)["next"][0]
+    assert back.startswith("/api/mcp/oauth/authorize?")
+    assert parse_qs(urlparse(back).query)["client_id"] == [cid]
+    assert parse_qs(urlparse(back).query)["state"] == ["client-state"]
+
+
 def test_consent_requires_login_and_valid_pkce_resource_redirect(mcp_client, db):
     cid = register(mcp_client).json()["client_id"]
     assert authorize(mcp_client, cid).status_code == 401
@@ -145,7 +173,7 @@ def test_consent_requires_login_and_valid_pkce_resource_redirect(mcp_client, db)
     denied = mcp_client.post(
         "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "deny"}, follow_redirects=False
     )
-    assert parse_qs(urlparse(denied.headers["location"]).query)["error"] == ["access_denied"]
+    assert parse_qs(urlparse(callback_of(denied)).query)["error"] == ["access_denied"]
     assert mcp_client.post("/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}).status_code == 400
 
 
@@ -226,7 +254,7 @@ def test_oauth_errors_use_protocol_format_and_pkce_cannot_be_bypassed(mcp_client
     approved = mcp_client.post(
         "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}, follow_redirects=False
     )
-    code = parse_qs(urlparse(approved.headers["location"]).query)["code"][0]
+    code = parse_qs(urlparse(callback_of(approved)).query)["code"][0]
     data = {
         "grant_type": "authorization_code",
         "client_id": cid,
@@ -340,15 +368,18 @@ def test_expired_grants_and_missing_scene_images_never_queue_render(mcp_client, 
     )
 
 
-def test_consent_opens_the_app_and_is_visible_only_to_its_member_session(mcp_client, db):
+def test_consent_is_shown_by_the_authorize_request_and_is_visible_only_to_its_member_session(mcp_client, db):
     make_user(db)
     login(mcp_client)
     cid = register(mcp_client).json()["client_id"]
     response = authorize(mcp_client, cid)
-    assert response.status_code == 303
-    destination = urlparse(response.headers["location"])
-    assert destination.path == "/chatgpt"
-    ticket = parse_qs(destination.fragment)["ticket"][0]
+    # The consent screen itself, not a hop to the web app that could lose the ticket on the way.
+    assert response.status_code == 200
+    assert "Cho phép ChatGPT kết nối?" in response.text and "an@doi.vn" in response.text
+    assert "<code>chatgpt.com</code>" in response.text and 'value="allow"' in response.text
+    assert "form-action 'self' https://chatgpt.com" in response.headers["content-security-policy"]
+    assert response.headers["referrer-policy"] == "same-origin"
+    ticket = ticket_of(response)
     details = mcp_client.get(f"/api/mcp/authorizations/{ticket}")
     assert details.status_code == 200
     assert details.json()["scopes"] == ["reels:read", "reels:write"]
@@ -432,9 +463,8 @@ def grant_to(client, db, registered, asked):
     approved = client.post(
         "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}, follow_redirects=False
     )
-    assert approved.status_code == 303, approved.text
-    assert approved.headers["location"].startswith(asked + "?")
-    code = parse_qs(urlparse(approved.headers["location"]).query)["code"][0]
+    assert callback_of(approved).startswith(asked + "?")
+    code = parse_qs(urlparse(callback_of(approved)).query)["code"][0]
     return cid, details, code
 
 
@@ -783,3 +813,20 @@ def test_a_scene_takes_a_photo_from_a_link_and_a_read_only_connection_cannot(
     row.scopes = "reels:read"
     db.commit()
     assert call(mcp_client, token, "set_scene_media_from_link", scene_id=scene.id, url=url)["isError"]
+
+
+def test_the_consent_answer_sends_the_browser_on_with_a_link_it_can_also_click(mcp_client, db):
+    """Regression: production's web proxy followed the 303 to Claude's callback itself, so the member saw Claude's
+    "Page not found" on /api/mcp/oauth/consent and the connection never finished."""
+    make_user(db)
+    login(mcp_client)
+    cid = register(mcp_client).json()["client_id"]
+    ticket = ticket_of(authorize(mcp_client, cid))
+    approved = mcp_client.post(
+        "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}, follow_redirects=False
+    )
+    target = callback_of(approved)
+    assert target.startswith(CALLBACK + "?")
+    assert parse_qs(urlparse(target).query)["state"] == ["client-state"]
+    assert approved.text.count(escape(target, quote=True)) == 2  # the refresh and the link
+    assert approved.headers["cache-control"] == "no-store"

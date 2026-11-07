@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
-import { loginAsSeed, resetDatabase } from "./helpers";
+import { SEED, loginAsSeed, resetDatabase } from "./helpers";
 
 const origin = "http://localhost:3100";
 const resource = origin + "/api/mcp";
@@ -64,6 +64,41 @@ test("ChatGPT connects through consent, then the member revokes it", async ({ pa
   await page.getByRole("button", { name: "Thu hồi kết nối" }).click();
   await expect(page.getByText("Bạn chưa có kết nối nào.")).toBeVisible();
   expect((await rpc()).status()).toBe(401);
+});
+
+// The app opens the authorize link in a browser not signed in to Reels Studio (as Claude's popup often is):
+// signing in there must come back to the consent screen, not leave the member on the video list.
+test("signing in from the authorize page comes back to consent", async ({ page }) => {
+  const registered = await page.request.post("/api/mcp/oauth/register", {
+    data: { redirect_uris: ["https://claude.ai/api/mcp/auth_callback"], token_endpoint_auth_method: "none" },
+  });
+  const { client_id } = await registered.json();
+  const query = new URLSearchParams({
+    client_id,
+    redirect_uri: "https://claude.ai/api/mcp/auth_callback",
+    response_type: "code",
+    resource,
+    code_challenge: createHash("sha256").update("b".repeat(43)).digest("base64url"),
+    code_challenge_method: "S256",
+    scope: "reels:read reels:write",
+    state: "e2e-login",
+  });
+  await page.goto(`/api/mcp/oauth/authorize?${query}`);
+  await page.getByRole("link", { name: "Đăng nhập Reels Studio" }).click();
+  await expect(page).toHaveURL(/\/login\?/);
+  await page.getByLabel("Email").fill(SEED.email);
+  await page.getByLabel("Mật khẩu").fill(SEED.password);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await expect(page.getByRole("heading", { name: "Cho phép Claude kết nối?" })).toBeVisible();
+});
+
+// A `next` that is not the authorize endpoint is ignored: the login page never sends a member elsewhere.
+test("login ignores a next link that is not the authorize endpoint", async ({ page }) => {
+  await page.goto("/login?next=" + encodeURIComponent("https://evil.example/"));
+  await page.getByLabel("Email").fill(SEED.email);
+  await page.getByLabel("Mật khẩu").fill(SEED.password);
+  await page.getByRole("button", { name: "Đăng nhập" }).click();
+  await expect(page).toHaveURL(/\/videos$/);
 });
 
 // Consent must not be embeddable under another site's UI.
