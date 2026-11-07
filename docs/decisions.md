@@ -11,6 +11,13 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — An agent merges a PR only when a person asks it to
+
+Requested by tuananh219ln, alongside "Green CI is the approval" (same day), which it adds to: an agent merges a PR,
+its own included, only when a person with write access asks it to in the session, never on its own initiative, and
+with a merge commit (`gh pr merge <number> --merge`), never by pushing to `main`. The person asking stays responsible
+for the merge. The code owner's approval this PR first asked for is gone with the code owner.
+
 ## 2026-11-07 — Green CI is the approval: any PR may be merged once every check passes
 
 Asked by namtc: Reels Studio is the team's repo and has no owner, so a PR whose CI checks all pass is approved, and

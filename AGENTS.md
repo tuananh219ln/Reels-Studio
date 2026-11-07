@@ -126,6 +126,9 @@ a push to `main` deploys only after everything passes.
   author or an agent asked to, once every CI check on it has passed and it is up to date with
   `main`. Never merge with a check failing or still running, never with `gh pr merge --admin` or
   any other bypass, and never make a check green by weakening it (see above).
+- **An agent merges only when asked.** It merges a PR (its own included) only when a person with
+  write access asks it to in the session, never on its own initiative, and with a merge commit
+  (`gh pr merge <number> --merge`), never by pushing to `main`.
 - Never force-push, reset `--hard`, or push to `main` (Claude Code denies these in
   `.claude/settings.json`).
 - An AI review runs on a PR only when someone with write access comments `/ai-review`
