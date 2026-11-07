@@ -496,7 +496,8 @@ Built:
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
-  used the track keep their copy).
+  used the track keep their copy). The topics to choose and filter by are the groups of Kho kiến thức, in its order,
+  then "chung" (a hint under the field says so).
 - **Affiliate** (`/affiliate`), a line saying what the page is for, then three tabs:
   - "Video đã đăng": filters over the loaded videos: tabs with counts ("Tất cả", "Chưa gắn sản
     phẩm", "Đã gắn", "Cần xem lại" for a video with a product that lost its approval or no longer

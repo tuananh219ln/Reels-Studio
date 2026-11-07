@@ -4,15 +4,21 @@ import pytest
 from conftest import client_for, first_topic, login, make_user, make_video
 
 from reels_api import routes_music
-from reels_api.models import MusicTrack, Video
+from reels_api.models import KnowledgeTopic, MusicTrack, Video
 
 MP3 = b"ID3\x04\x00\x00\x00\x00\x00\x00" + bytes(2000)
 OTHER_MP3 = b"\xff\xfb\x90\x64" + bytes(500)
+# The music topics are the groups of Kho kiến thức (after the migration's "Sức khỏe") plus "chung".
+GROUPS = ["tim mạch", "xương khớp", "giấc ngủ", "gan"]
 
 
 @pytest.fixture
 def me(db):
-    return make_user(db)
+    user = make_user(db)
+    for name in GROUPS:
+        db.add(KnowledgeTopic(name=name, updated_by_id=user.id))
+    db.commit()
+    return user
 
 
 @pytest.fixture
@@ -31,12 +37,15 @@ def test_upload_lists_and_plays_a_track(an, db, me, storage):
         an, topics=["xương khớp", "tim mạch", "xương khớp"], license_note="Pixabay Music, miễn phí"
     ).json()
     assert added["name"] == "Windy Hill"
-    # Stored in the fixed order of the list, whatever order the form sent.
+    # Stored in the order of Kho kiến thức, whatever order the form sent.
     assert added["topics"] == ["tim mạch", "xương khớp"] and added["mood"] == "piano"
     assert added["license_note"] == "Pixabay Music, miễn phí" and added["created_by"] == me.name
     assert an.get(added["url"]).content == MP3
     assert [track["id"] for track in an.get("/api/music").json()] == [added["id"]]
-    assert an.get("/api/music/options").json() == {"topics": routes_music.TOPICS, "moods": routes_music.MOODS}
+    assert an.get("/api/music/options").json() == {
+        "topics": ["Sức khỏe", *GROUPS, "chung"],
+        "moods": routes_music.MOODS,
+    }
 
 
 def test_a_given_name_wins_over_the_file_name(an):
@@ -71,11 +80,50 @@ def test_list_filters_by_topic_mood_and_name(an):
         (["gan"], "rock", "Mood không có"),
     ],
 )
-def test_topics_and_mood_must_come_from_the_fixed_lists(an, db, storage, topics, mood, message):
+def test_topics_come_from_kho_kien_thuc_and_mood_from_its_list(an, db, storage, topics, mood, message):
     response = add_track(an, topics=topics, mood=mood)
     assert response.status_code == 422 and message in response.json()["message"]
     assert db.query(MusicTrack).count() == 0
     assert not storage.path("music").exists()
+
+
+def test_a_group_added_to_kho_kien_thuc_becomes_a_music_topic(an):
+    assert add_track(an, topics=["ẩm thực"]).status_code == 422
+    an.post("/api/knowledge/topics", json={"name": "ẩm thực"})
+    assert "ẩm thực" in an.get("/api/music/options").json()["topics"]
+    assert add_track(an, topics=["ẩm thực"]).json()["topics"] == ["ẩm thực"]
+
+
+def test_renaming_or_deleting_a_group_follows_on_the_tracks(an, db):
+    group = db.query(KnowledgeTopic).filter_by(name="gan").one()
+    both = add_track(an, filename="Hai.mp3", topics=["gan", "tim mạch"]).json()
+    alone = add_track(an, filename="Một.mp3", topics=["gan"]).json()
+
+    an.patch(f"/api/knowledge/topics/{group.id}", json={"name": "gan mật"})
+    assert {track["id"]: track["topics"] for track in an.get("/api/music").json()} == {
+        both["id"]: ["tim mạch", "gan mật"],
+        alone["id"]: ["gan mật"],
+    }
+    assert [track["id"] for track in an.get("/api/music?topic=gan mật").json()] == [alone["id"], both["id"]]
+
+    assert an.delete(f"/api/knowledge/topics/{group.id}").status_code == 200
+    # Without the group a track keeps its other topics, or becomes "chung".
+    assert {track["id"]: track["topics"] for track in an.get("/api/music").json()} == {
+        both["id"]: ["tim mạch"],
+        alone["id"]: ["chung"],
+    }
+    assert "gan mật" not in an.get("/api/music/options").json()["topics"]
+
+
+def test_a_tag_from_the_old_fixed_list_stays_until_taken_off(an, db, me):
+    old = MusicTrack(name="Cũ", topics=["tuổi thọ"], mood="piano", storage_key="music/old.mp3", created_by_id=me.id)
+    db.add(old)
+    db.commit()
+    kept = an.patch(f"/api/music/{old.id}", json={"topics": ["tuổi thọ", "gan"]})
+    assert kept.status_code == 200 and kept.json()["topics"] == ["gan", "tuổi thọ"]
+    assert an.patch(f"/api/music/{old.id}", json={"topics": ["gan"]}).json()["topics"] == ["gan"]
+    # Once taken off, it cannot come back: it is not a group of Kho kiến thức.
+    assert an.patch(f"/api/music/{old.id}", json={"topics": ["tuổi thọ"]}).status_code == 422
 
 
 def test_fake_or_oversized_track_is_refused(an, db, storage, monkeypatch):

@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from . import music_topics
 from .db import get_db
 from .errors import ApiError
 from .models import MusicTrack, Session
@@ -19,8 +20,7 @@ from .uploads import MAX_MUSIC_BYTES, UploadRejected, check_mp3, file_label, rea
 
 router = APIRouter(prefix="/api/music")
 
-# Fixed lists: the topics follow the channel's topic matrix (issue #42), "chung" fits any topic.
-TOPICS = ["tuổi thọ", "tim mạch", "máu não", "xương khớp", "gan", "da tóc", "giấc ngủ", "giảm cân", "chung"]
+# The topics are the groups of Kho kiến thức plus "chung" (music_topics.py); the moods are a fixed list.
 MOODS = ["nhẹ nhàng", "piano", "thư giãn", "truyền cảm hứng", "vui tươi", "trầm lắng"]
 MAX_NAME_LENGTH = 200
 
@@ -61,13 +61,11 @@ def _without_mp3(label: str) -> str:
     return label[:-4] if label.lower().endswith(".mp3") and len(label) > 4 else label
 
 
-def _topics(values: list[str]) -> list[str]:
-    chosen = set(unicodedata.normalize("NFC", value).strip() for value in values)
-    if not chosen:
-        raise invalid("Chọn ít nhất một chủ đề")
-    if not chosen <= set(TOPICS):
-        raise invalid("Chủ đề không có trong danh sách")
-    return [topic for topic in TOPICS if topic in chosen]
+def _topics(db: DbSession, values: list[str], kept: list[str] | None = None) -> list[str]:
+    try:
+        return music_topics.clean(db, values, kept)
+    except music_topics.TopicError as err:
+        raise invalid(str(err)) from None
 
 
 def _mood(value: str) -> str:
@@ -116,8 +114,8 @@ def list_tracks(
 
 
 @router.get("/options")
-def options(me: Session = Depends(current_member)) -> dict:
-    return {"topics": TOPICS, "moods": MOODS}
+def options(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    return {"topics": music_topics.names(db), "moods": MOODS}
 
 
 @router.post("")
@@ -134,7 +132,7 @@ def add_track(
     # Fields first, so a wrong form is refused before the file is read.
     track = MusicTrack(
         name=_name(name or _without_mp3(file_label(file.filename, "nhac.mp3"))),
-        topics=_topics(topics),
+        topics=_topics(db, topics),
         mood=_mood(mood),
         license_note=_license(license_note),
         storage_key=f"music/track-{secrets.token_hex(6)}.mp3",
@@ -159,7 +157,8 @@ def update_track(
     if body.name is not None:
         track.name = _name(body.name)
     if body.topics is not None:
-        track.topics = _topics(body.topics)
+        # Tags from the old fixed list may stay until the member takes them off; new ones must be groups.
+        track.topics = _topics(db, body.topics, kept=track.topics)
     if body.mood is not None:
         track.mood = _mood(body.mood)
     if body.license_note is not None:

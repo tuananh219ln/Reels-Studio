@@ -31,6 +31,7 @@ from . import (
     image_providers,
     knowledge,
     llm,
+    music_topics,
     plans,
     remote_media,
     source_keys,
@@ -2007,7 +2008,9 @@ def patch_topic(
 ) -> dict:
     topic = _topic(db, topic_id)
     if body.name is not None:
-        topic.name = _topic_name(db, body.name, topic.id)
+        old_name, topic.name = topic.name, _topic_name(db, body.name, topic.id)
+        # The music library is tagged with the groups' names.
+        music_topics.rename_topic(db, old_name, topic.name)
     if body.script_prompt is not None:
         topic.script_prompt = _prompt(body.script_prompt)
     if body.clone_prompt is not None:
@@ -2049,6 +2052,7 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     job = plans.plan_job(db, topic.id)
     if job is not None and job.status != "failed":
         raise ApiError(409, "topic_in_use", "Nhóm chủ đề đang tạo kế hoạch bằng AI nên chưa xoá được")
+    music_topics.drop_topic(db, topic.name)
     db.delete(topic)
     db.commit()
     return _knowledge_payload(db)
