@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — The music library's topics are the groups of Kho kiến thức
+
+Requested by tuananh219ln: the library's fixed topic list (the channel matrix of issue #42: tuổi thọ, tim mạch…) no
+longer matched the team's groups in Kho kiến thức, so tags did not line up with the videos' topics. A track's topics are
+now chosen from the groups of Kho kiến thức, in its order, plus "chung" for any topic. They stay stored as names in
+`music_tracks.topics` (no migration): renaming a group renames it on every track, and deleting a group takes it off
+(a track left with none becomes "chung"). Tags from the old list are not deleted: they stay on their tracks, still
+filterable, until a member edits them off, and cannot be added again. The moods stay a fixed list.
+
 ## 2026-11-07 — MCP OAuth answers with pages, never HTTP redirects, because production's /api proxy follows them
 
 Reported by tuananh219ln: after "Cho phép kết nối", Claude's "Page not found" showed on

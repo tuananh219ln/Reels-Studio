@@ -55,7 +55,7 @@ app replaces CapCut, so the output is a finished MP4.
 5. **Templated render (built):** a fixed visual template, Ken Burns motion, rendered on the server.
    Narration in the ElevenLabs "Adam" voice reads each scene's voice text, or its on-screen text when
    that is empty (on by default, off per video). Music is optional: one MP3 per video, uploaded or picked from the team music library (tracks
-   tagged by fixed topics and a mood).
+   tagged by the Kho kiến thức groups and a mood).
 6. **Affiliate (built):** the team's list of Shopee and TikTok Shop products, each platform with
    its own approval rules, ranked by expected commission. Each member adds their own affiliate
    accounts, which nobody else sees. With a Shopee account (Open API App ID and Secret), the
