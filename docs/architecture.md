@@ -532,7 +532,9 @@ Planned:
   - **Shopee** ([affiliate_rounds.py](../api/src/reels_api/affiliate_rounds.py), [shopee.py](../api/src/reels_api/shopee.py))
     is the worker's too, between jobs: the suggestions of one asked video per round (a new script asks by itself
     when its writer has a Shopee account; "Tìm sản phẩm" is `POST /api/affiliate-products/videos/{id}/suggestions`,
-    shown by `GET` there, "Chọn" is `POST .../choose`), searched with the asking member's account; up to 10
+    shown by `GET` there, "Chọn" is `POST .../choose`), searched with the asking member's account. A video's and an
+    article's payload carry `suggest` (`state`, `error`, `at`: when the last search finished); the page reloads the
+    suggestions when `state` or `at` changes, since a search can finish before the page ever sees it pending. Up to 10
     products added by a pasted link (`POST /api/affiliate-products/links`, or on the video
     `POST /api/affiliate-products/videos/{id}/links`, which also works without an App ID and then leaves a draft
     holding only the link) or imported from Shopee Affiliate's
@@ -676,8 +678,8 @@ Planned:
 - **One origin:** the web app calls the API through the Next.js rewrite `/api/*` → `API_URL`, so
   the session cookie is first-party and the API needs no CORS. `web/src/proxy.ts` redirects app
   pages to `/login` before rendering when there is no session cookie; the API validates the session
-  on every request. Two pages need no session: `/login` and `/privacy`, the public privacy policy a
-  Meta app needs to go Live (exactly that path; it calls no API).
+  on every request. Three pages need no session: `/login`, `/privacy`, the public privacy policy a
+  Meta app needs to go Live, and `/terms`, the public terms of service (exactly those paths; they call no API).
 - **Login:** email + password only. There is no self-signup. Google login is planned ([#54](https://github.com/tuananh219ln/Reels-Studio/issues/54)). The CLI
   `python -m reels_api create-user` creates the first user and is the
   recovery path: for an existing email it resets the password, re-enables the account, and signs out

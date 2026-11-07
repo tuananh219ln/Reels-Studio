@@ -108,6 +108,19 @@ def test_the_worker_searches_shopee_for_an_articles_ideas(an, db, me, fakes):
     assert db.get(Article, article.id).suggest_requested_at is None
 
 
+def test_the_article_says_when_its_search_finished(an, db, me, fakes):
+    # The page reloads the suggestions when this changes: a search that ends before the page sees it pending still
+    # shows up, because the time it finished is new.
+    shopee_account(an)
+    article = add_article(db, me, affiliates=["Vừng đen"])
+    assert an.get(f"/api/articles/{article.id}").json()["suggest"] == {"state": "idle", "error": None, "at": None}
+    an.post(f"{PRODUCTS}/articles/{article.id}/suggestions")
+    db.expire_all()
+    affiliate_rounds.suggest(db, db.get(Article, article.id))
+    suggest = an.get(f"/api/articles/{article.id}").json()["suggest"]
+    assert (suggest["state"], suggest["error"]) == ("idle", None) and suggest["at"] is not None
+
+
 def test_a_new_caption_asks_for_suggestions_when_its_writer_has_an_account(an, db, me):
     article = add_article(db, me, affiliates=["Vừng đen"])
     shopee_account(an)

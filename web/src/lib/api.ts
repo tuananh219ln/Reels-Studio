@@ -732,7 +732,7 @@ export type Article = {
   pinned_comment: string;
   /** Product ideas to search Shopee for ("Tìm sản phẩm"), one per line on the page. */
   affiliates: string[];
-  suggest: { state: "idle" | "pending" | "failed" };
+  suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
   /** The caption's first line, what a text card shows. */
   hook: string;
   has_image: boolean;

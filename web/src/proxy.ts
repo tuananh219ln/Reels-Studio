@@ -11,9 +11,9 @@ export function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
-// Every page except the login screen and the public privacy page. New pages are covered without
-// touching this list: only /login, /privacy (exactly), the /api proxy, Next.js assets and files with an
+// Every page except the login screen and the public privacy and terms pages. New pages are covered without
+// touching this list: only /login, /privacy and /terms (exactly), the /api proxy, Next.js assets and files with an
 // extension (favicon, images) are left out.
 export const config = {
-  matcher: ["/((?!login|privacy$|api/|_next/|.*\\..*).*)"],
+  matcher: ["/((?!login|privacy$|terms$|api/|_next/|.*\\..*).*)"],
 };
