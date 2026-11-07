@@ -23,7 +23,9 @@ AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 REDIRECT_URI = "https://reels.quangdang.xyz/api/tiktok/oauth/callback"
 # Exactly the three scopes the developer app was approved for; no reading of videos or numbers.
 SCOPES = ("user.info.basic", "video.upload", "video.publish")
-USER_FIELDS = "open_id,union_id,avatar_url,display_name,username"
+# Only what user.info.basic reads: asking for one more field (username needs user.info.profile) fails the whole call
+# with scope_not_authorized. The username comes from creator_info, which video.publish reads.
+USER_FIELDS = "open_id,union_id,avatar_url,display_name"
 MAX_TITLE = 2200
 # FILE_UPLOAD: a file up to 64 MB goes in one chunk; a bigger one in 10 MB chunks, the last one taking the rest.
 SINGLE_CHUNK_LIMIT = 64 * 1024 * 1024
@@ -94,6 +96,7 @@ class User:
 
 @dataclass(frozen=True)
 class CreatorInfo:
+    username: str
     privacy_level_options: list[str]
     comment_disabled: bool
     duet_disabled: bool
@@ -248,15 +251,17 @@ def revoke(access_token: str) -> None:
 
 
 def user_info(access_token: str) -> User:
+    """The member's TikTok account: open_id, name and avatar from user info, the username from creator_info."""
     data = _api("/v2/user/info/", access_token, query=urllib.parse.urlencode({"fields": USER_FIELDS}))
     user = data.get("user") if isinstance(data.get("user"), dict) else {}
     open_id = str(user.get("open_id") or "")
     if not open_id:
         raise TikTokError("TikTok không trả thông tin tài khoản, thử lại sau", json.dumps(data, ensure_ascii=False))
+    username = creator_info(access_token).username
     return User(
         open_id=open_id,
-        username=str(user.get("username") or "")[:100],
-        display_name=str(user.get("display_name") or user.get("username") or "TikTok")[:200],
+        username=username,
+        display_name=str(user.get("display_name") or username or "TikTok")[:200],
         avatar_url=user.get("avatar_url") or None,
     )
 
@@ -265,6 +270,7 @@ def creator_info(access_token: str) -> CreatorInfo:
     data = _api("/v2/post/publish/creator_info/query/", access_token, body={})
     options = data.get("privacy_level_options")
     return CreatorInfo(
+        username=str(data.get("creator_username") or "")[:100],
         privacy_level_options=[str(option) for option in options] if isinstance(options, list) else [],
         comment_disabled=bool(data.get("comment_disabled")),
         duet_disabled=bool(data.get("duet_disabled")),
