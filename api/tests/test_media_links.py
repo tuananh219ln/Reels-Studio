@@ -273,7 +273,9 @@ def test_tiktok_links_that_are_not_one_video_or_too_big_are_refused(
     ],
 )
 def test_stock_photo_sites_are_recognised_by_their_hosts(url, site):
-    assert remote_media.stock_site(url) == site
+    from reels_api.stock_sites import stock_site
+
+    assert stock_site(url) == site
 
 
 def test_a_photo_from_a_stock_site_is_kept_with_a_warning(an, db, me, storage, monkeypatch):

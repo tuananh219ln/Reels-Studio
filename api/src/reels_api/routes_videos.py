@@ -64,6 +64,7 @@ from .pexels import Pexels, PexelsError
 from .pixabay import ORIENTATIONS, Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, plain_title, text_problem
 from .sessions import current_member, now
+from .stock_sites import stock_site
 from .storage import DirectoryStorage, get_storage
 from .uploads import (
     MAX_IMAGE_BYTES,
@@ -1308,7 +1309,7 @@ def media_from_url(
         if media.photo is not None:
             data, extension = media.photo
             payload = _store_photo(db, storage, scene_id, data, extension, body.url.strip())
-            if site := remote_media.stock_site(body.url):
+            if site := stock_site(body.url):
                 payload["notice"] = (
                     f"Ảnh này lấy từ {site}: ảnh xem trước thường có watermark và cần mua bản quyền. "
                     "Nếu nhóm chưa mua, hãy đổi ảnh khác (Tìm ảnh, Tạo ảnh AI)."
