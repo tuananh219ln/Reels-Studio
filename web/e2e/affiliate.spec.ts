@@ -255,4 +255,7 @@ test("an article's products show even when its page never saw the search pending
   await expect(page.getByTestId("shopee-suggestions").getByTestId("suggested-product")).toHaveCount(2, {
     timeout: 30_000,
   });
+  // The page keeps polling: a read still inside the route when the test ends failed the NEXT test with
+  // "route.fetch: Test ended" (CI run 42369438965). Remove the route and let such a read be dropped quietly.
+  await page.unrouteAll({ behavior: "ignoreErrors" });
 });
