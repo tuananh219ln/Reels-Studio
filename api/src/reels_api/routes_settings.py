@@ -21,7 +21,7 @@ from . import (
 from .claude import ClaudeError
 from .db import get_db
 from .errors import ApiError
-from .models import AppSetting, LlmProvider, Session, User
+from .models import AppSetting, LlmProvider, MusicTrack, Session, User
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -190,22 +190,35 @@ def get_active(me: Session = Depends(current_member), db: DbSession = Depends(ge
 # --- Cài đặt › Mặc định video ---
 
 
+def _defaults_payload(db: DbSession, values: dict) -> dict:
+    """The team defaults, with the default music's name and player link for the page ("music_track", read-only):
+    None when there is none or the track was deleted from the library since (new videos then start silent)."""
+    track = db.get(MusicTrack, values["music_track_id"]) if values.get("music_track_id") else None
+    music = {"id": track.id, "name": track.name, "url": f"/api/music/{track.id}/audio.mp3"} if track else None
+    return values | {"music_track": music}
+
+
 @router.get("/video-defaults")
 def get_video_defaults(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """What a new video starts with; existing videos keep their own copy."""
-    return video_options.team_defaults(db)
+    return _defaults_payload(db, video_options.team_defaults(db))
 
 
 @router.put("/video-defaults")
 def put_video_defaults(
     body: DefaultsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
+    track_id = body.values.get("music_track_id")
+    # A malformed id is refused by video_options.clean below; a well-formed one must name a track in the library.
+    known = isinstance(track_id, int) and not isinstance(track_id, bool) and track_id >= 1
+    if known and db.get(MusicTrack, track_id) is None:
+        raise ApiError(404, "track_not_found", "Không tìm thấy bài nhạc (có thể đã bị xóa)")
     try:
         saved = video_options.save_team_defaults(db, body.values, me.user_id)
     except video_options.OptionError as err:
         raise invalid(str(err)) from None
     db.commit()
-    return saved
+    return _defaults_payload(db, saved)
 
 
 @router.get("/voices")

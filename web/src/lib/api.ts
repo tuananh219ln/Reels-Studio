@@ -620,7 +620,14 @@ export type TextBoxStyle = {
 };
 
 /** What a new video starts with (Cài đặt › Thiết lập mặc định). */
-export type VideoDefaults = VideoOptions & { voice_enabled: boolean; music_volume: number };
+export type VideoDefaults = VideoOptions & {
+  voice_enabled: boolean;
+  music_volume: number;
+  /** The library track a new video starts with, copied into it; null for no music. */
+  music_track_id: number | null;
+  /** Read-only, never sent back: the default track's name and player link, null when none or deleted since. */
+  music_track?: { id: number; name: string; url: string } | null;
+};
 
 export type Voice = { id: string; name: string; description: string; preview_url: string | null };
 
