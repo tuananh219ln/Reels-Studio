@@ -33,8 +33,9 @@ export default function ShopeeSuggestions({
 }: {
   base: string;
   ideas: string[];
-  /** The owner's own search state and when its last search finished: a change of either reloads the list. The time
-   * matters because the worker can finish a search before the owner is reloaded, so it never shows as pending. */
+  /** The owner's own search state and when its last search finished: a change of either reloads the list, as does a
+   * change of `ideas`. The time matters because the worker can finish a search before the owner is reloaded, so it
+   * never shows as pending. */
   state: string;
   searchedAt: string | null;
   attachedIds: number[];
@@ -66,10 +67,13 @@ export default function ShopeeSuggestions({
     }
   }, [base]);
 
+  // New ideas reload the list too: the owner's job writes them and asks for the search at once, and the worker can
+  // run that search between two reads of the owner, so `state` alone may never change.
+  const ideasKey = ideas.join("\n");
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
-  }, [load, state, searchedAt]);
+  }, [load, state, searchedAt, ideasKey]);
 
   // While the worker searches or reads a pasted link, ask again every few seconds until it has answered.
   const pending = data?.state === "pending";

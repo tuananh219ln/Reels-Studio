@@ -203,3 +203,28 @@ test("an article's AI caption finds Shopee products with the writer's account, a
   );
   await expect(page.getByTestId("article-preview")).toContainText("Link sản phẩm mình để ở bình luận ghim.");
 });
+
+test("an article's products show even when its page never saw the search pending", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await addShopeeAccount(page);
+  // The page reads the article every few seconds while the AI writes; the worker's search can start and finish
+  // between two reads, so the article only ever says "idle". Hiding "pending" from the page makes that certain.
+  await page.route(/\/api\/articles\/\d+$/, async (route) => {
+    if (route.request().method() !== "GET") return route.fallback();
+    const response = await route.fetch();
+    const article = await response.json();
+    await route.fulfill({ response, json: { ...article, suggest: { ...article.suggest, state: "idle" } } });
+  });
+
+  await page.goto("/articles");
+  await page.getByRole("button", { name: "Tạo bài viết" }).click();
+  const drawer = page.getByRole("dialog", { name: "Tạo bài viết" });
+  await drawer.getByLabel("Chủ đề của bài").fill("uống nước ấm buổi sáng");
+  await drawer.getByRole("button", { name: "Tạo bài" }).click();
+  await page.getByRole("button", { name: "AI viết" }).click();
+  await expect(page.getByLabel("Gợi ý sản phẩm")).toHaveValue("bình giữ nhiệt", { timeout: 90_000 });
+  await expect(page.getByTestId("shopee-suggestions").getByTestId("suggested-product")).toHaveCount(2, {
+    timeout: 30_000,
+  });
+});
