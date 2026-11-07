@@ -35,6 +35,7 @@ from . import (
     remote_media,
     source_keys,
     stock_clips,
+    tts,
     video_options,
 )
 from .claude import GeneratedScript
@@ -509,7 +510,8 @@ def render(video_id: int, me: Session = Depends(current_member), db: DbSession =
 
 @router.post("/videos/{video_id}/voices")
 def make_narration(video_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Tạo giọng thật" in the preview: ElevenLabs reads the scenes whose narration is missing or out of date.
+    """ "Tạo giọng thật" in the preview: the video's voice (ElevenLabs or VieNeu) reads the scenes whose narration is
+    missing or out of date.
     It costs credit once per text; the render reuses those MP3s, so a render after it pays nothing more."""
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
@@ -524,7 +526,8 @@ def make_narration(video_id: int, me: Session = Depends(current_member), db: DbS
         if scene is not None and spoken(video, scene) and made_voice_seconds(video, scene) is None
     ]
     if not missing:
-        raise ApiError(409, "voices_ready", "Mọi cảnh đã có giọng ElevenLabs")
+        voice = video_options.voice_id(video)
+        raise ApiError(409, "voices_ready", f"Mọi cảnh đã có giọng {tts.service_name(voice)}")
     _enqueue(db, video, "voice", me)
     return _saved(db, video)
 

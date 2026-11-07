@@ -379,8 +379,9 @@ Built:
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
   - the "Thiết lập" tab, every change saved at once, with a row of buttons on top (Âm thanh, Nhạc
-    nền, Hình ảnh, Chữ & phụ đề) that scrolls the panel to that group: "Âm thanh" (narration on/off, the ElevenLabs
-    voice picked from the account's voices with "Nghe thử" playing ElevenLabs' free sample, the
+    nền, Hình ảnh, Chữ & phụ đề) that scrolls the panel to that group: "Âm thanh" (narration on/off, the
+    voice picked from the ElevenLabs account's voices, and VieNeu's once its key is set, grouped "ElevenLabs" and "VieNeu"
+    when both have voices, with "Nghe thử" playing ElevenLabs' free sample (VieNeu voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
@@ -655,6 +656,9 @@ Built:
     "Base URL" (empty means the default shown as placeholder), "Model" (typed, or picked from the
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
+    Under the provider choice, the card "Giọng đọc VieNeu" ("Sẵn sàng" / "Chưa cấu hình") takes the VieNeu API key the
+    same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page; with a key, VieNeu's
+    voices join the "Giọng" picker. A service whose voices cannot be listed is named in yellow under the picker.
   - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
     (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
     tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side

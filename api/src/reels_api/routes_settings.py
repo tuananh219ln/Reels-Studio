@@ -223,12 +223,32 @@ def put_video_defaults(
 
 @router.get("/voices")
 def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The ElevenLabs voices to choose from, and the server's default one."""
-    try:
-        voices = tts.list_voices(source_keys.get(db, "elevenlabs"))
-    except tts.TtsError as err:
-        raise ApiError(422, "voices_unavailable", err.message) from None
-    return {"default_id": config.voice_id(), "voices": voices}
+    """The voices to choose from: ElevenLabs' and VieNeu's, each listed once its key is set, and the server's default
+    one. A service that cannot list its voices is named in `problems` while the other's voices still come; with no
+    voice at all, the reason is the error."""
+    keys = {name: source_keys.get(db, name) for name in ("elevenlabs", "vieneu")}
+    if not any(keys.values()):
+        raise ApiError(
+            422,
+            "voices_unavailable",
+            "Chưa có key ElevenLabs hay VieNeu nên chưa chọn được giọng đọc: nhập key ElevenLabs ở Cài đặt › "
+            "Nguồn tư liệu, hoặc key VieNeu ở Cài đặt › Mô hình AI",
+        )
+    voices: list[dict] = []
+    problems: list[str] = []
+    for name, listing in (("elevenlabs", tts.list_voices), ("vieneu", tts.list_vieneu_voices)):
+        if not keys[name]:
+            if name == "elevenlabs":
+                # The server's default voice is an ElevenLabs one, so say why it cannot be read.
+                problems.append(tts.NO_KEY.format("chưa dùng được giọng ElevenLabs (cả giọng mặc định)"))
+            continue
+        try:
+            voices += listing(keys[name])
+        except tts.TtsError as err:
+            problems.append(err.message)
+    if not voices:
+        raise ApiError(422, "voices_unavailable", problems[0])
+    return {"default_id": config.voice_id(), "voices": voices, "problems": problems}
 
 
 # --- Cài đặt › Nguồn tư liệu ---
@@ -240,6 +260,7 @@ SOURCE_SIGNUP = {
     "gemini": "https://aistudio.google.com/apikey",
     "cloudflare": "https://dash.cloudflare.com/profile/api-tokens",
     "elevenlabs": "https://elevenlabs.io/app/settings/api-keys",
+    "vieneu": "https://www.vieneu.io/#/developer",
 }
 
 
@@ -288,6 +309,8 @@ def _sources(db: DbSession) -> dict:
         },
         # Narration (ElevenLabs): the render job and the voice picker use this key.
         "voices": {"configured": bool(source_keys.get(db, "elevenlabs")), "key": _key(db, "elevenlabs")},
+        # Narration (VieNeu), its key pasted on Cài đặt › Mô hình AI: voices whose id starts with "vieneu:".
+        "vieneu": {"configured": bool(source_keys.get(db, "vieneu")), "key": _key(db, "vieneu")},
     }
 
 

@@ -22,6 +22,23 @@ the music a video already has: replacing it would delete music a member chose or
 of the settings that tab resets. A default whose track was deleted since is skipped (new videos start silent) and the
 page says so. Clones still take their source's music.
 
+## 2026-11-07 — VieNeu voices join ElevenLabs' in the voice picker; their key is pasted on Cài đặt › Mô hình AI
+
+Requested by tuananh219ln: VieNeu (vieneu.io) has natural Vietnamese voices and a cloud API, so its voices are offered
+beside ElevenLabs' in the "Giọng" picker of Thiết lập mặc định and of each video, and the VieNeu key is pasted on
+Cài đặt › Mô hình AI (the member's choice of page), stored encrypted like the other keys (`source_keys`, name
+`vieneu`, else `VIENEU_API_KEY`). ElevenLabs stays the default voice and the only Speech-to-Text; nothing changes for
+videos that keep an ElevenLabs voice.
+
+- A VieNeu voice is stored as `vieneu:<VieNeu voice id>` in `videos.options.voice_id`; the prefix is what sends the
+  narration to VieNeu, so no new column or option. VieNeu's ids are the voices' names ("Ngọc Lan"), so for these ids
+  alone the option accepts single spaces.
+- Narration uses VieNeu's OpenAI-compatible `/v1/audio/speech` with `model: vieneu-v4`, MP3 back; the reading speed
+  is still FFmpeg's tempo on the returned MP3 (2026-11-02), and each MP3 is reused while its signature matches. The
+  signature of a VieNeu voice names `vieneu-v4` instead of `ELEVENLABS_MODEL`.
+- VieNeu's voices are listed only once a key is set (the catalogue is public, but reading needs a key); one service
+  failing to list still shows the other's voices, with the reason under the picker.
+
 ## 2026-11-07 — MCP OAuth answers with pages, never HTTP redirects, because production's /api proxy follows them
 
 Reported by tuananh219ln: after "Cho phép kết nối", Claude's "Page not found" showed on

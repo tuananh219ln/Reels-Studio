@@ -25,13 +25,13 @@ from reels_render.timeline import VOICE_TAIL
 
 from . import config
 from .models import AppSetting, Video
-from .tts import MAX_SPEED, MIN_SPEED, SPEED_STEP
+from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_vieneu
 
 DEFAULTS_KEY = "video_defaults"
-MAX_VOICE_ID_LENGTH = 64
 
 DEFAULTS: dict = {
-    "voice_id": "",  # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default)
+    # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default); "vieneu:<id>": a VieNeu voice (tts.py)
+    "voice_id": "",
     "voice_speed": 1.0,  # tempo factor, MIN_SPEED to MAX_SPEED
     "voice_volume": 100,  # percent
     "ducking": False,
@@ -188,9 +188,13 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
                 )
             value = float(value)
         elif name == "voice_id":
-            if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH or len(value.split()) > 1:
+            if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH:
                 raise OptionError("Mã giọng đọc không hợp lệ")
             value = value.strip()
+            # VieNeu names its voices ("vieneu:Ngọc Lan"), so only its ids may hold single spaces.
+            spaced = " ".join(value.split()) == value if is_vieneu(value) else len(value.split()) <= 1
+            if not spaced or any(not char.isprintable() for char in value):
+                raise OptionError("Mã giọng đọc không hợp lệ")
         elif name == "music_track_id" and (
             value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1)
         ):
