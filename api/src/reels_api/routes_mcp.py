@@ -139,12 +139,14 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
     )
     session = member_session(db, session_id) if session_id else None
     if session is None:
+        # Signing in happens in this same tab and comes back here (the login page's `next`): opened in another tab,
+        # it left members on the video list, and the request that asked for consent was never finished.
+        again = PREFIX + "/authorize?" + str(request.query_params)
         return page(
             f"Đăng nhập để kết nối {app_of(query['redirect_uri'])}",
-            "<p>Mở Reels Studio để đăng nhập hoặc đổi mật khẩu, rồi quay lại trang này.</p>"
-            '<a href="/login" target="_blank" rel="noopener">Mở trang đăng nhập</a>'
-            f'<p><a href="{escape(resource + "/oauth/authorize?" + str(request.query_params), quote=True)}">'
-            "Tôi đã đăng nhập, tiếp tục</a></p>",
+            "<p>Đăng nhập Reels Studio (hoặc đổi mật khẩu tạm), rồi bạn sẽ quay lại đây để cho phép kết nối.</p>"
+            f'<p><a href="{escape("/login?" + urlencode({"next": again}), quote=True)}">Đăng nhập Reels Studio</a></p>'
+            f'<p><a href="{escape(again, quote=True)}">Tôi đã đăng nhập, tiếp tục</a></p>',
             status=401,
         )
     db.execute(delete(McpAuthorization).where(McpAuthorization.expires_at <= now()))

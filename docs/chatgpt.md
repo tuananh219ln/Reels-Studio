@@ -76,9 +76,12 @@ failed check, look at the MP4's frames after it, and say the video is done only 
 
    This server supports dynamic client registration (DCR), public clients and S256 PKCE; it does not
    support CIMD or a client secret, so Claude falls back to DCR.
-5. Connect and sign in to Reels Studio if asked. The login opens in another tab; return to the
-   authorization tab and choose **Tôi đã đăng nhập, tiếp tục**. Complete any required password
-   change before proceeding. The consent screen identifies your account and the requested access.
+5. Connect and sign in to Reels Studio if asked: **Đăng nhập Reels Studio** opens the login in the same
+   tab (`/login?next=...`), and once signed in (and any required password change done) it comes back to
+   the authorization request by itself. The login and password pages follow `next` only to
+   `/api/mcp/oauth/authorize?...`, never elsewhere. **Tôi đã đăng nhập, tiếp tục** remains for a member who
+   signed in another way. The consent screen identifies your account and the requested access. Opening
+   **Kết nối ChatGPT / Claude** by hand shows no consent: only the app's own authorization request does.
 6. Choose **Cho phép kết nối**. ChatGPT receives OAuth credentials, never the member's password,
    Reels Studio cookie, AI API keys, or Facebook tokens.
 7. Select the connection in a ChatGPT conversation and ask it to use Reels Studio.

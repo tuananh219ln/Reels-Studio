@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import CenteredCard from "@/components/CenteredCard";
 import { ApiError, api, type Me } from "@/lib/api";
+import { leaveSignIn, withNext } from "@/lib/next";
 
 type Fields = { email: string; password: string };
 
@@ -18,7 +19,11 @@ export default function LoginPage() {
     setError(null);
     try {
       const me = await api<Me>("/auth/login", "POST", fields);
-      router.replace(me.must_change_password ? "/change-password" : "/videos");
+      if (me.must_change_password) {
+        router.replace(withNext("/change-password"));
+      } else {
+        leaveSignIn((path) => router.replace(path));
+      }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : String(err));
       setBusy(false);

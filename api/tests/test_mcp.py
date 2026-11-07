@@ -127,6 +127,21 @@ def test_discovery_challenge_and_client_registration(mcp_client):
     assert register(mcp_client, "https://evil.example/callback").status_code == 400
 
 
+def test_the_login_link_of_the_authorize_page_comes_back_to_the_same_request(mcp_client):
+    import re
+    from html import unescape
+
+    cid = register(mcp_client).json()["client_id"]
+    page = authorize(mcp_client, cid)
+    assert page.status_code == 401
+    link = re.search(r'<a href="(/login\?next=[^"]+)">Đăng nhập Reels Studio</a>', page.text)
+    assert link, page.text
+    back = parse_qs(urlparse(unescape(link.group(1))).query)["next"][0]
+    assert back.startswith("/api/mcp/oauth/authorize?")
+    assert parse_qs(urlparse(back).query)["client_id"] == [cid]
+    assert parse_qs(urlparse(back).query)["state"] == ["client-state"]
+
+
 def test_consent_requires_login_and_valid_pkce_resource_redirect(mcp_client, db):
     cid = register(mcp_client).json()["client_id"]
     assert authorize(mcp_client, cid).status_code == 401
