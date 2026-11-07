@@ -1,15 +1,25 @@
 "use client";
 
-import { GoogleOutlined, LinkOutlined, TikTokOutlined } from "@ant-design/icons";
+import { GoogleOutlined, LinkOutlined, SnippetsOutlined, TikTokOutlined } from "@ant-design/icons";
 import { App, Button, Flex, Input, Typography } from "antd";
-import { useState } from "react";
-import { api, errorMessage, type MediaItem, type MediaLinksResult } from "@/lib/api";
-import { googleImagesUrl, googleTransparentUrl, tiktokSearchUrl, unwrapLink } from "@/lib/mediaLinks";
+import { useState, type ClipboardEvent, type DragEvent } from "react";
+import { api, errorMessage, upload, type MediaItem, type MediaLinksResult } from "@/lib/api";
+import {
+  fileFromDataUrl,
+  googleImagesUrl,
+  googleTransparentUrl,
+  linkFromTransfer,
+  tiktokSearchUrl,
+  unwrapLink,
+} from "@/lib/mediaLinks";
+
+const MEDIA_TYPES = /^(image\/(jpeg|png|webp)|video\/(mp4|quicktime|webm))$/;
 
 /**
- * Find a product's photos and clips on Google Ảnh and TikTok, then paste the links back: the buttons open the search
- * for the product being worked on, and a link pasted in the box goes straight into the library, in the product's
- * folder (the api downloads it: a photo, or the TikTok video's first minute).
+ * Find a product's photos and clips on Google Ảnh and TikTok, then bring them back: the buttons open the search for
+ * the product being worked on, and what is pasted or dropped in the box goes straight into the library, in the
+ * product's folder. That may be a link (a photo's address, a TikTok video: the api downloads it), a photo copied with
+ * "Sao chép hình ảnh", or a "data:" address (Google Ảnh's thumbnails), the last two uploaded like a chosen file.
  */
 export default function MediaLinkSearch({
   keyword: initial,
@@ -34,30 +44,102 @@ export default function MediaLinkSearch({
     setKeyword(initial);
   }
 
-  async function add(text: string) {
-    const urls = text
+  function done(added: MediaItem[]) {
+    if (!added.length) return;
+    message.success(`Đã thêm ${added.length} tư liệu vào “${folder || "Kho tư liệu"}”`);
+    onAdded(added);
+    setLinks("");
+  }
+
+  /** Photos or clips themselves (a copied photo, dropped files, a data: address): uploaded one by one. */
+  async function addFiles(files: File[]) {
+    const added: MediaItem[] = [];
+    for (const file of files) {
+      try {
+        added.push(await upload<MediaItem>("/media", file, { folder }));
+      } catch (err) {
+        message.error(`${file.name}: ${errorMessage(err)}`);
+      }
+    }
+    done(added);
+  }
+
+  /** Links typed or pasted, one or many: data: photos are uploaded, web addresses downloaded by the api. */
+  async function addText(text: string) {
+    const parts = text
       .split(/\s+/)
       .map((link) => unwrapLink(link.trim()))
-      .filter((link) => /^https?:\/\//i.test(link));
-    if (!urls.length) {
-      message.warning("Hãy dán link ảnh hoặc link video TikTok");
+      .filter(Boolean);
+    const urls = parts.filter((link) => /^https?:\/\//i.test(link));
+    const inline = parts.filter((link) => /^data:image\//i.test(link));
+    if (!urls.length && !inline.length) {
+      message.warning("Hãy dán ảnh, link ảnh hoặc link video TikTok");
       return;
     }
     setAdding(true);
     try {
-      const result = await api<MediaLinksResult>("/media/links", "POST", { urls: urls.slice(0, 10), folder });
-      if (result.added.length) {
-        message.success(`Đã thêm ${result.added.length} tư liệu vào “${folder || "Kho tư liệu"}”`);
-        onAdded(result.added);
-        setLinks("");
-      }
-      for (const failure of result.failed) {
-        message.error(`${failure.error} (${failure.url.slice(0, 60)})`);
+      if (inline.length) await addFiles(await Promise.all(inline.map(fileFromDataUrl)));
+      if (urls.length) {
+        const result = await api<MediaLinksResult>("/media/links", "POST", { urls: urls.slice(0, 10), folder });
+        done(result.added);
+        for (const failure of result.failed) {
+          message.error(`${failure.error} (${failure.url.slice(0, 60)})`);
+        }
       }
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
       setAdding(false);
+    }
+  }
+
+  /** What a paste or a drop holds, best first: files, then the photo in copied HTML, then plain text. */
+  async function take(data: DataTransfer): Promise<boolean> {
+    const files = Array.from(data.files).filter((file) => MEDIA_TYPES.test(file.type));
+    if (files.length) {
+      setAdding(true);
+      try {
+        await addFiles(files);
+      } finally {
+        setAdding(false);
+      }
+      return true;
+    }
+    const link = linkFromTransfer(data);
+    const text = data.getData("text/plain").trim();
+    if (link || text) {
+      await addText(link && !/\s/.test(text) ? link : text || link || "");
+      return true;
+    }
+    return false;
+  }
+
+  /** "Dán từ clipboard": read it directly when the browser allows, a photo first. */
+  async function fromClipboard() {
+    try {
+      const items = await navigator.clipboard.read();
+      const files: File[] = [];
+      for (const item of items) {
+        const type = item.types.find((name) => MEDIA_TYPES.test(name));
+        if (type) {
+          const blob = await item.getType(type);
+          files.push(new File([blob], `anh-dan.${type.split("/")[1].replace("jpeg", "jpg")}`, { type }));
+        }
+      }
+      if (files.length) {
+        setAdding(true);
+        try {
+          await addFiles(files);
+        } finally {
+          setAdding(false);
+        }
+        return;
+      }
+      const text = (await navigator.clipboard.readText()).trim();
+      if (text) return addText(text);
+      message.warning("Clipboard chưa có ảnh hay link: chuột phải vào ảnh › Sao chép hình ảnh, rồi bấm lại");
+    } catch {
+      message.info("Trình duyệt không cho đọc clipboard: bấm vào ô bên dưới rồi nhấn Ctrl+V");
     }
   }
 
@@ -85,27 +167,35 @@ export default function MediaLinkSearch({
         </Button>
       </Flex>
       <Input.TextArea
-        aria-label="Dán link ảnh hoặc video"
+        aria-label="Dán ảnh, link ảnh hoặc video"
         value={links}
         disabled={adding}
-        autoSize={{ minRows: 1, maxRows: 4 }}
-        placeholder="Dán link ảnh (chuột phải › Sao chép địa chỉ hình ảnh) hoặc link video TikTok vào đây"
+        autoSize={{ minRows: 2, maxRows: 4 }}
+        placeholder="Dán vào đây (Ctrl+V): ảnh đã sao chép (chuột phải › Sao chép hình ảnh), link ảnh, hoặc link video TikTok. Kéo ảnh từ tab khác thả vào cũng được."
         onChange={(event) => setLinks(event.target.value)}
-        onPaste={(event) => {
-          // Pasting is the whole gesture: the link is added at once, no button to find.
-          const pasted = event.clipboardData.getData("text");
-          if (pasted.trim()) {
+        onPaste={(event: ClipboardEvent<HTMLTextAreaElement>) => {
+          // Pasting is the whole gesture: what was pasted is added at once, no button to find.
+          const data = event.clipboardData;
+          if (data.files.length || data.getData("text/plain").trim() || data.getData("text/html")) {
             event.preventDefault();
-            void add(pasted);
+            void take(data);
           }
+        }}
+        onDragOver={(event: DragEvent<HTMLTextAreaElement>) => event.preventDefault()}
+        onDrop={(event: DragEvent<HTMLTextAreaElement>) => {
+          event.preventDefault();
+          void take(event.dataTransfer);
         }}
       />
       <Flex gap={8} align="center" wrap>
-        <Button icon={<LinkOutlined />} loading={adding} disabled={!links.trim()} onClick={() => add(links)}>
-          Thêm vào kho
+        <Button icon={<SnippetsOutlined />} loading={adding} onClick={fromClipboard}>
+          Dán từ clipboard
+        </Button>
+        <Button icon={<LinkOutlined />} disabled={adding || !links.trim()} onClick={() => addText(links)}>
+          Thêm link đã gõ
         </Button>
         <Typography.Text type="secondary">
-          Vào thư mục <strong>{folder || "(không thư mục)"}</strong>. Người dán link chịu trách nhiệm bản quyền.
+          Vào thư mục <strong>{folder || "(không thư mục)"}</strong>. Người thêm chịu trách nhiệm bản quyền.
         </Typography.Text>
       </Flex>
     </Flex>
