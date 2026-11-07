@@ -3,15 +3,17 @@
 import { EditOutlined } from "@ant-design/icons";
 import { App, Button, Col, Flex, Row, Spin, Tag } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import DefaultMusicCard from "@/components/settings/DefaultMusicCard";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { AudioSettings, MotionSettings, TextSettings } from "@/components/video/VideoSettings";
 import { api, errorMessage, type VideoDefaults } from "@/lib/api";
 
-/** The fields of `draft` that differ from `saved`: what "Lưu" sends. */
+/** The fields of `draft` that differ from `saved`: what "Lưu" sends ("music_track" only shows the chosen track). */
 function changes(saved: VideoDefaults, draft: VideoDefaults): Partial<VideoDefaults> {
   return Object.fromEntries(
     Object.entries(draft).filter(
-      ([key, value]) => JSON.stringify(value) !== JSON.stringify(saved[key as keyof VideoDefaults]),
+      ([key, value]) =>
+        key !== "music_track" && JSON.stringify(value) !== JSON.stringify(saved[key as keyof VideoDefaults]),
     ),
   ) as Partial<VideoDefaults>;
 }
@@ -65,7 +67,7 @@ export default function VideoDefaultsPage() {
     <>
       <SettingsHeader
         title="Thiết lập mặc định"
-        description="Video tạo mới bắt đầu với các thiết lập này; video nhân bản lấy theo video gốc. Video đã có giữ thiết lập riêng: đổi ở tab “Thiết lập” của từng video, hoặc bấm “Lấy theo mặc định nhóm” ở đó."
+        description="Video tạo mới bắt đầu với các thiết lập này (cả nhạc nền mặc định); video nhân bản lấy theo video gốc. Video đã có giữ thiết lập riêng: đổi ở tab “Thiết lập” của từng video, hoặc bấm “Lấy theo mặc định nhóm” ở đó."
         actions={
           saved !== null &&
           (editing ? (
@@ -94,6 +96,7 @@ export default function VideoDefaultsPage() {
           <Col xs={24} xxl={10}>
             <Flex vertical gap={16}>
               <AudioSettings values={values} onChange={change} disabled={!editing || busy} showMusicVolume />
+              <DefaultMusicCard values={values} onChange={change} disabled={!editing || busy} />
               <MotionSettings values={values} onChange={change} disabled={!editing || busy} />
             </Flex>
           </Col>
