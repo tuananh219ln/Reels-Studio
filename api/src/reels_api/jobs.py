@@ -59,7 +59,7 @@ from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
-from .video_options import render_options, voice_id, voice_speed
+from .video_options import render_options, voice_id, voice_pause, voice_speed
 from .videos import (
     LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
@@ -523,7 +523,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         )
         # "Tự khớp lời đọc": the scene now lasts as long as its narration, shorter or longer than before.
         if scene.seconds_auto:
-            scene.seconds = auto_seconds(video, seconds)
+            scene.seconds = auto_seconds(seconds, voice_pause(video))
         db.commit()
         if old and old != key:
             storage.delete(old)

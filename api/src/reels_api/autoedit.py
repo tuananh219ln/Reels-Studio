@@ -128,7 +128,8 @@ def _layers(items: object) -> list[dict]:
         if kind == "text" and not layer.text:
             raise ValueError("Lớp chữ của mẫu đang trống")
         render_layer(layer)  # raises ValueError for text that does not fit
-        layers.append(asdict(layer))
+        # A template's layers are text and stickers: a photo layer's `image` is never part of one.
+        layers.append({name: value for name, value in asdict(layer).items() if name != "image"})
     return layers
 
 

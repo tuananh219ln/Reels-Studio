@@ -11,7 +11,7 @@ from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from reels_render.timeline import fit_seconds
+from reels_render.timeline import VOICE_TAIL, fit_seconds
 
 from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
 from .clips import ClipError, frame_at
@@ -233,11 +233,11 @@ def is_backdrop(video: Video) -> bool:
     return video.mode == "single"
 
 
-def auto_seconds(video: Video, voice_seconds: float) -> float:
-    """A scene's seconds when they follow its narration: the narration, the lead-in before it and the video's pause
-    after it ("Nghỉ sau lời đọc"), in tenths, within the 1–10 seconds a scene may be set to. A longer narration
-    still lengthens the scene at render (fit_seconds)."""
-    return min(MAX_SCENE_SECONDS, max(MIN_SCENE_SECONDS, fit_seconds(0, voice_seconds, voice_pause(video))))
+def auto_seconds(voice_seconds: float, pause: float = VOICE_TAIL) -> float:
+    """A scene's seconds when they follow its narration: the narration, the lead-in before it and the pause after
+    it (the video's "Nghỉ sau lời đọc", voice_pause), in tenths, within the 1–10 seconds a scene may be set to. A
+    longer narration still lengthens the scene at render (fit_seconds)."""
+    return min(MAX_SCENE_SECONDS, max(MIN_SCENE_SECONDS, fit_seconds(0, voice_seconds, pause)))
 
 
 def follow_narration(video: Video, scenes: list[Scene]) -> None:
@@ -246,7 +246,7 @@ def follow_narration(video: Video, scenes: list[Scene]) -> None:
     for scene in scenes:
         made = made_voice_seconds(video, scene)
         if scene.seconds_auto and made is not None:
-            scene.seconds = auto_seconds(video, made)
+            scene.seconds = auto_seconds(made, voice_pause(video))
 
 
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:

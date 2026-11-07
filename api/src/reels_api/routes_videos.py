@@ -950,7 +950,7 @@ def _follow_voice(video: Video, scene: Scene) -> None:
     sets it when it makes the narration."""
     made = made_voice_seconds(video, scene)
     if scene.seconds_auto and made is not None:
-        scene.seconds = auto_seconds(video, made)
+        scene.seconds = auto_seconds(made, video_options.voice_pause(video))
 
 
 @router.delete("/scenes/{scene_id}")
