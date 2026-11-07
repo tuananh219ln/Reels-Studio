@@ -4,6 +4,7 @@ import { PlayCircleOutlined, RobotOutlined, VideoCameraOutlined } from "@ant-des
 import { Button, Flex, Space, Spin, Typography } from "antd";
 import { useEffect, useState } from "react";
 import type { VideoDetail } from "@/lib/api";
+import GooglePhotosButton from "./GooglePhotosButton";
 import ImageProviderMenu from "./ImageProviderMenu";
 import { COLORS } from "@/app/theme";
 
@@ -138,6 +139,7 @@ export default function RenderBar({
           </Typography.Text>
         </Flex>
         <Flex wrap gap={8}>
+          {missingPhotos && <GooglePhotosButton video={video} disabled={busy || video.locked} />}
           {missingPhotos && (
             <Space.Compact>
               <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={() => onGenerateImages()}>

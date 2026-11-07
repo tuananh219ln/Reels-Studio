@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Reels Studio – Google Ảnh",
+  "version": "1.0.0",
+  "description": "Lấy ảnh Google Ảnh cho cảnh video Reels Studio, ngay trong Chrome của thành viên.",
+  "permissions": ["contextMenus", "tabs", "storage"],
+  "host_permissions": ["https://www.google.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://reels.quangdang.xyz/*", "http://localhost:3000/*", "http://127.0.0.1:3000/*"],
+      "js": ["app.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["https://www.google.com/search*"],
+      "js": ["google-results.js", "google.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
