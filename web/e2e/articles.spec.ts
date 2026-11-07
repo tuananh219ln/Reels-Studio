@@ -84,8 +84,12 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
     timeout: 30_000,
   });
 
-  // The same caption cannot go on the same Page twice.
-  await page.getByRole("button", { name: /^send Đăng$/ }).click();
+  // The same caption cannot go on the same Page twice. The worker's jobs for the post (its comment, its numbers) can
+  // still turn "Đăng" off for a moment while the page polls, and a click landing then is lost: click until it opens.
+  await expect(async () => {
+    await page.getByRole("button", { name: /^send Đăng$/ }).click({ timeout: 5_000 });
+    await expect(publish).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await publish.getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByText("Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được")).toBeVisible();
   await publish.getByRole("button", { name: "Huỷ" }).click();
