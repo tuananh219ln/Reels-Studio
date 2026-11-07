@@ -165,11 +165,48 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
         )
     )
     db.commit()
-    return RedirectResponse(
-        resource.removesuffix("/api/mcp") + "/chatgpt#" + urlencode({"ticket": ticket}),
-        status_code=303,
-        headers=PRIVATE_HEADERS,
+    return consent_page(session, ticket, query["redirect_uri"], scopes)
+
+
+def consent_page(session: Session, ticket: str, redirect: str, scopes: list[str]) -> HTMLResponse:
+    """The consent screen, served by the authorize request itself. It used to send the member on to the web app's
+    /chatgpt#ticket=..., which read the ticket in the browser; in production the consent never showed there and the
+    connection could not be finished, so nothing on the way can lose the ticket now: it sits in this page's form."""
+    app = app_of(redirect)
+    host = urlsplit(redirect)
+    loopback = (
+        '<p class="warn"><strong>Kết nối với một chương trình trên máy tính.</strong> Chỉ cho phép nếu bạn vừa tự kết '
+        "nối Reels Studio trong Claude Code trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này.</p>"
+        if app == "Claude Code"
+        else ""
     )
+    write = (
+        f'<p class="warn"><strong>Quyền sửa và tạo công việc.</strong> {escape(app)} còn được sửa chữ, lời đọc, '
+        "caption; tạo video, gắn ảnh hoặc clip từ link, gắn sản phẩm và yêu cầu render. Tạo kịch bản bằng AI của "
+        "nhóm và giọng đọc có thể dùng phí dịch vụ AI của nhóm.</p>"
+        if "reels:write" in scopes
+        else ""
+    )
+    response = page(
+        f"Cho phép {app} kết nối?",
+        f"<p>Bạn đang dùng tài khoản <strong>{escape(session.user.email)}</strong>. Quyền sẽ được gửi về "
+        f"<code>{escape(host.netloc)}</code>.</p>{loopback}"
+        f"<p>{escape(app)} được đọc video, kịch bản, nhóm chủ đề, sản phẩm affiliate và trạng thái công việc của cả "
+        f"nhóm.</p>{write}"
+        "<p>Kết nối không được đăng bài, xóa video hoặc thay đổi tài khoản và API key. Quyền hết hạn sau tối đa 30 "
+        "ngày và mất hiệu lực khi phiên đăng nhập này bị thu hồi.</p>"
+        f'<form method="post" action="{PREFIX}/consent">'
+        f'<input type="hidden" name="ticket" value="{escape(ticket, quote=True)}">'
+        '<button type="submit" name="decision" value="allow">Cho phép kết nối</button> '
+        '<button type="submit" name="decision" value="deny">Từ chối</button></form>',
+    )
+    # The consent answer redirects to the app's callback: the form may go to this site and on to that origin only.
+    response.headers["Content-Security-Policy"] = HTML_HEADERS["Content-Security-Policy"].replace(
+        "form-action 'self'", f"form-action 'self' {host.scheme}://{host.netloc}"
+    )
+    # "no-referrer" makes browsers send `Origin: null` with the form, which the CSRF guard refuses.
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
 
 
 @router.get("/api/mcp/config")

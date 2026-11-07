@@ -57,8 +57,11 @@ def authorize(client, client_id, **extra):
 
 
 def ticket_of(response):
-    assert response.status_code == 303, response.text
-    return parse_qs(urlparse(response.headers["location"]).fragment)["ticket"][0]
+    """The consent screen is the authorize response itself; its form carries the ticket."""
+    import re
+
+    assert response.status_code == 200, response.text
+    return re.search(r'name="ticket" value="([^"]+)"', response.text).group(1)
 
 
 def grant(client, db):
@@ -66,7 +69,6 @@ def grant(client, db):
     login(client)
     client_id = register(client).json()["client_id"]
     page = authorize(client, client_id)
-    assert page.status_code == 303, page.text
     ticket = ticket_of(page)
     approved = client.post(
         "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}, follow_redirects=False
@@ -354,15 +356,18 @@ def test_expired_grants_and_missing_scene_images_never_queue_render(mcp_client, 
     )
 
 
-def test_consent_opens_the_app_and_is_visible_only_to_its_member_session(mcp_client, db):
+def test_consent_is_shown_by_the_authorize_request_and_is_visible_only_to_its_member_session(mcp_client, db):
     make_user(db)
     login(mcp_client)
     cid = register(mcp_client).json()["client_id"]
     response = authorize(mcp_client, cid)
-    assert response.status_code == 303
-    destination = urlparse(response.headers["location"])
-    assert destination.path == "/chatgpt"
-    ticket = parse_qs(destination.fragment)["ticket"][0]
+    # The consent screen itself, not a hop to the web app that could lose the ticket on the way.
+    assert response.status_code == 200
+    assert "Cho phép ChatGPT kết nối?" in response.text and "an@doi.vn" in response.text
+    assert "<code>chatgpt.com</code>" in response.text and 'value="allow"' in response.text
+    assert "form-action 'self' https://chatgpt.com" in response.headers["content-security-policy"]
+    assert response.headers["referrer-policy"] == "same-origin"
+    ticket = ticket_of(response)
     details = mcp_client.get(f"/api/mcp/authorizations/{ticket}")
     assert details.status_code == 200
     assert details.json()["scopes"] == ["reels:read", "reels:write"]

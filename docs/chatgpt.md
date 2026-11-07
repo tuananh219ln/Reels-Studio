@@ -80,8 +80,11 @@ failed check, look at the MP4's frames after it, and say the video is done only 
    tab (`/login?next=...`), and once signed in (and any required password change done) it comes back to
    the authorization request by itself. The login and password pages follow `next` only to
    `/api/mcp/oauth/authorize?...`, never elsewhere. **Tôi đã đăng nhập, tiếp tục** remains for a member who
-   signed in another way. The consent screen identifies your account and the requested access. Opening
-   **Kết nối ChatGPT / Claude** by hand shows no consent: only the app's own authorization request does.
+   signed in another way. The consent screen is the authorize response itself (server-rendered, no script):
+   it names your account, the app, the callback's host and the requested access. It used to be a hop to
+   the web page `/chatgpt#ticket=...`, where the consent never showed in production, so nothing now
+   stands between the request and the screen. **Kết nối ChatGPT / Claude** only lists and revokes
+   connections; opening it by hand never asks for consent.
 6. Choose **Cho phép kết nối**. ChatGPT receives OAuth credentials, never the member's password,
    Reels Studio cookie, AI API keys, or Facebook tokens.
 7. Select the connection in a ChatGPT conversation and ask it to use Reels Studio.
@@ -127,7 +130,9 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
   member's affiliate account or key). `reels:write` additionally permits
   the explicit write tools. Both use the member's identity; the library is shared by the team.
 - Consent is explicit, protected by the existing Origin guard and a short-lived ticket bound to
-  the member's current browser session. The web page rejects framing (CSP/X-Frame-Options). A denied/used ticket cannot be reused. Authorization
+  the member's current browser session, carried in the consent page's form. The page rejects framing (CSP
+  `frame-ancestors 'none'`), lets its form go only to this site and the callback's origin (`form-action`), and
+  uses `Referrer-Policy: same-origin` so the browser sends the Origin the guard checks. A denied/used ticket cannot be reused. Authorization
   codes expire after two minutes and are consumed under a database lock after S256 verification.
 - Access tokens last at most one hour. Refresh rotates both tokens and lasts at most 30 days from
   the original grant. Refreshing does not extend the connection or its underlying login session.
