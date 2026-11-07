@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import CenteredCard from "@/components/CenteredCard";
 import NewPasswordFields from "@/components/NewPasswordFields";
 import { ApiError, api, type Me } from "@/lib/api";
+import { leaveSignIn } from "@/lib/next";
 
 type Fields = { new_password: string; confirm_password: string };
 
@@ -18,7 +19,7 @@ export default function ChangePasswordPage() {
 
   useEffect(() => {
     api<Me>("/me")
-      .then((me) => (me.must_change_password ? setReady(true) : router.replace("/videos")))
+      .then((me) => (me.must_change_password ? setReady(true) : leaveSignIn((path) => router.replace(path))))
       .catch((err) => setError(err instanceof ApiError ? err.message : String(err)));
   }, [router]);
 
@@ -27,7 +28,7 @@ export default function ChangePasswordPage() {
     setError(null);
     try {
       await api<Me>("/me/password", "POST", { new_password: fields.new_password });
-      router.replace("/videos");
+      leaveSignIn((path) => router.replace(path));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : String(err));
       setBusy(false);
