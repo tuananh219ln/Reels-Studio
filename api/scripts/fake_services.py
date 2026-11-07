@@ -56,6 +56,8 @@ TIKTOK_CLIENT_KEY = "fake-tiktok-client-key"
 TIKTOK_CLIENT_SECRET = "fake-tiktok-client-secret"
 TIKTOK_CODE = "fake-tiktok-code"  # the code TikTok's authorize page sends back for TIKTOK_OPEN_ID
 TIKTOK_OPEN_ID = "tt-open-an"
+# What /v2/user/info/ reads with user.info.basic; username, bio and stats need other scopes.
+TIKTOK_BASIC_FIELDS = {"open_id", "union_id", "avatar_url", "avatar_url_100", "avatar_large_url", "display_name"}
 
 
 def shopee_offer(item_id: int, name: str, **fields) -> dict:
@@ -1525,9 +1527,18 @@ class FakeServices:
                         self._send(*fake._tiktok_failed(401, "access_token_invalid", "The access token is invalid."))
                     else:
                         fields = dict(urllib.parse.parse_qsl(parts.query)).get("fields", "").split(",")
-                        user = {name: value for name, value in fake.tiktok_users[open_id].items() if name in fields}
-                        ok = {"code": "ok", "message": "", "log_id": "fake-log"}
-                        self._send(200, {"data": {"user": user}, "error": ok})
+                        # Like TikTok: user.info.basic (the app's only user scope) reads these fields; any other
+                        # (username needs user.info.profile) is refused for the whole call.
+                        if not set(fields) <= TIKTOK_BASIC_FIELDS:
+                            self._send(
+                                *fake._tiktok_failed(
+                                    401, "scope_not_authorized", "The user did not authorize the scope required."
+                                )
+                            )
+                        else:
+                            user = {name: value for name, value in fake.tiktok_users[open_id].items() if name in fields}
+                            ok = {"code": "ok", "message": "", "log_id": "fake-log"}
+                            self._send(200, {"data": {"user": user}, "error": ok})
                 elif parts.path.startswith("/img/"):
                     self._send(200, fake._image(parts.path.removeprefix("/img/").removesuffix(".jpg")), "image/jpeg")
                 else:

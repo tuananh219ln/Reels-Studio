@@ -97,7 +97,9 @@ its review needs a demo of the real integration, which this builds. Posting by h
   Publication (video × platform × account).
 - **The connection hangs on the member's TikTok `AffiliateAccount`** (new table `tiktok_connections`), found by the
   profile's username or made from it, so posting by hand and through the API share one idea of "the member's TikTok
-  account"; a Publication still names `affiliate_account_id`.
+  account"; a Publication still names `affiliate_account_id`. The username comes from `creator_info` (read with
+  `video.publish`), not from user info: there it needs one more scope, `user.info.profile`, and asking user info for
+  it fails the whole call (2026-11-07, found on the first real connection).
 - **A draft (`video.upload`, to the member's TikTok inbox) is the default; posting directly (`video.publish`) is the
   option.** Until TikTok audits the app, a direct post is private only (`SELF_ONLY`, private accounts, 5 users a day),
   and TikTok Shop's cart can only be attached in TikTok's app: the draft is the route that works for real today.
