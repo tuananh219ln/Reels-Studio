@@ -117,9 +117,10 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   (`options.voice_pause`: 0.4, 0.7 or 1 s; 0.4 by default, as before) by the api, so the render itself is unchanged.
 - **Backdrop ("Video xuyên suốt", `RenderOptions.backdrop`):** the title scene's photo or clip runs under every
   scene (`render.with_backdrop`); the content scenes bring no picture. The scenes join by hard cuts (`concat`)
-  whatever their transitions, and scene colours are not used. A clip is read again for each scene from where the
-  scene before left it (`render.backdrop_start`: its start + the scene's start × its speed, wrapped into the clip's
-  length) with `-stream_loop -1`, so the joins are seamless and a short clip loops; a photo's motion runs once over
+  whatever their transitions, and scene colours are not used. A clip used from past its first second is first cut
+  there (`render.trim_backdrop`), so it loops back to the title scene's start; it is then read again for each scene
+  from where the scene before left it (`render.backdrop_start`: the scene's start × its speed, wrapped into the
+  clip's length) with `-stream_loop -1`, so the joins are seamless and a short clip loops; a photo's motion runs once over
   the whole video (`zoompan` counts from the scene's first frame over the video's frames). Each text box is looped
   for its scene's seconds and fades in and out over 0.3 s (the title's only out, as it is the cover; the last
   scene's only in). Photo layers ("Ảnh món") are laid on only in this mode. Off, the filter graph is the one it

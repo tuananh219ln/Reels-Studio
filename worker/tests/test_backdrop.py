@@ -9,7 +9,7 @@ from reels_render.ffmpeg import probe
 from reels_render.graph import SceneInput, build_ffmpeg_args, build_filter_graph, zoom_expression
 from reels_render.layers import PHOTO_SHAPES, SIZES, Layer, render_layer, render_photo
 from reels_render.options import RenderOptions
-from reels_render.render import backdrop_start, render_video, with_backdrop
+from reels_render.render import backdrop_start, render_video, trim_backdrop, with_backdrop
 from reels_render.script import load_script
 from reels_render.timeline import build_timeline
 
@@ -200,3 +200,23 @@ def test_a_short_backdrop_clip_loops_under_a_longer_video(tmp_path):
     first = extract_frame(output, 3.2, tmp_path / "a.png")
     second = extract_frame(output, 3.7, tmp_path / "b.png")
     assert first.tobytes() != second.tobytes()
+
+
+@needs_ffmpeg
+def test_a_backdrop_clip_is_cut_at_the_title_start_so_it_loops_back_there(tmp_path):
+    make_clip(tmp_path / "bg.mp4", 3, "640x360")
+    data = {
+        "title": {"text": "TIÊU ĐỀ", "seconds": 1, "video": "bg.mp4", "video_start": 1.0},
+        "scenes": [scene("Ý một", 2, image="")],
+    }
+    script = with_backdrop(load_script(write_script(tmp_path, data)))
+    work = tmp_path / "work"
+    work.mkdir()
+    cut = trim_backdrop("ffmpeg", script, work)
+    assert {item.video for item in cut.all_scenes} == {work / "backdrop.mp4"}
+    assert {item.video_start for item in cut.all_scenes} == {0.0}
+    assert abs(float(probe("ffprobe", work / "backdrop.mp4")["format"]["duration"]) - 2) < 0.1
+    # A clip used from its first second is left as it is.
+    data["title"]["video_start"] = 0
+    untouched = with_backdrop(load_script(write_script(tmp_path, data)))
+    assert trim_backdrop("ffmpeg", untouched, work) is untouched

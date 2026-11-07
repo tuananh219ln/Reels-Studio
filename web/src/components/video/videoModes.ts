@@ -56,7 +56,8 @@ export function photoLayer(layers: SceneLayer[]): SceneLayer | undefined {
 
 /**
  * The scenes as the preview plays them. Over a backdrop ("Video xuyên suốt") each content scene shows the title
- * scene's photo, or its clip picked up where the scene before left it (as the render core's backdrop_start does),
+ * scene's photo, or its clip picked up where the scene before left it, looping over the part from the title scene's
+ * start to the clip's end (as the render core's backdrop_start does),
  * joined by hard cuts; on a slide video the photo layers, kept for switching back, are left out.
  */
 export function previewScenes(video: VideoDetail): SceneData[] {
@@ -73,10 +74,11 @@ export function previewScenes(video: VideoDetail): SceneData[] {
       return scene;
     }
     const clip = title.video;
-    const picked = clip ? clip.start + start * clip.speed : 0;
+    const used = clip?.seconds ? clip.seconds - clip.start : 0;
+    const travelled = clip ? start * clip.speed : 0;
     return {
       ...scene,
-      video: clip ? { ...clip, start: clip.seconds ? picked % clip.seconds : picked } : null,
+      video: clip ? { ...clip, start: clip.start + (used > 0 ? travelled % used : travelled) } : null,
       frame_url: title.frame_url,
       preview_url: title.frame_url ?? title.preview_url,
       transition: "cut",

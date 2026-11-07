@@ -69,13 +69,14 @@ POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
 MODES = {"slides": "Slide ảnh", "single": "Video xuyên suốt"}
 PHOTO_LAYER_MISSING = "Cảnh có ảnh món nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc tắt ảnh món"
 # A new photo layer ("Ảnh món"): medium, for the whole scene (the render stops it at the scene's end), on the left or
-# the right of the frame by turns from one scene to the next, a little above the middle, coming up from below.
+# the right of the frame by turns from one photo to the next, a little above the middle, coming up from below.
 PHOTO_LAYER_X = (367, 713)
 PHOTO_LAYER_Y = 835
 PHOTO_LAYER_SECONDS = 60
 
 
-def photo_layer(scene_position: int) -> SceneLayer:
+def photo_layer(photos_before: int) -> SceneLayer:
+    """A new photo layer for a scene that comes after `photos_before` scenes with one."""
     return SceneLayer(
         position=1,
         kind="photo",
@@ -83,7 +84,7 @@ def photo_layer(scene_position: int) -> SceneLayer:
         sticker="",
         start=0,
         seconds=PHOTO_LAYER_SECONDS,
-        x=PHOTO_LAYER_X[(scene_position - 1) % 2],
+        x=PHOTO_LAYER_X[photos_before % 2],
         y=PHOTO_LAYER_Y,
         size="medium",
         style="rounded",

@@ -441,7 +441,9 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
             voice_text=script.title_voice,
         )
     )
+    photos = 0
     for position, scene in enumerate(script.scenes, start=1):
+        photo = is_backdrop(video) and bool(scene.keywords or scene.keywords_en)
         db.add(
             Scene(
                 video_id=video.id,
@@ -456,9 +458,10 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 voice_text=scene.voice,
                 # "Video xuyên suốt": a scene the AI named a dish for (it wrote that dish's photo keywords) shows it
                 # as a photo layer, found by "Tự tìm ảnh" or chosen on its card.
-                layers=[photo_layer(position)] if is_backdrop(video) and (scene.keywords or scene.keywords_en) else [],
+                layers=[photo_layer(photos)] if photo else [],
             )
         )
+        photos += photo
     # The team's "Mẫu dựng" for new videos, if one is chosen, then the AI's own picks when it was asked for them.
     autoedit.apply_default(db, video)
     autoedit.apply_ai_effects(db, video, [scene.effects for scene in script.scenes])

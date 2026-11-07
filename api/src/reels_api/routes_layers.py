@@ -165,7 +165,13 @@ def add_layer(body: NewLayerBody, me: Session = Depends(current_member), db: DbS
             raise invalid("Ảnh món chỉ dùng cho Video xuyên suốt: đổi Kiểu video trước")
         if any(layer.kind == "photo" for layer in scene.layers):
             raise invalid("Cảnh này đã có ảnh món")
-        defaults = as_layer(photo_layer(scene.position))
+        # Left and right by turns among the scenes with a photo, counted up to this one.
+        before = db.scalar(
+            select(func.count(SceneLayer.id))
+            .join(Scene, Scene.id == SceneLayer.scene_id)
+            .where(Scene.video_id == video.id, Scene.position < scene.position, SceneLayer.kind == "photo")
+        )
+        defaults = as_layer(photo_layer(before or 0))
     row = SceneLayer(
         scene_id=scene.id,
         position=(last or 0) + 1,

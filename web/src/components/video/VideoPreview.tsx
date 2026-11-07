@@ -1435,6 +1435,7 @@ export default function VideoPreview({
                 <SceneEffects
                   scene={scene}
                   videoTransition={video.options.transition}
+                  backdrop={backdrop && !scene.is_title}
                   editable={scenesEditable}
                   onPatch={(name, body) => void changeScene(name, scene, body)}
                 />
@@ -1670,8 +1671,14 @@ function SceneLayer({
           src={scene.video.url}
           muted
           playsInline
-          // A backdrop clip loops under every scene, as in the render.
-          loop={isBackdrop(video)}
+          // A backdrop clip loops under every scene from the title scene's start, as in the render.
+          onEnded={(event) => {
+            const clip = video.title_scene?.video;
+            if (isBackdrop(video) && clip) {
+              event.currentTarget.currentTime = clip.start;
+              if (playing) void event.currentTarget.play();
+            }
+          }}
           autoPlay={playing}
           preload="auto"
           onLoadedMetadata={(event) => {

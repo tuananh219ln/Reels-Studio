@@ -7,7 +7,7 @@ from pathlib import Path
 from . import ffmpeg
 from .captions import plan_captions
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
-from .graph import CaptionInput, LayerInput, SceneInput, SoundInput, build_ffmpeg_args
+from .graph import MAX_CLIP_PIXELS, CaptionInput, LayerInput, SceneInput, SoundInput, build_ffmpeg_args
 from .images import normalize_image
 from .layers import layer_corner, render_layer
 from .options import DEFAULT_OPTIONS, RenderOptions
@@ -70,11 +70,14 @@ def render_video(
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
     if options.backdrop:
         script = with_backdrop(script)
-    loop_seconds = backdrop_clip_seconds(tools.ffprobe, script.title) if options.backdrop else None
     palette, first_palette = options.scene_palette(), options.title_palette()
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
+        loop_seconds = None
+        if options.backdrop:
+            script = trim_backdrop(tools.ffmpeg, script, work_dir)
+            loop_seconds = backdrop_clip_seconds(tools.ffprobe, script.title)
         found = find_stock_images(script, work_dir, on_warning=on_warning)
         if found.missing:
             raise MissingImagesError([scene.label for scene in found.missing])
@@ -209,6 +212,26 @@ def with_backdrop(script: Script) -> Script:
         for scene in script.scenes
     ]
     return Script(title=title, scenes=scenes)
+
+
+def trim_backdrop(ffmpeg_path: str, script: Script, work_dir: Path) -> Script:
+    """A backdrop clip starting past its first second is cut there first, so it loops back to the title scene's
+    start rather than to the clip's own beginning; every scene then reads it from 0."""
+    title = script.title
+    if title.video is None or title.video_start <= 0:
+        return script
+    cut = work_dir / "backdrop.mp4"
+    ffmpeg.run(
+        [
+            ffmpeg_path, "-hide_banner", "-nostdin", "-v", "error", "-y",
+            "-ss", f"{title.video_start:.3f}", "-max_pixels", str(MAX_CLIP_PIXELS), "-i", str(title.video),
+            "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p",
+            str(cut),
+        ],
+        "FFmpeg không cắt được video nền",
+    )  # fmt: skip
+    moved = [replace(scene, video=cut, video_start=0.0) for scene in script.all_scenes]
+    return Script(title=moved[0], scenes=moved[1:])
 
 
 def backdrop_clip_seconds(ffprobe: str, title: Scene) -> float | None:
