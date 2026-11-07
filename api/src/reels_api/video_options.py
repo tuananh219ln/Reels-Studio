@@ -21,6 +21,7 @@ from reels_render.options import (
     RenderOptions,
 )
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
+from reels_render.timeline import VOICE_TAIL
 
 from . import config
 from .models import AppSetting, Video
@@ -55,7 +56,11 @@ DEFAULTS: dict = {
     "title_text_size": "large",
     # The content scenes' text box centre in the frame, [x, y]; None: the template's place. A scene's own wins.
     "text_position": None,
+    # "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it ("Tự khớp lời đọc").
+    "voice_pause": VOICE_TAIL,
 }
+# The pauses offered, in seconds; the shortest is the one every video had before the choice existed.
+VOICE_PAUSES = (VOICE_TAIL, 0.7, 1.0)
 # What the text boxes are drawn with (previews, thumbnail, MP4); text_look keeps this order.
 LOOK_FIELDS = (
     "text_style",
@@ -120,6 +125,7 @@ LABELS = {
     "text_size": "Cỡ chữ",
     "title_text_size": "Cỡ chữ tiêu đề",
     "ducking": "Nhỏ nhạc khi có giọng",
+    "voice_pause": "Nghỉ sau lời đọc",
     "voice_enabled": "Giọng đọc",
 }
 
@@ -174,6 +180,12 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
             value = clean_position(value)
         elif name == "voice_speed":
             value = clean_speed(value)
+        elif name == "voice_pause":
+            if isinstance(value, bool) or value not in VOICE_PAUSES:
+                raise OptionError(
+                    f"“{LABELS[name]}” phải là một trong {', '.join(f'{pause:g}' for pause in VOICE_PAUSES)} giây"
+                )
+            value = float(value)
         elif name == "voice_id":
             if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH or len(value.split()) > 1:
                 raise OptionError("Mã giọng đọc không hợp lệ")
@@ -202,6 +214,10 @@ def voice_id(video: Video) -> str:
 
 def voice_speed(video: Video) -> float:
     return effective(video)["voice_speed"]
+
+
+def voice_pause(video: Video) -> float:
+    return effective(video)["voice_pause"]
 
 
 def text_look(video: Video) -> tuple[str, ...]:
@@ -239,6 +255,7 @@ def render_options(video: Video) -> RenderOptions:
         captions=values["captions"],
         voice_volume=values["voice_volume"] / 100,
         ducking=values["ducking"],
+        backdrop=video.mode == "single",
         **{name: values[name] for name in LOOK_FIELDS},
     )
 
@@ -247,7 +264,8 @@ def look_signature(video: Video) -> dict | None:
     """What of these settings changes the MP4 apart from the narration (whose voice and speed are in each scene's
     narration signature); None while all are the defaults, so MP4s rendered before they existed stay current."""
     values = effective(video)
-    changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed")}
+    # The pause after narration changes the seconds, which the fingerprint holds already.
+    changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed", "voice_pause")}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
     for name in (*LATER_LOOK_FIELDS, "text_position"):

@@ -69,10 +69,12 @@ from .uploads import (
 from .videos import (
     JOB_KINDS,
     LIVE_POST_STATUSES,
+    MODES,
     OPEN_POST_STATUSES,
     active_job,
     auto_seconds,
     ensure_unlocked,
+    follow_narration,
     list_extras,
     list_payload,
     lock_scene,
@@ -131,6 +133,8 @@ class NewVideoBody(BaseModel):
     mode: Literal["ai", "manual"] = "ai"
     script: str = ""
     ai_effects: bool = False  # "AI gợi ý hiệu ứng": the script call also picks each scene's effects (AI scripts only)
+    # How the video is built (videos.MODES): "slides", or "single" ("Video xuyên suốt", one backdrop).
+    video_mode: Literal["slides", "single"] = "slides"
 
 
 class VideoPatchBody(BaseModel):
@@ -144,6 +148,7 @@ class VideoPatchBody(BaseModel):
     voice_enabled: bool | None = None
     options: dict | None = None  # some of video_options.DEFAULTS
     reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
+    mode: str | None = None  # videos.MODES; switching keeps every photo, clip and layer
 
 
 class ScenePatchBody(BaseModel):
@@ -281,6 +286,7 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         has_script=manual,
         created_by_id=me.user_id,
         ai_effects=body.ai_effects and not manual,
+        mode=body.video_mode,
     )
     video_options.apply_team_defaults(db, video)
     db.add(video)
@@ -404,7 +410,12 @@ def patch_video(
         video.music_start = round(start, 1)
     if "voice_enabled" in fields and body.voice_enabled is not None:
         video.voice_enabled = body.voice_enabled
+    if "mode" in fields and body.mode is not None:
+        if body.mode not in MODES:
+            raise invalid("Kiểu video không có trong danh sách")
+        video.mode = body.mode
     look = video_options.text_look(video)
+    pause = video_options.voice_pause(video)
     if body.reset_options:
         video_options.apply_team_defaults(db, video)
     if body.options:
@@ -413,6 +424,9 @@ def patch_video(
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
         video.options = video_options.effective(video) | changes
+    if video_options.voice_pause(video) != pause:
+        title, scenes = split_scenes(db, video)
+        follow_narration(video, [scene for scene in (title, *scenes) if scene is not None])
     if video_options.text_look(video) != look:
         # The thumbnail is the title scene's first frame, drawn in the text box style.
         title, _ = split_scenes(db, video)
@@ -727,6 +741,7 @@ def clone_video(
         music_volume=source.music_volume,
         voice_enabled=source.voice_enabled,
         options=video_options.effective(source),
+        mode=source.mode,
         clone_source=clone_snapshot(db, source, request),
         platform=platform,
         # A version for another platform keeps a link to the video it was made from.
@@ -935,7 +950,7 @@ def _follow_voice(video: Video, scene: Scene) -> None:
     sets it when it makes the narration."""
     made = made_voice_seconds(video, scene)
     if scene.seconds_auto and made is not None:
-        scene.seconds = auto_seconds(made)
+        scene.seconds = auto_seconds(made, video_options.voice_pause(video))
 
 
 @router.delete("/scenes/{scene_id}")

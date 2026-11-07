@@ -112,7 +112,19 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   as the video, built per scene from exact sample counts (narration delayed 0.2 s past the
   crossfade, padded with silence), and added to the bed with `amerge` + `pan` at full level.
 - **Narration lengthens its scene:** a scene lasts at least 0.2 s + the narration + 0.4 s, rounded
-  up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum.
+  up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum. A scene whose seconds follow
+  its narration ("Tự khớp lời đọc") is given 0.2 s + the narration + the video's "Nghỉ sau lời đọc"
+  (`options.voice_pause`: 0.4, 0.7 or 1 s; 0.4 by default, as before) by the api, so the render itself is unchanged.
+- **Backdrop ("Video xuyên suốt", `RenderOptions.backdrop`):** the title scene's photo or clip runs under every
+  scene (`render.with_backdrop`); the content scenes bring no picture. The scenes join by hard cuts (`concat`)
+  whatever their transitions, and scene colours are not used. A clip used from past its first second is first cut
+  there (`render.trim_backdrop`), so it loops back to the title scene's start; it is then read again for each scene
+  from where the scene before left it (`render.backdrop_start`: the scene's start × its speed, wrapped into the
+  clip's length) with `-stream_loop -1`, so the joins are seamless and a short clip loops; a photo's motion runs once over
+  the whole video (`zoompan` counts from the scene's first frame over the video's frames). Each text box is looped
+  for its scene's seconds and fades in and out over 0.3 s (the title's only out, as it is the cover; the last
+  scene's only in). Photo layers ("Ảnh món") are laid on only in this mode. Off, the filter graph is the one it
+  always was.
 - **Font:** Be Vietnam Pro Black (OFL) is bundled in the package, not installed per machine.
 
 ### Render Machines
@@ -243,7 +255,7 @@ A scene may hold an uploaded video clip instead of a photo
   timing stay the timeline's; when every boundary is a cut the scenes are joined with `concat` as before), and a
   colour is one more filter step on the scene's picture before its text box is overlaid. The colour presets'
   filter chains are adapted from AIEV (MIT, notice in `effects.py`).
-- **Layers:** `scene_layers` (migration 0038; one row per text or sticker layer, deleted with its scene) holds
+- **Layers:** `scene_layers` (migration 0038; one row per text, sticker or photo layer, deleted with its scene) holds
   `kind`, `text` or `sticker`, `start` (seconds into the scene), `seconds`, `x`/`y` (the centre), `size`,
   `style` and `animation`, all named presets of [layers.py](../worker/src/reels_render/layers.py), and `position`
   (laid on in that order). [routes_layers.py](../api/src/reels_api/routes_layers.py) under `/api/layers` adds
@@ -256,6 +268,14 @@ A scene may hold an uploaded video clip instead of a photo
   The render draws each picture once, loops it (`-loop 1 -t end`) so the entrance can fade its alpha in, and lays
   it on after the captions with `overlay` enabled between its start and its end (cut at the scene's end); a slide
   moves the overlay's x or y over the same 0.3 s.
+- **Photo layers ("Ảnh món"):** `kind = "photo"` shows its scene's own photo (`scenes.image_key`, so every way of
+  choosing a scene's photo chooses it), with `style` its frame (`rounded`, `circle`, `square`, or `plain` for a
+  photo already cut out) and `size` its width (35, 48 or 65% of the frame), drawn by `layers.render_photo` with a
+  6 px white edge and a soft shadow. Only a `single` video takes one, one per content scene, for the whole scene by
+  default (`seconds` 60, stopped at the scene's end), left and right by turns. On a slide video it is kept, left out
+  of the render and of the fingerprint. The render job copies the scene's photo into the script's layer as
+  `image`; a photo layer whose scene has no photo blocks the render. A machine on older code refuses such a video:
+  `backdrop` is sent to it only when on, as an option it does not know.
 - **Sound:** `scene_sounds` (migration 0039; `sound`, `start` into the scene, `volume`, deleted with its scene),
   `scenes.music_level` and `videos.music_start`, all named presets or bounded numbers of
   [sounds.py](../worker/src/reels_render/sounds.py). [routes_sounds.py](../api/src/reels_api/routes_sounds.py)
@@ -353,7 +373,7 @@ Built (migrations in [api/migrations/](../api/migrations/), models in
 | Table | Key contents |
 |---|---|
 | `users`, `sessions` | Members and their login sessions (see [Web App and Auth](#web-app-and-auth)). |
-| `videos` | Topic, whether the script exists, narration on/off, its own settings (`options`: voice, reading speed as a tempo factor, voice level, ducking, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, whether a member wrote the script by hand (`hand_written`), thumbnail, the clone snapshot for a cloned draft, the sample video it learned from and the way chosen (`reference_id`, `reference_mode`: quick, twostep, review, reuse), creator. |
+| `videos` | Topic, whether the script exists, how it is built (`mode`, migration 0054: `slides`, each scene over its own photo or clip, or `single`, "Video xuyên suốt", the title scene's photo or clip under every scene; switching keeps every photo, clip and layer), narration on/off, its own settings (`options`: voice, reading speed as a tempo factor, voice level, ducking, the pause after narration, transition, motion, zoom, text style, captions; empty for older videos, which render the original template, see [video_options.py](../api/src/reels_api/video_options.py)), title options, caption, hashtags, affiliate suggestions, pinned comment, self-review notes, music suggestions, optional MP3 with volume, the current MP4 with its length, render time and render fingerprint, whether a member wrote the script by hand (`hand_written`), thumbnail, the clone snapshot for a cloned draft, the sample video it learned from and the way chosen (`reference_id`, `reference_mode`: quick, twostep, review, reuse), creator. |
 | `video_references` | A sample video members learn from ("Từ video mẫu", [reference.py](../api/src/reels_api/reference.py)): the pasted link (null for an upload), a display name (the link or file name), the stored file `references/<id>/source-….<ext>` (null until the job downloads a link), its length, its words with their seconds (ElevenLabs Speech-to-Text; empty when silent), its stills `[{second, key, note}]` (up to 16, the note written by the analysis), the analysis (empty until written; members may edit it), who added it and when. Kept until a member deletes it, so more videos can learn from it and cut clips from it; deleting it removes its files, and the videos made from it keep their scripts and clips (`videos.reference_id` becomes null). |
 | `knowledge_topics` | One topic group of `/knowledge`: unique name, script prompt, clone prompt, "Từ video mẫu" learn and analyse prompts (`learn_prompt`, `analyze_prompt`; empty: the defaults in `prompts/`), banned words, `photo_hint` ("Gợi ý tìm ảnh", added to both prompts for the photo keywords; empty: nothing added); its 30-day plan's prompt (empty: the default), start date (day 1, Vietnam time), ideas per day for the AI (3–5), its posting times (`plan_post_times`, 1–5 "HH:MM", the n-th idea of a day suggested at the n-th), the AI's last plan as a draft (`plan_draft`) until a member saves or drops it, and `video_target`, the number of videos its trial counts towards ("Tiến độ verdict", null: no banner). Empty until written. A video points to one; it cannot be deleted while videos do. Replaced the `settings` rows, which stay unread so a rollback finds them. |
 | `topic_plan_items` | One idea of a topic group's 30-day plan ([plans.py](../api/src/reels_api/plans.py), [routes_plans.py](../api/src/reels_api/routes_plans.py)): day (1–30, or null: the group's Backlog), place in the day (or the Backlog), topic, pain group, pain, hook, the video made from it (unique; `SET NULL` when the video is deleted), who changed it. At most 5 a day (300 in the Backlog) and no topic twice, checked by the api under a lock on the topic group. Its status is read from the video and its posts (Đã lên lịch, Đã đăng). Deleted with the group. Saving an imported or AI plan replaces the 30 days and keeps the Backlog, but for an idea the new plan puts on a day; an idea with the topic of one that had a video keeps that video. |

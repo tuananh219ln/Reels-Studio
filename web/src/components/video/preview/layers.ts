@@ -52,8 +52,9 @@ export function layerCorner(width: number, height: number, layer: Pick<SceneLaye
   return [left, top];
 }
 
-/** A layer's name in lists: its text, or its sticker's name. */
+/** A layer's name in lists: its text, its sticker's name, or "Ảnh món". */
 export function layerName(layer: SceneLayer): string {
   if (layer.kind === "text") return layer.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
+  if (layer.kind === "photo") return "Ảnh món";
   return STICKERS.find((item) => item.value === layer.sticker)?.label ?? layer.sticker;
 }

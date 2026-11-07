@@ -43,6 +43,7 @@ from . import (
     tiktok_publish,
 )
 from .claude import (
+    BACKDROP_FORMAT,
     ClaudeError,
     GeneratedScript,
     build_clone_prompt,
@@ -58,17 +59,20 @@ from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
-from .video_options import render_options, voice_id, voice_speed
+from .video_options import render_options, voice_id, voice_pause, voice_speed
 from .videos import (
     LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
     active_job,
     auto_seconds,
+    drawn_layers,
+    is_backdrop,
     is_published,
     layer_fields,
     made_voice_seconds,
     new_key,
     pending_publication,
+    photo_layer,
     refresh_thumbnail,
     render_signature,
     run_checks,
@@ -244,6 +248,8 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
             )
             if video.ai_effects:
                 prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
+        if is_backdrop(video):
+            prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
 
         call, count_call = _llm(db, job, call)
         try:
@@ -435,7 +441,9 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
             voice_text=script.title_voice,
         )
     )
+    photos = 0
     for position, scene in enumerate(script.scenes, start=1):
+        photo = is_backdrop(video) and bool(scene.keywords or scene.keywords_en)
         db.add(
             Scene(
                 video_id=video.id,
@@ -448,8 +456,12 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 keywords_en=scene.keywords_en,
                 image_prompt=scene.image_prompt,
                 voice_text=scene.voice,
+                # "Video xuyên suốt": a scene the AI named a dish for (it wrote that dish's photo keywords) shows it
+                # as a photo layer, found by "Tự tìm ảnh" or chosen on its card.
+                layers=[photo_layer(photos)] if photo else [],
             )
         )
+        photos += photo
     # The team's "Mẫu dựng" for new videos, if one is chosen, then the AI's own picks when it was asked for them.
     autoedit.apply_default(db, video)
     autoedit.apply_ai_effects(db, video, [scene.effects for scene in script.scenes])
@@ -514,7 +526,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         )
         # "Tự khớp lời đọc": the scene now lasts as long as its narration, shorter or longer than before.
         if scene.seconds_auto:
-            scene.seconds = auto_seconds(seconds)
+            scene.seconds = auto_seconds(seconds, voice_pause(video))
         db.commit()
         if old and old != key:
             storage.delete(old)
@@ -549,7 +561,10 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         def entry(scene: Scene, index: int) -> dict:
             label = _scene_label(scene, index)
             # No "keywords": every photo or clip is already chosen, the renderer must never search stock itself.
-            if scene.video_key:
+            if is_backdrop(video) and not scene.is_title:
+                # "Video xuyên suốt": the renderer lays the title scene's photo or clip under this scene.
+                data = {"text": scene.text, "seconds": scene.seconds}
+            elif scene.video_key:
                 if not storage.exists(scene.video_key):
                     raise JobFailure(f"{label} chưa có video trong storage, hãy tải video lên lại rồi render")
                 extension = scene.video_key.rsplit(".", 1)[-1]
@@ -574,8 +589,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data["transition"] = scene.transition
             if scene.color and not scene.is_title:
                 data["color"] = scene.color
-            if scene.layers and not scene.is_title:
-                data["layers"] = [layer_fields(layer) for layer in scene.layers]
+            if (layers := drawn_layers(video, scene)) and not scene.is_title:
+                data["layers"] = [layer_data(layer, scene, index) for layer in layers]
             if scene.sounds:
                 data["sounds"] = [sound_fields(sound) for sound in scene.sounds]
             if scene.music_level:
@@ -584,6 +599,16 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data["voice"] = storage.copy_to(scene.voice_key, folder / f"voice-{index:02d}.mp3").name
                 data["voice_text"] = spoken(video, scene)
             return data
+
+        def layer_data(layer, scene: Scene, index: int) -> dict:
+            fields = layer_fields(layer)
+            if layer.kind == "photo":
+                # A photo layer ("Ảnh món") shows its scene's own photo; the checks make sure there is one.
+                if not scene.image_key or not storage.exists(scene.image_key):
+                    raise JobFailure(f"{_scene_label(scene, index)} có ảnh món nhưng chưa có ảnh trong storage")
+                extension = scene.image_key.rsplit(".", 1)[-1]
+                fields["image"] = storage.copy_to(scene.image_key, folder / f"photo-{index:02d}.{extension}").name
+            return fields
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
         signature = render_signature(video, title, scenes)

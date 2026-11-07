@@ -128,7 +128,8 @@ def _layers(items: object) -> list[dict]:
         if kind == "text" and not layer.text:
             raise ValueError("Lớp chữ của mẫu đang trống")
         render_layer(layer)  # raises ValueError for text that does not fit
-        layers.append(asdict(layer))
+        # A template's layers are text and stickers: a photo layer's `image` is never part of one.
+        layers.append({name: value for name, value in asdict(layer).items() if name != "image"})
     return layers
 
 
@@ -152,7 +153,7 @@ def parse(data: object) -> Template:
 
 def derive(title: Scene | None, scenes: list[Scene]) -> Template:
     """A video's look as a template: its scenes' transitions in order, its most used colour, the sounds of its first
-    content scene that has any, its title's sounds and music level, and its last scene's layers."""
+    content scene that has any, its title's sounds and music level, and its last scene's text and sticker layers."""
     colors = Counter(scene.color for scene in scenes if scene.color)
     with_sounds = next((scene for scene in scenes if scene.sounds), None)
     return Template(
@@ -160,7 +161,10 @@ def derive(title: Scene | None, scenes: list[Scene]) -> Template:
         color=colors.most_common(1)[0][0] if colors else None,
         scene_sounds=[_sound_fields(sound) for sound in (with_sounds.sounds if with_sounds else [])][:MAX_ITEMS],
         title_sounds=[_sound_fields(sound) for sound in (title.sounds if title else [])][:MAX_ITEMS],
-        end_layers=[_layer_fields(layer) for layer in (scenes[-1].layers if scenes else [])][:MAX_ITEMS],
+        # A photo layer ("Ảnh món") shows its own scene's photo, so it is no look to carry to another video.
+        end_layers=[_layer_fields(layer) for layer in (scenes[-1].layers if scenes else []) if layer.kind != "photo"][
+            :MAX_ITEMS
+        ],
         title_music=title.music_level if title else None,
     )
 

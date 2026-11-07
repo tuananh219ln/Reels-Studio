@@ -63,6 +63,7 @@ import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
 import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
+import { isBackdrop, previewScenes } from "./videoModes";
 import "./preview/editor.css";
 
 const PLATFORM_KEY = "reels-studio.preview-platform";
@@ -184,10 +185,9 @@ export default function VideoPreview({
   /** "Tạo giọng thật": queues the job that has ElevenLabs read the scenes still without its narration. */
   onMakeVoices: () => void;
 }) {
-  const scenes = useMemo(
-    () => [video.title_scene, ...video.scenes].filter((scene): scene is SceneData => scene !== null),
-    [video.title_scene, video.scenes],
-  );
+  // Over a backdrop every content scene shows the title scene's picture (videoModes.previewScenes).
+  const scenes = useMemo(() => previewScenes(video), [video]);
+  const backdrop = isBackdrop(video);
   const [phase, setPhase] = useState<Phase>({
     index: Math.min(start, scenes.length - 1),
     prev: null,
@@ -1374,7 +1374,7 @@ export default function VideoPreview({
                   hơn.
                 </Typography.Text>
               )}
-              {scene?.video && still && (
+              {scene?.video && still && !(backdrop && !scene.is_title) && (
                 <ClipTrim
                   key={`${scene.id}-${scene.video.start}-${scene.seconds}`}
                   clip={scene.video}
@@ -1406,6 +1406,8 @@ export default function VideoPreview({
             <SceneInspector
               key={scene.id}
               scene={scene}
+              saved={[video.title_scene, ...video.scenes].find((item) => item?.id === scene.id) ?? scene}
+              backdrop={backdrop}
               label={label(phase.index)}
               voiceEnabled={video.voice_enabled}
               generating={video.active_job?.kind === "image" && video.active_job.scene_id === scene.id}
@@ -1433,6 +1435,7 @@ export default function VideoPreview({
                 <SceneEffects
                   scene={scene}
                   videoTransition={video.options.transition}
+                  backdrop={backdrop && !scene.is_title}
                   editable={scenesEditable}
                   onPatch={(name, body) => void changeScene(name, scene, body)}
                 />
@@ -1668,6 +1671,14 @@ function SceneLayer({
           src={scene.video.url}
           muted
           playsInline
+          // A backdrop clip loops under every scene from the title scene's start, as in the render.
+          onEnded={(event) => {
+            const clip = video.title_scene?.video;
+            if (isBackdrop(video) && clip) {
+              event.currentTarget.currentTime = clip.start;
+              if (playing) void event.currentTarget.play();
+            }
+          }}
           autoPlay={playing}
           preload="auto"
           onLoadedMetadata={(event) => {

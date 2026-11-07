@@ -25,12 +25,13 @@ def to_frames(seconds: float) -> int:
     return math.floor(seconds * FPS + 0.5)
 
 
-def fit_seconds(seconds: float, voice_seconds: float | None) -> float:
-    """A scene with narration lasts at least as long as the narration, rounded up to a tenth of a second."""
+def fit_seconds(seconds: float, voice_seconds: float | None, tail: float = VOICE_TAIL) -> float:
+    """A scene with narration lasts at least as long as the narration and the pause after it (`tail`), rounded up
+    to a tenth of a second."""
     if voice_seconds is None:
         return seconds
     # Rounded first so float noise such as 36.000000001 tenths does not add a whole tenth.
-    return max(seconds, math.ceil(round((VOICE_LEAD + voice_seconds + VOICE_TAIL) * 10, 6)) / 10)
+    return max(seconds, math.ceil(round((VOICE_LEAD + voice_seconds + tail) * 10, 6)) / 10)
 
 
 def build_timeline(seconds: list[float]) -> Timeline:

@@ -869,6 +869,25 @@ relied on (samples in the PR that added them).
   yellow. Phrases break after punctuation. The timing is an estimate spread over the narration by
   letters, not ElevenLabs' timestamps, so it can run slightly ahead or behind.
 
+### Video Modes ("Kiểu video")
+
+A video is one of two kinds, chosen in "Tạo video" (except "Từ video mẫu", whose scenes are cut from the sample)
+and changed at any time on the video page's "Kiểu video" card, which asks first and says that every photo, clip
+and "Ảnh món" is kept:
+
+- **Slide ảnh** (the default, every older video): each scene over its own photo or clip, as below.
+- **Video xuyên suốt:** one photo or clip, the title scene's, runs under the whole video ("5 công dụng của chuối
+  xanh"). The title card says so; the content cards hide their picture, search terms and photo prompt, and show
+  "Ảnh món trong cảnh này" instead. Scenes join by hard cuts and the text fades in and out (0.3 s), so the
+  backdrop never jumps; a short clip loops from the title scene's "Bắt đầu từ giây". In the studio a content scene has
+  no transition, colour or speed of its own. A scene that names a dish turns on its "Ảnh món": the scene's own photo,
+  chosen with the scene's usual picture tools, framed over the backdrop (Bo góc, Tròn, Vuông, or Giữ nguyên for a
+  cut-out photo; Nhỏ, Vừa, Lớn; Trái, Giữa, Phải, Dưới; and an entrance), dragged anywhere in "Xem trước". The
+  preview plays the backdrop under every scene, as the MP4 does.
+
+"Nghỉ sau lời đọc" (Thiết lập › Âm thanh: Ngắn 0,4 s, Vừa 0,7 s, Dài 1 s) is the pause after each scene's
+narration for scenes whose seconds follow it; changing it changes those scenes' seconds at once.
+
 ### Video Scenes
 
 Any scene, the title scene included, can use a short video clip instead of a photo. The clip

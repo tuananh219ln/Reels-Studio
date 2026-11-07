@@ -16,8 +16,11 @@ export default function SceneEffects({
   videoTransition,
   editable,
   onPatch,
+  backdrop = false,
 }: {
   scene: SceneData;
+  /** "Video xuyên suốt": the scenes join by hard cuts over one backdrop, so they have no effects of their own. */
+  backdrop?: boolean;
   /** The video's own transition ("Thiết lập"), which a scene without its own takes. */
   videoTransition: string;
   editable: boolean;
@@ -27,6 +30,14 @@ export default function SceneEffects({
     return (
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
         Cảnh tiêu đề mở đầu video và là ảnh bìa, nên không có chuyển cảnh hay màu riêng.
+      </Typography.Text>
+    );
+  }
+  if (backdrop) {
+    return (
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        Video xuyên suốt nối các cảnh bằng cắt thẳng trên một nền chung, nên cảnh không có chuyển cảnh, màu hay tốc độ
+        riêng. Tốc độ và đoạn của clip nền chỉnh ở cảnh tiêu đề.
       </Typography.Text>
     );
   }

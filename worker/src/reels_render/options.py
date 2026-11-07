@@ -44,6 +44,9 @@ class RenderOptions:
     title_box_opacity: str = "auto"
     text_size: str = "large"  # the content scenes' text box (textbox.TEXT_SIZES); "large" is the original
     title_text_size: str = "large"  # the title scene's
+    # "Video xuyên suốt": the title scene's photo or clip runs under every scene, joined by hard cuts, and the text
+    # boxes fade in and out instead; photo layers ("Ảnh món") are laid on only then.
+    backdrop: bool = False
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
@@ -71,6 +74,8 @@ class RenderOptions:
         ):
             if not isinstance(value, str) or (value not in named and not is_hex(value)):
                 raise InputError(f"Màu {name} không hợp lệ: {value!r} (chọn một trong {', '.join(named)} hoặc #RRGGBB)")
+        if not isinstance(self.backdrop, bool):
+            raise InputError(f"Tuỳ chọn backdrop phải là true hoặc false (đang là {self.backdrop!r})")
         volume = self.voice_volume
         if isinstance(volume, bool) or not isinstance(volume, (int, float)) or not 0 <= volume <= 1:
             raise InputError(f"Âm lượng giọng đọc phải là số từ 0 đến 1 (đang là {volume})")

@@ -11,7 +11,7 @@ from PIL import Image
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from reels_render.timeline import fit_seconds
+from reels_render.timeline import VOICE_TAIL, fit_seconds
 
 from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
 from .clips import ClipError, frame_at
@@ -35,11 +35,20 @@ from .models import (
 )
 from .script_rules import MAX_SECONDS as MAX_SCENE_SECONDS
 from .script_rules import MIN_SECONDS as MIN_SCENE_SECONDS
-from .script_rules import Checks, SceneInput, check_script, plain_title, text_problem
+from .script_rules import Checks, Issue, SceneInput, check_script, plain_title, text_problem
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import voice_signature
-from .video_options import effective, look_signature, preview_look, render_options, text_size, voice_id, voice_speed
+from .video_options import (
+    effective,
+    look_signature,
+    preview_look,
+    render_options,
+    text_size,
+    voice_id,
+    voice_pause,
+    voice_speed,
+)
 
 STATUS_LABELS = {
     "draft": "Nháp",
@@ -56,6 +65,33 @@ STATUS_LABELS = {
     "failed": "Lỗi",
 }
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
+# How a video is built (Video.mode): each scene over its own photo or clip, or one backdrop ("Video xuyên suốt").
+MODES = {"slides": "Slide ảnh", "single": "Video xuyên suốt"}
+PHOTO_LAYER_MISSING = "Cảnh có ảnh món nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc tắt ảnh món"
+# A new photo layer ("Ảnh món"): medium, for the whole scene (the render stops it at the scene's end), on the left or
+# the right of the frame by turns from one photo to the next, a little above the middle, coming up from below.
+PHOTO_LAYER_X = (367, 713)
+PHOTO_LAYER_Y = 835
+PHOTO_LAYER_SECONDS = 60
+
+
+def photo_layer(photos_before: int) -> SceneLayer:
+    """A new photo layer for a scene that comes after `photos_before` scenes with one."""
+    return SceneLayer(
+        position=1,
+        kind="photo",
+        text="",
+        sticker="",
+        start=0,
+        seconds=PHOTO_LAYER_SECONDS,
+        x=PHOTO_LAYER_X[photos_before % 2],
+        y=PHOTO_LAYER_Y,
+        size="medium",
+        style="rounded",
+        animation="slide_up",
+    )
+
+
 JOB_KINDS = {
     "script": "Viết kịch bản",
     "clone": "Nhân bản",
@@ -193,10 +229,25 @@ def spoken(video: Video, scene: Scene) -> str:
     return screen_speech(scene)
 
 
-def auto_seconds(voice_seconds: float) -> float:
-    """A scene's seconds when they follow its narration: the narration and the pauses around it, in tenths, within
-    the 1–10 seconds a scene may be set to. A longer narration still lengthens the scene at render (fit_seconds)."""
-    return min(MAX_SCENE_SECONDS, max(MIN_SCENE_SECONDS, fit_seconds(0, voice_seconds)))
+def is_backdrop(video: Video) -> bool:
+    """ "Video xuyên suốt": the title scene's photo or clip runs under every scene."""
+    return video.mode == "single"
+
+
+def auto_seconds(voice_seconds: float, pause: float = VOICE_TAIL) -> float:
+    """A scene's seconds when they follow its narration: the narration, the lead-in before it and the pause after
+    it (the video's "Nghỉ sau lời đọc", voice_pause), in tenths, within the 1–10 seconds a scene may be set to. A
+    longer narration still lengthens the scene at render (fit_seconds)."""
+    return min(MAX_SCENE_SECONDS, max(MIN_SCENE_SECONDS, fit_seconds(0, voice_seconds, pause)))
+
+
+def follow_narration(video: Video, scenes: list[Scene]) -> None:
+    """Every scene whose seconds follow its narration ("Tự khớp lời đọc") takes the seconds of the narration it
+    has, after the video's pause changed."""
+    for scene in scenes:
+        made = made_voice_seconds(video, scene)
+        if scene.seconds_auto and made is not None:
+            scene.seconds = auto_seconds(made, voice_pause(video))
 
 
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
@@ -237,13 +288,21 @@ LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size",
 
 
 def layer_fields(layer: SceneLayer) -> dict:
-    """A layer as the render script and the studio read it (reels_render.layers.Layer)."""
+    """A layer as the render script and the studio read it (reels_render.layers.Layer); a photo layer's photo is its
+    scene's own, added by the render job."""
     return {field: getattr(layer, field) for field in LAYER_FIELDS}
 
 
+def drawn_layers(video: Video, scene: Scene) -> list[SceneLayer]:
+    """The layers the render lays over the scene: photo layers ("Ảnh món") only over a backdrop; on a slide video
+    they are kept for switching back, and not drawn."""
+    return [layer for layer in scene.layers if layer.kind != "photo" or is_backdrop(video)]
+
+
 def layer_payload(layer: SceneLayer) -> dict:
-    # Its picture changes only with what is drawn, not with where or when it shows.
-    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style)
+    # Its picture changes only with what is drawn, not with where or when it shows; a photo layer's with its photo.
+    photo = layer.scene.image_key if layer.kind == "photo" else None
+    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []))
     return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
 
 
@@ -273,7 +332,11 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             # The studio's effects join only when set, so MP4s rendered before they existed stay current.
             *([["transition", scene.transition]] if scene.transition else []),
             *([["color", scene.color]] if scene.color else []),
-            *([["layers", [layer_fields(layer) for layer in scene.layers]]] if scene.layers else []),
+            *(
+                [["layers", [layer_fields(layer) for layer in layers]]]
+                if (layers := drawn_layers(video, scene))
+                else []
+            ),
             *([["sounds", [sound_fields(sound) for sound in scene.sounds]]] if scene.sounds else []),
             *([["music_level", scene.music_level]] if scene.music_level else []),
         ]
@@ -284,6 +347,9 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     # The song's start joins only when moved, so MP4s rendered before it existed stay current.
     music = [video.music_key, video.music_volume, *([["music_start", video.music_start]] if video.music_start else [])]
     data = [parts, music] if video.music_key else parts
+    # Joins only for a backdrop video, so slide videos rendered before modes existed stay current.
+    if is_backdrop(video):
+        data = [data, ["mode", video.mode]]
     voices = [
         voice_signature(spoken(video, scene), *_voice(video)) if spoken(video, scene) else None for scene in every
     ]
@@ -324,18 +390,22 @@ def refresh_thumbnail(db: DbSession, storage: DirectoryStorage, video: Video, ti
 
 
 def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tuple[SceneInput | None, list[SceneInput]]:
+    backdrop = is_backdrop(video)
+
     def to_input(scene: Scene) -> SceneInput:
         clip_seconds = scene.video_seconds - scene.video_start if scene.video_key and scene.video_seconds else None
+        # Over a backdrop a content scene needs no picture of its own, and the backdrop clip loops, never ends.
+        own_picture = backdrop and not scene.is_title
         return SceneInput(
             scene.id,
             scene.is_title,
             scene.text,
             scene.seconds,
-            bool(scene.image_key or scene.video_key),
+            own_picture or bool(scene.image_key or scene.video_key),
             scene.voice_text if spoken(video, scene) else "",
             made_voice_seconds(video, scene),
-            clip_seconds,
-            bool(scene.keywords or scene.keywords_en),
+            None if backdrop else clip_seconds,
+            own_picture or bool(scene.keywords or scene.keywords_en),
             scene.video_speed,
             text_size(video, scene.is_title),
         )
@@ -346,7 +416,13 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
 def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> Checks:
     title_input, scene_input = scene_inputs(video, title, scenes)
     posts = {name: getattr(video, name) for name in POST_FIELDS}
-    return check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
+    checks = check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
+    if is_backdrop(video):
+        for scene in scenes:
+            # A photo layer shows its scene's photo: a clip, or no picture, leaves it nothing to show.
+            if any(layer.kind == "photo" for layer in scene.layers) and not scene.image_key:
+                checks.blocking.append(Issue(PHOTO_LAYER_MISSING, scene.id, "image"))
+    return checks
 
 
 def _last_failed(db: DbSession, video_id: int) -> Job | None:
@@ -752,6 +828,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "ai_effects": video.ai_effects,
         "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
+        "mode": video.mode,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id), by_page),
         "publications": [publication_payload(post, by_page) for post in posts],

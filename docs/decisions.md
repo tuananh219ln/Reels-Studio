@@ -11,6 +11,38 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — "Kiểu video": slides or one backdrop ("Video xuyên suốt") with "Ảnh món" photo layers
+
+Asked by tuananh219ln from a spec written without the code ("Đặc tả code: 3 dạng video Reels", by Looper), who then
+left every open choice to the agent ("bạn tự quyết đi, code luôn"). Built on what exists instead of the spec's own
+model:
+
+- **Two modes, not three.** `videos.mode` is `slides` (as before) or `single`. The spec's third mode
+  (`single_overlay`) is `single` with a photo layer on the scenes that name a dish, so nothing has to be hidden
+  when switching between the two.
+- **The backdrop is the title scene's photo or clip**, not a new `masterMedia` field: every way of choosing a
+  picture (upload, stock, library, AI, a pasted link, crop, clip start and speed) already works on it, and the
+  first frame stays the cover, as before.
+- **"Ảnh món" is a photo layer** (`scene_layers.kind = "photo"`) showing its scene's own photo, not a JSON
+  `scene.overlay`: the studio's layers already have their place, seconds, entrance, drag and undo. Its frame and
+  width are named presets (three widths instead of the spec's 25–80% slider), keeping "never free size sliders"
+  (2026-11-01, 2026-11-05); the place stays free, as for text boxes. One per scene for now; more is a later step.
+  A product photo already cut out is supported (frame "Giữ nguyên"), as members find such photos (2026-11-07).
+- **The pause after narration** (0.4 / 0.7 / 1 s) is a video option for every video, with 0.4 s, today's pause,
+  the default, so no existing video changes; it sets the seconds of scenes that follow their narration and leaves
+  the render as it is. Seconds stay editable in every mode ("Tự khớp lời đọc" already follows the narration).
+- **Joins and loops:** hard cuts and text fades over a backdrop; a short clip loops with a plain cut at its seam;
+  a photo's motion runs once over the whole video.
+- **No flag:** the app has no feature flags, and the default (`slides`) changes nothing. A render machine on older
+  code refuses a backdrop video (the option is unknown to it) rather than rendering it wrong, and keeps rendering
+  slide videos.
+- **The AI is not called again** when its answer breaks the mode's rules (the spec's retry): every call costs, and a
+  stray keyword only adds a photo layer a member can turn off.
+
+Not built from the spec: the "Để AI chọn" mode, a timeline lane per layer type, a per-platform safe zone for the
+photo (the studio's existing zone applies), "Hiện từ giây N" on the card (the studio's layer start does it).
+A person watches a sample MP4 of each mode before this is called done, as for any render change.
+
 ## 2026-11-07 — An /api endpoint the browser visits never answers with a redirect
 
 Found on production right after the TikTok connection shipped: "Kết nối TikTok" stopped on

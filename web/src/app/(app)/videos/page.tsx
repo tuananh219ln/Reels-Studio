@@ -48,9 +48,11 @@ import {
   type PlanToday,
   type SampleSummary,
   type VideoDetail,
+  type VideoMode,
   type VideoRow,
   type VideoRowPost,
 } from "@/lib/api";
+import { VIDEO_MODES } from "@/components/video/videoModes";
 import { COLORS } from "@/app/theme";
 import StatusText, { type StatusTone } from "@/components/StatusText";
 import FilterSelect from "@/components/FilterSelect";
@@ -919,6 +921,8 @@ function NewVideoModal({
   }, [wantsSamples, message]);
   // "AI gợi ý hiệu ứng": the same script call also picks each scene's transition, colour, sound and a line of text.
   const [aiEffects, setAiEffects] = useState(false);
+  // "Kiểu video": a slide per scene, or one backdrop under every scene ("Video xuyên suốt").
+  const [videoMode, setVideoMode] = useState<VideoMode>("slides");
   const groupId = Form.useWatch("knowledge_topic_id", form);
   const typed = Form.useWatch("topic", form) ?? "";
   const plan = today.find((group) => group.topic_id === groupId);
@@ -970,6 +974,7 @@ function NewVideoModal({
             mode,
             script: manual ? (values.script ?? "") : "",
             ai_effects: mode === "ai" && aiEffects,
+            video_mode: videoMode,
           });
       router.push(`/videos/${video.id}`);
     } catch (err) {
@@ -1106,6 +1111,17 @@ function NewVideoModal({
                   ]}
                 />
               </Flex>
+              {!sample && (
+                <Flex align="center" gap={8}>
+                  <Typography.Text type="secondary">Kiểu video</Typography.Text>
+                  <Segmented
+                    aria-label="Kiểu video"
+                    value={videoMode}
+                    onChange={(value) => setVideoMode(value as VideoMode)}
+                    options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
+                  />
+                </Flex>
+              )}
               <Form.Item
                 label="Nhóm chủ đề"
                 name="knowledge_topic_id"
@@ -1123,6 +1139,11 @@ function NewVideoModal({
                 />
               </Form.Item>
             </Flex>
+            {!sample && (
+              <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+                {VIDEO_MODES.find((item) => item.value === videoMode)?.hint}
+              </Typography.Text>
+            )}
             <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
               {manual
                 ? "Nhóm chủ đề quyết định từ cấm và mặc định của video, sửa trong Kho kiến thức."
