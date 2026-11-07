@@ -298,7 +298,7 @@ def start_video(
         knowledge_topic_id=group.id,
         has_script=manual,
         created_by_id=me.user_id,
-        ai_effects=body.ai_effects and not manual and written is None,
+        ai_effects=body.ai_effects and not manual,
         mode=body.video_mode,
         written_via=via,
     )

@@ -658,6 +658,85 @@ def test_a_script_the_parser_cannot_read_is_refused_and_makes_no_video(mcp_clien
     assert db.scalar(select(Video).where(Video.topic == "Không có cảnh")) is None
 
 
+def test_the_assistant_writes_to_a_plan_idea_and_the_idea_gets_the_video(mcp_client, db, storage):
+    from conftest import first_topic
+
+    from reels_api.models import TopicPlanItem, Video
+
+    _, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    group = first_topic(db)
+    idea = TopicPlanItem(
+        knowledge_topic_id=group.id,
+        day=2,
+        position=1,
+        topic="Đau gối khi leo cầu thang",
+        pain_group="Xương khớp",
+        pain="Gối đau mỗi sáng",
+        hook="Sai lầm khi uống nước",
+    )
+    db.add(idea)
+    db.commit()
+    listed = payload(call(mcp_client, token, "list_plan_ideas", knowledge_topic_id=group.id))
+    assert [row["id"] for row in listed["ideas"]] == [idea.id]
+    assert listed["ideas"][0]["hook"] == "Sai lầm khi uống nước"
+    read = payload(call(mcp_client, token, "get_script_prompt", knowledge_topic_id=group.id, plan_item_id=idea.id))
+    assert read["topic"] == "Đau gối khi leo cầu thang"
+    assert all(part in read["prompt"] for part in ("Xương khớp", "Gối đau mỗi sáng", "Sai lầm khi uống nước"))
+    made = call(
+        mcp_client,
+        token,
+        "create_video_from_group_prompt",
+        knowledge_topic_id=group.id,
+        plan_item_id=idea.id,
+        script_json=json.dumps(GROUP_SCRIPT, ensure_ascii=False),
+    )
+    assert not made.get("isError"), made
+    video = db.scalar(select(Video).where(Video.topic == "Đau gối khi leo cầu thang"))
+    db.refresh(idea)
+    assert idea.video_id == video.id and video.written_via == "assistant"
+    assert payload(call(mcp_client, token, "list_plan_ideas", knowledge_topic_id=group.id))["ideas"] == []
+    again = call(mcp_client, token, "get_script_prompt", knowledge_topic_id=group.id, plan_item_id=idea.id)
+    assert again["isError"]
+
+
+def test_the_assistant_suggests_each_scenes_effects_when_asked(mcp_client, db, storage):
+    from conftest import first_topic
+
+    from reels_api.autoedit import EFFECTS_FORMAT
+    from reels_api.models import Video
+
+    _, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    group = first_topic(db)
+    plain = payload(call(mcp_client, token, "get_script_prompt", topic="Rau", knowledge_topic_id=group.id))
+    assert EFFECTS_FORMAT not in plain["prompt"]
+    asked = payload(
+        call(mcp_client, token, "get_script_prompt", topic="Rau", knowledge_topic_id=group.id, ai_effects=True)
+    )
+    assert EFFECTS_FORMAT in asked["prompt"]
+    script = json.loads(json.dumps(GROUP_SCRIPT))
+    script["scenes"][0]["effects"] = {"transition": "slide", "color": None, "sounds": [], "layer": None}
+    script["scenes"][1]["effects"] = {"transition": "không có", "color": None, "sounds": [], "layer": None}
+    made = call(
+        mcp_client,
+        token,
+        "create_video_from_group_prompt",
+        topic="Rau có hiệu ứng",
+        knowledge_topic_id=group.id,
+        ai_effects=True,
+        script_json=json.dumps(script, ensure_ascii=False),
+    )
+    assert not made.get("isError"), made
+    video = db.scalar(select(Video).where(Video.topic == "Rau có hiệu ứng"))
+    assert video.ai_effects
+    scenes = db.scalars(
+        select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position)
+    ).all()
+    # A preset is put on; anything outside the presets is left out, as after a script job.
+    assert scenes[0].transition == "slide" and scenes[1].transition is None
+
+
 def test_affiliate_products_are_listed_and_only_approved_ones_attach(mcp_client, db, storage):
     from test_affiliate_accounts import product
 

@@ -25,18 +25,18 @@ from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 
-from . import clips, motion
+from . import clips, jobs, motion
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
 from . import routes_music as music_routes
 from . import routes_sounds as sound_routes
 from . import routes_videos as videos
-from .claude import BACKDROP_FORMAT, ScriptOutputError, build_script_prompt, parse_output
+from .claude import ScriptOutputError, parse_output
 from .db import get_db
 from .errors import ApiError
 from .mcp_auth import connection_for, public_url
-from .models import KnowledgeTopic, Video
+from .models import KnowledgeTopic, TopicPlanItem, Video
 from .storage import get_storage
 
 log = logging.getLogger(__name__)
@@ -121,8 +121,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "Nêu rõ chi phí dịch vụ AI trước khi tạo kịch bản hoặc render có giọng đọc. "
             "Viết kịch bản: mặc định bạn tự viết bằng gói Claude của người dùng, không tốn phí AI của nhóm: gọi "
             '"Lấy prompt viết kịch bản của nhóm", viết đúng prompt đó (gồm tự rà soát an toàn và từ cấm), rồi gửi '
-            'JSON vào "Tạo video từ kịch bản viết theo prompt nhóm". Chỉ dùng "Tạo video và viết kịch bản bằng API '
-            'của nhóm" khi người dùng nói rõ muốn dùng API (tính phí). '
+            'JSON vào "Tạo video từ kịch bản viết theo prompt nhóm" với cùng tham số. Người dùng nói làm theo kế '
+            'hoạch 30 ngày thì chọn ý tưởng bằng "Đọc ý tưởng kế hoạch 30 ngày" (plan_item_id); muốn AI chọn hiệu '
+            'ứng thì ai_effects. Chỉ dùng "Tạo video và viết kịch bản bằng API của nhóm" khi người dùng nói rõ '
+            "muốn dùng API (tính phí). "
             "Video sản phẩm: tìm sản phẩm affiliate, tự viết kịch bản (hook, lợi ích, giá, kêu gọi mua) và tạo video "
             "từ kịch bản tự viết (không tốn phí AI của nhóm), gắn clip TikTok hoặc ảnh từ link người dùng đưa cho "
             "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. "
@@ -289,51 +291,113 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         body = videos.NewVideoBody(topic=topic, knowledge_topic_id=knowledge_topic_id)
         return await run_in_threadpool(invoke, lambda db, me: video_link(videos.create_video(body, me, db)), write=True)
 
-    @tool("Lấy prompt viết kịch bản của nhóm", read=True)
-    async def get_script_prompt(
-        topic: Annotated[str, Field(max_length=videos.MAX_TOPIC_LENGTH)],
+    @tool("Đọc ý tưởng kế hoạch 30 ngày", read=True)
+    async def list_plan_ideas(
         knowledge_topic_id: int,
-        video_mode: Literal["slides", "single"] = "slides",
+        offset: Annotated[int, Field(ge=0)] = 0,
+        limit: Annotated[int, Field(ge=1, le=50)] = 20,
     ) -> dict:
-        """Prompt đầy đủ mà dịch vụ AI của nhóm sẽ nhận để viết kịch bản cho chủ đề này: prompt của nhóm chủ đề, từ
-        cấm, gợi ý tìm ảnh và ĐỊNH DẠNG ĐẦU RA (JSON). video_mode "single" là "Video xuyên suốt" (một nền chung).
-        Hãy tự viết đúng theo prompt (không tốn phí AI của nhóm) rồi gửi JSON vào "Tạo video từ kịch bản viết theo
-        prompt nhóm" với cùng topic, nhóm và video_mode."""
+        """Các ý tưởng chưa có video trong kế hoạch 30 ngày (và Backlog) của nhóm chủ đề: chủ đề, nhóm nỗi đau, nỗi
+        đau người xem, góc hook. Truyền plan_item_id vào "Lấy prompt viết kịch bản của nhóm" để viết theo ý tưởng đó."""
 
         def operation(db, me):
-            group = db.get(KnowledgeTopic, knowledge_topic_id)
-            if group is None:
-                raise ToolError("Không có nhóm chủ đề này, hãy gọi “Đọc nhóm chủ đề”")
-            if not group.script_prompt:
-                raise ToolError(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
-            subject = " ".join(unicodedata.normalize("NFC", topic).split())
-            if not subject:
-                raise ToolError("Hãy nhập chủ đề")
-            prompt = build_script_prompt(group.script_prompt, subject, group.banned_words, photo_hint=group.photo_hint)
-            if video_mode == "single":
-                prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
-            return {"group": group.name, "topic": subject, "video_mode": video_mode, "prompt": prompt}
+            rows = db.scalars(
+                select(TopicPlanItem)
+                .where(TopicPlanItem.knowledge_topic_id == knowledge_topic_id, TopicPlanItem.video_id.is_(None))
+                .order_by(TopicPlanItem.day.asc().nulls_last(), TopicPlanItem.position, TopicPlanItem.id)
+            ).all()
+            return {
+                "ideas": [
+                    {
+                        "id": row.id,
+                        "day": row.day,
+                        "topic": row.topic,
+                        "pain_group": row.pain_group,
+                        "pain": row.pain,
+                        "hook": row.hook,
+                    }
+                    for row in rows[offset : offset + limit]
+                ],
+                "total": len(rows),
+            }
+
+        return await run_in_threadpool(invoke, operation)
+
+    def script_group(db, knowledge_topic_id: int, plan_item_id: int | None, topic: str):
+        """The group, plan idea and topic a script is written for, refused as the app refuses them."""
+        group = db.get(KnowledgeTopic, knowledge_topic_id)
+        if group is None:
+            raise ToolError("Không có nhóm chủ đề này, hãy gọi “Đọc nhóm chủ đề”")
+        if not group.script_prompt:
+            raise ToolError(f"Nhóm chủ đề “{group.name}” chưa có prompt viết kịch bản")
+        idea = None
+        if plan_item_id is not None:
+            idea = db.get(TopicPlanItem, plan_item_id)
+            if idea is None or idea.knowledge_topic_id != group.id:
+                raise ToolError("Không có ý tưởng này trong kế hoạch của nhóm, hãy gọi “Đọc ý tưởng kế hoạch 30 ngày”")
+            if idea.video_id is not None:
+                raise ToolError("Ý tưởng này đã có video")
+        subject = " ".join(unicodedata.normalize("NFC", topic).split()) or (idea.topic if idea else "")
+        if not subject:
+            raise ToolError("Hãy nhập chủ đề")
+        return group, idea, subject
+
+    @tool("Lấy prompt viết kịch bản của nhóm", read=True)
+    async def get_script_prompt(
+        knowledge_topic_id: int,
+        topic: Annotated[str, Field(max_length=videos.MAX_TOPIC_LENGTH)] = "",
+        plan_item_id: int | None = None,
+        ai_effects: bool = False,
+        video_mode: Literal["slides", "single"] = "slides",
+    ) -> dict:
+        """Prompt đầy đủ mà dịch vụ AI của nhóm sẽ nhận để viết kịch bản: prompt của nhóm chủ đề, từ cấm, gợi ý tìm
+        ảnh và ĐỊNH DẠNG ĐẦU RA (JSON). plan_item_id: viết theo một ý tưởng của kế hoạch 30 ngày (nỗi đau, góc hook;
+        bỏ trống topic thì lấy chủ đề của ý tưởng). ai_effects: "AI gợi ý hiệu ứng", mỗi cảnh có thêm "effects".
+        video_mode "single" là "Video xuyên suốt" (một nền chung). Hãy tự viết đúng theo prompt (không tốn phí AI
+        của nhóm) rồi gửi JSON vào "Tạo video từ kịch bản viết theo prompt nhóm" với CÙNG các tham số này."""
+
+        def operation(db, me):
+            group, idea, subject = script_group(db, knowledge_topic_id, plan_item_id, topic)
+            prompt = jobs.script_prompt(group, subject, idea, ai_effects, video_mode == "single")
+            return {
+                "group": group.name,
+                "topic": subject,
+                "plan_item_id": plan_item_id,
+                "ai_effects": ai_effects,
+                "video_mode": video_mode,
+                "prompt": prompt,
+            }
 
         return await run_in_threadpool(invoke, operation)
 
     @tool("Tạo video từ kịch bản viết theo prompt nhóm", read=False)
     async def create_video_from_group_prompt(
-        topic: Annotated[str, Field(max_length=videos.MAX_TOPIC_LENGTH)],
         knowledge_topic_id: int,
         script_json: Annotated[str, Field(max_length=MAX_SCRIPT_JSON)],
+        topic: Annotated[str, Field(max_length=videos.MAX_TOPIC_LENGTH)] = "",
+        plan_item_id: int | None = None,
+        ai_effects: bool = False,
         video_mode: Literal["slides", "single"] = "slides",
     ) -> dict:
-        """Tạo video từ object JSON bạn viết theo "Lấy prompt viết kịch bản của nhóm": app lưu nó như khi dịch vụ AI
-        của nhóm viết (5 tiêu đề, cảnh, lời đọc, từ khóa và prompt ảnh, caption, hashtag, bình luận ghim, tự rà soát
-        an toàn, gợi ý nhạc), rồi tự tìm ảnh nếu nhóm bật. Không gọi API của nhóm, không tính phí. JSON sai định dạng
-        thì sửa theo lỗi trả về rồi gửi lại một lần."""
+        """Tạo video từ object JSON bạn viết theo "Lấy prompt viết kịch bản của nhóm" (cùng topic, plan_item_id,
+        ai_effects, video_mode): app lưu nó như khi dịch vụ AI của nhóm viết (5 tiêu đề, cảnh, lời đọc, từ khóa và
+        prompt ảnh, caption, hashtag, bình luận ghim, tự rà soát an toàn, gợi ý nhạc; hiệu ứng từng cảnh khi
+        ai_effects), gắn video vào ý tưởng kế hoạch nếu có, rồi tự tìm ảnh nếu nhóm bật. Không gọi API của nhóm,
+        không tính phí. JSON sai định dạng thì sửa theo lỗi trả về rồi gửi lại một lần."""
 
         def operation(db, me):
+            _, _, subject = script_group(db, knowledge_topic_id, plan_item_id, topic)
             try:
                 written = parse_output(script_json)
             except ScriptOutputError as err:
                 raise ToolError(f"Kịch bản không đúng ĐỊNH DẠNG ĐẦU RA ({err})") from None
-            body = videos.NewVideoBody(topic=topic, knowledge_topic_id=knowledge_topic_id, video_mode=video_mode)
+            body = videos.NewVideoBody(
+                topic=subject,
+                knowledge_topic_id=knowledge_topic_id,
+                plan_item_id=plan_item_id,
+                ai_effects=ai_effects,
+                video_mode=video_mode,
+            )
             return video_link(videos._saved(db, videos.start_video(body, me, db, written, via=ASSISTANT)))
 
         return await run_in_threadpool(invoke, operation, write=True)

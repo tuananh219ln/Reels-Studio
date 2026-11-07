@@ -22,11 +22,19 @@ Where the script is written decides who pays, and the video page says which one 
 
 A topic group's video is written with the group's own prompt either way:
 
-1. `get_script_prompt` (read) returns the exact prompt a script job would send for that topic and group: the
-   group's "Prompt viết kịch bản", its banned words and photo hint, "Video xuyên suốt"'s rules when asked, and the
-   fixed JSON output format ([content.md](content.md)). Groups without a script prompt are refused, as in the app.
+1. `get_script_prompt` (read) returns the exact prompt a script job would send for that topic and group, built by
+   the job's own `jobs.script_prompt`: the group's "Prompt viết kịch bản", its banned words and photo hint, and
+   the fixed JSON output format ([content.md](content.md)). Its options match "Tạo video":
+   - `plan_item_id`: a 30-day plan idea, listed by `list_plan_ideas` (ideas with no video yet): its pain group,
+     pain and hook fill the prompt, its topic is used when none is given, and the new video is linked to it. An
+     idea of another group or one that already has a video is refused.
+   - `ai_effects` ("AI gợi ý hiệu ứng"): the prompt asks for each scene's effects, and they are put on as after a
+     job, values outside the presets left out.
+   - `video_mode` `single` ("Video xuyên suốt") adds its rules.
+
+   Groups without a script prompt are refused, as in the app.
 2. The assistant writes the JSON itself, self safety review included.
-3. `create_video_from_group_prompt` reads it with the script job's own parser and saves it as the job would: five
+3. `create_video_from_group_prompt`, called with the same options, reads it with the script job's own parser and saves it as the job would: five
    titles, scenes with voice, photo keywords and image prompts, caption, hashtags, pinned comment, self review and
    music ideas; then the team's "Mẫu dựng", the Shopee suggestions and "Tự tìm ảnh" follow as after a job. JSON the
    parser cannot read is refused with the reason, for the assistant to fix. The video is marked
@@ -129,6 +137,7 @@ another URI, do not broaden the allowlist blindly: check its documentation first
 - “Lưu câu thứ hai vào cảnh tiêu đề của video 12.”
 - “Sửa lời đọc cảnh 45 thành: Ăn đa dạng giúp bổ sung nhiều chất dinh dưỡng.”
 - “Viết kịch bản về rau xanh theo prompt nhóm Sức khỏe và tạo video.” (the member's Claude writes it)
+- “Làm video cho ý tưởng ngày 3 trong kế hoạch nhóm Sức khỏe, cho AI chọn hiệu ứng.”
 - “Tạo video về rau xanh trong nhóm chủ đề Sức khỏe bằng API của nhóm.” (a script job, paid)
 - “Tìm sản phẩm nồi chiên đã duyệt, viết kịch bản 5 cảnh (hook, lợi ích, giá, kêu gọi mua) và tạo
   video tự viết trong nhóm Gia dụng.”

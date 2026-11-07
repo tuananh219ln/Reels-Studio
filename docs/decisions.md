@@ -18,7 +18,9 @@ Running the subscription inside the app stays refused ("Claude connects through 
 plan", below). Instead the MCP server hands the member's Claude the exact prompt a script job would send
 (`get_script_prompt`: the group's prompt, banned words, photo hint, fixed output format) and saves the JSON it writes
 with the job's own parser and `save_script` (`create_video_from_group_prompt`), so such a video has everything an
-API-written one has. The server's instructions make this the default and keep `create_video` (the team's API, paid)
+API-written one has; the prompt is built by the job's own `jobs.script_prompt`, so the two cannot drift. "Tạo
+video"'s options come along: a 30-day plan idea (`list_plan_ideas`, `plan_item_id`: its pain and hook in the prompt,
+the video linked to it), "AI gợi ý hiệu ứng" (`ai_effects`) and "Video xuyên suốt". The server's instructions make this the default and keep `create_video` (the team's API, paid)
 for when the member asks for it. Such videos are marked `videos.written_via = "assistant"` (migration 0056) and the
 video page says "Kịch bản viết bởi Claude của thành viên qua kết nối MCP", next to the API's "Kịch bản viết bởi
 <provider · model>", so the team sees which one wrote each script. The "Tạo video" button in the app still uses the
