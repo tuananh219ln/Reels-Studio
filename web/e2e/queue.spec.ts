@@ -86,7 +86,8 @@ test("a rendered video added to its Page's queue is scheduled there by the worke
   await page.getByRole("menuitem", { name: "Video" }).click();
 
   await renderedVideo(page);
-  // The button's name includes its icon's label.
+  // The queue is in "Đăng bài" › Facebook; the buttons' names include their icon's label.
+  await page.getByRole("button", { name: "send Đăng bài", exact: true }).click();
   await page.getByRole("button", { name: "unordered-list Thêm vào hàng chờ" }).click();
   const drawer = page.getByRole("dialog", { name: "Thêm vào hàng chờ" });
   await expect(drawer.getByLabel("Fanpage")).toBeVisible();
@@ -97,6 +98,9 @@ test("a rendered video added to its Page's queue is scheduled there by the worke
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 150_000 });
   await expect(page.getByTestId("video-queue")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "unordered-list Thêm vào hàng chờ" })).toBeVisible();
+  // "Đăng bài" is still open over the page.
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Đăng bài" })).toBeHidden();
 
   const after = await openPage(page);
   await expect(after).toContainText("Hàng chờ trống.");

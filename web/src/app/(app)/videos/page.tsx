@@ -455,6 +455,16 @@ function CardChip({
   );
 }
 
+const PLATFORM_NAMES = { facebook: "Facebook", tiktok: "TikTok", youtube: "YouTube", instagram: "Instagram" };
+
+/** The platforms the video's own MP4 is out on besides the one it was made for, or "" when none. */
+function elsewhere(row: VideoRow): string {
+  return row.posted_on
+    .filter((platform) => platform !== row.platform)
+    .map((platform) => PLATFORM_NAMES[platform])
+    .join(", ");
+}
+
 /** "TikTok · Nháp", "TikTok · Đã đăng": the versions on a card or row, each opening its own page. */
 function VersionLinks({ versions }: { versions: VideoRow[] }) {
   const { token } = theme.useToken();
@@ -473,11 +483,13 @@ function VersionLinks({ versions }: { versions: VideoRow[] }) {
   ));
 }
 
-/** A Facebook video doing well at 48 hours with no TikTok version yet: the card offers to make one. */
+/** A Facebook video doing well at 48 hours, neither on TikTok itself nor with a TikTok version yet: the card offers to
+ * make one. */
 function wantsTikTok(row: VideoRow): boolean {
   return (
     row.platform === "facebook" &&
     !row.has_tiktok_version &&
+    !row.posted_on.includes("tiktok") &&
     row.post?.state === "posted" &&
     row.post.times_median !== null &&
     row.post.times_median >= TIKTOK_NUDGE_TIMES
@@ -648,6 +660,12 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
               <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
                 {platformName(row)}
               </span>
+              {elsewhere(row) && (
+                // The same MP4 posted on other platforms too (TikTok, YouTube Shorts, Instagram Reels).
+                <span data-testid="video-elsewhere" style={{ color: token.colorTextSecondary }}>
+                  + {elsewhere(row)}
+                </span>
+              )}
             </Flex>
             <Typography.Text type="secondary" style={{ ...small, textAlign: "right", flex: "none" }}>
               {row.created_by}, {shortDate(row.created_at, false)}

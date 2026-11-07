@@ -425,7 +425,8 @@ def test_a_hand_made_tiktok_post_is_recorded_on_my_own_account_only(an, binh, db
     assert an.delete(f"/api/tiktok/posts/{post['id']}").json()["tiktok_posts"] == []
 
 
-def test_a_facebook_video_cannot_record_a_tiktok_post(an, db, me, storage):
+def test_a_facebook_video_records_a_tiktok_post_of_its_own_mp4(an, db, me, storage):
+    # Any video's MP4 may go to TikTok (docs/decisions.md, 2026-11-08); until then only a TikTok version could.
     video = make_video(db, storage, me, scene_count=1)
     video.mp4_key = "videos/x/video.mp4"
     db.commit()
@@ -434,7 +435,8 @@ def test_a_facebook_video_cannot_record_a_tiktok_post(an, db, me, storage):
         f"/api/tiktok/videos/{video.id}/posts",
         json={"account_id": account["id"], "url": "https://www.tiktok.com/@a/video/1"},
     )
-    assert response.status_code == 422
+    assert response.status_code == 201, response.text
+    assert [post["url"] for post in response.json()["tiktok_posts"]] == ["https://www.tiktok.com/@a/video/1"]
 
 
 def test_the_list_says_which_videos_have_a_tiktok_version_or_a_clone(an, db, me, storage):

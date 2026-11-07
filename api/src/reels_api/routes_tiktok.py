@@ -61,12 +61,10 @@ def _post_url(value: str) -> str:
 def record_post(
     video_id: int, body: PostBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    """ "Đã đăng tay": the post a member made in TikTok's app, on one of their own TikTok accounts."""
+    """ "Đã đăng tay": the post a member made in TikTok's app, on one of their own TikTok accounts, of any video's MP4."""
     video = db.get(Video, video_id)
     if video is None:
         raise ApiError(404, "video_not_found", "Không tìm thấy video")
-    if video.platform != "tiktok":
-        raise invalid("Chỉ ghi bài TikTok cho bản TikTok của video")
     if not video.mp4_key:
         raise invalid("Video chưa render MP4 để đăng")
     account = db.get(AffiliateAccount, body.account_id)
@@ -218,9 +216,8 @@ def publish(
 ) -> dict:
     """ "Đăng lên TikTok": the worker sends the MP4 now, with the member's own connection: a draft to their TikTok
     inbox (the default), or posted directly."""
+    # Any video's MP4 may go to TikTok, a Facebook one included (2026-11-08); "Tạo bản TikTok" stays for its own script.
     video = lock_video(db, video_id)
-    if video.platform != "tiktok":
-        raise invalid("Chỉ đăng lên TikTok bản TikTok của video")
     if not video.mp4_key:
         raise invalid("Video chưa render MP4 để đăng")
     account = db.get(AffiliateAccount, body.account_id)
