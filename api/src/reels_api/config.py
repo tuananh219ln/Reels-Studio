@@ -147,6 +147,21 @@ def shopee_short_link_url() -> str:
     return (read_env("SHOPEE_SHORT_LINK_URL") or "https://s.shopee.vn").rstrip("/")
 
 
+def tiktok_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return (read_env("TIKTOK_API_URL") or "https://open.tiktokapis.com").rstrip("/")
+
+
+def tiktok_client_key() -> str:
+    # The TikTok developer app's own identity (Login Kit + Content Posting API), not a member's: one for the team.
+    # The Sandbox has a key and secret of its own, set in these same two variables while recording the demo.
+    return read_env("TIKTOK_CLIENT_KEY")
+
+
+def tiktok_client_secret() -> str:
+    return read_env("TIKTOK_CLIENT_SECRET")
+
+
 def elevenlabs_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("ELEVENLABS_API_URL") or "https://api.elevenlabs.io").rstrip("/")

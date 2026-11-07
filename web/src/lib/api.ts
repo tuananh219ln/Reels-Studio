@@ -130,7 +130,8 @@ export type JobInfo = {
     | "photos"
     | "voice"
     | "revise"
-    | "motion";
+    | "motion"
+    | "tiktok_publish";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   /** A render or motion job waiting for a render machine ("ready") or being rendered on one ("taken"). */
@@ -143,10 +144,11 @@ export type JobInfo = {
   finished_at: string | null;
 };
 
-/** A text or sticker layer over a scene (reels_render.layers): its own seconds, place, look and entrance. */
+/** A text, sticker or photo layer over a scene (reels_render.layers): its own seconds, place, look and entrance.
+ * A photo layer ("Ảnh món") shows its scene's own photo framed by `style` (a photo shape), on a "Video xuyên suốt". */
 export type SceneLayer = {
   id: number;
-  kind: "text" | "sticker";
+  kind: "text" | "sticker" | "photo";
   text: string;
   sticker: string;
   /** Seconds into its scene. */
@@ -279,7 +281,7 @@ export type VideoDetail = VideoRow & {
   /** The Facebook video this TikTok version was made from, and the versions made from this one. */
   variant_of: VideoLink | null;
   variants: VideoLink[];
-  /** TikTok posts made by hand and recorded with their link, newest first. */
+  /** TikTok posts, made by hand or sent through TikTok's API, newest first. */
   tiktok_posts: TikTokPost[];
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
@@ -306,6 +308,8 @@ export type VideoDetail = VideoRow & {
   /** Made with "AI gợi ý hiệu ứng". */
   ai_effects: boolean;
   voice_enabled: boolean;
+  /** "Kiểu video": each scene over its own photo or clip, or the title scene's under every scene. */
+  mode: VideoMode;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages; `owner` is the member whose Page it is. */
@@ -390,7 +394,34 @@ export type GroupMedia = {
   total: number;
 };
 
-export type TikTokPost = { id: number; url: string; account: string | null; at: string; created_by: string };
+/** A TikTok post: made by hand in TikTok's app and recorded with its link, or sent through TikTok's API (`mode`), whose
+ * link the member who sent it adds once it is on TikTok. */
+export type TikTokPost = {
+  id: number;
+  url: string | null;
+  account: string | null;
+  at: string;
+  created_by: string;
+  created_by_id: number;
+  status: "pending" | "published" | "cancelled";
+  /** "draft" (sent to the TikTok inbox) or "direct" for a post sent through TikTok's API; null for one posted by hand. */
+  mode: "draft" | "direct" | null;
+  privacy_level: string | null;
+};
+
+/** A member's TikTok account connected through TikTok's Login Kit; the tokens never leave the server. */
+export type TikTokConnection = {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  access_expires_at: string;
+  refresh_expires_at: string;
+  last_error: string | null;
+  /** TikTok revoked it or its refresh token ended: "Kết nối lại". */
+  needs_reconnect: boolean;
+  connected_at: string | null;
+};
 
 export type KnowledgeTopic = {
   id: number;
@@ -539,6 +570,9 @@ export type PageContent = {
   posts: PageContentPost[];
 };
 
+/** How a video is built (api videos.MODES): "single" is "Video xuyên suốt", one backdrop under every scene. */
+export type VideoMode = "slides" | "single";
+
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {
   voice_id: string;
@@ -571,6 +605,8 @@ export type VideoOptions = {
   title_text_size: "large" | "medium" | "small";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
+  /** "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it. */
+  voice_pause: 0.4 | 0.7 | 1;
 };
 
 /** One of the team's text box styles (Cài đặt, shared); a video copies its colours. */
@@ -942,6 +978,8 @@ export type AffiliateAccount = {
   active: boolean;
   report_read_at: string | null;
   report_error: string | null;
+  /** A TikTok account's connection through TikTok's API; null until "Kết nối TikTok", and for Shopee. */
+  tiktok_connection: TikTokConnection | null;
 };
 
 /** The member's own Shopee orders, by video and Page. */

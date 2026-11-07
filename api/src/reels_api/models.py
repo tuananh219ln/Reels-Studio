@@ -261,6 +261,10 @@ class Video(Base):
     # Where the video is made for: facebook (a Reel, Shopee links) or tiktok (posted by hand, TikTok Shop's cart). A
     # TikTok version is its own video, cloned from the Facebook one it names in `variant_of_id`.
     platform: Mapped[str] = mapped_column(String(16), default="facebook", server_default="facebook")
+    # How the video is built (videos.MODES): "slides", each scene over its own photo or clip; "single" ("Video xuyên
+    # suốt"), the title scene's photo or clip under every scene, a scene's own photo shown only as its photo layer.
+    # Switching keeps every photo, clip and layer, so switching back loses nothing.
+    mode: Mapped[str] = mapped_column(String(16), default="slides", server_default="slides")
     variant_of_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
     # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -361,7 +365,7 @@ class SceneLayer(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     scene_id: Mapped[int] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
     position: Mapped[int] = mapped_column(Integer, default=0)  # laid on in this order, the last on top
-    kind: Mapped[str] = mapped_column(String(8))  # "text" | "sticker"
+    kind: Mapped[str] = mapped_column(String(8))  # "text" | "sticker" | "photo"
     text: Mapped[str] = mapped_column(Text, default="")
     sticker: Mapped[str] = mapped_column(String(24), default="")
     start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene
@@ -430,7 +434,7 @@ class Job(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
     article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan | revise
-    # | article_caption
+    # | article_caption | motion | tiktok_publish
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -439,7 +443,8 @@ class Job(Base):
     scene_id: Mapped[int | None] = mapped_column(Integer)
     # The AI image provider of an image job ("cloudflare" | "gemini"), fixed when it is queued.
     image_provider: Mapped[str | None] = mapped_column(String(16))
-    publication_id: Mapped[int | None] = mapped_column(Integer)  # The post an unpublish job takes down.
+    # The post an unpublish job takes down, or the TikTok post a tiktok_publish job sends.
+    publication_id: Mapped[int | None] = mapped_column(Integer)
     # A render or motion job handed to a member's render machine (render_nodes.py): "ready" once the VPS has packed
     # what it needs, "taken" while a machine renders it; None for a job the worker runs itself. The job stays
     # `running` meanwhile, so the video stays locked and the worker's restart and exit checks leave it alone.
@@ -645,9 +650,14 @@ class Publication(Base):
     # Where each scene starts and ends in the MP4 sent as `remote_id` ({label, start, end} in seconds), taken when it
     # was uploaded, so the retention curve is read against the scenes that were posted, not later edits.
     scene_marks: Mapped[list | None] = mapped_column(JSONB)
-    # A TikTok post, made by hand in TikTok's app and recorded with its link: the member's TikTok account and the link.
+    # A TikTok post, made by hand in TikTok's app and recorded with its link, or sent through TikTok's API (`remote_id`
+    # is then TikTok's publish_id): the member's TikTok account and the link, which a member adds once it is posted.
     affiliate_account_id: Mapped[int | None] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="SET NULL"))
     post_url: Mapped[str | None] = mapped_column(Text)
+    # A TikTok post sent through the API: "draft" (to the member's TikTok inbox) or "direct"; None for any other post.
+    publish_mode: Mapped[str | None] = mapped_column(String(16))
+    # A direct post's privacy level, as TikTok names it (SELF_ONLY...); None for a draft and any other post.
+    privacy_level: Mapped[str | None] = mapped_column(String(32))
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
@@ -814,6 +824,46 @@ class AffiliateAccount(Base):
     # The worker's last reading of the account's orders (affiliate_rounds.py), and what went wrong then.
     report_read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     report_error: Mapped[str | None] = mapped_column(Text)
+
+
+class TikTokConnection(Base):
+    """A member's TikTok account connected through TikTok's Login Kit (tiktok_connections.py), on their TikTok
+    AffiliateAccount. Both tokens are encrypted like a Fanpage token (crypto.py) and never leave the server; TikTok
+    gives a new refresh token with every refresh, so both are saved over the old ones each time."""
+
+    __tablename__ = "tiktok_connections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    affiliate_account_id: Mapped[int] = mapped_column(
+        ForeignKey("affiliate_accounts.id", ondelete="CASCADE"), unique=True
+    )
+    open_id: Mapped[str] = mapped_column(String(100), unique=True)  # TikTok's id of the account, for this app
+    username: Mapped[str] = mapped_column(String(100))
+    display_name: Mapped[str] = mapped_column(String(200))
+    avatar_url: Mapped[str | None] = mapped_column(Text)
+    access_token_encrypted: Mapped[str] = mapped_column(Text)
+    refresh_token_encrypted: Mapped[str] = mapped_column(Text)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    refresh_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    scopes: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    # What went wrong refreshing the tokens (TikTok revoked them...): the member has to connect again.
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class TikTokOAuthState(Base):
+    """A "Kết nối TikTok" on its way through TikTok's authorize page: the hash of its `state`, the member who started
+    it, and when it lapses. Used once."""
+
+    __tablename__ = "tiktok_oauth_states"
+
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
 class AffiliateProduct(Base):

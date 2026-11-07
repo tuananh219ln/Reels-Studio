@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import affiliate, crypto, shopee
+from . import affiliate, crypto, shopee, tiktok_connections
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, AffiliateConversion, Fanpage, Publication, Session, Video
@@ -78,7 +78,8 @@ def _profile_url(value: str | None) -> str:
     return value
 
 
-def _payload(account: AffiliateAccount) -> dict:
+def _payload(db: DbSession, account: AffiliateAccount) -> dict:
+    connection = tiktok_connections.of_account(db, account.id) if account.platform == "tiktok" else None
     return {
         "id": account.id,
         "platform": account.platform,
@@ -90,6 +91,8 @@ def _payload(account: AffiliateAccount) -> dict:
         "active": account.active,
         "report_read_at": account.report_read_at.isoformat() if account.report_read_at else None,
         "report_error": account.report_error,
+        # The account's TikTok connection through TikTok's API (None until "Kết nối TikTok"); never a token.
+        "tiktok_connection": tiktok_connections.payload(connection),
     }
 
 
@@ -119,7 +122,7 @@ def _apply(account: AffiliateAccount, body: AccountBody) -> None:
 
 @router.get("")
 def list_accounts(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
-    return [_payload(account) for account in _mine(db, me)]
+    return [_payload(db, account) for account in _mine(db, me)]
 
 
 @router.post("", status_code=201)
@@ -130,7 +133,7 @@ def add_account(body: AccountBody, me: Session = Depends(current_member), db: Db
     _apply(account, body)
     db.add(account)
     db.commit()
-    return _payload(account)
+    return _payload(db, account)
 
 
 @router.put("/{account_id}")
@@ -140,7 +143,7 @@ def update_account(
     account = _own(db, account_id, me)
     _apply(account, body)
     db.commit()
-    return _payload(account)
+    return _payload(db, account)
 
 
 @router.delete("/{account_id}")
@@ -212,5 +215,5 @@ def revenue(days: int = 30, me: Session = Depends(current_member), db: DbSession
         "orders": len(rows),
         "commission": sum(row.commission for row in rows),
         "lines": lines,
-        "accounts": [_payload(account) for account in _mine(db, me) if account.platform == "shopee"],
+        "accounts": [_payload(db, account) for account in _mine(db, me) if account.platform == "shopee"],
     }

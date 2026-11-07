@@ -21,6 +21,8 @@ AUDIO_RATE = 48000
 # A clip's headers can lie about its size (H.264 may switch mid-stream); the decoder refuses larger frames.
 MAX_CLIP_PIXELS = 4096 * 2304
 MUSIC_FADE_SECONDS = 1.5
+# "Video xuyên suốt": each text box fades in and out over this, as the backdrop never changes.
+TEXT_FADE_SECONDS = 0.3
 # Ducking: the music drops to about a quarter while narration plays and comes back in 0.4 s.
 DUCKING = "sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400"
 
@@ -38,6 +40,9 @@ class SceneInput:
     color: str | None = None  # effects.COLOR_PRESETS; None: as shot
     music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
     video_sound: bool = False  # the clip's own sound is heard (the clip must have an audio stream)
+    loop: bool = False  # the clip starts again from its beginning when it ends (a backdrop clip)
+    # A backdrop photo's motion runs once over the whole video: (frames before this scene, frames of the video).
+    motion_span: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -92,22 +97,34 @@ def _layer_chains(layers: list[LayerInput], first_input: int, previous: str) -> 
     return chains, previous
 
 
-def zoom_expression(clip_frames: int, motion: str = "zoom_in", zoom_end: float = ZOOM_END) -> str:
+def _progress(clip_frames: int, span: tuple[int, int] | None) -> str:
+    """How far the motion has travelled at output frame `on`: over the clip, or from `span`'s first frame over its
+    whole length, so a backdrop photo split into scenes moves as one."""
+    if span is None:
+        return f"on/{clip_frames - 1}"
+    offset, total = span
+    return f"(on+{offset})/{max(total - 1, 1)}"
+
+
+def zoom_expression(
+    clip_frames: int, motion: str = "zoom_in", zoom_end: float = ZOOM_END, span: tuple[int, int] | None = None
+) -> str:
     """zoom_in: linear from 1.00 on the clip's first frame to zoom_end on its last; zoom_out the reverse; pan
-    holds zoom_end so there is room to travel sideways; static stays at 1.00."""
+    holds zoom_end so there is room to travel sideways; static stays at 1.00. With `span`, over the whole video."""
+    progress = _progress(clip_frames, span)
     if motion == "zoom_out":
-        return f"{zoom_end:.4f}-{zoom_end - 1:.4f}*on/{clip_frames - 1}"
+        return f"{zoom_end:.4f}-{zoom_end - 1:.4f}*{progress}"
     if motion == "pan":
         return f"{zoom_end:.4f}"
     if motion == "static":
         return "1"
-    return f"1+{zoom_end - 1:.4f}*on/{clip_frames - 1}"
+    return f"1+{zoom_end - 1:.4f}*{progress}"
 
 
-def _pan_x(clip_frames: int, motion: str) -> str:
+def _pan_x(clip_frames: int, motion: str, span: tuple[int, int] | None = None) -> str:
     """Centred, except a pan that travels from the left edge of the zoomed frame to the right."""
     if motion == "pan":
-        return f"(iw-iw/zoom)*on/{clip_frames - 1}"
+        return f"(iw-iw/zoom)*{_progress(clip_frames, span)}"
     return "iw/2-(iw/zoom/2)"
 
 
@@ -121,14 +138,19 @@ def _graded(color: str | None) -> str:
 
 
 def _photo_chain(
-    source: int, frames: int, label: str, options: RenderOptions = DEFAULT_OPTIONS, color: str | None = None
+    source: int,
+    frames: int,
+    label: str,
+    options: RenderOptions = DEFAULT_OPTIONS,
+    color: str | None = None,
+    span: tuple[int, int] | None = None,
 ) -> str:
     scale_w, scale_h = FRAME_WIDTH * PRESCALE, FRAME_HEIGHT * PRESCALE
-    zoom = zoom_expression(frames, options.motion, options.zoom_end)
+    zoom = zoom_expression(frames, options.motion, options.zoom_end, span)
     return (
         f"[{source}:v]scale={scale_w}:{scale_h}:force_original_aspect_ratio=increase:out_range=tv,"
         f"crop={scale_w}:{scale_h},format=yuv420p,setsar=1,"
-        f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion)}':y='ih/2-(ih/zoom/2)'"
+        f"zoompan=z='{zoom}':x='{_pan_x(frames, options.motion, span)}':y='ih/2-(ih/zoom/2)'"
         f":d={frames}:s={FRAME_WIDTH}x{FRAME_HEIGHT}:fps={FPS},"
         f"{_graded(color)}format=yuv420p[{label}]"
     )
@@ -156,8 +178,11 @@ def _boundary_transitions(count: int, options: RenderOptions, transitions: list[
 
 
 def all_cuts(options: RenderOptions, transitions: list[str | None]) -> bool:
-    """Whether every boundary is a hard cut, so the scenes join end to end and no clip plays before its scene."""
-    return all(name == "cut" for name in _boundary_transitions(len(transitions), options, transitions))
+    """Whether every boundary is a hard cut, so the scenes join end to end and no clip plays before its scene; a
+    backdrop video ("Video xuyên suốt") is always joined so."""
+    return options.backdrop or all(
+        name == "cut" for name in _boundary_transitions(len(transitions), options, transitions)
+    )
 
 
 def clip_lead(index: int, cut: bool) -> float:
@@ -180,6 +205,7 @@ def build_filter_graph(
     sounds: list[SoundInput] | None = None,
     music_levels: list[str | None] | None = None,
     clip_sounds: list[bool] | None = None,
+    spans: list[tuple[int, int] | None] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
@@ -188,7 +214,9 @@ def build_filter_graph(
     A scene's `transitions` entry replaces the video's transition into it, and its `colors` entry grades it.
     The `layers` pictures come last among the inputs and go on top, after the captions. The `sounds` are made in
     the graph itself and mixed over the music and narration; a scene's `music_levels` entry sets the music's level
-    for its seconds."""
+    for its seconds. With `options.backdrop` ("Video xuyên suốt") the scenes join by hard cuts whatever their
+    transitions, a `spans` entry runs a photo's motion over the whole video, and each text box (looped for its
+    scene's seconds) fades in, except the title's, which is the cover, and out, except the last scene's."""
     count = len(box_positions)
     clips = clips or [False] * count
     speeds = speeds or [1.0] * count
@@ -198,16 +226,22 @@ def build_filter_graph(
     # When every boundary is a hard cut the scenes join end to end, so each clip is exactly its scene; otherwise
     # every clip overlaps half a transition on each side of a boundary, and a cut among them is a one-frame fade at
     # the same offset, so the total length and every narration stay where the timeline put them.
-    cut = all(name == "cut" for name in boundaries)
+    cut = options.backdrop or all(name == "cut" for name in boundaries)
     lengths = timeline.scene_frames if cut else timeline.clip_frames
+    spans = spans or [None] * count
     chains: list[str] = []
     for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, lengths)):
         image, box = 2 * index, 2 * index + 1
         if clips[index]:
             chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index], colors[index]))
         else:
-            chains.append(_photo_chain(image, frames, f"bg{index}", options, colors[index]))
-        chains.append(f"[bg{index}][{box}:v]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
+            chains.append(_photo_chain(image, frames, f"bg{index}", options, colors[index], spans[index]))
+        text = f"{box}:v"
+        fades = _text_fades(index, count, frames) if options.backdrop else []
+        if fades:
+            chains.append(f"[{box}:v]format=rgba,{','.join(fades)}[t{index}]")
+            text = f"t{index}"
+        chains.append(f"[bg{index}][{text}]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
 
     if cut:
         joined = "".join(f"[v{index}]" for index in range(count))
@@ -274,6 +308,16 @@ def build_filter_graph(
         chains.append(f"[{bed}][{voice}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[{out}]")
     chains += _sound_chains(sounds or [], timeline.total_frames * AUDIO_RATE // FPS)
     return ";".join(chains)
+
+
+def _text_fades(index: int, count: int, frames: int) -> list[str]:
+    """A backdrop video's text box fades in at its scene's start (not the title's: the first frame is the cover) and
+    out before its end (not the last scene's, which the video ends on)."""
+    length = f"{TEXT_FADE_SECONDS:.3f}"
+    fades = [f"fade=t=in:st=0:d={length}:alpha=1"] if index > 0 else []
+    if index < count - 1:
+        fades.append(f"fade=t=out:st={max(0.0, frames / FPS - TEXT_FADE_SECONDS):.3f}:d={length}:alpha=1")
+    return fades
 
 
 def music_level_expression(timeline: Timeline, levels: list[str | None]) -> str | None:
@@ -368,11 +412,17 @@ def build_ffmpeg_args(
     music_start: float = 0.0,
 ) -> list[str]:
     argv = [ffmpeg, "-hide_banner", "-nostdin", "-v", "error", "-y"]
-    for scene in scenes:
+    for scene, frames in zip(scenes, timeline.scene_frames):
         if scene.video_start is not None:
+            if scene.loop:
+                argv += ["-stream_loop", "-1"]
             # Input seeking: the clip's first decoded frame is the one at the start time, as in the preview.
             argv += ["-ss", f"{scene.video_start:.3f}", "-max_pixels", str(MAX_CLIP_PIXELS)]
-        argv += ["-i", str(scene.image), "-i", str(scene.text_box)]
+        argv += ["-i", str(scene.image)]
+        if options.backdrop:
+            # Looped for the scene's seconds, so the text box has frames to fade on.
+            argv += ["-loop", "1", "-framerate", str(FPS), "-t", _seconds(frames)]
+        argv += ["-i", str(scene.text_box)]
     if music is not None:
         # Looped, and from where the member chose in the song.
         argv += ["-stream_loop", "-1", *(["-ss", f"{music_start:.3f}"] if music_start else []), "-i", str(music)]
@@ -399,6 +449,7 @@ def build_ffmpeg_args(
         sounds,
         [scene.music_level for scene in scenes],
         [scene.video_sound for scene in scenes],
+        [scene.motion_span for scene in scenes],
     )
     argv += [
         "-filter_complex",

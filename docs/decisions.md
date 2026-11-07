@@ -20,7 +20,7 @@ this is the first:
 1. **Footage cut by what is said** (this entry): a fifth way of "Từ video mẫu", `footage`, takes the member's own
    footage (the sample's link or upload and its limits: 100 MB, 3 minutes) and makes the scenes with no LLM call
    ([footage.py](../api/src/reels_api/footage.py)): ElevenLabs Speech-to-Text's words, each with its seconds (now
-   kept as `video_references.words`, migration 0053), split at pauses of 0.45 s and at fillers, each stretch one
+   kept as `video_references.words`, migration 0055), split at pauses of 0.45 s and at fillers, each stretch one
    scene of at most 10 s, the first 90 s kept, as a jump cut. The words are required here, unlike for a sample
    (2026-11-05, 2026-11-07): without them the job fails with the reason (no key, or the key's missing
    `speech_to_text` permission), since there is nothing to cut by.
@@ -40,6 +40,78 @@ This changes two logged rules, on purpose:
 
 A footage video is marked hand-written (no AI wrote its words, so none reviewed them), has narration off, hard
 cuts, word captions and ducking. A person watches a sample MP4 before this is called done, as for any render change.
+
+Merged after "Kiểu video" (same day): the migration is 0055, and over a backdrop ("Video xuyên suốt") the backdrop
+stays silent, so a scene's "Tiếng gốc" and clip words are not used there.
+
+## 2026-11-07 — "Kiểu video": slides or one backdrop ("Video xuyên suốt") with "Ảnh món" photo layers
+
+Asked by tuananh219ln from a spec written without the code ("Đặc tả code: 3 dạng video Reels", by Looper), who then
+left every open choice to the agent ("bạn tự quyết đi, code luôn"). Built on what exists instead of the spec's own
+model:
+
+- **Two modes, not three.** `videos.mode` is `slides` (as before) or `single`. The spec's third mode
+  (`single_overlay`) is `single` with a photo layer on the scenes that name a dish, so nothing has to be hidden
+  when switching between the two.
+- **The backdrop is the title scene's photo or clip**, not a new `masterMedia` field: every way of choosing a
+  picture (upload, stock, library, AI, a pasted link, crop, clip start and speed) already works on it, and the
+  first frame stays the cover, as before.
+- **"Ảnh món" is a photo layer** (`scene_layers.kind = "photo"`) showing its scene's own photo, not a JSON
+  `scene.overlay`: the studio's layers already have their place, seconds, entrance, drag and undo. Its frame and
+  width are named presets (three widths instead of the spec's 25–80% slider), keeping "never free size sliders"
+  (2026-11-01, 2026-11-05); the place stays free, as for text boxes. One per scene for now; more is a later step.
+  A product photo already cut out is supported (frame "Giữ nguyên"), as members find such photos (2026-11-07).
+- **The pause after narration** (0.4 / 0.7 / 1 s) is a video option for every video, with 0.4 s, today's pause,
+  the default, so no existing video changes; it sets the seconds of scenes that follow their narration and leaves
+  the render as it is. Seconds stay editable in every mode ("Tự khớp lời đọc" already follows the narration).
+- **Joins and loops:** hard cuts and text fades over a backdrop; a short clip loops with a plain cut at its seam;
+  a photo's motion runs once over the whole video.
+- **No flag:** the app has no feature flags, and the default (`slides`) changes nothing. A render machine on older
+  code refuses a backdrop video (the option is unknown to it) rather than rendering it wrong, and keeps rendering
+  slide videos.
+- **The AI is not called again** when its answer breaks the mode's rules (the spec's retry): every call costs, and a
+  stray keyword only adds a photo layer a member can turn off.
+
+Not built from the spec: the "Để AI chọn" mode, a timeline lane per layer type, a per-platform safe zone for the
+photo (the studio's existing zone applies), "Hiện từ giây N" on the card (the studio's layer start does it).
+A person watches a sample MP4 of each mode before this is called done, as for any render change.
+
+## 2026-11-07 — An /api endpoint the browser visits never answers with a redirect
+
+Found on production right after the TikTok connection shipped: "Kết nối TikTok" stopped on
+`/api/tiktok/oauth/start`, and TikTok's way back ended in a 404. The web's `/api` proxy on Cloudflare Workers follows
+a 3xx itself, on the api's side, instead of handing it to the browser (`next dev` hands it over, so local runs and
+E2E did not show it). So an endpoint a browser opens answers with data or a page, never a 3xx: "Kết nối TikTok" asks
+the api for TikTok's address and the page goes there itself, and the OAuth callback answers with a small page that
+sends the browser back to Tài khoản affiliate. The Redirect URI registered with TikTok is unchanged.
+
+## 2026-11-07 — TikTok through its API: each member connects their own account; a draft is the default
+
+Issue #46, brief [docs/specs/tiktok-posting/brief.md](specs/tiktok-posting/brief.md). The TikTok developer app
+"Reels Studio" (Login Kit + Content Posting API, scopes `user.info.basic`, `video.upload`, `video.publish`) is set up;
+its review needs a demo of the real integration, which this builds. Posting by hand ("Đã đăng tay") stays as it is.
+
+- **OAuth per member, the tokens are each member's own:** the tool is shared, the money is each member's (2026-10-31),
+  so a member connects and posts only their own TikTok accounts. One TikTok account (`open_id`) belongs to one member:
+  connecting one another member already connected is refused, never taken over. The unit owned is still the
+  Publication (video × platform × account).
+- **The connection hangs on the member's TikTok `AffiliateAccount`** (new table `tiktok_connections`), found by the
+  profile's username or made from it, so posting by hand and through the API share one idea of "the member's TikTok
+  account"; a Publication still names `affiliate_account_id`.
+- **A draft (`video.upload`, to the member's TikTok inbox) is the default; posting directly (`video.publish`) is the
+  option.** Until TikTok audits the app, a direct post is private only (`SELF_ONLY`, private accounts, 5 users a day),
+  and TikTok Shop's cart can only be attached in TikTok's app: the draft is the route that works for real today.
+- **A direct post always says `is_aigc = true`:** every video of the app is made with AI; TikTok asks for the label and
+  does not hold labelled posts back.
+- **No TikTok numbers in the app this round** (no `video.list` scope): TikTok's views are still noted by hand, and
+  `metrics.py` keeps leaving TikTok posts alone. TikTok's API gives no link to the post, so the member who sent it pastes
+  the link afterwards. No cart through the API (TikTok has none).
+- **The app's Client Key and Secret are in `.env`** (`TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`): they are the app's
+  identity, not a member's, unlike the keys members paste on the Cài đặt pages. The Sandbox's own pair goes in the same
+  two variables while the demo is recorded.
+- **Not posted twice:** TikTok's `publish_id` is saved before the upload, and "Thử lại" first asks TikTok about that
+  post; a new one is started only when TikTok holds no finished upload of it. A rate limit fails the job, never a retry
+  loop. A post that never reached TikTok (its job failed before the upload) is replaced by the next "Đăng lên TikTok".
 
 ## 2026-11-07 — "Từ video mẫu" learns from the stills when ElevenLabs will not write the words down
 
@@ -238,8 +310,9 @@ must follow Meta's, TikTok's and Shopee's rules and is the poster's responsibili
 Contact goes to the Page by message, as on `/privacy`.
 
 The TikTok developer app verifies the domain with a file served at its root, so
-`web/public/tiktokthafjQKP8W43JYUm5iG01Gsy3j5KIHeD.txt` is kept byte for byte as TikTok issued it (the login proxy
-already skips files with an extension). Delete it only if the TikTok app is removed.
+`web/public/tiktokBrAExctM9frGJD6lQkMHTFS9wAUMuami.txt` is kept byte for byte as TikTok issued it (the login proxy
+already skips files with an extension). Delete it only if the TikTok app is removed. It replaced the first file,
+`tiktokthafjQKP8W43JYUm5iG01Gsy3j5KIHeD.txt`, on 2026-11-07, when TikTok issued a new one.
 
 ## 2026-11-06 — A reel deleted on Facebook is known by the 400 (#100) Facebook answers, while the Page still reads
 

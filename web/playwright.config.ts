@@ -42,6 +42,10 @@ const BACKEND_ENV = {
   FACEBOOK_API_URL: `${FAKES_URL}/facebook`,
   SHOPEE_AFFILIATE_API_URL: `${FAKES_URL}/shopee/graphql`,
   SHOPEE_SHORT_LINK_URL: `${FAKES_URL}/shopee-short`,
+  // The fake TikTok's own app; TikTok's authorize page on www.tiktok.com is answered by the test itself.
+  TIKTOK_API_URL: `${FAKES_URL}/tiktok`,
+  TIKTOK_CLIENT_KEY: "fake-tiktok-client-key",
+  TIKTOK_CLIENT_SECRET: "fake-tiktok-client-secret",
   PYTHONUNBUFFERED: "1",
   PYTHONIOENCODING: "utf-8",
 };

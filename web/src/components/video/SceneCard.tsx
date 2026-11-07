@@ -53,6 +53,8 @@ import GroupMediaPicker from "./GroupMediaPicker";
 import MediaLibraryPicker from "./MediaLibraryPicker";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
+import PhotoLayerPanel from "./PhotoLayerPanel";
+import { photoLayer } from "./videoModes";
 import SceneViewer from "./SceneViewer";
 import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
@@ -175,10 +177,14 @@ export default function SceneCard({
   onDelete,
   onPreview,
   generating = false,
+  backdrop = false,
 }: {
   scene: SceneData;
   label: string;
   voiceEnabled: boolean;
+  /** "Video xuyên suốt": the title scene's picture is the backdrop of every scene; a content scene's own photo
+   * shows only as its "Ảnh món". */
+  backdrop?: boolean;
   /** An image job is making this scene's photo ("Tạo ảnh AI" on this card). */
   generating?: boolean;
   expanded: boolean;
@@ -191,6 +197,8 @@ export default function SceneCard({
   const editor = useEditor();
   const frozen = editor.locked || editor.readOnly;
   const patch = (body: ScenePatch) => patchScene(scene, body);
+  // Over a backdrop, a content scene's photo (and how to find it) matters only for its "Ảnh món".
+  const ownPicture = !backdrop || scene.is_title || Boolean(photoLayer(scene.layers));
 
   return (
     <Card
@@ -253,9 +261,15 @@ export default function SceneCard({
       <Row gutter={[16, 12]}>
         <Col xs={24} sm={9} md={8}>
           {/* On a phone the column is the full width: keep the 9:16 frame a thumbnail, centred. */}
-          <div style={{ maxWidth: 220, margin: "0 auto" }}>
-            <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} />
-          </div>
+          <Flex vertical gap={8} style={{ maxWidth: 220, margin: "0 auto" }}>
+            {backdrop && scene.is_title && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="backdrop-note">
+                Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
+              </Typography.Text>
+            )}
+            {backdrop && !scene.is_title && <PhotoLayerPanel scene={scene} />}
+            {ownPicture && <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} />}
+          </Flex>
         </Col>
         <Col xs={24} sm={15} md={16}>
           <Flex vertical gap={4}>
@@ -270,7 +284,7 @@ export default function SceneCard({
                 width={110}
                 save={async (text) => patch({ seconds: parseSeconds(text) })}
               />
-              {scene.video && (
+              {scene.video && ownPicture && (
                 <AutoSaveField
                   label="Bắt đầu từ giây"
                   value={String(scene.video.start)}
@@ -280,11 +294,13 @@ export default function SceneCard({
                   save={async (text) => patch({ video_start: parseSeconds(text) })}
                 />
               )}
-              <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                <SceneKeywordsField scene={scene} />
-              </div>
+              {ownPicture && (
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <SceneKeywordsField scene={scene} />
+                </div>
+              )}
             </Flex>
-            <ScenePromptField scene={scene} />
+            {ownPicture && <ScenePromptField scene={scene} />}
             <SceneIssues scene={scene} />
           </Flex>
         </Col>

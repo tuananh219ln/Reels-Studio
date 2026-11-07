@@ -59,6 +59,14 @@ forward it as a tip.
 
 ## Script Generation Contract
 
+A "Video xuyên suốt" (`videos.mode = "single"`) adds one more fixed block to the output format
+([claude.py](../api/src/reels_api/claude.py) `BACKDROP_FORMAT`): the title scene's keywords and photo prompt
+describe the backdrop of the whole video; a content scene writes photo keywords and a photo prompt only when it
+names a dish or product to be seen, and leaves them empty otherwise; on-screen text 4–8 words, narration 10–14
+words. Each scene with keywords gets a photo layer ("Ảnh món"), which "Tự tìm ảnh" fills like any scene photo. The
+answer is not called again when the AI fills keywords where it should not: a member turns that scene's "Ảnh món"
+off.
+
 One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Claude by default) returns JSON with:
 
 1. 5 title options, each ≤ 12 words and uppercase.

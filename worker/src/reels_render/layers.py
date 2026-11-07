@@ -1,4 +1,7 @@
-"""Text and sticker layers laid over a scene for their own seconds: each a named preset, drawn once as a picture.
+"""Text, sticker and photo layers laid over a scene for their own seconds: each a named preset, drawn once as a picture.
+
+A photo layer ("Ảnh món") shows its scene's own photo framed over a video with one backdrop ("Video xuyên suốt");
+the render lays it on only in that mode.
 
 The api draws the same picture for the studio's preview (GET /api/layers/{id}/image.png), so the phone shows exactly
 what the render overlays; only the entrance is played by CSS there. Keep the labels in step with
@@ -7,8 +10,9 @@ web/src/components/video/preview/layers.ts.
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter, ImageOps, UnidentifiedImageError
 
 from .markup import MarkupError, parse_scene_text
 from .textbox import (
@@ -45,6 +49,7 @@ class TextStyle(Named):
 class Size(Named):
     text: BoxStyle
     sticker: int  # the sticker's longest side, in frame pixels
+    photo: int  # a photo's width, in frame pixels (35%, 48% and 65% of the frame)
 
 
 TEXT_STYLES: dict[str, TextStyle] = {
@@ -56,10 +61,25 @@ TEXT_STYLES: dict[str, TextStyle] = {
 }
 
 SIZES: dict[str, Size] = {
-    "small": Size("Nhỏ", BoxStyle(max_size=48, min_size=36, max_lines=4), 160),
-    "medium": Size("Vừa", BoxStyle(max_size=64, min_size=44, max_lines=4), 240),
-    "large": Size("Lớn", BoxStyle(max_size=84, min_size=56, max_lines=3), 340),
+    "small": Size("Nhỏ", BoxStyle(max_size=48, min_size=36, max_lines=4), 160, 380),
+    "medium": Size("Vừa", BoxStyle(max_size=64, min_size=44, max_lines=4), 240, 520),
+    "large": Size("Lớn", BoxStyle(max_size=84, min_size=56, max_lines=3), 340, 700),
 }
+
+# How a photo layer is framed. Every frame but "plain" gets a white edge and a soft shadow; "plain" keeps the photo
+# as it is, for a product photo whose background is already transparent.
+PHOTO_SHAPES: dict[str, Named] = {
+    "rounded": Named("Bo góc"),
+    "circle": Named("Tròn"),
+    "square": Named("Vuông"),
+    "plain": Named("Giữ nguyên"),
+}
+PHOTO_EDGE = 6  # the white edge, in frame pixels
+PHOTO_SHADOW_PAD = 36  # room around the photo for its shadow
+PHOTO_SHADOW_DROP = 10
+PHOTO_SHADOW_BLUR = 14
+PHOTO_SHADOW_ALPHA = 0.45
+PHOTO_MAX_HEIGHT = 1100  # a tall photo is cut to this, so it never fills the frame from top to bottom
 
 STICKERS: dict[str, Named] = {
     "arrow_down": Named("Mũi tên xuống"),
@@ -85,7 +105,7 @@ ANIMATIONS: dict[str, Named] = {
 
 @dataclass(frozen=True)
 class Layer:
-    kind: str  # "text" or "sticker"
+    kind: str  # "text", "sticker" or "photo"
     text: str = ""
     sticker: str = ""
     start: float = 0.0  # seconds into its scene
@@ -93,8 +113,9 @@ class Layer:
     x: int = FRAME_WIDTH // 2  # its centre in the frame
     y: int = FRAME_HEIGHT // 2
     size: str = "medium"
-    style: str = "outline"  # text only
+    style: str = "outline"  # a text layer's TEXT_STYLES, a photo layer's PHOTO_SHAPES
     animation: str = "fade"
+    image: Path | None = None  # a photo layer's photo
 
 
 def render_layer(layer: Layer) -> Image.Image:
@@ -106,7 +127,65 @@ def render_layer(layer: Layer) -> Image.Image:
         except (MarkupError, TextFitError) as err:
             raise ValueError(str(err)) from None
         return render_box(layout, TEXT_STYLES[layer.style].palette)
+    if layer.kind == "photo":
+        if layer.image is None:
+            raise ValueError("lớp ảnh chưa có ảnh")
+        return render_photo(layer.image, SIZES[layer.size].photo, layer.style)
     return _sticker(layer.sticker, SIZES[layer.size].sticker)
+
+
+def render_photo(path: Path, width: int, shape: str) -> Image.Image:
+    """The photo `width` pixels wide in its frame: cut square for "circle" and "square", with a white edge and a
+    soft shadow below, transparent around it. Raises ValueError for a file that is not a photo."""
+    try:
+        with Image.open(path) as source:
+            source.load()
+            picture = ImageOps.exif_transpose(source).convert("RGBA")
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as err:
+        raise ValueError(f"ảnh hỏng hoặc không đọc được ({err})") from None
+    if shape in ("circle", "square"):
+        side = min(picture.size)
+        left, top = (picture.width - side) // 2, (picture.height - side) // 2
+        picture = picture.crop((left, top, left + side, top + side))
+    height = max(1, round(width * picture.height / picture.width))
+    if height > PHOTO_MAX_HEIGHT:
+        keep = round(picture.width * PHOTO_MAX_HEIGHT / width)
+        top = (picture.height - keep) // 2
+        picture, height = picture.crop((0, top, picture.width, top + keep)), PHOTO_MAX_HEIGHT
+    picture = picture.resize((width, height), Image.Resampling.LANCZOS)
+    if shape == "plain":
+        return picture
+    radius = {"circle": min(width, height) // 2, "square": 0}.get(shape, round(min(width, height) * 0.08))
+    outer = _shape_mask((width, height), radius, shape == "circle")
+    inner_size = (width - 2 * PHOTO_EDGE, height - 2 * PHOTO_EDGE)
+    inner = _shape_mask(inner_size, max(0, radius - PHOTO_EDGE), shape == "circle")
+    card = Image.new("RGBA", (width, height), (255, 255, 255, 255))
+    card.putalpha(outer)
+    photo = picture.convert("RGB").crop((PHOTO_EDGE, PHOTO_EDGE, width - PHOTO_EDGE, height - PHOTO_EDGE))
+    card.paste(photo, (PHOTO_EDGE, PHOTO_EDGE), inner)
+    pad = PHOTO_SHADOW_PAD
+    canvas = Image.new("RGBA", (width + 2 * pad, height + 2 * pad), (0, 0, 0, 0))
+    shadow = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    shadow.paste(
+        Image.new("RGBA", (width, height), (0, 0, 0, round(255 * PHOTO_SHADOW_ALPHA))),
+        (pad, pad + PHOTO_SHADOW_DROP),
+        outer,
+    )
+    canvas = Image.alpha_composite(canvas, shadow.filter(ImageFilter.GaussianBlur(PHOTO_SHADOW_BLUR)))
+    canvas.alpha_composite(card, (pad, pad))
+    return canvas
+
+
+def _shape_mask(size: tuple[int, int], radius: int, circle: bool) -> Image.Image:
+    """A smooth-edged mask of the shape: drawn SUPERSAMPLE times larger, then scaled down."""
+    big = (size[0] * SUPERSAMPLE, size[1] * SUPERSAMPLE)
+    mask = Image.new("L", big, 0)
+    draw = ImageDraw.Draw(mask)
+    if circle:
+        draw.ellipse((0, 0, big[0] - 1, big[1] - 1), fill=255)
+    else:
+        draw.rounded_rectangle((0, 0, big[0] - 1, big[1] - 1), radius=radius * SUPERSAMPLE, fill=255)
+    return mask.resize(size, Image.Resampling.LANCZOS)
 
 
 def layer_corner(width: int, height: int, centre: tuple[int, int]) -> tuple[int, int]:

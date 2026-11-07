@@ -114,6 +114,18 @@ Ví dụ đầy đủ:
 }"""
 
 
+# "Video xuyên suốt" (videos.MODES "single"): which fields are filled is part of the output format, so it is code.
+BACKDROP_FORMAT = """\
+KIỂU VIDEO: Video xuyên suốt. Cả video chạy trên MỘT ảnh hoặc video nền chung, là ảnh của cảnh tiêu đề; các cảnh chỉ đổi
+chữ và lời đọc.
+- "title_keywords", "title_keywords_en" và "title_image_prompt" tả cảnh nền đó: thứ chính của chủ đề (một nguyên liệu,
+  một món, một việc), chụp rộng, hợp làm nền dọc suốt video.
+- Cảnh nội dung không có ảnh nền riêng. Chỉ cảnh nào nêu tên một món ăn hay sản phẩm cụ thể cần thấy tận mắt mới điền
+  "keywords", "keywords_en" và "image_prompt" (ảnh món đó, đặt chồng lên nền). Cảnh nói về công dụng, lời khuyên hay
+  giải thích chung thì để "keywords": [], "keywords_en": [] và "image_prompt": "".
+- Mỗi cảnh: chữ trên màn hình ngắn (4–8 từ), lời đọc 10–14 từ."""
+
+
 class ClaudeError(Exception):
     """The LLM call failed or its answer was unusable; `message` is shown to members, `detail` is diagnostic.
 

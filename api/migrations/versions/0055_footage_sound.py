@@ -1,7 +1,7 @@
 """Edit từ footage: a scene's clip may keep its own sound, with the words it says; a sample keeps its timed words
 
-Revision ID: 0053
-Revises: 0052
+Revision ID: 0055
+Revises: 0054
 Create Date: 2026-11-07
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0053"
-down_revision = "0052"
+revision = "0055"
+down_revision = "0054"
 branch_labels = None
 depends_on = None
 

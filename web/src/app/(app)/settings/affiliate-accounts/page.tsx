@@ -1,7 +1,23 @@
 "use client";
 
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Form, Input, Popconfirm, Select, Space, Switch, Table, Tag, Typography } from "antd";
+import { DeleteOutlined, DisconnectOutlined, EditOutlined, LinkOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  Alert,
+  App,
+  Avatar,
+  Button,
+  Card,
+  Flex,
+  Form,
+  Input,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateAccount } from "@/lib/api";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
@@ -16,6 +32,7 @@ export default function AffiliateAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<AffiliateAccount | "new" | null>(null);
   const [checking, setChecking] = useState<number | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -31,6 +48,47 @@ export default function AffiliateAccountsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void reload();
   }, [reload]);
+
+  // Back from TikTok's consent page: say how the connection went, once, then drop it from the address.
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const outcome = query.get("tiktok");
+    if (outcome === "connected") {
+      message.success("Đã kết nối tài khoản TikTok");
+    } else if (outcome === "error") {
+      message.error(query.get("message") || "Không kết nối được TikTok, hãy thử lại");
+    }
+    if (outcome) {
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, [message]);
+
+  /** "Kết nối TikTok": the api gives TikTok's consent page, and the browser goes there itself; TikTok then sends it
+   * back here with ?tiktok=connected|error. Not a link to the api: the /api proxy in production follows redirects
+   * itself instead of handing them to the browser. */
+  async function connectTikTok() {
+    setConnecting(true);
+    try {
+      const { url } = await api<{ url: string }>("/tiktok/oauth/start");
+      window.location.assign(url);
+    } catch (err) {
+      message.error(errorMessage(err));
+      setConnecting(false);
+    }
+  }
+
+  async function disconnect(account: AffiliateAccount) {
+    if (!account.tiktok_connection) {
+      return;
+    }
+    try {
+      await api(`/tiktok/connections/${account.tiktok_connection.id}`, "DELETE");
+      message.success("Đã ngắt kết nối TikTok");
+      await reload();
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
 
   async function save(account: AffiliateAccount, changes: Partial<Fields> & { active?: boolean }) {
     try {
@@ -81,11 +139,16 @@ export default function AffiliateAccountsPage() {
     <Flex vertical gap={0}>
       <SettingsHeader
         title="Tài khoản affiliate"
-        description="Tài khoản affiliate là của riêng bạn. Shopee: App ID và Secret lấy trong trang Shopee Affiliate › Open API (mỗi người tự đăng ký); có chúng, app tự tìm sản phẩm theo gợi ý của kịch bản và tạo link riêng cho từng Fanpage của bạn. TikTok: tài khoản bạn đăng tay và gắn giỏ TikTok Shop."
+        description="Tài khoản affiliate là của riêng bạn. Shopee: App ID và Secret lấy trong trang Shopee Affiliate › Open API (mỗi người tự đăng ký); có chúng, app tự tìm sản phẩm theo gợi ý của kịch bản và tạo link riêng cho từng Fanpage của bạn. TikTok: tài khoản bạn gắn giỏ TikTok Shop; bấm Kết nối TikTok để app gửi video lên TikTok của bạn (nháp hoặc đăng thẳng)."
         actions={
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setTarget("new")}>
-            Thêm tài khoản
-          </Button>
+          <Space wrap>
+            <Button icon={<LinkOutlined />} loading={connecting} onClick={connectTikTok}>
+              Kết nối TikTok
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setTarget("new")}>
+              Thêm tài khoản
+            </Button>
+          </Space>
         }
       />
       <Card styles={{ body: { padding: 0 } }}>
@@ -115,6 +178,7 @@ export default function AffiliateAccountsPage() {
                       {account.profile_url}
                     </a>
                   )}
+                  {account.platform === "tiktok" && <TikTokConnectionState account={account} />}
                   {account.report_error && <Typography.Text type="warning">{account.report_error}</Typography.Text>}
                   {account.report_read_at && (
                     <Typography.Text type="secondary">
@@ -139,7 +203,7 @@ export default function AffiliateAccountsPage() {
             {
               title: "Thao tác",
               key: "actions",
-              width: 260,
+              width: 320,
               render: (_, account) => (
                 <Space wrap>
                   {account.platform === "shopee" && (
@@ -147,6 +211,22 @@ export default function AffiliateAccountsPage() {
                       Kiểm tra kết nối
                     </Button>
                   )}
+                  {account.platform === "tiktok" &&
+                    (account.tiktok_connection && !account.tiktok_connection.needs_reconnect ? (
+                      <Popconfirm
+                        title="Ngắt kết nối TikTok?"
+                        description="App sẽ không gửi video lên tài khoản này nữa. Bài đã đăng không bị đụng tới."
+                        okText="Ngắt kết nối"
+                        cancelText="Huỷ"
+                        onConfirm={() => disconnect(account)}
+                      >
+                        <Button icon={<DisconnectOutlined />}>Ngắt kết nối</Button>
+                      </Popconfirm>
+                    ) : (
+                      <Button icon={<LinkOutlined />} loading={connecting} onClick={connectTikTok}>
+                        {account.tiktok_connection ? "Kết nối lại" : "Kết nối TikTok"}
+                      </Button>
+                    ))}
                   <Button
                     aria-label={`Sửa ${account.name}`}
                     icon={<EditOutlined />}
@@ -177,6 +257,39 @@ export default function AffiliateAccountsPage() {
         }}
       />
     </Flex>
+  );
+}
+
+/** A TikTok account's connection through TikTok's API: who it is, how long it lasts, and whether to connect again. */
+function TikTokConnectionState({ account }: { account: AffiliateAccount }) {
+  const connection = account.tiktok_connection;
+  if (!connection) {
+    return (
+      <Typography.Text type="secondary" data-testid="tiktok-connection">
+        Chưa kết nối TikTok: chỉ ghi được bài đăng tay
+      </Typography.Text>
+    );
+  }
+  if (connection.needs_reconnect) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        data-testid="tiktok-connection"
+        title={`Kết nối TikTok @${connection.username} đã hết hạn, hãy bấm Kết nối lại`}
+        description={connection.last_error ?? undefined}
+      />
+    );
+  }
+  return (
+    <Space size={6} data-testid="tiktok-connection">
+      <Avatar size="small" src={connection.avatar_url ?? undefined}>
+        {connection.display_name.slice(0, 1)}
+      </Avatar>
+      <Typography.Text>
+        Đã kết nối @{connection.username}, còn hạn tới {formatDateTime(connection.refresh_expires_at)}
+      </Typography.Text>
+    </Space>
   );
 }
 

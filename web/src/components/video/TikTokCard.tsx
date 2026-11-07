@@ -1,13 +1,38 @@
 "use client";
 
-import { CopyOutlined, DeleteOutlined } from "@ant-design/icons";
-import { App, Button, Card, Checkbox, Flex, Form, Input, Popconfirm, Select, Typography } from "antd";
+import { CopyOutlined, DeleteOutlined, SendOutlined } from "@ant-design/icons";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Checkbox,
+  Flex,
+  Form,
+  Input,
+  Popconfirm,
+  Radio,
+  Select,
+  Tag,
+  Typography,
+} from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type AffiliateAccount, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, formatDateTime, type AffiliateAccount, type TikTokPost, type VideoDetail } from "@/lib/api";
+import { useMe } from "@/components/MeContext";
 import { useEditor } from "./AutoSaveField";
 
-/** What to do in TikTok's app, which the app cannot do for it: TikTok's API posting waits for issue #46. */
+/** TikTok's privacy levels; the job checks the one picked against what TikTok allows the account. */
+const PRIVACY_LEVELS = [
+  { value: "SELF_ONLY", label: "Chỉ mình tôi" },
+  { value: "MUTUAL_FOLLOW_FRIENDS", label: "Bạn bè" },
+  { value: "FOLLOWER_OF_CREATOR", label: "Người theo dõi" },
+  { value: "PUBLIC_TO_EVERYONE", label: "Công khai" },
+];
+
+type PublishFields = { account_id: number; mode: "draft" | "direct"; privacy_level: string };
+
+/** What to do in TikTok's app, which the app cannot do for it: TikTok's API cannot attach TikTok Shop's cart. */
 const CHECKLIST = [
   "Bật nhãn “Nội dung do AI tạo” (AIGC) khi đăng",
   "Gắn giỏ TikTok Shop với sản phẩm bên dưới, từ tài khoản TikTok của bạn",
@@ -15,15 +40,22 @@ const CHECKLIST = [
   "Chọn nhạc trong thư viện của TikTok, không mang nhạc từ nơi khác",
 ];
 
-/** The TikTok version's posting kit: the MP4, the caption, the products for the cart, a checklist, then "Đã đăng
- * tay" records the post a member made in TikTok's app, on one of their own TikTok accounts. */
+/** The TikTok version's posting kit: the MP4, the caption, the products for the cart, a checklist, then either
+ * "Đăng lên TikTok" (sent through TikTok's API with the member's own connection: a draft to their TikTok inbox, or
+ * posted directly) or "Đã đăng tay", which records a post made in TikTok's app, on one of their own accounts. */
 export default function TikTokCard({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const { onSaved } = useEditor();
   const [accounts, setAccounts] = useState<AffiliateAccount[] | null>(null);
   const [products, setProducts] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
   const [form] = Form.useForm<{ account_id: number; url: string }>();
+  const [publishForm] = Form.useForm<PublishFields>();
+  const mode = Form.useWatch("mode", publishForm) ?? "draft";
+  const connected = (accounts ?? []).filter(
+    (account) => account.tiktok_connection && !account.tiktok_connection.needs_reconnect,
+  );
 
   useEffect(() => {
     let live = true;
@@ -66,6 +98,24 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
     }
   }
 
+  async function publish(fields: PublishFields) {
+    setSending(true);
+    try {
+      onSaved(
+        await api<VideoDetail>(`/tiktok/videos/${video.id}/publish`, "POST", {
+          account_id: fields.account_id,
+          mode: fields.mode,
+          privacy_level: fields.mode === "direct" ? fields.privacy_level : null,
+        }),
+      );
+      message.success(fields.mode === "draft" ? "Đang gửi nháp lên TikTok" : "Đang đăng lên TikTok");
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function remove(postId: number) {
     try {
       onSaved(await api<VideoDetail>(`/tiktok/posts/${postId}`, "DELETE"));
@@ -75,10 +125,11 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
   }
 
   return (
-    <Card title="Đăng TikTok (đăng tay)" size="small" data-testid="tiktok-card">
+    <Card title="Đăng TikTok" size="small" data-testid="tiktok-card">
       <Flex vertical gap={12}>
         <Typography.Text type="secondary">
-          Tải MP4 về điện thoại rồi đăng trong app TikTok. App chưa tự đăng lên TikTok được.
+          Gửi video lên TikTok của bạn (Nháp: video vào hộp thư TikTok, bạn gắn giỏ + nhãn AI rồi bấm đăng trong app),
+          hoặc tải MP4 về điện thoại rồi đăng tay.
         </Typography.Text>
         <Flex wrap gap={8}>
           <Button icon={<CopyOutlined />} onClick={() => copy(video.post_text, "caption + hashtag")}>
@@ -111,6 +162,72 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
             <Checkbox key={item}>{item}</Checkbox>
           ))}
         </Flex>
+        <Form
+          form={publishForm}
+          layout="vertical"
+          requiredMark={false}
+          initialValues={{ mode: "draft", privacy_level: "SELF_ONLY" }}
+          onFinish={publish}
+          data-testid="tiktok-publish"
+        >
+          <Typography.Text strong>Đăng lên TikTok</Typography.Text>
+          {accounts !== null && connected.length === 0 ? (
+            <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0" }}>
+              Chưa có tài khoản TikTok nào đã kết nối. Bấm Kết nối TikTok ở{" "}
+              <Link href="/settings/affiliate-accounts">Cấu hình › Tài khoản affiliate</Link>.
+            </Typography.Paragraph>
+          ) : (
+            <Flex vertical gap={8} style={{ marginTop: 4 }}>
+              <Flex wrap gap={8} align="center">
+                <Form.Item name="account_id" rules={[{ required: true, message: "Chọn tài khoản" }]} noStyle>
+                  <Select
+                    aria-label="Tài khoản TikTok đã kết nối"
+                    placeholder="Tài khoản TikTok"
+                    loading={accounts === null}
+                    options={connected.map((account) => ({
+                      value: account.id,
+                      label: `${account.name} (@${account.tiktok_connection?.username})`,
+                    }))}
+                    style={{ width: 240 }}
+                  />
+                </Form.Item>
+                <Form.Item name="mode" noStyle>
+                  <Radio.Group
+                    optionType="button"
+                    options={[
+                      { value: "draft", label: "Nháp" },
+                      { value: "direct", label: "Đăng thẳng" },
+                    ]}
+                  />
+                </Form.Item>
+              </Flex>
+              {mode === "direct" && (
+                <>
+                  <Form.Item name="privacy_level" noStyle>
+                    <Select aria-label="Mức riêng tư" options={PRIVACY_LEVELS} style={{ width: 240 }} />
+                  </Form.Item>
+                  <Alert
+                    type="warning"
+                    showIcon
+                    title="App chưa qua duyệt TikTok: hiện chỉ đăng được ở chế độ riêng tư (Chỉ mình tôi) lên tài khoản đang để private"
+                    description="Đăng thẳng không gắn được giỏ TikTok Shop; video được gắn nhãn “Nội dung do AI tạo”."
+                  />
+                </>
+              )}
+              <div>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  icon={<SendOutlined />}
+                  loading={sending}
+                  disabled={!video.mp4 || video.locked}
+                >
+                  Đăng lên TikTok
+                </Button>
+              </div>
+            </Flex>
+          )}
+        </Form>
         <Form form={form} layout="vertical" requiredMark={false} onFinish={record}>
           <Typography.Text strong>Đã đăng tay</Typography.Text>
           {accounts !== null && accounts.length === 0 ? (
@@ -143,27 +260,81 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
           )}
         </Form>
         {video.tiktok_posts.map((post) => (
-          <Flex key={post.id} justify="space-between" align="center" gap={8} data-testid="tiktok-post">
-            <Flex vertical gap={0} style={{ minWidth: 0 }}>
-              <a href={post.url} target="_blank" rel="noreferrer">
-                {post.account ?? "TikTok"}
-              </a>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {formatDateTime(post.at)}, {post.created_by}
-              </Typography.Text>
-            </Flex>
-            <Popconfirm
-              title="Xoá bài này khỏi app?"
-              description="Bài trên TikTok không bị đụng tới."
-              okText="Xoá"
-              cancelText="Huỷ"
-              onConfirm={() => remove(post.id)}
-            >
-              <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label="Xoá bài TikTok" />
-            </Popconfirm>
-          </Flex>
+          <TikTokPostRow key={post.id} post={post} videoId={video.id} onRemove={() => remove(post.id)} />
         ))}
       </Flex>
     </Card>
+  );
+}
+
+const MODE_LABELS = { draft: "Nháp TikTok", direct: "Đăng thẳng" } as const;
+const STATUS_LABELS = { pending: "Đang gửi", published: null, cancelled: "Đã hủy" } as const;
+
+/** One TikTok post: its account and link; one sent through TikTok's API also its way ("Nháp TikTok" / "Đăng thẳng"),
+ * and, once on TikTok, a box where the member who sent it adds its link (TikTok's API does not give it). */
+function TikTokPostRow({ post, videoId, onRemove }: { post: TikTokPost; videoId: number; onRemove: () => void }) {
+  const { message } = App.useApp();
+  const { onSaved } = useEditor();
+  const { me } = useMe();
+  const [url, setUrl] = useState("");
+  const [saving, setSaving] = useState(false);
+  const status = STATUS_LABELS[post.status];
+
+  async function addUrl() {
+    setSaving(true);
+    try {
+      onSaved(await api<VideoDetail>(`/tiktok/posts/${post.id}/url`, "POST", { url }));
+      setUrl("");
+      message.success("Đã gắn link bài TikTok");
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Flex vertical gap={4} data-testid="tiktok-post" data-video={videoId}>
+      <Flex justify="space-between" align="center" gap={8}>
+        <Flex vertical gap={0} style={{ minWidth: 0 }}>
+          <Flex wrap gap={4} align="center">
+            {post.url ? (
+              <a href={post.url} target="_blank" rel="noreferrer">
+                {post.account ?? "TikTok"}
+              </a>
+            ) : (
+              <Typography.Text>{post.account ?? "TikTok"}</Typography.Text>
+            )}
+            {post.mode && <Tag color={post.mode === "draft" ? "blue" : "magenta"}>{MODE_LABELS[post.mode]}</Tag>}
+            {status && <Tag>{status}</Tag>}
+          </Flex>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {formatDateTime(post.at)}, {post.created_by}
+          </Typography.Text>
+        </Flex>
+        <Popconfirm
+          title="Xoá bài này khỏi app?"
+          description="Bài trên TikTok không bị đụng tới."
+          okText="Xoá"
+          cancelText="Huỷ"
+          onConfirm={onRemove}
+        >
+          <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label="Xoá bài TikTok" />
+        </Popconfirm>
+      </Flex>
+      {post.mode && post.status === "published" && !post.url && post.created_by_id === me.id && (
+        <Flex gap={8}>
+          <Input
+            aria-label="Link bài TikTok đã đăng"
+            placeholder="Dán link bài sau khi đăng: https://www.tiktok.com/@ten-kenh/video/…"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+          />
+          <Button onClick={addUrl} loading={saving} disabled={!url.trim()}>
+            Gắn link
+          </Button>
+        </Flex>
+      )}
+    </Flex>
   );
 }
