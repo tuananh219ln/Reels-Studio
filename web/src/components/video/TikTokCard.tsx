@@ -40,7 +40,8 @@ const CHECKLIST = [
   "Chọn nhạc trong thư viện của TikTok, không mang nhạc từ nơi khác",
 ];
 
-/** The TikTok version's posting kit: the MP4, the caption, the products for the cart, a checklist, then either
+/** The TikTok posting kit of any video (a TikTok version, or a Facebook video's own MP4): the caption, the products
+ * for the cart, a checklist, then either
  * "Đăng lên TikTok" (sent through TikTok's API with the member's own connection: a draft to their TikTok inbox, or
  * posted directly) or "Đã đăng tay", which records a post made in TikTok's app, on one of their own accounts. */
 export default function TikTokCard({ video }: { video: VideoDetail }) {
@@ -149,10 +150,17 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
                 <li key={name}>{name}</li>
               ))}
             </ul>
-          ) : (
+          ) : video.platform === "tiktok" ? (
             <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
               Chưa chọn sản phẩm TikTok Shop (ở thẻ Nội dung đăng). Có thể tìm trong mục “Thêm sản phẩm” của app TikTok
               theo từ khoá: {video.affiliates.join(", ") || "—"}.
+            </Typography.Paragraph>
+          ) : (
+            // A Facebook video's MP4 on TikTok: its products are Shopee's, the cart is set in TikTok's app.
+            <Typography.Paragraph type="secondary" style={{ margin: 0 }} data-testid="tiktok-from-facebook">
+              Video Facebook dùng sản phẩm Shopee, nên giỏ TikTok Shop gắn trong app TikTok theo từ khoá:{" "}
+              {video.affiliates.join(", ") || "—"}. Muốn kịch bản và sản phẩm riêng cho TikTok thì dùng “Tạo bản
+              TikTok”.
             </Typography.Paragraph>
           )}
         </div>

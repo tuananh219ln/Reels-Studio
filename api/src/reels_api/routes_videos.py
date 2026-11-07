@@ -1134,7 +1134,13 @@ def delete_scene(
 
 
 def _store_photo(
-    db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str, source: str | None
+    db: DbSession,
+    storage: DirectoryStorage,
+    scene_id: int,
+    data: bytes,
+    extension: str,
+    source: str | None,
+    auto: bool = False,
 ) -> dict:
     """Store a photo in place of the scene's photo or clip; `source` None keeps the photo's source (a crop of it)."""
     video, scene = lock_scene(db, scene_id)
@@ -1150,8 +1156,9 @@ def _store_photo(
     key = new_key(video.id, f"scene-{scene.id}", extension)
     storage.save_bytes(key, data)
     scene.image_key, scene.image_source, scene.image_error = key, source, None
-    # A member chose, uploaded or cropped this photo: it is no longer the app's unchecked pick.
-    scene.image_auto = False
+    # A member chose, uploaded or cropped this photo: it is no longer the app's unchecked pick. A photo the extension
+    # picked from Google is one, until a member looks at it.
+    scene.image_auto = auto
     # A photo replaces the scene's clip: a scene shows one or the other.
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
     # A new or removed clip has no sound of its own heard, nor words ("Edit từ footage").
@@ -1183,6 +1190,9 @@ def upload_scene_image(
 
 class MediaLinkBody(BaseModel):
     url: str
+    # "Lấy ảnh Google cho cảnh thiếu ảnh" (the team's Chrome extension): the app's own pick, not the member's. A
+    # stock photo site is refused so the page tries the next result, and the photo is marked "Tự chọn, kiểm tra lại".
+    auto: bool = False
 
 
 class ReuseBody(BaseModel):
@@ -1296,7 +1306,10 @@ def media_from_url(
 ) -> dict:
     """A photo or clip pasted as a link or dragged from another tab (Google Ảnh, a shop, a video file, a TikTok
     video): downloaded here and stored like an upload. A photo keeps its link as the source so a copyright claim can
-    be traced back; a clip longer than a minute keeps its first minute."""
+    be traced back; a clip longer than a minute keeps its first minute. With `auto` (a pick of the Chrome extension
+    from Google Ảnh) a stock photo site is refused with `stock_photo`, so the page tries the next result."""
+    if body.auto and (site := stock_site(body.url)):
+        raise ApiError(422, "stock_photo", f"Ảnh của {site} có watermark và cần bản quyền, không tự chọn")
     video, _ = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     # No row lock may be held while the other site answers; the saves lock and re-check everything.
@@ -1308,7 +1321,7 @@ def media_from_url(
             raise invalid(str(err)) from None
         if media.photo is not None:
             data, extension = media.photo
-            payload = _store_photo(db, storage, scene_id, data, extension, body.url.strip())
+            payload = _store_photo(db, storage, scene_id, data, extension, body.url.strip(), auto=body.auto)
             if site := stock_site(body.url):
                 payload["notice"] = (
                     f"Ảnh này lấy từ {site}: ảnh xem trước thường có watermark và cần mua bản quyền. "
@@ -1316,6 +1329,8 @@ def media_from_url(
                 )
             return payload
         assert media.clip is not None
+        if body.auto:
+            raise ApiError(422, "not_a_photo", "Link này là video, không phải ảnh")
         try:
             clip = clips.first_part(media.clip, Path(folder))
         except UploadRejected as err:

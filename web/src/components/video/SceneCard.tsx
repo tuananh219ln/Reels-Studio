@@ -42,6 +42,7 @@ import {
 } from "antd";
 import { cloneElement, useEffect, useRef, useState } from "react";
 import { api, errorMessage, upload, type SceneData, type StockSource, type VideoDetail } from "@/lib/api";
+import { setGoogleTarget, useSentImage } from "@/lib/googleExtension";
 import {
   fileFromDataUrl,
   googleImagesUrl,
@@ -584,6 +585,10 @@ export function ScenePicture({
   /** "Tìm trên Google" / "Tìm trên TikTok": the keyword being typed is saved first, then the site opens in a tab. */
   async function search(url: (keyword: string) => string, keyword: string) {
     await editor.flush();
+    if (url === googleImagesUrl) {
+      // With the Chrome extension, "Gửi ảnh vào Reels Studio" on an image's menu now sends to this scene.
+      setGoogleTarget(scene.id, `${scene.is_title ? "Cảnh tiêu đề" : "Cảnh"} “${keyword}”`);
+    }
     window.open(url(keyword), "_blank", "noopener");
   }
 
@@ -611,6 +616,9 @@ export function ScenePicture({
     setPastedLink("");
     setPasting(true);
   }
+
+  // "Gửi ảnh vào Reels Studio" from Google Ảnh (the Chrome extension) arrives like a pasted link.
+  useSentImage(scene.id, (url) => void fromLink(url));
 
   /** "Tạo ảnh AI" for this scene; `provider` when picked from the arrow, the team's default otherwise. */
   function generate(provider?: "cloudflare" | "gemini") {
@@ -950,7 +958,7 @@ export function ScenePicture({
             <SiteSearch
               label="Tìm trên Google"
               icon={<GoogleOutlined />}
-              tip="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa bạn chọn; sao chép ảnh ưng ý rồi quay lại dán vào đây"
+              tip="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa bạn chọn; sao chép ảnh ưng ý rồi quay lại dán vào đây (có tiện ích Chrome của nhóm thì chuột phải vào ảnh, chọn “Gửi ảnh vào Reels Studio”)"
               keywords={googleKeywords}
               disabled={off}
               onSearch={(keyword) => void search(googleImagesUrl, keyword)}

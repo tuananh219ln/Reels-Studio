@@ -93,7 +93,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   expect(download.headers()["content-disposition"]).toContain("attachment");
 
   await openPublish(page);
-  await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveAttribute("href", /facebook\.com\/reel\//);
 
@@ -129,7 +129,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await openPublish(page);
   await page.getByRole("radio", { name: "Hẹn giờ" }).click();
   await page.getByLabel("Giờ đăng").fill(vietnamTimeIn(2));
-  await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("button", { name: "Đăng", exact: true }).click();
   await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
 
   // Opened again, a rendered video is in view mode: scenes closed, nothing to change by a stray click.
@@ -901,7 +901,7 @@ async function renderedVideo(page: Page) {
 
 async function openPublish(page: Page) {
   // The button's name includes its icon's label.
-  await page.getByRole("button", { name: "send Đăng", exact: true }).click();
+  await page.getByRole("button", { name: "send Đăng bài", exact: true }).click();
 }
 
 /** A `datetime-local` value some hours from now: "Giờ đăng" is read as Vietnam time, not the browser's. */
@@ -910,8 +910,42 @@ function vietnamTimeIn(hours: number) {
 }
 
 async function confirmPost(page: Page) {
-  await page.getByRole("dialog", { name: "Đăng video" }).getByRole("button", { name: "Đăng", exact: true }).click();
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("button", { name: "Đăng", exact: true }).click();
 }
+
+test("Đăng bài: a Facebook video's MP4 goes to TikTok and YouTube Shorts from one drawer", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  await openPublish(page);
+  const drawer = page.getByRole("dialog", { name: "Đăng bài" });
+  // A Facebook video opens on Facebook; every platform is a tab of the same drawer.
+  await expect(drawer.getByRole("tab", { name: "Facebook" })).toHaveAttribute("aria-selected", "true");
+  await expect(drawer.getByLabel("Fanpage")).toBeVisible();
+
+  // TikTok takes the Facebook video's own MP4; its Shopee products do not go in TikTok's cart.
+  await drawer.getByRole("tab", { name: "TikTok" }).click();
+  await expect(drawer.getByTestId("tiktok-from-facebook")).toContainText("Tạo bản TikTok");
+  // Sending needs a connected TikTok account (none here); the form says where to connect one.
+  await expect(drawer.getByTestId("tiktok-publish")).toContainText("Chưa có tài khoản TikTok nào đã kết nối");
+
+  // YouTube Shorts is posted by hand and recorded with its link; the drawer has no "Đăng" button for it.
+  await drawer.getByRole("tab", { name: "YouTube Shorts" }).click();
+  await expect(drawer.getByRole("button", { name: "Đăng", exact: true })).toHaveCount(0);
+  const youtube = drawer.getByTestId("manual-post-youtube");
+  await youtube.getByLabel("Link bài YouTube Shorts").fill("https://evil.vn/shorts/AbCdEf12345");
+  await youtube.getByRole("button", { name: "Ghi bài đã đăng" }).click();
+  await expect(page.getByText("Link YouTube phải có dạng")).toBeVisible();
+  await youtube.getByLabel("Link bài YouTube Shorts").fill("https://youtube.com/shorts/AbCdEf12345");
+  await youtube.getByRole("button", { name: "Ghi bài đã đăng" }).click();
+  await expect(youtube.getByTestId("manual-post")).toHaveCount(1);
+  await expect(drawer.getByRole("tab", { name: "YouTube Shorts (1)" })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // The video's posts on every platform are listed together, and its card says where else it is out.
+  await expect(page.getByTestId("other-post")).toContainText("YouTube Shorts");
+  await page.getByRole("menuitem", { name: "Video" }).click();
+  await expect(page.getByTestId("video-elsewhere").first()).toHaveText("+ YouTube");
+});
 
 test("a posted video appears in Bài đăng and its calendar", async ({ page }) => {
   test.setTimeout(240_000);
@@ -1080,7 +1114,7 @@ test("a rendered video waits in Sẵn sàng đăng until its Đăng there posts 
 
   // "Đăng" opens the video with its dialog open and the only Page picked; the address drops the request.
   await ready.getByRole("link", { name: "Đăng" }).click();
-  const dialog = page.getByRole("dialog", { name: "Đăng video" });
+  const dialog = page.getByRole("dialog", { name: "Đăng bài" });
   await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(videoUrl);
   await expect(dialog.getByLabel("Fanpage")).toBeVisible();

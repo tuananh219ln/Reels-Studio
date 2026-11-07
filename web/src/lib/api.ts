@@ -56,6 +56,8 @@ export type VideoRow = {
   variant_of_id: number | null;
   /** A TikTok post of it was recorded ("Đã đăng tay"). */
   tiktok_posted: boolean;
+  /** Every platform the video is out on (Facebook from its live posts), in the app's order. */
+  posted_on: ("facebook" | "tiktok" | "youtube" | "instagram")[];
   /** A TikTok version was made from it; a Facebook clone ("Nhân bản", a version for another Page) was made from it. */
   has_tiktok_version: boolean;
   cloned: boolean;
@@ -292,6 +294,8 @@ export type VideoDetail = VideoRow & {
   variants: VideoLink[];
   /** TikTok posts, made by hand or sent through TikTok's API, newest first. */
   tiktok_posts: TikTokPost[];
+  /** YouTube Shorts and Instagram Reels, posted by hand from the same MP4 and recorded with their link. */
+  manual_posts: ManualPost[];
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
   pinned_comment: string;
@@ -405,6 +409,16 @@ export type GroupMedia = {
 
 /** A TikTok post: made by hand in TikTok's app and recorded with its link, or sent through TikTok's API (`mode`), whose
  * link the member who sent it adds once it is on TikTok. */
+export type ManualPost = {
+  id: number;
+  platform: "youtube" | "instagram";
+  platform_label: string;
+  url: string | null;
+  at: string;
+  created_by: string;
+  created_by_id: number;
+};
+
 export type TikTokPost = {
   id: number;
   url: string | null;

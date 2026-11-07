@@ -548,6 +548,37 @@ def tiktok_posts_of(db: DbSession, video_id: int) -> list[Publication]:
     )
 
 
+# Platforms a video is posted to only by hand, its post recorded with its link (routes_manual_posts.py).
+MANUAL_PLATFORMS = {"youtube": "YouTube Shorts", "instagram": "Instagram Reels"}
+
+
+# Every platform a video's MP4 may be posted to, in the order the app lists them.
+POST_PLATFORMS = ("facebook", "tiktok", "youtube", "instagram")
+
+
+def manual_posts_of(db: DbSession, video_id: int) -> list[Publication]:
+    """The video's posts on YouTube Shorts and Instagram Reels, recorded by hand, newest first."""
+    return list(
+        db.scalars(
+            select(Publication)
+            .where(Publication.video_id == video_id, Publication.platform.in_(MANUAL_PLATFORMS))
+            .order_by(Publication.id.desc())
+        )
+    )
+
+
+def manual_post_payload(post: Publication) -> dict:
+    return {
+        "id": post.id,
+        "platform": post.platform,
+        "platform_label": MANUAL_PLATFORMS[post.platform],
+        "url": post.post_url,
+        "at": live_at(post).isoformat(),
+        "created_by": post.created_by.name,
+        "created_by_id": post.created_by_id,
+    }
+
+
 def tiktok_post_payload(post: Publication) -> dict:
     return {
         "id": post.id,
@@ -839,6 +870,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
             for variant in db.scalars(select(Video).where(Video.variant_of_id == video.id).order_by(Video.id))
         ],
         "tiktok_posts": [tiktok_post_payload(post) for post in tiktok_posts_of(db, video.id)],
+        # YouTube Shorts and Instagram Reels, posted by hand from the same MP4.
+        "manual_posts": [manual_post_payload(post) for post in manual_posts_of(db, video.id)],
         "suggest": {
             "state": "pending" if video.suggest_requested_at else ("failed" if video.suggest_error else "idle"),
             "error": video.suggest_error,
@@ -973,6 +1006,16 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
     on_tiktok = set(
         db.scalars(select(Publication.video_id).where(Publication.video_id.in_(ids), Publication.platform == "tiktok"))
     )
+    # Where each video is out: Facebook from its live posts, the others from any post recorded or sent there.
+    elsewhere: dict[int, set[str]] = {}
+    for video_id, platform in db.execute(
+        select(Publication.video_id, Publication.platform).where(
+            Publication.video_id.in_(ids),
+            Publication.platform != "facebook",
+            Publication.status.in_(LIVE_POST_STATUSES),
+        )
+    ):
+        elsewhere.setdefault(video_id, set()).add(platform)
     by_video: dict[int, list[tuple[Publication, str]]] = {}
     for post, page in posts:
         by_video.setdefault(post.video_id, []).append((post, page or ""))
@@ -987,8 +1030,14 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
             "knowledge_topic": groups.get(video.knowledge_topic_id),
             "plan_day": days.get(video.id),
             "post": _post_summary(live, later, readings, by_page),
-            # A TikTok version posted by hand: the card it sits on says "Đã đăng" for it.
+            # A TikTok post of this video (its TikTok version's or its own MP4's): the card says "Đã đăng" for it.
             "tiktok_posted": video.id in on_tiktok,
+            # Every platform the video is out on, in a fixed order, for the card's "Đã đăng" line.
+            "posted_on": [
+                platform
+                for platform in POST_PLATFORMS
+                if (platform == "facebook" and live) or platform in elsewhere.get(video.id, set())
+            ],
         }
     return extras
 
@@ -1063,5 +1112,7 @@ def list_payload(
         **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
-        **(extras or {"knowledge_topic": None, "plan_day": None, "post": None, "tiktok_posted": False}),
+        **(
+            extras or {"knowledge_topic": None, "plan_day": None, "post": None, "tiktok_posted": False, "posted_on": []}
+        ),
     }

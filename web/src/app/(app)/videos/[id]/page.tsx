@@ -39,8 +39,6 @@ import PostContent from "@/components/video/PostContent";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
 import PublishCard, { PublishButton } from "@/components/video/PublishCard";
 import QcCard from "@/components/video/QcCard";
-import QueueButton from "@/components/video/QueueButton";
-import TikTokCard from "@/components/video/TikTokCard";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
@@ -713,19 +711,18 @@ export default function VideoPage() {
                                   <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
                                     Tải MP4
                                   </Button>
-                                  {video.platform === "facebook" && <PublishButton video={video} />}
-                                  {video.platform === "facebook" && <QueueButton video={video} />}
+                                  <PublishButton video={video} />
                                 </Flex>
                               </Flex>
                             </Card>
                             <QcCard qc={video.mp4.qc} />
-                            {video.platform === "tiktok" ? <TikTokCard video={video} /> : <PublishCard video={video} />}
+                            <PublishCard video={video} />
                           </>
                         ) : (
                           <Card size="small">
                             <Typography.Text type="secondary">
-                              Chưa có MP4. Bấm “Render” ở thanh dưới cùng khi các cảnh đã đủ ảnh; MP4 và phần đăng
-                              Facebook sẽ hiện ở đây.
+                              Chưa có MP4. Bấm “Render” ở thanh dưới cùng khi các cảnh đã đủ ảnh; MP4 và nút “Đăng bài”
+                              (Facebook, TikTok, YouTube Shorts, Instagram Reels) sẽ hiện ở đây.
                             </Typography.Text>
                           </Card>
                         )}
