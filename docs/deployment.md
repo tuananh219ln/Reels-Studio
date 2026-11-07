@@ -100,6 +100,7 @@ when set to an empty string. Containers use real environment variables only.
 | `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
 | `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
+| `VIENEU_API_KEY` | api + worker, optional: VieNeu's Vietnamese narration voices (`vn_sk_…`, from VieNeu's Nhà phát triển page); a key pasted on Cài đặt › Mô hình AI wins over it. With a key, VieNeu's voices join the voice picker beside ElevenLabs'; a video whose voice is a VieNeu one (`vieneu:<name>`) is read by VieNeu |
 | `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
 | `IMAGE_GEN_MODEL` | worker, optional: the image model; the default is `gemini-2.5-flash-image` |
 | `IMAGE_GEN_PROVIDER` | api + worker, optional and kept for older servers: the team's default AI photo provider until one is chosen on Cài đặt › Nguồn tư liệu (`gemini` or `cloudflare`; any other value means `gemini`). Unset: Cloudflare when it is set up, else Gemini |
@@ -112,7 +113,7 @@ when set to an empty string. Containers use real environment variables only.
 
 Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLabs, Gemini and Cloudflare Workers AI
 ([api/scripts/fake_services.py](../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
-`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `IMAGE_GEN_API_URL`, `IMAGE_GEN_CF_API_URL`, `FACEBOOK_API_URL`,
+`PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `VIENEU_API_URL` (default `https://api.vieneu.io/api`; the fakes also empty `VIENEU_API_KEY`), `IMAGE_GEN_API_URL`, `IMAGE_GEN_CF_API_URL`, `FACEBOOK_API_URL`,
 `SHOPEE_AFFILIATE_API_URL`, `TIKTOK_API_URL` (TikTok's Login Kit and Content Posting API; default `https://open.tiktokapis.com`), `SHOPEE_SHORT_LINK_URL` (where a pasted s.shopee.vn link is asked for its redirect; Shopee's keys are each member's, pasted on Cấu hình › Tài khoản affiliate, so there is no
 Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
