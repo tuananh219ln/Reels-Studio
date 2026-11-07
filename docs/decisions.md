@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — Muse is the fourth MCP client, by its exact callback, with read and write
+
+Asked by the owner (namtc), who uses Muse (Meta's assistant) next to ChatGPT and Claude. Muse registers through
+DCR like the others; its callback was not guessed but read from the "MCP registration refused" log line added for
+this (`https://agent.meta.ai/api/hatch/oauth/callback`, sent on 2026-11-07), and only that exact URI joins the
+allowlist: no host, prefix or wildcard, which stays the main safeguard of the MCP server. The owner chose to grant
+Muse's connection both `reels:read` and `reels:write`; a member still approves each connection on the consent screen,
+which names Muse and warns about write access. Every other limit is unchanged: no publishing, video deletion or
+account and key changes, connections last at most 30 days and can be revoked, PKCE S256 and public clients only.
+Tools that edit images through MCP are a separate change.
+
 ## 2026-11-07 — An agent merges a PR only when a person asks it to
 
 Requested by tuananh219ln, alongside "Green CI is the approval" (same day), which it adds to: an agent merges a PR,

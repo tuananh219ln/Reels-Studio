@@ -64,7 +64,7 @@ export default function ChatGptPage() {
     <>
       <PageHeader
         title="Kết nối ChatGPT / Claude"
-        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude và Claude Code của bạn."
+        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code và Muse của bạn."
       />
       <Flex vertical gap={16} style={{ maxWidth: 820 }}>
         {loading && <Spin />}
@@ -122,7 +122,7 @@ export default function ChatGptPage() {
           </Card>
         )}
         {serverUrl && (
-          <Card title="Thêm Reels Studio vào ChatGPT hoặc Claude">
+          <Card title="Thêm Reels Studio vào ChatGPT, Claude hoặc Muse">
             <Typography.Paragraph copyable={{ text: serverUrl }} code style={{ overflowWrap: "anywhere" }}>
               {serverUrl}
             </Typography.Paragraph>
@@ -144,6 +144,9 @@ export default function ChatGptPage() {
               style={{ overflowWrap: "anywhere" }}
             >
               {`claude mcp add --transport http reels-studio ${serverUrl}`}
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <strong>Muse:</strong> trong luồng kết nối công cụ MCP của Muse, dán địa chỉ trên rồi bấm Kết nối.
             </Typography.Paragraph>
             <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
               Sau đó đăng nhập và cấp quyền bằng tài khoản Reels Studio của bạn. Claude dùng gói Claude của chính bạn,
