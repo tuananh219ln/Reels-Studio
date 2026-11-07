@@ -19,6 +19,7 @@ import {
   Empty,
   Flex,
   Form,
+  Grid,
   Input,
   Row,
   Segmented,
@@ -887,6 +888,8 @@ function NewVideoModal({
 }) {
   const { message } = App.useApp();
   const { token } = theme.useToken();
+  // Under 576 px each label goes above its choice.
+  const narrow = !(Grid.useBreakpoint().sm ?? true);
   const router = useRouter();
   const [form] = Form.useForm<NewVideo>();
   const [busy, setBusy] = useState(false);
@@ -1103,37 +1106,49 @@ function NewVideoModal({
               marginBottom: 16,
             }}
           >
-            <Flex wrap gap={16} align="center">
-              <Flex align="center" gap={8}>
-                <Typography.Text type="secondary">Cách viết</Typography.Text>
-                <Segmented
-                  aria-label="Cách viết kịch bản"
-                  value={mode}
-                  onChange={(value) => setMode(value as Mode)}
-                  options={[
-                    { value: "ai", label: "AI viết kịch bản" },
-                    { value: "sample", label: "Từ video mẫu" },
-                    { value: "manual", label: "Tự viết" },
-                  ]}
-                />
-              </Flex>
+            {/* One row per choice, labels in a column: "Kiểu video", "Cách viết", then the topic group. */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: narrow ? "1fr" : "90px 1fr",
+                gap: "12px 8px",
+                alignItems: "center",
+              }}
+            >
               {!sample && (
-                <Flex align="center" gap={8}>
-                  <Typography.Text type="secondary">Kiểu video</Typography.Text>
+                <>
+                  <Typography.Text strong style={{ whiteSpace: "nowrap" }}>
+                    Kiểu video
+                  </Typography.Text>
                   <Segmented
                     aria-label="Kiểu video"
                     value={videoMode}
                     onChange={(value) => setVideoMode(value as VideoMode)}
                     options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
+                    style={{ justifySelf: "start" }}
                   />
-                </Flex>
+                </>
               )}
+              <Typography.Text strong style={{ whiteSpace: "nowrap" }}>
+                Cách viết
+              </Typography.Text>
+              <Segmented
+                aria-label="Cách viết kịch bản"
+                value={mode}
+                onChange={(value) => setMode(value as Mode)}
+                options={[
+                  { value: "ai", label: "AI viết kịch bản" },
+                  { value: "sample", label: "Từ video mẫu" },
+                  { value: "manual", label: "Tự viết" },
+                ]}
+                style={{ justifySelf: "start" }}
+              />
               <Form.Item
                 label="Nhóm chủ đề"
                 name="knowledge_topic_id"
                 layout="horizontal"
                 rules={[{ required: true, message: "Hãy chọn nhóm chủ đề" }]}
-                style={{ marginBottom: 0, flex: 1, minWidth: 260 }}
+                style={{ marginBottom: 0, gridColumn: "1 / -1" }}
               >
                 <Select
                   options={topics.map((topic) => ({
@@ -1144,7 +1159,7 @@ function NewVideoModal({
                   }))}
                 />
               </Form.Item>
-            </Flex>
+            </div>
             {!sample && (
               <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
                 {VIDEO_MODES.find((item) => item.value === videoMode)?.hint}

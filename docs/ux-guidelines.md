@@ -71,8 +71,9 @@ editors, "Chọn từ kho ảnh/video", the text position, "Chọn nhạc từ t
 Built:
 
 - **Login** and **user management**.
-- **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, "Cách
-  viết" ("AI viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group; below it the topic. The footer has a
+- **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, one row each, bold
+  labels in a column (one above the other under 576 px): "Kiểu video" (not for "Từ video mẫu"), "Cách viết" ("AI
+  viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row; below it the topic. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
   button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
