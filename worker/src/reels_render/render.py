@@ -4,9 +4,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 from . import ffmpeg
-from .captions import plan_captions
+from .captions import Word, plan_captions, plan_word_captions
 from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplacedError
-from .graph import CaptionInput, LayerInput, SceneInput, SoundInput, build_ffmpeg_args
+from .graph import CaptionInput, LayerInput, SceneInput, SoundInput, all_cuts, build_ffmpeg_args, clip_lead
 from .images import normalize_image
 from .layers import layer_corner, render_layer
 from .options import DEFAULT_OPTIONS, RenderOptions
@@ -68,6 +68,8 @@ def render_video(
     spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
     palette, first_palette = options.scene_palette(), options.title_palette()
+    heard = [clip_sound_heard(tools.ffprobe, scene, on_warning) for scene in script.all_scenes]
+    cut = all_cuts(options, [scene.transition for scene in script.all_scenes])
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
         work_dir = Path(work)
@@ -90,12 +92,20 @@ def render_video(
             else:
                 render_box(layout, first_palette if index == 0 else palette).save(box)
                 box_x, box_y = place_box(layout.width, layout.height, scene.text_position, is_title=index == 0)
-            # Captions sit just above a content scene's text box; the title scene keeps its hook box alone.
+            # Captions sit just above a content scene's text box; the title scene keeps its hook box alone. The
+            # narration's are timed by estimate; a clip's own sound has each word's real seconds.
+            cues = []
             if index > 0 and spoken[index] is not None and scene.voice_text.strip():
+                start = scene_start / FPS + VOICE_LEAD
+                cues = plan_captions(scene.voice_text, start, spoken[index], options.captions)
+            elif index > 0 and heard[index] and scene.words:
+                scene_end = (scene_start + timeline.scene_frames[index]) / FPS
+                placed = placed_words(scene, scene_start / FPS, scene_end, clip_lead(index, cut))
+                cues = plan_word_captions(placed, options.captions)
+            if cues:
                 bottom = box_y - CAPTION_GAP if layout is not None else SCENE_BOX_BOTTOM
                 box_bottom = box_y + layout.height if layout is not None else SCENE_BOX_BOTTOM
-                start = scene_start / FPS + VOICE_LEAD
-                for number, cue in enumerate(plan_captions(scene.voice_text, start, spoken[index], options.captions)):
+                for number, cue in enumerate(cues):
                     path = work_dir / f"caption-{index:02d}-{number:03d}.png"
                     image_caption = render_caption(cue.lines, cue.lit)
                     image_caption.save(path)
@@ -141,6 +151,7 @@ def render_video(
                     transition=scene.transition,
                     color=scene.color,
                     music_level=scene.music_level,
+                    video_sound=heard[index],
                 )
             )
 
@@ -170,6 +181,35 @@ def render_video(
             temp.unlink(missing_ok=True)
             raise
     return _publish(temp, output)
+
+
+def clip_sound_heard(ffprobe: str, scene: Scene, on_warning: Callable[[str], None] | None) -> bool:
+    """A scene's clip sound is heard when it is asked for and the clip has a sound track; a clip without one is
+    rendered silent, with a warning, rather than failing the render."""
+    if not scene.video_sound or scene.video is None:
+        return False
+    try:
+        streams = ffmpeg.probe(ffprobe, scene.video).get("streams", [])
+    except FFmpegError:
+        streams = []
+    if any(stream.get("codec_type") == "audio" for stream in streams):
+        return True
+    if on_warning is not None:
+        on_warning(f"{scene.label}: video không có tiếng, cảnh này không có tiếng gốc")
+    return False
+
+
+def placed_words(scene: Scene, scene_start: float, scene_end: float, lead: float) -> list[Word]:
+    """The clip's words in the video's seconds: the clip's picture starts `lead` before the scene, at the clip's
+    video_start, and plays at its speed. Words outside the scene are left out and the last is cut at its end."""
+    placed = []
+    for word in scene.words:
+        start = scene_start - lead + (word.start - scene.video_start) / scene.video_speed
+        end = scene_start - lead + (word.end - scene.video_start) / scene.video_speed
+        if start < scene_start - 0.05 or start >= scene_end:
+            continue
+        placed.append(Word(word.text, max(start, scene_start), min(end, scene_end)))
+    return placed
 
 
 def voice_seconds(ffprobe: str, scene: Scene) -> float | None:

@@ -4,7 +4,7 @@ import { InboxOutlined } from "@ant-design/icons";
 import { Alert, Form, Input, Segmented, Select, Typography, Upload, type UploadFile } from "antd";
 import type { SampleMode, SampleSummary } from "@/lib/api";
 
-/** The four ways of "Từ video mẫu" (api reference.MODES), each with what it does, shown under the choice. */
+/** The ways of "Từ video mẫu" (api reference.MODES), each with what it does, shown under the choice. */
 export const SAMPLE_MODES: { value: SampleMode; label: string; description: string }[] = [
   {
     value: "quick",
@@ -28,6 +28,12 @@ export const SAMPLE_MODES: { value: SampleMode; label: string; description: stri
     label: "Dùng mẫu đã học",
     description:
       "Chọn một video mẫu đã phân tích trước đó để viết video mới với chủ đề khác. Không tải lại, không phân tích lại.",
+  },
+  {
+    value: "footage",
+    label: "Edit từ footage",
+    description:
+      "Đưa clip bạn tự quay (nói trước camera, review sản phẩm). App tách lời, bỏ khoảng lặng và tiếng “ờ, à”, chia thành cảnh giữ nguyên tiếng gốc, phụ đề chạy theo đúng lời nói. Không gọi AI viết kịch bản; cần key ElevenLabs có quyền Speech to Text.",
   },
 ];
 
@@ -120,7 +126,11 @@ export default function SampleFields({ samples }: { samples: SampleSummary[] | n
         )
       ) : (
         <>
-          <Form.Item label="Video mẫu" name="sample_source" style={{ marginBottom: 8 }}>
+          <Form.Item
+            label={mode === "footage" ? "Footage" : "Video mẫu"}
+            name="sample_source"
+            style={{ marginBottom: 8 }}
+          >
             <Segmented
               aria-label="Nguồn video mẫu"
               options={[

@@ -28,6 +28,7 @@ from . import (
     config,
     facebook,
     fanpages,
+    footage,
     hashtags,
     image_providers,
     image_style,
@@ -288,6 +289,9 @@ def run_learn_job(db: DbSession, job: Job, storage: DirectoryStorage, call: Call
     folder = work_dir(job.id)
     folder.mkdir(parents=True, exist_ok=True)
     label = f"job {job.id}"
+    if mode == "footage":
+        _make_from_footage(db, job, video, sample, storage, folder)
+        return
     try:
         reference.prepare(db, sample, storage, folder)
         see, count_call = _seeing_llm(db, job, call)
@@ -326,6 +330,30 @@ def run_learn_job(db: DbSession, job: Job, storage: DirectoryStorage, call: Call
     affiliate_rounds.ask_after_script(db, video, job.created_by_id)
     db.commit()
     shutil.rmtree(folder, ignore_errors=True)
+
+
+def _make_from_footage(
+    db: DbSession, job: Job, video: Video, sample: VideoReference, storage: DirectoryStorage, folder: Path
+) -> None:
+    """ "Edit từ footage" (footage.py): the footage cut into scenes by what is said, with no LLM call."""
+    try:
+        reference.prepare(db, sample, storage, folder)
+        footage.make(db, video, sample, storage, folder, lambda name: new_key(video.id, name, "mp4"))
+    except reference.ReferenceError as err:
+        db.rollback()
+        raise JobFailure(err.message, err.detail) from None
+    db.flush()
+    title, _ = split_scenes(db, video)
+    if title is not None:
+        refresh_thumbnail(db, storage, video, title)
+    affiliate_rounds.ask_after_script(db, video, job.created_by_id)
+    db.commit()
+    shutil.rmtree(folder, ignore_errors=True)
+
+
+def expects_sound(video: Video, scenes: list[Scene]) -> bool:
+    """Whether QC fails a silent MP4: it has narration, music or a clip's own sound to be heard."""
+    return video.voice_enabled or bool(video.music_key) or any(scene.video_sound for scene in scenes)
 
 
 def _seeing_llm(db: DbSession, job: Job, call: Callable | None) -> tuple[reference.SeeingCall, Callable[[], None]]:
@@ -555,6 +583,10 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     "video_start": scene.video_start,
                     "video_speed": scene.video_speed,
                 }
+                if scene.video_sound:
+                    data["video_sound"] = True
+                    if scene.words:
+                        data["words"] = scene.words
             else:
                 if not scene.image_key or not storage.exists(scene.image_key):
                     raise JobFailure(f"{label} chưa có ảnh trong storage, hãy gán lại ảnh rồi render")
@@ -591,7 +623,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 "music_volume": video.music_volume / 100,
                 "music_start": video.music_start,
                 "options": render_nodes.options_dict(render_options(video)),
-                "expect_sound": video.voice_enabled or bool(video.music_key),
+                "expect_sound": expects_sound(video, [title, *scenes]),
                 "signature": signature,
             }
             render_nodes.pack(db, storage, job, manifest, folder)
@@ -614,7 +646,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             raise JobFailure(str(err)) from None
         elapsed = time.monotonic() - started
         # Measured on the file before it is saved, so the MP4 and its QC always go together.
-        measured = qc.measure(output, expect_sound=video.voice_enabled or bool(video.music_key))
+        measured = qc.measure(output, expect_sound=expects_sound(video, [title, *scenes]))
         save_render(db, storage, video, output, seconds, elapsed, measured, signature)
         log.info("Job %s rendered %.1fs of video in %.1fs", job.id, seconds, elapsed)
     finally:
@@ -970,6 +1002,8 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         scene.image_auto = False
         # A photo replaces the scene's clip: a scene shows one or the other.
         scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
+        # A new or removed clip has no sound of its own heard, nor words ("Edit từ footage").
+        scene.video_sound, scene.words = False, None
         if scene.is_title:
             refresh_thumbnail(db, storage, video, scene)
         db.commit()

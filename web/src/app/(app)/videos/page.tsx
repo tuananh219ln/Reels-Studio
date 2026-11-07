@@ -1037,7 +1037,13 @@ function NewVideoModal({
           disabled={topics === null}
           onClick={() => form.submit()}
         >
-          {manual ? "Tạo video" : sample && sampleMode === "review" ? "Phân tích video mẫu" : "Viết kịch bản"}
+          {manual
+            ? "Tạo video"
+            : sample && sampleMode === "review"
+              ? "Phân tích video mẫu"
+              : sample && sampleMode === "footage"
+                ? "Dựng từ footage"
+                : "Viết kịch bản"}
         </Button>
       </Flex>
     </Flex>
@@ -1211,15 +1217,23 @@ function NewVideoModal({
               >
                 {sample && <SampleFields samples={samples} />}
                 <Form.Item
-                  label={sample ? "Chủ đề hoặc yêu cầu cho video mới" : "Chủ đề"}
+                  label={
+                    sample && sampleMode === "footage"
+                      ? "Tiêu đề video"
+                      : sample
+                        ? "Chủ đề hoặc yêu cầu cho video mới"
+                        : "Chủ đề"
+                  }
                   name="topic"
                   rules={[{ required: true, whitespace: true, message: "Hãy nhập chủ đề" }]}
                   extra={
                     manual
                       ? "Cũng là chữ cảnh tiêu đề, sửa được sau. VD: 6 món *bổ xương* cho người sau 50"
-                      : sample
-                        ? "VD: cùng kiểu này nhưng nói về hạt chia cho người tiểu đường"
-                        : "Gõ chủ đề hoặc chọn một ý tưởng bên trái. VD: thực phẩm tốt cho xương khớp người sau 50 tuổi"
+                      : sample && sampleMode === "footage"
+                        ? "Là chữ cảnh tiêu đề (cảnh đầu), sửa được sau. VD: Review *yến mạch* Úc sau 1 tháng"
+                        : sample
+                          ? "VD: cùng kiểu này nhưng nói về hạt chia cho người tiểu đường"
+                          : "Gõ chủ đề hoặc chọn một ý tưởng bên trái. VD: thực phẩm tốt cho xương khớp người sau 50 tuổi"
                   }
                 >
                   <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />

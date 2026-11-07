@@ -268,7 +268,9 @@ function ClipTrim({
     clip.start,
     round(clip.start + (scene.seconds + sides) * clip.speed, 2),
   ]);
-  const [sound, setSound] = useState(false);
+  // "Giữ tiếng gốc" keeps the clip's own sound in the render (api Scene.video_sound); the preview plays it then too.
+  const [kept, setKept] = useState(clip.sound);
+  const [sound, setSound] = useState(clip.sound);
   // "Nghe tiếng gốc" turns the clip's sound on; the listener's level sets how loud.
   const { factor: listen } = useListen();
   useEffect(() => {
@@ -328,6 +330,7 @@ function ClipTrim({
           video_start: round(start, 2),
           video_speed: speed,
           seconds: length,
+          ...(kept !== clip.sound ? { video_sound: kept } : {}),
         }),
       );
       onClose();
@@ -425,8 +428,23 @@ function ClipTrim({
             <Typography.Text>Nghe khi xem thử</Typography.Text>
             {sound && <ListenVolume width={100} />}
           </Flex>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Video xuất ra không dùng tiếng gốc.
+          <Flex align="center" gap={8} wrap>
+            <Switch
+              checked={kept}
+              onChange={(on) => {
+                setKept(on);
+                if (on) setSound(true);
+              }}
+              aria-label="Giữ tiếng gốc khi xuất video"
+            />
+            <Typography.Text>Giữ tiếng gốc khi xuất video</Typography.Text>
+          </Flex>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="trim-sound-note">
+            {kept
+              ? clip.words > 0
+                ? "Video xuất ra có tiếng của clip; phụ đề chạy theo lời nói trong clip."
+                : "Video xuất ra có tiếng của clip; nhạc nền nhỏ lại dưới tiếng nói khi bật “Nhỏ nhạc khi có giọng đọc”."
+              : "Video xuất ra không dùng tiếng gốc."}
           </Typography.Text>
         </Section>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>

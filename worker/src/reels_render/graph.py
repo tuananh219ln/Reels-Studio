@@ -12,7 +12,7 @@ from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .sounds import MUSIC_LEVELS, SOUNDS
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
-from .timeline import FPS, VOICE_LEAD, XFADE_FRAMES, Timeline
+from .timeline import FPS, HALF_XFADE, VOICE_LEAD, XFADE_FRAMES, Timeline
 
 ZOOM_END = 1.12
 # Pre-scaling above the frame size keeps zoompan's integer crop steps sub-pixel in the output.
@@ -37,6 +37,7 @@ class SceneInput:
     transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
     color: str | None = None  # effects.COLOR_PRESETS; None: as shot
     music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
+    video_sound: bool = False  # the clip's own sound is heard (the clip must have an audio stream)
 
 
 @dataclass(frozen=True)
@@ -154,6 +155,16 @@ def _boundary_transitions(count: int, options: RenderOptions, transitions: list[
     return [transitions[index] or options.transition for index in range(1, count)]
 
 
+def all_cuts(options: RenderOptions, transitions: list[str | None]) -> bool:
+    """Whether every boundary is a hard cut, so the scenes join end to end and no clip plays before its scene."""
+    return all(name == "cut" for name in _boundary_transitions(len(transitions), options, transitions))
+
+
+def clip_lead(index: int, cut: bool) -> float:
+    """Seconds a scene's clip plays before the scene starts: half a crossfade, unless it is first or all are cuts."""
+    return 0.0 if index == 0 or cut else HALF_XFADE / FPS
+
+
 def build_filter_graph(
     box_positions: list[tuple[int, int]],
     timeline: Timeline,
@@ -168,10 +179,12 @@ def build_filter_graph(
     layers: list[LayerInput] | None = None,
     sounds: list[SoundInput] | None = None,
     music_levels: list[str | None] | None = None,
+    clip_sounds: list[bool] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
-    marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is never used.
+    marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is heard only
+    when `clip_sounds` marks the scene, on the narration's track, so the music ducks under it as under a voice.
     A scene's `transitions` entry replaces the video's transition into it, and its `colors` entry grades it.
     The `layers` pictures come last among the inputs and go on top, after the captions. The `sounds` are made in
     the graph itself and mixed over the music and narration; a scene's `music_levels` entry sets the music's level
@@ -225,7 +238,9 @@ def build_filter_graph(
     total = _seconds(timeline.total_frames)
     # With sound effects the mix of music and narration is "base", and each effect is added on top of it.
     out = "base" if sounds else "aout"
-    bed = out if not any(voices or []) else "bed"
+    voices = voices or [False] * count
+    clip_sounds = [bool(clips[index] and (clip_sounds or [False] * count)[index]) for index in range(count)]
+    bed = out if not (any(voices) or any(clip_sounds)) else "bed"
     if music_volume is None:
         # A silent bed instead of no audio stream, so the narration always has something to be mixed onto.
         chains.append(f"anullsrc=r={AUDIO_RATE}:cl=stereo,atrim=duration={total}[{bed}]")
@@ -239,7 +254,14 @@ def build_filter_graph(
             f"afade=t=out:st={fade_start:.6f}:d={MUSIC_FADE_SECONDS}[{bed}]"
         )
     if bed == "bed":
-        chains += _voice_chains(voices, timeline, 2 * len(box_positions) + (music_volume is not None))
+        chains += _voice_chains(
+            voices,
+            timeline,
+            2 * len(box_positions) + (music_volume is not None),
+            clip_sounds,
+            [speeds[index] for index in range(count)],
+            cut,
+        )
         voice = "voice"
         if options.voice_volume != 1:
             chains.append(f"[voice]volume={options.voice_volume:.4f}[voicelevel]")
@@ -282,21 +304,50 @@ def _sound_chains(sounds: list[SoundInput], samples: int) -> list[str]:
     return chains
 
 
-def _voice_chains(voices: list[bool], timeline: Timeline, first_input: int) -> list[str]:
+def _clip_sound_chain(source: int, index: int, samples: int, speed: float, cut: bool, label: str) -> str:
+    """A clip's own sound for its scene's segment. The clip's picture starts `clip_lead` before the scene, so its
+    sound is taken from that far in (at the clip's speed) to stay in step with the lips; `atempo` plays it at the
+    clip's speed (0.5–2×, atempo's own range), and it is padded or cut to the segment's exact samples."""
+    skip = clip_lead(index, cut) * speed
+    tempo = f"atempo={speed:g}," if speed != 1 else ""
+    return (
+        f"[{source}:a]atrim=start={skip:.6f},asetpts=PTS-STARTPTS,{tempo}aresample={AUDIO_RATE},"
+        f"aformat=channel_layouts=stereo,apad,atrim=end_sample={samples}[{label}]"
+    )
+
+
+def _voice_chains(
+    voices: list[bool],
+    timeline: Timeline,
+    first_input: int,
+    clip_sounds: list[bool] | None = None,
+    speeds: list[float] | None = None,
+    cut: bool = False,
+) -> list[str]:
     """One narration track as long as the video: each scene's segment holds its narration, delayed past the
-    crossfade and padded with silence, or only silence. Segment lengths are exact sample counts of the
-    scene's frames, so the narration stays on its scene however long the video is."""
+    crossfade and padded with silence, its clip's own sound when it is heard, both added together, or only silence.
+    Segment lengths are exact sample counts of the scene's frames, so the narration stays on its scene however long
+    the video is. A scene's clip is its input 2 × index (see build_filter_graph)."""
+    clip_sounds = clip_sounds or [False] * len(voices)
+    speeds = speeds or [1.0] * len(voices)
     chains, labels, voice_input = [], [], first_input
     for index, (frames, has_voice) in enumerate(zip(timeline.scene_frames, voices)):
         samples = frames * AUDIO_RATE // FPS
+        heard = clip_sounds[index]
+        voice_label = f"vn{index}" if heard else f"vo{index}"
         if has_voice:
             delay = round(VOICE_LEAD * 1000)
             chains.append(
                 f"[{voice_input}:a]aresample={AUDIO_RATE},aformat=channel_layouts=stereo,"
-                f"adelay={delay}|{delay},apad,atrim=end_sample={samples}[vo{index}]"
+                f"adelay={delay}|{delay},apad,atrim=end_sample={samples}[{voice_label}]"
             )
             voice_input += 1
-        else:
+        if heard:
+            sound_label = f"cs{index}" if has_voice else f"vo{index}"
+            chains.append(_clip_sound_chain(2 * index, index, samples, speeds[index], cut, sound_label))
+            if has_voice:
+                chains.append(f"[vn{index}][cs{index}]amerge=inputs=2,pan=stereo|c0=c0+c2|c1=c1+c3[vo{index}]")
+        elif not has_voice:
             chains.append(f"anullsrc=r={AUDIO_RATE}:cl=stereo,atrim=end_sample={samples}[vo{index}]")
         labels.append(f"[vo{index}]")
     chains.append(f"{''.join(labels)}concat=n={len(labels)}:v=0:a=1[voice]")
@@ -347,6 +398,7 @@ def build_ffmpeg_args(
         layers,
         sounds,
         [scene.music_level for scene in scenes],
+        [scene.video_sound for scene in scenes],
     )
     argv += [
         "-filter_complex",

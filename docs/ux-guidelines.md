@@ -93,9 +93,12 @@ Built:
   says "Kịch bản tự viết, không qua AI", and "Nội dung đăng" shows a yellow warning in place of the
   AI's self-review.
   "Từ video mẫu" learns the script from a sample video: every group can be picked (the group's
-  sample prompts have defaults) and the plan's ideas are not listed. "Cách làm" picks one of four
+  sample prompts have defaults) and the plan's ideas are not listed. "Cách làm" picks one of five
   ways, with what it does written under the choice: "Nhanh" (the default), "Hai bước tự động",
-  "Duyệt phân tích trước" and "Dùng mẫu đã học". The first three take the sample under "Video mẫu":
+  "Duyệt phân tích trước", "Dùng mẫu đã học" and "Edit từ footage" (the member's own footage, cut
+  by what is said and keeping its sound; no AI writes; it needs an ElevenLabs key with Speech to
+  Text, and its source field reads "Footage", its topic field "Tiêu đề video", the title scene's
+  text). The ways other than "Dùng mẫu đã học" take the sample under "Video mẫu":
   "Dán link" (TikTok, YouTube Shorts or a video file's link) or "Tải video lên" (a drop zone for one
   MP4, MOV or WebM, 100 MB and 3 minutes at most); "Dùng mẫu đã học" instead lists the samples
   learned before (link or file name, length, how many videos) and shows the chosen one's analysis.
@@ -331,7 +334,10 @@ Built:
     changing it keeps the scene's seconds and moves the end of the part. A part longer than the
     clip left after the start warns that the last frame will hold, and can still be applied. A part
     shorter than 1 s or longer than 10 s cannot be applied. "Áp dụng" saves the start, the speed and
-    the seconds together. A switch plays the clip's sound in the preview only, saying the MP4 never uses it;
+    the seconds together. Under "Tiếng gốc", "Nghe khi xem thử" plays the clip's sound in the dialog, and
+    "Giữ tiếng gốc khi xuất video" keeps it in the MP4 (saved with "Áp dụng"; refused for a clip without
+    sound), with a note: the MP4 has the clip's sound, and captions follow the clip's words when it has
+    them, or the MP4 does not use it. The studio's preview plays a kept sound too, at the listener's level;
     with narration on, a note says the scene may last longer to fit it;
   - per scene with text and a picture, "Vị trí chữ" ("Vị trí chữ (riêng)" once the scene has a place
     of its own) opens a dialog: the frame without text at a quarter size, the platforms' covered

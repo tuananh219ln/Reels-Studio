@@ -11,6 +11,36 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — "Edit từ footage": a member's footage cut by its words; a clip may keep its own sound
+
+Asked by tuananh219ln after reading AIEV (github.com/notivn/AIEVv2), whose core is "put footage in, the AI cuts it
+and captions it": the team works together, without one owner deciding, and asked to start. Planned in three parts;
+this is the first:
+
+1. **Footage cut by what is said** (this entry): a fifth way of "Từ video mẫu", `footage`, takes the member's own
+   footage (the sample's link or upload and its limits: 100 MB, 3 minutes) and makes the scenes with no LLM call
+   ([footage.py](../api/src/reels_api/footage.py)): ElevenLabs Speech-to-Text's words, each with its seconds (now
+   kept as `video_references.words`, migration 0053), split at pauses of 0.45 s and at fillers, each stretch one
+   scene of at most 10 s, the first 90 s kept, as a jump cut. The words are required here, unlike for a sample
+   (2026-11-05, 2026-11-07): without them the job fails with the reason (no key, or the key's missing
+   `speech_to_text` permission), since there is nothing to cut by.
+2. Next: the AI chooses the hook, the on-screen text, effects and b-roll from "Kho tư liệu".
+3. Then: a long video cut into several shorts, scored by the AI (AIEV's "Auto cut").
+
+This changes two logged rules, on purpose:
+
+- **"A clip's own sound stays out of the render"** (2026-11-01, and the render core's "the clip's sound is never
+  used") now holds unless the scene's `video_sound` ("Tiếng gốc") is on. The render core takes the clip's audio,
+  in step with its picture (half a crossfade in when the clip leads its scene), at its speed, onto the narration's
+  track, so the music ducks under it and QC expects sound. Off, the filter graph is the one it always was. Any
+  clip scene can turn it on in "Cắt video" when its clip has sound; a new or removed clip turns it off. A render
+  machine on older code ignores the field and renders the clip silent, so machines are updated with this.
+- **"Captions time each word by an estimate"** (2026-11-01) stays for narration; a clip with known words
+  (`scenes.words`) is captioned at those words' real seconds.
+
+A footage video is marked hand-written (no AI wrote its words, so none reviewed them), has narration off, hard
+cuts, word captions and ducking. A person watches a sample MP4 before this is called done, as for any render change.
+
 ## 2026-11-07 — "Từ video mẫu" learns from the stills when ElevenLabs will not write the words down
 
 Found by a member (namtc): every "Từ video mẫu" failed, pasted link or upload, with "Key ElevenLabs không hợp lệ",

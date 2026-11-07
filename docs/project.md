@@ -111,6 +111,10 @@ app replaces CapCut, so the output is a finished MP4.
     đăng" shows them, sorts by views, compares each with its Page's median at 48 hours and shows the
     weekly KPIs. "Phân tích bài đăng" adds watch time, reach, replays, follows and the retention
     curve, split by the scenes of the posted MP4.
+11. **Edit từ footage (built, part 1 of 3):** a member's own footage of someone talking, chosen as a way of "Từ video
+    mẫu", is cut by what is said (pauses and fillers out, each stretch a scene keeping its own sound, captions on the
+    real words) with no AI writing. Any clip scene can keep its sound ("Tiếng gốc"). Next: the AI picks the hook,
+    on-screen text and effects; then a long video cut into several shorts.
 
 ---
 

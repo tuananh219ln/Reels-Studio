@@ -88,6 +88,31 @@ test("Từ video mẫu: an uploaded sample writes a script with its clips, then 
   await expect(page.getByTestId("sample-card")).toContainText("Cách làm: Dùng mẫu đã học");
 });
 
+test("Edit từ footage: the footage is cut by its words into scenes that keep their own sound", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  const dialog = await openSampleDrawer(page);
+  await chooseOption(page, dialog.getByLabel("Cách làm"), "Edit từ footage");
+  await expect(dialog.getByTestId("sample-mode-help")).toContainText("giữ nguyên tiếng gốc");
+  await uploadSample(dialog);
+  await dialog.getByLabel("Tiêu đề video").fill("Review *yến mạch* Úc");
+  await dialog.getByRole("button", { name: "Dựng từ footage" }).click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+
+  // The fake ElevenLabs says two sentences 1.5 s apart: the title scene and one scene, each a stretch of the footage.
+  await expect(page.getByTestId("scene")).toHaveCount(1, { timeout: 90_000 });
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 90_000 });
+  await expect(page.getByTestId("sample-card")).toContainText("Cách làm: Edit từ footage");
+  await expect(page.getByTestId("title-scene").getByTestId("scene-video")).toHaveCount(1);
+
+  // "Cắt video" shows the clip's sound kept for the MP4, captions following its words.
+  const scene = page.getByTestId("scene").first();
+  await scene.getByRole("button", { name: "Cắt video" }).click();
+  const trim = page.getByRole("dialog", { name: "Cắt video cảnh" });
+  await expect(trim.getByRole("switch", { name: "Giữ tiếng gốc khi xuất video" })).toBeChecked();
+  await expect(trim.getByTestId("trim-sound-note")).toContainText("phụ đề chạy theo lời nói");
+});
+
 test("Từ video mẫu, Duyệt phân tích trước: the edited analysis is saved, then the script is written", async ({
   page,
 }) => {
