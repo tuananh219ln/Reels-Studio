@@ -466,6 +466,11 @@ Built:
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
 - **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày, ngày N" (or "Backlog")
   with its pain group, pain and hook under the title.
+- **Cài đặt › Máy render** (`/settings/render-nodes`): a switch "Render và cảnh động chạy trên máy render" with what
+  it changes, a warning when it is on and no machine is running (with the number of jobs waiting); the machines with
+  "Đang chạy"/"Đang tắt" and when each was last seen, "Xoá" (confirmed); "Thêm máy" takes a name and shows the
+  PowerShell command with the token once, copyable. On a video page a waiting job reads "Đang chờ máy render: …"
+  with "Hủy", and "Máy render đang dựng: …" while a machine renders it.
 - **Kho tư liệu** (`/media`): "Thêm tư liệu" picks the product being made (approved affiliate products), which names
   the folder and the searches; a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
   uploading one by one with a progress bar; under it the name with "Ảnh không nền", "Ảnh Google" and "Clip TikTok",

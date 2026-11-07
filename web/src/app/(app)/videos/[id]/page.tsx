@@ -449,33 +449,43 @@ export default function VideoPage() {
           title={
             job.status === "queued"
               ? `${video.status_label}: ${JOB_NAMES[job.kind]}${job.scene_id !== null ? " (1 cảnh)" : ""}`
-              : job.kind === "render"
-                ? "Đang render video…"
-                : job.kind === "image"
-                  ? "Đang tạo ảnh AI cho các cảnh thiếu…"
-                  : job.kind === "publish"
-                    ? "Đang đăng lên Facebook…"
-                    : job.kind === "unpublish"
-                      ? "Đang gỡ bài trên Facebook…"
-                      : job.kind === "check"
-                        ? "Đang kiểm tra bài trên Facebook…"
-                        : job.kind === "voice"
-                          ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
-                          : job.kind === "revise"
-                            ? "AI đang sửa video theo góp ý…"
-                            : job.kind === "motion"
-                              ? "HyperFrames đang dựng cảnh động…"
-                              : job.kind === "clone"
-                                ? "AI đang viết kịch bản nhân bản…"
-                                : job.kind === "learn"
-                                  ? video.reference?.mode === "review" && !video.reference.analysis
-                                    ? "AI đang xem và phân tích video mẫu…"
-                                    : "AI đang xem video mẫu và viết kịch bản…"
-                                  : "Đang viết kịch bản…"
+              : job.node_stage === "ready"
+                ? `Đang chờ máy render: ${JOB_NAMES[job.kind]}`
+                : job.node_stage === "taken"
+                  ? `Máy render đang dựng: ${JOB_NAMES[job.kind]}…`
+                  : job.kind === "render"
+                    ? "Đang render video…"
+                    : job.kind === "image"
+                      ? "Đang tạo ảnh AI cho các cảnh thiếu…"
+                      : job.kind === "publish"
+                        ? "Đang đăng lên Facebook…"
+                        : job.kind === "unpublish"
+                          ? "Đang gỡ bài trên Facebook…"
+                          : job.kind === "check"
+                            ? "Đang kiểm tra bài trên Facebook…"
+                            : job.kind === "voice"
+                              ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
+                              : job.kind === "revise"
+                                ? "AI đang sửa video theo góp ý…"
+                                : job.kind === "motion"
+                                  ? "HyperFrames đang dựng cảnh động…"
+                                  : job.kind === "clone"
+                                    ? "AI đang viết kịch bản nhân bản…"
+                                    : job.kind === "learn"
+                                      ? video.reference?.mode === "review" && !video.reference.analysis
+                                        ? "AI đang xem và phân tích video mẫu…"
+                                        : "AI đang xem video mẫu và viết kịch bản…"
+                                      : "Đang viết kịch bản…"
           }
-          description={video.has_script ? "Video đang bị khóa cho tới khi job xong." : undefined}
+          description={
+            job.node_stage === "ready"
+              ? "Bật máy render (Cài đặt › Máy render) để dựng, hoặc Hủy. Video đang bị khóa cho tới khi job xong."
+              : video.has_script
+                ? "Video đang bị khóa cho tới khi job xong."
+                : undefined
+          }
           action={
-            job.status === "queued" && (
+            (job.status === "queued" || job.node_stage === "ready") && (
               <Button
                 size="small"
                 disabled={busy}

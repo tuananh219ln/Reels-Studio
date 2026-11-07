@@ -41,6 +41,8 @@ def create_app() -> FastAPI:
         # Only bearer-authenticated MCP and public OAuth protocol endpoints accept server calls.
         # Consent, connection management and every existing cookie endpoint still require Origin.
         server_call = mcp is not None and request.url.path in SERVER_POST_PATHS
+        # A render machine (routes_render_nodes.py) authenticates with its bearer token and never with a cookie.
+        server_call = server_call or request.url.path.startswith("/api/node/")
         if request.method in UNSAFE_METHODS and not server_call:
             origin = (request.headers.get("origin") or "").rstrip("/")
             if origin not in allowed_origins:

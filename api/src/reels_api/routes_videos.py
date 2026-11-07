@@ -1606,10 +1606,18 @@ def _lock_job(db: DbSession, job_id: int) -> Job:
 def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     # Waits for the worker while it is claiming this very job (its row lock), then sees the real status.
     job = _lock_job(db, job_id)
-    if job.status != "queued":
+    # A job waiting for a render machine (render_nodes.py) has done only its light steps: it may be cancelled too.
+    waiting = job.status == "running" and job.node_stage == "ready"
+    if job.status != "queued" and not waiting:
         raise ApiError(409, "job_not_queued", "Job đã bắt đầu chạy hoặc đã xong, không hủy được")
-    job.status, job.finished_at = "cancelled", now()
+    job.status, job.finished_at, job.node_stage = "cancelled", now(), None
     db.commit()
+    if waiting:
+        from . import motion, render_nodes
+
+        if job.kind == "motion":
+            motion.fail_pending(db, job)
+        render_nodes.clean(get_storage(), job.id)
     if job.article_id is not None:
         return article_posts.payload(db, db.get(Article, job.article_id))
     if job.video_id is None:
