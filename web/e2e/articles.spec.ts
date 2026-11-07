@@ -56,6 +56,9 @@ test("Bài viết: create a draft, let the AI write the caption, make a text car
 test("Bài viết: post a text article to a Page, read its numbers, take it down, and make a reel from it", async ({
   page,
 }) => {
+  // Its own waits (posting up to 60 s, the numbers 30 s, the republish retry 30 s, taking down 60 s) are longer than
+  // the default 60 s for the whole test, so a slow CI runner ran out of time partway (at "Đăng" in the second dialog).
+  test.setTimeout(240_000);
   await loginAsSeed(page);
   await connectFacebook(page);
   await page.getByRole("menuitem", { name: "Bài viết" }).click();
