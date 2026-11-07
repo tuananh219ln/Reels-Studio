@@ -22,6 +22,7 @@ import {
   Radio,
   Result,
   Row,
+  Segmented,
   Space,
   Spin,
   Tabs,
@@ -45,7 +46,8 @@ import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
 import VideoPreview from "@/components/video/VideoPreview";
-import { ApiError, api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
+import { ApiError, api, errorMessage, type SceneData, type VideoDetail, type VideoMode } from "@/lib/api";
+import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import { usePolling } from "@/lib/polling";
 import { usePresence } from "@/lib/presence";
 import { COLORS } from "@/app/theme";
@@ -611,6 +613,28 @@ export default function VideoPage() {
                   )}
                 </Card>
               )}
+              {video.has_script && (
+                <Card title="Kiểu video" size="small" data-testid="video-mode">
+                  <Segmented
+                    aria-label="Kiểu video"
+                    value={video.mode}
+                    disabled={video.locked || viewing}
+                    options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
+                    onChange={(value) =>
+                      modal.confirm({
+                        title: `Đổi sang “${VIDEO_MODES.find((item) => item.value === value)?.label}”?`,
+                        content: "Ảnh, clip và ảnh món đã chọn vẫn được giữ, đổi lại lúc nào cũng được.",
+                        okText: "Đổi",
+                        cancelText: "Huỷ",
+                        onOk: () => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { mode: value as VideoMode })),
+                      })
+                    }
+                  />
+                  <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+                    {VIDEO_MODES.find((item) => item.value === video.mode)?.hint}
+                  </Typography.Text>
+                </Card>
+              )}
               <Flex justify="flex-end" gap={4}>
                 <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
                   Mở tất cả
@@ -623,6 +647,7 @@ export default function VideoPage() {
                 <SceneCard
                   scene={video.title_scene}
                   label="Cảnh tiêu đề"
+                  backdrop={isBackdrop(video)}
                   generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(0)}
@@ -638,6 +663,7 @@ export default function VideoPage() {
                   key={scene.id}
                   scene={scene}
                   label={`Cảnh ${index + 1}`}
+                  backdrop={isBackdrop(video)}
                   generating={job?.kind === "image" && job.scene_id === scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}

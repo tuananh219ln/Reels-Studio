@@ -1,7 +1,8 @@
-"""Text and sticker layers over a scene ("Chữ & sticker" in the studio), each saved on its own like the scene fields.
+"""Text, sticker and photo layers over a scene ("Chữ & sticker" in the studio, "Ảnh món" on a scene of a
+"Video xuyên suốt"), each saved on its own like the scene fields.
 
 The picture of a layer is drawn by the render core (reels_render.layers), so the studio's phone shows exactly what
-the MP4 overlays.
+the MP4 overlays. A photo layer shows its scene's own photo, so every way of choosing a scene's photo chooses it.
 """
 
 import io
@@ -13,14 +14,15 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
+from reels_render.layers import ANIMATIONS, PHOTO_SHAPES, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
 from .db import get_db
 from .errors import ApiError
 from .models import Scene, SceneLayer, Session
 from .sessions import current_member
-from .videos import ensure_unlocked, lock_scene, video_payload
+from .storage import DirectoryStorage, get_storage
+from .videos import ensure_unlocked, is_backdrop, lock_scene, photo_layer, video_payload
 
 router = APIRouter(prefix="/api/layers")
 
@@ -28,6 +30,8 @@ MAX_TEXT_LENGTH = 200
 MAX_START = 60
 MIN_SECONDS, MAX_SECONDS = 0.3, 60
 FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation")
+KINDS = ("text", "sticker", "photo")
+KIND_ERROR = 'Loại lớp phải là "text", "sticker" hoặc "photo"'
 
 
 class LayerBody(BaseModel):
@@ -51,7 +55,7 @@ def invalid(message: str) -> ApiError:
     return ApiError(422, "invalid_value", message)
 
 
-def as_layer(row: SceneLayer) -> Layer:
+def as_layer(row: SceneLayer, image=None) -> Layer:
     return Layer(
         kind=row.kind,
         text=row.text,
@@ -63,6 +67,7 @@ def as_layer(row: SceneLayer) -> Layer:
         size=row.size,
         style=row.style,
         animation=row.animation,
+        image=image,
     )
 
 
@@ -82,11 +87,12 @@ def _preset(value: object, presets: dict, label: str) -> str:
 
 def _apply(row: SceneLayer, body: LayerBody) -> None:
     """Checks and sets every field the body names, then that the layer can be drawn."""
-    for field in body.model_fields_set & set(FIELDS):
+    # The kind first: what a style means depends on it.
+    for field in sorted(body.model_fields_set & set(FIELDS), key=lambda name: name != "kind"):
         value = getattr(body, field)
         if field == "kind":
-            if value not in ("text", "sticker"):
-                raise invalid('Loại lớp phải là "text" hoặc "sticker"')
+            if value not in KINDS:
+                raise invalid(KIND_ERROR)
             row.kind = value
         elif field == "text":
             if not isinstance(value, str):
@@ -108,13 +114,19 @@ def _apply(row: SceneLayer, body: LayerBody) -> None:
         elif field == "size":
             row.size = _preset(value, SIZES, "Cỡ")
         elif field == "style":
-            row.style = _preset(value, TEXT_STYLES, "Kiểu chữ")
+            if row.kind == "photo":
+                row.style = _preset(value, PHOTO_SHAPES, "Khung ảnh")
+            else:
+                row.style = _preset(value, TEXT_STYLES, "Kiểu chữ")
         elif field == "animation":
             row.animation = _preset(value, ANIMATIONS, "Hiệu ứng vào")
     if row.kind == "text" and not row.text:
         raise invalid("Lớp chữ cần có chữ")
     if row.kind == "sticker" and row.sticker not in STICKERS:
         raise invalid("Sticker không hợp lệ: hãy chọn một sticker")
+    if row.kind == "photo":
+        # Drawn from the scene's photo, which may be chosen later; the render checks it is there.
+        return
     try:
         render_layer(as_layer(row))
     except ValueError as err:
@@ -147,6 +159,13 @@ def add_layer(body: NewLayerBody, me: Session = Depends(current_member), db: DbS
         raise invalid("Cảnh tiêu đề không có lớp chữ hay sticker: nó là ảnh bìa của video")
     last = db.scalar(select(func.max(SceneLayer.position)).where(SceneLayer.scene_id == scene.id))
     defaults = Layer(kind="text")
+    photo = body.kind == "photo"
+    if photo:
+        if not is_backdrop(video):
+            raise invalid("Ảnh món chỉ dùng cho Video xuyên suốt: đổi Kiểu video trước")
+        if any(layer.kind == "photo" for layer in scene.layers):
+            raise invalid("Cảnh này đã có ảnh món")
+        defaults = as_layer(photo_layer(scene.position))
     row = SceneLayer(
         scene_id=scene.id,
         position=(last or 0) + 1,
@@ -162,7 +181,7 @@ def add_layer(body: NewLayerBody, me: Session = Depends(current_member), db: DbS
         animation=defaults.animation,
     )
     if "kind" not in body.model_fields_set:
-        raise invalid('Loại lớp phải là "text" hoặc "sticker"')
+        raise invalid(KIND_ERROR)
     _apply(row, body)
     db.add(row)
     return _saved(db, video)
@@ -199,11 +218,26 @@ def sticker_image(name: str, me: Session = Depends(current_member)) -> Response:
 
 
 @router.get("/{layer_id}/image.png")
-def layer_image(layer_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> Response:
+def layer_image(
+    layer_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> Response:
     """The layer's picture exactly as the render overlays it (transparent around it)."""
     row = db.get(SceneLayer, layer_id)
-    if row is None or db.get(Scene, row.scene_id) is None:
+    scene = db.get(Scene, row.scene_id) if row is not None else None
+    if scene is None:
         raise ApiError(404, "layer_not_found", "Lớp này đã bị xoá")
+    image = None
+    if row.kind == "photo":
+        if not scene.image_key or not storage.exists(scene.image_key):
+            raise ApiError(404, "photo_not_found", "Cảnh chưa có ảnh cho ảnh món")
+        image = storage.path(scene.image_key)
     buffer = io.BytesIO()
-    render_layer(as_layer(row)).save(buffer, "PNG")
+    try:
+        picture = render_layer(as_layer(row, image))
+    except ValueError as err:
+        raise ApiError(422, "photo_unreadable", f"Không vẽ được ảnh món: {err}") from None
+    picture.save(buffer, "PNG")
     return Response(buffer.getvalue(), media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})

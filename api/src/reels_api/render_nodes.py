@@ -130,4 +130,9 @@ def render_bundle(folder: Path, manifest: dict) -> dict:
 
 
 def options_dict(options) -> dict:
-    return asdict(options)
+    """The render options for a machine. `backdrop` is sent only when on: a machine on older code renders slide
+    videos as before, and refuses a backdrop video (an option it does not know) instead of rendering it wrong."""
+    values = asdict(options)
+    if not values["backdrop"]:
+        del values["backdrop"]
+    return values

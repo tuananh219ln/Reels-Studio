@@ -144,10 +144,11 @@ export type JobInfo = {
   finished_at: string | null;
 };
 
-/** A text or sticker layer over a scene (reels_render.layers): its own seconds, place, look and entrance. */
+/** A text, sticker or photo layer over a scene (reels_render.layers): its own seconds, place, look and entrance.
+ * A photo layer ("Ảnh món") shows its scene's own photo framed by `style` (a photo shape), on a "Video xuyên suốt". */
 export type SceneLayer = {
   id: number;
-  kind: "text" | "sticker";
+  kind: "text" | "sticker" | "photo";
   text: string;
   sticker: string;
   /** Seconds into its scene. */
@@ -298,6 +299,8 @@ export type VideoDetail = VideoRow & {
   /** Made with "AI gợi ý hiệu ứng". */
   ai_effects: boolean;
   voice_enabled: boolean;
+  /** "Kiểu video": each scene over its own photo or clip, or the title scene's under every scene. */
+  mode: VideoMode;
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages; `owner` is the member whose Page it is. */
@@ -558,6 +561,9 @@ export type PageContent = {
   posts: PageContentPost[];
 };
 
+/** How a video is built (api videos.MODES): "single" is "Video xuyên suốt", one backdrop under every scene. */
+export type VideoMode = "slides" | "single";
+
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {
   voice_id: string;
@@ -590,6 +596,8 @@ export type VideoOptions = {
   title_text_size: "large" | "medium" | "small";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
+  /** "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it. */
+  voice_pause: 0.4 | 0.7 | 1;
 };
 
 /** One of the team's text box styles (Cài đặt, shared); a video copies its colours. */

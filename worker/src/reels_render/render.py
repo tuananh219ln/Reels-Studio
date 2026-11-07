@@ -1,6 +1,7 @@
 import os
 import tempfile
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 from . import ffmpeg
@@ -67,6 +68,9 @@ def render_video(
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
     spoken = [voice_seconds(tools.ffprobe, scene) for scene in script.all_scenes]
     timeline = build_timeline([fit_seconds(scene.seconds, voice) for scene, voice in zip(script.all_scenes, spoken)])
+    if options.backdrop:
+        script = with_backdrop(script)
+    loop_seconds = backdrop_clip_seconds(tools.ffprobe, script.title) if options.backdrop else None
     palette, first_palette = options.scene_palette(), options.title_palette()
 
     with tempfile.TemporaryDirectory(prefix="reels_render_") as work:
@@ -80,6 +84,11 @@ def render_video(
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             if scene.video is not None:
                 image, video_start = scene.video.resolve(), scene.video_start
+                if options.backdrop:
+                    video_start = backdrop_start(scene, scene_start, loop_seconds)
+            elif options.backdrop and index > 0:
+                # One photo under every scene: normalized once, for the title scene.
+                image, video_start = work_dir / "scene-00.jpg", None
             else:
                 image, video_start = work_dir / f"scene-{index:02d}.jpg", None
                 normalize_image(scene.image, image, scene.label)
@@ -112,7 +121,8 @@ def render_video(
             scene_end = (scene_start + timeline.scene_frames[index]) / FPS
             for number, layer in enumerate(scene.layers):
                 start = scene_start / FPS + layer.start
-                if start >= scene_end:
+                # A photo layer ("Ảnh món") is kept on a slide video but shown only over a backdrop.
+                if start >= scene_end or (layer.kind == "photo" and not options.backdrop):
                     continue
                 picture = render_layer(layer)
                 path = work_dir / f"layer-{index:02d}-{number:02d}.png"
@@ -141,6 +151,12 @@ def render_video(
                     transition=scene.transition,
                     color=scene.color,
                     music_level=scene.music_level,
+                    loop=options.backdrop and video_start is not None,
+                    motion_span=(
+                        (scene_start - timeline.scene_frames[index], timeline.total_frames)
+                        if options.backdrop and video_start is None
+                        else None
+                    ),
                 )
             )
 
@@ -170,6 +186,49 @@ def render_video(
             temp.unlink(missing_ok=True)
             raise
     return _publish(temp, output)
+
+
+def with_backdrop(script: Script) -> Script:
+    """ "Video xuyên suốt": the title scene's photo or clip under every scene, which keep their own text, narration
+    and layers. A scene's own photo stays only in its photo layers; transitions and colours are not used."""
+    title = script.title
+    if title.image is None and title.video is None:
+        raise InputError("Cảnh tiêu đề chưa có ảnh hoặc video để làm nền chung cho cả video")
+    title = replace(title, color=None)
+    scenes = [
+        replace(
+            scene,
+            image=title.image,
+            missing_image=None,
+            video=title.video,
+            video_start=title.video_start,
+            video_speed=title.video_speed,
+            transition=None,
+            color=None,
+        )
+        for scene in script.scenes
+    ]
+    return Script(title=title, scenes=scenes)
+
+
+def backdrop_clip_seconds(ffprobe: str, title: Scene) -> float | None:
+    """How long the backdrop clip is, to wrap each scene's start into it; None for a photo or an unreadable length."""
+    if title.video is None:
+        return None
+    try:
+        seconds = float(ffmpeg.probe(ffprobe, title.video)["format"]["duration"])
+    except (FFmpegError, KeyError, TypeError, ValueError):
+        return None
+    return seconds if seconds > 0 else None
+
+
+def backdrop_start(scene: Scene, scene_start: int, loop_seconds: float | None) -> float:
+    """Where in the backdrop clip a scene starting at frame `scene_start` picks up, so the scenes join as one
+    unbroken clip; past the clip's end it starts over, as the clip loops."""
+    start = scene.video_start + scene_start / FPS * scene.video_speed
+    if loop_seconds:
+        start %= loop_seconds
+    return round(start, 3)
 
 
 def voice_seconds(ffprobe: str, scene: Scene) -> float | None:

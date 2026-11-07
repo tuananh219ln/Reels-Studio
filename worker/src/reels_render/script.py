@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
-from .layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
+from .layers import ANIMATIONS, PHOTO_SHAPES, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
 from .markup import MarkupError, Run, parse_scene_text
 from .sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS, SceneSound
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
@@ -36,7 +36,7 @@ class Scene:
     text_position: tuple[int, int] | None = None  # the text box's centre in the frame; None: the template's place
     transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
     color: str | None = None  # effects.COLOR_PRESETS; None: as shot
-    layers: tuple[Layer, ...] = ()  # text and sticker layers over the scene, in the order they are laid on
+    layers: tuple[Layer, ...] = ()  # text, sticker and photo layers over the scene, in the order they are laid on
     sounds: tuple[SceneSound, ...] = ()  # sound effects heard during the scene
     music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
 
@@ -122,7 +122,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
     if transition is not None and number == 0:
         raise InputError(f'{label}: không có "transition", vì không có cảnh nào trước nó')
     color = _parse_preset(item.get("color"), "color", COLOR_PRESETS, label)
-    layers = _parse_layers(item.get("layers"), label)
+    layers = _parse_layers(item.get("layers"), label, base_dir)
     sounds = _parse_sounds(item.get("sounds"), label)
     music_level = _parse_preset(item.get("music_level"), "music_level", MUSIC_LEVELS, label)
     if video is not None and image.strip():
@@ -178,8 +178,8 @@ def _number(value: object, field: str, label: str, low: float, high: float) -> f
     return value
 
 
-def _parse_layers(value: object, label: str) -> tuple[Layer, ...]:
-    """A scene's text and sticker layers, in the order they are laid on."""
+def _parse_layers(value: object, label: str, base_dir: Path) -> tuple[Layer, ...]:
+    """A scene's text, sticker and photo layers, in the order they are laid on."""
     if value is None:
         return ()
     if not isinstance(value, list):
@@ -190,13 +190,19 @@ def _parse_layers(value: object, label: str) -> tuple[Layer, ...]:
         if not isinstance(item, dict):
             raise InputError(f"{where}: phải là một object")
         kind = item.get("kind")
-        if kind not in ("text", "sticker"):
-            raise InputError(f'{where}: "kind" phải là "text" hoặc "sticker"')
-        text, sticker = item.get("text", ""), item.get("sticker", "")
+        if kind not in ("text", "sticker", "photo"):
+            raise InputError(f'{where}: "kind" phải là "text", "sticker" hoặc "photo"')
+        text, sticker, image = item.get("text", ""), item.get("sticker", ""), item.get("image", "")
         if kind == "text" and (not isinstance(text, str) or not text.strip()):
             raise InputError(f'{where}: lớp chữ cần "text"')
         if kind == "sticker":
             _parse_preset(sticker, "sticker", STICKERS, where)
+        if kind == "photo":
+            if not isinstance(image, str) or not image.strip():
+                raise InputError(f'{where}: lớp ảnh cần "image"')
+            if not (base_dir / image).is_file():
+                raise InputError(f"{where}: không tìm thấy file ảnh {image}")
+        style_presets, default_style = (PHOTO_SHAPES, "rounded") if kind == "photo" else (TEXT_STYLES, "outline")
         layer = Layer(
             kind=kind,
             text=text if kind == "text" else "",
@@ -206,10 +212,11 @@ def _parse_layers(value: object, label: str) -> tuple[Layer, ...]:
             x=int(_number(item.get("x", FRAME_WIDTH // 2), "x", where, 0, FRAME_WIDTH)),
             y=int(_number(item.get("y", FRAME_HEIGHT // 2), "y", where, 0, FRAME_HEIGHT)),
             size=_parse_preset(item.get("size", "medium"), "size", SIZES, where),
-            style=_parse_preset(item.get("style", "outline"), "style", TEXT_STYLES, where),
+            style=_parse_preset(item.get("style", default_style), "style", style_presets, where),
             animation=_parse_preset(item.get("animation", "fade"), "animation", ANIMATIONS, where),
+            image=base_dir / image if kind == "photo" else None,
         )
-        if kind == "text":
+        if kind in ("text", "photo"):
             try:
                 render_layer(layer)
             except ValueError as err:

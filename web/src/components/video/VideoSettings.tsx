@@ -9,6 +9,7 @@ import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice } 
 import { ColorChoice } from "./textControls";
 import { OPACITIES, palette, warnings } from "./textPalette";
 import { TextStyleCards } from "./TextStyleCards";
+import { VOICE_PAUSES } from "./videoModes";
 
 /** The values these sections edit: a video's options plus its narration switch (and, for defaults, music level). */
 export type SettingsValues = VideoOptions & { voice_enabled: boolean; music_volume?: number };
@@ -183,6 +184,18 @@ export function AudioSettings({ values, onChange, disabled, showMusicVolume }: P
           disabled={disabled || off}
           onSave={(voice_volume) => onChange({ voice_volume })}
         />
+        <Field
+          label="Nghỉ sau lời đọc"
+          hint="Khoảng lặng ở cuối mỗi cảnh có số giây tự khớp lời đọc; đổi thì các cảnh đó dài ngắn theo."
+        >
+          <Segmented
+            aria-label="Nghỉ sau lời đọc"
+            value={values.voice_pause}
+            disabled={disabled || off}
+            options={VOICE_PAUSES}
+            onChange={(voice_pause) => onChange({ voice_pause: voice_pause as VideoOptions["voice_pause"] })}
+          />
+        </Field>
         {showMusicVolume && values.music_volume !== undefined && (
           <SliderField
             label="Âm lượng nhạc"

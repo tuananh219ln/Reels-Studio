@@ -259,6 +259,10 @@ class Video(Base):
     # Where the video is made for: facebook (a Reel, Shopee links) or tiktok (posted by hand, TikTok Shop's cart). A
     # TikTok version is its own video, cloned from the Facebook one it names in `variant_of_id`.
     platform: Mapped[str] = mapped_column(String(16), default="facebook", server_default="facebook")
+    # How the video is built (videos.MODES): "slides", each scene over its own photo or clip; "single" ("Video xuyên
+    # suốt"), the title scene's photo or clip under every scene, a scene's own photo shown only as its photo layer.
+    # Switching keeps every photo, clip and layer, so switching back loses nothing.
+    mode: Mapped[str] = mapped_column(String(16), default="slides", server_default="slides")
     variant_of_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
     # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -354,7 +358,7 @@ class SceneLayer(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     scene_id: Mapped[int] = mapped_column(ForeignKey("scenes.id", ondelete="CASCADE"), index=True)
     position: Mapped[int] = mapped_column(Integer, default=0)  # laid on in this order, the last on top
-    kind: Mapped[str] = mapped_column(String(8))  # "text" | "sticker"
+    kind: Mapped[str] = mapped_column(String(8))  # "text" | "sticker" | "photo"
     text: Mapped[str] = mapped_column(Text, default="")
     sticker: Mapped[str] = mapped_column(String(24), default="")
     start: Mapped[float] = mapped_column(Float, default=0)  # seconds into the scene

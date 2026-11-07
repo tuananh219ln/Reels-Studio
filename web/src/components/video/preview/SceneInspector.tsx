@@ -10,6 +10,8 @@ import {
   SceneTextField,
   SceneVoiceField,
 } from "../SceneCard";
+import PhotoLayerPanel from "../PhotoLayerPanel";
+import { photoLayer } from "../videoModes";
 
 /**
  * The studio's "Chỉnh cảnh N" panel beside the phone: everything about the scene being shown, so a scene is made
@@ -25,8 +27,14 @@ export default function SceneInspector({
   effects,
   layers,
   sounds,
+  saved = scene,
+  backdrop = false,
 }: {
   scene: SceneData;
+  /** The scene as saved: over a backdrop the preview shows `scene` with the title scene's picture. */
+  saved?: SceneData;
+  /** "Video xuyên suốt": a content scene's own picture is only its "Ảnh món". */
+  backdrop?: boolean;
   label: string;
   voiceEnabled: boolean;
   /** An image job is making this scene's photo. */
@@ -66,18 +74,31 @@ export default function SceneInspector({
           { key: "sounds", label: `Âm thanh (${scene.sounds.length})`, children: sounds },
           { key: "timing", label: "Thời lượng và vị trí chữ", children: timing },
           { key: "effects", label: "Hiệu ứng", children: effects },
-          {
-            key: "media",
-            label: scene.video ? "Video của cảnh" : "Ảnh của cảnh",
-            children: <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} compact />,
-          },
+          backdrop && !saved.is_title
+            ? {
+                key: "media",
+                label: "Ảnh món",
+                children: (
+                  <Flex vertical gap={8}>
+                    <PhotoLayerPanel scene={saved} />
+                    {photoLayer(saved.layers) && (
+                      <ScenePicture scene={saved} voiceEnabled={voiceEnabled} generating={generating} compact />
+                    )}
+                  </Flex>
+                ),
+              }
+            : {
+                key: "media",
+                label: backdrop ? "Nền chung của video" : scene.video ? "Video của cảnh" : "Ảnh của cảnh",
+                children: <ScenePicture scene={saved} voiceEnabled={voiceEnabled} generating={generating} compact />,
+              },
           {
             key: "search",
             label: "Tìm ảnh: từ khoá và prompt AI",
             children: (
               <Flex vertical gap={4}>
-                <SceneKeywordsField scene={scene} />
-                <ScenePromptField scene={scene} />
+                <SceneKeywordsField scene={saved} />
+                <ScenePromptField scene={saved} />
               </Flex>
             ),
           },
