@@ -142,6 +142,16 @@ migration 0047) and the code exchange must name that one. The consent screen nam
 callback's host, and warns for a loopback one, as the MCP specification asks. If an app displays
 another URI, do not broaden the allowlist blindly: check its documentation first.
 
+A refused registration is logged by the api as one WARNING line (WARNING because the api runs plain
+uvicorn, which prints no INFO line of the app's own loggers), kept for good as an audit of refused
+clients and as the way a new app's exact callback is learnt before it is added:
+`MCP registration refused: redirect_uris=['…'] client_name='…' token_endpoint_auth_method='…' grant_types=[…] response_types=[…]`.
+An authorize request naming a client that never registered (one that skips registration) logs
+`MCP authorize from an unknown client: client_id='…' redirect_uri='…'`. Only public client metadata is
+logged, each value cut to 300 characters. In production, read it in Coolify › the `api` application ›
+Logs, searching for `MCP registration refused` or `MCP authorize from an unknown client`. Add only the
+exact URI seen there to the allowlist.
+
 ## Example requests
 
 - “Tìm các video về xương khớp, cho tôi biết video nào còn thiếu ảnh.”

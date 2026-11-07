@@ -1,5 +1,6 @@
 """OAuth authorization-code + S256 PKCE for the private ChatGPT and Claude connections."""
 
+import logging
 import secrets
 from datetime import timedelta
 from html import escape
@@ -32,6 +33,7 @@ from .models import McpAuthorization, McpClient, McpConnection, Session
 from .security import hash_session_token, new_session_token
 from .sessions import COOKIE_NAME, current_member, now
 
+log = logging.getLogger(__name__)
 router = APIRouter(dependencies=[Enabled])
 PREFIX = "/api/mcp/oauth"
 PRIVATE_HEADERS = {"Cache-Control": "no-store", "Pragma": "no-cache"}
@@ -41,6 +43,11 @@ HTML_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
 }
+
+
+def clip(value: str) -> str:
+    """At most 300 characters of what an unauthenticated client sent, so one request cannot flood the log."""
+    return value[:300]
 
 
 def page(title: str, content: str, status: int = 200) -> HTMLResponse:
@@ -94,6 +101,17 @@ def register(body: Registration, db: DbSession = Depends(get_db)) -> JSONRespons
         or set(body.grant_types) - {"authorization_code", "refresh_token"}
         or body.response_types != ["code"]
     ):
+        # Kept for good: it is how a new assistant's exact callback is learnt before it joins the allowlist, and an
+        # audit of refused clients. Registration metadata is public (no secret is sent); %r keeps one line per refusal.
+        log.warning(
+            "MCP registration refused: redirect_uris=%r client_name=%r token_endpoint_auth_method=%r grant_types=%r "
+            "response_types=%r",
+            [clip(uri) for uri in redirects],
+            body.client_name,
+            clip(body.token_endpoint_auth_method),
+            [clip(kind) for kind in body.grant_types],
+            [clip(kind) for kind in body.response_types],
+        )
         raise oauth_error(
             "invalid_client_metadata", "Chỉ hỗ trợ kết nối ChatGPT, Claude và Claude Code với callback đã cho phép"
         )
@@ -121,6 +139,13 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
     resource = require_enabled()
     scopes = query.get("scope", "reels:read").split()
     challenge = query.get("code_challenge", "")
+    if client is None:
+        # A client that never registered here (an id it made up, or a metadata document URL) is learnt from this.
+        log.warning(
+            "MCP authorize from an unknown client: client_id=%r redirect_uri=%r",
+            clip(query.get("client_id", "")),
+            clip(query.get("redirect_uri", "")),
+        )
     if (
         client is None
         or not redirect_matches(client.redirect_uri, query.get("redirect_uri", ""))

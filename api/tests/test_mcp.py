@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+import logging
 from html import escape
 from urllib.parse import parse_qs, urlparse
 
@@ -539,6 +540,52 @@ def test_a_client_may_register_several_allowed_callbacks_but_never_an_unknown_on
         "/api/mcp/oauth/register", json={"redirect_uris": mixed, "token_endpoint_auth_method": "none"}
     )
     assert refused.status_code == 400
+
+
+def test_a_refused_registration_is_logged_with_what_the_client_sent(mcp_client, caplog):
+    # A new assistant (Muse) is added to the allowlist only with the exact callback it sends, read from this line.
+    # WARNING, not INFO: the api runs plain uvicorn, which only prints its own loggers' INFO lines.
+    caplog.set_level(logging.WARNING, logger="reels_api.routes_mcp")
+    refused = mcp_client.post(
+        "/api/mcp/oauth/register",
+        json={
+            "redirect_uris": ["https://evil.example.com/callback", CLAUDE_CALLBACK],
+            "token_endpoint_auth_method": "none",
+            "client_name": "Muse\nforged line",
+        },
+    )
+    assert refused.status_code == 400
+    assert refused.json()["error"] == "invalid_client_metadata"
+    [line] = [r for r in caplog.records if r.name == "reels_api.routes_mcp"]
+    assert line.levelno == logging.WARNING
+    text = line.getMessage()
+    assert "https://evil.example.com/callback" in text and CLAUDE_CALLBACK in text
+    assert "Muse" in text and "\n" not in text
+    # Refused for another reason than the callback: the line says what was sent, to tell the two apart.
+    caplog.clear()
+    other = mcp_client.post(
+        "/api/mcp/oauth/register",
+        json={"redirect_uris": [CALLBACK], "token_endpoint_auth_method": "client_secret_basic"},
+    )
+    assert other.status_code == 400
+    assert "client_secret_basic" in caplog.text and CALLBACK in caplog.text
+
+
+def test_an_accepted_registration_is_not_logged(mcp_client, caplog):
+    caplog.set_level(logging.DEBUG, logger="reels_api.routes_mcp")
+    assert register(mcp_client).status_code == 201
+    assert not [r for r in caplog.records if r.name == "reels_api.routes_mcp"]
+
+
+def test_an_unknown_client_at_authorize_is_logged(mcp_client, caplog):
+    # A client that skips registration (a client id it made itself, or a metadata document URL) never reaches
+    # register(): its id and callback are logged here instead.
+    caplog.set_level(logging.WARNING, logger="reels_api.routes_mcp")
+    response = authorize(
+        mcp_client, "https://assistant.example/client.json", redirect_uri="https://assistant.example/cb"
+    )
+    assert response.status_code == 400
+    assert "https://assistant.example/client.json" in caplog.text and "https://assistant.example/cb" in caplog.text
 
 
 def test_a_product_video_is_made_from_a_hand_written_script_without_an_ai_job(mcp_client, db, storage):
