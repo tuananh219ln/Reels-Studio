@@ -1717,7 +1717,7 @@ test("add a track to the music library, then choose it for a video", async ({ pa
   await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
   const save = page.getByRole("dialog", { name: "Thêm vào thư viện nhạc" });
   await save.getByLabel("Tên bài").fill("Tim nhẹ nhàng");
-  await chooseOption(page, save.getByLabel("Chủ đề"), "tim mạch");
+  await chooseOption(page, save.getByLabel("Chủ đề"), "chung");
   await save.getByText("File:").click();
   await chooseOption(page, save.getByLabel("Mood"), "nhẹ nhàng");
   await save.getByRole("button", { name: "Thêm" }).click();
