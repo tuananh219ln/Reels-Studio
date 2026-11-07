@@ -205,6 +205,8 @@ class VideoReference(Base):
     video_key: Mapped[str | None] = mapped_column(String(200))  # None until a link is downloaded by the job
     seconds: Mapped[float | None] = mapped_column(Float)
     transcript: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # The same words with their seconds, [{"text", "start", "end"}]: "Edit từ footage" cuts and captions by them.
+    words: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     frames: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     analysis: Mapped[str] = mapped_column(Text, default="", server_default="")
     analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -312,6 +314,11 @@ class Scene(Base):
     video_seconds: Mapped[float | None] = mapped_column(Float)  # the clip's probed length
     video_start: Mapped[float] = mapped_column(Float, default=0)
     video_speed: Mapped[float] = mapped_column(Float, default=1)
+    # "Tiếng gốc": the clip's own sound is heard in the render ("Edit từ footage" turns it on); off, it is left out.
+    video_sound: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # What the clip's sound says, [{"text", "start", "end"}] in the clip's own seconds (ElevenLabs Speech-to-Text):
+    # captions follow these real times. None for every other clip; any new clip drops them.
+    words: Mapped[list | None] = mapped_column(JSONB)
     # Where a member dragged the text box (its centre in the 1080×1920 frame); None: the video's place for its
     # scenes, else the template's. The renderer keeps the box inside the platforms' safe zone.
     text_x: Mapped[int | None] = mapped_column(Integer)

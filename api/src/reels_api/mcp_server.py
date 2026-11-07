@@ -244,9 +244,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         image_prompt: str | None = None,
         video_start: float | None = None,
         video_speed: float | None = None,
+        video_sound: bool | None = None,
     ) -> dict:
         """Sửa chữ/lời đọc/thời lượng/từ khóa/prompt ảnh của một cảnh, kể cả cảnh tiêu đề. Với cảnh có clip:
-        video_start là giây trong clip nơi cảnh bắt đầu, video_speed là tốc độ (1 là thường). Không tạo ảnh."""
+        video_start là giây trong clip nơi cảnh bắt đầu, video_speed là tốc độ (1 là thường), video_sound bật/tắt
+        "Tiếng gốc" (tiếng của clip có trong video xuất ra; clip phải có tiếng). Không tạo ảnh."""
         body = videos.ScenePatchBody(
             **{
                 key: value
@@ -259,6 +261,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                     "image_prompt": image_prompt,
                     "video_start": video_start,
                     "video_speed": video_speed,
+                    "video_sound": video_sound,
                 }.items()
                 if value is not None
             }

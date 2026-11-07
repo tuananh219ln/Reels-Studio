@@ -41,7 +41,7 @@ from .uploads import UploadRejected
 
 log = logging.getLogger(__name__)
 
-MODES = ("quick", "twostep", "review", "reuse")
+MODES = ("quick", "twostep", "review", "reuse", "footage")  # footage: "Edit từ footage" (footage.py)
 MIN_SAMPLE_SECONDS = 3
 MAX_SAMPLE_SECONDS = 180
 MAX_FRAMES = 16
@@ -101,7 +101,8 @@ def prepare(db: DbSession, reference: VideoReference, storage: DirectoryStorage,
     path = storage.path(reference.video_key)
     sample = check_sample(path)
     reference.seconds = round(sample.seconds, 3)
-    reference.transcript = _transcript(db, path, sample, folder)
+    reference.words = spoken_words(db, path, sample, folder)
+    reference.transcript = stt.lines(reference.words)
     reference.frames = _frames(storage, reference, path, sample)
     db.commit()
 
@@ -144,28 +145,35 @@ def _frames(storage: DirectoryStorage, reference: VideoReference, path: Path, sa
     return frames
 
 
-def _transcript(db: DbSession, path: Path, sample: clips.Sample, folder: Path) -> str:
-    """What is said, or "" when the sample is silent, no ElevenLabs key is set or ElevenLabs will not write the words
-    down: the stills alone still work."""
+def spoken_words(db: DbSession, path: Path, sample: clips.Sample, folder: Path, *, required: bool = False) -> list:
+    """What is said, word by word with its seconds, or [] when the sample is silent, no ElevenLabs key is set or
+    ElevenLabs will not write the words down: the stills alone still work. `required` ("Edit từ footage", which cuts
+    by the words) raises a ReferenceError with the reason instead."""
+
+    def missing(message: str, detail: str = "") -> list:
+        if required:
+            raise ReferenceError(message, detail)
+        return []
+
     if not sample.has_audio:
-        return ""
+        return missing("Video không có tiếng, nên không có lời nói để cắt")
     key = source_keys.get(db, "elevenlabs")
     if not key:
         log.info("No ElevenLabs key: the sample's words are not written down")
-        return ""
+        return missing("Chưa có key ElevenLabs để tách lời: thêm key ở Cài đặt › Nguồn tư liệu")
     audio = folder / "sample-sound.mp3"
     try:
         clips.sound_mp3(path, sample, audio)
     except clips.ClipError as err:
         log.warning("Sample sound not extracted: %s", err)
-        return ""
+        return missing("Không lấy được tiếng từ video, hãy thử video khác", str(err))
     try:
-        return stt.transcribe(audio, key)
+        return stt.transcribe_words(audio, key)
     except TtsError as err:
         # The words are optional (decisions 2026-11-05): a key without the speech_to_text permission, out of quota or
         # an ElevenLabs outage leaves the sample to its stills, as no key does, rather than failing the whole job.
         log.warning("The sample's words are not written down: %s %s", err.message, err.detail)
-        return ""
+        return missing(err.message, err.detail)
 
 
 def frame_lines(reference: VideoReference) -> str:
@@ -348,6 +356,8 @@ def attach_clips(
         key = new_key(f"clip-{scene.id}")
         storage.save_file(key, target)
         scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1
+        # A new or removed clip has no sound of its own heard, nor words ("Edit từ footage").
+        scene.video_sound, scene.words = False, None
         scene.image_key, scene.image_source, scene.image_error, scene.image_auto = None, None, None, False
         # The scene keeps its seconds while the clip is long enough for them.
         playable = clip.seconds - sides * CROSSFADE_SIDE_SECONDS

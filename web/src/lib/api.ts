@@ -232,7 +232,16 @@ export type SceneData = {
   image_error: string | null;
   image_url: string | null;
   /** A clip shown instead of the photo; the scene has one or the other. */
-  video: { url: string; seconds: number; start: number; speed: number } | null;
+  video: {
+    url: string;
+    seconds: number;
+    start: number;
+    speed: number;
+    /** "Tiếng gốc": the clip's own sound is heard in the render. */
+    sound: boolean;
+    /** How many spoken words of the clip are known ("Edit từ footage"); captions follow them. */
+    words: number;
+  } | null;
   preview_url: string | null;
   /** Where a member dragged this scene's text box (its centre in the 1080×1920 frame); null: not moved. */
   text_position: [number, number] | null;
@@ -334,7 +343,7 @@ export type VideoDetail = VideoRow & {
 };
 
 /** "Từ video mẫu": the way a video is learned from its sample (api reference.MODES). */
-export type SampleMode = "quick" | "twostep" | "review" | "reuse";
+export type SampleMode = "quick" | "twostep" | "review" | "reuse" | "footage";
 
 /** A still of a sample video, with what the AI wrote it shows. */
 export type SampleFrame = { second: number; note: string; url: string };

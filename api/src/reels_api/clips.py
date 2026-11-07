@@ -202,6 +202,14 @@ def probe_sample(path: Path) -> Sample:
     return Sample(demuxer, extension, seconds, has_audio)
 
 
+def has_sound(path: Path) -> bool:
+    """Whether a stored clip has a sound track to be heard ("Tiếng gốc")."""
+    try:
+        return probe_sample(path).has_audio
+    except (UploadRejected, OSError):
+        return False
+
+
 def still_jpeg(path: Path, sample: Sample, second: float, width: int) -> bytes:
     """The frame at `second`, at most `width` pixels wide, as JPEG."""
     return _run(
@@ -264,11 +272,17 @@ def sound_mp3(path: Path, sample: Sample, target: Path) -> None:
     )
 
 
-def cut_part(path: Path, sample: Sample, start: float, length: float, target: Path) -> None:
-    """`length` seconds from `start` as an H.264 MP4 without sound, its short side raised to MIN_SHORT_SIDE when
-    smaller (a YouTube video may come at 360p), so it passes check_clip like any scene clip. Re-encoded, not copied:
-    a copy can only start on a keyframe, seconds away from the chosen moment."""
+def cut_part(path: Path, sample: Sample, start: float, length: float, target: Path, *, sound: bool = False) -> None:
+    """`length` seconds from `start` as an H.264 MP4, its short side raised to MIN_SHORT_SIDE when smaller (a YouTube
+    video may come at 360p), so it passes check_clip like any scene clip. Re-encoded, not copied: a copy can only
+    start on a keyframe, seconds away from the chosen moment. Without sound unless `sound` ("Edit từ footage") and
+    the sample has some, then as AAC cut at the same frame."""
     short = MIN_SHORT_SIDE
+    audio = (
+        ["-map", "0:a:0", "-c:a", "aac", "-b:a", "160k", "-ar", "48000", "-ac", "2"]
+        if sound and sample.has_audio
+        else ["-an"]
+    )
     _run(
         [
             _tool("ffmpeg"),
@@ -288,7 +302,7 @@ def cut_part(path: Path, sample: Sample, start: float, length: float, target: Pa
             f"{length:.3f}",
             "-map",
             "0:v:0",
-            "-an",
+            *audio,
             "-vf",
             f"scale=w='if(lte(iw,ih),max(iw,{short}),-2)':h='if(lte(iw,ih),-2,max(ih,{short}))',setsar=1",
             "-c:v",

@@ -5,6 +5,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .captions import Word
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
 from .layers import ANIMATIONS, PHOTO_SHAPES, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
@@ -39,6 +40,8 @@ class Scene:
     layers: tuple[Layer, ...] = ()  # text, sticker and photo layers over the scene, in the order they are laid on
     sounds: tuple[SceneSound, ...] = ()  # sound effects heard during the scene
     music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
+    video_sound: bool = False  # the clip's own sound is heard ("Tiếng gốc"); otherwise it is left out
+    words: tuple[Word, ...] = ()  # what the clip's sound says, each word's seconds in the clip's own time
 
 
 @dataclass(frozen=True)
@@ -127,6 +130,12 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
     music_level = _parse_preset(item.get("music_level"), "music_level", MUSIC_LEVELS, label)
     if video is not None and image.strip():
         raise InputError(f'{label}: chỉ dùng một trong "image" hoặc "video"')
+    video_sound = item.get("video_sound", False)
+    if not isinstance(video_sound, bool):
+        raise InputError(f'{label}: "video_sound" phải là true hoặc false')
+    if video_sound and video is None:
+        raise InputError(f'{label}: "video_sound" chỉ dùng cho cảnh có "video"')
+    words = _parse_words(item.get("words"), label)
     keywords = _parse_keywords(item.get("keywords"), label)
 
     lines = []
@@ -167,7 +176,29 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         layers=layers,
         sounds=sounds,
         music_level=music_level,
+        video_sound=video_sound,
+        words=words,
     )
+
+
+MAX_WORDS = 2000
+
+
+def _parse_words(value: object, label: str) -> tuple[Word, ...]:
+    """The words the clip's sound says, [{"text", "start", "end"}] in the clip's own seconds."""
+    if value is None:
+        return ()
+    if not isinstance(value, list) or len(value) > MAX_WORDS:
+        raise InputError(f'{label}: "words" phải là danh sách tối đa {MAX_WORDS} từ')
+    words = []
+    for number, item in enumerate(value, start=1):
+        where = f"{label}, từ {number}"
+        if not isinstance(item, dict) or not isinstance(item.get("text"), str):
+            raise InputError(f'{where}: phải là một object có "text", "start", "end"')
+        start = float(_number(item.get("start"), "start", where, 0, 1e6))
+        end = float(_number(item.get("end"), "end", where, start, 1e6))
+        words.append(Word(item["text"], start, end))
+    return tuple(words)
 
 
 def _number(value: object, field: str, label: str, low: float, high: float) -> float:

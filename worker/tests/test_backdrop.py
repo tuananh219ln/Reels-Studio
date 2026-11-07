@@ -220,3 +220,14 @@ def test_a_backdrop_clip_is_cut_at_the_title_start_so_it_loops_back_there(tmp_pa
     data["title"]["video_start"] = 0
     untouched = with_backdrop(load_script(write_script(tmp_path, data)))
     assert trim_backdrop("ffmpeg", untouched, work) is untouched
+
+
+@needs_ffmpeg
+def test_the_backdrop_stays_silent_whatever_a_scenes_own_sound(tmp_path):
+    make_clip(tmp_path / "bg.mp4", 2, "640x360")
+    data = {
+        "title": {"text": "TIÊU ĐỀ", "seconds": 1, "video": "bg.mp4", "video_sound": True},
+        "scenes": [{"text": "Ý một", "seconds": 2, "video": "bg.mp4", "video_sound": True}],
+    }
+    script = with_backdrop(load_script(write_script(tmp_path, data)))
+    assert [(item.video_sound, item.words) for item in script.all_scenes] == [(False, ()), (False, ())]

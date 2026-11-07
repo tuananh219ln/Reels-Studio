@@ -5,6 +5,7 @@ ElevenLabs to detect, since a sample may be in any language. The words come back
 into lines that start with the second they are said at, so the AI can tie them to the stills.
 """
 
+import math
 from pathlib import Path
 
 import httpx
@@ -21,6 +22,12 @@ SENTENCE_ENDS = (".", "!", "?", "…")
 
 def transcribe(audio: Path, key: str) -> str:
     """The words as lines "[m:ss] ...", or "" when nothing is said. Failures raise TtsError with a member message."""
+    return lines(transcribe_words(audio, key))
+
+
+def transcribe_words(audio: Path, key: str) -> list[dict]:
+    """The spoken words, [{"text", "start", "end"}] in seconds (see clean_words); [] when nothing is said. Failures
+    raise TtsError with a member message."""
     url = f"{config.elevenlabs_api_url()}/v1/speech-to-text"
     try:
         with open(audio, "rb") as file:
@@ -41,7 +48,25 @@ def transcribe(audio: Path, key: str) -> str:
         words = response.json().get("words") or []
     except ValueError:
         raise TtsError("ElevenLabs trả lời thoại không đúng dạng", response.text[:4000]) from None
-    return lines(words)
+    return clean_words(words if isinstance(words, list) else [])
+
+
+def clean_words(words: list) -> list[dict]:
+    """ElevenLabs' words as {"text", "start", "end"}: spacing and audio events dropped, a word without its own seconds
+    takes the previous word's end, and the seconds never run backwards."""
+    out: list[dict] = []
+    last = 0.0
+    for word in words:
+        if not isinstance(word, dict) or word.get("type") not in (None, "word"):
+            continue
+        text = str(word.get("text") or "").strip()
+        if not text:
+            continue
+        start = max(_second(word.get("start"), last), last)
+        end = max(_second(word.get("end"), start), start)
+        out.append({"text": text[:100], "start": round(start, 3), "end": round(end, 3)})
+        last = end
+    return out
 
 
 def lines(words: list) -> str:
@@ -66,6 +91,12 @@ def lines(words: list) -> str:
     if current:
         out.append(_line(start or 0.0, current))
     return "\n".join(out)
+
+
+def _second(value: object, fallback: float) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        return fallback
+    return float(value)
 
 
 def _line(second: float, words: list[str]) -> str:

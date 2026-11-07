@@ -1538,6 +1538,11 @@ function SceneLayer({
   // A finger holds the box a moment before it moves, so a quick swipe still changes scene.
   const hold = useRef<{ timer: number; x: number; y: number; armed: boolean } | null>(null);
   const clipRef = useRef<HTMLVideoElement>(null);
+  // A clip whose own sound is kept ("Tiếng gốc") is heard here too, at the listener's level.
+  const { factor: listen } = useListen();
+  useEffect(() => {
+    if (clipRef.current) clipRef.current.volume = listen;
+  }, [listen]);
   useEffect(() => {
     const element = clipRef.current;
     if (element && seekTo !== null) {
@@ -1669,7 +1674,7 @@ function SceneLayer({
         <video
           ref={clipRef}
           src={scene.video.url}
-          muted
+          muted={!scene.video.sound || atEnd}
           playsInline
           // A backdrop clip loops under every scene from the title scene's start, as in the render.
           onEnded={(event) => {

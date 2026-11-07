@@ -161,6 +161,7 @@ class ScenePatchBody(BaseModel):
     voice_text: str | None = None
     video_start: float | None = None
     video_speed: float | None = None
+    video_sound: bool | None = None  # "Tiếng gốc": the clip's own sound is heard in the render
     text_position: object = None  # the text box centre [x, y]; null: back to the video's (or template's)
     image_checked: bool | None = None  # true: a member looked at the app's pick and keeps it ("Giữ ảnh này")
     transition: object = None  # the transition into this scene (reels_render.effects); null: the video's
@@ -845,6 +846,8 @@ def split_scene(
         storage.save_file(rest.video_key, storage.path(scene.video_key))
         rest.video_seconds, rest.video_speed = scene.video_seconds, scene.video_speed
         rest.video_start = round(scene.video_start + at * scene.video_speed, 2)
+        # The same file, so its sound and its words (in the clip's own seconds) stay in step from the new start.
+        rest.video_sound, rest.words = scene.video_sound, scene.words
     elif scene.image_key:
         rest.image_key = new_key(video.id, f"scene-{rest.id}", Path(scene.image_key).suffix.lstrip("."))
         storage.save_file(rest.image_key, storage.path(scene.image_key))
@@ -912,6 +915,12 @@ def patch_scene(
         if not math.isfinite(body.video_speed) or not MIN_VIDEO_SPEED <= body.video_speed <= MAX_VIDEO_SPEED:
             raise invalid("Tốc độ clip phải từ 0,5 đến 2")
         scene.video_speed = round(body.video_speed, 2)
+    if "video_sound" in fields and body.video_sound is not None:
+        if not scene.video_key:
+            raise invalid("Cảnh này chưa có video")
+        if body.video_sound and not scene.video_sound and not clips.has_sound(storage.path(scene.video_key)):
+            raise invalid("Video của cảnh này không có tiếng")
+        scene.video_sound = body.video_sound
     moved = False
     if "text_position" in fields:
         try:
@@ -990,6 +999,8 @@ def _store_photo(
     scene.image_auto = False
     # A photo replaces the scene's clip: a scene shows one or the other.
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
+    # A new or removed clip has no sound of its own heard, nor words ("Edit từ footage").
+    scene.video_sound, scene.words = False, None
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
@@ -1207,6 +1218,8 @@ def _attach_clip(db: DbSession, storage: DirectoryStorage, scene_id: int, upload
     key = new_key(video.id, f"clip-{scene.id}", clip.extension)
     storage.save_file(key, upload)
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1
+    # A new or removed clip has no sound of its own heard, nor words ("Edit từ footage").
+    scene.video_sound, scene.words = False, None
     # A clip replaces the scene's photo, and the scene lasts as long as the clip minus the crossfades around it
     # (one for the title, at most two for a content scene), in tenths, so the clip never ends on a held frame.
     scene.image_key, scene.image_source, scene.image_error = None, None, None
@@ -1234,6 +1247,7 @@ def remove_scene_video(
     ensure_unlocked(db, video)
     old, scene.video_key, scene.video_seconds, scene.video_start = scene.video_key, None, None, 0
     scene.video_speed = 1
+    scene.video_sound, scene.words = False, None
     if scene.is_title:
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)

@@ -22,7 +22,8 @@ service:
    paragraph, `Đọc:` lines as the voice text. No script job, so no cost to the team's AI service.
 3. `set_scene_media_from_link` gives a scene a TikTok clip, a video file's link or a photo's link, like
    pasting a link on the video page (same downloads, limits and refusals of local addresses). A clip's
-   part is chosen with `update_scene`'s `video_start` and `video_speed`; `add_scene` adds a scene.
+   part is chosen with `update_scene`'s `video_start` and `video_speed` (and `video_sound`, "Tiếng gốc": the
+   clip's own sound in the MP4); `add_scene` adds a scene.
    A member's own footage is uploaded on the video page: MCP does not carry files.
 4. `set_video_products` attaches approved products (Shopee on a Facebook video, TikTok Shop on its
    TikTok version), whose links go in the pinned comment.

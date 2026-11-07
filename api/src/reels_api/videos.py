@@ -328,6 +328,8 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             scene.image_key,
             *([scene.video_key, scene.video_start] if scene.video_key else []),
             *([["video_speed", scene.video_speed]] if scene.video_speed not in (None, 1) else []),
+            # The clip's own sound and its words join only when heard, so MP4s rendered before them stay current.
+            *([["video_sound", scene.words or []]] if scene.video_key and scene.video_sound else []),
             *([["text_position", *position]] if (position := text_position(video, scene)) else []),
             # The studio's effects join only when set, so MP4s rendered before they existed stay current.
             *([["transition", scene.transition]] if scene.transition else []),
@@ -558,6 +560,7 @@ REFERENCE_MODE_LABELS = {
     "twostep": "Hai bước tự động",
     "review": "Duyệt phân tích trước",
     "reuse": "Dùng mẫu đã học",
+    "footage": "Edit từ footage",
 }
 
 
@@ -673,6 +676,9 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
             "seconds": scene.video_seconds,
             "start": scene.video_start,
             "speed": scene.video_speed,
+            # "Tiếng gốc": the clip's own sound is heard in the render; `words` say whether captions follow it.
+            "sound": scene.video_sound,
+            "words": len(scene.words or []),
         }
         if scene.video_key
         else None,
