@@ -115,6 +115,22 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum.
 - **Font:** Be Vietnam Pro Black (OFL) is bundled in the package, not installed per machine.
 
+### Render Machines
+
+With "Render và cảnh động chạy trên máy render" on (`app_settings.render_on_node`), the worker runs every light step
+of a `render` or `motion` job, then packs what the render needs ([render_nodes.py](../api/src/reels_api/render_nodes.py)):
+a zip of the job's files and a `manifest.json` (the render script, music, options, the fingerprint to save, or the
+motion markup) in storage under `jobs/<id>/`, and sets `jobs.node_stage = "ready"` (migration 0051). The job stays
+`running`, so the video stays locked; the worker's restart recovery and its exit check skip jobs with a `node_stage`.
+A render machine (`render_nodes` row, token stored hashed) claims the oldest ready job (`taken`, `node_id`,
+`node_seen_at`), downloads the bundle, renders it with `render_nodes.render_bundle` (the same `render_video`, and
+`motion.render_clip`, and QC), uploads the MP4 and calls `done`; the api then saves it with `jobs.save_render` or
+`motion.attach`, exactly as the worker does, and deletes the bundle. `fail` fails the job with the machine's reason.
+A taken job silent for 10 minutes returns to `ready` on the next claim. A `ready` job can be cancelled from the video
+page; nothing renders it on the VPS while the switch is on. Machine endpoints (`/api/node/...`) authenticate by
+bearer token only and are exempt from the Origin check (main.py); member endpoints (`/api/render-nodes`) use the
+login cookie.
+
 ### Media Library ("Kho tư liệu")
 
 Photos and clips gathered once and used in any scene ([routes_media.py](../api/src/reels_api/routes_media.py)).

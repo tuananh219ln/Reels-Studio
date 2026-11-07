@@ -11,6 +11,19 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — Renders and motion scenes run on a member's own computer; the VPS prepares and keeps the data
+
+Asked by tuananh219ln: the VPS is small, and his computer (i7-8700, 32 GB, GTX 1060) is far stronger. Chosen with
+him: a "render machine" ([render_nodes.py](../api/src/reels_api/render_nodes.py)) rather than moving the whole app to
+his computer, which would lose the shared library and need it on all day for scheduled posts. The VPS still runs the
+web, the database, storage, posting and every light step of a job; with the switch on, a render or motion job is
+packed and **waits for a machine** (his choice over a VPS fallback), shown as "Đang chờ máy render" and cancellable.
+A machine reaches only `/api/node/...` with its own token, stored hashed and revoked by deleting it; it never gets
+database or storage access. The worker's "a running job after a restart failed" rule (2026-10-31) now skips jobs
+handed to a machine, which live on without it. Rendering on the GPU (NVENC) is not part of this: the CPU renders a
+30-second video in under a minute on that computer, and an encoder change is a render-core change to be watched
+first. The Claude chat on the video page through his own subscription, run by the same computer, is the next step.
+
 ## 2026-11-07 — "Kho tư liệu": the team's photos and clips by folder and from pasted links; Remotion stays out
 
 Asked by tuananh219ln: inputs from a folder, combined with Google photos and TikTok clips, where the Google and TikTok

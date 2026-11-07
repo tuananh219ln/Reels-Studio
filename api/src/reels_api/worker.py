@@ -96,7 +96,8 @@ def recover_interrupted(factory: sessionmaker) -> None:
     with factory() as db:
         ids = db.scalars(
             update(Job)
-            .where(Job.status == "running")
+            # A job handed to a render machine lives on without the worker (render_nodes.py).
+            .where(Job.status == "running", Job.node_stage.is_(None))
             .values(status="failed", error=RESTARTED, finished_at=now())
             .returning(Job.id)
         ).all()
@@ -195,7 +196,7 @@ def _fail_if_running(factory: sessionmaker, job_id: int, error: str, detail: str
     with factory() as db:
         db.execute(
             update(Job)
-            .where(Job.id == job_id, Job.status == "running")
+            .where(Job.id == job_id, Job.status == "running", Job.node_stage.is_(None))
             .values(status="failed", error=error, error_detail=detail, finished_at=now())
         )
         db.commit()

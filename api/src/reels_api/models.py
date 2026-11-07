@@ -63,6 +63,21 @@ class Session(Base):
     user: Mapped[User] = relationship(back_populates="sessions")
 
 
+class RenderNode(Base):
+    """A member's own computer that renders for the team (render_nodes.py), known by a token shown once."""
+
+    __tablename__ = "render_nodes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(60))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    created_by: Mapped["User"] = relationship()
+
+
 class McpClient(Base):
     __tablename__ = "mcp_clients"
 
@@ -418,6 +433,12 @@ class Job(Base):
     # The AI image provider of an image job ("cloudflare" | "gemini"), fixed when it is queued.
     image_provider: Mapped[str | None] = mapped_column(String(16))
     publication_id: Mapped[int | None] = mapped_column(Integer)  # The post an unpublish job takes down.
+    # A render or motion job handed to a member's render machine (render_nodes.py): "ready" once the VPS has packed
+    # what it needs, "taken" while a machine renders it; None for a job the worker runs itself. The job stays
+    # `running` meanwhile, so the video stays locked and the worker's restart and exit checks leave it alone.
+    node_stage: Mapped[str | None] = mapped_column(String(8))
+    node_id: Mapped[int | None] = mapped_column(ForeignKey("render_nodes.id", ondelete="SET NULL"))
+    node_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # the machine's last word on it
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

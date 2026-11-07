@@ -40,8 +40,16 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
     # Started by the worker for each job, in its own process group; not meant to be run by hand.
     run_job = commands.add_parser("run-job")
     run_job.add_argument("job_id", type=int)
+    node = commands.add_parser("node", help="chạy máy render: nhận job render và cảnh động từ máy chủ qua HTTPS")
+    node.add_argument("--server", help="địa chỉ web, ví dụ https://reels.example.com (hoặc REELS_SERVER)")
+    node.add_argument("--token", help="token của máy trên Cài đặt › Máy render (hoặc REELS_NODE_TOKEN)")
+    node.add_argument("--once", action="store_true", help="nhận một lượt rồi thoát (để thử)")
     args = parser.parse_args(argv)
 
+    if args.command == "node":
+        from .node import main as node_main
+
+        return node_main(args.server, args.token, args.once)
     if args.command == "worker":
         from .worker import main as worker_main
 

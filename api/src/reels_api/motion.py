@@ -228,16 +228,39 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     with tempfile.TemporaryDirectory(prefix="reels_motion_") as raw:
         folder = Path(raw)
         photo = storage.path(photo_key) if photo_key and storage.exists(photo_key) else None
-        try:
-            target = render_clip(folder, motion["html"], length, photo)
-            clip = check_clip(target)
-        except UploadRejected as err:
-            raise MotionError("HyperFrames làm ra clip không dùng được", str(err)) from None
-        video = db.scalar(select(Video).where(Video.id == scene.video_id).with_for_update())
-        db.refresh(scene)
-        old = [key for key in (scene.image_key, scene.video_key) if key and key != photo_key]
-        key = new_key(video.id, f"motion-{scene.id}", clip.extension)
-        storage.save_file(key, target)
+        from . import render_nodes
+
+        if render_nodes.enabled(db):
+            # A member's render machine runs HyperFrames; the api attaches its clip with `attach`.
+            bundle = folder / "bundle"
+            bundle.mkdir()
+            name = None
+            if photo is not None:
+                name = "photo" + photo.suffix.lower()
+                shutil.copyfile(photo, bundle / name)
+            manifest = {"kind": "motion", "html": motion["html"], "seconds": length, "photo": name}
+            render_nodes.pack(db, storage, job, manifest, bundle)
+            raise render_nodes.HandedOff
+        target = render_clip(folder, motion["html"], length, photo)
+        attach(db, storage, job, target)
+
+
+def attach(db: DbSession, storage: DirectoryStorage, job: Job, target: Path) -> None:
+    """The rendered clip becomes the scene's clip; the worker's own render and a render machine's both end here."""
+    scene = db.get(Scene, job.scene_id)
+    if scene is None or not scene.motion:
+        raise MotionError("Cảnh không còn hoặc không có cảnh động")
+    motion = dict(scene.motion)
+    photo_key = motion.get("photo_key")
+    try:
+        clip = check_clip(target)
+    except UploadRejected as err:
+        raise MotionError("HyperFrames làm ra clip không dùng được", str(err)) from None
+    video = db.scalar(select(Video).where(Video.id == scene.video_id).with_for_update())
+    db.refresh(scene)
+    old = [key for key in (scene.image_key, scene.video_key) if key and key != photo_key]
+    key = new_key(video.id, f"motion-{scene.id}", clip.extension)
+    storage.save_file(key, target)
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1
     scene.image_key, scene.image_source, scene.image_error, scene.image_auto = None, None, None, False
     # The motion is timed to its seconds, so the scene keeps them rather than following the narration.
