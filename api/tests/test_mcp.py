@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from reels_api.db import get_db
 from reels_api.main import create_app
 from reels_api.models import Job, Scene
+from reels_api.videos import ASSISTANT_WRITER
 
 PUBLIC = WEB_ORIGIN + "/api/mcp"
 CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
@@ -529,6 +530,8 @@ def test_a_product_video_is_made_from_a_hand_written_script_without_an_ai_job(mc
     assert not made.get("isError"), made
     video = db.scalar(select(Video).where(Video.topic == "Nồi chiên 5L"))
     assert video.hand_written and video.has_script and video.created_by_id == user.id
+    assert video.written_via == "assistant"
+    assert payload(made)["script_by"] == ASSISTANT_WRITER
     assert db.scalar(select(Job.id).where(Job.video_id == video.id)) is None
     scenes = db.scalars(
         select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position)
@@ -541,6 +544,118 @@ def test_a_product_video_is_made_from_a_hand_written_script_without_an_ai_job(mc
     assert not added.get("isError"), added
     count = select(func.count(Scene.id)).where(Scene.video_id == video.id, Scene.is_title.is_(False))
     assert db.scalar(count) == 3
+
+
+GROUP_SCRIPT = {
+    "titles": ["5 LOẠI RAU TỐT CHO TIM", "RAU XANH MỖI NGÀY"],
+    "title_voice": "Bữa cơm có đủ rau xanh chưa?",
+    "title_keywords": ["rau xanh"],
+    "title_keywords_en": ["green vegetables"],
+    "title_image_prompt": "Fresh green vegetables on a wooden table",
+    "scenes": [
+        {
+            "text": "Rau muống\nGiàu *chất xơ*",
+            "seconds": 4,
+            "voice": "Rau muống, nhiều chất xơ, tốt cho tiêu hóa.",
+            "image_prompt": "A bunch of water spinach",
+            "keywords": ["rau muống"],
+            "keywords_en": ["water spinach"],
+        },
+        {"text": "Cải bó xôi", "seconds": 4, "voice": "Cải bó xôi, có sắt.", "keywords": ["cải bó xôi"]},
+    ],
+    "caption": "Nhà bạn hay ăn rau gì?",
+    "hashtags": ["#rauxanh"],
+    "affiliates": [],
+    "pinned_comment": "Bạn thích rau nào nhất?",
+    "self_review": ['"chữa bệnh tim" → "tốt cho tim"'],
+    "music_suggestions": ["Windy Hill"],
+}
+
+
+def test_the_assistant_reads_the_groups_whole_script_prompt(mcp_client, db):
+    from conftest import first_topic
+
+    from reels_api.claude import BACKDROP_FORMAT, OUTPUT_FORMAT
+
+    _, _, tokens, _ = grant(mcp_client, db)
+    group = first_topic(db)
+    group.banned_words, group.photo_hint = ["thần dược"], "Ảnh rau đang mọc"
+    db.commit()
+    read = call(
+        mcp_client, tokens["access_token"], "get_script_prompt", topic=" Rau  xanh ", knowledge_topic_id=group.id
+    )
+    assert not read.get("isError"), read
+    prompt = payload(read)["prompt"]
+    assert "Rau xanh" in prompt and '"thần dược"' in prompt and "Ảnh rau đang mọc" in prompt
+    assert prompt.endswith(OUTPUT_FORMAT) and BACKDROP_FORMAT not in prompt
+    single = call(
+        mcp_client,
+        tokens["access_token"],
+        "get_script_prompt",
+        topic="Rau xanh",
+        knowledge_topic_id=group.id,
+        video_mode="single",
+    )
+    assert payload(single)["prompt"].endswith(BACKDROP_FORMAT)
+    group.script_prompt = ""
+    db.commit()
+    empty = call(mcp_client, tokens["access_token"], "get_script_prompt", topic="Rau", knowledge_topic_id=group.id)
+    assert empty["isError"]
+
+
+def test_a_script_written_from_the_group_prompt_is_saved_like_a_job_and_named_as_the_members_claude(
+    mcp_client, db, storage
+):
+    from conftest import first_topic
+
+    from reels_api.models import Video
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    made = call(
+        mcp_client,
+        tokens["access_token"],
+        "create_video_from_group_prompt",
+        topic="Rau xanh cho tim",
+        knowledge_topic_id=first_topic(db).id,
+        script_json="Đây là kịch bản:\n" + json.dumps(GROUP_SCRIPT, ensure_ascii=False),
+    )
+    assert not made.get("isError"), made
+    video = db.scalar(select(Video).where(Video.topic == "Rau xanh cho tim"))
+    assert video.has_script and not video.hand_written and video.written_via == "assistant"
+    assert video.created_by_id == user.id
+    assert video.title_options == GROUP_SCRIPT["titles"]
+    assert (video.caption, video.pinned_comment) == ("Nhà bạn hay ăn rau gì?", "Bạn thích rau nào nhất?")
+    assert video.self_review == GROUP_SCRIPT["self_review"]
+    scenes = db.scalars(select(Scene).where(Scene.video_id == video.id).order_by(Scene.position)).all()
+    assert [(s.is_title, s.text, s.voice_text) for s in scenes] == [
+        (True, "5 LOẠI RAU TỐT CHO TIM", "Bữa cơm có đủ rau xanh chưa?"),
+        (False, "Rau muống\nGiàu *chất xơ*", "Rau muống, nhiều chất xơ, tốt cho tiêu hóa."),
+        (False, "Cải bó xôi", "Cải bó xôi, có sắt."),
+    ]
+    assert scenes[1].keywords_en == ["water spinach"]
+    # No script job: the team's AI service was not asked. "Tự tìm ảnh" follows, as after a job.
+    kinds = db.scalars(select(Job.kind).where(Job.video_id == video.id)).all()
+    assert kinds == ["photos"]
+    assert payload(made)["script_by"] == ASSISTANT_WRITER
+
+
+def test_a_script_the_parser_cannot_read_is_refused_and_makes_no_video(mcp_client, db):
+    from conftest import first_topic
+
+    from reels_api.models import Video
+
+    _, _, tokens, _ = grant(mcp_client, db)
+    refused = call(
+        mcp_client,
+        tokens["access_token"],
+        "create_video_from_group_prompt",
+        topic="Không có cảnh",
+        knowledge_topic_id=first_topic(db).id,
+        script_json=json.dumps({"titles": ["CHỈ CÓ TIÊU ĐỀ"], "scenes": []}),
+    )
+    assert refused["isError"]
+    assert "không có cảnh nội dung nào" in refused["content"][0]["text"]
+    assert db.scalar(select(Video).where(Video.topic == "Không có cảnh")) is None
 
 
 def test_affiliate_products_are_listed_and_only_approved_ones_attach(mcp_client, db, storage):

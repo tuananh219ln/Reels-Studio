@@ -11,6 +11,19 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — Scripts are written by the member's own Claude through MCP with the group's prompt, by default
+
+Asked by tuananh219ln: write scripts with a Claude subscription instead of the API key, the team being two people.
+Running the subscription inside the app stays refused ("Claude connects through the MCP server on each member's own
+plan", below). Instead the MCP server hands the member's Claude the exact prompt a script job would send
+(`get_script_prompt`: the group's prompt, banned words, photo hint, fixed output format) and saves the JSON it writes
+with the job's own parser and `save_script` (`create_video_from_group_prompt`), so such a video has everything an
+API-written one has. The server's instructions make this the default and keep `create_video` (the team's API, paid)
+for when the member asks for it. Such videos are marked `videos.written_via = "assistant"` (migration 0056) and the
+video page says "Kịch bản viết bởi Claude của thành viên qua kết nối MCP", next to the API's "Kịch bản viết bởi
+<provider · model>", so the team sees which one wrote each script. The "Tạo video" button in the app still uses the
+API key.
+
 ## 2026-11-07 — "Edit từ footage": a member's footage cut by its words; a clip may keep its own sound
 
 Asked by tuananh219ln after reading AIEV (github.com/notivn/AIEVv2), whose core is "put footage in, the AI cuts it

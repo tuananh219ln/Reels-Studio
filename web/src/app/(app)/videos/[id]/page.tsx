@@ -593,7 +593,8 @@ export default function VideoPage() {
                     options={video.title_options.map((option, index) => ({ value: index, label: option }))}
                   />
                   {/* Under the options, not in the card's header, where on a phone it squeezed the title to "T…". */}
-                  {video.hand_written && (
+                  {/* A script typed through MCP was written by the member's Claude: script_by names it instead. */}
+                  {video.hand_written && !video.script_by && (
                     <Typography.Text
                       type="secondary"
                       style={{ display: "block", marginTop: 10, fontSize: 12 }}

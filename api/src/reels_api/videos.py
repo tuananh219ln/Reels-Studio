@@ -720,11 +720,17 @@ def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | N
     }
 
 
-def script_writer(db: DbSession, video_id: int) -> str | None:
-    """The provider and model of the job that wrote the video's script, so reviewers know what they read."""
+ASSISTANT_WRITER = "Claude của thành viên qua kết nối MCP (gói đăng ký, không tốn phí AI của nhóm)"
+
+
+def script_writer(db: DbSession, video: Video) -> str | None:
+    """Who wrote the video's script, so reviewers know what they read: a member's own Claude through MCP, or the
+    provider and model of the job that wrote it."""
+    if video.written_via == "assistant":
+        return ASSISTANT_WRITER
     job = db.scalar(
         select(Job)
-        .where(Job.video_id == video_id, Job.kind.in_(("script", "clone", "learn")), Job.status == "done")
+        .where(Job.video_id == video.id, Job.kind.in_(("script", "clone", "learn")), Job.status == "done")
         .order_by(Job.id.desc())
         .limit(1)
     )
@@ -850,7 +856,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         ],
         "knowledge_topic": topic.name if topic else None,
         "plan_idea": _plan_idea(db, video),
-        "script_by": script_writer(db, video.id) if video.has_script else None,
+        "script_by": script_writer(db, video) if video.has_script else None,
         "clone_of": {
             "title": video.clone_source["title"],
             "request": video.clone_source["request"],

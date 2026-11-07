@@ -200,7 +200,7 @@ def test_a_script_job_writes_with_the_provider_the_team_chose(committed, service
     video, scenes = load(committed, video_id)
     assert video.has_script and len(scenes) >= 6
     with committed() as db:
-        assert script_writer(db, video_id) == "DeepSeek · fake-gpt-mini"
+        assert script_writer(db, db.get(Video, video_id)) == "DeepSeek · fake-gpt-mini"
     assert "provider=deepseek model=fake-gpt-mini" in worker.output()
 
 

@@ -225,6 +225,9 @@ class Video(Base):
     has_script: Mapped[bool] = mapped_column(Boolean, default=False)
     # "Tự viết": a member wrote the script, so no AI wrote it and none reviewed its safety.
     hand_written: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # "assistant": the script was written by a member's own Claude through MCP (on their plan, at no cost to the
+    # team's AI service); "": by the team's AI service in a job, or typed by a member.
+    written_via: Mapped[str] = mapped_column(String(20), default="", server_default="")
     title_options: Mapped[list] = mapped_column(JSONB, default=list)
     caption: Mapped[str] = mapped_column(Text, default="")
     hashtags: Mapped[list] = mapped_column(JSONB, default=list)
