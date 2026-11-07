@@ -1,4 +1,4 @@
-# Run this computer as a Reels Studio render machine (docs/deployment.md, "Render machine").
+﻿# Run this computer as a Reels Studio render machine (docs/deployment.md, "Render machine").
 #
 #   powershell -ExecutionPolicy Bypass -File api\scripts\render-node.ps1 -Server https://reels.example.com -Token <token>
 #
