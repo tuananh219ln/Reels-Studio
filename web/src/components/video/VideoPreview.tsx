@@ -42,6 +42,7 @@ import {
   type SceneSound,
   type VideoDetail,
   type VideoOptions,
+  voiceService,
 } from "@/lib/api";
 import AutoEditPanel from "./preview/AutoEditPanel";
 import ClipTrim from "./preview/ClipTrim";
@@ -261,6 +262,8 @@ export default function VideoPreview({
   const unvoiced = scenes.filter((item) => item.spoken_text && !item.voice_url).length;
   const missingVoice = unvoiced > 0;
   const voicing = video.active_job?.kind === "voice";
+  // ElevenLabs or VieNeu, by the video's voice: the service "Tạo giọng" calls.
+  const service = voiceService(video.options.voice_id);
 
   useEffect(() => {
     const resize = () => setWidth(phoneWidth());
@@ -1137,7 +1140,7 @@ export default function VideoPreview({
           {tool === "voice" && (
             <Flex vertical gap={8} data-testid="preview-voice">
               <Typography.Text strong>Giọng đọc</Typography.Text>
-              {/* The video's ElevenLabs voice, the same choice as "Thiết lập": a new one makes the narration again. */}
+              {/* The video's ElevenLabs or VieNeu voice, the same choice as "Thiết lập": a new one makes the narration again. */}
               <VoicePicker
                 values={{ ...video.options, voice_enabled: video.voice_enabled }}
                 disabled={!editable}
@@ -1147,22 +1150,22 @@ export default function VideoPreview({
               />
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 {voicing
-                  ? "ElevenLabs đang đọc các cảnh, xong sẽ tự dùng giọng thật."
+                  ? `${service} đang đọc các cảnh, xong sẽ tự dùng giọng thật.`
                   : missingVoice
-                    ? `${unvoiced} cảnh chưa có giọng ElevenLabs (lời đọc mới hoặc vừa đổi giọng), đang đọc tạm bằng giọng trình duyệt.`
-                    : "Mọi cảnh đã có giọng ElevenLabs. Đổi giọng thì các cảnh được đọc lại khi tạo giọng hoặc render."}
+                    ? `${unvoiced} cảnh chưa có giọng ${service} (lời đọc mới hoặc vừa đổi giọng), đang đọc tạm bằng giọng trình duyệt.`
+                    : `Mọi cảnh đã có giọng ${service}. Đổi giọng thì các cảnh được đọc lại khi tạo giọng hoặc render.`}
               </Typography.Text>
               {(missingVoice || voicing) && (
                 <Popconfirm
-                  title="Tạo giọng thật bằng ElevenLabs?"
-                  description={`ElevenLabs đọc ${unvoiced} cảnh, tốn credit một lần. Render sau đó dùng lại, không tốn thêm.`}
+                  title={`Tạo giọng thật bằng ${service}?`}
+                  description={`${service} đọc ${unvoiced} cảnh, tốn credit một lần. Render sau đó dùng lại, không tốn thêm.`}
                   okText="Tạo giọng"
                   cancelText="Thôi"
                   onConfirm={onMakeVoices}
                   disabled={voicing || Boolean(video.active_job)}
                 >
                   <Button block loading={voicing} disabled={!voicing && Boolean(video.active_job)}>
-                    Tạo giọng ElevenLabs cho {unvoiced} cảnh
+                    Tạo giọng {service} cho {unvoiced} cảnh
                   </Button>
                 </Popconfirm>
               )}
@@ -1206,8 +1209,8 @@ export default function VideoPreview({
           )}
 
           <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: "auto" }}>
-            Bản xem trước gần đúng, chưa phải MP4. Cảnh đã có giọng ElevenLabs (sau một lần render hoặc “Tạo giọng
-            ElevenLabs”) dùng giọng đó, cảnh khác dùng giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm
+            Bản xem trước gần đúng, chưa phải MP4. Cảnh đã có giọng {service} (sau một lần render hoặc “Tạo giọng{" "}
+            {service}”) dùng giọng đó, cảnh khác dùng giọng tiếng Việt miễn phí của trình duyệt. Phụ đề và cách trộn âm
             chỉ có khi render.
           </Typography.Text>
         </div>
