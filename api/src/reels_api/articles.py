@@ -2,15 +2,16 @@
 
 The caption is typed by a member or written by the AI in an `article_caption` job, assembled by the same
 `claude._assemble` as a video script, with this module's fixed output format. Its checks follow the video's: a banned
-word only warns (decisions 2026-10-31); a link in the caption blocks, because affiliate links go in the pinned
-comment only. A picture is optional: a "Thẻ chữ" (text card drawn here), a pasted photo's link, or none.
+word only warns (decisions 2026-10-31); a link in the caption or pinned comment blocks, because the app adds the
+affiliate links itself, in the comment only. The AI writes its own reminder to ask a doctor, in the post's voice; no
+fixed sentence is added (decisions 2026-11-07). A picture is optional: a "Thẻ chữ" (text card drawn here), a pasted photo's link, or none.
 """
 
 import io
 import re
 import secrets
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from PIL import Image, ImageDraw, ImageFont
 from sqlalchemy import select
@@ -21,7 +22,7 @@ from reels_render.textbox import FONT_PATH
 
 from . import hashtags as hashtag_rules
 from . import knowledge
-from .claude import ClaudeError, ScriptOutputError, _assemble, fill_placeholders, json_object
+from .claude import ClaudeError, ScriptOutputError, _assemble, _strings, fill_placeholders, json_object
 from .models import ACTIVE_JOB_STATUSES, Article, Job, KnowledgeTopic, PageComment
 from .script_rules import banned_hits
 
@@ -34,8 +35,9 @@ KIND_LABELS = {
     "checklist": "Tổng hợp / danh sách",
 }
 IMAGE_KIND_LABELS = {"ai": "Ảnh AI", "link": "Ảnh từ link", "text_card": "Thẻ chữ"}
-DISCLAIMER = "Tham khảo, không thay thế tư vấn bác sĩ."
 MAX_HASHTAGS = 5
+MAX_IDEAS = 3
+MAX_PINNED_LENGTH = 2000
 MAX_TOPIC_LENGTH = 300
 MAX_CAPTION_LENGTH = 5000
 # A link in the caption: a scheme, "www." or a bare domain such as shope.ee/abc or example.com.
@@ -49,21 +51,26 @@ PLACEHOLDERS = (
     ("[Chủ đề]", "Chủ đề"),
     ("[Bình luận gốc]", "Bình luận của người xem cần trả lời"),
 )
-ARTICLE_TEXTS = "dòng mở đầu, nội dung, câu hỏi và hashtag của bài viết"
+ARTICLE_TEXTS = "dòng mở đầu, nội dung, câu nhắc, câu hỏi, hashtag và bình luận ghim của bài viết"
 
 _FORMAT = """\
 Chỉ trả về đúng một object JSON, không có chữ nào khác ngoài JSON:
 {{
   "hook": "1 dòng mở đầu",
   "body": "{body}",
+  "note": "1 câu nhắc nhẹ, hoặc chuỗi rỗng",
   "question": "1 câu hỏi kết bài cho người xem trả lời trong bình luận",
-  "hashtags": ["#tối_đa_5_hashtag"]
+  "hashtags": ["#tối_đa_5_hashtag"],
+  "pinned_comment": "bình luận ghim của Page dưới bài",
+  "affiliates": ["tối đa {max_ideas} sản phẩm để tìm trên Shopee"]
 }}
 Quy tắc định dạng:
 - {hook_rule}
 - {body_rule}
-- Không viết link, tên miền hay số điện thoại; link sản phẩm (nếu có) nằm ở bình luận ghim, không ở bài.
-- Không viết câu "{disclaimer}": app tự thêm vào cuối bài.
+- "note": khi bài nói về sức khỏe, ăn uống hay thói quen cơ thể, viết 1 câu nhắc ngắn bằng giọng của bài, như người quen dặn nhau (ví dụ ý: ai có bệnh nền, đang mang thai hay đang dùng thuốc thì hỏi bác sĩ trước). Không dùng câu khuôn mẫu kiểu "tham khảo, không thay thế tư vấn bác sĩ". Bài không cần nhắc thì để chuỗi rỗng.
+- "pinned_comment": 1–2 câu Page tự bình luận dưới bài để ghim: gợi chuyện tiếp, mời người xem kể trải nghiệm hoặc hỏi thêm; nếu có sản phẩm hợp với bài thì nói nhẹ là link ở ngay bên dưới. Không link, không số điện thoại.
+- "affiliates": 0–{max_ideas} sản phẩm thật sự hợp với nội dung bài, mỗi cái là vài chữ để gõ vào ô tìm kiếm Shopee (ví dụ "bình giữ nhiệt", "gối cao su non"); không hợp thì để mảng rỗng.
+- Không viết link, tên miền hay số điện thoại trong bài; link sản phẩm (nếu có) nằm ở bình luận ghim.
 - Tối đa {max_tags} hashtag, mỗi hashtag bắt đầu bằng #, không dấu cách bên trong; không chèn hashtag vào câu."""
 
 
@@ -84,7 +91,7 @@ def output_format(kind: str) -> str:
         else "Dòng mở đầu là 1 câu, dưới 15 từ."
     )
     return _FORMAT.format(
-        body=body, body_rule=body_rule, hook_rule=hook_rule, disclaimer=DISCLAIMER, max_tags=MAX_HASHTAGS
+        body=body, body_rule=body_rule, hook_rule=hook_rule, max_tags=MAX_HASHTAGS, max_ideas=MAX_IDEAS
     )
 
 
@@ -110,6 +117,8 @@ def build_prompt(group: KnowledgeTopic | None, article: Article, comment: str = 
 class GeneratedCaption:
     caption: str
     hashtags: list[str]
+    pinned_comment: str = ""
+    affiliates: list[str] = field(default_factory=list)
 
 
 def _line(value: object) -> str:
@@ -124,10 +133,10 @@ def _lines(value: object) -> str:
     return "\n".join(line.strip() for line in value.strip().splitlines() if line.strip())
 
 
-def compose_caption(hook: str, body: str, question: str) -> str:
-    """Hook, body, question and the disclaimer, each a paragraph of its own; the disclaimer is always the app's."""
-    parts = [part for part in (hook, body, question) if part]
-    return "\n\n".join([*parts, DISCLAIMER])
+def compose_caption(hook: str, body: str, question: str, note: str = "") -> str:
+    """Hook, body (closed by the AI's own reminder, when it wrote one) and question, each a paragraph of its own."""
+    middle = "\n".join(part for part in (body, note) if part)
+    return "\n\n".join(part for part in (hook, middle, question) if part)
 
 
 def parse_output(raw: str, kind: str) -> GeneratedCaption:
@@ -140,11 +149,15 @@ def parse_output(raw: str, kind: str) -> GeneratedCaption:
         raise ScriptOutputError("thiếu câu hỏi kết bài")
     if kind != "cau_hoi" and not body:
         raise ScriptOutputError("thiếu nội dung")
-    # The disclaimer is added by the app, so one the AI wrote anyway is not kept twice.
-    body = "\n".join(line for line in body.splitlines() if DISCLAIMER.rstrip(".") not in line)
     tags = data.get("hashtags")
     tags = [tags] if isinstance(tags, str) else tags if isinstance(tags, list) else []
-    return GeneratedCaption(compose_caption(hook, body, question), clean_hashtags([str(tag) for tag in tags]))
+    ideas = [_line(idea)[:100] for idea in _strings(data.get("affiliates"))]
+    return GeneratedCaption(
+        compose_caption(hook, body, question, _line(data.get("note"))),
+        clean_hashtags([str(tag) for tag in tags]),
+        _lines(data.get("pinned_comment"))[:MAX_PINNED_LENGTH],
+        [idea for idea in ideas if idea][:MAX_IDEAS],
+    )
 
 
 def generate(prompt: str, kind: str, label: str, on_call: Callable[[], None], call) -> GeneratedCaption:
@@ -192,14 +205,17 @@ def checks(article: Article, banned_words: list[str]) -> dict:
     blocking: list[Issue] = []
     warnings: list[Issue] = []
     text = "\n".join([article.caption, " ".join(article.hashtags)])
+    comment_hits = banned_hits(article.pinned_comment, banned_words)
     if not article.caption.strip():
         blocking.append(Issue("Chưa có caption"))
     if LINK.search(text):
         blocking.append(Issue("Caption có link: link sản phẩm chỉ để ở bình luận ghim"))
     for word in banned_hits(text, banned_words):
         warnings.append(Issue(f"Có từ cấm: “{word}”"))
-    if article.caption.strip() and DISCLAIMER.rstrip(".").lower() not in article.caption.lower():
-        warnings.append(Issue(f"Thiếu câu “{DISCLAIMER}”"))
+    for word in comment_hits:
+        warnings.append(Issue(f"Bình luận ghim có từ cấm: “{word}”", "pinned_comment"))
+    if LINK.search(article.pinned_comment):
+        blocking.append(Issue("Bình luận ghim có link: link sản phẩm do app tự thêm sau bình luận", "pinned_comment"))
     if article.kind == "tra_loi_binh_luan" and article.source_comment_id is None:
         warnings.append(Issue("Chưa chọn bình luận được trả lời", "source_comment_id"))
     return {
@@ -331,6 +347,12 @@ def payload(db: DbSession, article: Article) -> dict:
         "topic": article.topic,
         "caption": article.caption,
         "hashtags": article.hashtags,
+        "pinned_comment": article.pinned_comment,
+        "affiliates": article.affiliates,
+        # The Shopee search of its product ideas, as a video's `suggest`.
+        "suggest": {
+            "state": "pending" if article.suggest_requested_at else ("failed" if article.suggest_error else "idle"),
+        },
         "hook": hook_of(article.caption),
         "has_image": bool(article.image_key),
         "image_kind": article.image_kind,

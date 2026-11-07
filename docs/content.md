@@ -168,10 +168,12 @@ How the prompt is built (built, compact version):
   `[Nhóm chủ đề]` and `[Bình luận gốc]` (the visitor's comment a "Trả lời bình luận" article answers), appending
   those it has no placeholder for. It is assembled by the same `claude._assemble` as a script, with the banned words
   and the article's own output format (code, `articles.output_format`): JSON with a one-line hook, a body of 3–5
-  lines (none for "Câu hỏi / thăm dò", one idea per line for "Tổng hợp / danh sách"), a closing question and at most
-  5 hashtags, with no link. The app joins hook, body and question and always ends the caption with "Tham khảo, không
-  thay thế tư vấn bác sĩ."; an unusable answer is asked once more, then the job fails. A link in the caption blocks
-  posting; a banned word or a missing disclaimer only warns.
+  lines (none for "Câu hỏi / thăm dò", one idea per line for "Tổng hợp / danh sách"), a short reminder in the post's
+  own voice when it is about health (who should ask a doctor first; no stock sentence such as "Tham khảo, không thay
+  thế tư vấn bác sĩ", which read as machine-made), a closing question, at most 5 hashtags, the Page's pinned comment
+  (1–2 sentences inviting replies) and up to 3 product ideas to search Shopee for; no link anywhere. The app joins
+  hook, body with its reminder, and question, adding nothing of its own; an unusable answer is asked once more, then
+  the job fails. A link in the caption or pinned comment blocks posting; a banned word only warns.
 
 Planned rules, with the full Knowledge Base:
 

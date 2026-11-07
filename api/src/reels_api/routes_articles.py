@@ -28,6 +28,7 @@ from .models import (
     Publication,
     Session,
 )
+from .routes_affiliate import _ask_comments
 from .routes_videos import MAX_SCHEDULE_DELAY, MIN_SCHEDULE_DELAY, NewVideoBody, create_video, invalid
 from .sessions import current_member, now
 from .storage import DirectoryStorage, get_storage
@@ -51,6 +52,8 @@ class ArticlePatchBody(BaseModel):
     topic: str | None = None
     caption: str | None = None
     hashtags: list[str] | None = None
+    pinned_comment: str | None = None
+    affiliates: list[str] | None = None  # product ideas, one per line on the page
     source_comment_id: int | None = None
     clear_source_comment: bool = False
 
@@ -135,7 +138,6 @@ def _options() -> dict:
             {"value": value, "label": label, "background": background, "color": colour}
             for value, (label, background, colour) in articles.CARD_PRESETS.items()
         ],
-        "disclaimer": articles.DISCLAIMER,
         "max_hashtags": articles.MAX_HASHTAGS,
         "max_products": article_posts.MAX_PRODUCTS,
         "product_line": article_posts.PRODUCT_LINE,
@@ -215,6 +217,15 @@ def patch_article(
         if len(body.hashtags) > articles.MAX_HASHTAGS:
             raise invalid(f"Tối đa {articles.MAX_HASHTAGS} hashtag")
         article.hashtags = articles.clean_hashtags(body.hashtags)
+    if body.pinned_comment is not None:
+        pinned = _text(body.pinned_comment, articles.MAX_PINNED_LENGTH, "Bình luận ghim")
+        if pinned != article.pinned_comment:
+            article.pinned_comment = pinned
+            # A comment already written under a live post is edited to match.
+            _ask_comments(db, article)
+    if body.affiliates is not None:
+        ideas = [" ".join(idea.split())[:100] for idea in body.affiliates if idea.strip()]
+        article.affiliates = list(dict.fromkeys(ideas))[:20]
     if body.clear_source_comment:
         article.source_comment_id = None
     elif body.source_comment_id is not None:
@@ -399,8 +410,8 @@ def publish(
     elif post.remote_id and post.fanpage_id != fanpage.id:
         raise ApiError(409, "other_fanpage", "Bài đã gửi lên Fanpage khác, hãy đăng lại trên Fanpage đó")
     post.fanpage_id, post.scheduled_at, post.created_by_id = fanpage.id, when, me.user_id
-    # The comment holds only the products' links: without products there is nothing to write.
-    post.auto_comment = bool(article_posts.products_of(db, article.id))
+    # The comment is the pinned comment, then the products' links: with neither there is nothing to write.
+    post.auto_comment = bool(article.pinned_comment.strip() or article_posts.products_of(db, article.id))
     db.flush()
     _queue(db, article, "publish", me)
     return _saved(db, article)
@@ -489,10 +500,13 @@ def set_products(
         product = db.get(AffiliateProduct, product_id)
         if product is None or not affiliate.usable(product) or product.platform != "shopee":
             raise invalid("Chỉ gắn được sản phẩm Shopee đã duyệt")
+    before = {product.id for product in article_posts.products_of(db, article.id)}
     db.execute(ArticleAffiliateProduct.__table__.delete().where(ArticleAffiliateProduct.article_id == article.id))
     for product_id in ids:
         db.add(ArticleAffiliateProduct(article_id=article.id, product_id=product_id))
     db.flush()
+    if set(ids) != before:
+        _ask_comments(db, article)
     return _saved(db, article)
 
 

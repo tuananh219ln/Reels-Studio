@@ -1,15 +1,15 @@
 """Render machines: a member's own computer takes the team's render and motion jobs over HTTPS
 
-Revision ID: 0051
-Revises: 0050
+Revision ID: 0052
+Revises: 0051
 Create Date: 2026-11-07
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0051"
-down_revision = "0050"
+revision = "0052"
+down_revision = "0051"
 branch_labels = None
 depends_on = None
 
