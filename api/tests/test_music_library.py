@@ -1,18 +1,24 @@
 """The team music library: tracks tagged by topic and mood, and choosing one for a video."""
 
 import pytest
-from conftest import client_for, login, make_user, make_video
+from conftest import client_for, first_topic, login, make_user, make_video
 
 from reels_api import routes_music
-from reels_api.models import MusicTrack, Video
+from reels_api.models import KnowledgeTopic, MusicTrack, Video
 
 MP3 = b"ID3\x04\x00\x00\x00\x00\x00\x00" + bytes(2000)
 OTHER_MP3 = b"\xff\xfb\x90\x64" + bytes(500)
+# The music topics are the groups of Kho kiến thức (after the migration's "Sức khỏe") plus "chung".
+GROUPS = ["tim mạch", "xương khớp", "giấc ngủ", "gan"]
 
 
 @pytest.fixture
 def me(db):
-    return make_user(db)
+    user = make_user(db)
+    for name in GROUPS:
+        db.add(KnowledgeTopic(name=name, updated_by_id=user.id))
+    db.commit()
+    return user
 
 
 @pytest.fixture
@@ -31,12 +37,15 @@ def test_upload_lists_and_plays_a_track(an, db, me, storage):
         an, topics=["xương khớp", "tim mạch", "xương khớp"], license_note="Pixabay Music, miễn phí"
     ).json()
     assert added["name"] == "Windy Hill"
-    # Stored in the fixed order of the list, whatever order the form sent.
+    # Stored in the order of Kho kiến thức, whatever order the form sent.
     assert added["topics"] == ["tim mạch", "xương khớp"] and added["mood"] == "piano"
     assert added["license_note"] == "Pixabay Music, miễn phí" and added["created_by"] == me.name
     assert an.get(added["url"]).content == MP3
     assert [track["id"] for track in an.get("/api/music").json()] == [added["id"]]
-    assert an.get("/api/music/options").json() == {"topics": routes_music.TOPICS, "moods": routes_music.MOODS}
+    assert an.get("/api/music/options").json() == {
+        "topics": ["Sức khỏe", *GROUPS, "chung"],
+        "moods": routes_music.MOODS,
+    }
 
 
 def test_a_given_name_wins_over_the_file_name(an):
@@ -71,11 +80,50 @@ def test_list_filters_by_topic_mood_and_name(an):
         (["gan"], "rock", "Mood không có"),
     ],
 )
-def test_topics_and_mood_must_come_from_the_fixed_lists(an, db, storage, topics, mood, message):
+def test_topics_come_from_kho_kien_thuc_and_mood_from_its_list(an, db, storage, topics, mood, message):
     response = add_track(an, topics=topics, mood=mood)
     assert response.status_code == 422 and message in response.json()["message"]
     assert db.query(MusicTrack).count() == 0
     assert not storage.path("music").exists()
+
+
+def test_a_group_added_to_kho_kien_thuc_becomes_a_music_topic(an):
+    assert add_track(an, topics=["ẩm thực"]).status_code == 422
+    an.post("/api/knowledge/topics", json={"name": "ẩm thực"})
+    assert "ẩm thực" in an.get("/api/music/options").json()["topics"]
+    assert add_track(an, topics=["ẩm thực"]).json()["topics"] == ["ẩm thực"]
+
+
+def test_renaming_or_deleting_a_group_follows_on_the_tracks(an, db):
+    group = db.query(KnowledgeTopic).filter_by(name="gan").one()
+    both = add_track(an, filename="Hai.mp3", topics=["gan", "tim mạch"]).json()
+    alone = add_track(an, filename="Một.mp3", topics=["gan"]).json()
+
+    an.patch(f"/api/knowledge/topics/{group.id}", json={"name": "gan mật"})
+    assert {track["id"]: track["topics"] for track in an.get("/api/music").json()} == {
+        both["id"]: ["tim mạch", "gan mật"],
+        alone["id"]: ["gan mật"],
+    }
+    assert [track["id"] for track in an.get("/api/music?topic=gan mật").json()] == [alone["id"], both["id"]]
+
+    assert an.delete(f"/api/knowledge/topics/{group.id}").status_code == 200
+    # Without the group a track keeps its other topics, or becomes "chung".
+    assert {track["id"]: track["topics"] for track in an.get("/api/music").json()} == {
+        both["id"]: ["tim mạch"],
+        alone["id"]: ["chung"],
+    }
+    assert "gan mật" not in an.get("/api/music/options").json()["topics"]
+
+
+def test_a_tag_from_the_old_fixed_list_stays_until_taken_off(an, db, me):
+    old = MusicTrack(name="Cũ", topics=["tuổi thọ"], mood="piano", storage_key="music/old.mp3", created_by_id=me.id)
+    db.add(old)
+    db.commit()
+    kept = an.patch(f"/api/music/{old.id}", json={"topics": ["tuổi thọ", "gan"]})
+    assert kept.status_code == 200 and kept.json()["topics"] == ["gan", "tuổi thọ"]
+    assert an.patch(f"/api/music/{old.id}", json={"topics": ["gan"]}).json()["topics"] == ["gan"]
+    # Once taken off, it cannot come back: it is not a group of Kho kiến thức.
+    assert an.patch(f"/api/music/{old.id}", json={"topics": ["tuổi thọ"]}).status_code == 422
 
 
 def test_fake_or_oversized_track_is_refused(an, db, storage, monkeypatch):
@@ -162,6 +210,54 @@ def test_a_locked_video_cannot_take_a_track(an, db, me, storage):
     response = an.post(f"/api/videos/{video.id}/music/from-library", json={"track_id": track["id"]})
     assert response.status_code == 409
     assert db.get(Video, video.id).music_key is None
+
+
+DEFAULTS_URL = "/api/settings/video-defaults"
+
+
+def new_video(an, db) -> dict:
+    return an.post("/api/videos", json={"topic": "tim mạch", "knowledge_topic_id": first_topic(db).id}).json()
+
+
+def test_new_videos_start_with_the_default_music_and_older_ones_keep_theirs(an, db, me, storage):
+    old = make_video(db, storage, me)
+    assert new_video(an, db)["music"] is None
+    track = add_track(an, filename="Windy Hill.mp3").json()
+
+    saved = an.put(DEFAULTS_URL, json={"values": {"music_track_id": track["id"]}}).json()
+    assert saved["music_track_id"] == track["id"]
+    assert saved["music_track"] == {"id": track["id"], "name": "Windy Hill", "url": track["url"]}
+
+    created = new_video(an, db)
+    assert created["music"]["name"] == "Windy Hill" and an.get(created["music"]["url"]).content == MP3
+    assert db.get(Video, created["id"]).music_key.startswith(f"videos/{created['id']}/music-")
+    assert db.get(Video, old.id).music_key is None
+
+    # A copy: deleting the track keeps the video's music; later videos start silent and the page shows no track.
+    an.delete(f"/api/music/{track['id']}")
+    assert an.get(f"/api/videos/{created['id']}").json()["music"]["name"] == "Windy Hill"
+    assert new_video(an, db)["music"] is None
+    assert an.get(DEFAULTS_URL).json()["music_track"] is None
+
+    # No default music again.
+    assert an.put(DEFAULTS_URL, json={"values": {"music_track_id": None}}).json()["music_track_id"] is None
+
+
+def test_taking_the_team_defaults_back_keeps_the_video_music(an, db, me, storage):
+    video = make_video(db, storage, me)
+    an.post(f"/api/videos/{video.id}/music", files={"file": ("cu.mp3", OTHER_MP3, "audio/mpeg")})
+    track = add_track(an).json()
+    an.put(DEFAULTS_URL, json={"values": {"music_track_id": track["id"]}})
+    reset = an.patch(f"/api/videos/{video.id}", json={"reset_options": True}).json()
+    assert reset["music"]["name"] == "cu.mp3"
+
+
+def test_a_missing_or_wrong_default_track_is_refused(an):
+    missing = an.put(DEFAULTS_URL, json={"values": {"music_track_id": 999999}})
+    assert missing.status_code == 404 and missing.json()["code"] == "track_not_found"
+    for wrong in ("1", 0, True, 1.5):
+        refused = an.put(DEFAULTS_URL, json={"values": {"music_track_id": wrong}})
+        assert refused.status_code == 422 and "Bài nhạc mặc định" in refused.json()["message"], wrong
 
 
 def test_library_needs_a_login(app, an, db, me, storage):

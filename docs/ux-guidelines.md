@@ -496,7 +496,8 @@ Built:
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
   note ("Chưa ghi nguồn" when empty), who added it and when; filters by topic, mood, and name;
   "Tải nhạc lên" (MP3 up to 20 MB, then name, topics, mood, and source), "Sửa", "Xoá" (videos that
-  used the track keep their copy).
+  used the track keep their copy). The topics to choose and filter by are the groups of Kho kiến thức, in its order,
+  then "chung" (a hint under the field says so).
 - **Affiliate** (`/affiliate`), a line saying what the page is for, then three tabs:
   - "Video đã đăng": filters over the loaded videos: tabs with counts ("Tất cả", "Chưa gắn sản
     phẩm", "Đã gắn", "Cần xem lại" for a video with a product that lost its approval or no longer
@@ -640,7 +641,9 @@ Built:
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
   The content takes the whole width beside the list:
   - **Thiết lập mặc định** (`/settings/defaults`, the first tab): the same three cards as
-    a video's "Thiết lập" tab plus the music level, from 1600 px "Âm thanh" and "Hình ảnh" down the
+    a video's "Thiết lập" tab plus the music level, and "Nhạc nền mặc định" under "Âm thanh" (the chosen
+    library track with its player, "Chọn từ thư viện" / "Đổi bài" opening the library picker, "Bỏ nhạc mặc định";
+    a track deleted from the library since says so in yellow), from 1600 px "Âm thanh" and "Hình ảnh" down the
     left and "Chữ & phụ đề" on the right, one column below that; read-only until "Chỉnh sửa" (in the
     tab's header, with "Huỷ" and "Lưu" while editing). While editing, the
     changes stay on the page ("Có thay đổi chưa lưu") until "Lưu" sends them together ("Đã lưu mặc

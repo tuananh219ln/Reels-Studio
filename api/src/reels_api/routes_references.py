@@ -18,7 +18,7 @@ from . import reference, remote_media, video_options
 from .db import get_db
 from .errors import ApiError
 from .models import ACTIVE_JOB_STATUSES, Job, KnowledgeTopic, Session, Video, VideoReference
-from .routes_videos import MAX_TOPIC_LENGTH, _enqueue, _inline, _saved, invalid
+from .routes_videos import MAX_TOPIC_LENGTH, _enqueue, _inline, _saved, apply_default_music, invalid
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
 from .videos import REFERENCE_MODE_LABELS, reference_frames, split_scenes, title_of
@@ -130,6 +130,7 @@ def _make_video(
     video_options.apply_team_defaults(db, video)
     db.add(video)
     db.flush()
+    apply_default_music(db, video, get_storage())
     _enqueue(db, video, "learn", me)
     return _saved(db, video)
 

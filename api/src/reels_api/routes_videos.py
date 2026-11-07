@@ -31,6 +31,7 @@ from . import (
     image_providers,
     knowledge,
     llm,
+    music_topics,
     plans,
     remote_media,
     source_keys,
@@ -306,6 +307,7 @@ def start_video(
     video_options.apply_team_defaults(db, video)
     db.add(video)
     db.flush()
+    apply_default_music(db, video, get_storage())
     if idea is not None:
         idea.video_id = video.id
     if manual:
@@ -323,6 +325,18 @@ def start_video(
     else:
         _enqueue(db, video, "script", me)
     return video
+
+
+def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage) -> None:
+    """A new video starts with the team's default music (Cài đặt › Thiết lập mặc định), copied like "Chọn từ thư
+    viện" does, so editing or deleting the track later never changes the video. Nothing when no default is set or
+    the track is gone. Only new videos: "Lấy theo mặc định nhóm" keeps the music a video already has."""
+    track_id = video_options.team_defaults(db).get("music_track_id")
+    track = db.get(MusicTrack, track_id) if track_id else None
+    if track is None or not storage.exists(track.storage_key):
+        return
+    video.music_key, video.music_name = new_key(video.id, "music", "mp3"), track.name
+    storage.save_file(video.music_key, storage.path(track.storage_key))
 
 
 def hand_written_scenes(script: str) -> list[tuple[str, str]]:
@@ -1994,7 +2008,9 @@ def patch_topic(
 ) -> dict:
     topic = _topic(db, topic_id)
     if body.name is not None:
-        topic.name = _topic_name(db, body.name, topic.id)
+        old_name, topic.name = topic.name, _topic_name(db, body.name, topic.id)
+        # The music library is tagged with the groups' names.
+        music_topics.rename_topic(db, old_name, topic.name)
     if body.script_prompt is not None:
         topic.script_prompt = _prompt(body.script_prompt)
     if body.clone_prompt is not None:
@@ -2036,6 +2052,7 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     job = plans.plan_job(db, topic.id)
     if job is not None and job.status != "failed":
         raise ApiError(409, "topic_in_use", "Nhóm chủ đề đang tạo kế hoạch bằng AI nên chưa xoá được")
+    music_topics.drop_topic(db, topic.name)
     db.delete(topic)
     db.commit()
     return _knowledge_payload(db)
