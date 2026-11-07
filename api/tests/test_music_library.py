@@ -1,7 +1,7 @@
 """The team music library: tracks tagged by topic and mood, and choosing one for a video."""
 
 import pytest
-from conftest import client_for, login, make_user, make_video
+from conftest import client_for, first_topic, login, make_user, make_video
 
 from reels_api import routes_music
 from reels_api.models import MusicTrack, Video
@@ -162,6 +162,54 @@ def test_a_locked_video_cannot_take_a_track(an, db, me, storage):
     response = an.post(f"/api/videos/{video.id}/music/from-library", json={"track_id": track["id"]})
     assert response.status_code == 409
     assert db.get(Video, video.id).music_key is None
+
+
+DEFAULTS_URL = "/api/settings/video-defaults"
+
+
+def new_video(an, db) -> dict:
+    return an.post("/api/videos", json={"topic": "tim mạch", "knowledge_topic_id": first_topic(db).id}).json()
+
+
+def test_new_videos_start_with_the_default_music_and_older_ones_keep_theirs(an, db, me, storage):
+    old = make_video(db, storage, me)
+    assert new_video(an, db)["music"] is None
+    track = add_track(an, filename="Windy Hill.mp3").json()
+
+    saved = an.put(DEFAULTS_URL, json={"values": {"music_track_id": track["id"]}}).json()
+    assert saved["music_track_id"] == track["id"]
+    assert saved["music_track"] == {"id": track["id"], "name": "Windy Hill", "url": track["url"]}
+
+    created = new_video(an, db)
+    assert created["music"]["name"] == "Windy Hill" and an.get(created["music"]["url"]).content == MP3
+    assert db.get(Video, created["id"]).music_key.startswith(f"videos/{created['id']}/music-")
+    assert db.get(Video, old.id).music_key is None
+
+    # A copy: deleting the track keeps the video's music; later videos start silent and the page shows no track.
+    an.delete(f"/api/music/{track['id']}")
+    assert an.get(f"/api/videos/{created['id']}").json()["music"]["name"] == "Windy Hill"
+    assert new_video(an, db)["music"] is None
+    assert an.get(DEFAULTS_URL).json()["music_track"] is None
+
+    # No default music again.
+    assert an.put(DEFAULTS_URL, json={"values": {"music_track_id": None}}).json()["music_track_id"] is None
+
+
+def test_taking_the_team_defaults_back_keeps_the_video_music(an, db, me, storage):
+    video = make_video(db, storage, me)
+    an.post(f"/api/videos/{video.id}/music", files={"file": ("cu.mp3", OTHER_MP3, "audio/mpeg")})
+    track = add_track(an).json()
+    an.put(DEFAULTS_URL, json={"values": {"music_track_id": track["id"]}})
+    reset = an.patch(f"/api/videos/{video.id}", json={"reset_options": True}).json()
+    assert reset["music"]["name"] == "cu.mp3"
+
+
+def test_a_missing_or_wrong_default_track_is_refused(an):
+    missing = an.put(DEFAULTS_URL, json={"values": {"music_track_id": 999999}})
+    assert missing.status_code == 404 and missing.json()["code"] == "track_not_found"
+    for wrong in ("1", 0, True, 1.5):
+        refused = an.put(DEFAULTS_URL, json={"values": {"music_track_id": wrong}})
+        assert refused.status_code == 422 and "Bài nhạc mặc định" in refused.json()["message"], wrong
 
 
 def test_library_needs_a_login(app, an, db, me, storage):

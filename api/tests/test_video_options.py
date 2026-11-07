@@ -40,7 +40,8 @@ def test_a_video_from_before_renders_the_original_template(db, me, storage):
 
 def test_the_team_defaults_apply_to_videos_created_afterwards_only(an, db, me, storage):
     old = make_video(db, storage, me)
-    assert an.get(DEFAULTS_URL).json() == video_options.VIDEO_FIELDS | video_options.DEFAULTS
+    # "music_track": the default music's name for the page, None while there is none.
+    assert an.get(DEFAULTS_URL).json() == video_options.VIDEO_FIELDS | video_options.DEFAULTS | {"music_track": None}
     saved = an.put(
         DEFAULTS_URL, json={"values": {"transition": "slide", "voice_speed": 1.25, "music_volume": 15}}
     ).json()

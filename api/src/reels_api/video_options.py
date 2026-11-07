@@ -79,8 +79,9 @@ LOOK_FIELDS = (
 )
 # Left out of the MP4 fingerprint while unused, so videos rendered before each existed stay current.
 LATER_LOOK_FIELDS = LOOK_FIELDS[2:]
-# Kept as columns of their own before these settings existed; the team defaults hold them too.
-VIDEO_FIELDS = {"voice_enabled": True, "music_volume": 25}
+# Kept as columns of their own before these settings existed; the team defaults hold them too. "music_track_id" is
+# the library track a new video starts with (routes_videos.apply_default_music copies it), None for no music.
+VIDEO_FIELDS = {"voice_enabled": True, "music_volume": 25, "music_track_id": None}
 # Colours: a named one or any "#RRGGBB", stored in capitals.
 COLORS = {
     "text_color": TEXT_COLORS,
@@ -194,6 +195,10 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
             spaced = " ".join(value.split()) == value if is_vieneu(value) else len(value.split()) <= 1
             if not spaced or any(not char.isprintable() for char in value):
                 raise OptionError("Mã giọng đọc không hợp lệ")
+        elif name == "music_track_id" and (
+            value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1)
+        ):
+            raise OptionError("Bài nhạc mặc định không hợp lệ")
         cleaned[name] = value
     return cleaned
 

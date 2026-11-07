@@ -25,6 +25,17 @@ green CI and the code owner's approval" of [AGENTS.md](../AGENTS.md).
 - GitHub's branch protection on `main`, if it still requires a review, is changed by someone with admin access in
   the repo's settings; agents do not change it.
 
+## 2026-11-07 — Thiết lập mặc định chooses the music new videos start with
+
+Requested by tuananh219ln: the team's default settings should include the music. "Nhạc nền mặc định" on Cài đặt ›
+Thiết lập mặc định picks a library track (or none, as before); it is stored in the `video_defaults` setting as
+`music_track_id`, saved with the page's other changes. It follows the 2026-11-01 rule that defaults apply only to
+videos created afterwards: each new video (typed topic, "Tự viết", MCP, or from a sample) gets its own copy of the
+track, as "Chọn từ thư viện" makes, so editing or deleting the track never changes it. "Lấy theo mặc định nhóm" keeps
+the music a video already has: replacing it would delete music a member chose or uploaded, and the music is not one
+of the settings that tab resets. A default whose track was deleted since is skipped (new videos start silent) and the
+page says so. Clones still take their source's music.
+
 ## 2026-11-07 — VieNeu voices join ElevenLabs' in the voice picker; their key is pasted on Cài đặt › Mô hình AI
 
 Requested by tuananh219ln: VieNeu (vieneu.io) has natural Vietnamese voices and a cloud API, so its voices are offered
