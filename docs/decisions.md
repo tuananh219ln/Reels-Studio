@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — Thiết lập mặc định chooses the music new videos start with
+
+Requested by tuananh219ln: the team's default settings should include the music. "Nhạc nền mặc định" on Cài đặt ›
+Thiết lập mặc định picks a library track (or none, as before); it is stored in the `video_defaults` setting as
+`music_track_id`, saved with the page's other changes. It follows the 2026-11-01 rule that defaults apply only to
+videos created afterwards: each new video (typed topic, "Tự viết", MCP, or from a sample) gets its own copy of the
+track, as "Chọn từ thư viện" makes, so editing or deleting the track never changes it. "Lấy theo mặc định nhóm" keeps
+the music a video already has: replacing it would delete music a member chose or uploaded, and the music is not one
+of the settings that tab resets. A default whose track was deleted since is skipped (new videos start silent) and the
+page says so. Clones still take their source's music.
+
 ## 2026-11-07 — MCP OAuth answers with pages, never HTTP redirects, because production's /api proxy follows them
 
 Reported by tuananh219ln: after "Cho phép kết nối", Claude's "Page not found" showed on
