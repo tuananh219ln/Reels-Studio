@@ -66,6 +66,7 @@ const JOB_NAMES = {
   voice: "Tạo giọng thật",
   revise: "AI sửa theo góp ý",
   motion: "Cảnh động",
+  tiktok_publish: "Đăng TikTok",
 } as const;
 
 /** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
@@ -459,23 +460,25 @@ export default function VideoPage() {
                       ? "Đang tạo ảnh AI cho các cảnh thiếu…"
                       : job.kind === "publish"
                         ? "Đang đăng lên Facebook…"
-                        : job.kind === "unpublish"
-                          ? "Đang gỡ bài trên Facebook…"
-                          : job.kind === "check"
-                            ? "Đang kiểm tra bài trên Facebook…"
-                            : job.kind === "voice"
-                              ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
-                              : job.kind === "revise"
-                                ? "AI đang sửa video theo góp ý…"
-                                : job.kind === "motion"
-                                  ? "HyperFrames đang dựng cảnh động…"
-                                  : job.kind === "clone"
-                                    ? "AI đang viết kịch bản nhân bản…"
-                                    : job.kind === "learn"
-                                      ? video.reference?.mode === "review" && !video.reference.analysis
-                                        ? "AI đang xem và phân tích video mẫu…"
-                                        : "AI đang xem video mẫu và viết kịch bản…"
-                                      : "Đang viết kịch bản…"
+                        : job.kind === "tiktok_publish"
+                          ? "Đang gửi video lên TikTok…"
+                          : job.kind === "unpublish"
+                            ? "Đang gỡ bài trên Facebook…"
+                            : job.kind === "check"
+                              ? "Đang kiểm tra bài trên Facebook…"
+                              : job.kind === "voice"
+                                ? "ElevenLabs đang tạo giọng đọc cho các cảnh…"
+                                : job.kind === "revise"
+                                  ? "AI đang sửa video theo góp ý…"
+                                  : job.kind === "motion"
+                                    ? "HyperFrames đang dựng cảnh động…"
+                                    : job.kind === "clone"
+                                      ? "AI đang viết kịch bản nhân bản…"
+                                      : job.kind === "learn"
+                                        ? video.reference?.mode === "review" && !video.reference.analysis
+                                          ? "AI đang xem và phân tích video mẫu…"
+                                          : "AI đang xem video mẫu và viết kịch bản…"
+                                        : "Đang viết kịch bản…"
           }
           description={
             job.node_stage === "ready"

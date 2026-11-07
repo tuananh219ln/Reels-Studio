@@ -11,6 +11,34 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — TikTok through its API: each member connects their own account; a draft is the default
+
+Issue #46, brief [docs/specs/tiktok-posting/brief.md](specs/tiktok-posting/brief.md). The TikTok developer app
+"Reels Studio" (Login Kit + Content Posting API, scopes `user.info.basic`, `video.upload`, `video.publish`) is set up;
+its review needs a demo of the real integration, which this builds. Posting by hand ("Đã đăng tay") stays as it is.
+
+- **OAuth per member, the tokens are each member's own:** the tool is shared, the money is each member's (2026-10-31),
+  so a member connects and posts only their own TikTok accounts. One TikTok account (`open_id`) belongs to one member:
+  connecting one another member already connected is refused, never taken over. The unit owned is still the
+  Publication (video × platform × account).
+- **The connection hangs on the member's TikTok `AffiliateAccount`** (new table `tiktok_connections`), found by the
+  profile's username or made from it, so posting by hand and through the API share one idea of "the member's TikTok
+  account"; a Publication still names `affiliate_account_id`.
+- **A draft (`video.upload`, to the member's TikTok inbox) is the default; posting directly (`video.publish`) is the
+  option.** Until TikTok audits the app, a direct post is private only (`SELF_ONLY`, private accounts, 5 users a day),
+  and TikTok Shop's cart can only be attached in TikTok's app: the draft is the route that works for real today.
+- **A direct post always says `is_aigc = true`:** every video of the app is made with AI; TikTok asks for the label and
+  does not hold labelled posts back.
+- **No TikTok numbers in the app this round** (no `video.list` scope): TikTok's views are still noted by hand, and
+  `metrics.py` keeps leaving TikTok posts alone. TikTok's API gives no link to the post, so the member who sent it pastes
+  the link afterwards. No cart through the API (TikTok has none).
+- **The app's Client Key and Secret are in `.env`** (`TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`): they are the app's
+  identity, not a member's, unlike the keys members paste on the Cài đặt pages. The Sandbox's own pair goes in the same
+  two variables while the demo is recorded.
+- **Not posted twice:** TikTok's `publish_id` is saved before the upload, and "Thử lại" first asks TikTok about that
+  post; a new one is started only when TikTok holds no finished upload of it. A rate limit fails the job, never a retry
+  loop. A post that never reached TikTok (its job failed before the upload) is replaced by the next "Đăng lên TikTok".
+
 ## 2026-11-07 — "Từ video mẫu" learns from the stills when ElevenLabs will not write the words down
 
 Found by a member (namtc): every "Từ video mẫu" failed, pasted link or upload, with "Key ElevenLabs không hợp lệ",

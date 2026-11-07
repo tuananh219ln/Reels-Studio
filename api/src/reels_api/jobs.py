@@ -40,6 +40,7 @@ from . import (
     render_nodes,
     revise,
     source_keys,
+    tiktok_publish,
 )
 from .claude import (
     ClaudeError,
@@ -130,6 +131,11 @@ def run_job(
                 run_publish_job(db, job, storage)
             elif job.kind == "unpublish":
                 run_unpublish_job(db, job)
+            elif job.kind == "tiktok_publish":
+                try:
+                    tiktok_publish.run(db, job, storage)
+                except tiktok_publish.PublishFailed as err:
+                    raise JobFailure(err.message, err.detail) from None
             elif job.kind == "check":
                 run_check_job(db, job)
             elif job.kind == "voice":

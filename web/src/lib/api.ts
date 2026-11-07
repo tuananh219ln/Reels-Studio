@@ -130,7 +130,8 @@ export type JobInfo = {
     | "photos"
     | "voice"
     | "revise"
-    | "motion";
+    | "motion"
+    | "tiktok_publish";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   /** A render or motion job waiting for a render machine ("ready") or being rendered on one ("taken"). */
@@ -270,7 +271,7 @@ export type VideoDetail = VideoRow & {
   /** The Facebook video this TikTok version was made from, and the versions made from this one. */
   variant_of: VideoLink | null;
   variants: VideoLink[];
-  /** TikTok posts made by hand and recorded with their link, newest first. */
+  /** TikTok posts, made by hand or sent through TikTok's API, newest first. */
   tiktok_posts: TikTokPost[];
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
@@ -381,7 +382,34 @@ export type GroupMedia = {
   total: number;
 };
 
-export type TikTokPost = { id: number; url: string; account: string | null; at: string; created_by: string };
+/** A TikTok post: made by hand in TikTok's app and recorded with its link, or sent through TikTok's API (`mode`), whose
+ * link the member who sent it adds once it is on TikTok. */
+export type TikTokPost = {
+  id: number;
+  url: string | null;
+  account: string | null;
+  at: string;
+  created_by: string;
+  created_by_id: number;
+  status: "pending" | "published" | "cancelled";
+  /** "draft" (sent to the TikTok inbox) or "direct" for a post sent through TikTok's API; null for one posted by hand. */
+  mode: "draft" | "direct" | null;
+  privacy_level: string | null;
+};
+
+/** A member's TikTok account connected through TikTok's Login Kit; the tokens never leave the server. */
+export type TikTokConnection = {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_url: string | null;
+  access_expires_at: string;
+  refresh_expires_at: string;
+  last_error: string | null;
+  /** TikTok revoked it or its refresh token ended: "Kết nối lại". */
+  needs_reconnect: boolean;
+  connected_at: string | null;
+};
 
 export type KnowledgeTopic = {
   id: number;
@@ -933,6 +961,8 @@ export type AffiliateAccount = {
   active: boolean;
   report_read_at: string | null;
   report_error: string | null;
+  /** A TikTok account's connection through TikTok's API; null until "Kết nối TikTok", and for Shopee. */
+  tiktok_connection: TikTokConnection | null;
 };
 
 /** The member's own Shopee orders, by video and Page. */

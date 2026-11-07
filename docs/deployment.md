@@ -107,12 +107,13 @@ when set to an empty string. Containers use real environment variables only.
 | `IMAGE_GEN_CF_ACCOUNT_ID` | api + worker: the Cloudflare account ID (dashboard, top right; not a secret), needed with `cloudflare`. Without it on the api, Cài đặt › Nguồn tư liệu shows Cloudflare as not set up even with a pasted token |
 | `IMAGE_GEN_CF_MODEL` | worker, optional: the Workers AI model; the default is `@cf/black-forest-labs/flux-1-schnell` |
 | `ELEVENLABS_VOICE_ID`, `ELEVENLABS_MODEL` | api and worker, optional, same values on both (the api recognizes made narration and the MP4 fingerprint by them): the voice (default "Adam", `pNInz6obpgDQGcFmaJgB`) and model (default `eleven_v3`); changing either re-makes every narration on the next render |
+| `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET` | api + worker: the TikTok developer app's Client Key and Secret (Login Kit + Content Posting API), the app's identity and not a member's; members connect their own TikTok accounts on Cấu hình › Tài khoản affiliate. Empty: "Kết nối TikTok" says they are missing. To record the review demo, put the Sandbox's own key and secret here (and add the target TikTok account to the Sandbox), then restart api + worker. The Redirect URI registered on the app must be exactly `https://<web domain>/api/tiktok/oauth/callback` (fixed in `tiktok.REDIRECT_URI`) |
 | `API_URL` | web: target of the `/api/*` rewrite, read by `next dev` and `next build` from the repo-root `.env`; in production the GitHub variable |
 
 Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLabs, Gemini and Cloudflare Workers AI
 ([api/scripts/fake_services.py](../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
 `PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `IMAGE_GEN_API_URL`, `IMAGE_GEN_CF_API_URL`, `FACEBOOK_API_URL`,
-`SHOPEE_AFFILIATE_API_URL`, `SHOPEE_SHORT_LINK_URL` (where a pasted s.shopee.vn link is asked for its redirect; Shopee's keys are each member's, pasted on Cấu hình › Tài khoản affiliate, so there is no
+`SHOPEE_AFFILIATE_API_URL`, `TIKTOK_API_URL` (TikTok's Login Kit and Content Posting API; default `https://open.tiktokapis.com`), `SHOPEE_SHORT_LINK_URL` (where a pasted s.shopee.vn link is asked for its redirect; Shopee's keys are each member's, pasted on Cấu hình › Tài khoản affiliate, so there is no
 Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
 the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
