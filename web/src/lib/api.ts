@@ -133,6 +133,8 @@ export type JobInfo = {
     | "motion";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
+  /** A render or motion job waiting for a render machine ("ready") or being rendered on one ("taken"). */
+  node_stage?: "ready" | "taken" | null;
   status: "queued" | "running" | "done" | "failed" | "cancelled";
   error: string | null;
   error_detail: string | null;

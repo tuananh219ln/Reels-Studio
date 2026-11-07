@@ -19,6 +19,18 @@ sample were always optional (2026-11-05: "A silent sample, or no ElevenLabs key,
 refusal now counts as no key: a key missing the permission, no quota left or an outage leaves the words empty, is
 logged, and the job goes on from the stills. A key missing the permission is named as such in the log. To have the
 words back, turn on Speech to Text for the key on ElevenLabs.
+## 2026-11-07 — Renders and motion scenes run on a member's own computer; the VPS prepares and keeps the data
+
+Asked by tuananh219ln: the VPS is small, and his computer (i7-8700, 32 GB, GTX 1060) is far stronger. Chosen with
+him: a "render machine" ([render_nodes.py](../api/src/reels_api/render_nodes.py)) rather than moving the whole app to
+his computer, which would lose the shared library and need it on all day for scheduled posts. The VPS still runs the
+web, the database, storage, posting and every light step of a job; with the switch on, a render or motion job is
+packed and **waits for a machine** (his choice over a VPS fallback), shown as "Đang chờ máy render" and cancellable.
+A machine reaches only `/api/node/...` with its own token, stored hashed and revoked by deleting it; it never gets
+database or storage access. The worker's "a running job after a restart failed" rule (2026-10-31) now skips jobs
+handed to a machine, which live on without it. Rendering on the GPU (NVENC) is not part of this: the CPU renders a
+30-second video in under a minute on that computer, and an encoder change is a render-core change to be watched
+first. The Claude chat on the video page through his own subscription, run by the same computer, is the next step.
 
 ## 2026-11-07 — An article's AI writes its own doctor reminder; articles get a pinned comment and Shopee suggestions
 

@@ -37,6 +37,7 @@ from . import (
     plans,
     qc,
     reference,
+    render_nodes,
     revise,
     source_keys,
 )
@@ -144,6 +145,10 @@ def run_job(
                     raise JobFailure(err.message, err.detail) from None
             else:
                 raise JobFailure(f"Loại job không hỗ trợ: {job.kind}")
+        except render_nodes.HandedOff:
+            # Packed for a render machine: the job stays running until a machine finishes it (routes_render_nodes).
+            log.info("Job %s handed to a render machine", job_id)
+            return
         except auto_photos.AutoPhotosFailed as err:
             db.rollback()
             _finish(db, job_id, "failed", str(err))
@@ -577,6 +582,20 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
         signature = render_signature(video, title, scenes)
         music = _checked_music(video, storage, folder)
+        if render_nodes.enabled(db):
+            # The heavy part runs on a member's render machine; the api finishes the job with save_render.
+            manifest = {
+                "kind": "render",
+                "data": data,
+                "music": music.name if music else None,
+                "music_volume": video.music_volume / 100,
+                "music_start": video.music_start,
+                "options": render_nodes.options_dict(render_options(video)),
+                "expect_sound": video.voice_enabled or bool(video.music_key),
+                "signature": signature,
+            }
+            render_nodes.pack(db, storage, job, manifest, folder)
+            raise render_nodes.HandedOff
         output = folder / "video.mp4"
         started = time.monotonic()
         try:
@@ -595,20 +614,35 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             raise JobFailure(str(err)) from None
         elapsed = time.monotonic() - started
         # Measured on the file before it is saved, so the MP4 and its QC always go together.
-        video.qc = qc.measure(output, expect_sound=video.voice_enabled or bool(video.music_key))
-
-        key = new_key(video.id, "video", "mp4")
-        storage.save_file(key, output)
-        old = video.mp4_key
-        video.mp4_key, video.mp4_seconds, video.render_seconds = key, seconds, round(elapsed, 1)
-        video.rendered_signature, video.rendered_at = signature, now()
-        db.commit()
-        # The old MP4 stays playable until the new one is committed.
-        if old and old != key:
-            storage.delete(old)
+        measured = qc.measure(output, expect_sound=video.voice_enabled or bool(video.music_key))
+        save_render(db, storage, video, output, seconds, elapsed, measured, signature)
         log.info("Job %s rendered %.1fs of video in %.1fs", job.id, seconds, elapsed)
     finally:
         shutil.rmtree(folder, ignore_errors=True)
+
+
+def save_render(
+    db: DbSession,
+    storage: DirectoryStorage,
+    video: Video,
+    output: Path,
+    seconds: float,
+    elapsed: float,
+    measured: dict | None,
+    signature: str,
+) -> None:
+    """The MP4 becomes the video's, with its QC and the fingerprint of what it shows; the worker's own render and a
+    render machine's both end here."""
+    video.qc = measured
+    key = new_key(video.id, "video", "mp4")
+    storage.save_file(key, output)
+    old = video.mp4_key
+    video.mp4_key, video.mp4_seconds, video.render_seconds = key, seconds, round(elapsed, 1)
+    video.rendered_signature, video.rendered_at = signature, now()
+    db.commit()
+    # The old MP4 stays playable until the new one is committed.
+    if old and old != key:
+        storage.delete(old)
 
 
 # --- Publish ---
