@@ -6,7 +6,8 @@ name: CI/CD
 # A draft PR runs the quick checks only (lint, typecheck, pytest); E2E and the image builds run once
 # it is marked ready for review. A PR that changes only docs runs nothing.
 # Nothing already tested runs twice (the "passed" job): marking a PR ready reruns the quick checks only
-# if they did not pass on that commit, and a push to main deploys without testing again when the code
+# if they did not pass on that commit (the "api-passed" job then reports the api shards under their
+# required names), and a push to main deploys without testing again when the code
 # is exactly the merged PR's last commit and every check passed there (main requires PRs to be up to
 # date, so a merge, squash or rebase leaves the same files). Any other push to main runs every check.
 
@@ -115,6 +116,23 @@ jobs:
       # integration, worker and render parity tests.
       # pipefail: without it the pipe reports tee's status and failing tests would pass the step.
       - run: set -o pipefail; python -m pytest -q -rs | tee pytest.log && ! grep -q "SKIPPED" pytest.log
+
+  # When a PR is marked ready and the api shards already passed on this commit, the api job above is
+  # skipped, and a skipped matrix job reports one "api" check instead of "api (1)"…"api (4)". The
+  # "Protect main" ruleset requires those four names, so the PR would wait forever. This job reports
+  # them under the same names, and passes only because the "passed" job found every quick check
+  # (each api shard included) green on this exact commit. It runs no tests, so the saving stays.
+  api-passed:
+    needs: passed
+    if: ${{ !cancelled() && needs.passed.outputs.quick == 'true' }}
+    name: api (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    strategy:
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - run: echo "api shard ${{ matrix.shard }}/4 already passed on ${{ github.event.pull_request.head.sha }}"
 
   # The production images and the render parity test inside the worker image, beside the api tests.
   api-image:

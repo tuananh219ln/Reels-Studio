@@ -57,7 +57,9 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   typecheck + lint + Cloudflare build, and E2E (with a real worker and fake Claude/Pixabay) on four
   machines at once, each taking every 4th test of `playwright test --list`. A draft PR runs only the
   quick jobs (api, worker, web); E2E and the image job run once it is ready for review, and the quick
-  jobs run again then only if they did not pass on that commit. A PR that changes only `docs/` or
+  jobs run again then only if they did not pass on that commit. When they are skipped, the
+  `api-passed` job reports `api (1)`…`api (4)` as passed, since `main`'s ruleset requires those
+  exact names and a skipped matrix job reports only `api`. A PR that changes only `docs/` or
   `.md` files runs no CI. A push to `main` runs every job, unless its files are exactly the merged
   PR's last commit and every check passed there (the `passed` job; `main` requires PRs to be up to
   date before merging, so this holds for a merge, squash or rebase). Then, with every check passed,
