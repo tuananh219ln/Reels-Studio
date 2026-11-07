@@ -41,6 +41,13 @@ RUN mkdir -p /opt/lama \
     && python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" "$LAMA_URL" "$LAMA_MODEL_PATH" \
     && echo "$LAMA_SHA256  $LAMA_MODEL_PATH" | sha256sum -c - \
     && chmod -R a+rX /opt/lama
+# "Sửa ảnh" › "Tìm chữ/logo tự động": PP-OCRv4's text detector as ONNX (Apache-2.0, about 5 MB), pinned the same way.
+ARG TEXT_DETECT_URL=https://huggingface.co/SWHL/RapidOCR/resolve/1cfba2e90fc938db55889873735088de210cc173/PP-OCRv4/ch_PP-OCRv4_det_infer.onnx
+ARG TEXT_DETECT_SHA256=d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9
+ENV TEXT_DETECT_MODEL_PATH=/opt/lama/text_detect.onnx
+RUN python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" "$TEXT_DETECT_URL" "$TEXT_DETECT_MODEL_PATH" \
+    && echo "$TEXT_DETECT_SHA256  $TEXT_DETECT_MODEL_PATH" | sha256sum -c - \
+    && chmod a+r "$TEXT_DETECT_MODEL_PATH"
 
 COPY worker/pyproject.toml worker/
 COPY worker/src worker/src
@@ -52,8 +59,8 @@ RUN pip install ./worker "./api[inpaint]" && useradd --system --uid 10001 app &&
 USER app
 # A short scene through the same code the motion job runs, so a build whose Chrome cannot start fails here.
 RUN mkdir -p /tmp/motion-check && HOME=/tmp python -m reels_api.motion /tmp/motion-check && rm -rf /tmp/motion-check
-# A box erased by LaMa through the same code the image_edit job runs, so a build whose model or onnxruntime cannot load
-# fails here.
+# A box erased by LaMa and words found by the text detector, through the same code the image_edit and image_marks jobs
+# run, so a build whose models or onnxruntime cannot load fails here.
 RUN python -m reels_api.image_edit
 
 # Only one worker takes jobs (Postgres advisory lock): during a deploy the new container waits until

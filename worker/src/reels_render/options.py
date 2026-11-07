@@ -47,6 +47,10 @@ class RenderOptions:
     # "Video xuyên suốt": the title scene's photo or clip runs under every scene, joined by hard cuts, and the text
     # boxes fade in and out instead; photo layers ("Ảnh món") are laid on only then.
     backdrop: bool = False
+    # Some clip has blurred boxes ("video_blur"). The render reads the boxes from the scenes; this flag exists so a
+    # render machine on older code, which would drop the boxes and show the logo, refuses the video (an option it
+    # does not know) instead (api/src/reels_api/render_nodes.options_dict).
+    clip_blur: bool = False
 
     def __post_init__(self) -> None:
         for name, value, allowed in (

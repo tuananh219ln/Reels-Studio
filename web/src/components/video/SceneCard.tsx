@@ -6,6 +6,7 @@ import {
   DeleteOutlined,
   DownOutlined,
   DragOutlined,
+  EyeInvisibleOutlined,
   EyeOutlined,
   GoogleOutlined,
   HighlightOutlined,
@@ -53,6 +54,7 @@ import {
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import GroupMediaPicker from "./GroupMediaPicker";
 import MediaLibraryPicker from "./MediaLibraryPicker";
+import ClipBlurModal from "./ClipBlurModal";
 import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
@@ -450,6 +452,8 @@ export function ScenePicture({
   const [framing, setFraming] = useState(false);
   // "Sửa ảnh" is open.
   const [retouching, setRetouching] = useState(false);
+  // "Làm mờ vùng" (a clip) is open.
+  const [blurring, setBlurring] = useState(false);
   const [viewing, setViewing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [pasting, setPasting] = useState(false);
@@ -661,6 +665,11 @@ export function ScenePicture({
             </Button>
           )}
           {scene.video && (
+            <Button size="small" icon={<EyeInvisibleOutlined />} disabled={off} onClick={() => setBlurring(true)}>
+              Làm mờ vùng
+            </Button>
+          )}
+          {scene.video && (
             <Popconfirm
               title="Xoá video của cảnh này?"
               okText="Xoá"
@@ -732,6 +741,16 @@ export function ScenePicture({
                   >
                     {scene.video ? "Cắt video" : "Chỉnh khung"}
                   </Button>
+                  {scene.video && (
+                    <Button
+                      size="small"
+                      icon={<EyeInvisibleOutlined />}
+                      disabled={off}
+                      onClick={() => setBlurring(true)}
+                    >
+                      Làm mờ vùng
+                    </Button>
+                  )}
                   {!scene.video && (
                     <Button
                       size="small"
@@ -787,6 +806,11 @@ export function ScenePicture({
         // A "Cảnh động" an assistant wrote through the MCP connection; changed there, replaced like any clip here.
         <StatusText tone={scene.motion.pending ? "active" : "done"}>
           {scene.motion.pending ? "Đang dựng cảnh động" : `Cảnh động · ${scene.motion.seconds} giây`}
+        </StatusText>
+      )}
+      {(scene.video?.blur.length ?? 0) > 0 && (
+        <StatusText tone="done" data-testid="clip-blurred">
+          Làm mờ {scene.video!.blur.length} vùng trên video
         </StatusText>
       )}
       {editing && (
@@ -1096,6 +1120,7 @@ export function ScenePicture({
       {placing && <TextPositionModal scene={scene} onClose={() => setPlacing(false)} onSaved={editor.onSaved} />}
       {framing && <MediaEditor scene={scene} voiceEnabled={voiceEnabled} onClose={() => setFraming(false)} />}
       {retouching && <ImageEditModal scene={scene} onClose={() => setRetouching(false)} />}
+      {blurring && <ClipBlurModal scene={scene} onClose={() => setBlurring(false)} />}
       {picking && (
         <StockPicker
           sceneId={scene.id}

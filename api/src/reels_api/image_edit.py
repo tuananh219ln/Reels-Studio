@@ -327,6 +327,106 @@ def _gemini_edit(image: Image.Image, prompt: str, key: str) -> bytes:
     return _jpeg(_image_or_error(gemini_image(parts, key), "Gemini"))
 
 
+# --- Tìm chữ/logo tự động ---
+
+# PP-OCR's detector: the photo at most this long on its longer side, both sides a multiple of 32.
+DETECT_MAX_SIDE = 960
+DETECT_MEAN = (0.485, 0.456, 0.406)
+DETECT_STD = (0.229, 0.224, 0.225)
+# A pixel is text above this probability; a region is kept when its pixels average above DETECT_KEEP.
+DETECT_PIXEL = 0.3
+DETECT_KEEP = 0.6
+DETECT_MIN_PIXELS = 10
+
+_detector: tuple[str, object] | None = None
+
+
+def _detector_session():
+    global _detector
+    path = config.text_detect_model_path()
+    if not path or not Path(path).is_file():
+        raise ImageGenError(
+            "Máy chủ chưa có model tìm chữ (TEXT_DETECT_MODEL_PATH): hãy tự khoanh vùng hoặc báo người quản trị",
+            f"TEXT_DETECT_MODEL_PATH={path!r}",
+        )
+    if _detector is None or _detector[0] != path:
+        try:
+            import onnxruntime  # only the worker image has it; the api never loads it
+        except ImportError:
+            raise ImageGenError("Máy chủ chưa cài phần tìm chữ (onnxruntime): hãy tự khoanh vùng") from None
+        options = onnxruntime.SessionOptions()
+        options.log_severity_level = 3
+        _detector = (path, onnxruntime.InferenceSession(path, options, providers=["CPUExecutionProvider"]))
+    return _detector[1]
+
+
+def find_marks(data: bytes) -> list[Box]:
+    """Where the photo has writing (a watermark's words, a channel name, a shop's logo with letters), as boxes a
+    little wider than the letters, the most certain first. A logo without letters is not found."""
+    import numpy  # installed with onnxruntime, in the worker image only
+
+    image = _open(data)
+    session = _detector_session()
+    width, height = image.size
+    scale = min(1.0, DETECT_MAX_SIDE / max(width, height))
+    sent_width = max(32, round(width * scale / 32) * 32)
+    sent_height = max(32, round(height * scale / 32) * 32)
+    # The model was trained on BGR pixels normalised with ImageNet's mean and spread.
+    pixels = numpy.asarray(image.resize((sent_width, sent_height), Image.Resampling.BILINEAR), dtype=numpy.float32)
+    pixels = (pixels[:, :, ::-1] / 255.0 - numpy.array(DETECT_MEAN)) / numpy.array(DETECT_STD)
+    try:
+        chances = session.run(None, {session.get_inputs()[0].name: pixels.transpose(2, 0, 1)[None].astype("float32")})
+    except Exception as err:  # onnxruntime raises its own types; any fails only this photo
+        raise ImageGenError("Không tìm được chữ trên ảnh này, hãy tự khoanh vùng", repr(err)) from None
+    found = []
+    for top, left, bottom, right, score in _regions(chances[0][0, 0], DETECT_PIXEL):
+        if score < DETECT_KEEP:
+            continue
+        # Text boxes hug the letters: widen by half a line so the soft edge of the mark goes too.
+        pad = (bottom - top + 1) * 0.5
+        found.append(
+            (
+                score,
+                [
+                    (left - pad) / sent_width,
+                    (top - pad) / sent_height,
+                    (right - left + 1 + 2 * pad) / sent_width,
+                    (bottom - top + 1 + 2 * pad) / sent_height,
+                ],
+            )
+        )
+    found.sort(key=lambda item: -item[0])
+    boxes = [box for _, box in found[:MAX_BOXES]]
+    return clean_boxes(boxes) if boxes else []
+
+
+def _regions(chances, threshold: float) -> list[tuple[int, int, int, int, float]]:
+    """Each group of touching pixels above `threshold`: its top, left, bottom, right and mean probability."""
+    import numpy
+
+    above = chances > threshold
+    seen = numpy.zeros_like(above)
+    rows, columns = above.shape
+    regions = []
+    for start_y, start_x in zip(*numpy.nonzero(above)):
+        if seen[start_y, start_x]:
+            continue
+        seen[start_y, start_x] = True
+        queue, points = [(start_y, start_x)], []
+        while queue:
+            y, x = queue.pop()
+            points.append((y, x))
+            for next_y, next_x in ((y + 1, x), (y - 1, x), (y, x + 1), (y, x - 1)):
+                if 0 <= next_y < rows and 0 <= next_x < columns and above[next_y, next_x] and not seen[next_y, next_x]:
+                    seen[next_y, next_x] = True
+                    queue.append((next_y, next_x))
+        if len(points) < DETECT_MIN_PIXELS:
+            continue
+        ys, xs = numpy.array(points).T
+        regions.append((int(ys.min()), int(xs.min()), int(ys.max()), int(xs.max()), float(chances[ys, xs].mean())))
+    return regions
+
+
 def check() -> None:
     """The worker image's build check: one box erased by LaMa on a drawn photo, through `edit` as the job calls it."""
     photo = Image.new("RGB", (720, 1280), (190, 120, 60))
@@ -338,6 +438,13 @@ def check() -> None:
         red, green, blue = result.convert("RGB").getpixel((360, 630))
         assert abs(red - 190) + abs(green - 120) + abs(blue - 60) < 90, (red, green, blue)
     print("LaMa ok")
+    # Big dark words on a light photo: the detector must find them.
+    sign = Image.new("RGB", (720, 1280), (235, 235, 230))
+    draw = ImageDraw.Draw(sign)
+    for row in range(3):
+        draw.text((80, 500 + row * 90), "WATERMARK 123", fill=(20, 20, 20), font_size=64)
+    assert find_marks(_jpeg(sign)), "no text found"
+    print("text detector ok")
 
 
 if __name__ == "__main__":

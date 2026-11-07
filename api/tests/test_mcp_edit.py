@@ -105,3 +105,48 @@ def test_the_assistant_looks_at_frames_of_the_rendered_mp4(mcp_client, db, stora
     frames = call(mcp_client, token, "view_render_frames", video_id=video.id, seconds=[0.5, 1.5, 2.5])
     assert not frames.get("isError"), frames
     assert [block["type"] for block in frames["content"]] == ["image", "image", "image"]
+
+
+def test_the_assistant_finds_a_mark_erases_it_and_can_restore_the_photo(mcp_client, db, storage):  # noqa: F811
+    from reels_api.models import Job
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user, scene_count=1)
+    scene = scenes_of(db, video)[0]
+    seen = call(mcp_client, token, "view_scene_photo", scene_id=scene.id)
+    assert not seen.get("isError"), seen
+    assert seen["content"][0]["type"] == "text" and "720×1280" in seen["content"][0]["text"]
+    assert seen["content"][1]["type"] == "image"
+
+    queued = call(mcp_client, token, "edit_scene_image", scene_id=scene.id, boxes=[[0.4, 0.4, 0.2, 0.05]])
+    assert not queued.get("isError"), queued
+    job = db.scalar(select(Job).where(Job.video_id == video.id))
+    assert (job.kind, job.image_provider, job.edit_boxes) == ("image_edit", "lama", [[0.4, 0.4, 0.2, 0.05]])
+    # Gemini without words is refused like on the page.
+    assert call(mcp_client, token, "edit_scene_image", scene_id=scene.id, engine="gemini")["isError"]
+
+    db.delete(job)
+    original = scene.image_key
+    storage.save_bytes(f"videos/{video.id}/edited.jpg", storage.path(original).read_bytes())
+    scene.image_original_key, scene.image_key = original, f"videos/{video.id}/edited.jpg"
+    db.commit()
+    restored = call(mcp_client, token, "restore_scene_image", scene_id=scene.id)
+    assert not restored.get("isError"), restored
+    db.refresh(scene)
+    assert (scene.image_key, scene.image_original_key) == (original, None)
+
+
+def test_the_assistant_blurs_a_logo_on_a_clip(mcp_client, db, storage):  # noqa: F811
+    user, _, tokens, _ = grant(mcp_client, db)
+    video = make_video(db, storage, user, scene_count=1)
+    scene = scenes_of(db, video)[0]
+    storage.save_bytes(f"videos/{video.id}/clip.mp4", b"clip")
+    scene.image_key, scene.video_key, scene.video_seconds = None, f"videos/{video.id}/clip.mp4", 3.0
+    db.commit()
+    done = call(
+        mcp_client, tokens["access_token"], "set_scene_clip_blur", scene_id=scene.id, boxes=[[0.7, 0.02, 0.28, 0.06]]
+    )
+    assert not done.get("isError"), done
+    db.refresh(scene)
+    assert scene.video_blur["boxes"] == [[0.7, 0.02, 0.28, 0.06]]

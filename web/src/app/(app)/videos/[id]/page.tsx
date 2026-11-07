@@ -70,6 +70,7 @@ const JOB_NAMES = {
   motion: "Cảnh động",
   tiktok_publish: "Đăng TikTok",
   image_edit: "Sửa ảnh",
+  image_marks: "Tìm chữ/logo trên ảnh",
 } as const;
 
 /** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */

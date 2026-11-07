@@ -1837,6 +1837,43 @@ function makeClip(): string {
   return file;
 }
 
+test("Làm mờ vùng: a box drawn over a clip is saved, shown in the preview, then taken away", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau ngót cho người lớn tuổi");
+  const first = page.getByTestId("scene").first();
+  await first.getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(makeClip());
+  await page
+    .getByRole("dialog")
+    .filter({ hasText: "Video sẽ thay ảnh của cảnh này?" })
+    .getByRole("button", { name: "Đổi" })
+    .click();
+  await expect(first.getByTestId("scene-video")).toBeVisible();
+  const preview = first.getByTestId("scene-preview");
+  const plain = await preview.getAttribute("src");
+
+  await first.getByRole("button", { name: "Làm mờ vùng" }).click();
+  const dialog = page.getByRole("dialog", { name: "Làm mờ vùng trên video cảnh" });
+  const frame = dialog.getByRole("img", { name: "Khung hình của cảnh" });
+  await expect.poll(() => frame.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+  const area = (await dialog.getByTestId("image-edit-canvas").boundingBox())!;
+  await page.mouse.move(area.x + area.width * 0.6, area.y + area.height * 0.05);
+  await page.mouse.down();
+  await page.mouse.move(area.x + area.width * 0.95, area.y + area.height * 0.12, { steps: 5 });
+  await page.mouse.up();
+  await expect(dialog.getByTestId("blur-box-count")).toHaveText("1 vùng sẽ được làm mờ");
+  await dialog.getByRole("button", { name: "Lưu vùng mờ" }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(first.getByTestId("clip-blurred")).toHaveText("Làm mờ 1 vùng trên video");
+  await expect(preview).not.toHaveAttribute("src", plain ?? "");
+
+  // "Bỏ làm mờ" takes the boxes away and the preview is the plain clip again.
+  await first.getByRole("button", { name: "Làm mờ vùng" }).click();
+  await dialog.getByRole("button", { name: "Bỏ làm mờ" }).click();
+  await expect(first.getByTestId("clip-blurred")).toHaveCount(0);
+  await expect(preview).toHaveAttribute("src", plain ?? "");
+});
+
 test("a title clip with a start time renders, and removing it asks for a photo again", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);

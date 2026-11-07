@@ -38,3 +38,24 @@ def write(path: Path) -> Path:
     onnx.checker.check_model(model)
     onnx.save(model, str(path))
     return path
+
+
+def write_detector(path: Path) -> Path:
+    """A stand-in for PP-OCR's text detector with its input (`x`, 1x3xHxW normalised BGR) and output (1x1xHxW
+    probability): dark pixels count as writing, light ones do not."""
+    nodes = [
+        helper.make_node("ReduceMean", ["x"], ["mean"], axes=[1], keepdims=1),
+        helper.make_node("Neg", ["mean"], ["dark"]),
+        helper.make_node("Sigmoid", ["dark"], ["chance"]),
+    ]
+    graph = helper.make_graph(
+        nodes,
+        "tiny_detector",
+        [helper.make_tensor_value_info("x", TensorProto.FLOAT, ["batch", 3, "height", "width"])],
+        [helper.make_tensor_value_info("chance", TensorProto.FLOAT, ["batch", 1, "height", "width"])],
+    )
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model.ir_version = 8
+    onnx.checker.check_model(model)
+    onnx.save(model, str(path))
+    return path

@@ -17,6 +17,8 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column("scenes", sa.Column("image_original_key", sa.String(200)))
+    op.add_column("scenes", sa.Column("image_marks", postgresql.JSONB()))
+    op.add_column("scenes", sa.Column("video_blur", postgresql.JSONB()))
     op.add_column("jobs", sa.Column("edit_boxes", postgresql.JSONB()))
     op.add_column("jobs", sa.Column("edit_prompt", sa.Text()))
 
@@ -24,4 +26,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     op.drop_column("jobs", "edit_prompt")
     op.drop_column("jobs", "edit_boxes")
+    op.drop_column("scenes", "video_blur")
+    op.drop_column("scenes", "image_marks")
     op.drop_column("scenes", "image_original_key")

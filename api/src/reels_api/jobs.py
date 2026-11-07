@@ -6,6 +6,7 @@ import tempfile
 import time
 import traceback
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -78,6 +79,7 @@ from .videos import (
     OPEN_POST_STATUSES,
     active_job,
     auto_seconds,
+    blur_of,
     drawn_layers,
     drop_original,
     is_backdrop,
@@ -147,6 +149,8 @@ def run_job(
                 run_image_job(db, job, storage)
             elif job.kind == "image_edit":
                 run_image_edit_job(db, job, storage)
+            elif job.kind == "image_marks":
+                run_image_marks_job(db, job, storage)
             elif job.kind == "publish":
                 run_publish_job(db, job, storage)
             elif job.kind == "unpublish":
@@ -633,6 +637,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     data["video_sound"] = True
                     if scene.words:
                         data["words"] = scene.words
+                if blurred := blur_of(scene):
+                    data["video_blur"] = blurred
             else:
                 if not scene.image_key or not storage.exists(scene.image_key):
                     raise JobFailure(f"{label} chưa có ảnh trong storage, hãy gán lại ảnh rồi render")
@@ -669,6 +675,9 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
         signature = render_signature(video, title, scenes)
+        options = render_options(video)
+        if any("video_blur" in item for item in [data["title"], *data["scenes"]]):
+            options = replace(options, clip_blur=True)
         music = _checked_music(video, storage, folder)
         if render_nodes.enabled(db):
             # The heavy part runs on a member's render machine; the api finishes the job with save_render.
@@ -678,7 +687,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 "music": music.name if music else None,
                 "music_volume": video.music_volume / 100,
                 "music_start": video.music_start,
-                "options": render_nodes.options_dict(render_options(video)),
+                "options": render_nodes.options_dict(options),
                 "expect_sound": expects_sound(video, [title, *scenes]),
                 "signature": signature,
             }
@@ -693,7 +702,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 music=music,
                 music_volume=video.music_volume / 100,
                 music_start=video.music_start,
-                options=render_options(video),
+                options=options,
             )
             seconds = float(probe(find_tools().ffprobe, output)["format"]["duration"])
         except FFmpegError as err:
@@ -1108,3 +1117,20 @@ def run_image_edit_job(db: DbSession, job: Job, storage: DirectoryStorage) -> No
     db.commit()
     storage.delete(replaced)
     log.info("Image edit job %s: scene %s edited with %s", job.id, scene.id, engine)
+
+
+def run_image_marks_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    """ "Tìm chữ/logo tự động" in "Sửa ảnh" (image_edit.find_marks): the writing on the scene's photo, kept on the scene
+    with the photo it was found on, for the dialog to offer as boxes. Free: a small model on the worker."""
+    scene = db.get(Scene, job.scene_id) if job.scene_id is not None else None
+    if scene is None or scene.video_id != job.video_id:
+        raise JobFailure("Cảnh cần tìm chữ không còn trong video (đã bị xoá)")
+    if not scene.image_key or scene.video_key or not storage.exists(scene.image_key):
+        raise JobFailure("Cảnh này không còn ảnh để tìm chữ")
+    try:
+        boxes = image_edit.find_marks(storage.path(scene.image_key).read_bytes())
+    except ImageGenError as err:
+        raise JobFailure(err.message, err.detail) from None
+    scene.image_marks = {"key": scene.image_key, "boxes": boxes}
+    db.commit()
+    log.info("Image marks job %s: %s box(es) on scene %s", job.id, len(boxes), scene.id)

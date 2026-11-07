@@ -15,7 +15,9 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.blur import parse_blur
 from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
+from reels_render.errors import InputError
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
@@ -609,6 +611,49 @@ def edit_scene_image(
         edit_boxes=boxes,
         edit_prompt=prompt or None,
     )
+    return _saved(db, video)
+
+
+@router.post("/scenes/{scene_id}/image-marks")
+def find_scene_image_marks(
+    scene_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Tìm chữ/logo tự động" in "Sửa ảnh": a free job that finds the writing on the scene's photo; the boxes come
+    back on the scene (`image_marks`) for the dialog to offer."""
+    video, scene = lock_scene(db, scene_id)
+    if not scene.image_key or scene.video_key:
+        raise ApiError(409, "no_image", "Cảnh này chưa có ảnh để tìm chữ")
+    _enqueue(db, video, "image_marks", me, scene_id=scene.id)
+    return _saved(db, video)
+
+
+class VideoBlurBody(BaseModel):
+    # [x, y, width, height] fractions of the 1080x1920 frame; empty takes the blur away.
+    boxes: list = []
+
+
+@router.post("/scenes/{scene_id}/video-blur")
+def set_scene_video_blur(
+    scene_id: int,
+    body: VideoBlurBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Làm mờ vùng" on a clip scene: boxes blurred for the whole scene (a logo or a channel name burned into the
+    clip), kept with the clip they were drawn on. Nothing is rendered now; the next render blurs them."""
+    try:
+        boxes = parse_blur(body.boxes, "Vùng làm mờ")
+    except InputError as err:
+        raise invalid(str(err)) from None
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    if not scene.video_key:
+        raise ApiError(409, "no_clip", "Cảnh này không có video để làm mờ")
+    scene.video_blur = {"key": scene.video_key, "boxes": [list(box) for box in boxes]} if boxes else None
+    if scene.is_title:
+        title, _ = split_scenes(db, video)
+        refresh_thumbnail(db, storage, video, title)
     return _saved(db, video)
 
 

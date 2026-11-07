@@ -15,6 +15,7 @@ from mcp.server.fastmcp.exceptions import ToolError
 from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 from PIL import Image as PILImage
+from PIL import ImageOps as PILImageOps
 from pydantic import AnyHttpUrl, Field, ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError
@@ -36,8 +37,9 @@ from .claude import ScriptOutputError, parse_output
 from .db import get_db
 from .errors import ApiError
 from .mcp_auth import connection_for, public_url
-from .models import KnowledgeTopic, TopicPlanItem, Video
+from .models import KnowledgeTopic, Scene, TopicPlanItem, Video
 from .storage import get_storage
+from .videos import marks_of
 
 log = logging.getLogger(__name__)
 
@@ -538,6 +540,70 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 return _jpeg(frame)
 
         return await run_in_threadpool(invoke, operation)
+
+    @tool("Xem ảnh gốc của cảnh", read=True, images=True)
+    async def view_scene_photo(scene_id: int) -> list:
+        """Ảnh của cảnh đúng như đã lưu (chưa cắt 9:16, chưa có chữ), kèm kích thước, để tìm watermark, logo hay
+        vật cần xóa và khoanh vùng cho "Sửa ảnh của cảnh": mỗi vùng là [x, y, rộng, cao] theo tỉ lệ 0–1 của ảnh này."""
+
+        def operation(db, me):
+            scene = db.get(Scene, scene_id)
+            if scene is None or not scene.image_key or not get_storage().exists(scene.image_key):
+                raise ApiError(404, "no_image", "Cảnh này chưa có ảnh")
+            with PILImage.open(get_storage().path(scene.image_key)) as photo:
+                photo = PILImageOps.exif_transpose(photo)
+                width, height = photo.size
+                small = photo.convert("RGB")
+                small.thumbnail((1024, 1024))
+                buffer = io.BytesIO()
+                small.save(buffer, "JPEG", quality=85)
+            marks = marks_of(scene)
+            note = f"Ảnh {width}×{height} px."
+            if marks:
+                note += f" Chữ/logo có chữ tìm được tự động (tỉ lệ 0–1): {marks}."
+            return [note, Image(data=buffer.getvalue(), format="jpeg")]
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Sửa ảnh của cảnh", read=False, external=True)
+    async def edit_scene_image(
+        scene_id: int,
+        engine: Literal["lama", "cloudflare", "gemini"] = "lama",
+        boxes: Annotated[list[Annotated[list[float], Field(min_length=4, max_length=4)]], Field(max_length=10)]
+        | None = None,
+        prompt: Annotated[str, Field(max_length=500)] = "",
+    ) -> dict:
+        """Xếp job "Sửa ảnh" cho ảnh của cảnh. Xóa vùng: engine "lama" (miễn phí, mặc định) hoặc "cloudflare" (vẽ lại
+        theo prompt nếu có), với boxes là các vùng [x, y, rộng, cao] tỉ lệ 0–1 của ảnh gốc (xem "Xem ảnh gốc của
+        cảnh"), khoanh rộng hơn vật một chút. Sửa theo mô tả: engine "gemini" với prompt (tốn phí Gemini; hỏi người
+        dùng trước). Ảnh gốc được giữ để khôi phục. Chỉ xóa watermark/logo trên ảnh nhóm có quyền dùng."""
+        body = videos.ImageEditBody(engine=engine, boxes=boxes or [], prompt=prompt)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(videos.edit_scene_image(scene_id, body, me, db)), write=True
+        )
+
+    @tool("Làm mờ vùng trên video của cảnh", read=False)
+    async def set_scene_clip_blur(
+        scene_id: int,
+        boxes: Annotated[list[Annotated[list[float], Field(min_length=4, max_length=4)]], Field(max_length=10)],
+    ) -> dict:
+        """Làm mờ suốt cảnh các vùng [x, y, rộng, cao] tỉ lệ 0–1 của khung 1080×1920 (như "Xem cảnh" cho thấy) trên
+        clip của cảnh: logo, tên kênh, chữ dính trong video. Danh sách rỗng bỏ làm mờ. Áp dụng ở lần render sau."""
+        body = videos.VideoBlurBody(boxes=boxes)
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: video_link(videos.set_scene_video_blur(scene_id, body, me, db, get_storage())),
+            write=True,
+        )
+
+    @tool("Khôi phục ảnh gốc của cảnh", read=False)
+    async def restore_scene_image(scene_id: int) -> dict:
+        """Bỏ mọi lần "Sửa ảnh" của cảnh và dùng lại ảnh trước lần sửa đầu tiên."""
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: video_link(videos.restore_scene_image(scene_id, me, db, get_storage())),
+            write=True,
+        )
 
     @tool("Xem khung hình của MP4 đã render", read=True, images=True)
     async def view_render_frames(

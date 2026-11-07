@@ -7,10 +7,12 @@ import secrets
 from datetime import datetime
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.blur import blur_image
+from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_TAIL, fit_seconds
 
 from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
@@ -102,6 +104,7 @@ JOB_KINDS = {
     "check": "Kiểm tra bài Facebook",
     "image": "Tạo ảnh AI",
     "image_edit": "Sửa ảnh",
+    "image_marks": "Tìm chữ/logo trên ảnh",
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
     "plan": "Tạo kế hoạch 30 ngày",
@@ -130,6 +133,18 @@ def drop_original(scene: Scene) -> str | None:
     loses its photo: the caller deletes the returned file with the ones it replaces."""
     key, scene.image_original_key = scene.image_original_key, None
     return key
+
+
+def blur_of(scene: Scene) -> list:
+    """The boxes "Làm mờ vùng" blurs on the scene's clip, while the scene still shows the clip they were drawn on."""
+    blur = scene.video_blur or {}
+    return (blur.get("boxes") or []) if scene.video_key and blur.get("key") == scene.video_key else []
+
+
+def marks_of(scene: Scene) -> list | None:
+    """The boxes "Tìm chữ/logo tự động" found, while the scene still shows the photo they were found on."""
+    marks = scene.image_marks or {}
+    return marks.get("boxes") if scene.image_key and marks.get("key") == scene.image_key else None
 
 
 def video_not_found() -> ApiError:
@@ -350,6 +365,8 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             ),
             *([["sounds", [sound_fields(sound) for sound in scene.sounds]]] if scene.sounds else []),
             *([["music_level", scene.music_level]] if scene.music_level else []),
+            # Blurred boxes on the clip join only when there are some, so earlier MP4s stay current.
+            *([["video_blur", blurred]] if (blurred := blur_of(scene)) else []),
         ]
         for scene in every
     ]
@@ -378,9 +395,14 @@ def scene_still(storage: DirectoryStorage, scene: Scene) -> Path | Image.Image |
         if not storage.exists(scene.video_key):
             return None
         try:
-            return frame_at(storage.path(scene.video_key), scene.video_start)
+            frame = frame_at(storage.path(scene.video_key), scene.video_start)
         except ClipError:
             return None
+        if blurred := blur_of(scene):
+            # Framed like the render, then blurred where the render blurs, so every preview shows the boxes.
+            fitted = ImageOps.fit(frame.convert("RGB"), (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC)
+            return blur_image(fitted, tuple(tuple(box) for box in blurred))
+        return frame
     if scene.image_key and storage.exists(scene.image_key):
         return storage.path(scene.image_key)
     return None
@@ -460,6 +482,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
             "check": "checking",
             "image": "imaging",
             "image_edit": "editing",
+            "image_marks": "editing",
             "photos": "finding",
             "voice": "voicing",
         }.get(job.kind, "writing")
@@ -679,12 +702,16 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "image_ai": bool(scene.image_key) and (scene.image_source or "").startswith("ai:"),
         # Changed by "Sửa ảnh" since the photo came in: the card offers "Khôi phục ảnh gốc".
         "image_edited": bool(scene.image_key and scene.image_original_key),
+        # "Tìm chữ/logo tự động": the boxes found on the photo now shown ([] when none); None until looked for.
+        "image_marks": marks_of(scene),
         # Picked by "Tự tìm ảnh" and not yet changed by a member: the card says "Tự chọn, kiểm tra lại".
         "image_auto": bool(scene.image_key) and scene.image_auto,
         "image_error": scene.image_error,
         "image_url": f"{image}/image?v={_version(scene.image_key)}" if scene.image_key else None,
         "video": {
             "url": f"{image}/video?v={_version(scene.video_key)}",
+            # "Làm mờ vùng": boxes blurred for the whole scene, fractions of the 1080x1920 frame.
+            "blur": blur_of(scene),
             "seconds": scene.video_seconds,
             "start": scene.video_start,
             "speed": scene.video_speed,
@@ -695,7 +722,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         if scene.video_key
         else None,
         "preview_url": (
-            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, scene.text, *style)}"
+            f"{image}/preview.jpg?v={_version(scene.video_key, scene.video_start, blur_of(scene), scene.text, *style)}"
             if scene.video_key
             else f"{image}/preview.jpg?v={_version(scene.image_key, scene.text, *style)}"
             if scene.image_key
@@ -705,7 +732,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "text_position": [scene.text_x, scene.text_y] if scene.text_x is not None else None,
         "placed_at": position,  # where it goes after all: its own place, the video's, or None (the template's)
         # The drag is drawn from the frame without text and the exact box image the renderer overlays.
-        "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start)}" if still else None,
+        "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene))}" if still else None,
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
             if scene.text.strip() and text_problem(scene.text, scene.is_title, size) is None

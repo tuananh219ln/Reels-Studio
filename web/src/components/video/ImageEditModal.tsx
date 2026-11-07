@@ -2,7 +2,7 @@
 
 import { CloseOutlined } from "@ant-design/icons";
 import { Alert, Button, Flex, Input, Modal, Radio, Tabs, Typography } from "antd";
-import { useRef, useState, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 
@@ -12,7 +12,7 @@ const MIN_BOX = 0.004;
 const MAX_PROMPT = 500;
 const MEDIA_HEIGHT = "min(60vh, 520px)";
 
-type Box = [number, number, number, number];
+export type Box = [number, number, number, number];
 type Engine = "lama" | "cloudflare" | "gemini";
 type Tab = "erase" | "describe";
 
@@ -32,7 +32,56 @@ export default function ImageEditModal({ scene, onClose }: { scene: SceneData; o
   const [prompt, setPrompt] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // "Tìm chữ/logo tự động": a free job; the dialog follows it and adds the boxes it finds.
+  const [finding, setFinding] = useState(false);
+  const [found, setFound] = useState<string | null>(null);
   const which = scene.is_title ? "cảnh tiêu đề" : "cảnh";
+
+  useEffect(() => {
+    if (!finding) {
+      return;
+    }
+    let open = true;
+    const timer = window.setInterval(async () => {
+      try {
+        const video = await api<VideoDetail>(`/videos/${scene.video_id}`);
+        const job = video.active_job;
+        if (!open || (job?.kind === "image_marks" && job.scene_id === scene.id)) {
+          return;
+        }
+        editor.onSaved(video);
+        const now = [video.title_scene, ...video.scenes].find((item) => item?.id === scene.id);
+        const marks = now?.image_marks ?? null;
+        setFinding(false);
+        if (marks === null) {
+          setError("Không tìm được chữ trên ảnh này, hãy tự khoanh vùng (xem lý do ở Job logs)");
+        } else if (marks.length === 0) {
+          setFound("Không thấy chữ hay logo có chữ nào. Logo không có chữ thì hãy tự khoanh.");
+        } else {
+          setBoxes((current) => [...current, ...marks].slice(0, MAX_BOXES));
+          setFound(`Đã khoanh ${marks.length} vùng có chữ. Kiểm tra lại, bỏ khung nào không phải watermark.`);
+        }
+      } catch (err) {
+        setFinding(false);
+        setError(errorMessage(err));
+      }
+    }, 2000);
+    return () => {
+      open = false;
+      window.clearInterval(timer);
+    };
+  }, [finding, scene.id, scene.video_id, editor]);
+
+  async function findMarks() {
+    setError(null);
+    setFound(null);
+    try {
+      editor.onSaved(await api<VideoDetail>(`/scenes/${scene.id}/image-marks`, "POST"));
+      setFinding(true);
+    } catch (err) {
+      setError(errorMessage(err));
+    }
+  }
 
   const ready = tab === "erase" ? boxes.length > 0 : prompt.trim().length > 0;
 
@@ -61,7 +110,7 @@ export default function ImageEditModal({ scene, onClose }: { scene: SceneData; o
       title={`Sửa ảnh ${which}`}
       okText={tab === "erase" ? "Xóa vùng đã khoanh" : "Sửa ảnh"}
       cancelText="Huỷ"
-      okButtonProps={{ disabled: !ready, loading: saving }}
+      okButtonProps={{ disabled: !ready || finding, loading: saving }}
       onOk={() => void submit()}
       onCancel={onClose}
       styles={{ body: { maxHeight: "calc(100vh - 180px)", overflowY: "auto", overflowX: "hidden" } }}
@@ -90,6 +139,14 @@ export default function ImageEditModal({ scene, onClose }: { scene: SceneData; o
                       Kéo chuột (hoặc ngón tay) trên ảnh để khoanh logo, watermark hay vật cần xóa. Khoanh rộng hơn vật
                       một chút để xóa sạch viền.
                     </Typography.Text>
+                    <Button onClick={() => void findMarks()} loading={finding} disabled={boxes.length >= MAX_BOXES}>
+                      {finding ? "Đang tìm chữ/logo…" : "Tìm chữ/logo tự động"}
+                    </Button>
+                    {found && (
+                      <Typography.Text type="secondary" data-testid="marks-found">
+                        {found}
+                      </Typography.Text>
+                    )}
                     <Flex align="center" gap={8} wrap>
                       <Typography.Text data-testid="edit-box-count">
                         {boxes.length ? `Đã khoanh ${boxes.length} vùng` : "Chưa khoanh vùng nào"}
@@ -157,7 +214,7 @@ export default function ImageEditModal({ scene, onClose }: { scene: SceneData; o
 }
 
 /** The photo, with boxes drawn over it by dragging; each box has its own × to take it away. */
-function BoxCanvas({
+export function BoxCanvas({
   src,
   alt,
   boxes,

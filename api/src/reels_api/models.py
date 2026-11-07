@@ -309,6 +309,12 @@ class Scene(Base):
     # "Sửa ảnh" (image_edit.py): the photo the scene had before its first edit, so "Khôi phục ảnh gốc" brings it back.
     # None for a photo never edited; any new photo, clip or removal drops it (videos.drop_original).
     image_original_key: Mapped[str | None] = mapped_column(String(200))
+    # "Tìm chữ/logo tự động" (image_marks job): {"key": the photo it looked at, "boxes": [[x, y, w, h], ...]}, offered
+    # as boxes in "Xóa vùng" while the scene still shows that photo.
+    image_marks: Mapped[dict | None] = mapped_column(JSONB)
+    # "Làm mờ vùng" on a clip: {"key": the clip, "boxes": [[x, y, w, h], ...]} as fractions of the 1080x1920 frame,
+    # blurred for the whole scene (reels_render/blur.py) while the scene still shows that clip.
+    video_blur: Mapped[dict | None] = mapped_column(JSONB)
     voice_text: Mapped[str] = mapped_column(Text, default="")
     # The last narration MP3 made for this scene and the tts.voice_signature it was made from: it is reused
     # while the signature still matches, so a re-render does not pay ElevenLabs again.
@@ -440,7 +446,7 @@ class Job(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
     article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan | revise
-    # | article_caption | motion | tiktok_publish | image_edit
+    # | article_caption | motion | tiktok_publish | image_edit | image_marks
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))

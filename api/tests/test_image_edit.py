@@ -13,7 +13,7 @@ from sqlalchemy import select
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixture)
 
 from reels_api import image_edit, jobs
-from reels_api.models import Job, Scene
+from reels_api.models import Job, Scene, Video
 
 # A box in the middle of the photo: the middle tenth across, a twentieth down.
 BOX = [0.45, 0.475, 0.1, 0.05]
@@ -350,3 +350,132 @@ def test_retrying_an_edit_keeps_what_was_asked_and_the_log_names_it(an, db, me, 
     )
     row = next(row for row in an.get("/api/jobs").json() if row["id"] == failed.id)
     assert (row["kind_label"], row["llm"]) == ("Sửa ảnh (1 cảnh)", "Cloudflare")
+
+
+# --- Tìm chữ/logo tự động ---
+
+
+@pytest.fixture
+def detector(tmp_path, monkeypatch):
+    path = tiny_lama.write_detector(tmp_path / "detector.onnx")
+    monkeypatch.setenv("TEXT_DETECT_MODEL_PATH", str(path))
+    monkeypatch.setattr(image_edit, "_detector", None)
+    return path
+
+
+def photo_with_mark() -> bytes:
+    """A light photo with one dark mark across x 0.3–0.6 and y 0.5–0.55."""
+    photo = Image.new("RGB", (720, 1280), (235, 235, 230))
+    photo.paste((20, 20, 20), (216, 640, 432, 704))
+    buffer = io.BytesIO()
+    photo.save(buffer, "JPEG", quality=92)
+    return buffer.getvalue()
+
+
+def test_the_detector_finds_the_dark_mark_with_room_around_it(detector):
+    [box] = image_edit.find_marks(photo_with_mark())
+    x, y, width, height = box
+    assert x < 0.3 and y < 0.5 and x + width > 0.6 and y + height > 0.55
+    assert width < 0.45 and height < 0.12
+
+
+def test_a_photo_without_writing_has_no_marks(detector):
+    buffer = io.BytesIO()
+    Image.new("RGB", (720, 1280), (235, 235, 230)).save(buffer, "JPEG")
+    assert image_edit.find_marks(buffer.getvalue()) == []
+
+
+def test_the_marks_job_keeps_the_boxes_with_the_photo_they_belong_to(committed, storage, detector):  # noqa: F811
+    user = add_user(committed)
+    video_id, scene_id, key = scene_with_photo(committed, storage, user)
+    storage.save_bytes(key, photo_with_mark())
+
+    job_id = add_job(committed, video_id, user.id, kind="image_marks", status="running", scene_id=scene_id)
+    jobs.run_job(job_id, committed, storage)
+
+    assert job_row(committed, job_id).status == "done"
+    scene = load_scene(committed, scene_id)
+    assert scene.image_marks["key"] == key and len(scene.image_marks["boxes"]) == 1
+    with committed() as db:
+        from reels_api.videos import marks_of
+
+        stored = db.get(Scene, scene_id)
+        assert marks_of(stored) == scene.image_marks["boxes"]
+        # Another photo: the boxes were found on the old one and are no longer offered.
+        stored.image_key = "videos/x/another.jpg"
+        assert marks_of(stored) is None
+
+
+def test_post_marks_queues_a_free_job_for_a_scene_with_a_photo(an, db, me, storage):
+    scene = a_scene(db, storage, me)
+    response = an.post(f"/api/scenes/{scene.id}/image-marks")
+    assert response.status_code == 200, response.text
+    assert (response.json()["active_job"]["kind"], response.json()["active_job"]["scene_id"]) == (
+        "image_marks",
+        scene.id,
+    )
+    shown = next(item for item in response.json()["scenes"] if item["id"] == scene.id)
+    assert shown["image_marks"] is None
+    bare = make_video(db, storage, me, scene_count=1, images=False)
+    empty = db.scalar(select(Scene).where(Scene.video_id == bare.id, Scene.is_title.is_(False)))
+    assert an.post(f"/api/scenes/{empty.id}/image-marks").status_code == 409
+
+
+# --- Làm mờ vùng trên clip ---
+
+
+def clip_scene(db, storage, me) -> Scene:
+    scene = a_scene(db, storage, me)
+    key = f"videos/{scene.video_id}/clip-{scene.id}.mp4"
+    storage.save_bytes(key, b"clip")
+    scene.image_key, scene.video_key, scene.video_seconds = None, key, 3.0
+    db.commit()
+    return scene
+
+
+def test_blurred_boxes_are_kept_with_their_clip_and_change_the_fingerprint(an, db, me, storage):
+    from reels_api.videos import blur_of, render_signature, split_scenes
+
+    scene = clip_scene(db, storage, me)
+    video = db.get(Video, scene.video_id)
+    before = render_signature(video, *split_scenes(db, video))
+
+    response = an.post(f"/api/scenes/{scene.id}/video-blur", json={"boxes": [[0.8, 0.02, 0.18, 0.05]]})
+
+    assert response.status_code == 200, response.text
+    shown = next(item for item in response.json()["scenes"] if item["id"] == scene.id)
+    assert shown["video"]["blur"] == [[0.8, 0.02, 0.18, 0.05]]
+    db.refresh(scene)
+    assert scene.video_blur == {"key": scene.video_key, "boxes": [[0.8, 0.02, 0.18, 0.05]]}
+    assert render_signature(video, *split_scenes(db, video)) != before
+    # Another clip: the boxes were drawn over the old one.
+    scene.video_key = "videos/x/other.mp4"
+    assert blur_of(scene) == []
+    db.rollback()
+
+    cleared = an.post(f"/api/scenes/{scene.id}/video-blur", json={"boxes": []})
+    assert cleared.status_code == 200
+    db.refresh(scene)
+    assert scene.video_blur is None and render_signature(video, *split_scenes(db, video)) == before
+
+
+@pytest.mark.parametrize("boxes", [[[0.9, 0.1, 0.2, 0.1]], [[0.1, 0.1, 0.1]], "x", [[0.1, 0.1, 0.1, 0.1]] * 11])
+def test_bad_blur_boxes_are_refused(an, db, me, storage, boxes):
+    scene = clip_scene(db, storage, me)
+    assert an.post(f"/api/scenes/{scene.id}/video-blur", json={"boxes": boxes}).status_code == 422
+
+
+def test_a_photo_scene_has_no_clip_to_blur(an, db, me, storage):
+    scene = a_scene(db, storage, me)
+    response = an.post(f"/api/scenes/{scene.id}/video-blur", json={"boxes": [BOX]})
+    assert response.status_code == 409
+
+
+def test_a_render_machine_is_sent_the_blur_flag_only_when_a_clip_is_blurred():
+    from dataclasses import replace
+
+    from reels_api import render_nodes
+    from reels_render.options import RenderOptions
+
+    assert "clip_blur" not in render_nodes.options_dict(RenderOptions())
+    assert render_nodes.options_dict(replace(RenderOptions(), clip_blur=True))["clip_blur"] is True
