@@ -11,6 +11,14 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — "Từ video mẫu" learns from the stills when ElevenLabs will not write the words down
+
+Found by a member (namtc): every "Từ video mẫu" failed, pasted link or upload, with "Key ElevenLabs không hợp lệ",
+because the team's ElevenLabs key was made without the `speech_to_text` permission (it narrates fine). The words of a
+sample were always optional (2026-11-05: "A silent sample, or no ElevenLabs key, works from the stills alone"), so a
+refusal now counts as no key: a key missing the permission, no quota left or an outage leaves the words empty, is
+logged, and the job goes on from the stills. A key missing the permission is named as such in the log. To have the
+words back, turn on Speech to Text for the key on ElevenLabs.
 ## 2026-11-07 — Renders and motion scenes run on a member's own computer; the VPS prepares and keeps the data
 
 Asked by tuananh219ln: the VPS is small, and his computer (i7-8700, 32 GB, GTX 1060) is far stronger. Chosen with
@@ -189,6 +197,19 @@ It says what the app really keeps and sends: visitors' comments are kept with th
 disabled rather than deleted (2026-10-31), a Page's token goes with the Page, and each service gets only what its
 feature needs. Questions and deletion requests go to the Page by message, the one contact a visitor surely has; a
 team email can be added later. When what the app keeps or sends changes, the page changes with it.
+
+## 2026-11-06 — A public terms page at /terms, beside /privacy
+
+The Meta app's settings take a terms of service URL next to the privacy policy, so the web app has a public page at
+`/terms` (https://reels.quangdang.xyz/terms once deployed), built like `/privacy`: Vietnamese, static, no API call,
+and the login proxy leaves exactly that path open. It says who may sign in (no self-signup), that what is posted
+must follow Meta's, TikTok's and Shopee's rules and is the poster's responsibility (banned words only warn,
+2026-10-31), that uploaders must hold the rights to their media, and links to `/privacy` for what is sent where.
+Contact goes to the Page by message, as on `/privacy`.
+
+The TikTok developer app verifies the domain with a file served at its root, so
+`web/public/tiktokthafjQKP8W43JYUm5iG01Gsy3j5KIHeD.txt` is kept byte for byte as TikTok issued it (the login proxy
+already skips files with an extension). Delete it only if the TikTok app is removed.
 
 ## 2026-11-06 — A reel deleted on Facebook is known by the 400 (#100) Facebook answers, while the Page still reads
 

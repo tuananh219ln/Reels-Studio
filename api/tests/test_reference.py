@@ -270,6 +270,28 @@ def test_a_silent_sample_or_no_elevenlabs_key_still_learns_from_the_stills(
 
 
 @needs_ffmpeg
+@pytest.mark.parametrize("mode", ["no_permission", "quota"])
+def test_elevenlabs_refusing_the_words_still_learns_from_the_stills(factory, storage, tmp_path, fakes, mode):
+    """The words are optional: a key without the speech_to_text permission, or out of quota, is as no key at all."""
+    fakes.stt_mode = mode
+    user = add_user(factory)
+    video_id = sample_video(factory, storage, tmp_path, user)
+    llm = SeeingLlm()
+    job = run_learn(factory, storage, video_id, user.id, llm)
+    assert job.status == "done", (job.error, job.error_detail)
+    assert len(fakes.stt_requests) == 1 and "(video mẫu không có lời nói)" in llm.calls[0][0]
+    assert loaded(factory, video_id)[1].transcript == ""
+
+
+def test_a_key_missing_the_speech_permission_is_named_as_such():
+    body = '{"detail":{"status":"missing_permissions","message":"missing the permission speech_to_text"}}'
+    assert stt._error(401, body).message == (
+        "Key ElevenLabs chưa bật quyền Speech to Text: bật quyền này cho key ở trang ElevenLabs"
+    )
+    assert stt._error(401, '{"detail":{"status":"invalid_api_key"}}').message.startswith("Key ElevenLabs không hợp lệ")
+
+
+@needs_ffmpeg
 def test_failures_say_what_went_wrong(factory, storage, tmp_path, fakes):
     user = add_user(factory)
     long_id = sample_video(factory, storage, tmp_path, user, seconds=181)
