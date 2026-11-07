@@ -167,6 +167,12 @@ def elevenlabs_api_url() -> str:
     return (read_env("ELEVENLABS_API_URL") or "https://api.elevenlabs.io").rstrip("/")
 
 
+def vieneu_api_url() -> str:
+    # VieNeu's cloud API, the voices whose id starts with "vieneu:" (tts.py). Overridable only so tests and E2E can
+    # point at a local fake; production uses the default.
+    return (read_env("VIENEU_API_URL") or "https://api.vieneu.io/api").rstrip("/")
+
+
 def voice_id() -> str:
     return read_env("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID
 
