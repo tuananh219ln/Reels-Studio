@@ -236,8 +236,9 @@ must follow Meta's, TikTok's and Shopee's rules and is the poster's responsibili
 Contact goes to the Page by message, as on `/privacy`.
 
 The TikTok developer app verifies the domain with a file served at its root, so
-`web/public/tiktokthafjQKP8W43JYUm5iG01Gsy3j5KIHeD.txt` is kept byte for byte as TikTok issued it (the login proxy
-already skips files with an extension). Delete it only if the TikTok app is removed.
+`web/public/tiktokBrAExctM9frGJD6lQkMHTFS9wAUMuami.txt` is kept byte for byte as TikTok issued it (the login proxy
+already skips files with an extension). Delete it only if the TikTok app is removed. It replaced the first file,
+`tiktokthafjQKP8W43JYUm5iG01Gsy3j5KIHeD.txt`, on 2026-11-07, when TikTok issued a new one.
 
 ## 2026-11-06 — A reel deleted on Facebook is known by the 400 (#100) Facebook answers, while the Page still reads
 
