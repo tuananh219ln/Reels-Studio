@@ -51,15 +51,17 @@ def _generate_gemini(prompt: str, key: str) -> bytes:
         raise ImageGenError(
             "Chưa có key Gemini nên không tạo được ảnh AI: nhập key ở Cài đặt › Nguồn tư liệu", fatal=True
         )
+    # Scenes are frames of a vertical reel: ask for the 9:16 frame explicitly instead of cropping whatever comes back.
+    return gemini_image([{"text": prompt}], key, {"aspectRatio": "9:16"})
+
+
+def gemini_image(parts: list[dict], key: str, image_config: dict | None = None) -> bytes:
+    """Gemini's one image for `parts` (a prompt, and for "Sửa ảnh" the photo it edits), as raw bytes; `key` is set."""
     url = f"{config.image_gen_api_url()}/v1beta/models/{config.image_gen_model()}:generateContent"
-    body = json.dumps(
-        {
-            "contents": [{"parts": [{"text": prompt}]}],
-            # Scenes are frames of a vertical reel: ask for the 9:16 frame explicitly instead
-            # of cropping whatever comes back.
-            "generationConfig": {"responseModalities": ["IMAGE"], "imageConfig": {"aspectRatio": "9:16"}},
-        }
-    ).encode()
+    generation: dict = {"responseModalities": ["IMAGE"]}
+    if image_config:
+        generation["imageConfig"] = image_config
+    body = json.dumps({"contents": [{"parts": parts}], "generationConfig": generation}).encode()
     request = urllib.request.Request(
         url,
         data=body,

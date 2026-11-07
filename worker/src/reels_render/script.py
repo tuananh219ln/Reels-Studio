@@ -5,6 +5,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from .blur import parse_blur
 from .captions import Word
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
@@ -42,6 +43,8 @@ class Scene:
     music_level: str | None = None  # sounds.MUSIC_LEVELS; None: the video's level
     video_sound: bool = False  # the clip's own sound is heard ("Tiếng gốc"); otherwise it is left out
     words: tuple[Word, ...] = ()  # what the clip's sound says, each word's seconds in the clip's own time
+    # Boxes of the clip blurred for the whole scene (blur.py): [x, y, width, height] fractions of the 1080x1920 frame.
+    video_blur: tuple[tuple[float, float, float, float], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -136,6 +139,9 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
     if video_sound and video is None:
         raise InputError(f'{label}: "video_sound" chỉ dùng cho cảnh có "video"')
     words = _parse_words(item.get("words"), label)
+    video_blur = parse_blur(item.get("video_blur"), label)
+    if video_blur and video is None:
+        raise InputError(f'{label}: "video_blur" chỉ dùng cho cảnh có "video"')
     keywords = _parse_keywords(item.get("keywords"), label)
 
     lines = []
@@ -178,6 +184,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         music_level=music_level,
         video_sound=video_sound,
         words=words,
+        video_blur=video_blur,
     )
 
 

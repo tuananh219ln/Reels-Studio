@@ -175,6 +175,7 @@ def render_video(
                     music_level=scene.music_level,
                     video_sound=heard[index],
                     loop=options.backdrop and video_start is not None,
+                    blur=scene.video_blur if video_start is not None else (),
                     motion_span=(
                         (scene_start - timeline.scene_frames[index], timeline.total_frames)
                         if options.backdrop and video_start is None
@@ -256,6 +257,7 @@ def with_backdrop(script: Script) -> Script:
             video=title.video,
             video_start=title.video_start,
             video_speed=title.video_speed,
+            video_blur=title.video_blur,
             transition=None,
             color=None,
             video_sound=False,

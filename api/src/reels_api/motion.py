@@ -30,7 +30,7 @@ from .models import Job, Scene, Video
 from .script_rules import CROSSFADE_SIDE_SECONDS
 from .storage import DirectoryStorage
 from .uploads import UploadRejected
-from .videos import new_key, refresh_thumbnail, split_scenes
+from .videos import drop_original, new_key, refresh_thumbnail, split_scenes
 
 log = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ def attach(db: DbSession, storage: DirectoryStorage, job: Job, target: Path) -> 
         raise MotionError("HyperFrames làm ra clip không dùng được", str(err)) from None
     video = db.scalar(select(Video).where(Video.id == scene.video_id).with_for_update())
     db.refresh(scene)
-    old = [key for key in (scene.image_key, scene.video_key) if key and key != photo_key]
+    old = [key for key in (scene.image_key, scene.video_key, drop_original(scene)) if key and key != photo_key]
     key = new_key(video.id, f"motion-{scene.id}", clip.extension)
     storage.save_file(key, target)
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1

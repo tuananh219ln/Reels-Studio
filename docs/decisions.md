@@ -62,6 +62,40 @@ which names Muse and warns about write access. Every other limit is unchanged: n
 account and key changes, connections last at most 30 days and can be revoked, PKCE S256 and public clients only.
 Tools that edit images through MCP are a separate change.
 
+## 2026-11-07 — "Sửa ảnh": erase drawn boxes with LaMa or Cloudflare, edit in words with Gemini; warn on stock links
+
+Asked by namtc: photos found on Google and clips from TikTok often carry a watermark or a logo, and members had no way
+to fix one in the app. Each scene photo gets "Sửa ảnh", an `image_edit` job (migration 0057) for that scene, and
+each clip gets "Làm mờ vùng":
+
+- **"Xóa vùng": the member draws the boxes, or starts from the ones "Tìm chữ/logo tự động" found.** LaMa (ONNX, Apache-2.0) runs on the
+  worker's CPU and is the default because it costs nothing per photo and is made for this; its model (about 200 MB,
+  pinned revision, SHA-256 checked) is baked into the worker image, and `onnxruntime` is an optional dependency only
+  the worker installs, so the api image does not grow. Cloudflare's inpainting model is the second engine, on the
+  team's existing token, for when LaMa's result is not good enough. Only a square around the boxes goes through the
+  model and is pasted back, so the photo keeps its sharpness.
+- **"Sửa theo mô tả" is Gemini**, sent the photo and the member's own words; it costs money per edit, and the dialog
+  says so. Cloudflare's FLUX model cannot edit an existing photo.
+- **Clips are blurred, not erased.** Erasing frame by frame flickers and the models that keep a clip steady need a
+  GPU, so "Làm mờ vùng" on a clip blurs the boxes a member draws over the rendered frame, for the whole scene, in the
+  render itself (FFmpeg `boxblur`). A video with such a clip carries the `clip_blur` render option, so a render
+  machine on older code refuses it rather than showing the logo.
+- **Finding marks is free and finds writing only.** "Tìm chữ/logo tự động" runs PP-OCRv4's text detector (about 5 MB,
+  Apache-2.0) on the worker and offers boxes the member checks; a logo with no letters is missed. A paid vision call
+  per photo was not worth it: a member's own Claude, through the new MCP tools, can look at the photo and draw the
+  boxes at no cost to the team.
+- **The photo from before the first edit is kept** (`scenes.image_original_key`) for "Khôi phục ảnh gốc"; a crop keeps
+  it, any other photo or a clip drops it with its file. The scene's `image_source` stays, so an edited stock photo
+  keeps its credit and an edited AI photo is still labelled as AI.
+- **A member's own Claude finds the photos.** The MCP server gets `search_stock_photos` and `use_stock_photo`, and
+  its instructions say how to find a photo for each scene: the free libraries first, the web only when the member
+  asks or the libraries have nothing (Creative Commons first, a CAPTCHA stops it), then a look for a watermark: a
+  stock site's preview is dropped, a logo on a photo the team may use is erased. The app itself still never fetches
+  from Google (2026-11-02): the searching is done by the member's assistant, on their own account, at their request.
+- **Erasing a watermark does not license the photo.** A link pasted from a stock site (Shutterstock, Getty, iStock,
+  Adobe Stock, 123RF, Dreamstime…) is still fetched, since the team may own the licence, but the member is warned
+  that its preview is watermarked and needs one. The tool is named "Xóa vùng", not "xóa watermark".
+
 ## 2026-11-07 — An agent merges a PR only when a person asks it to
 
 Requested by tuananh219ln, alongside "Green CI is the approval" (same day), which it adds to: an agent merges a PR,

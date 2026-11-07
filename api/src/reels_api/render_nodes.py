@@ -133,6 +133,8 @@ def options_dict(options) -> dict:
     """The render options for a machine. `backdrop` is sent only when on: a machine on older code renders slide
     videos as before, and refuses a backdrop video (an option it does not know) instead of rendering it wrong."""
     values = asdict(options)
-    if not values["backdrop"]:
-        del values["backdrop"]
+    # Each sent only when on, for the same reason: `clip_blur` (blurred boxes on a clip) too.
+    for name in ("backdrop", "clip_blur"):
+        if not values[name]:
+            del values[name]
     return values

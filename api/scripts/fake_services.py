@@ -35,6 +35,8 @@ ELEVENLABS_KEY = "fake-elevenlabs-key"
 VIENEU_KEY = "vn_test_fake-vieneu-key"
 IMAGE_GEN_KEY = "fake-image-gen-key"
 IMAGE_GEN_CF_KEY = "fake-cloudflare-token"
+# What the fake inpainting model paints, so a test sees exactly which pixels it changed.
+CF_INPAINT_COLOR = (255, 0, 255)
 OPENAI_KEY = "fake-openai-key"
 OPENAI_MODELS = ["fake-gpt-mini", "models/fake-gemini-flash"]
 FACEBOOK_PAGE = "1234567"
@@ -271,6 +273,12 @@ class FakeServices:
         self.cf_image_gen_ok_count: int | None = None  # with a number, only that many requests succeed, then "quota"
         self.cf_image_gen_refused: list[str] = []  # a prompt containing one of these is refused (200, success false)
         self.cf_image_gen_prompts: list[str] = []
+        # Cloudflare's inpainting model ("Sửa ảnh" › "Xóa vùng"): each request's prompt and the sizes of the image and
+        # mask it sent; it answers the PNG itself, all of it CF_INPAINT_COLOR.
+        self.cf_inpaint_mode = "ok"  # ok | quota | error500
+        self.cf_inpaint_requests: list[dict] = []
+        # Gemini asked to edit a photo ("Sửa theo mô tả"): each request's words and the size of the photo it sent.
+        self.image_edit_requests: list[dict] = []
         self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code", "speed"}
         self.voice_list_requests = 0
         # VieNeu (OpenAI-compatible /v1/audio/speech): {"voice", "input", "model", "response_format", "authorization"}
@@ -758,12 +766,17 @@ class FakeServices:
 
     def _image_gen(self, key: str | None, body: dict) -> tuple[int, dict]:
         try:
-            prompt = str(body["contents"][0]["parts"][0]["text"])
+            parts = list(body["contents"][0]["parts"])
         except (KeyError, IndexError, TypeError):
-            prompt = ""
+            parts = []
+        prompt = next((str(part["text"]) for part in parts if isinstance(part, dict) and "text" in part), "")
+        sent = next((part["inlineData"] for part in parts if isinstance(part, dict) and "inlineData" in part), None)
         with self.lock:
             self.image_gen_prompts.append(prompt)
             calls = len(self.image_gen_prompts)
+            if sent is not None:
+                with Image.open(io.BytesIO(base64.b64decode(sent["data"]))) as photo:
+                    self.image_edit_requests.append({"prompt": prompt, "size": photo.size})
         if key != IMAGE_GEN_KEY:
             return 401, {
                 "error": {"message": "API key not valid. Please pass a valid API key.", "status": "UNAUTHENTICATED"}
@@ -785,6 +798,33 @@ class FakeServices:
         Image.new("RGB", (720, 1280), (digest[0], digest[1], digest[2])).save(buffer, "PNG")
         data = base64.b64encode(buffer.getvalue()).decode()
         return 200, {"candidates": [{"content": {"parts": [{"inlineData": {"mimeType": "image/png", "data": data}}]}}]}
+
+    def _cf_inpaint(self, authorization: str | None, body: dict) -> tuple[int, dict | bytes]:
+        with (
+            Image.open(io.BytesIO(bytes(body.get("image") or []))) as image,
+            Image.open(io.BytesIO(bytes(body.get("mask") or []))) as mask,
+        ):
+            sizes = {"image": image.size, "mask": mask.size}
+        with self.lock:
+            self.cf_inpaint_requests.append({"prompt": str(body.get("prompt") or ""), **sizes})
+        if authorization != f"Bearer {IMAGE_GEN_CF_KEY}":
+            return 401, {
+                "result": None,
+                "success": False,
+                "errors": [{"code": 10000, "message": "Authentication error"}],
+            }
+        if self.cf_inpaint_mode == "error500":
+            return 500, {
+                "result": None,
+                "success": False,
+                "errors": [{"code": 7000, "message": "Internal server error"}],
+            }
+        if self.cf_inpaint_mode == "quota":
+            message = "you have used up your daily free allocation of 10,000 neurons"
+            return 429, {"result": None, "success": False, "errors": [{"code": 4006, "message": message}]}
+        buffer = io.BytesIO()
+        Image.new("RGB", (body.get("width") or 512, body.get("height") or 512), CF_INPAINT_COLOR).save(buffer, "PNG")
+        return 200, buffer.getvalue()
 
     def _cf_image_gen(self, authorization: str | None, body: dict) -> tuple[int, dict]:
         prompt = str(body.get("prompt") or "")
@@ -1468,6 +1508,9 @@ class FakeServices:
                     self._send(*fake._chat(self.headers.get("Authorization"), body))
                 elif path.startswith("/gemini/v1beta/models/"):
                     self._send(*fake._image_gen(self.headers.get("x-goog-api-key"), body))
+                elif path.startswith("/cloudflare/client/v4/accounts/") and "/ai/run/" in path and "inpaint" in path:
+                    status, reply = fake._cf_inpaint(self.headers.get("Authorization"), body)
+                    self._send(status, reply, "image/png" if isinstance(reply, bytes) else "application/json")
                 elif path.startswith("/cloudflare/client/v4/accounts/") and "/ai/run/" in path:
                     self._send(*fake._cf_image_gen(self.headers.get("Authorization"), body))
                 elif path.startswith("/v1/text-to-speech/"):

@@ -7,6 +7,7 @@ drive colons or backslashes) is ever escaped into the graph.
 from dataclasses import dataclass
 from pathlib import Path
 
+from .blur import ffmpeg_blur
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
 from .options import DEFAULT_OPTIONS, RenderOptions
@@ -43,6 +44,7 @@ class SceneInput:
     loop: bool = False  # the clip starts again from its beginning when it ends (a backdrop clip)
     # A backdrop photo's motion runs once over the whole video: (frames before this scene, frames of the video).
     motion_span: tuple[int, int] | None = None
+    blur: tuple[tuple[float, float, float, float], ...] = ()  # boxes of the clip blurred (blur.py)
 
 
 @dataclass(frozen=True)
@@ -156,20 +158,25 @@ def _photo_chain(
     )
 
 
-def _clip_chain(source: int, frames: int, label: str, speed: float = 1.0, color: str | None = None) -> str:
+def _clip_chain(
+    source: int, frames: int, label: str, speed: float = 1.0, color: str | None = None, blur: tuple = ()
+) -> str:
     """A clip already moves, so it gets no zoom. `setpts` first plays it at its speed, then `fps` turns it, like
     phone footage with a variable frame rate, into constant 30 fps; `tpad` holds the last frame when the clip ends
     before the scene, and `trim` cuts it to the timeline's exact frame count so the crossfade offsets stay
     frame-exact. No `setpts` may follow `fps`: FFmpeg 7.1's setpts marks the frame rate unknown, and xfade then
     refuses to join the clip to a 30 fps scene. None is needed, since the clip already starts at 0."""
     timing = "PTS-STARTPTS" if speed == 1 else f"(PTS-STARTPTS)/{speed:g}"
-    return (
+    framed = (
         f"[{source}:v]setpts={timing},fps={FPS},"
         f"scale={FRAME_WIDTH}:{FRAME_HEIGHT}:force_original_aspect_ratio=increase:out_range=tv,"
-        f"crop={FRAME_WIDTH}:{FRAME_HEIGHT},format=yuv420p,setsar=1,{_graded(color)}"
-        f"tpad=stop_mode=clone:stop_duration={_seconds(frames)},trim=end_frame={frames}"
-        f"[{label}]"
+        f"crop={FRAME_WIDTH}:{FRAME_HEIGHT},format=yuv420p,setsar=1"
     )
+    rest = f"{_graded(color)}tpad=stop_mode=clone:stop_duration={_seconds(frames)},trim=end_frame={frames}[{label}]"
+    if not blur:
+        return f"{framed},{rest}"
+    # Blurred on the 1080x1920 frame, before the grade, so the boxes are where the member drew them.
+    return f"{framed}[{label}f];{ffmpeg_blur(f'{label}f', f'{label}u', blur, f'{label}x')};[{label}u]{rest}"
 
 
 def _boundary_transitions(count: int, options: RenderOptions, transitions: list[str | None]) -> list[str]:
@@ -206,6 +213,7 @@ def build_filter_graph(
     music_levels: list[str | None] | None = None,
     clip_sounds: list[bool] | None = None,
     spans: list[tuple[int, int] | None] | None = None,
+    blurs: list[tuple] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
@@ -229,11 +237,12 @@ def build_filter_graph(
     cut = options.backdrop or all(name == "cut" for name in boundaries)
     lengths = timeline.scene_frames if cut else timeline.clip_frames
     spans = spans or [None] * count
+    blurs = blurs or [()] * count
     chains: list[str] = []
     for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, lengths)):
         image, box = 2 * index, 2 * index + 1
         if clips[index]:
-            chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index], colors[index]))
+            chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index], colors[index], blurs[index]))
         else:
             chains.append(_photo_chain(image, frames, f"bg{index}", options, colors[index], spans[index]))
         text = f"{box}:v"
@@ -450,6 +459,7 @@ def build_ffmpeg_args(
         [scene.music_level for scene in scenes],
         [scene.video_sound for scene in scenes],
         [scene.motion_span for scene in scenes],
+        [scene.blur for scene in scenes],
     )
     argv += [
         "-filter_complex",

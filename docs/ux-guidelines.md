@@ -318,6 +318,22 @@ Built:
     (1 cảnh)". Its arrow, like the one beside "Tạo ảnh AI cho cảnh thiếu", offers "Tạo bằng
     Cloudflare" / "Tạo bằng Gemini" for this press (one without a key is greyed out); the button
     itself uses the team's default;
+  - **"Sửa ảnh"** (a photo, over the picture beside "Chỉnh khung", and in the studio's scene panel): a dialog with the
+    photo on the left and two tabs. "Xóa vùng": the member drags (mouse or finger) to draw up to 10 red boxes over a
+    logo, a watermark or a stray object, each with its own × and "Bỏ hết khung", then picks "Xóa nhanh (miễn phí,
+    chạy trên máy chủ)" (LaMa, the default) or "Cloudflare" with an optional "what to paint there"; "Xóa vùng đã
+    khoanh" is enabled once a box is drawn. "Sửa theo mô tả": a text box for what to change, with a warning that
+    each edit costs Gemini; the button reads "Sửa ảnh". In "Xóa vùng", "Tìm chữ/logo tự động" runs a free job that
+    finds writing on the photo and adds a box around each (the dialog follows the job and says what it found; a logo
+    without letters is not found, and the member checks the boxes before erasing). Either queues an image_edit job: the card shows "Đang sửa
+    ảnh…" and the job bar "Sửa ảnh (1 cảnh)". An edited photo shows "Ảnh đã sửa" under it, with "Khôi phục ảnh
+    gốc" (asks first), which brings back the photo from before the first edit;
+  - **"Làm mờ vùng"** (a clip, over the picture and in the studio's scene panel): a dialog with the scene's frame as
+    the video shows it, where the member draws up to 10 boxes over a logo or channel name burned into the clip;
+    "Lưu vùng mờ" saves them at once (no job) and the next render blurs them for the whole scene; the card says
+    "Làm mờ N vùng trên video" and its previews show the blur. "Bỏ làm mờ" takes them away;
+  - a photo pasted from a stock site's link (Shutterstock, Getty, iStock, Adobe Stock, 123RF, Dreamstime…) is kept,
+    with a warning that its preview carries a watermark and needs a licence;
   - **listening volume** ("Âm lượng nghe"): a speaker button that mutes ("Tắt tiếng" / "Bật tiếng")
     and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Xuất bản",
     and in "Cắt video" once "Nghe tiếng gốc" is on. It is how loud this browser plays, never part of

@@ -9,6 +9,7 @@ const TONES: Record<VideoRow["status"], StatusTone> = {
   queued: "waiting",
   writing: "active",
   imaging: "active",
+  editing: "active",
   finding: "active",
   voicing: "active",
   rendering: "active",

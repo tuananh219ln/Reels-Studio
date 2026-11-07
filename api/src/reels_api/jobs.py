@@ -6,6 +6,7 @@ import tempfile
 import time
 import traceback
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from . import (
     fanpages,
     footage,
     hashtags,
+    image_edit,
     image_providers,
     image_style,
     knowledge,
@@ -77,7 +79,9 @@ from .videos import (
     OPEN_POST_STATUSES,
     active_job,
     auto_seconds,
+    blur_of,
     drawn_layers,
+    drop_original,
     is_backdrop,
     is_published,
     layer_fields,
@@ -143,6 +147,10 @@ def run_job(
                 run_render_job(db, job, storage)
             elif job.kind == "image":
                 run_image_job(db, job, storage)
+            elif job.kind == "image_edit":
+                run_image_edit_job(db, job, storage)
+            elif job.kind == "image_marks":
+                run_image_marks_job(db, job, storage)
             elif job.kind == "publish":
                 run_publish_job(db, job, storage)
             elif job.kind == "unpublish":
@@ -629,6 +637,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     data["video_sound"] = True
                     if scene.words:
                         data["words"] = scene.words
+                if blurred := blur_of(scene):
+                    data["video_blur"] = blurred
             else:
                 if not scene.image_key or not storage.exists(scene.image_key):
                     raise JobFailure(f"{label} chưa có ảnh trong storage, hãy gán lại ảnh rồi render")
@@ -665,6 +675,9 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
         signature = render_signature(video, title, scenes)
+        options = render_options(video)
+        if any("video_blur" in item for item in [data["title"], *data["scenes"]]):
+            options = replace(options, clip_blur=True)
         music = _checked_music(video, storage, folder)
         if render_nodes.enabled(db):
             # The heavy part runs on a member's render machine; the api finishes the job with save_render.
@@ -674,7 +687,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 "music": music.name if music else None,
                 "music_volume": video.music_volume / 100,
                 "music_start": video.music_start,
-                "options": render_nodes.options_dict(render_options(video)),
+                "options": render_nodes.options_dict(options),
                 "expect_sound": expects_sound(video, [title, *scenes]),
                 "signature": signature,
             }
@@ -689,7 +702,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 music=music,
                 music_volume=video.music_volume / 100,
                 music_start=video.music_start,
-                options=render_options(video),
+                options=options,
             )
             seconds = float(probe(find_tools().ffprobe, output)["format"]["duration"])
         except FFmpegError as err:
@@ -1047,7 +1060,7 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             db.commit()
             log.warning("Image job %s: %s failed: %s", job.id, label, err.message)
             continue
-        old = [scene.image_key, scene.video_key]
+        old = [scene.image_key, scene.video_key, drop_original(scene)]
         key = new_key(video.id, f"scene-{scene.id}", extension)
         storage.save_bytes(key, data)
         scene.image_key, scene.image_source, scene.image_error = key, f"ai:{_image_model(provider)}", None
@@ -1063,3 +1076,61 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             if stale and stale != key:
                 storage.delete(stale)
         log.info("Image job %s: %s stored", job.id, label)
+
+
+def run_image_edit_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    """ "Sửa ảnh" on one scene's card (image_edit.py): its photo with the drawn boxes erased (LaMa or Cloudflare) or
+    changed as asked in words (Gemini). The photo from before the first edit is kept for "Khôi phục ảnh gốc"; a photo
+    between two edits is deleted. Any failure fails the job, and the scene keeps its photo."""
+    video = db.get(Video, job.video_id)
+    scene = db.get(Scene, job.scene_id) if job.scene_id is not None else None
+    if scene is None or scene.video_id != video.id:
+        raise JobFailure("Cảnh cần sửa ảnh không còn trong video (đã bị xoá)")
+    if not scene.image_key or scene.video_key or not storage.exists(scene.image_key):
+        raise JobFailure("Cảnh này không còn ảnh để sửa")
+    engine = job.image_provider or "lama"
+    key = "" if engine == "lama" else source_keys.get(db, engine)
+    if engine != "lama":
+        # Counted before the call, like the image job: a killed job keeps the count.
+        db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+        db.commit()
+    try:
+        data = image_edit.edit(
+            storage.path(scene.image_key).read_bytes(), engine, job.edit_boxes, job.edit_prompt or "", key
+        )
+        if len(data) > MAX_IMAGE_BYTES:
+            raise ImageGenError("Ảnh sửa xong quá 15 MB, hãy thử lại")
+        extension = image_extension(data)
+    except ImageGenError as err:
+        raise JobFailure(err.message, err.detail) from None
+    except UploadRejected as err:
+        raise JobFailure(str(err)) from None
+    replaced = scene.image_key
+    new = new_key(video.id, f"scene-{scene.id}", extension)
+    storage.save_bytes(new, data)
+    if scene.image_original_key is None:
+        scene.image_original_key, replaced = scene.image_key, None
+    # The source stays: an edited stock photo keeps its credit and an edited AI photo is still labelled as AI.
+    scene.image_key, scene.image_error, scene.image_auto = new, None, False
+    if scene.is_title:
+        refresh_thumbnail(db, storage, video, scene)
+    db.commit()
+    storage.delete(replaced)
+    log.info("Image edit job %s: scene %s edited with %s", job.id, scene.id, engine)
+
+
+def run_image_marks_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    """ "Tìm chữ/logo tự động" in "Sửa ảnh" (image_edit.find_marks): the writing on the scene's photo, kept on the scene
+    with the photo it was found on, for the dialog to offer as boxes. Free: a small model on the worker."""
+    scene = db.get(Scene, job.scene_id) if job.scene_id is not None else None
+    if scene is None or scene.video_id != job.video_id:
+        raise JobFailure("Cảnh cần tìm chữ không còn trong video (đã bị xoá)")
+    if not scene.image_key or scene.video_key or not storage.exists(scene.image_key):
+        raise JobFailure("Cảnh này không còn ảnh để tìm chữ")
+    try:
+        boxes = image_edit.find_marks(storage.path(scene.image_key).read_bytes())
+    except ImageGenError as err:
+        raise JobFailure(err.message, err.detail) from None
+    scene.image_marks = {"key": scene.image_key, "boxes": boxes}
+    db.commit()
+    log.info("Image marks job %s: %s box(es) on scene %s", job.id, len(boxes), scene.id)

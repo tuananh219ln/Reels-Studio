@@ -34,6 +34,7 @@ export type VideoStatus =
   | "queued"
   | "writing"
   | "imaging"
+  | "editing"
   | "finding"
   | "voicing"
   | "rendering"
@@ -133,7 +134,9 @@ export type JobInfo = {
     | "voice"
     | "revise"
     | "motion"
-    | "tiktok_publish";
+    | "tiktok_publish"
+    | "image_edit"
+    | "image_marks";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   /** A render or motion job waiting for a render machine ("ready") or being rendered on one ("taken"). */
@@ -231,6 +234,10 @@ export type SceneData = {
   image_ai: boolean;
   /** Picked by "Tự tìm ảnh" after the script and not yet changed or kept by a member. */
   image_auto: boolean;
+  /** Changed by "Sửa ảnh" since it came in: the card offers "Khôi phục ảnh gốc". */
+  image_edited: boolean;
+  /** "Tìm chữ/logo tự động": boxes found on the photo shown ([] when none); null until looked for. */
+  image_marks: [number, number, number, number][] | null;
   image_error: string | null;
   image_url: string | null;
   /** A clip shown instead of the photo; the scene has one or the other. */
@@ -239,6 +246,8 @@ export type SceneData = {
     seconds: number;
     start: number;
     speed: number;
+    /** "Làm mờ vùng": boxes blurred for the whole scene, fractions of the 1080x1920 frame. */
+    blur: [number, number, number, number][];
     /** "Tiếng gốc": the clip's own sound is heard in the render. */
     sound: boolean;
     /** How many spoken words of the clip are known ("Edit từ footage"); captions follow them. */

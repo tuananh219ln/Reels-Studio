@@ -1414,6 +1414,7 @@ export default function VideoPreview({
               label={label(phase.index)}
               voiceEnabled={video.voice_enabled}
               generating={video.active_job?.kind === "image" && video.active_job.scene_id === scene.id}
+              editing={video.active_job?.kind === "image_edit" && video.active_job.scene_id === scene.id}
               sounds={
                 <SoundList
                   scene={scene}

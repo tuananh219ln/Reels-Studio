@@ -123,6 +123,21 @@ def image_gen_cf_model() -> str:
     return read_env("IMAGE_GEN_CF_MODEL") or "@cf/black-forest-labs/flux-1-schnell"
 
 
+def image_inpaint_cf_model() -> str:
+    # "Sửa ảnh" › "Xóa vùng" with Cloudflare (image_edit.py): an inpainting model, on the same account and token.
+    return read_env("IMAGE_INPAINT_CF_MODEL") or "@cf/runwayml/stable-diffusion-v1-5-inpainting"
+
+
+def lama_model_path() -> str:
+    # "Sửa ảnh" › "Xóa vùng" on the worker itself (image_edit.py): LaMa as ONNX, baked into the worker image.
+    return read_env("LAMA_MODEL_PATH")
+
+
+def text_detect_model_path() -> str:
+    # "Sửa ảnh" › "Tìm chữ/logo tự động" (image_edit.find_marks): PP-OCRv4's text detector as ONNX, in the worker image.
+    return read_env("TEXT_DETECT_MODEL_PATH")
+
+
 def claude_model() -> str:
     return read_env("CLAUDE_MODEL") or "claude-sonnet-5-5"
 
