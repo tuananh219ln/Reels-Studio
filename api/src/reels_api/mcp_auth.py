@@ -24,7 +24,9 @@ CONNECTION_LIFETIME = timedelta(days=30)
 # makes ChatGPT's stable. Claude's hosted apps (web, Desktop, mobile) share one, which may move to claude.com.
 CHATGPT_CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
 CLAUDE_CALLBACKS = ("https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback")
-HOSTED_CALLBACKS = frozenset({CHATGPT_CALLBACK, *CLAUDE_CALLBACKS})
+# Muse (Meta's assistant): exactly the callback it sent on 2026-11-07, read from the "MCP registration refused" log.
+MUSE_CALLBACKS = ("https://agent.meta.ai/api/hatch/oauth/callback",)
+HOSTED_CALLBACKS = frozenset({CHATGPT_CALLBACK, *CLAUDE_CALLBACKS, *MUSE_CALLBACKS})
 # Claude Code is a native client: an RFC 8252 loopback redirect on a port that changes every session.
 LOOPBACK = re.compile(r"http://(localhost|127\.0\.0\.1)(?::(\d{1,5}))?/callback")
 MAX_REDIRECTS = 4
@@ -91,6 +93,8 @@ def app_of(redirect: str) -> str:
         return "ChatGPT"
     if redirect in CLAUDE_CALLBACKS:
         return "Claude"
+    if redirect in MUSE_CALLBACKS:
+        return "Muse"
     return "Claude Code"
 
 

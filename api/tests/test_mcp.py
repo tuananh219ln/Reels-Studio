@@ -513,6 +513,70 @@ def test_claude_code_loopback_matches_any_port_but_the_exchange_needs_the_one_us
         assert authorize(mcp_client, cid, redirect_uri=other).status_code == 400
 
 
+# Muse (Meta's assistant): the exact callback it sent, read from the "MCP registration refused" log line.
+MUSE_CALLBACK = "https://agent.meta.ai/api/hatch/oauth/callback"
+
+
+def test_muse_registers_with_its_hosted_callback(mcp_client):
+    made = mcp_client.post(
+        "/api/mcp/oauth/register",
+        json={"redirect_uris": [MUSE_CALLBACK], "token_endpoint_auth_method": "none", "client_name": "Muse"},
+    )
+    assert made.status_code == 201, made.text
+    assert made.json()["client_name"] == "Muse"
+    # Only that exact URI: nothing else on Meta's host, nor a look-alike host.
+    for other in (
+        "https://agent.meta.ai/api/hatch/oauth/other",
+        "https://agent.meta.ai/api/hatch/oauth/callback/",
+        "http://agent.meta.ai/api/hatch/oauth/callback",
+        "https://meta.ai/api/hatch/oauth/callback",
+        "https://agent.meta.ai.evil.example/api/hatch/oauth/callback",
+    ):
+        refused = register(mcp_client, other)
+        assert refused.status_code == 400 and refused.json()["error"] == "invalid_client_metadata"
+
+
+def test_muse_connects_with_read_and_write_and_edits_a_video(mcp_client, db, storage):
+    user = make_user(db)
+    login(mcp_client)
+    cid = register(mcp_client, MUSE_CALLBACK).json()["client_id"]
+    consent = authorize(mcp_client, cid, redirect_uri=MUSE_CALLBACK, scope="reels:read reels:write")
+    ticket = ticket_of(consent)
+    assert "Cho phép Muse kết nối?" in consent.text
+    assert "Quyền sửa và tạo công việc" in consent.text
+    assert "Kết nối với một chương trình trên máy tính" not in consent.text
+    details = mcp_client.get(f"/api/mcp/authorizations/{ticket}").json()
+    assert details["app"] == "Muse" and details["loopback"] is False
+    assert details["redirect_host"] == "agent.meta.ai"
+    approved = mcp_client.post(
+        "/api/mcp/oauth/consent", data={"ticket": ticket, "decision": "allow"}, follow_redirects=False
+    )
+    assert callback_of(approved).startswith(MUSE_CALLBACK + "?")
+    code = parse_qs(urlparse(callback_of(approved)).query)["code"][0]
+    tokens = exchange(mcp_client, cid, code, MUSE_CALLBACK)
+    assert tokens.status_code == 200, tokens.text
+    [connection] = mcp_client.get("/api/mcp/connections").json()
+    assert connection["app"] == "Muse"
+    assert set(connection["scopes"].split()) == {"reels:read", "reels:write"}
+    video = make_video(db, storage, user)
+    scene = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)))
+    edited = call(mcp_client, tokens.json()["access_token"], "update_scene", scene_id=scene.id, voice_text="Muse sửa.")
+    assert not edited.get("isError"), edited
+    db.refresh(scene)
+    assert scene.voice_text == "Muse sửa."
+
+
+def test_the_hosted_apps_and_claude_code_keep_their_names(mcp_client, db):
+    assert register(mcp_client).json()["client_name"] == "ChatGPT"
+    assert register(mcp_client, CLAUDE_CALLBACK).json()["client_name"] == "Claude"
+    make_user(db)
+    login(mcp_client)
+    cid = register(mcp_client, "http://localhost:3118/callback").json()["client_id"]
+    consent = authorize(mcp_client, cid, redirect_uri="http://localhost:3118/callback")
+    assert "Cho phép Claude Code kết nối?" in consent.text
+    assert "Kết nối với một chương trình trên máy tính" in consent.text
+
+
 @pytest.mark.parametrize(
     "redirect",
     [
