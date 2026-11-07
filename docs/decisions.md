@@ -20,6 +20,21 @@ ticket in the browser; it now answers with the consent form itself (server-rende
 accepts the answer). Signing in from the authorize page stays in the tab and returns there (`/login?next=`, followed
 only to `/api/mcp/oauth/authorize`). The web page keeps listing and revoking connections.
 
+## 2026-11-07 — Scripts are written by the member's own Claude through MCP with the group's prompt, by default
+
+Asked by tuananh219ln: write scripts with a Claude subscription instead of the API key, the team being two people.
+Running the subscription inside the app stays refused ("Claude connects through the MCP server on each member's own
+plan", below). Instead the MCP server hands the member's Claude the exact prompt a script job would send
+(`get_script_prompt`: the group's prompt, banned words, photo hint, fixed output format) and saves the JSON it writes
+with the job's own parser and `save_script` (`create_video_from_group_prompt`), so such a video has everything an
+API-written one has; the prompt is built by the job's own `jobs.script_prompt`, so the two cannot drift. "Tạo
+video"'s options come along: a 30-day plan idea (`list_plan_ideas`, `plan_item_id`: its pain and hook in the prompt,
+the video linked to it), "AI gợi ý hiệu ứng" (`ai_effects`) and "Video xuyên suốt". The server's instructions make this the default and keep `create_video` (the team's API, paid)
+for when the member asks for it. Such videos are marked `videos.written_via = "assistant"` (migration 0056) and the
+video page says "Kịch bản viết bởi Claude của thành viên qua kết nối MCP", next to the API's "Kịch bản viết bởi
+<provider · model>", so the team sees which one wrote each script. The "Tạo video" button in the app still uses the
+API key.
+
 ## 2026-11-07 — "Edit từ footage": a member's footage cut by its words; a clip may keep its own sound
 
 Asked by tuananh219ln after reading AIEV (github.com/notivn/AIEVv2), whose core is "put footage in, the AI cuts it
@@ -106,7 +121,9 @@ its review needs a demo of the real integration, which this builds. Posting by h
   Publication (video × platform × account).
 - **The connection hangs on the member's TikTok `AffiliateAccount`** (new table `tiktok_connections`), found by the
   profile's username or made from it, so posting by hand and through the API share one idea of "the member's TikTok
-  account"; a Publication still names `affiliate_account_id`.
+  account"; a Publication still names `affiliate_account_id`. The username comes from `creator_info` (read with
+  `video.publish`), not from user info: there it needs one more scope, `user.info.profile`, and asking user info for
+  it fails the whole call (2026-11-07, found on the first real connection).
 - **A draft (`video.upload`, to the member's TikTok inbox) is the default; posting directly (`video.publish`) is the
   option.** Until TikTok audits the app, a direct post is private only (`SELF_ONLY`, private accounts, 5 users a day),
   and TikTok Shop's cart can only be attached in TikTok's app: the draft is the route that works for real today.
