@@ -11,6 +11,43 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — VieNeu voices join ElevenLabs' in the voice picker; their key is pasted on Cài đặt › Mô hình AI
+
+Requested by tuananh219ln: VieNeu (vieneu.io) has natural Vietnamese voices and a cloud API, so its voices are offered
+beside ElevenLabs' in the "Giọng" picker of Thiết lập mặc định and of each video, and the VieNeu key is pasted on
+Cài đặt › Mô hình AI (the member's choice of page), stored encrypted like the other keys (`source_keys`, name
+`vieneu`, else `VIENEU_API_KEY`). ElevenLabs stays the default voice and the only Speech-to-Text; nothing changes for
+videos that keep an ElevenLabs voice.
+
+- A VieNeu voice is stored as `vieneu:<VieNeu voice id>` in `videos.options.voice_id`; the prefix is what sends the
+  narration to VieNeu, so no new column or option. VieNeu's ids are the voices' names ("Ngọc Lan"), so for these ids
+  alone the option accepts single spaces.
+- Narration uses VieNeu's OpenAI-compatible `/v1/audio/speech` with `model: vieneu-v4`, MP3 back; the reading speed
+  is still FFmpeg's tempo on the returned MP3 (2026-11-02), and each MP3 is reused while its signature matches. The
+  signature of a VieNeu voice names `vieneu-v4` instead of `ELEVENLABS_MODEL`.
+- VieNeu's voices are listed only once a key is set (the catalogue is public, but reading needs a key); one service
+  failing to list still shows the other's voices, with the reason under the picker.
+
+## 2026-11-07 — MCP OAuth answers with pages, never HTTP redirects, because production's /api proxy follows them
+
+Reported by tuananh219ln: after "Cho phép kết nối", Claude's "Page not found" showed on
+`/api/mcp/oauth/consent`. The web app is deployed on Cloudflare through OpenNext, whose `/api` rewrite fetches the
+API and follows redirects server-side: the consent's 303 to Claude's callback was fetched by the server (without the
+member's Claude session), and the earlier hop to `/chatgpt#ticket=...` lost its ticket the same way, which the entry
+below worked around without knowing why. The consent answer is now a page that the browser follows (meta refresh and
+a link). Changing the proxy for every API call was not chosen: it carries uploads and every page's data, and the
+OAuth endpoints are the only ones that redirect. A new API redirect through `/api` must not be added; CI's E2E (`next
+start`) would not catch it.
+
+## 2026-11-07 — The MCP consent screen is served by the authorize request, and signing in comes back to it
+
+Reported by tuananh219ln: connecting Claude ended on "Kết nối ChatGPT / Claude" with no consent, so no connection
+could be made. The authorize request used to send the member to the web page `/chatgpt#ticket=...`, which read the
+ticket in the browser; it now answers with the consent form itself (server-rendered, ticket in a hidden field,
+`form-action` limited to this site and the callback's origin, `Referrer-Policy: same-origin` so the Origin guard
+accepts the answer). Signing in from the authorize page stays in the tab and returns there (`/login?next=`, followed
+only to `/api/mcp/oauth/authorize`). The web page keeps listing and revoking connections.
+
 ## 2026-11-07 — Scripts are written by the member's own Claude through MCP with the group's prompt, by default
 
 Asked by tuananh219ln: write scripts with a Claude subscription instead of the API key, the team being two people.

@@ -2,10 +2,10 @@
 
 import { PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
-import type { SliderSingleProps } from "antd";
+import type { SelectProps, SliderSingleProps } from "antd";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice } from "@/lib/api";
+import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice, type VoiceList } from "@/lib/api";
 import { ColorChoice } from "./textControls";
 import { OPACITIES, palette, warnings } from "./textPalette";
 import { TextStyleCards } from "./TextStyleCards";
@@ -52,22 +52,39 @@ const CAPTIONS = [
   { value: "phrase", label: "Từng cụm" },
   { value: "word", label: "Từng từ" },
 ];
-let voiceCache: Promise<{ default_id: string; voices: Voice[] }> | null = null;
+let voiceCache: Promise<VoiceList> | null = null;
 
-/** The ElevenLabs voices, fetched once per page load. */
+/** Lists the voices again on the next picker shown, after a narration key was saved or removed. */
+export function forgetVoices() {
+  voiceCache = null;
+}
+
+/** The ElevenLabs and VieNeu voices, fetched once per page load. */
 function useVoices() {
-  const [state, setState] = useState<{ defaultId: string; voices: Voice[]; error: string | null } | null>(null);
+  const [state, setState] = useState<{
+    defaultId: string;
+    voices: Voice[];
+    problems: string[];
+    error: string | null;
+  } | null>(null);
   useEffect(() => {
-    voiceCache ??= api<{ default_id: string; voices: Voice[] }>("/settings/voices");
+    voiceCache ??= api<VoiceList>("/settings/voices");
     voiceCache
-      .then((data) => setState({ defaultId: data.default_id, voices: data.voices, error: null }))
+      .then((data) =>
+        setState({ defaultId: data.default_id, voices: data.voices, problems: data.problems ?? [], error: null }),
+      )
       .catch((err) => {
         voiceCache = null;
-        setState({ defaultId: "", voices: [], error: errorMessage(err) });
+        setState({ defaultId: "", voices: [], problems: [], error: errorMessage(err) });
       });
   }, []);
   return state;
 }
+
+const VOICE_GROUPS: { service: Voice["service"]; label: string }[] = [
+  { service: "elevenlabs", label: "ElevenLabs" },
+  { service: "vieneu", label: "VieNeu" },
+];
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
@@ -117,29 +134,46 @@ export function VoicePicker({ values, onChange, disabled }: Props) {
       </Typography.Text>
     );
   }
+  const option = (voice: Voice) => ({
+    value: voice.id,
+    label: `${voice.name}${voice.id === voices?.defaultId ? " (mặc định)" : ""}${voice.description ? `, ${voice.description}` : ""}`,
+  });
+  // Grouped by service once both have voices; a single service stays a plain list, as before VieNeu.
+  const groups = VOICE_GROUPS.map((group) => ({
+    ...group,
+    voices: (voices?.voices ?? []).filter((voice) => voice.service === group.service),
+  })).filter((group) => group.voices.length > 0);
+  const options: SelectProps["options"] =
+    groups.length > 1
+      ? groups.map((group) => ({ label: group.label, title: group.label, options: group.voices.map(option) }))
+      : (voices?.voices ?? []).map(option);
   return (
-    <Flex gap={8}>
-      <Select
-        aria-label="Giọng đọc"
-        style={{ flex: 1, minWidth: 0 }}
-        loading={voices === null}
-        disabled={disabled}
-        value={chosen || undefined}
-        showSearch={{ optionFilterProp: "label" }}
-        onChange={(id) => onChange({ voice_id: id === voices?.defaultId ? "" : id })}
-        options={(voices?.voices ?? []).map((voice) => ({
-          value: voice.id,
-          label: `${voice.name}${voice.id === voices?.defaultId ? " (mặc định)" : ""}${voice.description ? `, ${voice.description}` : ""}`,
-        }))}
-      />
-      <Tooltip title={sample ? "Nghe thử giọng mẫu (không tốn ký tự)" : "Giọng này không có bản nghe thử"}>
-        <Button
-          aria-label="Nghe thử"
-          icon={playing ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
-          disabled={!sample}
-          onClick={listen}
+    <Flex vertical gap={4}>
+      <Flex gap={8}>
+        <Select
+          aria-label="Giọng đọc"
+          style={{ flex: 1, minWidth: 0 }}
+          loading={voices === null}
+          disabled={disabled}
+          value={chosen || undefined}
+          showSearch={{ optionFilterProp: "label" }}
+          onChange={(id) => onChange({ voice_id: id === voices?.defaultId ? "" : id })}
+          options={options}
         />
-      </Tooltip>
+        <Tooltip title={sample ? "Nghe thử giọng mẫu (không tốn ký tự)" : "Giọng này không có bản nghe thử"}>
+          <Button
+            aria-label="Nghe thử"
+            icon={playing ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+            disabled={!sample}
+            onClick={listen}
+          />
+        </Tooltip>
+      </Flex>
+      {voices?.problems.map((problem) => (
+        <Typography.Text key={problem} type="warning" style={{ fontSize: 12 }}>
+          {problem}
+        </Typography.Text>
+      ))}
     </Flex>
   );
 }
@@ -157,7 +191,7 @@ export function AudioSettings({ values, onChange, disabled, showMusicVolume }: P
             disabled={disabled}
             onChange={(voice_enabled) => onChange({ voice_enabled })}
           />
-          <Typography.Text>Đọc lời từng cảnh (ElevenLabs)</Typography.Text>
+          <Typography.Text>Đọc lời từng cảnh (ElevenLabs hoặc VieNeu)</Typography.Text>
         </Flex>
         <Field label="Giọng">
           <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />

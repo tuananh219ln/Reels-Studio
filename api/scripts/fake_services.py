@@ -1,9 +1,9 @@
 """Local stand-ins for the Claude Messages API, an OpenAI-compatible chat API, the stock sources (Pixabay, Pexels, Openverse),
-ElevenLabs TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels, Shopee Affiliate and TikTok (Login Kit,
-Content Posting API), for pytest and E2E.
+ElevenLabs and VieNeu TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels, Shopee Affiliate and TikTok
+(Login Kit, Content Posting API), for pytest and E2E.
 
 The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
-OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL,
+OPENVERSE_API_URL, ELEVENLABS_API_URL, VIENEU_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL,
 SHOPEE_AFFILIATE_API_URL, SHOPEE_SHORT_LINK_URL and TIKTOK_API_URL,
 so production code has no test switches. The OpenAI-compatible API (at <url>/openai/v1) is reached the way a
 member sets any provider up, through its base URL on /settings/ai. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
@@ -31,6 +31,8 @@ OPENVERSE_CLIENT_ID = "fake-openverse-client"
 OPENVERSE_CLIENT_SECRET = "fake-openverse-secret"
 OPENVERSE_TOKEN = "fake-openverse-token"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
+# Not in env(): VieNeu voices are offered only once a key is set, so tests set this one themselves.
+VIENEU_KEY = "vn_test_fake-vieneu-key"
 IMAGE_GEN_KEY = "fake-image-gen-key"
 IMAGE_GEN_CF_KEY = "fake-cloudflare-token"
 OPENAI_KEY = "fake-openai-key"
@@ -271,6 +273,9 @@ class FakeServices:
         self.cf_image_gen_prompts: list[str] = []
         self.tts_requests: list[dict] = []  # {"voice_id", "text", "model_id", "language_code", "speed"}
         self.voice_list_requests = 0
+        # VieNeu (OpenAI-compatible /v1/audio/speech): {"voice", "input", "model", "response_format", "authorization"}
+        self.vieneu_requests: list[dict] = []
+        self.vieneu_mode = "ok"  # ok | trial_limit | error500
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None}; their numbers by post id (reach, shares, comments, reactions).
@@ -379,6 +384,8 @@ class FakeServices:
             "OPENVERSE_CLIENT_SECRET": OPENVERSE_CLIENT_SECRET,
             "ELEVENLABS_API_KEY": ELEVENLABS_KEY,
             "ELEVENLABS_API_URL": self.url,
+            "VIENEU_API_URL": f"{self.url}/vieneu/api",
+            "VIENEU_API_KEY": "",  # a key from a developer's .env must not offer VieNeu voices in every test
             "IMAGE_GEN_API_KEY": IMAGE_GEN_KEY,
             "IMAGE_GEN_API_URL": f"{self.url}/gemini",
             # IMAGE_GEN_PROVIDER is left unset: both providers are set up, so Cloudflare is the default
@@ -690,9 +697,43 @@ class FakeServices:
             return 401, {"detail": {"status": "quota_exceeded", "message": "This request exceeds your quota"}}
         if self.tts_mode == "error500":
             return 500, {"detail": "server error"}
+        return 200, self._tone(str(body.get("text", "")))
+
+    VIENEU_VOICES = [
+        {"id": "Ngọc Lan", "name": "Ngọc Lan", "description": "Nữ · Bắc · Truyền cảm", "engine": "v4"},
+        {"id": "Đăng Quân", "name": "Đăng Quân", "description": "Nam · Nam · Review", "engine": "v4"},
+    ]
+
+    def _vieneu_voices(self, query: dict) -> tuple[int, dict]:
+        # Public on the real service: the key is not checked, the engine filter is.
+        voices = [voice for voice in self.VIENEU_VOICES if voice["engine"] == query.get("engine", "v4")]
+        return 200, {"voices": [voice | {"gender": "female", "region": "north", "kind": "catalog"} for voice in voices]}
+
+    def _vieneu_speech(self, authorization: str | None, body: dict) -> tuple[int, object]:
+        with self.lock:
+            self.vieneu_requests.append(
+                {name: body.get(name) for name in ("voice", "input", "model", "response_format")}
+                | {"authorization": authorization}
+            )
+
+        def failed(status: int, message: str, code: str | None = None) -> tuple[int, dict]:
+            return status, {"error": {"message": message, "type": "error", "param": None, "code": code}}
+
+        if authorization != f"Bearer {VIENEU_KEY}":
+            return failed(401, "Invalid or revoked API key.")
+        if self.vieneu_mode == "trial_limit":
+            return failed(429, "Trial daily limit reached.", "TRIAL_API_DAILY_LIMIT")
+        if self.vieneu_mode == "error500":
+            return failed(500, "server error")
+        if body.get("voice") not in {voice["id"] for voice in self.VIENEU_VOICES}:
+            return failed(400, "Unknown voice for engine v4.")
+        return 200, self._tone(str(body.get("input", "")))
+
+    @staticmethod
+    def _tone(text: str) -> bytes:
         # A tone instead of speech, 0.3 s per word, so tests can tell how long each narration is.
-        seconds = 0.3 * max(1, len(str(body.get("text", "")).split()))
-        audio = subprocess.run(
+        seconds = 0.3 * max(1, len(text.split()))
+        return subprocess.run(
             [
                 "ffmpeg",
                 "-v",
@@ -714,7 +755,6 @@ class FakeServices:
             capture_output=True,
             check=True,
         ).stdout
-        return 200, audio
 
     def _image_gen(self, key: str | None, body: dict) -> tuple[int, dict]:
         try:
@@ -1435,6 +1475,9 @@ class FakeServices:
                         path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
                     )
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
+                elif path == "/vieneu/api/v1/audio/speech":
+                    status, reply = fake._vieneu_speech(self.headers.get("Authorization"), body)
+                    self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
                 else:
                     self._send(404, {"error": "not found"})
 
@@ -1477,6 +1520,8 @@ class FakeServices:
                     self._send(200, {"ok": True})
                 elif parts.path == "/v1/voices":
                     self._send(*fake._voices(self.headers.get("xi-api-key")))
+                elif parts.path == "/vieneu/api/v1/voices":
+                    self._send(*fake._vieneu_voices(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path == "/v1/models":
                     # The Anthropic SDK sends the key as a bearer token; older clients use x-api-key.
                     bearer = (self.headers.get("Authorization") or "").removeprefix("Bearer ")

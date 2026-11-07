@@ -139,12 +139,14 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
     )
     session = member_session(db, session_id) if session_id else None
     if session is None:
+        # Signing in happens in this same tab and comes back here (the login page's `next`): opened in another tab,
+        # it left members on the video list, and the request that asked for consent was never finished.
+        again = PREFIX + "/authorize?" + str(request.query_params)
         return page(
             f"Đăng nhập để kết nối {app_of(query['redirect_uri'])}",
-            "<p>Mở Reels Studio để đăng nhập hoặc đổi mật khẩu, rồi quay lại trang này.</p>"
-            '<a href="/login" target="_blank" rel="noopener">Mở trang đăng nhập</a>'
-            f'<p><a href="{escape(resource + "/oauth/authorize?" + str(request.query_params), quote=True)}">'
-            "Tôi đã đăng nhập, tiếp tục</a></p>",
+            "<p>Đăng nhập Reels Studio (hoặc đổi mật khẩu tạm), rồi bạn sẽ quay lại đây để cho phép kết nối.</p>"
+            f'<p><a href="{escape("/login?" + urlencode({"next": again}), quote=True)}">Đăng nhập Reels Studio</a></p>'
+            f'<p><a href="{escape(again, quote=True)}">Tôi đã đăng nhập, tiếp tục</a></p>',
             status=401,
         )
     db.execute(delete(McpAuthorization).where(McpAuthorization.expires_at <= now()))
@@ -163,11 +165,48 @@ def authorize(request: Request, db: DbSession = Depends(get_db)):
         )
     )
     db.commit()
-    return RedirectResponse(
-        resource.removesuffix("/api/mcp") + "/chatgpt#" + urlencode({"ticket": ticket}),
-        status_code=303,
-        headers=PRIVATE_HEADERS,
+    return consent_page(session, ticket, query["redirect_uri"], scopes)
+
+
+def consent_page(session: Session, ticket: str, redirect: str, scopes: list[str]) -> HTMLResponse:
+    """The consent screen, served by the authorize request itself. It used to send the member on to the web app's
+    /chatgpt#ticket=..., which read the ticket in the browser; in production the consent never showed there and the
+    connection could not be finished, so nothing on the way can lose the ticket now: it sits in this page's form."""
+    app = app_of(redirect)
+    host = urlsplit(redirect)
+    loopback = (
+        '<p class="warn"><strong>Kết nối với một chương trình trên máy tính.</strong> Chỉ cho phép nếu bạn vừa tự kết '
+        "nối Reels Studio trong Claude Code trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này.</p>"
+        if app == "Claude Code"
+        else ""
     )
+    write = (
+        f'<p class="warn"><strong>Quyền sửa và tạo công việc.</strong> {escape(app)} còn được sửa chữ, lời đọc, '
+        "caption; tạo video, gắn ảnh hoặc clip từ link, gắn sản phẩm và yêu cầu render. Tạo kịch bản bằng AI của "
+        "nhóm và giọng đọc có thể dùng phí dịch vụ AI của nhóm.</p>"
+        if "reels:write" in scopes
+        else ""
+    )
+    response = page(
+        f"Cho phép {app} kết nối?",
+        f"<p>Bạn đang dùng tài khoản <strong>{escape(session.user.email)}</strong>. Quyền sẽ được gửi về "
+        f"<code>{escape(host.netloc)}</code>.</p>{loopback}"
+        f"<p>{escape(app)} được đọc video, kịch bản, nhóm chủ đề, sản phẩm affiliate và trạng thái công việc của cả "
+        f"nhóm.</p>{write}"
+        "<p>Kết nối không được đăng bài, xóa video hoặc thay đổi tài khoản và API key. Quyền hết hạn sau tối đa 30 "
+        "ngày và mất hiệu lực khi phiên đăng nhập này bị thu hồi.</p>"
+        f'<form method="post" action="{PREFIX}/consent">'
+        f'<input type="hidden" name="ticket" value="{escape(ticket, quote=True)}">'
+        '<button type="submit" name="decision" value="allow">Cho phép kết nối</button> '
+        '<button type="submit" name="decision" value="deny">Từ chối</button></form>',
+    )
+    # The consent answer redirects to the app's callback: the form may go to this site and on to that origin only.
+    response.headers["Content-Security-Policy"] = HTML_HEADERS["Content-Security-Policy"].replace(
+        "form-action 'self'", f"form-action 'self' {host.scheme}://{host.netloc}"
+    )
+    # "no-referrer" makes browsers send `Origin: null` with the form, which the CSRF guard refuses.
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
 
 
 @router.get("/api/mcp/config")
@@ -207,9 +246,19 @@ def return_to(auth: McpAuthorization) -> str:
     return auth.redirect_uri or registered(auth.client.redirect_uri)[0]
 
 
-def callback(auth: McpAuthorization, **values) -> RedirectResponse:
+def callback(auth: McpAuthorization, **values) -> HTMLResponse:
+    """The consent answer, sent on to the app's callback by the browser itself. Never a 303: in production the web
+    app (OpenNext on Cloudflare) proxies /api with a fetch that follows redirects, so it fetched Claude's callback
+    server-side and showed Claude's "Page not found" on this URL. A refresh (no script: the page's CSP allows none)
+    and a link the member can click both go there."""
     params = {"state": auth.state, "iss": require_enabled() + "/oauth", **values}
-    return RedirectResponse(return_to(auth) + "?" + urlencode(params), status_code=303, headers=PRIVATE_HEADERS)
+    target = escape(return_to(auth) + "?" + urlencode(params), quote=True)
+    app = app_of(return_to(auth))
+    return page(
+        f"Đang quay lại {app}",
+        f'<meta http-equiv="refresh" content="0;url={target}">'
+        f'<p>Nếu trang không tự chuyển, <a href="{target}">bấm vào đây để quay lại {escape(app)}</a>.</p>',
+    )
 
 
 @router.post(PREFIX + "/consent")
@@ -218,7 +267,7 @@ def consent(
     decision: str = Form(max_length=10),
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
-) -> RedirectResponse:
+) -> HTMLResponse:
     auth = db.scalar(
         select(McpAuthorization).where(McpAuthorization.ticket_hash == hash_session_token(ticket)).with_for_update()
     )
