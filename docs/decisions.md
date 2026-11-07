@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — The MCP consent screen is served by the authorize request, and signing in comes back to it
+
+Reported by tuananh219ln: connecting Claude ended on "Kết nối ChatGPT / Claude" with no consent, so no connection
+could be made. The authorize request used to send the member to the web page `/chatgpt#ticket=...`, which read the
+ticket in the browser; it now answers with the consent form itself (server-rendered, ticket in a hidden field,
+`form-action` limited to this site and the callback's origin, `Referrer-Policy: same-origin` so the Origin guard
+accepts the answer). Signing in from the authorize page stays in the tab and returns there (`/login?next=`, followed
+only to `/api/mcp/oauth/authorize`). The web page keeps listing and revoking connections.
+
 ## 2026-11-07 — "Edit từ footage": a member's footage cut by its words; a clip may keep its own sound
 
 Asked by tuananh219ln after reading AIEV (github.com/notivn/AIEVv2), whose core is "put footage in, the AI cuts it
