@@ -36,6 +36,11 @@ each clip gets "Làm mờ vùng":
 - **The photo from before the first edit is kept** (`scenes.image_original_key`) for "Khôi phục ảnh gốc"; a crop keeps
   it, any other photo or a clip drops it with its file. The scene's `image_source` stays, so an edited stock photo
   keeps its credit and an edited AI photo is still labelled as AI.
+- **A member's own Claude finds the photos.** The MCP server gets `search_stock_photos` and `use_stock_photo`, and
+  its instructions say how to find a photo for each scene: the free libraries first, the web only when the member
+  asks or the libraries have nothing (Creative Commons first, a CAPTCHA stops it), then a look for a watermark: a
+  stock site's preview is dropped, a logo on a photo the team may use is erased. The app itself still never fetches
+  from Google (2026-11-02): the searching is done by the member's assistant, on their own account, at their request.
 - **Erasing a watermark does not license the photo.** A link pasted from a stock site (Shutterstock, Getty, iStock,
   Adobe Stock, 123RF, Dreamstime…) is still fetched, since the team may own the licence, but the member is warned
   that its preview is watermarked and needs one. The tool is named "Xóa vùng", not "xóa watermark".

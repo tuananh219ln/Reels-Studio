@@ -85,6 +85,15 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
 - **Looking at its work**, like AIEV's "every frame verified": `view_scene` returns the scene's preview frame (the
   photo or the clip's first frame with the scene's text placed as the render places it), and
   `view_render_frames` returns up to eight frames of the rendered MP4 at the seconds it picks, both at 540×960.
+- **Finding a photo for each scene**: `search_stock_photos` searches Pexels, Pixabay or Openverse (free for
+  commercial use, no watermark) like "Tìm ảnh" and returns up to six numbered previews to look at, and
+  `use_stock_photo` stores the one chosen (only a result of that same search). The server's instructions say to try
+  these first, to search the web only when the member asks or the libraries have nothing, preferring Creative Commons
+  photos, attached with `set_scene_media_from_link`, and to stop and tell the member at a CAPTCHA.
+- **Cleaning a photo or clip**: `view_scene_photo` returns the photo as stored with its size (and the writing "Tìm
+  chữ/logo tự động" found); `edit_scene_image` queues "Sửa ảnh" (`lama`, free, or `cloudflare` with boxes; `gemini`
+  with words, paid), `restore_scene_image` brings back the original, and `set_scene_clip_blur` blurs boxes on a clip.
+  A stock site's watermarked preview is dropped for another photo, never erased.
 
 The server's instructions hold the team's quality bar: a strong hook in the first two seconds, one idea per scene,
 short on-screen text, a clear call to buy; fix every blocking item and warning, look at every scene before

@@ -1,9 +1,12 @@
 """Stateless MCP transport; tools use the editor's validation, locks and job queue."""
 
 import io
+import json
 import logging
+import tempfile
 import unicodedata
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Annotated, Literal
 
 from fastapi import FastAPI
@@ -26,7 +29,7 @@ from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 
-from . import clips, jobs, motion
+from . import clips, jobs, motion, remote_media
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -73,6 +76,22 @@ def _jpeg(frame: PILImage.Image) -> Image:
     buffer = io.BytesIO()
     small.save(buffer, "JPEG", quality=82)
     return Image(data=buffer.getvalue(), format="jpeg")
+
+
+STOCK_PREVIEWS = 6
+
+
+def _preview(url: str) -> Image | str:
+    """A stock result's small preview for the assistant to look at; its words when the source would not send it."""
+    with tempfile.TemporaryDirectory(prefix="reels_preview_") as folder:
+        try:
+            media = remote_media.download(url, Path(folder))
+        except remote_media.RemoteMediaError:
+            return "(không tải được ảnh thu nhỏ)"
+        if media.photo is None:
+            return "(không tải được ảnh thu nhỏ)"
+        with PILImage.open(io.BytesIO(media.photo[0])) as photo:
+            return _jpeg(photo)
 
 
 @contextmanager
@@ -131,6 +150,14 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "từ kịch bản tự viết (không tốn phí AI của nhóm), gắn clip TikTok hoặc ảnh từ link người dùng đưa cho "
             "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. "
             "Cảnh cần chuyển động đẹp hơn (giá, giảm giá, sản phẩm bay vào) thì làm cảnh động bằng HTML + GSAP. "
+            'Tìm ảnh cho từng cảnh: trước hết dùng "Tìm ảnh kho miễn phí" (Pexels, Pixabay, Openverse: dùng thương mại '
+            "được, không watermark) với từ khóa tiếng Anh cụ thể, xem ảnh thu nhỏ, chọn ảnh đúng nội dung cảnh rồi "
+            '"Dùng ảnh kho cho cảnh". Chỉ tìm ảnh trên web khi người dùng yêu cầu hoặc kho không có ảnh hợp; khi đó '
+            'ưu tiên ảnh giấy phép Creative Commons, gắn bằng "Tải ảnh/clip từ link"; trang chặn bằng CAPTCHA thì '
+            'dừng và báo người dùng, không vượt chặn. Sau khi gắn, gọi "Xem ảnh gốc của cảnh" xem có watermark hay '
+            "logo không: ảnh xem trước của trang ảnh stock (Shutterstock, Getty, iStock, Adobe Stock…) thì bỏ, chọn ảnh "
+            'khác; chữ hay logo trên ảnh nhóm được dùng thì khoanh và xóa bằng "Sửa ảnh của cảnh" (lama, miễn phí), '
+            'logo dính trên clip thì "Làm mờ vùng trên video của cảnh". '
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
             "Link video mở trong Reels Studio và cần đăng nhập. " + QUALITY
         ),
@@ -564,6 +591,57 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             return [note, Image(data=buffer.getvalue(), format="jpeg")]
 
         return await run_in_threadpool(invoke, operation)
+
+    @tool("Tìm ảnh kho miễn phí", read=True, external=True, images=True)
+    async def search_stock_photos(
+        scene_id: int,
+        keyword: Annotated[str, Field(min_length=1, max_length=100)],
+        source: Literal["pexels", "pixabay", "openverse"] = "pexels",
+        orientation: Literal["vertical", "square", "all"] = "vertical",
+    ) -> list:
+        """Tìm ảnh trong kho miễn phí (dùng thương mại được, không watermark) cho cảnh, như "Tìm ảnh" trên trang
+        video: trả tối đa 6 ảnh thu nhỏ theo thứ tự số 1–6 kèm url. Pexels và Pixabay tìm tốt nhất bằng tiếng Anh
+        cụ thể ("fresh celery stalks on white background"); Openverse tìm được tiếng Việt. Bỏ ảnh cảnh khác đã dùng.
+        Chọn xong thì "Dùng ảnh kho cho cảnh" với cùng source, keyword, orientation và url."""
+
+        def operation(db, me):
+            found = videos.search_stock(scene_id, keyword, source, orientation, True, me, db)
+            hits = found["hits"][:STOCK_PREVIEWS]
+            if not hits:
+                return [
+                    f"Không có ảnh {found['source']} nào cho “{found['keyword']}”: thử từ khóa khác hoặc nguồn khác."
+                ]
+            content: list = [
+                json.dumps(
+                    {
+                        "source": found["source"],
+                        "keyword": found["keyword"],
+                        "hits": [{"number": n, "url": hit["url"]} for n, hit in enumerate(hits, 1)],
+                    },
+                    ensure_ascii=False,
+                )
+            ]
+            for number, hit in enumerate(hits, 1):
+                content.append(f"Ảnh {number}")
+                content.append(_preview(hit["preview"]))
+            return content
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Dùng ảnh kho cho cảnh", read=False, external=True)
+    async def use_stock_photo(
+        scene_id: int,
+        source: Literal["pexels", "pixabay", "openverse"],
+        keyword: Annotated[str, Field(min_length=1, max_length=100)],
+        url: Annotated[str, Field(max_length=2000)],
+        orientation: Literal["vertical", "square", "all"] = "vertical",
+    ) -> dict:
+        """Tải ảnh đã chọn từ "Tìm ảnh kho miễn phí" về làm ảnh của cảnh (thay ảnh hoặc clip đang có), giữ nguồn
+        ảnh để ghi công. Ảnh phải nằm trong kết quả tìm với cùng source, keyword và orientation."""
+        body = videos.StockChoiceBody(source=source, keyword=keyword, url=url, orientation=orientation)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(videos.choose_stock(scene_id, body, me, db, get_storage())), write=True
+        )
 
     @tool("Sửa ảnh của cảnh", read=False, external=True)
     async def edit_scene_image(

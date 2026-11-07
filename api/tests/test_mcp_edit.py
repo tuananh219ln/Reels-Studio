@@ -1,6 +1,8 @@
 """The MCP editing tools: the studio's handlers, presets and locks, and the frames the assistant looks at to check
 its work before saying a video is done."""
 
+import json
+
 from conftest import clip_bytes, make_video, needs_ffmpeg
 from sqlalchemy import select
 from test_mcp import call, grant, mcp_client, payload  # noqa: F401  (mcp_client is a fixture)
@@ -150,3 +152,73 @@ def test_the_assistant_blurs_a_logo_on_a_clip(mcp_client, db, storage):  # noqa:
     assert not done.get("isError"), done
     db.refresh(scene)
     assert scene.video_blur["boxes"] == [[0.7, 0.02, 0.28, 0.06]]
+
+
+def test_the_assistant_finds_a_free_stock_photo_looks_at_it_and_uses_it(mcp_client, db, storage, fakes, monkeypatch):  # noqa: F811
+    from reels_api import remote_media
+
+    # The fake sources listen on this machine; let their previews be fetched as from the internet.
+    monkeypatch.setattr(remote_media, "is_public", lambda address: True)
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user, scene_count=1, images=False)
+    scene = scenes_of(db, video)[0]
+    fakes.pexels_results["fresh celery"] = ["px1", "px2"]
+
+    found = call(mcp_client, token, "search_stock_photos", scene_id=scene.id, keyword="fresh celery")
+    assert not found.get("isError"), found
+    listing = json.loads(found["content"][0]["text"])
+    assert listing["source"] == "pexels" and [hit["url"] for hit in listing["hits"]] == [
+        fakes.image_url("px1"),
+        fakes.image_url("px2"),
+    ]
+    assert [item["type"] for item in found["content"][1:]] == ["text", "image", "text", "image"]
+
+    used = call(
+        mcp_client,
+        token,
+        "use_stock_photo",
+        scene_id=scene.id,
+        source="pexels",
+        keyword="fresh celery",
+        url=listing["hits"][1]["url"],
+    )
+    assert not used.get("isError"), used
+    db.refresh(scene)
+    assert scene.image_source == fakes.image_url("px2")
+    # Only a photo the source itself returned may be fetched.
+    assert call(
+        mcp_client,
+        token,
+        "use_stock_photo",
+        scene_id=scene.id,
+        source="pexels",
+        keyword="fresh celery",
+        url="https://example.com/x.jpg",
+    )["isError"]
+
+
+def test_no_stock_result_says_to_try_other_words(mcp_client, db, storage, monkeypatch):  # noqa: F811
+    from reels_api import routes_videos
+
+    monkeypatch.setattr(routes_videos, "search_stock", lambda *args: {"keyword": "zzz", "source": "pexels", "hits": []})
+    user, _, tokens, _ = grant(mcp_client, db)
+    video = make_video(db, storage, user, scene_count=1, images=False)
+    found = call(
+        mcp_client, tokens["access_token"], "search_stock_photos", scene_id=scenes_of(db, video)[0].id, keyword="zzz"
+    )
+    assert not found.get("isError") and "thử từ khóa khác" in found["content"][0]["text"]
+
+
+def test_the_assistant_is_told_how_to_find_a_photo_for_each_scene(mcp_client, db):  # noqa: F811
+    from test_mcp import rpc
+
+    _, _, tokens, _ = grant(mcp_client, db)
+    started = rpc(
+        mcp_client,
+        tokens["access_token"],
+        "initialize",
+        {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "t", "version": "1"}},
+    )
+    instructions = started.json()["result"]["instructions"]
+    assert "Tìm ảnh kho miễn phí" in instructions and "CAPTCHA" in instructions and "Sửa ảnh của cảnh" in instructions
