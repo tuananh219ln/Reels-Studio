@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type LlmProvider, type LlmSettings } from "@/lib/api";
 import { COLORS } from "@/app/theme";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
+import VieneuKeyCard from "@/components/settings/VieneuKeyCard";
 import StatusText from "@/components/StatusText";
 
 function StatusTag({ provider }: { provider: LlmProvider }) {
@@ -263,7 +264,7 @@ export default function AiSettingsPage() {
     <>
       <SettingsHeader
         title="Mô hình AI"
-        description="Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó."
+        description="Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó. Key giọng đọc VieNeu cũng nhập ở đây."
       />
       {/* The choice beside the list on a wide screen, and staying in view while the list scrolls. */}
       <Row gutter={[24, 16]}>
@@ -296,6 +297,10 @@ export default function AiSettingsPage() {
                 />
               )}
             </Card>
+            {/* The narration voices of VieNeu: their key lives here, with the other AI services' keys. */}
+            <div style={{ marginTop: 16 }}>
+              <VieneuKeyCard />
+            </div>
           </div>
         </Col>
         <Col xs={24} xxl={16}>
