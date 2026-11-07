@@ -433,6 +433,53 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   await expect(first.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
 });
 
+test("Sửa ảnh: erase a drawn box, edit in words, then bring back the original", async ({ page }) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau xanh cho người lớn tuổi");
+  const first = page.getByTestId("scene").first();
+  const preview = first.getByTestId("scene-preview");
+  const original = await preview.getAttribute("src");
+
+  // "Xóa vùng": nothing to erase until a box is drawn over the photo.
+  await first.getByRole("button", { name: "Sửa ảnh", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Sửa ảnh cảnh", exact: true });
+  const erase = dialog.getByRole("button", { name: "Xóa vùng đã khoanh" });
+  await expect(erase).toBeDisabled();
+  const photo = dialog.getByRole("img", { name: "Ảnh của cảnh" });
+  await expect.poll(() => photo.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
+  const area = (await dialog.getByTestId("image-edit-canvas").boundingBox())!;
+  await page.mouse.move(area.x + area.width * 0.3, area.y + area.height * 0.4);
+  await page.mouse.down();
+  await page.mouse.move(area.x + area.width * 0.6, area.y + area.height * 0.5, { steps: 5 });
+  await page.mouse.up();
+  await expect(dialog.getByTestId("edit-box")).toHaveCount(1);
+  await expect(dialog.getByTestId("edit-box-count")).toHaveText("Đã khoanh 1 vùng");
+  // LaMa runs only in the worker image; here the fake Cloudflare paints the box.
+  await dialog.getByRole("radio", { name: /Cloudflare/ }).check();
+  await erase.click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+  await expect(preview).not.toHaveAttribute("src", original ?? "", { timeout: 30_000 });
+  await expect(first.getByTestId("image-edited")).toBeVisible();
+
+  // "Sửa theo mô tả": Gemini edits the photo as asked, the original is still kept.
+  const erased = await preview.getAttribute("src");
+  await first.getByRole("button", { name: "Sửa ảnh", exact: true }).click();
+  await dialog.getByRole("tab", { name: "Sửa theo mô tả" }).click();
+  await dialog.getByLabel("Điều cần sửa trên ảnh").fill("làm nền sáng hơn");
+  await dialog.getByRole("button", { name: "Sửa ảnh", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
+  await expect(preview).not.toHaveAttribute("src", erased ?? "", { timeout: 30_000 });
+
+  // "Khôi phục ảnh gốc" brings back the photo from before the first edit.
+  await first.getByRole("button", { name: "Khôi phục ảnh gốc" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Khôi phục" }).click();
+  await expect(first.getByTestId("image-edited")).toHaveCount(0);
+  await expect(preview).toHaveAttribute("src", original ?? "");
+});
+
 test("preview before a render: plays scene by scene, starts from a chosen scene, shows the safe zone", async ({
   page,
 }) => {

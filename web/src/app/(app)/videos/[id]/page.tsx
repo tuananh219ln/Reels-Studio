@@ -69,6 +69,7 @@ const JOB_NAMES = {
   revise: "AI sửa theo góp ý",
   motion: "Cảnh động",
   tiktok_publish: "Đăng TikTok",
+  image_edit: "Sửa ảnh",
 } as const;
 
 /** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
@@ -650,6 +651,7 @@ export default function VideoPage() {
                   label="Cảnh tiêu đề"
                   backdrop={isBackdrop(video)}
                   generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
+                  editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(0)}
                   expanded={expanded[video.title_scene.id] ?? true}
@@ -666,6 +668,7 @@ export default function VideoPage() {
                   label={`Cảnh ${index + 1}`}
                   backdrop={isBackdrop(video)}
                   generating={job?.kind === "image" && job.scene_id === scene.id}
+                  editing={job?.kind === "image_edit" && job.scene_id === scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
                   expanded={expanded[scene.id] ?? true}

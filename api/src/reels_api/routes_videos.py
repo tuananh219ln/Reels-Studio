@@ -28,6 +28,7 @@ from . import (
     autoedit,
     clips,
     frames,
+    image_edit,
     image_providers,
     knowledge,
     llm,
@@ -78,6 +79,7 @@ from .videos import (
     OPEN_POST_STATUSES,
     active_job,
     auto_seconds,
+    drop_original,
     ensure_unlocked,
     follow_narration,
     list_extras,
@@ -222,6 +224,8 @@ def _enqueue(
     scene_id: int | None = None,
     image_provider: str | None = None,
     publication_id: int | None = None,
+    edit_boxes: list | None = None,
+    edit_prompt: str | None = None,
 ) -> None:
     """Callers hold the video lock; the partial unique index is the last guard against a second job."""
     ensure_unlocked(db, video)
@@ -235,6 +239,8 @@ def _enqueue(
             scene_id=scene_id,
             image_provider=image_provider,
             publication_id=publication_id,
+            edit_boxes=edit_boxes,
+            edit_prompt=edit_prompt,
         )
     )
     try:
@@ -565,6 +571,67 @@ def generate_scene_image(
         raise ApiError(409, "no_script", "Video chưa có kịch bản")
     _enqueue(db, video, "image", me, scene_id=scene.id, image_provider=_image_provider(db, provider))
     return _saved(db, video)
+
+
+class ImageEditBody(BaseModel):
+    engine: str
+    # [x, y, width, height] fractions of the photo as shown; "Xóa vùng" only.
+    boxes: list = []
+    prompt: str = ""
+
+
+@router.post("/scenes/{scene_id}/image-edit")
+def edit_scene_image(
+    scene_id: int, body: ImageEditBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Sửa ảnh" on one scene's card (image_edit.py): an image_edit job that erases the boxes drawn over the photo
+    (`lama` on the worker, free, or `cloudflare`) or changes it as asked in words (`gemini`, paid)."""
+    if body.engine not in image_edit.ENGINES:
+        raise invalid("Cách sửa ảnh không hợp lệ")
+    try:
+        boxes = image_edit.clean_boxes(body.boxes) if body.engine in image_edit.ERASERS else None
+        prompt = image_edit.clean_prompt(body.prompt, required=body.engine == "gemini")
+    except ValueError as err:
+        raise invalid(str(err)) from None
+    if body.engine != "lama" and not image_providers.configured(db, body.engine):
+        name = image_edit.LABELS[body.engine]
+        raise invalid(f"Chưa cài đặt {name}: nhập key ở Cài đặt › Nguồn tư liệu")
+    video, scene = lock_scene(db, scene_id)
+    if not scene.image_key or scene.video_key:
+        raise ApiError(409, "no_image", "Cảnh này chưa có ảnh để sửa")
+    _enqueue(
+        db,
+        video,
+        "image_edit",
+        me,
+        scene_id=scene.id,
+        image_provider=body.engine,
+        edit_boxes=boxes,
+        edit_prompt=prompt or None,
+    )
+    return _saved(db, video)
+
+
+@router.post("/scenes/{scene_id}/image-original")
+def restore_scene_image(
+    scene_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Khôi phục ảnh gốc": the photo the scene had before "Sửa ảnh", in place of the edited one."""
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    if not scene.image_key or not scene.image_original_key:
+        raise ApiError(409, "no_original", "Ảnh của cảnh này chưa được sửa")
+    edited = scene.image_key
+    scene.image_key, scene.image_original_key, scene.image_error = scene.image_original_key, None, None
+    if scene.is_title:
+        title, _ = split_scenes(db, video)
+        refresh_thumbnail(db, storage, video, title)
+    payload = _saved(db, video)
+    storage.delete(edited)
+    return payload
 
 
 @router.post("/videos/{video_id}/publish")
@@ -1012,7 +1079,7 @@ def delete_scene(
     ensure_unlocked(db, video)
     if scene.is_title:
         raise ApiError(409, "title_scene", "Không xóa được cảnh tiêu đề")
-    files = [scene.image_key, scene.voice_key, scene.video_key]
+    files = [scene.image_key, scene.voice_key, scene.video_key, scene.image_original_key]
     db.delete(scene)
     payload = _saved(db, video)
     for key in files:
@@ -1026,11 +1093,14 @@ def _store_photo(
     """Store a photo in place of the scene's photo or clip; `source` None keeps the photo's source (a crop of it)."""
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
+    old = [scene.image_key, scene.video_key]
     if source is None:
         if not scene.image_key:
             raise ApiError(409, "no_image", "Cảnh này chưa có ảnh để chỉnh khung")
         source = scene.image_source
-    old = [scene.image_key, scene.video_key]
+    else:
+        # A crop is still the edited photo, so "Khôi phục ảnh gốc" stays; another photo forgets the original.
+        old.append(drop_original(scene))
     key = new_key(video.id, f"scene-{scene.id}", extension)
     storage.save_bytes(key, data)
     scene.image_key, scene.image_source, scene.image_error = key, source, None
@@ -1192,7 +1262,13 @@ def media_from_url(
             raise invalid(str(err)) from None
         if media.photo is not None:
             data, extension = media.photo
-            return _store_photo(db, storage, scene_id, data, extension, body.url.strip())
+            payload = _store_photo(db, storage, scene_id, data, extension, body.url.strip())
+            if site := remote_media.stock_site(body.url):
+                payload["notice"] = (
+                    f"Ảnh này lấy từ {site}: ảnh xem trước thường có watermark và cần mua bản quyền. "
+                    "Nếu nhóm chưa mua, hãy đổi ảnh khác (Tìm ảnh, Tạo ảnh AI)."
+                )
+            return payload
         assert media.clip is not None
         try:
             clip = clips.first_part(media.clip, Path(folder))
@@ -1253,7 +1329,7 @@ def _attach_clip(db: DbSession, storage: DirectoryStorage, scene_id: int, upload
         raise ApiError(415, "invalid_video", str(err)) from None
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
-    old = [scene.image_key, scene.video_key]
+    old = [scene.image_key, scene.video_key, drop_original(scene)]
     key = new_key(video.id, f"clip-{scene.id}", clip.extension)
     storage.save_file(key, upload)
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1
@@ -1656,7 +1732,9 @@ def list_jobs(
                 "claude_calls": job.claude_calls,
                 "image_calls": job.image_calls,
                 "llm": llm.label(job.llm_provider, job.llm_model)
-                or image_providers.LABELS.get(job.image_provider or "", job.image_provider),
+                or (image_edit.LABELS if job.kind == "image_edit" else image_providers.LABELS).get(
+                    job.image_provider or "", job.image_provider
+                ),
                 "error": job.error,
             }
         )
@@ -1719,6 +1797,8 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
         scene_id=job.scene_id,
         image_provider=job.image_provider,
         publication_id=job.publication_id,
+        edit_boxes=job.edit_boxes,
+        edit_prompt=job.edit_prompt,
     )
     return _saved(db, video)
 

@@ -23,6 +23,7 @@ export default function SceneInspector({
   label,
   voiceEnabled,
   generating,
+  editing = false,
   timing,
   effects,
   layers,
@@ -39,6 +40,8 @@ export default function SceneInspector({
   voiceEnabled: boolean;
   /** An image job is making this scene's photo. */
   generating: boolean;
+  /** An image_edit job ("Sửa ảnh") is changing this scene's photo. */
+  editing?: boolean;
   timing: React.ReactNode;
   /** "Hiệu ứng": the scene's transition, colour and clip speed (SceneEffects). */
   effects: React.ReactNode;
@@ -82,7 +85,13 @@ export default function SceneInspector({
                   <Flex vertical gap={8}>
                     <PhotoLayerPanel scene={saved} />
                     {photoLayer(saved.layers) && (
-                      <ScenePicture scene={saved} voiceEnabled={voiceEnabled} generating={generating} compact />
+                      <ScenePicture
+                        scene={saved}
+                        voiceEnabled={voiceEnabled}
+                        generating={generating}
+                        editing={editing}
+                        compact
+                      />
                     )}
                   </Flex>
                 ),
@@ -90,7 +99,15 @@ export default function SceneInspector({
             : {
                 key: "media",
                 label: backdrop ? "Nền chung của video" : scene.video ? "Video của cảnh" : "Ảnh của cảnh",
-                children: <ScenePicture scene={saved} voiceEnabled={voiceEnabled} generating={generating} compact />,
+                children: (
+                  <ScenePicture
+                    scene={saved}
+                    voiceEnabled={voiceEnabled}
+                    generating={generating}
+                    editing={editing}
+                    compact
+                  />
+                ),
               },
           {
             key: "search",

@@ -32,16 +32,29 @@ RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
 # The markup of a "Cảnh động" is written by an AI: its Chrome reaches nothing outside the container.
 ENV PRODUCER_HEADLESS_SHELL_PATH=/opt/hyperframes/chrome-offline
 
+# "Sửa ảnh" › "Xóa vùng" (api/src/reels_api/image_edit.py): LaMa as ONNX (Apache-2.0, about 200 MB), pinned to one
+# revision and checked against its SHA-256, so a changed file fails the build instead of reaching the worker.
+ARG LAMA_URL=https://huggingface.co/Carve/LaMa-ONNX/resolve/c3c0c9e468934d62e79c329e35d82dd09ff8c444/lama_fp32.onnx
+ARG LAMA_SHA256=1faef5301d78db7dda502fe59966957ec4b79dd64e16f03ed96913c7a4eb68d6
+ENV LAMA_MODEL_PATH=/opt/lama/lama_fp32.onnx
+RUN mkdir -p /opt/lama \
+    && python -c "import sys, urllib.request; urllib.request.urlretrieve(sys.argv[1], sys.argv[2])" "$LAMA_URL" "$LAMA_MODEL_PATH" \
+    && echo "$LAMA_SHA256  $LAMA_MODEL_PATH" | sha256sum -c - \
+    && chmod -R a+rX /opt/lama
+
 COPY worker/pyproject.toml worker/
 COPY worker/src worker/src
 COPY api/pyproject.toml api/
 COPY api/src api/src
-RUN pip install ./worker ./api && useradd --system --uid 10001 app && mkdir -p /data/storage && chown app /data/storage \
+RUN pip install ./worker "./api[inpaint]" && useradd --system --uid 10001 app && mkdir -p /data/storage && chown app /data/storage \
     && chown -R app /opt/hyperframes/cache
 
 USER app
 # A short scene through the same code the motion job runs, so a build whose Chrome cannot start fails here.
 RUN mkdir -p /tmp/motion-check && HOME=/tmp python -m reels_api.motion /tmp/motion-check && rm -rf /tmp/motion-check
+# A box erased by LaMa through the same code the image_edit job runs, so a build whose model or onnxruntime cannot load
+# fails here.
+RUN python -m reels_api.image_edit
 
 # Only one worker takes jobs (Postgres advisory lock): during a deploy the new container waits until
 # the old one has stopped. SIGTERM kills the running job; the next worker marks it failed.

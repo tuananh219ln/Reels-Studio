@@ -8,6 +8,7 @@ import {
   DragOutlined,
   EyeOutlined,
   GoogleOutlined,
+  HighlightOutlined,
   FolderOpenOutlined,
   HistoryOutlined,
   InboxOutlined,
@@ -19,6 +20,7 @@ import {
   SearchOutlined,
   SnippetsOutlined,
   TikTokOutlined,
+  UndoOutlined,
 } from "@ant-design/icons";
 import {
   App,
@@ -51,6 +53,7 @@ import {
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import GroupMediaPicker from "./GroupMediaPicker";
 import MediaLibraryPicker from "./MediaLibraryPicker";
+import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
 import PhotoLayerPanel from "./PhotoLayerPanel";
@@ -177,6 +180,7 @@ export default function SceneCard({
   onDelete,
   onPreview,
   generating = false,
+  editing = false,
   backdrop = false,
 }: {
   scene: SceneData;
@@ -187,6 +191,8 @@ export default function SceneCard({
   backdrop?: boolean;
   /** An image job is making this scene's photo ("Tạo ảnh AI" on this card). */
   generating?: boolean;
+  /** An image_edit job ("Sửa ảnh" on this card) is changing this scene's photo. */
+  editing?: boolean;
   expanded: boolean;
   onToggle: () => void;
   /** "Xem từ cảnh này": the browser preview, starting at this scene. */
@@ -268,7 +274,9 @@ export default function SceneCard({
               </Typography.Text>
             )}
             {backdrop && !scene.is_title && <PhotoLayerPanel scene={scene} />}
-            {ownPicture && <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} />}
+            {ownPicture && (
+              <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
+            )}
           </Flex>
         </Col>
         <Col xs={24} sm={15} md={16}>
@@ -388,7 +396,7 @@ function SceneHeader({
   );
 }
 
-type Busy = "upload" | "video" | "remove" | "find" | "link" | "ai" | "keep";
+type Busy = "upload" | "video" | "remove" | "find" | "link" | "ai" | "keep" | "restore";
 
 const PEXELS: StockSource = { id: DEFAULT_SOURCE, label: "Pexels", available: true };
 
@@ -420,11 +428,13 @@ export function ScenePicture({
   scene,
   voiceEnabled,
   generating,
+  editing = false,
   compact = false,
 }: {
   scene: SceneData;
   voiceEnabled: boolean;
   generating: boolean;
+  editing?: boolean;
   compact?: boolean;
 }) {
   const { message, modal } = App.useApp();
@@ -438,6 +448,8 @@ export function ScenePicture({
   const [fromLibrary, setFromLibrary] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [framing, setFraming] = useState(false);
+  // "Sửa ảnh" is open.
+  const [retouching, setRetouching] = useState(false);
   const [viewing, setViewing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [pasting, setPasting] = useState(false);
@@ -526,7 +538,17 @@ export function ScenePicture({
       chosen(await fileFromDataUrl(link));
       return;
     }
-    const send = () => run("link", () => api<VideoDetail>(`/scenes/${scene.id}/media-from-url`, "POST", { url: link }));
+    const send = () =>
+      run("link", async () => {
+        // A photo from a stock site (Shutterstock, Getty…) is kept, with a note that it is a licensed preview.
+        const video = await api<VideoDetail & { notice?: string }>(`/scenes/${scene.id}/media-from-url`, "POST", {
+          url: link,
+        });
+        if (video.notice) {
+          void message.warning(video.notice, 10);
+        }
+        return video;
+      });
     const clip = looksLikeClipLink(link);
     if (clip ? !scene.has_image : scene.video === null) {
       void send();
@@ -633,6 +655,11 @@ export function ScenePicture({
               Chỉnh khung
             </Button>
           )}
+          {!scene.video && (
+            <Button size="small" icon={<HighlightOutlined />} disabled={off} onClick={() => setRetouching(true)}>
+              Sửa ảnh
+            </Button>
+          )}
           {scene.video && (
             <Popconfirm
               title="Xoá video của cảnh này?"
@@ -705,6 +732,16 @@ export function ScenePicture({
                   >
                     {scene.video ? "Cắt video" : "Chỉnh khung"}
                   </Button>
+                  {!scene.video && (
+                    <Button
+                      size="small"
+                      icon={<HighlightOutlined />}
+                      disabled={off}
+                      onClick={() => setRetouching(true)}
+                    >
+                      Sửa ảnh
+                    </Button>
+                  )}
                   {canPlace && (
                     <Button
                       size="small"
@@ -751,6 +788,30 @@ export function ScenePicture({
         <StatusText tone={scene.motion.pending ? "active" : "done"}>
           {scene.motion.pending ? "Đang dựng cảnh động" : `Cảnh động · ${scene.motion.seconds} giây`}
         </StatusText>
+      )}
+      {editing && (
+        <StatusText tone="active" data-testid="image-editing">
+          Đang sửa ảnh…
+        </StatusText>
+      )}
+      {scene.image_edited && !editing && (
+        // "Sửa ảnh" changed this photo; the one from before the first edit is kept on the server.
+        <Flex wrap align="center" gap={4} data-testid="image-edited">
+          <StatusText tone="done">Ảnh đã sửa</StatusText>
+          {!editor.readOnly && (
+            <Popconfirm
+              title="Bỏ các lần sửa và dùng lại ảnh gốc?"
+              okText="Khôi phục"
+              cancelText="Huỷ"
+              disabled={off}
+              onConfirm={() => run("restore", () => api<VideoDetail>(`/scenes/${scene.id}/image-original`, "POST"))}
+            >
+              <Button size="small" type="link" icon={<UndoOutlined />} loading={busy === "restore"} disabled={off}>
+                Khôi phục ảnh gốc
+              </Button>
+            </Popconfirm>
+          )}
+        </Flex>
       )}
       {scene.image_auto && (
         // "Tự tìm ảnh" picked this photo from a stock library after the script: often the wrong dish for
@@ -1034,6 +1095,7 @@ export function ScenePicture({
       {viewing && <SceneViewer scene={scene} onClose={() => setViewing(false)} />}
       {placing && <TextPositionModal scene={scene} onClose={() => setPlacing(false)} onSaved={editor.onSaved} />}
       {framing && <MediaEditor scene={scene} voiceEnabled={voiceEnabled} onClose={() => setFraming(false)} />}
+      {retouching && <ImageEditModal scene={scene} onClose={() => setRetouching(false)} />}
       {picking && (
         <StockPicker
           sceneId={scene.id}

@@ -306,6 +306,9 @@ class Scene(Base):
     image_error: Mapped[str | None] = mapped_column(Text)
     # Picked by the app after the script ("Tự tìm ảnh"): shown as "Tự chọn, kiểm tra lại" until the photo changes.
     image_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # "Sửa ảnh" (image_edit.py): the photo the scene had before its first edit, so "Khôi phục ảnh gốc" brings it back.
+    # None for a photo never edited; any new photo, clip or removal drops it (videos.drop_original).
+    image_original_key: Mapped[str | None] = mapped_column(String(200))
     voice_text: Mapped[str] = mapped_column(Text, default="")
     # The last narration MP3 made for this scene and the tts.voice_signature it was made from: it is reused
     # while the signature still matches, so a re-render does not pay ElevenLabs again.
@@ -437,7 +440,7 @@ class Job(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
     article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan | revise
-    # | article_caption | motion | tiktok_publish
+    # | article_caption | motion | tiktok_publish | image_edit
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -446,6 +449,10 @@ class Job(Base):
     scene_id: Mapped[int | None] = mapped_column(Integer)
     # The AI image provider of an image job ("cloudflare" | "gemini"), fixed when it is queued.
     image_provider: Mapped[str | None] = mapped_column(String(16))
+    # An image_edit job ("Sửa ảnh"): its engine is in image_provider ("lama" | "cloudflare" | "gemini"), the boxes a
+    # member drew as [x, y, width, height] fractions of the photo, and what they asked for in words.
+    edit_boxes: Mapped[list | None] = mapped_column(JSONB)
+    edit_prompt: Mapped[str | None] = mapped_column(Text)
     # The post an unpublish job takes down, or the TikTok post a tiktok_publish job sends.
     publication_id: Mapped[int | None] = mapped_column(Integer)
     # A render or motion job handed to a member's render machine (render_nodes.py): "ready" once the VPS has packed

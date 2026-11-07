@@ -34,6 +34,7 @@ export type VideoStatus =
   | "queued"
   | "writing"
   | "imaging"
+  | "editing"
   | "finding"
   | "voicing"
   | "rendering"
@@ -131,7 +132,8 @@ export type JobInfo = {
     | "voice"
     | "revise"
     | "motion"
-    | "tiktok_publish";
+    | "tiktok_publish"
+    | "image_edit";
   /** The one scene an image job makes a photo for; null for every other job. */
   scene_id: number | null;
   /** A render or motion job waiting for a render machine ("ready") or being rendered on one ("taken"). */
@@ -229,6 +231,8 @@ export type SceneData = {
   image_ai: boolean;
   /** Picked by "Tự tìm ảnh" after the script and not yet changed or kept by a member. */
   image_auto: boolean;
+  /** Changed by "Sửa ảnh" since it came in: the card offers "Khôi phục ảnh gốc". */
+  image_edited: boolean;
   image_error: string | null;
   image_url: string | null;
   /** A clip shown instead of the photo; the scene has one or the other. */

@@ -4,7 +4,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-from conftest import clip_bytes, login, make_user, make_video, needs_ffmpeg
+from conftest import clip_bytes, login, make_user, make_video, needs_ffmpeg, photo_bytes
 from sqlalchemy import select
 
 from reels_api import remote_media
@@ -251,3 +251,40 @@ def test_tiktok_links_that_are_not_one_video_or_too_big_are_refused(
     assert stored_clip(db, scene)[0] is None
     # Only a single video's page is downloaded (and yt-dlp skips a file over the limit, leaving none).
     assert FakeYoutubeDL.downloaded == ([answer] if "video" in url else [])
+
+
+@pytest.mark.parametrize(
+    ("url", "site"),
+    [
+        ("https://image.shutterstock.com/image-photo/rau-260nw-1.jpg", "Shutterstock"),
+        ("https://www.shutterstock.vn/image-photo/1", "Shutterstock"),
+        ("https://media.gettyimages.com/id/1/photo.jpg", "Getty Images"),
+        ("https://www.gettyimages.co.uk/detail/1", "Getty Images"),
+        ("https://media.istockphoto.com/id/1/photo.jpg", "iStock"),
+        ("https://t4.ftcdn.net/jpg/01/02/03/360_F_1.jpg", "Adobe Stock"),
+        ("https://previews.123rf.com/images/a/b.jpg", "123RF"),
+        ("https://thumbs.dreamstime.com/b/x.jpg", "Dreamstime"),
+        ("https://cdn.pixabay.com/photo/2020/01/01/x.jpg", None),
+        ("https://down-vn.img.susercontent.com/file/x", None),
+        ("https://notshutterstock.com/x.jpg", None),
+        ("https://shutterstock.example.com/x.jpg", None),
+        ("https://alamy.com.evil.net/x.jpg", None),
+        ("https://example.com/shutterstock.jpg", None),
+    ],
+)
+def test_stock_photo_sites_are_recognised_by_their_hosts(url, site):
+    assert remote_media.stock_site(url) == site
+
+
+def test_a_photo_from_a_stock_site_is_kept_with_a_warning(an, db, me, storage, monkeypatch):
+    video = make_video(db, storage, me)
+    scene = first_scene(db, video)
+    monkeypatch.setattr(remote_media, "download", lambda url, folder: remote_media.Media(photo=(photo_bytes(), "jpg")))
+
+    stock = an.post(f"/api/scenes/{scene}/media-from-url", json={"url": "https://image.shutterstock.com/rau.jpg"})
+    other = an.post(f"/api/scenes/{scene}/media-from-url", json={"url": "https://cdn.pixabay.com/photo/rau.jpg"})
+
+    assert stock.status_code == 200, stock.text
+    assert "Shutterstock" in stock.json()["notice"] and "watermark" in stock.json()["notice"]
+    assert stored(db, scene)[1] == "https://cdn.pixabay.com/photo/rau.jpg"
+    assert "notice" not in other.json()

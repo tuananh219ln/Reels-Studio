@@ -164,6 +164,8 @@ def isolated_files(tmp_path, monkeypatch):
         "IMAGE_GEN_CF_ACCOUNT_ID",
         "IMAGE_GEN_CF_API_KEY",
         "IMAGE_GEN_CF_MODEL",
+        "IMAGE_INPAINT_CF_MODEL",
+        "LAMA_MODEL_PATH",
         "ELEVENLABS_VOICE_ID",
         "ELEVENLABS_MODEL",
         "SHOPEE_AFFILIATE_API_URL",

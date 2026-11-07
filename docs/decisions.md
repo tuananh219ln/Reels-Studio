@@ -11,6 +11,28 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — "Sửa ảnh": erase drawn boxes with LaMa or Cloudflare, edit in words with Gemini; warn on stock links
+
+Asked by namtc: photos found on Google and clips from TikTok often carry a watermark or a logo, and members had no way
+to fix one in the app. Each scene photo gets "Sửa ảnh", an `image_edit` job (migration 0057) for that scene:
+
+- **"Xóa vùng": the member draws the boxes; nothing is detected automatically.** LaMa (ONNX, Apache-2.0) runs on the
+  worker's CPU and is the default because it costs nothing per photo and is made for this; its model (about 200 MB,
+  pinned revision, SHA-256 checked) is baked into the worker image, and `onnxruntime` is an optional dependency only
+  the worker installs, so the api image does not grow. Cloudflare's inpainting model is the second engine, on the
+  team's existing token, for when LaMa's result is not good enough. Only a square around the boxes goes through the
+  model and is pasted back, so the photo keeps its sharpness. Detecting watermarks automatically would need a paid
+  vision call per photo or another model, so it waits until the manual tool has been used.
+- **"Sửa theo mô tả" is Gemini**, sent the photo and the member's own words; it costs money per edit, and the dialog
+  says so. Cloudflare's FLUX model cannot edit an existing photo.
+- **Photos only, not clips.** Erasing frame by frame flickers, and the models that keep a clip steady need a GPU.
+- **The photo from before the first edit is kept** (`scenes.image_original_key`) for "Khôi phục ảnh gốc"; a crop keeps
+  it, any other photo or a clip drops it with its file. The scene's `image_source` stays, so an edited stock photo
+  keeps its credit and an edited AI photo is still labelled as AI.
+- **Erasing a watermark does not license the photo.** A link pasted from a stock site (Shutterstock, Getty, iStock,
+  Adobe Stock, 123RF, Dreamstime…) is still fetched, since the team may own the licence, but the member is warned
+  that its preview is watermarked and needs one. The tool is named "Xóa vùng", not "xóa watermark".
+
 ## 2026-11-07 — An agent merges a PR only when a person asks it to
 
 Requested by tuananh219ln, alongside "Green CI is the approval" (same day), which it adds to: an agent merges a PR,

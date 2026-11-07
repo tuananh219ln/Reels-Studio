@@ -55,6 +55,7 @@ STATUS_LABELS = {
     "queued": "Chờ",
     "writing": "Đang viết",
     "imaging": "Đang tạo ảnh",
+    "editing": "Đang sửa ảnh",
     "finding": "Đang tìm ảnh",
     "voicing": "Đang tạo giọng",
     "rendering": "Đang render",
@@ -100,6 +101,7 @@ JOB_KINDS = {
     "unpublish": "Gỡ bài Facebook",
     "check": "Kiểm tra bài Facebook",
     "image": "Tạo ảnh AI",
+    "image_edit": "Sửa ảnh",
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
     "plan": "Tạo kế hoạch 30 ngày",
@@ -121,6 +123,13 @@ LIST_NUMBER = re.compile(r"^\s*\d+[.)](?!\d)\s*")
 def new_key(video_id: int, name: str, extension: str) -> str:
     """Server-generated, unique per version, so browsers never show a cached old file."""
     return f"videos/{video_id}/{name}-{secrets.token_hex(6)}.{extension}"
+
+
+def drop_original(scene: Scene) -> str | None:
+    """The photo kept from before "Sửa ảnh" (image_edit.py), forgotten when the scene gets another photo or a clip or
+    loses its photo: the caller deletes the returned file with the ones it replaces."""
+    key, scene.image_original_key = scene.image_original_key, None
+    return key
 
 
 def video_not_found() -> ApiError:
@@ -450,6 +459,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
             "unpublish": "unpublishing",
             "check": "checking",
             "image": "imaging",
+            "image_edit": "editing",
             "photos": "finding",
             "voice": "voicing",
         }.get(job.kind, "writing")
@@ -667,6 +677,8 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "has_image": bool(scene.image_key),
         # An AI photo: the card offers "Tạo lại ảnh AI" instead of "Tạo ảnh AI".
         "image_ai": bool(scene.image_key) and (scene.image_source or "").startswith("ai:"),
+        # Changed by "Sửa ảnh" since the photo came in: the card offers "Khôi phục ảnh gốc".
+        "image_edited": bool(scene.image_key and scene.image_original_key),
         # Picked by "Tự tìm ảnh" and not yet changed by a member: the card says "Tự chọn, kiểm tra lại".
         "image_auto": bool(scene.image_key) and scene.image_auto,
         "image_error": scene.image_error,
