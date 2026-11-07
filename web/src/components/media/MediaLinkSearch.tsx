@@ -114,7 +114,7 @@ export default function MediaLinkSearch({
     return false;
   }
 
-  /** "Dán từ clipboard": read it directly when the browser allows, a photo first. */
+  /** "Dán ảnh / link": one click reads the clipboard (the browser asks once), a photo first, then a link. */
   async function fromClipboard() {
     try {
       const items = await navigator.clipboard.read();
@@ -139,7 +139,9 @@ export default function MediaLinkSearch({
       if (text) return addText(text);
       message.warning("Clipboard chưa có ảnh hay link: chuột phải vào ảnh › Sao chép hình ảnh, rồi bấm lại");
     } catch {
-      message.info("Trình duyệt không cho đọc clipboard: bấm vào ô bên dưới rồi nhấn Ctrl+V");
+      message.info(
+        "Trình duyệt chưa cho đọc clipboard: bấm “Cho phép” khi được hỏi, hoặc bấm vào ô bên dưới rồi nhấn Ctrl+V",
+      );
     }
   }
 
@@ -156,6 +158,9 @@ export default function MediaLinkSearch({
           placeholder="Tên sản phẩm"
           style={{ flex: "1 1 220px" }}
         />
+        <Button type="primary" icon={<SnippetsOutlined />} loading={adding} onClick={fromClipboard}>
+          Dán ảnh / link
+        </Button>
         <Button icon={<GoogleOutlined />} disabled={!term} onClick={() => open(googleTransparentUrl(term))}>
           Ảnh không nền
         </Button>
@@ -188,9 +193,6 @@ export default function MediaLinkSearch({
         }}
       />
       <Flex gap={8} align="center" wrap>
-        <Button icon={<SnippetsOutlined />} loading={adding} onClick={fromClipboard}>
-          Dán từ clipboard
-        </Button>
         <Button icon={<LinkOutlined />} disabled={adding || !links.trim()} onClick={() => addText(links)}>
           Thêm link đã gõ
         </Button>
