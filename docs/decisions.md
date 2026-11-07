@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — MCP OAuth answers with pages, never HTTP redirects, because production's /api proxy follows them
+
+Reported by tuananh219ln: after "Cho phép kết nối", Claude's "Page not found" showed on
+`/api/mcp/oauth/consent`. The web app is deployed on Cloudflare through OpenNext, whose `/api` rewrite fetches the
+API and follows redirects server-side: the consent's 303 to Claude's callback was fetched by the server (without the
+member's Claude session), and the earlier hop to `/chatgpt#ticket=...` lost its ticket the same way, which the entry
+below worked around without knowing why. The consent answer is now a page that the browser follows (meta refresh and
+a link). Changing the proxy for every API call was not chosen: it carries uploads and every page's data, and the
+OAuth endpoints are the only ones that redirect. A new API redirect through `/api` must not be added; CI's E2E (`next
+start`) would not catch it.
+
 ## 2026-11-07 — The MCP consent screen is served by the authorize request, and signing in comes back to it
 
 Reported by tuananh219ln: connecting Claude ended on "Kết nối ChatGPT / Claude" with no consent, so no connection

@@ -246,9 +246,19 @@ def return_to(auth: McpAuthorization) -> str:
     return auth.redirect_uri or registered(auth.client.redirect_uri)[0]
 
 
-def callback(auth: McpAuthorization, **values) -> RedirectResponse:
+def callback(auth: McpAuthorization, **values) -> HTMLResponse:
+    """The consent answer, sent on to the app's callback by the browser itself. Never a 303: in production the web
+    app (OpenNext on Cloudflare) proxies /api with a fetch that follows redirects, so it fetched Claude's callback
+    server-side and showed Claude's "Page not found" on this URL. A refresh (no script: the page's CSP allows none)
+    and a link the member can click both go there."""
     params = {"state": auth.state, "iss": require_enabled() + "/oauth", **values}
-    return RedirectResponse(return_to(auth) + "?" + urlencode(params), status_code=303, headers=PRIVATE_HEADERS)
+    target = escape(return_to(auth) + "?" + urlencode(params), quote=True)
+    app = app_of(return_to(auth))
+    return page(
+        f"Đang quay lại {app}",
+        f'<meta http-equiv="refresh" content="0;url={target}">'
+        f'<p>Nếu trang không tự chuyển, <a href="{target}">bấm vào đây để quay lại {escape(app)}</a>.</p>',
+    )
 
 
 @router.post(PREFIX + "/consent")
@@ -257,7 +267,7 @@ def consent(
     decision: str = Form(max_length=10),
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
-) -> RedirectResponse:
+) -> HTMLResponse:
     auth = db.scalar(
         select(McpAuthorization).where(McpAuthorization.ticket_hash == hash_session_token(ticket)).with_for_update()
     )

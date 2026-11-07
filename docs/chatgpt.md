@@ -117,8 +117,14 @@ failed check, look at the MP4's frames after it, and say the video is done only 
    the web page `/chatgpt#ticket=...`, where the consent never showed in production, so nothing now
    stands between the request and the screen. **Kết nối ChatGPT / Claude** only lists and revokes
    connections; opening it by hand never asks for consent.
-6. Choose **Cho phép kết nối**. ChatGPT receives OAuth credentials, never the member's password,
-   Reels Studio cookie, AI API keys, or Facebook tokens.
+6. Choose **Cho phép kết nối**. The answer is a short page that sends the browser on to the app's callback (a
+   refresh, and a link to click if it does not). **No OAuth step answers with an HTTP redirect**: in production
+   the web app runs on Cloudflare through OpenNext, whose `/api` proxy fetches the API and follows redirects
+   itself, so a 303 was followed server-side (the member saw Claude's "Page not found" on
+   `/api/mcp/oauth/consent`, and earlier `/chatgpt` with no ticket on `/authorize`). CI's E2E runs `next start`,
+   which does not follow them, so it cannot catch this; `test_mcp.py` asserts the pages instead.
+   The app receives OAuth credentials, never the member's password, Reels Studio cookie, AI API keys, or
+   Facebook tokens.
 7. Select the connection in a ChatGPT conversation and ask it to use Reels Studio.
 
 ChatGPT UI labels and account availability may vary. The setup follows OpenAI's
