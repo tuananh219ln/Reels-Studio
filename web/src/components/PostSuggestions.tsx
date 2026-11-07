@@ -64,7 +64,8 @@ type CloneOption = { key: string; label: string; href: string };
 export function cloneOptions(winner: Winner, working: string[]): { options: CloneOption[]; missing: string[] } {
   const { video } = winner;
   const options: CloneOption[] = [];
-  if (!video.has_tiktok_version) {
+  // A video already on TikTok, as its own MP4 or as a version, needs no TikTok version suggested.
+  if (!video.has_tiktok_version && !video.posted_on.includes("tiktok")) {
     options.push({ key: "tiktok", label: "Bản TikTok", href: `/videos/${video.id}?clone=tiktok` });
   }
   const missing = video.cloned ? [] : working.filter((name) => !winner.on.has(name));
@@ -132,7 +133,9 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
             video: winner.video,
             sub: [
               `${formatCount(winner.views)} view trên ${winner.from}`,
-              ...(winner.video.has_tiktok_version ? [] : ["chưa có bản TikTok"]),
+              ...(winner.video.has_tiktok_version || winner.video.posted_on.includes("tiktok")
+                ? []
+                : ["chưa có bản TikTok"]),
               ...(missing.length > 0 ? [`chưa có trên ${missing.join(", ")}`] : []),
             ].join(", "),
             action: "Nhân bản",

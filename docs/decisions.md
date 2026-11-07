@@ -11,6 +11,24 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — One MP4 goes to every platform from "Đăng bài"; a TikTok version is optional
+
+Owner's choice (namtc), replacing the 2026-11-03 entry's "one file must not go to two platforms" and "a video has one
+platform" as a rule for posting: making a TikTok version meant a second script and a second render for every video.
+
+- **Any video's MP4 may be posted anywhere:** a Facebook video to TikTok (through the member's own connection or
+  recorded after posting by hand), a TikTok version to Facebook (now or from a Page's queue), and either to YouTube
+  Shorts or Instagram Reels. `videos.platform` stays, as the platform the video was made for: it still picks its
+  products (Shopee or TikTok Shop) and the drawer's first tab. "Never the same MP4 twice on one Fanpage" stays.
+- **"Tạo bản TikTok" stays** for a TikTok version with its own hook, caption and cart products, when a member wants one.
+  A Facebook video already on TikTok is no longer offered one on `/videos` or "Bài đăng".
+- **YouTube Shorts and Instagram Reels are posted by hand** and recorded with their link (`publications.platform`
+  `youtube` / `instagram`): the app has no connection to either, and their numbers stay on the platform. Connecting
+  their APIs is later work.
+- **One "Đăng bài" drawer** in the MP4 card, a tab per platform, replaces the "Đăng" dialog, the separate "Thêm vào
+  hàng chờ" button and the TikTok version's own "Đăng TikTok" card. The posts of every platform are listed together
+  under the MP4.
+
 ## 2026-11-08 — Muse is the fourth MCP client, by its exact callback, with read and write
 
 Asked by the owner (namtc), who uses Muse (Meta's assistant) next to ChatGPT and Claude. Muse registers through

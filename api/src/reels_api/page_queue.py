@@ -78,8 +78,6 @@ def free_slots(db: DbSession, page: Fanpage, start: datetime, until: datetime) -
 
 def problem(db: DbSession, video: Video, page: Fanpage | None = None) -> str | None:
     """Why the video cannot be posted from the queue now, shown to members; None when it can."""
-    if video.platform != "facebook":
-        return "Chỉ video Facebook mới vào hàng chờ, bản TikTok đăng tay trong app TikTok"
     if not video.mp4_key:
         return "Video chưa có MP4, hãy render trước"
     title, scenes = split_scenes(db, video)
