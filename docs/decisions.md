@@ -11,6 +11,13 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — An agent may merge a PR when a person asks it to
+
+Requested by tuananh219ln: replaces AGENTS.md's "Never merge your own PR". An agent may merge a PR, its own included,
+when a person with write access asks it to in the session, and only once CI is green and any code-owned path has
+the code owner's approval; it never merges on its own initiative, and merges with a merge commit, never by pushing to
+`main`. The person asking stays responsible for the merge.
+
 ## 2026-11-07 — VieNeu voices join ElevenLabs' in the voice picker; their key is pasted on Cài đặt › Mô hình AI
 
 Requested by tuananh219ln: VieNeu (vieneu.io) has natural Vietnamese voices and a cloud API, so its voices are offered

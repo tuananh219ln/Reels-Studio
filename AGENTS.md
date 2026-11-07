@@ -122,7 +122,10 @@ a push to `main` deploys only after everything passes.
   per feature, and do not edit an area another open branch is already changing.
 - Commits follow Conventional Commits: `feat(scope): ...`, `fix(scope): ...`.
 - Keep PRs small. Merge `main` into your branch before opening the PR and again if it conflicts.
-- **Never merge your own PR.** Merging needs green CI and the code owner's approval.
+- **Merge only when asked.** Merging needs green CI and, for paths in
+  [.github/CODEOWNERS](.github/CODEOWNERS), the code owner's approval. An agent merges a PR (its own included)
+  only when a person with write access asks it to in the session, and only after checking both; it never merges
+  on its own initiative. Merge with a merge commit (`gh pr merge <number> --merge`), never by pushing to `main`.
 - Never force-push, reset `--hard`, or push to `main` (Claude Code denies these in
   `.claude/settings.json`).
 - An AI review runs on a PR only when someone with write access comments `/ai-review`
