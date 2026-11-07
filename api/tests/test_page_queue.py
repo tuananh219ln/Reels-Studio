@@ -108,15 +108,16 @@ def test_only_a_current_mp4_goes_in_and_only_once(an, db, me, storage):
     assert (again.status_code, again.json()["code"]) == (409, "already_queued")
 
 
-def test_a_tiktok_version_is_not_queued(an, db, me, storage):
+def test_a_tiktok_version_is_queued_for_facebook_too(an, db, me, storage):
+    # Any video's MP4 may go to any platform (docs/decisions.md, 2026-11-08); until then a TikTok version was refused.
     page(db, me)
     video = rendered(db, storage, me)
     video.platform = "tiktok"
     db.commit()
 
-    refused = an.post("/api/queue", json={"video_id": video.id})
+    queued = an.post("/api/queue", json={"video_id": video.id})
 
-    assert (refused.status_code, refused.json()["code"]) == (409, "not_queueable")
+    assert queued.status_code == 200, queued.text
 
 
 # --- A Page's settings and order ---

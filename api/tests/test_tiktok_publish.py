@@ -92,10 +92,13 @@ def test_a_direct_post_defaults_to_self_only(an, db, me, storage):
     assert response.status_code == 422
 
 
-def test_publish_needs_a_tiktok_version_with_its_mp4(an, db, me, storage):
+def test_publish_takes_any_videos_mp4_but_needs_one(an, db, me, storage):
+    # A Facebook video's MP4 goes to TikTok too (docs/decisions.md, 2026-11-08); until then only a TikTok version did.
     account = connected_account(db, me)
     facebook = tiktok_video(db, storage, me, platform="facebook")
-    assert an.post(f"/api/tiktok/videos/{facebook.id}/publish", json={"account_id": account.id}).status_code == 422
+    sent = an.post(f"/api/tiktok/videos/{facebook.id}/publish", json={"account_id": account.id})
+    assert sent.status_code == 201, sent.text
+    assert db.scalar(select(Publication).where(Publication.video_id == facebook.id)).platform == "tiktok"
     no_mp4 = tiktok_video(db, storage, me, mp4=False)
     response = an.post(f"/api/tiktok/videos/{no_mp4.id}/publish", json={"account_id": account.id})
     assert response.json()["message"] == "Video chưa render MP4 để đăng"
