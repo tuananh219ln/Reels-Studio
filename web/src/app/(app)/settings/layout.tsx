@@ -2,6 +2,7 @@
 
 import {
   ControlOutlined,
+  DesktopOutlined,
   PictureOutlined,
   RobotOutlined,
   ShoppingOutlined,
@@ -28,6 +29,7 @@ const CONFIG_TABS = [
     hint: "Shopee và TikTok của bạn",
     icon: <ShoppingOutlined />,
   },
+  { key: "/settings/render-nodes", label: "Máy render", hint: "Render trên máy của bạn", icon: <DesktopOutlined /> },
 ];
 
 /** On a wide screen the tabs are a list down the left, each with a line on what it holds, beside the tab's page; on

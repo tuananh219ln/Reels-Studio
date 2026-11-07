@@ -391,6 +391,8 @@ def _job_payload(job: Job | None) -> dict | None:
         "scene_id": job.scene_id,
         "image_provider": job.image_provider,
         "status": job.status,
+        # A render or motion job waiting for a render machine ("ready") or being rendered on one ("taken").
+        "node_stage": job.node_stage,
         "error": job.error,
         "error_detail": job.error_detail,
         "created_by": job.created_by.name if job.created_by else None,

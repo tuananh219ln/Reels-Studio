@@ -97,6 +97,7 @@ when set to an empty string. Containers use real environment variables only.
 | `TEST_DATABASE_URL` | api: pytest database `reels_test` |
 | `ALLOWED_ORIGINS` | api: comma-separated origins allowed to change data; the default is `http://localhost:3000`; in production the web domain |
 | `MCP_PUBLIC_URL` | api, optional: public web URL ending in `/api/mcp`; enables private ChatGPT and Claude MCP/OAuth. Empty disables it. HTTPS required except localhost; the origin must be in `ALLOWED_ORIGINS`. See [chatgpt.md](chatgpt.md) |
+| `REELS_SERVER`, `REELS_NODE_TOKEN` | render machine only (`python -m reels_api node` on a member's computer), never the api or the worker: the web address and the machine's token from Cài đặt › Máy render. `api/scripts/render-node.ps1` sets both for its run. See [Render machine](#render-machine) |
 | `COOKIE_SECURE` | api: `true` adds the Secure flag to the session cookie; set on the Coolify application, empty on localhost |
 | `ELEVENLABS_API_KEY` | api + worker: scene narration and the voice list; a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, a render with voice text fails with a clear reason |
 | `IMAGE_GEN_API_KEY` | worker: AI photos for scenes that have none (Gemini via Google AI Studio); a key pasted on Cài đặt › Nguồn tư liệu wins over it; with neither, an image job fails with a clear reason |
@@ -115,6 +116,28 @@ Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLab
 Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
 the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
+
+## Render machine
+
+A member's own computer can render for the team, so the VPS only prepares jobs (narration, checks, files) and keeps
+the web, the database and posting. Turn it on in **Cài đặt › Máy render** ("Render và cảnh động chạy trên máy
+render"); while it is on, a render or a motion scene **waits until a machine takes it** (the owner's choice, no VPS
+fallback): turn the switch off to have the VPS render again.
+
+1. **Cài đặt › Máy render › Thêm máy**: name the computer and copy the command; the token is shown once.
+2. On the computer (Windows), with FFmpeg (`winget install Gyan.FFmpeg`), Python 3.12 and, for motion scenes,
+   Node 22 (`winget install OpenJS.NodeJS.LTS`), from the repository root:
+   `powershell -ExecutionPolicy Bypass -File api\scripts\render-node.ps1 -Server https://<web-domain> -Token <token>`.
+   The first run makes `api\.venv`, installs the api and the render core, and HyperFrames with GSAP in
+   `%LOCALAPPDATA%\reels-hyperframes` (`-SkipMotion` leaves them out). It then waits for jobs; Ctrl+C stops it.
+3. The machine shows "Đang chạy" on the page while it asks for jobs (every 5 s). A job it took and stopped answering
+   for 10 minutes goes back to the queue; deleting the machine revokes its token and gives its job back.
+
+The machine talks only to `/api/node/...` over HTTPS with its token (no cookie, no database, no storage): it
+downloads the job's bundle, renders with its own FFmpeg (and HyperFrames), measures QC and uploads the MP4 (under
+95 MB, Cloudflare's limit). The motion markup is checked before it is stored (`motion.check_markup`); on a Windows
+machine the render's Chrome gets the proxy environment variables but not the Docker image's `--proxy-server`
+wrapper, so that check is the main guard there.
 
 ## Operations
 

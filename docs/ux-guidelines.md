@@ -466,11 +466,18 @@ Built:
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
 - **Video editor** idea card: a video made from a plan idea shows "Theo kế hoạch 30 ngày, ngày N" (or "Backlog")
   with its pain group, pain and hook under the title.
+- **Cài đặt › Máy render** (`/settings/render-nodes`): a switch "Render và cảnh động chạy trên máy render" with what
+  it changes, a warning when it is on and no machine is running (with the number of jobs waiting); the machines with
+  "Đang chạy"/"Đang tắt" and when each was last seen, "Xoá" (confirmed); "Thêm máy" takes a name and shows the
+  PowerShell command with the token once, copyable. On a video page a waiting job reads "Đang chờ máy render: …"
+  with "Hủy", and "Máy render đang dựng: …" while a machine renders it.
 - **Kho tư liệu** (`/media`): "Thêm tư liệu" picks the product being made (approved affiliate products), which names
   the folder and the searches; a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
   uploading one by one with a progress bar; under it the name with "Ảnh không nền", "Ảnh Google" and "Clip TikTok",
-  which open the search in a new tab, and a box where pasting a link adds it at once ("Thêm vào kho" for typed
-  links). The library below filters by folder, Ảnh/Clip and name, as tall cards (a clip with its seconds) with "Xoá"
+  which open the search in a new tab, and a box where pasting adds at once: a photo copied with "Sao chép hình
+  ảnh", a link, or a "data:" address (Google Ảnh's thumbnails); a photo dragged from another tab can be dropped on
+  it too. The primary "Dán ảnh / link", first in that row, adds whatever the clipboard holds in one click (the browser
+  asks once for permission); "Thêm link đã gõ" sends typed links. The library below filters by folder, Ảnh/Clip and name, as tall cards (a clip with its seconds) with "Xoá"
   (videos that used it keep their copy). On a scene card, "Kho tư liệu" opens the same search and library in a
   dialog, on the folder of the product attached to the video (else its topic); "Dùng" copies an item into the scene,
   asking first when it replaces a picture.
