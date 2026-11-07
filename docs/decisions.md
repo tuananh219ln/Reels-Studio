@@ -11,6 +11,29 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — Google Ảnh photos come in through the team's Chrome extension, only stock sites are left out
+
+Owner's choice (namtc), replacing the 2026-11-02 entry's "the app must not pick them by itself": photos may be taken
+from Google Ảnh automatically, but through each member's own Chrome, never from the server.
+
+- **Why the browser.** Google answers a server's search with a page that needs its JavaScript and no photos, by
+  design against automated searching; getting past that from the server would mean dodging its bot protection, and it
+  would soon block the server. Paid search APIs (Serper.dev, SerpAPI) were offered and declined, and so was letting
+  the member's Claude drive the browser (too many tokens per photo).
+- **The "Reels Studio – Google Ảnh" extension** (`extension/`, Manifest V3, installed unpacked by each member) runs
+  only on the app's pages and on Google Ảnh. "Lấy ảnh Google cho cảnh thiếu ảnh" on the video page asks it to open
+  Google Ảnh in a background tab for each scene's keywords, read the photos' addresses from the results the member's
+  browser received, and close the tab; the page then attaches the first usable photo with the existing link download.
+  On any site, the image's right-click menu has "Gửi ảnh vào Reels Studio", which sends it to the scene whose "Tìm
+  trên Google" was pressed last. A CAPTCHA stops it and the member solves it in the tab; the extension never answers
+  one.
+- **Only stock sites are left out.** A photo whose link is on a stock photo site (Shutterstock, Getty, iStock, Adobe
+  Stock…) is refused for an automatic pick and the next result is tried; every other photo may be used. A photo picked
+  this way is marked "Tự chọn, kiểm tra lại" and keeps its link as `image_source`, so a copyright claim can be traced
+  back. Most Google photos are copyrighted: the member who presses the button is responsible for them, as for a pasted
+  link.
+- **"Tự tìm ảnh" after a script stays on the free libraries**: it runs on the worker, where Google cannot be reached.
+
 ## 2026-11-08 — Muse is the fourth MCP client, by its exact callback, with read and write
 
 Asked by the owner (namtc), who uses Muse (Meta's assistant) next to ChatGPT and Claude. Muse registers through
