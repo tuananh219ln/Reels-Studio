@@ -85,7 +85,12 @@ export default function TrackModal({
         >
           <Input />
         </Form.Item>
-        <Form.Item label="Chủ đề" name="topics" rules={[{ required: true, message: "Chọn ít nhất một chủ đề" }]}>
+        <Form.Item
+          label="Chủ đề"
+          name="topics"
+          rules={[{ required: true, message: "Chọn ít nhất một chủ đề" }]}
+          extra="Theo các nhóm chủ đề ở Kho kiến thức; “chung” hợp với mọi chủ đề."
+        >
           <Select mode="multiple" aria-label="Chủ đề" options={topics.map((value) => ({ value, label: value }))} />
         </Form.Item>
         <Form.Item label="Mood" name="mood" rules={[{ required: true, message: "Chọn mood" }]}>

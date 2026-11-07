@@ -1688,7 +1688,8 @@ test("add a track to the music library, then choose it for a video", async ({ pa
   await page.getByLabel("Chọn file MP3 cho thư viện").setInputFiles(makeMp3());
   const add = page.getByRole("dialog", { name: "Thêm vào thư viện nhạc" });
   await add.getByLabel("Tên bài").fill("Piano xương khớp");
-  await chooseOption(page, add.getByLabel("Chủ đề"), "xương khớp");
+  // The topics are the groups of Kho kiến thức plus "chung"; the seed group is "Sức khỏe".
+  await chooseOption(page, add.getByLabel("Chủ đề"), "Sức khỏe");
   // A multiple select stays open after a pick and would cover the Mood field: click away to close it.
   await add.getByText("File:").click();
   await chooseOption(page, add.getByLabel("Mood"), "piano");
