@@ -21,8 +21,10 @@ from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
 
 from . import (
+    affiliate_rounds,
     article_posts,
     articles,
+    auto_photos,
     autoedit,
     clips,
     frames,
@@ -35,6 +37,7 @@ from . import (
     stock_clips,
     video_options,
 )
+from .claude import GeneratedScript
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -268,6 +271,15 @@ def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSessio
 
 @router.post("/videos", status_code=201)
 def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    return _saved(db, start_video(body, me, db))
+
+
+def start_video(
+    body: NewVideoBody, me: Session, db: DbSession, written: GeneratedScript | None = None, via: str = ""
+) -> Video:
+    """A new video, its script queued, typed ("Tự viết") or, as `written`, already written from the group's prompt by
+    a member's own Claude through MCP (`via` "assistant"): saved as the script job saves an answer, with no LLM call.
+    The caller commits."""
     topic = " ".join(unicodedata.normalize("NFC", body.topic).split())
     if not topic:
         raise invalid("Hãy nhập chủ đề")
@@ -288,6 +300,7 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
         created_by_id=me.user_id,
         ai_effects=body.ai_effects and not manual,
         mode=body.video_mode,
+        written_via=via,
     )
     video_options.apply_team_defaults(db, video)
     db.add(video)
@@ -297,9 +310,18 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
     if manual:
         _write_by_hand(db, video, topic, scenes)
         autoedit.apply_default(db, video)
+    elif written is not None:
+        # Imported here: the job module loads the render core, which the routes otherwise do not need at import.
+        from . import jobs
+
+        jobs.save_script(db, video, written)
+        affiliate_rounds.ask_after_script(db, video, me.user_id)
+        # As after a script job: "Tự tìm ảnh" looks for the scenes' photos, unless it is turned off.
+        if auto_photos.enabled(db):
+            _enqueue(db, video, "photos", me)
     else:
         _enqueue(db, video, "script", me)
-    return _saved(db, video)
+    return video
 
 
 def hand_written_scenes(script: str) -> list[tuple[str, str]]:

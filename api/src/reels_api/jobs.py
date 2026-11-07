@@ -55,7 +55,17 @@ from .clips import ClipError, frame_at
 from .facebook import FacebookError
 from .frames import jpeg_bytes
 from .imagegen import ImageGenError, generate_image
-from .models import Article, Job, KnowledgeTopic, Publication, Scene, Video, VideoNote, VideoReference
+from .models import (
+    Article,
+    Job,
+    KnowledgeTopic,
+    Publication,
+    Scene,
+    TopicPlanItem,
+    Video,
+    VideoNote,
+    VideoReference,
+)
 from .sessions import now
 from .storage import DirectoryStorage
 from .tts import TtsError, synthesize, voice_signature
@@ -238,17 +248,7 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
             # The snapshot from the moment "Nhân bản" was pressed: later edits of the source do not count.
             prompt = build_clone_prompt(topic.clone_prompt, video.clone_source, topic.banned_words, topic.photo_hint)
         else:
-            # A video made from a 30-day plan idea writes to that idea's pain and hook.
-            idea = plans.idea_of_video(db, video.id)
-            prompt = build_script_prompt(
-                topic.script_prompt,
-                video.topic,
-                topic.banned_words,
-                (idea.pain_group, idea.pain, idea.hook) if idea else None,
-                photo_hint=topic.photo_hint,
-            )
-            if video.ai_effects:
-                prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
+            prompt = script_prompt(topic, video.topic, plans.idea_of_video(db, video.id), video.ai_effects, False)
         if is_backdrop(video):
             prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
 
@@ -260,6 +260,25 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
         save_script(db, video, script)
         affiliate_rounds.ask_after_script(db, video, job.created_by_id)
         db.commit()
+
+
+def script_prompt(
+    group: KnowledgeTopic, topic: str, idea: TopicPlanItem | None, ai_effects: bool, backdrop: bool
+) -> str:
+    """The whole prompt that writes a video's script: the script job sends it, and the MCP server hands the same one
+    to a member's own Claude. A video made from a 30-day plan idea writes to that idea's pain and hook."""
+    prompt = build_script_prompt(
+        group.script_prompt,
+        topic,
+        group.banned_words,
+        (idea.pain_group, idea.pain, idea.hook) if idea else None,
+        photo_hint=group.photo_hint,
+    )
+    if ai_effects:
+        prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
+    if backdrop:
+        prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
+    return prompt
 
 
 def _llm(

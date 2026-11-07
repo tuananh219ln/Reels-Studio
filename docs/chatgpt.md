@@ -11,6 +11,38 @@ worker performs the queued jobs with the team's configured services and their no
 The assistant runs on the member's own plan (ChatGPT, or a Claude Pro/Max plan): each member connects
 their own account, and nothing in Reels Studio uses a member's subscription for anyone else.
 
+## Writing scripts on the member's Claude plan, not the team's API key
+
+Where the script is written decides who pays, and the video page says which one wrote it:
+
+| Started from | Written by | Cost | Video page shows |
+| --- | --- | --- | --- |
+| "Tạo video" in the app (or `create_video` over MCP) | The team's AI service, a script job | API key on Cài đặt › Mô hình AI | "Kịch bản viết bởi Claude · <model>" (provider and model of the job) |
+| A chat in Claude (web, Desktop, Claude Code) connected here | The member's own Claude | The member's Pro/Max plan, nothing to the team | "Kịch bản viết bởi Claude của thành viên qua kết nối MCP" |
+
+A topic group's video is written with the group's own prompt either way:
+
+1. `get_script_prompt` (read) returns the exact prompt a script job would send for that topic and group, built by
+   the job's own `jobs.script_prompt`: the group's "Prompt viết kịch bản", its banned words and photo hint, and
+   the fixed JSON output format ([content.md](content.md)). Its options match "Tạo video":
+   - `plan_item_id`: a 30-day plan idea, listed by `list_plan_ideas` (ideas with no video yet): its pain group,
+     pain and hook fill the prompt, its topic is used when none is given, and the new video is linked to it. An
+     idea of another group or one that already has a video is refused.
+   - `ai_effects` ("AI gợi ý hiệu ứng"): the prompt asks for each scene's effects, and they are put on as after a
+     job, values outside the presets left out.
+   - `video_mode` `single` ("Video xuyên suốt") adds its rules.
+
+   Groups without a script prompt are refused, as in the app.
+2. The assistant writes the JSON itself, self safety review included.
+3. `create_video_from_group_prompt`, called with the same options, reads it with the script job's own parser and saves it as the job would: five
+   titles, scenes with voice, photo keywords and image prompts, caption, hashtags, pinned comment, self review and
+   music ideas; then the team's "Mẫu dựng", the Shopee suggestions and "Tự tìm ảnh" follow as after a job. JSON the
+   parser cannot read is refused with the reason, for the assistant to fix. The video is marked
+   `videos.written_via = "assistant"` (migration 0056).
+
+The server's instructions make this the default; `create_video` (the team's API) is used only when the member asks
+for it. `create_video_from_script` (below) is also marked as written by the member's Claude.
+
 ## Product videos with Claude
 
 The tools give the assistant what it needs to make an affiliate product video without the team's AI
@@ -104,7 +136,9 @@ another URI, do not broaden the allowlist blindly: check its documentation first
 - “Đọc video số 12 và đề xuất ba câu mở đầu. Chưa lưu.”
 - “Lưu câu thứ hai vào cảnh tiêu đề của video 12.”
 - “Sửa lời đọc cảnh 45 thành: Ăn đa dạng giúp bổ sung nhiều chất dinh dưỡng.”
-- “Tạo video về rau xanh trong nhóm chủ đề Sức khỏe bằng dịch vụ AI đã cấu hình.”
+- “Viết kịch bản về rau xanh theo prompt nhóm Sức khỏe và tạo video.” (the member's Claude writes it)
+- “Làm video cho ý tưởng ngày 3 trong kế hoạch nhóm Sức khỏe, cho AI chọn hiệu ứng.”
+- “Tạo video về rau xanh trong nhóm chủ đề Sức khỏe bằng API của nhóm.” (a script job, paid)
 - “Tìm sản phẩm nồi chiên đã duyệt, viết kịch bản 5 cảnh (hook, lợi ích, giá, kêu gọi mua) và tạo
   video tự viết trong nhóm Gia dụng.”
 - “Gắn clip TikTok này cho cảnh 2, bắt đầu từ giây 4: https://www.tiktok.com/@shop/video/…”
@@ -120,7 +154,7 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
 
 ## Authorization and revocation
 
-- `reels:read` reads video content/status, topic-group names and the affiliate product list (no
+- `reels:read` reads video content/status, topic-group names, a group's assembled script prompt and the affiliate product list (no
   member's affiliate account or key). `reels:write` additionally permits
   the explicit write tools. Both use the member's identity; the library is shared by the team.
 - Consent is explicit, protected by the existing Origin guard and a short-lived ticket bound to
