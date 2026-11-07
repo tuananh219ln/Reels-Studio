@@ -302,7 +302,13 @@ Built:
     longer than 60 s keeps its first 60 s. "Tìm trên Google" opens Google Ảnh in a new tab, tall
     photos only, and "Tìm trên TikTok" TikTok's video search, to copy a photo or a video's link and
     paste it back; with more than one keyword each button first lists them ("… với từ khóa:", Google
-    the Vietnamese then the English ones, TikTok the Vietnamese ones) and opens on the one picked. Then
+    the Vietnamese then the English ones, TikTok the Vietnamese ones) and opens on the one picked. With the team's
+    Chrome extension ("Reels Studio – Google Ảnh", `extension/`), "Tìm trên Google" also makes that scene the target
+    of "Gửi ảnh vào Reels Studio: <cảnh>" on any image's right-click menu, which puts the photo on it like a pasted
+    link; and the render bar shows "Lấy ảnh Google cho cảnh thiếu ảnh" beside "Tạo ảnh AI cho cảnh thiếu", which
+    searches Google Ảnh for every scene without a photo or clip (its first two keywords) and puts the first usable
+    result on each, marked "Tự chọn, kiểm tra lại", then says how many it filled; a CAPTCHA stops it with a dialog
+    saying to solve it in the Google tab and press again. Without the extension neither shows. Then
     "Chọn từ kho ảnh/video", "Đã dùng trong nhóm" (a dialog of the photos and clips the group's other
     videos use, best match for the scene's keywords first, a search box that ignores accents, and
     "Dùng" on each, which copies it into the scene, asking first when the scene has a picture), "Tìm ảnh" with its source arrow,

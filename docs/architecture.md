@@ -144,6 +144,21 @@ page; nothing renders it on the VPS while the switch is on. Machine endpoints (`
 bearer token only and are exempt from the Origin check (main.py); member endpoints (`/api/render-nodes`) use the
 login cookie.
 
+### Google Ảnh Through the Chrome Extension
+
+The team's Chrome extension ([extension/](../extension/README.md), Manifest V3, installed unpacked) takes photos
+from Google Ảnh in the member's own browser, because Google gives a server's search no photos (decision
+2026-11-08). Its content script on the app's pages bridges `window.postMessage` (`source: "reels-page"` from the page,
+`"reels-extension"` back) to its background script; [googleExtension.ts](../web/src/lib/googleExtension.ts) is the
+page's side. `find` opens `google.com/search?udm=2` for each keyword in a background tab, one at a time 1.5 s apart;
+the content script on that tab reads each result's original address from the page (`google-results.js`, the
+`["https://…", height, width]` entries, Google's own thumbnails and photos under 500 px left out) and the tab is
+closed. A `/sorry/` page (CAPTCHA) stops the search and is brought to the front. The page then posts each candidate to
+`POST /api/scenes/{id}/media-from-url` with `auto: true`: a stock photo site ([stock_sites.py](../api/src/reels_api/stock_sites.py))
+is refused with `stock_photo` before any download, a clip with `not_a_photo`, and a stored photo gets `image_auto`
+("Tự chọn, kiểm tra lại") and its link as `image_source`. `target` names the scene the right-click menu "Gửi ảnh vào
+Reels Studio" sends to; the photo comes back to that page as `send-image` and is fetched like a pasted link.
+
 ### Media Library ("Kho tư liệu")
 
 Photos and clips gathered once and used in any scene ([routes_media.py](../api/src/reels_api/routes_media.py)).
