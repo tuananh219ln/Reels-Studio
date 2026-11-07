@@ -798,7 +798,9 @@ class MusicTrack(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(200))
-    topics: Mapped[list] = mapped_column(JSONB, default=list)  # values from music.TOPICS
+    topics: Mapped[list] = mapped_column(
+        JSONB, default=list
+    )  # names of Kho kiến thức groups, or "chung" (music_topics.py)
     mood: Mapped[str] = mapped_column(String(40))  # a value from music.MOODS
     license_note: Mapped[str] = mapped_column(Text, default="")
     storage_key: Mapped[str] = mapped_column(String(200))
