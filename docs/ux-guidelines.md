@@ -302,7 +302,13 @@ Built:
     longer than 60 s keeps its first 60 s. "Tìm trên Google" opens Google Ảnh in a new tab, tall
     photos only, and "Tìm trên TikTok" TikTok's video search, to copy a photo or a video's link and
     paste it back; with more than one keyword each button first lists them ("… với từ khóa:", Google
-    the Vietnamese then the English ones, TikTok the Vietnamese ones) and opens on the one picked. Then
+    the Vietnamese then the English ones, TikTok the Vietnamese ones) and opens on the one picked. With the team's
+    Chrome extension ("Reels Studio – Google Ảnh", `extension/`), "Tìm trên Google" also makes that scene the target
+    of "Gửi ảnh vào Reels Studio: <cảnh>" on any image's right-click menu, which puts the photo on it like a pasted
+    link; and the render bar shows "Lấy ảnh Google cho cảnh thiếu ảnh" beside "Tạo ảnh AI cho cảnh thiếu", which
+    searches Google Ảnh for every scene without a photo or clip (its first two keywords) and puts the first usable
+    result on each, marked "Tự chọn, kiểm tra lại", then says how many it filled; a CAPTCHA stops it with a dialog
+    saying to solve it in the Google tab and press again. Without the extension neither shows. Then
     "Chọn từ kho ảnh/video", "Đã dùng trong nhóm" (a dialog of the photos and clips the group's other
     videos use, best match for the scene's keywords first, a search box that ignores accents, and
     "Dùng" on each, which copies it into the scene, asking first when the scene has a picture), "Tìm ảnh" with its source arrow,
@@ -419,15 +425,25 @@ Built:
   - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
     new video is tagged "TikTok" (on the list it sits on its source's card, see above) and both pages link
     to each other: "Bản TikTok: …" on the Facebook video, "Bản Facebook gốc: …" on the TikTok version (the two
-    usually share a title, so the label says where the link goes). A TikTok version's "Xuất bản" has "Đăng TikTok" instead of "Đăng":
+    usually share a title, so the label says where the link goes). The TikTok version is optional: any video's own MP4
+    goes to TikTok from "Đăng bài" too. "Đăng bài" › TikTok (any video) has
     copy buttons, the cart's products, a checklist, "Đăng lên TikTok" (one of the member's own connected
     TikTok accounts, "Nháp" by default or "Đăng thẳng" with a privacy level and the note that until TikTok
     approves the app only "Chỉ mình tôi" on a private account works; disabled without an MP4 or while a job
     runs) and "Đã đăng tay" (one of the member's TikTok accounts and the post's link), with the posts below:
     one sent through the API is tagged "Nháp TikTok" or "Đăng thẳng" (and "Đang gửi" until TikTok has it), and
-    once it is on TikTok its sender gets a box to paste its link;
-  - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
-    có"), the Fanpage, each shown as "<Page>, <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
+    once it is on TikTok its sender gets a box to paste its link. On a Facebook video the cart line instead says its
+    products are Shopee's, the cart is set in TikTok's app, and "Tạo bản TikTok" gives TikTok its own script;
+  - "Đăng bài" in the MP4 card, on every video, opens one drawer whose tabs are the platforms the MP4 may go to, each
+    with how many posts it has ("YouTube Shorts (1)"), opening on the video's own platform (on Facebook when a
+    suggestion's "Đăng" opened it): Facebook (below, with "Thêm vào hàng chờ" under its form; the drawer's own "Đăng"
+    button belongs to this tab only), TikTok (above), YouTube Shorts and Instagram Reels (the app has no connection
+    to either: "Tải MP4", "Copy caption + hashtag", then the post's link and "Ghi bài đã đăng", with the posts below
+    and a delete for the member who recorded each). Under the MP4, "Bài đăng của video" lists the posts on every
+    platform: TikTok's and the hand-recorded ones as a line with "Xem bài", Facebook's with their actions. On
+    `/videos` a card says "+ TikTok, YouTube" beside its platform when its own MP4 is out elsewhere, and a Facebook
+    video already on TikTok is not offered a TikTok version;
+  - Facebook in "Đăng bài": the Fanpage, each shown as "<Page>, <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
     ahead, within 29 days, typed in Vietnam time whatever the browser's time zone; after a post it is back on "Đăng ngay").
     A video of the 30-day plan opens on "Hẹn giờ" at the time the plan suggests (its day, at the group's posting
     time for its place in the day), said under the field. Its "Đăng" is disabled while the MP4 is out of date or the Page holds this

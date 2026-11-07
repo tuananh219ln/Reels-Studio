@@ -4,7 +4,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
-from conftest import clip_bytes, login, make_user, make_video, needs_ffmpeg
+from conftest import clip_bytes, login, make_user, make_video, needs_ffmpeg, photo_bytes
 from sqlalchemy import select
 
 from reels_api import remote_media
@@ -251,3 +251,62 @@ def test_tiktok_links_that_are_not_one_video_or_too_big_are_refused(
     assert stored_clip(db, scene)[0] is None
     # Only a single video's page is downloaded (and yt-dlp skips a file over the limit, leaving none).
     assert FakeYoutubeDL.downloaded == ([answer] if "video" in url else [])
+
+
+@pytest.mark.parametrize(
+    ("url", "site"),
+    [
+        ("https://image.shutterstock.com/image-photo/rau-260nw-1.jpg", "Shutterstock"),
+        ("https://www.shutterstock.vn/image-photo/1", "Shutterstock"),
+        ("https://media.gettyimages.com/id/1/photo.jpg", "Getty Images"),
+        ("https://www.gettyimages.co.uk/detail/1", "Getty Images"),
+        ("https://t4.ftcdn.net/jpg/01/02/03/360_F_1.jpg", "Adobe Stock"),
+        ("https://product.hstatic.net/200000423303/product/can-tay.jpg", None),
+        ("https://notshutterstock.com/x.jpg", None),
+        ("https://shutterstock.example.com/x.jpg", None),
+        ("https://alamy.com.evil.net/x.jpg", None),
+    ],
+)
+def test_stock_photo_sites_are_recognised_by_their_hosts(url, site):
+    from reels_api.stock_sites import stock_site
+
+    assert stock_site(url) == site
+
+
+def test_a_photo_picked_from_google_is_marked_to_check_and_never_from_a_stock_site(an, db, me, storage, monkeypatch):
+    video = make_video(db, storage, me)
+    scene = first_scene(db, video)
+    fetched = []
+
+    def download(url, folder):
+        fetched.append(url)
+        return remote_media.Media(photo=(photo_bytes(), "jpg"))
+
+    monkeypatch.setattr(remote_media, "download", download)
+
+    stock = an.post(
+        f"/api/scenes/{scene}/media-from-url", json={"url": "https://image.shutterstock.com/rau.jpg", "auto": True}
+    )
+    assert stock.status_code == 422 and stock.json()["code"] == "stock_photo" and fetched == []
+
+    picked = an.post(
+        f"/api/scenes/{scene}/media-from-url", json={"url": "https://product.hstatic.net/can-tay.jpg", "auto": True}
+    )
+    assert picked.status_code == 200, picked.text
+    shown = next(item for item in picked.json()["scenes"] if item["id"] == scene)
+    assert shown["image_auto"] is True
+    assert stored(db, scene)[1] == "https://product.hstatic.net/can-tay.jpg"
+
+    # The same link pasted by a member is the member's choice.
+    pasted = an.post(f"/api/scenes/{scene}/media-from-url", json={"url": "https://product.hstatic.net/can-tay.jpg"})
+    assert next(item for item in pasted.json()["scenes"] if item["id"] == scene)["image_auto"] is False
+
+
+def test_a_clip_is_not_an_automatic_photo_pick(an, db, me, storage, monkeypatch, tmp_path):
+    video = make_video(db, storage, me)
+    scene = first_scene(db, video)
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"x")
+    monkeypatch.setattr(remote_media, "download", lambda url, folder: remote_media.Media(clip=clip))
+    refused = an.post(f"/api/scenes/{scene}/media-from-url", json={"url": "https://example.com/a.mp4", "auto": True})
+    assert refused.status_code == 422 and refused.json()["code"] == "not_a_photo"
