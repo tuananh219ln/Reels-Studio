@@ -21,7 +21,7 @@ const CONFIG_TABS = [
     icon: <ControlOutlined />,
   },
   { key: "/settings/templates", label: "Mẫu dựng", hint: "Hiệu ứng áp sẵn cho video", icon: <ThunderboltOutlined /> },
-  { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản", icon: <RobotOutlined /> },
+  { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, giọng VieNeu", icon: <RobotOutlined /> },
   { key: "/settings/sources", label: "Nguồn tư liệu", hint: "Kho ảnh, ảnh AI, giọng đọc", icon: <PictureOutlined /> },
   {
     key: "/settings/affiliate-accounts",

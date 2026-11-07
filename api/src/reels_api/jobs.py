@@ -68,7 +68,8 @@ from .models import (
 )
 from .sessions import now
 from .storage import DirectoryStorage
-from .tts import TtsError, synthesize, voice_signature
+from .tts import TtsError, service_name, synthesize, voice_signature
+from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .video_options import render_options, voice_id, voice_pause, voice_speed
 from .videos import (
@@ -546,14 +547,15 @@ def _scene_label(scene: Scene, index: int) -> str:
 
 def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
     """Narration for every scene that has something to read but no MP3 made from it yet. Each MP3 is committed at once,
-    so a retry after a failure pays ElevenLabs only for the scenes still missing."""
+    so a retry after a failure pays ElevenLabs or VieNeu only for the scenes still missing."""
+    voice = voice_id(video)
     for index, scene in enumerate(scenes):
         text = spoken(video, scene)
         if not text or (made_voice_seconds(video, scene) is not None and storage.exists(scene.voice_key)):
             continue
         label = _scene_label(scene, index)
         try:
-            data = synthesize(text, source_keys.get(db, "elevenlabs"), voice_id(video), voice_speed(video))
+            data = synthesize(text, source_keys.get(db, tts_key_name(voice)), voice, voice_speed(video))
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
         key = new_key(video.id, f"voice-{scene.id}", "mp3")
@@ -564,7 +566,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             seconds = None
         if seconds is None:
             storage.delete(key)
-            raise JobFailure(f"{label}: ElevenLabs trả file lời đọc không đọc được, thử lại sau")
+            raise JobFailure(f"{label}: {service_name(voice)} trả file lời đọc không đọc được, thử lại sau")
         old = scene.voice_key
         scene.voice_key, scene.voice_signature, scene.voice_seconds = (
             key,
