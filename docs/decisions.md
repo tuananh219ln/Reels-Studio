@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-07 — An /api endpoint the browser visits never answers with a redirect
+
+Found on production right after the TikTok connection shipped: "Kết nối TikTok" stopped on
+`/api/tiktok/oauth/start`, and TikTok's way back ended in a 404. The web's `/api` proxy on Cloudflare Workers follows
+a 3xx itself, on the api's side, instead of handing it to the browser (`next dev` hands it over, so local runs and
+E2E did not show it). So an endpoint a browser opens answers with data or a page, never a 3xx: "Kết nối TikTok" asks
+the api for TikTok's address and the page goes there itself, and the OAuth callback answers with a small page that
+sends the browser back to Tài khoản affiliate. The Redirect URI registered with TikTok is unchanged.
+
 ## 2026-11-07 — TikTok through its API: each member connects their own account; a draft is the default
 
 Issue #46, brief [docs/specs/tiktok-posting/brief.md](specs/tiktok-posting/brief.md). The TikTok developer app
