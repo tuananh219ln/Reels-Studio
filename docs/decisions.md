@@ -11,12 +11,26 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
-## 2026-11-07 — An agent may merge a PR when a person asks it to
+## 2026-11-07 — An agent merges a PR only when a person asks it to
 
-Requested by tuananh219ln: replaces AGENTS.md's "Never merge your own PR". An agent may merge a PR, its own included,
-when a person with write access asks it to in the session, and only once CI is green and any code-owned path has
-the code owner's approval; it never merges on its own initiative, and merges with a merge commit, never by pushing to
-`main`. The person asking stays responsible for the merge.
+Requested by tuananh219ln, alongside "Green CI is the approval" (same day), which it adds to: an agent merges a PR,
+its own included, only when a person with write access asks it to in the session, never on its own initiative, and
+with a merge commit (`gh pr merge <number> --merge`), never by pushing to `main`. The person asking stays responsible
+for the merge. The code owner's approval this PR first asked for is gone with the code owner.
+
+## 2026-11-07 — Green CI is the approval: any PR may be merged once every check passes
+
+Asked by namtc: Reels Studio is the team's repo and has no owner, so a PR whose CI checks all pass is approved, and
+it may be merged by its author or by an agent asked to. Replaces the rule "Never merge your own PR. Merging needs
+green CI and the code owner's approval" of [AGENTS.md](../AGENTS.md).
+
+- **Every check passed and up to date with `main`**, never with one failing or still running, and never through
+  `gh pr merge --admin` or another bypass. CI stays the guard, so never weakening a check matters all the more.
+- **`.github/CODEOWNERS` is removed:** with no owner it only asked one person to review every sensitive path. The
+  paths it named (migrations, CI, lint rules, agent rules, login, Fanpage tokens, prompts, the decision log) are
+  still changed only when the task is about them ([AGENTS.md](../AGENTS.md)).
+- GitHub's branch protection on `main`, if it still requires a review, is changed by someone with admin access in
+  the repo's settings; agents do not change it.
 
 ## 2026-11-07 — The music library's topics are the groups of Kho kiến thức
 

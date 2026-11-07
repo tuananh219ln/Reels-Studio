@@ -14,7 +14,7 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
   rituals. Ask the user only when a decision is genuinely theirs.
 - **Talk to the user in Vietnamese.** Code, comments, docs and commit messages are in English; the
   PR description fills [the PR template](.github/pull_request_template.md) in Vietnamese, so the
-  person approving it can judge it. Everything the app shows (labels, messages, errors) is in
+  team can judge it. Everything the app shows (labels, messages, errors) is in
   Vietnamese.
 - **Bigger features** (new table, or a change across api + worker + web): write a short plan in the
   PR description: what changes, why, and how it was verified. No separate spec file is needed.
@@ -24,7 +24,7 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
   before fixing; the test stays as the regression guard.
 - **Decisions are logged.** Read [docs/decisions.md](docs/decisions.md) before starting a new
   round of work. Never silently reverse a logged decision: if the work conflicts with one, stop
-  and surface the conflict so the owner can decide. A new decision made during the work is
+  and surface the conflict so the user can decide. A new decision made during the work is
   recorded there, dated, in the same PR.
 - **Report in three parts** (in the PR description): what changed; which checks and tests were
   actually run, with their real results; and what is unfinished or turned up outside the task.
@@ -104,8 +104,8 @@ a push to `main` deploys only after everything passes.
   relax lint/format rules, skip CI steps, or add `noqa` / `eslint-disable` without a reason in the
   same line. Fix the code; if a check is truly wrong, say so in the PR and let a person decide.
 - **Do not change** `.github/`, `ruff.toml`, `web/eslint.config.mjs`, migrations already on `main`,
-  `AGENTS.md` or `.claude/` unless the task is about them. They are owned in
-  [.github/CODEOWNERS](.github/CODEOWNERS).
+  `AGENTS.md` or `.claude/` unless the task is about them: a mistake there is hard to undo or
+  quietly turns a check off.
 
 ## Adding things (one place each)
 
@@ -122,10 +122,13 @@ a push to `main` deploys only after everything passes.
   per feature, and do not edit an area another open branch is already changing.
 - Commits follow Conventional Commits: `feat(scope): ...`, `fix(scope): ...`.
 - Keep PRs small. Merge `main` into your branch before opening the PR and again if it conflicts.
-- **Merge only when asked.** Merging needs green CI and, for paths in
-  [.github/CODEOWNERS](.github/CODEOWNERS), the code owner's approval. An agent merges a PR (its own included)
-  only when a person with write access asks it to in the session, and only after checking both; it never merges
-  on its own initiative. Merge with a merge commit (`gh pr merge <number> --merge`), never by pushing to `main`.
+- **Green CI is the approval.** This is a team repo with no code owner: a PR may be merged, by its
+  author or an agent asked to, once every CI check on it has passed and it is up to date with
+  `main`. Never merge with a check failing or still running, never with `gh pr merge --admin` or
+  any other bypass, and never make a check green by weakening it (see above).
+- **An agent merges only when asked.** It merges a PR (its own included) only when a person with
+  write access asks it to in the session, never on its own initiative, and with a merge commit
+  (`gh pr merge <number> --merge`), never by pushing to `main`.
 - Never force-push, reset `--hard`, or push to `main` (Claude Code denies these in
   `.claude/settings.json`).
 - An AI review runs on a PR only when someone with write access comments `/ai-review`

@@ -32,8 +32,9 @@ docker-compose.yml  # Postgres cho máy dev
 
 **Kiểm soát code do AI viết:**
 
-- `.github/CODEOWNERS`: PR đụng migration, CI, luật lint, rules cho AI, đăng nhập và token Fanpage
-  sẽ tự yêu cầu người sở hữu duyệt.
+- Repo của cả team, không có người sở hữu riêng: PR nào CI xanh hết (và đã cập nhật theo `main`)
+  là được merge, kể cả do agent merge khi được nhờ. Không merge khi còn check đỏ hoặc đang chạy, không
+  dùng `--admin` để vượt.
 - `.github/pull_request_template.md`: mỗi PR ghi làm gì, kiểm tra thế nào, rủi ro gì.
 - `.claude/settings.json`: Claude Code không được đọc `.env`, force push, `reset --hard`, hạ
   migration hay push thẳng lên `main`; muốn sửa CI, luật lint, migration hay rules thì phải hỏi.
