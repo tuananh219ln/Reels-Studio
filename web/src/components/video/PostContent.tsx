@@ -120,6 +120,7 @@ function VideoSuggestions({ video }: { video: VideoDetail }) {
       base={`/affiliate-products/videos/${video.id}`}
       ideas={video.affiliates}
       state={video.suggest.state}
+      searchedAt={video.suggest.at}
       attachedIds={video.affiliate_product_ids}
       onChanged={refresh}
     />
