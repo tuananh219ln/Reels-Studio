@@ -6,6 +6,7 @@ The connection is the member's own (TikTok's Login Kit, tiktok_connections.py): 
 their own TikTok accounts. TikTok's API gives no link to the post, so a member adds it afterwards, as for one posted
 by hand."""
 
+import html
 import logging
 import re
 from datetime import UTC, datetime
@@ -13,7 +14,7 @@ from typing import Literal
 from urllib.parse import urlencode, urlsplit
 
 from fastapi import APIRouter, Depends, Request, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -110,23 +111,33 @@ def remove_post(post_id: int, me: Session = Depends(current_member), db: DbSessi
 SETTINGS_PAGE = "/settings/affiliate-accounts"
 
 
-def _back(outcome: str, message: str = "") -> RedirectResponse:
-    """Back to "Tài khoản affiliate", which shows how the connection went."""
+def _back(outcome: str, message: str = "") -> HTMLResponse:
+    """Back to "Tài khoản affiliate", which shows how the connection went. A page that sends the browser on by itself,
+    never a 3xx: the web's /api proxy in production (Cloudflare Workers) follows a redirect itself, on the api's host,
+    instead of handing it to the browser."""
     query = {"tiktok": outcome, **({"message": message} if message else {})}
-    return RedirectResponse(f"{SETTINGS_PAGE}?{urlencode(query)}", status_code=302)
+    target = html.escape(f"{SETTINGS_PAGE}?{urlencode(query)}")
+    page = (
+        '<!doctype html><html lang="vi"><head><meta charset="utf-8">'
+        f'<meta http-equiv="refresh" content="0;url={target}"><title>Reels Studio</title></head>'
+        f'<body><a href="{target}">Quay lại Tài khoản affiliate</a></body></html>'
+    )
+    # The address still holds TikTok's code: no cache, and no referrer for the next page.
+    return HTMLResponse(page, headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"})
 
 
 @router.get("/oauth/start")
-def oauth_start(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> RedirectResponse:
-    """ "Kết nối TikTok": off to TikTok's authorize page with a one-use state bound to this member."""
+def oauth_start(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Kết nối TikTok": TikTok's authorize page with a one-use state bound to this member. The web sends the browser
+    there itself (see _back for why this is not a redirect)."""
     try:
         state = tiktok_connections.new_state(db, me.user_id)
         url = tiktok.authorize_url(state)
     except tiktok.TikTokError as err:
         db.rollback()
-        return _back("error", err.message)
+        raise ApiError(409, "tiktok_not_configured", err.message) from None
     db.commit()
-    return RedirectResponse(url, status_code=302)
+    return {"url": url}
 
 
 @router.get("/oauth/callback")
@@ -138,7 +149,7 @@ def oauth_callback(
     error: str = "",
     error_description: str = "",
     db: DbSession = Depends(get_db),
-) -> RedirectResponse:
+) -> HTMLResponse:
     """TikTok sends the member back here. The session cookie comes along (same site); without it nothing is saved."""
     try:
         me = current_member(current_session(request, response, db))

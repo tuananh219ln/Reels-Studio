@@ -179,23 +179,20 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
 
 test("a member connects their TikTok account through TikTok's consent page, then disconnects it", async ({ page }) => {
   await loginAsSeed(page);
-  // Never reach the real TikTok.
-  await page.route("https://www.tiktok.com/**", (route) => route.abort());
-  // A route never sees a redirect's target, so TikTok's consent page is played on the app's own redirect to it: the
-  // app's answer is read without following it, then answered as TikTok does once the member allows the app: back to
-  // the callback with a code and the state the app sent.
-  await page.route("**/api/tiktok/oauth/start", async (route) => {
-    const sent = await route.fetch({ maxRedirects: 0 });
-    expect(sent.status()).toBe(302);
-    const asked = new URL(sent.headers()["location"]);
-    expect(`${asked.origin}${asked.pathname}`).toBe("https://www.tiktok.com/v2/auth/authorize/");
+  // TikTok's consent page, answered as TikTok does once the member allows the app: back to the callback with a code
+  // and the state the app sent. Any other TikTok address is never reached.
+  await page.route("https://www.tiktok.com/**", (route) => {
+    const asked = new URL(route.request().url());
+    if (asked.pathname !== "/v2/auth/authorize/") {
+      return route.abort();
+    }
     expect(asked.searchParams.get("scope")).toBe("user.info.basic,video.upload,video.publish");
     expect(asked.searchParams.get("redirect_uri")).toBe("https://reels.quangdang.xyz/api/tiktok/oauth/callback");
     const back = `/api/tiktok/oauth/callback?code=fake-tiktok-code&state=${asked.searchParams.get("state")}`;
-    await route.fulfill({ status: 302, headers: { location: back } });
+    return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
   });
   await page.goto("/settings/affiliate-accounts");
-  await page.getByRole("link", { name: "Kết nối TikTok" }).first().click();
+  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
   await expect(page).toHaveURL(/\/settings\/affiliate-accounts$/);
   // The account is made from the TikTok profile and shows the connection, never a token.

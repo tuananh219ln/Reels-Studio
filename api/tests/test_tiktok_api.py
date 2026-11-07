@@ -1,5 +1,7 @@
 """TikTok's Login Kit and Content Posting API (issue #46), reached only through the fake service."""
 
+import html
+import re
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
@@ -134,8 +136,9 @@ def test_post_title_is_the_caption_then_the_hashtags_cut_at_tiktoks_limit():
 
 
 def _state_of(response) -> str:
-    assert response.status_code == 302, response.text
-    return parse_qs(urlsplit(response.headers["location"]).query)["state"][0]
+    """ "Kết nối TikTok" answers with TikTok's authorize URL; the browser goes there itself."""
+    assert response.status_code == 200, response.text
+    return parse_qs(urlsplit(response.json()["url"]).query)["state"][0]
 
 
 def _connect(client, code=TIKTOK_CODE):
@@ -144,11 +147,32 @@ def _connect(client, code=TIKTOK_CODE):
     return client.get(f"/api/tiktok/oauth/callback?code={code}&state={state}", follow_redirects=False)
 
 
+REFRESH = re.compile(r'<meta http-equiv="refresh" content="0;url=([^"]+)">')
+
+
 def _outcome(response) -> dict:
-    assert response.status_code == 302, response.text
-    parts = urlsplit(response.headers["location"])
+    """The callback's page, which sends the browser back to "Tài khoản affiliate" by itself."""
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("text/html")
+    found = REFRESH.search(response.text)
+    assert found, response.text
+    parts = urlsplit(html.unescape(found.group(1)))
     assert parts.path == "/settings/affiliate-accounts"
     return {name: values[0] for name, values in parse_qs(parts.query).items()}
+
+
+def test_neither_start_nor_callback_answers_with_a_redirect(fakes, db, client):
+    """In production the web's /api proxy (Cloudflare Workers) follows a redirect itself instead of handing it to the
+    browser: TikTok's page was fetched by the proxy, and the way back to the settings page ended in the api's 404."""
+    make_user(db)
+    login(client)
+    start = client.get("/api/tiktok/oauth/start", follow_redirects=False)
+    assert not start.is_redirect and start.status_code == 200
+    state = _state_of(start)
+    back = client.get(f"/api/tiktok/oauth/callback?code={TIKTOK_CODE}&state={state}", follow_redirects=False)
+    assert not back.is_redirect
+    anonymous = client.get("/api/tiktok/oauth/callback?code=x&state=y", follow_redirects=False)
+    assert not anonymous.is_redirect
 
 
 def test_start_sends_the_member_to_tiktok_with_a_hashed_one_use_state(fakes, db, client):
@@ -166,10 +190,9 @@ def test_start_needs_a_member(fakes, client):
 def test_start_without_credentials_says_what_to_configure(db, client, monkeypatch):
     make_user(db)
     login(client)
-    assert _outcome(client.get("/api/tiktok/oauth/start", follow_redirects=False)) == {
-        "tiktok": "error",
-        "message": "Chưa cấu hình TIKTOK_CLIENT_KEY/TIKTOK_CLIENT_SECRET trong .env",
-    }
+    response = client.get("/api/tiktok/oauth/start", follow_redirects=False)
+    assert response.status_code == 409
+    assert response.json()["message"] == "Chưa cấu hình TIKTOK_CLIENT_KEY/TIKTOK_CLIENT_SECRET trong .env"
 
 
 def test_callback_saves_encrypted_tokens_on_a_new_tiktok_account_of_the_member(fakes, db, client):
