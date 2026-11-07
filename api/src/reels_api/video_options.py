@@ -191,9 +191,10 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
             if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH or len(value.split()) > 1:
                 raise OptionError("Mã giọng đọc không hợp lệ")
             value = value.strip()
-        elif name == "music_track_id":
-            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
-                raise OptionError("Bài nhạc mặc định không hợp lệ")
+        elif name == "music_track_id" and (
+            value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1)
+        ):
+            raise OptionError("Bài nhạc mặc định không hợp lệ")
         cleaned[name] = value
     return cleaned
 
