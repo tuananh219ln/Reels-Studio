@@ -442,7 +442,7 @@ test("Sửa ảnh: erase a drawn box, edit in words, then bring back the origina
   const original = await preview.getAttribute("src");
 
   // "Xóa vùng": nothing to erase until a box is drawn over the photo.
-  await first.getByRole("button", { name: "Sửa ảnh", exact: true }).click();
+  await first.getByRole("button", { name: "Sửa ảnh" }).click();
   const dialog = page.getByRole("dialog", { name: "Sửa ảnh cảnh", exact: true });
   const erase = dialog.getByRole("button", { name: "Xóa vùng đã khoanh" });
   await expect(erase).toBeDisabled();
@@ -465,7 +465,7 @@ test("Sửa ảnh: erase a drawn box, edit in words, then bring back the origina
 
   // "Sửa theo mô tả": Gemini edits the photo as asked, the original is still kept.
   const erased = await preview.getAttribute("src");
-  await first.getByRole("button", { name: "Sửa ảnh", exact: true }).click();
+  await first.getByRole("button", { name: "Sửa ảnh" }).click();
   await dialog.getByRole("tab", { name: "Sửa theo mô tả" }).click();
   await dialog.getByLabel("Điều cần sửa trên ảnh").fill("làm nền sáng hơn");
   await dialog.getByRole("button", { name: "Sửa ảnh", exact: true }).click();
