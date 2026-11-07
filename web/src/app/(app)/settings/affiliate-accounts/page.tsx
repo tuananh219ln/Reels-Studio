@@ -25,9 +25,6 @@ import FormDrawer from "@/components/FormDrawer";
 
 type Fields = { platform: "shopee" | "tiktok"; name: string; app_id?: string; secret?: string; profile_url?: string };
 
-/** "Kết nối TikTok" is a full page visit: TikTok's consent page, then back here with ?tiktok=connected|error. */
-const TIKTOK_CONNECT_URL = "/api/tiktok/oauth/start";
-
 /** The signed-in member's own affiliate accounts. Nobody else sees them; a Secret only ever goes in. */
 export default function AffiliateAccountsPage() {
   const { message } = App.useApp();
@@ -35,6 +32,7 @@ export default function AffiliateAccountsPage() {
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<AffiliateAccount | "new" | null>(null);
   const [checking, setChecking] = useState<number | null>(null);
+  const [connecting, setConnecting] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -64,6 +62,20 @@ export default function AffiliateAccountsPage() {
       window.history.replaceState(null, "", window.location.pathname);
     }
   }, [message]);
+
+  /** "Kết nối TikTok": the api gives TikTok's consent page, and the browser goes there itself; TikTok then sends it
+   * back here with ?tiktok=connected|error. Not a link to the api: the /api proxy in production follows redirects
+   * itself instead of handing them to the browser. */
+  async function connectTikTok() {
+    setConnecting(true);
+    try {
+      const { url } = await api<{ url: string }>("/tiktok/oauth/start");
+      window.location.assign(url);
+    } catch (err) {
+      message.error(errorMessage(err));
+      setConnecting(false);
+    }
+  }
 
   async function disconnect(account: AffiliateAccount) {
     if (!account.tiktok_connection) {
@@ -130,7 +142,7 @@ export default function AffiliateAccountsPage() {
         description="Tài khoản affiliate là của riêng bạn. Shopee: App ID và Secret lấy trong trang Shopee Affiliate › Open API (mỗi người tự đăng ký); có chúng, app tự tìm sản phẩm theo gợi ý của kịch bản và tạo link riêng cho từng Fanpage của bạn. TikTok: tài khoản bạn gắn giỏ TikTok Shop; bấm Kết nối TikTok để app gửi video lên TikTok của bạn (nháp hoặc đăng thẳng)."
         actions={
           <Space wrap>
-            <Button icon={<LinkOutlined />} href={TIKTOK_CONNECT_URL}>
+            <Button icon={<LinkOutlined />} loading={connecting} onClick={connectTikTok}>
               Kết nối TikTok
             </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => setTarget("new")}>
@@ -211,7 +223,7 @@ export default function AffiliateAccountsPage() {
                         <Button icon={<DisconnectOutlined />}>Ngắt kết nối</Button>
                       </Popconfirm>
                     ) : (
-                      <Button icon={<LinkOutlined />} href={TIKTOK_CONNECT_URL}>
+                      <Button icon={<LinkOutlined />} loading={connecting} onClick={connectTikTok}>
                         {account.tiktok_connection ? "Kết nối lại" : "Kết nối TikTok"}
                       </Button>
                     ))}
