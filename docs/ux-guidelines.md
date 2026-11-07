@@ -411,9 +411,13 @@ Built:
   - "Tạo bản TikTok" (on a Facebook video) opens "Nhân bản" with a TikTok request filled in; the
     new video is tagged "TikTok" (on the list it sits on its source's card, see above) and both pages link
     to each other: "Bản TikTok: …" on the Facebook video, "Bản Facebook gốc: …" on the TikTok version (the two
-    usually share a title, so the label says where the link goes). A TikTok version's "Xuất bản" has "Đăng TikTok (đăng tay)" instead of "Đăng":
-    copy buttons, the cart's products, a checklist, and "Đã đăng tay" (one of the member's TikTok
-    accounts and the post's link), with the recorded posts below;
+    usually share a title, so the label says where the link goes). A TikTok version's "Xuất bản" has "Đăng TikTok" instead of "Đăng":
+    copy buttons, the cart's products, a checklist, "Đăng lên TikTok" (one of the member's own connected
+    TikTok accounts, "Nháp" by default or "Đăng thẳng" with a privacy level and the note that until TikTok
+    approves the app only "Chỉ mình tôi" on a private account works; disabled without an MP4 or while a job
+    runs) and "Đã đăng tay" (one of the member's TikTok accounts and the post's link), with the posts below:
+    one sent through the API is tagged "Nháp TikTok" or "Đăng thẳng" (and "Đang gửi" until TikTok has it), and
+    once it is on TikTok its sender gets a box to paste its link;
   - "Đăng" in the MP4 card opens a dialog: the platform (Facebook; TikTok and YouTube shown as "sắp
     có"), the Fanpage, each shown as "<Page>, <its owner>" (a sole Page is chosen by itself), "Đăng ngay" or "Hẹn giờ" (at least 15 minutes
     ahead, within 29 days, typed in Vietnam time whatever the browser's time zone; after a post it is back on "Đăng ngay").
@@ -521,8 +525,11 @@ Built:
     row per video and Page; nobody else's.
 - **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
   accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
-  link), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá"; "Thêm tài khoản"
-  is in the tab's header.
+  link, and the TikTok connection: "Đã kết nối @username, còn hạn tới …" with an avatar and "Ngắt
+  kết nối", "Chưa kết nối TikTok" with "Kết nối TikTok", or a warning with "Kết nối lại" when TikTok
+  refused a refresh), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá";
+  "Kết nối TikTok" (TikTok's consent page, then back here with a message; the account is found by
+  the TikTok username or made from it) and "Thêm tài khoản" are in the tab's header.
 - **Quản lý Page**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic

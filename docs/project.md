@@ -64,7 +64,10 @@ app replaces CapCut, so the output is a finished MP4.
    Products are chosen on the video page (or on "Affiliate" after posting), and once a reel is
    live the worker writes the pinned comment with their links under it; members still pin it:
    Facebook's API cannot. A TikTok version of a video is its own video, posted by hand in
-   TikTok's app with TikTok Shop's cart and recorded with its link.
+   TikTok's app with TikTok Shop's cart and recorded with its link, or sent through TikTok's
+   Content Posting API with the member's own connected TikTok account: as a draft to their TikTok
+   inbox (the default; they add the cart and post it there) or posted directly (private only
+   until TikTok audits the app).
 7. **Job log (built):** every job with status, duration, AI call count, the model that wrote a
    script, and error; failed jobs
    are retried from the video page, where the MP4 plays and downloads.
@@ -127,9 +130,9 @@ app replaces CapCut, so the output is a finished MP4.
 Posting to connected Facebook Pages is built. The rest of API auto-posting is deferred for these reasons:
 
 - Instagram publishing needs a Business/Creator account linked to a Facebook Page.
-- Until the TikTok Content Posting API app passes audit, it can only post privately, and TikTok's
-  guidelines do not accept a tool for a team's own accounts. Sending to the app's inbox, where a
-  member finishes the post, is the likely route.
+- TikTok: sending a draft to a member's TikTok inbox, or a direct post, is built (issue #46); until
+  the TikTok app passes audit a direct post can only be private, and the cart is still attached in
+  TikTok's app. TikTok's numbers are not read into the app.
 - Neither platform's API can pin a comment.
 
 ---

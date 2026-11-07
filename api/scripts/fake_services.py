@@ -1,9 +1,10 @@
 """Local stand-ins for the Claude Messages API, an OpenAI-compatible chat API, the stock sources (Pixabay, Pexels, Openverse),
-ElevenLabs TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels and Shopee Affiliate, for pytest and E2E.
+ElevenLabs TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels, Shopee Affiliate and TikTok (Login Kit,
+Content Posting API), for pytest and E2E.
 
 The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
 OPENVERSE_API_URL, ELEVENLABS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL,
-SHOPEE_AFFILIATE_API_URL and SHOPEE_SHORT_LINK_URL,
+SHOPEE_AFFILIATE_API_URL, SHOPEE_SHORT_LINK_URL and TIKTOK_API_URL,
 so production code has no test switches. The OpenAI-compatible API (at <url>/openai/v1) is reached the way a
 member sets any provider up, through its base URL on /settings/ai. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
 """
@@ -51,6 +52,10 @@ GONE = (
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
 SHOPEE_APP_ID = "1000001"
 SHOPEE_SECRET = "fake-shopee-secret"
+TIKTOK_CLIENT_KEY = "fake-tiktok-client-key"
+TIKTOK_CLIENT_SECRET = "fake-tiktok-client-secret"
+TIKTOK_CODE = "fake-tiktok-code"  # the code TikTok's authorize page sends back for TIKTOK_OPEN_ID
+TIKTOK_OPEN_ID = "tt-open-an"
 
 
 def shopee_offer(item_id: int, name: str, **fields) -> dict:
@@ -320,6 +325,32 @@ class FakeServices:
         # s.shopee.vn/<code> -> where it redirects, as Shopee's affiliate redirect writes it; a missing code is a 404.
         self.shopee_short_links: dict[str, str] = {}
         self.facebook_page_insights_refused = False
+        # TikTok (Login Kit + Content Posting API): the accounts it knows by open_id, which code logs in which one,
+        # the tokens it gave (each refresh replaces the refresh token: the old one stops working), and its posts by
+        # publish_id: {"mode", "post_info", "source_info", "bytes", "reads"}.
+        self.tiktok_users: dict[str, dict] = {
+            TIKTOK_OPEN_ID: {
+                "open_id": TIKTOK_OPEN_ID,
+                "union_id": "tt-union-an",
+                "username": "anlanhsk",
+                "display_name": "An Lành SK",
+                "avatar_url": "https://p16.tiktokcdn.com/an.jpg",
+            }
+        }
+        self.tiktok_codes: dict[str, str] = {TIKTOK_CODE: TIKTOK_OPEN_ID}
+        self.tiktok_access: dict[str, str] = {}  # access token -> open_id
+        self.tiktok_refresh: dict[str, str] = {}  # refresh token -> open_id
+        self.tiktok_token_count = 0
+        self.tiktok_expires_in = 86400
+        self.tiktok_revoked: list[str] = []
+        self.tiktok_privacy_options = ["PUBLIC_TO_EVERYONE", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"]
+        self.tiktok_unaudited = False  # a direct post other than SELF_ONLY is refused, as before TikTok's audit
+        self.tiktok_init_error: str | None = None  # an error code every init answers with (e.g. rate_limit_exceeded)
+        self.tiktok_upload_fails = 0  # that many chunk uploads answer 500
+        self.tiktok_busy_reads = 0  # that many status reads say PROCESSING_DOWNLOAD before the final status
+        self.tiktok_post_fails = False  # the final status is FAILED
+        self.tiktok_posts: dict[str, dict] = {}
+        self.tiktok_calls: list[str] = []  # the path of every TikTok call, in order
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -356,6 +387,9 @@ class FakeServices:
             "FACEBOOK_API_URL": f"{self.url}/facebook",
             "SHOPEE_AFFILIATE_API_URL": f"{self.url}/shopee/graphql",
             "SHOPEE_SHORT_LINK_URL": f"{self.url}/shopee-short",
+            "TIKTOK_API_URL": f"{self.url}/tiktok",
+            "TIKTOK_CLIENT_KEY": TIKTOK_CLIENT_KEY,
+            "TIKTOK_CLIENT_SECRET": TIKTOK_CLIENT_SECRET,
         }
 
     def image_url(self, name: str) -> str:
@@ -1154,6 +1188,141 @@ class FakeServices:
             return 200, {"data": {"conversionReport": {"nodes": nodes, "pageInfo": {"hasNextPage": False}}}}
         return failed(10010, "Unknown query")
 
+    # --- TikTok ---
+
+    @staticmethod
+    def _tiktok_failed(status: int, code: str, message: str) -> tuple[int, dict]:
+        return status, {"error": {"code": code, "message": message, "log_id": "fake-log"}}
+
+    def _tiktok_tokens(self, open_id: str) -> dict:
+        with self.lock:
+            self.tiktok_token_count += 1
+            access = f"tt-access-{self.tiktok_token_count}"
+            refresh = f"tt-refresh-{self.tiktok_token_count}"
+            self.tiktok_access[access] = open_id
+            self.tiktok_refresh[refresh] = open_id
+        return {
+            "open_id": open_id,
+            "scope": "user.info.basic,video.upload,video.publish",
+            "access_token": access,
+            "expires_in": self.tiktok_expires_in,
+            "refresh_token": refresh,
+            "refresh_expires_in": 31536000,
+            "token_type": "Bearer",
+        }
+
+    def _tiktok_token(self, form: dict) -> tuple[int, dict]:
+        if form.get("client_key") != TIKTOK_CLIENT_KEY or form.get("client_secret") != TIKTOK_CLIENT_SECRET:
+            return 200, {"error": "invalid_client", "error_description": "Client key or secret is wrong"}
+        if form.get("grant_type") == "authorization_code":
+            open_id = self.tiktok_codes.get(form.get("code", ""))
+            if open_id is None or not form.get("redirect_uri"):
+                return 200, {"error": "invalid_grant", "error_description": "Authorization code is expired."}
+            return 200, self._tiktok_tokens(open_id)
+        if form.get("grant_type") == "refresh_token":
+            with self.lock:
+                # TikTok rotates the refresh token: the one just used stops working.
+                open_id = self.tiktok_refresh.pop(form.get("refresh_token", ""), None)
+            if open_id is None:
+                return 200, {"error": "invalid_grant", "error_description": "Refresh token is invalid or expired."}
+            return 200, self._tiktok_tokens(open_id)
+        return 200, {"error": "unsupported_grant_type", "error_description": "grant_type"}
+
+    def _tiktok_revoke(self, form: dict) -> tuple[int, dict]:
+        with self.lock:
+            self.tiktok_revoked.append(form.get("token", ""))
+            self.tiktok_access.pop(form.get("token", ""), None)
+        return 200, {}
+
+    def _tiktok_user(self, authorization: str | None) -> str | None:
+        return self.tiktok_access.get((authorization or "").removeprefix("Bearer "))
+
+    def _tiktok_api(self, path: str, authorization: str | None, body: dict) -> tuple[int, dict]:
+        open_id = self._tiktok_user(authorization)
+        if open_id is None:
+            return self._tiktok_failed(401, "access_token_invalid", "The access token is invalid or not found.")
+        ok = {"code": "ok", "message": "", "log_id": "fake-log"}
+        if path == "/v2/post/publish/creator_info/query/":
+            user = self.tiktok_users[open_id]
+            return 200, {
+                "data": {
+                    "creator_username": user["username"],
+                    "creator_nickname": user["display_name"],
+                    "privacy_level_options": list(self.tiktok_privacy_options),
+                    "comment_disabled": False,
+                    "duet_disabled": False,
+                    "stitch_disabled": True,
+                    "max_video_post_duration_sec": 600,
+                },
+                "error": ok,
+            }
+        if path in ("/v2/post/publish/inbox/video/init/", "/v2/post/publish/video/init/"):
+            if self.tiktok_init_error == "rate_limit_exceeded":
+                return self._tiktok_failed(429, "rate_limit_exceeded", "Too many requests")
+            if self.tiktok_init_error:
+                return self._tiktok_failed(403, self.tiktok_init_error, "Refused")
+            direct = path == "/v2/post/publish/video/init/"
+            post_info = body.get("post_info") or {}
+            if direct and post_info.get("privacy_level") not in self.tiktok_privacy_options:
+                return self._tiktok_failed(400, "privacy_level_option_mismatch", "privacy_level is not an option")
+            if direct and self.tiktok_unaudited and post_info.get("privacy_level") != "SELF_ONLY":
+                return self._tiktok_failed(
+                    403,
+                    "unaudited_client_can_only_post_to_private_accounts",
+                    "Please review our integration guidelines at https://developers.tiktok.com/doc/content-sharing-guidelines/",
+                )
+            with self.lock:
+                publish_id = f"v_pub_file~v2-{len(self.tiktok_posts) + 1}"
+                self.tiktok_posts[publish_id] = {
+                    "mode": "direct" if direct else "draft",
+                    "open_id": open_id,
+                    "post_info": post_info,
+                    "source_info": body.get("source_info") or {},
+                    "bytes": 0,
+                    "reads": 0,
+                }
+            upload_url = f"{self.url}/tiktok-upload/{publish_id}"
+            return 200, {"data": {"publish_id": publish_id, "upload_url": upload_url}, "error": ok}
+        if path == "/v2/post/publish/status/fetch/":
+            post = self.tiktok_posts.get(body.get("publish_id", ""))
+            if post is None:
+                return self._tiktok_failed(400, "invalid_publish_id", "publish_id does not exist")
+            size = post["source_info"].get("video_size") or 0
+            with self.lock:
+                post["reads"] += 1
+                reads = post["reads"]
+            if post["bytes"] < size:
+                status = "PROCESSING_UPLOAD"
+            elif reads <= self.tiktok_busy_reads:
+                status = "PROCESSING_DOWNLOAD"
+            elif self.tiktok_post_fails or post.get("failed"):
+                # FAILED is final for that publish_id, as on TikTok.
+                post["failed"] = True
+                status = "FAILED"
+            else:
+                status = "PUBLISH_COMPLETE" if post["mode"] == "direct" else "SEND_TO_USER_INBOX"
+            data = {"status": status, "uploaded_bytes": post["bytes"]}
+            if status == "FAILED":
+                data["fail_reason"] = "video_pull_failed"
+            return 200, {"data": data, "error": ok}
+        return self._tiktok_failed(404, "not_found", "Unknown path")
+
+    def _tiktok_upload(self, publish_id: str, content_range: str, raw: bytes) -> tuple[int, dict]:
+        post = self.tiktok_posts.get(publish_id)
+        if post is None:
+            return 404, {"error": "not found"}
+        with self.lock:
+            if self.tiktok_upload_fails > 0:
+                self.tiktok_upload_fails -= 1
+                return 500, {"error": "upload failed"}
+        match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", content_range or "")
+        if not match or int(match.group(2)) - int(match.group(1)) + 1 != len(raw):
+            return 400, {"error": "bad Content-Range"}
+        with self.lock:
+            post["bytes"] += len(raw)
+        complete = post["bytes"] >= int(match.group(3))
+        return (201 if complete else 206), {}
+
     def _image(self, name: str) -> bytes:
         with self.lock:
             self.image_downloads.append(name)
@@ -1238,6 +1407,18 @@ class FakeServices:
                 if path == "/shopee/graphql":
                     self._send(*fake._shopee(self.headers.get("Authorization"), raw))
                     return
+                if path.startswith("/tiktok/"):
+                    target = path.removeprefix("/tiktok")
+                    with fake.lock:
+                        fake.tiktok_calls.append(target)
+                    if target == "/v2/oauth/token/":
+                        self._send(*fake._tiktok_token(dict(urllib.parse.parse_qsl(raw.decode()))))
+                    elif target == "/v2/oauth/revoke/":
+                        self._send(*fake._tiktok_revoke(dict(urllib.parse.parse_qsl(raw.decode()))))
+                    else:
+                        body = json.loads(raw or b"{}")
+                        self._send(*fake._tiktok_api(target, self.headers.get("Authorization"), body))
+                    return
                 body = json.loads(raw or b"{}")
                 if path == "/v1/messages":
                     self._send(*fake._claude(body))
@@ -1252,6 +1433,18 @@ class FakeServices:
                         path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
                     )
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
+                else:
+                    self._send(404, {"error": "not found"})
+
+            def do_PUT(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length)
+                path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/tiktok-upload/"):
+                    publish_id = path.removeprefix("/tiktok-upload/")
+                    with fake.lock:
+                        fake.tiktok_calls.append("upload")
+                    self._send(*fake._tiktok_upload(publish_id, self.headers.get("Content-Range", ""), raw))
                 else:
                     self._send(404, {"error": "not found"})
 
@@ -1324,6 +1517,17 @@ class FakeServices:
                 elif parts.path == "/openverse/v1/images/":
                     authorized = self.headers.get("Authorization") == f"Bearer {OPENVERSE_TOKEN}"
                     self._send(*fake._openverse(dict(urllib.parse.parse_qsl(parts.query)), authorized))
+                elif parts.path == "/tiktok/v2/user/info/":
+                    with fake.lock:
+                        fake.tiktok_calls.append("/v2/user/info/")
+                    open_id = fake._tiktok_user(self.headers.get("Authorization"))
+                    if open_id is None:
+                        self._send(*fake._tiktok_failed(401, "access_token_invalid", "The access token is invalid."))
+                    else:
+                        fields = dict(urllib.parse.parse_qsl(parts.query)).get("fields", "").split(",")
+                        user = {name: value for name, value in fake.tiktok_users[open_id].items() if name in fields}
+                        ok = {"code": "ok", "message": "", "log_id": "fake-log"}
+                        self._send(200, {"data": {"user": user}, "error": ok})
                 elif parts.path.startswith("/img/"):
                     self._send(200, fake._image(parts.path.removeprefix("/img/").removesuffix(".jpg")), "image/jpeg")
                 else:

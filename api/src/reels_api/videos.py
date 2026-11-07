@@ -71,6 +71,7 @@ JOB_KINDS = {
     "revise": "AI sửa theo góp ý",
     "article_caption": "Viết bài viết",
     "motion": "Cảnh động",
+    "tiktok_publish": "Đăng TikTok",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -120,6 +121,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang gỡ bài trên Facebook, chưa lưu")
     if job.kind == "check":
         raise ApiError(409, "video_locked", "Video đang kiểm tra bài trên Facebook, chưa lưu")
+    if job.kind == "tiktok_publish":
+        raise ApiError(409, "video_locked", "Video đang đăng lên TikTok, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
     if job.kind == "revise":
@@ -365,6 +368,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
         code = {
             "render": "rendering",
             "publish": "publishing",
+            "tiktok_publish": "publishing",
             "unpublish": "unpublishing",
             "check": "checking",
             "image": "imaging",
@@ -423,7 +427,7 @@ def pending_publication(db: DbSession, video_id: int) -> Publication | None:
 
 
 def tiktok_posts_of(db: DbSession, video_id: int) -> list[Publication]:
-    """The video's TikTok posts, made by hand in TikTok's app and recorded with their link, newest first."""
+    """The video's TikTok posts, made by hand in TikTok's app or sent through TikTok's API, newest first."""
     return list(
         db.scalars(
             select(Publication)
@@ -440,6 +444,12 @@ def tiktok_post_payload(post: Publication) -> dict:
         "account": post.affiliate_account.name if post.affiliate_account else None,
         "at": live_at(post).isoformat(),
         "created_by": post.created_by.name,
+        "created_by_id": post.created_by_id,
+        # pending | published | cancelled; one recorded by hand is published.
+        "status": post.status,
+        # "draft" | "direct" for a post sent through TikTok's API, None for one posted by hand.
+        "mode": post.publish_mode,
+        "privacy_level": post.privacy_level,
     }
 
 

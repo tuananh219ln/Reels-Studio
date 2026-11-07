@@ -167,6 +167,9 @@ def isolated_files(tmp_path, monkeypatch):
         "ELEVENLABS_VOICE_ID",
         "ELEVENLABS_MODEL",
         "SHOPEE_AFFILIATE_API_URL",
+        "TIKTOK_API_URL",
+        "TIKTOK_CLIENT_KEY",
+        "TIKTOK_CLIENT_SECRET",
     ):
         monkeypatch.setenv(name, "")
 
