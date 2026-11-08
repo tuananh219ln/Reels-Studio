@@ -882,6 +882,56 @@ test("studio layers: a sticker and a text over a scene, changed, removed with De
   await expect(tools.getByRole("button", { name: "Thêm sticker Trái tim" })).toBeDisabled();
 });
 
+test("studio half-frame photo: uploaded across the top half, dragged only down to the bottom half", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau dền trứng gà");
+  const file = path.join(os.tmpdir(), `e2e-half-photo-${process.pid}.jpg`);
+  execFileSync("ffmpeg", [
+    "-v",
+    "error",
+    "-y",
+    "-f",
+    "lavfi",
+    "-i",
+    "testsrc2=size=1600x1200:rate=1",
+    "-frames:v",
+    "1",
+    file,
+  ]);
+  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
+  const studio = page.getByRole("dialog", { name: "Xem trước video" });
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  const timeline = studio.getByTestId("preview-timeline");
+  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
+  await studio.getByRole("button", { name: "Tạm dừng" }).click();
+  await studio.getByRole("tab", { name: "Chữ & sticker" }).click();
+  const tools = studio.getByTestId("half-photo-tools");
+  await tools.locator('input[type="file"]').setInputFiles(file);
+
+  // As wide as the frame and half as tall, at the top half.
+  const stage = studio.getByTestId("preview-stage");
+  const photo = stage.getByTestId("preview-layer");
+  await expect(photo).toHaveCount(1);
+  await expect(photo).toBeVisible();
+  const place = () => photo.evaluate((element) => [element.style.left, element.style.top, element.style.width]);
+  await expect.poll(place).toEqual(["0%", "0%", "100%"]);
+  await expect(tools.getByRole("button", { name: "Ảnh từ máy" })).toBeDisabled();
+
+  // Dragged down and sideways: it stays across the frame and snaps to the bottom half.
+  const box = (await stage.boundingBox())!;
+  const from = (await photo.boundingBox())!;
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(from.x + from.width / 2 + 60, from.y + from.height / 2 + box.height * 0.48, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(place).toEqual(["0%", "50%", "100%"]);
+  const inspector = studio.getByTestId("preview-scene-editor");
+  await expect(inspector.getByLabel("Vị trí ảnh chèn").locator(".ant-segmented-item-selected")).toHaveText("Nửa dưới");
+});
+
 test("studio sounds: a sound effect added at the playhead, heard, made louder and undone", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);

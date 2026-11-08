@@ -83,8 +83,10 @@ from .videos import (
     drawn_layers,
     drop_original,
     is_backdrop,
+    is_half_layer,
     is_published,
     layer_fields,
+    layer_photo_key,
     made_voice_seconds,
     new_key,
     pending_publication,
@@ -666,11 +668,15 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         def layer_data(layer, scene: Scene, index: int) -> dict:
             fields = layer_fields(layer)
             if layer.kind == "photo":
-                # A photo layer ("Ảnh món") shows its scene's own photo; the checks make sure there is one.
-                if not scene.image_key or not storage.exists(scene.image_key):
-                    raise JobFailure(f"{_scene_label(scene, index)} có ảnh món nhưng chưa có ảnh trong storage")
-                extension = scene.image_key.rsplit(".", 1)[-1]
-                fields["image"] = storage.copy_to(scene.image_key, folder / f"photo-{index:02d}.{extension}").name
+                # A photo layer ("Ảnh món") shows its scene's own photo, which the checks make sure there is; a
+                # half-frame photo ("Ảnh chèn nửa khung") its own.
+                key = layer_photo_key(layer)
+                if not key or not storage.exists(key):
+                    what = "ảnh chèn" if is_half_layer(layer) else "ảnh món"
+                    raise JobFailure(f"{_scene_label(scene, index)} có {what} nhưng chưa có ảnh trong storage")
+                extension = key.rsplit(".", 1)[-1]
+                name = "inset" if is_half_layer(layer) else "photo"
+                fields["image"] = storage.copy_to(key, folder / f"{name}-{index:02d}.{extension}").name
             return fields
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
