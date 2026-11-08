@@ -1,5 +1,6 @@
-""" "Ảnh chèn nửa khung": a photo layer (style "half") with a photo of its own, as wide as the frame and half as
-tall, moved only up and down; the server keeps it centred across and inside the frame whatever it is sent."""
+""" "Ảnh chèn nửa khung": a photo layer (style "half") of a "Video xuyên suốt", as wide as the frame and half as
+tall, moved only up and down; the server keeps it centred across and inside the frame whatever it is sent. A slide
+video takes none."""
 
 import io
 
@@ -29,13 +30,21 @@ def an(client, me):
     return client
 
 
+def backdrop_video(db, storage, user, **options):
+    """A "Video xuyên suốt": the only kind that takes a half-frame photo."""
+    video = make_video(db, storage, user, **options)
+    video.mode = "single"
+    db.commit()
+    return video
+
+
 def upload(an, scene_id: int, data: bytes | None = None):
     files = {"file": ("anh.jpg", data or photo_bytes(size=(1600, 1200)), "image/jpeg")}
     return an.post("/api/layers/half-photo/upload", data={"scene_id": str(scene_id)}, files=files)
 
 
 def test_an_uploaded_photo_lands_across_the_top_half_for_the_whole_scene(an, db, me, storage):
-    video = make_video(db, storage, me)
+    video = backdrop_video(db, storage, me)
     scene = first_scene(db, video)
     added = upload(an, scene.id)
     assert added.status_code == 201, added.json()
@@ -56,7 +65,7 @@ def test_an_uploaded_photo_lands_across_the_top_half_for_the_whole_scene(an, db,
 
 
 def test_it_moves_only_up_and_down_and_stays_inside_the_frame(an, db, me, storage):
-    video = make_video(db, storage, me)
+    video = backdrop_video(db, storage, me)
     scene = first_scene(db, video)
     layer = scene_json(upload(an, scene.id).json(), scene.id)["layers"][0]
 
@@ -78,7 +87,7 @@ def test_it_moves_only_up_and_down_and_stays_inside_the_frame(an, db, me, storag
 
 
 def test_it_comes_from_the_library_but_not_from_a_clip(an, db, me, storage):
-    video = make_video(db, storage, me, scene_count=2)
+    video = backdrop_video(db, storage, me, scene_count=2)
     first, second = split_scenes(db, video)[1]
     storage.save_bytes("media/anh.png", photo_bytes(kind="PNG"))
     storage.save_bytes("media/clip.mp4", b"not a photo")
@@ -96,7 +105,7 @@ def test_it_comes_from_the_library_but_not_from_a_clip(an, db, me, storage):
 
 
 def test_one_photo_layer_per_scene_and_none_on_the_title(an, db, me, storage):
-    video = make_video(db, storage, me)
+    video = backdrop_video(db, storage, me)
     title, scenes = split_scenes(db, video)
     assert upload(an, scenes[0].id).status_code == 201
     again = upload(an, scenes[0].id)
@@ -107,13 +116,27 @@ def test_one_photo_layer_per_scene_and_none_on_the_title(an, db, me, storage):
     assert not_a_photo.status_code in (415, 422)
 
 
-def test_it_shows_on_a_slide_video_and_its_photo_goes_with_it(an, db, me, storage):
+def test_a_slide_video_takes_none_and_keeps_one_out_of_its_render(an, db, me, storage):
+    """A slide video stays as it was: its scene's photo already fills the frame."""
     video = make_video(db, storage, me)
     scene = first_scene(db, video)
+    for refused in (
+        upload(an, scene.id),
+        an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True}),
+    ):
+        assert refused.status_code == 422 and "Video xuyên suốt" in refused.json()["message"]
+    slides = render_signature(video, *split_scenes(db, video))
+    video.mode = "single"
+    db.commit()
     before = render_signature(video, *split_scenes(db, video))
     layer = scene_json(upload(an, scene.id).json(), scene.id)["layers"][0]
     db.refresh(video)
-    assert video.mode == "slides" and render_signature(video, *split_scenes(db, video)) != before
+    assert render_signature(video, *split_scenes(db, video)) != before
+    video.mode = "slides"
+    db.commit()
+    assert render_signature(video, *split_scenes(db, video)) == slides, "switched back: kept, and not drawn"
+    video.mode = "single"
+    db.commit()
     key = db.get(SceneLayer, layer["id"]).image_key
     assert an.delete(f"/api/layers/{layer['id']}").status_code == 200
     assert not storage.exists(key), "its own copy is deleted with it"
@@ -130,6 +153,7 @@ def test_the_render_job_hands_the_half_frame_photo_its_own_photo(committed, tmp_
     with committed() as db:
         video = make_video(db, storage, user, scene_count=2, seconds=2)
         video.voice_enabled = False
+        video.mode = "single"
         layer = SceneLayer(
             scene_id=first_scene(db, video).id,
             position=1,
@@ -152,23 +176,21 @@ def test_the_render_job_hands_the_half_frame_photo_its_own_photo(committed, tmp_
 
     monkeypatch.setattr(jobs, "render_video", fake_render)
     render(committed, storage, video_id, user.id)
-    assert handed["layers"] == [[("half", 1440, "inset-01.jpg")], []], "drawn on a slide video too"
+    assert handed["layers"] == [[("half", 1440, "inset-01.jpg")], []]
 
 
-def test_the_assistant_adds_one_from_the_library_and_cannot_move_it_across(mcp_client, db, storage):  # noqa: F811
+def test_the_assistant_adds_one_showing_the_scenes_photo_and_cannot_move_it_across(mcp_client, db, storage):  # noqa: F811
     user, _, tokens, _ = grant(mcp_client, db)
     token = tokens["access_token"]
-    storage.save_bytes("media/anh.jpg", photo_bytes(size=(900, 1600)))
-    item = MediaItem(kind="photo", storage_key="media/anh.jpg", name="anh.jpg", created_by_id=user.id)
-    db.add(item)
-    db.commit()
-    video = make_video(db, storage, user)
+    slides = make_video(db, storage, user)
+    refused = call(mcp_client, token, "add_layer", scene_id=first_scene(db, slides).id, kind="photo")
+    assert refused["isError"], "a slide video takes none"
+    video = backdrop_video(db, storage, user)
     scene = first_scene(db, video)
-    assert call(mcp_client, token, "add_layer", scene_id=scene.id, kind="photo")["isError"], "needs an image"
-    added = call(mcp_client, token, "add_layer", scene_id=scene.id, kind="photo", image=str(item.id))
+    added = call(mcp_client, token, "add_layer", scene_id=scene.id, kind="photo")
     assert not added.get("isError"), added
     row = db.scalar(select(SceneLayer).where(SceneLayer.scene_id == scene.id))
-    assert (row.style, row.x, row.y) == ("half", 540, 480)
+    assert (row.style, row.x, row.y, row.image_key) == ("half", 540, 480, None), "the scene's own photo"
     moved = call(mcp_client, token, "update_layer", layer_id=row.id, x=100, y=1440)
     assert not moved.get("isError"), moved
     db.refresh(row)
@@ -176,20 +198,39 @@ def test_the_assistant_adds_one_from_the_library_and_cannot_move_it_across(mcp_c
 
 
 def test_the_scenes_own_photo_becomes_its_half_frame_photo_in_place_of_its_ảnh_món(an, db, me, storage):
-    video = make_video(db, storage, me)
-    video.mode = "single"
-    db.commit()
+    video = backdrop_video(db, storage, me)
     scene = first_scene(db, video)
     assert an.post("/api/layers", json={"scene_id": scene.id, "kind": "photo"}).status_code == 201
     moved = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
     assert moved.status_code == 201, moved.json()
     (layer,) = scene_json(moved.json(), scene.id)["layers"]
     assert (layer["style"], layer["x"], layer["y"]) == ("half", 540, 480), "the Ảnh món is replaced"
+    # It shows the scene's photo as it changes, so the scene's picture tools find and edit it.
+    assert layer["own_image"] is False and db.get(SceneLayer, layer["id"]).image_key is None
+
+
+def test_a_half_frame_photo_with_its_own_photo_goes_back_to_the_scenes(an, db, me, storage):
+    video = backdrop_video(db, storage, me)
+    scene = first_scene(db, video)
+    layer = scene_json(upload(an, scene.id).json(), scene.id)["layers"][0]
+    an.patch(f"/api/layers/{layer['id']}", json={"y": 960})
     own = db.get(SceneLayer, layer["id"]).image_key
-    db.refresh(scene)
-    assert own != scene.image_key and storage.exists(own) and storage.exists(scene.image_key), "a copy of its own"
-    again = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
-    assert again.status_code == 422, "a half-frame photo is not replaced by another"
+    linked = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
+    assert linked.status_code == 201, linked.json()
+    (back,) = scene_json(linked.json(), scene.id)["layers"]
+    assert (back["id"], back["own_image"], back["y"]) == (layer["id"], False, 960), "the same layer, in its place"
+    assert not storage.exists(own), "its own copy is let go"
+
+
+def test_a_scene_without_a_photo_gets_one_that_waits_for_the_scenes(an, db, me, storage):
+    video = make_video(db, storage, me)
+    video.mode = "single"
+    scene = first_scene(db, video)
+    scene.image_key = None
+    db.commit()
+    added = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
+    assert added.status_code == 201, added.json()
+    assert any("ảnh chèn" in issue for issue in scene_json(added.json(), scene.id)["blocking"])
 
 
 def test_a_half_frame_photo_without_its_own_shows_its_scenes_until_one_is_added(an, db, me, storage):

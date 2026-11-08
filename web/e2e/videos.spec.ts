@@ -882,7 +882,7 @@ test("studio layers: a sticker and a text over a scene, changed, removed with De
   await expect(tools.getByRole("button", { name: "Thêm sticker Trái tim" })).toBeDisabled();
 });
 
-test("studio half-frame photo: uploaded across the top half, dragged only down to the bottom half", async ({
+test("half-frame photo: only on a backdrop video, the scene's dish photo across the frame, moved only up and down", async ({
   page,
 }) => {
   test.setTimeout(180_000);
@@ -901,47 +901,38 @@ test("studio half-frame photo: uploaded across the top half, dragged only down t
     "1",
     file,
   ]);
-  await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
-  const studio = page.getByRole("dialog", { name: "Xem trước video" });
-  await studio.getByRole("button", { name: "Tạm dừng" }).click();
-  const timeline = studio.getByTestId("preview-timeline");
-  await timeline.getByRole("button", { name: "Xem Cảnh 1" }).click();
-  await studio.getByRole("button", { name: "Tạm dừng" }).click();
-  await studio.getByRole("tab", { name: "Chữ & sticker" }).click();
-  const tools = studio.getByTestId("half-photo-tools");
-  await tools.locator('input[type="file"]').setInputFiles(file);
+  const card = page.getByTestId("scene").first();
+  // A slide video stays as it was: no half-frame photo.
+  await expect(card.getByTestId("half-photo-panel")).toHaveCount(0);
+  await page.getByTestId("video-mode").getByText("Video xuyên suốt").click();
+  await page.getByRole("button", { name: "Đổi", exact: true }).click();
+
+  // Over the backdrop: added, then its photo is the scene's own, chosen with the scene's usual picture tools.
+  const panel = card.getByTestId("half-photo-panel");
+  await panel.getByRole("button", { name: "Thêm ảnh chèn" }).click();
+  await expect(panel.getByTestId("half-photo-scene-tools")).toBeVisible();
+  await card.getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(file);
 
   // As wide as the frame and half as tall, at the top half.
-  const stage = studio.getByTestId("preview-stage");
+  const stage = panel.getByTestId("half-photo-stage");
   const photo = stage.getByTestId("preview-layer");
-  await expect(photo).toHaveCount(1);
   await expect(photo).toBeVisible();
   const place = () => photo.evaluate((element) => [element.style.left, element.style.top, element.style.width]);
   await expect.poll(place).toEqual(["0%", "0%", "100%"]);
-  await expect(tools.getByRole("button", { name: "Ảnh từ máy" })).toBeDisabled();
 
-  // Dragged down and sideways: it stays across the frame and snaps to the bottom half.
+  // A quick choice, then a drag up and sideways: it stays across the frame and snaps to the top half.
+  await panel.getByLabel("Vị trí ảnh chèn").getByText("Nửa dưới").click();
+  await expect.poll(place).toEqual(["0%", "50%", "100%"]);
+  // The mouse acts on the screen: the card's frame is brought into view first.
+  await stage.scrollIntoViewIfNeeded();
   const box = (await stage.boundingBox())!;
   const from = (await photo.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 60, from.y + from.height / 2 + box.height * 0.48, { steps: 8 });
+  // Up past the top half: kept there.
+  await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 - box.height * 0.55, { steps: 8 });
   await page.mouse.up();
-  await expect.poll(place).toEqual(["0%", "50%", "100%"]);
-  const inspector = studio.getByTestId("preview-scene-editor");
-  await expect(inspector.getByLabel("Vị trí ảnh chèn").locator(".ant-segmented-item-selected")).toHaveText("Nửa dưới");
-
-  // The scene's card shows it too, full width over the scene's frame, and moves it with a quick choice.
-  // The first Escape lets go of the picked photo, the second closes the studio.
-  await page.keyboard.press("Escape");
-  await page.keyboard.press("Escape");
-  await expect(studio).toHaveCount(0);
-  const card = page.getByTestId("scene").first().getByTestId("half-photo-panel");
-  const onCard = card.getByTestId("half-photo-stage").getByTestId("preview-layer");
-  const cardPlace = () => onCard.evaluate((element) => [element.style.left, element.style.top, element.style.width]);
-  await expect.poll(cardPlace).toEqual(["0%", "50%", "100%"]);
-  await card.getByLabel("Vị trí ảnh chèn").getByText("Nửa trên").click();
-  await expect.poll(cardPlace).toEqual(["0%", "0%", "100%"]);
+  await expect.poll(place).toEqual(["0%", "0%", "100%"]);
 });
 
 test("studio sounds: a sound effect added at the playhead, heard, made louder and undone", async ({ page }) => {

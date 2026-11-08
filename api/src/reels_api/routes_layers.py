@@ -5,7 +5,8 @@ The picture of a layer is drawn by the render core (reels_render.layers), so the
 the MP4 overlays. "Ảnh món" shows its scene's own photo, so every way of choosing a scene's photo chooses it. A
 half-frame photo (style "half") has a photo of its own, from the member's computer, the library or a link; it is
 always as wide as the frame and half as tall, so only its place down the frame, its start and its seconds change: the
-server keeps it centred across and inside the frame whatever it is sent.
+server keeps it centred across and inside the frame whatever it is sent. Only a "Video xuyên suốt" takes one (owner's
+choice, 2026-11-09): on a slide video the scene's photo already fills the frame.
 """
 
 import io
@@ -43,6 +44,7 @@ from .storage import DirectoryStorage, get_storage
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension, read_limited
 from .videos import (
     ensure_unlocked,
+    half_layer,
     is_backdrop,
     is_half_layer,
     layer_photo_key,
@@ -63,6 +65,7 @@ KIND_ERROR = 'Loại lớp phải là "text", "sticker" hoặc "photo"'
 TITLE_ERROR = "Cảnh tiêu đề không có lớp chữ, sticker hay ảnh: nó là ảnh bìa của video"
 HALF_SECONDS = MAX_SECONDS  # a new half-frame photo's: to the end of its scene
 ONE_PHOTO_ERROR = "Cảnh này đã có ảnh món hoặc ảnh chèn: xoá lớp ảnh đó trước"
+SLIDES_ERROR = "Ảnh chèn chỉ dùng cho Video xuyên suốt: đổi Kiểu video trước"
 
 
 class LayerBody(BaseModel):
@@ -275,8 +278,8 @@ def delete_layer(
 
 class HalfPhotoBody(BaseModel):
     scene_id: int
-    # One of the three: a photo of the team's "Kho tư liệu", a link to a photo, or the scene's own photo (which turns
-    # its "Ảnh món", if it has one, into the half-frame photo).
+    # One of the three: a photo of the team's "Kho tư liệu", a link to a photo, or the scene's own photo, shown as it
+    # changes (link_scene_photo; it turns the scene's "Ảnh món", if it has one, into the half-frame photo).
     media_id: int | None = None
     url: str | None = None
     scene_photo: bool = False
@@ -292,6 +295,8 @@ def store_half_photo(
     ensure_unlocked(db, video)
     if scene.is_title:
         raise invalid(TITLE_ERROR)
+    if not is_backdrop(video):
+        raise invalid(SLIDES_ERROR)
     key = new_key(video.id, f"layer-{scene.id}", extension)
     for layer in [layer for layer in scene.layers if layer.kind == "photo"]:
         if is_half_layer(layer) and not layer.image_key:
@@ -336,6 +341,34 @@ def store_half_photo(
         raise
 
 
+def link_scene_photo(db: DbSession, storage: DirectoryStorage, scene_id: int) -> dict:
+    """The scene's half-frame photo shows the scene's own photo, as "Ảnh món" did (owner's choice, 2026-11-09), so
+    every picture tool of the scene (stock search, upload, library, link, AI photo, crop, retouch) finds and edits it:
+    one with a photo of its own lets that copy go, an "Ảnh món" becomes one, and a scene without either gets a new one
+    (blocking the render until the scene has a photo)."""
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    if scene.is_title:
+        raise invalid(TITLE_ERROR)
+    if not is_backdrop(video):
+        raise invalid(SLIDES_ERROR)
+    dropped = None
+    half = next((layer for layer in scene.layers if is_half_layer(layer)), None)
+    if half is not None:
+        dropped, half.image_key = half.image_key, None
+    else:
+        for layer in [layer for layer in scene.layers if layer.kind == "photo"]:
+            scene.layers.remove(layer)
+            db.delete(layer)
+        last = db.scalar(select(func.max(SceneLayer.position)).where(SceneLayer.scene_id == scene.id))
+        row = half_layer()
+        row.position = (last or 0) + 1
+        scene.layers.append(row)
+    payload = _saved(db, video)
+    storage.delete(dropped)
+    return payload
+
+
 @router.post("/half-photo", status_code=201)
 def add_half_photo(
     body: HalfPhotoBody,
@@ -343,19 +376,13 @@ def add_half_photo(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    """A half-frame photo from the library (`media_id`), from a link to a photo (`url`) or from the scene's own photo
-    (`scene_photo`, in place of its "Ảnh món")."""
+    """A half-frame photo from the library (`media_id`), from a link to a photo (`url`), or showing the scene's own
+    photo (`scene_photo`: link_scene_photo)."""
     url = (body.url or "").strip()
     if [body.media_id is not None, bool(url), body.scene_photo].count(True) != 1:
         raise invalid("Chọn một ảnh: từ kho tư liệu, một link ảnh hoặc ảnh của cảnh")
     if body.scene_photo:
-        scene = db.get(Scene, body.scene_id)
-        if scene is None:
-            raise ApiError(404, "scene_not_found", "Không tìm thấy cảnh")
-        if not scene.image_key or not storage.exists(scene.image_key):
-            raise invalid("Cảnh chưa có ảnh để làm ảnh chèn")
-        data, extension = storage.path(scene.image_key).read_bytes(), scene.image_key.rsplit(".", 1)[-1]
-        return store_half_photo(db, storage, body.scene_id, data, extension, replace=True)
+        return link_scene_photo(db, storage, body.scene_id)
     if body.media_id is not None:
         item = db.get(MediaItem, body.media_id)
         if item is None:

@@ -1001,14 +1001,17 @@ and "Ảnh món" is kept:
   offers "Đổi ảnh món thành ảnh chèn". The preview and each card's frame play the backdrop under every scene, as the
   MP4 does.
 
-**Ảnh chèn nửa khung** (any kind of video, any content scene): "Chữ & sticker" in "Xem trước" has "Ảnh từ máy" and
-"Từ kho tư liệu". The photo fills a box as wide as the frame and half as tall (cut to fill, never stretched, with a
-thin white edge and rounded corners), lands on the top half and shows with the scene's narration until the next
-scene. It is dragged only up and down on the phone, over the scene's own picture or the video's backdrop, and snaps
-to "Nửa trên", "Giữa" and "Nửa dưới" (also quick choices in "Chỉnh cảnh"); its start and length can be typed. Every content scene's card on the video page has the same tools ("Ảnh chèn nửa khung") over a 9:16 frame of what lies under it: the scene's own photo or clip, or on a "Video xuyên suốt" the backdrop playing, with the scene's text box on top, so the photo is placed without opening the studio. "Dùng ảnh của cảnh" makes the scene's own photo the half-frame photo; on a scene with "Ảnh món" it reads "Đổi ảnh món thành ảnh chèn" and replaces it. It sits
-under the scene's text, captions and the other layers, which keep their places; the text gets no shade of its own,
-so a box style keeps it readable over a busy photo. One photo layer per scene; removing it asks first, since its
-photo goes with it.
+**Ảnh chèn nửa khung** (only a "Video xuyên suốt"; a slide video has none, its scene's photo already fills the
+frame): the scene's dish photo, the same photo the scene's usual picture tools find and edit (the "Tự tìm ảnh" pick,
+marked "Tự chọn, kiểm tra lại", or one chosen with stock search, Google, the library, an upload, a link, an AI photo,
+crop or retouch, none of which changed), shown in a box as wide as the frame and half as tall (cut to fill, never
+stretched, with a thin white edge and rounded corners). It lands on the top half and shows with the scene's narration
+until the next scene. Each content scene's card has "Ảnh chèn nửa khung": a 9:16 frame with the backdrop playing, the
+photo over it and the scene's text box on top; the photo is dragged only up and down there (and on the phone in "Xem
+trước"), snapping to "Nửa trên", "Giữa" and "Nửa dưới", also quick choices; its start and length can be typed in
+"Chỉnh cảnh". "Thêm ảnh chèn" adds one; on an older scene with "Ảnh món" it reads "Đổi ảnh món thành ảnh chèn". It
+sits under the scene's text, captions and the other layers; the text gets no shade of its own, so a box style keeps it
+readable over a busy photo. One photo layer per scene.
 
 "Nghỉ sau lời đọc" (Thiết lập › Âm thanh: Ngắn 0,4 s, Vừa 0,7 s, Dài 1 s) is the pause after each scene's
 narration for scenes whose seconds follow it; changing it changes those scenes' seconds at once.

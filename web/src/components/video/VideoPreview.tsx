@@ -1102,6 +1102,7 @@ export default function VideoPreview({
               onAdd={addLayer}
               onSaved={save}
               onPick={setPickedLayer}
+              backdrop={backdrop}
             />
           )}
 

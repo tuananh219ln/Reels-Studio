@@ -285,7 +285,7 @@ export default function SceneCard({
                 Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
               </Typography.Text>
             )}
-            {!scene.is_title && <HalfPhotoPanel scene={scene} backdrop={backdrop ? backdropScene : null} />}
+            {backdrop && !scene.is_title && <HalfPhotoPanel scene={scene} backdrop={backdropScene} />}
             {ownPicture && (
               <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
             )}

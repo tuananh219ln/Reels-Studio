@@ -38,7 +38,7 @@ export function photoLayer(layers: SceneLayer[]): SceneLayer | undefined {
  * scene's photo, or its clip picked up where the scene before left it, looping over the part from the title scene's
  * start to the clip's end (as the render core's backdrop_start does),
  * joined by hard cuts, so a half-frame photo is placed over the backdrop it will be rendered over; on a slide video
- * "Ảnh món", kept for switching back, is left out, while a half-frame photo shows on every kind of video.
+ * the photo layers ("Ảnh món", "Ảnh chèn nửa khung"), kept for switching back, are left out.
  */
 export function previewScenes(video: VideoDetail): SceneData[] {
   const all = [video.title_scene, ...video.scenes].filter((scene): scene is SceneData => scene !== null);
@@ -46,7 +46,7 @@ export function previewScenes(video: VideoDetail): SceneData[] {
   if (!isBackdrop(video) || title === null) {
     return all.map((scene) => ({
       ...scene,
-      layers: scene.layers.filter((layer) => layer.kind !== "photo" || isHalf(layer)),
+      layers: scene.layers.filter((layer) => layer.kind !== "photo"),
     }));
   }
   let at = 0;

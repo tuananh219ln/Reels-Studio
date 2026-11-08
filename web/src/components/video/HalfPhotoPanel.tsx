@@ -1,11 +1,10 @@
 "use client";
 
-import { DeleteOutlined, FolderOpenOutlined, PictureOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Segmented, Typography, Upload } from "antd";
+import { DeleteOutlined, PictureOutlined } from "@ant-design/icons";
+import { Alert, App, Button, Flex, Segmented, Typography } from "antd";
 import { useRef, useState } from "react";
-import { api, errorMessage, upload, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
-import MediaLibraryPicker from "./MediaLibraryPicker";
 import LayerStage from "./preview/LayerStage";
 import { FRAME_HEIGHT, FRAME_WIDTH, HALF_PLACES, isHalf } from "./preview/layers";
 import { placeBox } from "./TextPositionModal";
@@ -13,10 +12,11 @@ import { placeBox } from "./TextPositionModal";
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
 
 /**
- * "Ảnh chèn nửa khung" on a content scene's card: the scene's frame as it will be rendered (its own photo or clip, or
- * on a "Video xuyên suốt" the video's backdrop playing), with the half-frame photo over it and the scene's text box on
- * top, so the photo is placed against what is really under it. The photo is added from the computer or the library,
- * dragged up and down (snapping to the top half, the middle and the bottom half) or placed with a quick choice.
+ * "Ảnh chèn nửa khung" on a content scene's card of a "Video xuyên suốt" (a slide video has none): the video's
+ * backdrop playing, with the half-frame photo over it and the scene's text box on top, so the photo is placed against
+ * what is really under it. The photo is the scene's own, found and edited with the scene's picture tools, as "Ảnh món"
+ * was; it is dragged up and down (snapping to the top half, the middle and the bottom half) or placed with a quick
+ * choice.
  */
 export default function HalfPhotoPanel({
   scene,
@@ -32,7 +32,6 @@ export default function HalfPhotoPanel({
   const stage = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [library, setLibrary] = useState(false);
   const [box, setBox] = useState<{ width: number; height: number } | null>(null);
   const layer = scene.layers.find(isHalf);
   // One photo layer per scene: "Ảnh món" takes the place too.
@@ -50,29 +49,11 @@ export default function HalfPhotoPanel({
     }
   }
 
-  const move = (target: SceneLayer, y: number) => run(() => api<VideoDetail>(`/layers/${target.id}`, "PATCH", { y }));
+  /** The half-frame photo shows the scene's own photo (a new one, an "Ảnh món" turned into one, or its own let go). */
+  const linkScenePhoto = () =>
+    run(() => api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, scene_photo: true }));
 
-  /** A photo from the computer or the library: a new half-frame photo, or one for a half-frame photo without its own. */
-  const pickers = (
-    <Flex gap={6} wrap>
-      <Upload
-        accept="image/*"
-        showUploadList={false}
-        disabled={frozen || busy}
-        beforeUpload={(file) => {
-          void run(() => upload<VideoDetail>("/layers/half-photo/upload", file, { scene_id: String(scene.id) }));
-          return false;
-        }}
-      >
-        <Button size="small" icon={<PictureOutlined />} disabled={frozen} loading={busy}>
-          Ảnh từ máy
-        </Button>
-      </Upload>
-      <Button size="small" icon={<FolderOpenOutlined />} disabled={frozen || busy} onClick={() => setLibrary(true)}>
-        Từ kho
-      </Button>
-    </Flex>
-  );
+  const move = (target: SceneLayer, y: number) => run(() => api<VideoDetail>(`/layers/${target.id}`, "PATCH", { y }));
 
   const ground = backdrop ?? scene;
   const picture = ground.frame_url ?? ground.preview_url;
@@ -83,7 +64,7 @@ export default function HalfPhotoPanel({
       <Typography.Text strong style={{ fontSize: 12 }}>
         Ảnh chèn nửa khung
       </Typography.Text>
-      {(layer || backdrop) && (
+      {
         <div
           ref={stage}
           data-testid="half-photo-stage"
@@ -150,17 +131,20 @@ export default function HalfPhotoPanel({
             />
           )}
         </div>
-      )}
+      }
       {layer ? (
         <>
-          {layer.own_image === false && (
-            // A "Video xuyên suốt" script's: it shows the scene's photo until it has one of its own.
-            <>
-              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Ảnh chèn đang dùng ảnh của cảnh (đổi ở khung ảnh của cảnh bên dưới), hoặc chọn ảnh khác:
-              </Typography.Text>
-              {pickers}
-            </>
+          {layer.own_image === false ? (
+            // It shows the scene's photo, so the scene's own picture tools find and edit it.
+            <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="half-photo-scene-tools">
+              Ảnh chèn là ảnh của cảnh: tìm ảnh, tải lên, lấy từ kho, dán link, tạo ảnh AI, chỉnh khung hay sửa ảnh ở
+              khung ảnh của cảnh bên dưới.
+            </Typography.Text>
+          ) : (
+            // One with a photo of its own (added before it took the scene's): back to the scene's, for its tools.
+            <Button size="small" icon={<PictureOutlined />} disabled={frozen || busy} onClick={linkScenePhoto}>
+              Dùng ảnh của cảnh (để tìm, sửa ảnh)
+            </Button>
           )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Kéo ảnh lên xuống trong khung, hoặc chọn nhanh:
@@ -203,33 +187,19 @@ export default function HalfPhotoPanel({
               ? "Cảnh đang dùng ảnh món (cỡ Nhỏ/Vừa/Lớn). Đổi sang ảnh chèn để ảnh rộng hết khung 1080, cao nửa khung."
               : "Ảnh rộng hết khung, cao nửa khung, viền trắng, hiện cùng lời đọc đến hết cảnh."}
           </Typography.Text>
-          {scene.has_image && (
-            // The scene's own photo, copied: on a "Video xuyên suốt" it replaces the scene's "Ảnh món".
-            <Button
-              size="small"
-              type={otherPhoto ? "primary" : "default"}
-              icon={<PictureOutlined />}
-              disabled={frozen || busy}
-              onClick={() =>
-                run(() => api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, scene_photo: true }))
-              }
-            >
-              {otherPhoto ? "Đổi ảnh món thành ảnh chèn" : "Dùng ảnh của cảnh"}
-            </Button>
-          )}
-          {!otherPhoto && pickers}
+          {/* The scene's photo, found and edited with the scene's tools below the card's frame. */}
+          <Button
+            size="small"
+            type="primary"
+            icon={<PictureOutlined />}
+            disabled={frozen || busy}
+            onClick={linkScenePhoto}
+          >
+            {otherPhoto ? "Đổi ảnh món thành ảnh chèn" : "Thêm ảnh chèn"}
+          </Button>
         </>
       )}
       {error && <Alert type="error" showIcon title={error} />}
-      {library && (
-        <MediaLibraryPicker
-          sceneId={scene.id}
-          videoId={scene.video_id}
-          hasPicture={false}
-          inset
-          onClose={() => setLibrary(false)}
-        />
-      )}
     </Flex>
   );
 }
