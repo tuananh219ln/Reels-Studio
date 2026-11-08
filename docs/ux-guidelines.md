@@ -504,10 +504,14 @@ Built:
   videos, then a confirmation). Groups opened once stay loaded, so unsaved text in one survives opening
   another. A new group starts empty, and "Tạo video" cannot pick a group without a script prompt. The
   group is chosen in "Tạo video"; a clone keeps its source's group. Tabs, the group opening on "Video":
-  - "Video (N)": the group's videos newest first in a compact table (thumbnail, title with its topic and
-    plan day, status, who made it, when), a search over title and topic that ignores accents, a status
-    filter, and "Tạo video", which opens "Tạo video" on `/videos` with this group chosen (hidden while
-    the group has no script prompt);
+  - "Video (N)": the group's videos newest first, as "Bảng | Danh sách" (remembered in the browser,
+    "Bảng" until chosen): a compact table (thumbnail, title with its topic and plan day, kind, status,
+    platforms, "View" (every live Facebook post's newest reading added up), "View 48h", "Share" and
+    "Share/view" (the 48-hour reading of the post with the most views), who made it, when) or a card per
+    video (a larger picture, title, status, platforms and one line of those numbers, "Chưa có số liệu
+    đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
+    topic that ignores accents and a status filter, both kept when switching, and "Tạo video", which
+    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
   - "Prompt": the six prompts listed on the left (Viết kịch bản, Nhân bản, Học từ video mẫu, Phân tích
     video mẫu, Sửa theo góp ý, Viết bài), each tagged "Đã sửa", "Mặc định" or "Trống", and the chosen
     one edited on the right with "Lưu" and "Khôi phục mặc định"; text typed in one and not saved
@@ -538,14 +542,16 @@ Built:
   - the status colours, then the calendar: five weeks ("Tuần N · dd/mm – dd/mm", or the day numbers before a start
     date, with "N ý tưởng · N đã làm · N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
     A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
-    their status colour (never filtered); an empty one has a dashed "+ Thêm ý". Clicking a cell shows that day
-    below (outlined; today by default, else day 1). Dragging a chip or a card onto a cell moves the idea there; a
-    full day (10) refuses it;
-  - the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
+    their status colour (never filtered); an empty one has a dashed "+ Thêm ý", which also opens the day. Clicking
+    a cell outlines it and opens that day in a drawer on the right ("Ngày N — Thứ …, dd/mm" from the start date,
+    "Hôm nay" on today's, "+ Thêm ý" greyed out at 10), with no mask, so the calendar stays usable beside it;
+    closing it keeps the page's scroll and the filters. Dragging a chip or a card onto a cell moves the idea there;
+    a full day (10) refuses it. "Mở Backlog" sits above the calendar and opens the Backlog beside it, to drag ideas
+    between them;
+  - in the drawer, the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
     that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp", "Xóa lọc", "Đầy đủ | Gọn" (kept in the
     browser as `plan-compact`; a compact card shows its title, status, numbers and buttons, and opens on its title
-    or arrow) and "Mở Backlog", which opens the Backlog beside the calendar, to drag ideas between them;
-  - the chosen day in full: its date, "Hôm nay", "+" (greyed out at 10), a line counting its shown ideas by status
+    or arrow), then the day in full: a line counting its shown ideas by status
     ("Không có ý tưởng khớp" when the filters hide them all), and each idea with a 3 px left border in its status
     colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong, Đã
     lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while no post is set, "Tạo video" or "Mở video"
@@ -553,7 +559,7 @@ Built:
     "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in the plan shows in the form, which stays
     open), "Chuyển về Backlog" and "Xoá", and under them one line per Facebook post with its 48-hour numbers
     ("<Page>: N view, N share, share/view x,xx% đạt/không đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu"
-    under 5 measured posts; "chưa đo 48h" before);
+    under 5 measured posts; "chưa đo 48h" before), ending with "· hiện N view", the newest reading, once read;
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
