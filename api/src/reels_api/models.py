@@ -145,6 +145,9 @@ class KnowledgeTopic(Base):
     # "Gợi ý tìm ảnh": what the group's photos show (growing plants, not cooked dishes...), added to the script and
     # clone prompts so the AI writes the scenes' search keywords and image prompts for it. Empty: nothing added.
     photo_hint: Mapped[str] = mapped_column(Text, default="", server_default="")
+    # The group's own narration voice (an ElevenLabs id or "vieneu:<id>"): a new video of the group starts with it,
+    # over its maker's defaults (video_options.apply_defaults). Empty: the maker's defaults decide.
+    voice_id: Mapped[str] = mapped_column(String(200), default="", server_default="")
     # "Từ video mẫu" (reference.py): the prompt that writes a script from a sample video, and the one that analyses
     # the sample on its own (ways B, C and D). Empty: the default in prompts/.
     learn_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
