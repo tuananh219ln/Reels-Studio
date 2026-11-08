@@ -163,6 +163,7 @@ def test_the_list_shows_each_videos_posts_views_and_48_hour_numbers(an, db, me, 
         "pages": 2,
         "at": rows["Đã đăng hai trang"]["post"]["at"],
         "views": 5700,  # latest readings added up
+        "views_48h": 1200,  # 48-hour numbers of the post with the most views only
         "shares": 6,  # 48-hour numbers of that post only
         "share_rate": 0.005,
         "share_met": True,  # against analytics.SHARE_GOAL
@@ -170,6 +171,7 @@ def test_the_list_shows_each_videos_posts_views_and_48_hour_numbers(an, db, me, 
     }
     scheduled = rows["Hẹn giờ"]["post"]
     assert (scheduled["state"], scheduled["fanpage"], scheduled["views"]) == ("scheduled", "Vườn nhà", None)
+    assert scheduled["views_48h"] is None
     assert rows["Nháp"]["post"] is None and rows["Huỷ"]["post"] is None
     assert rows["Nháp"]["plan_day"] == 4 and rows["Hẹn giờ"]["plan_day"] is None
     assert rows["Nháp"]["knowledge_topic"] == "Sức khỏe"

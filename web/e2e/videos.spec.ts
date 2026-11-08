@@ -288,6 +288,21 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await expect(videos.getByText("Không có video nào khớp")).toBeVisible();
   await videos.getByLabel("Tìm video của nhóm").fill("rau mam");
   await expect(videos.getByRole("row")).toHaveCount(2);
+  // An unposted video shows dashes for its numbers, never a zero it does not have.
+  await expect(videos.getByRole("columnheader", { name: "View 48h" })).toBeVisible();
+  await expect(videos.getByRole("row").nth(1)).toContainText("—");
+  // "Danh sách" keeps the search, and is remembered in this browser.
+  await videos.getByText("Danh sách", { exact: true }).click();
+  await expect(videos.getByTestId("topic-video-card")).toHaveCount(1);
+  await expect(videos.getByTestId("topic-video-numbers")).toHaveText("Chưa có số liệu đăng");
+  await expect(videos.getByLabel("Tìm video của nhóm")).toHaveValue("rau mam");
+  await videos.getByLabel("Tìm video của nhóm").fill("khong co");
+  await expect(videos.getByText("Không có video nào khớp")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await expect(videos.getByTestId("topic-video-card")).toHaveCount(1);
+  await videos.getByText("Bảng", { exact: true }).click();
+  await expect(videos.getByRole("row")).toHaveCount(2);
 
   // "Tạo video" on another group's tab opens the dialog on that group, not the first one.
   await page.getByLabel("Tên nhóm chủ đề mới").fill("Vườn rau");
@@ -2674,14 +2689,15 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await plan.getByTestId("plan-settings").getByRole("button", { name: "Lưu" }).click();
   await expect(plan.getByTestId("plan-today")).toHaveText("Hôm nay là ngày 1/30");
 
-  await plan.getByRole("button", { name: "Thêm ý tưởng ngày 1", exact: true }).click();
+  // A day opens in a drawer, where its ideas are added and worked on.
+  await plan.getByRole("button", { name: "Chọn ngày 1", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm ý tưởng ngày 1", exact: true }).click();
   const add = page.getByRole("dialog", { name: "Thêm ý tưởng ngày 1" });
   await add.getByLabel("Chủ đề").fill("5 món sáng giúp ổn định huyết áp");
   await add.getByLabel("Nỗi đau người xem").fill("Sợ tai biến khi huyết áp lên xuống");
   await add.getByLabel("Góc hook").fill("Bỏ muối rồi vẫn chóng mặt?");
   await add.getByRole("button", { name: "Thêm" }).click();
-  // Today is the day shown under the calendar.
-  const idea = plan.getByTestId("plan-day-panel").getByTestId("plan-idea");
+  const idea = page.getByTestId("plan-day-panel").getByTestId("plan-idea");
   await expect(idea).toContainText("5 món sáng giúp ổn định huyết áp");
   await expect(idea).toContainText("Ý tưởng");
 
@@ -2690,6 +2706,7 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  await plan.getByRole("button", { name: "Chọn ngày 1", exact: true }).click();
   await idea.getByRole("button", { name: "Tạo video" }).click();
 
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
@@ -2703,6 +2720,7 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  await plan.getByRole("button", { name: "Chọn ngày 1", exact: true }).click();
   await expect(idea).toContainText(/Đã tạo video|Đã viết kịch bản/);
   await expect(idea.getByRole("link", { name: /Mở video/ })).toBeVisible();
 });
@@ -2731,22 +2749,24 @@ test("30-day plan: 2 ideas a day, and each idea is edited from its Sửa button"
 
   // Two ideas on day 5, typed in; the day says nothing about being short.
   for (const topic of ["Uống nước ấm buổi sáng", "Đi bộ sau bữa tối"]) {
-    await plan.getByRole("button", { name: "Thêm ý tưởng ngày 5", exact: true }).click();
+    await page.getByRole("button", { name: "Thêm ý tưởng ngày 5", exact: true }).click();
     const add = page.getByRole("dialog", { name: "Thêm ý tưởng ngày 5" });
     await add.getByLabel("Chủ đề").fill(topic);
     await add.getByRole("button", { name: "Thêm" }).click();
     await expect(add).toBeHidden();
   }
-  const day = plan.getByTestId("plan-day-panel");
+  const day = page.getByTestId("plan-day-panel");
+  await expect(page.getByTestId("plan-day-title")).toContainText("Ngày 5");
   await expect(day.getByTestId("plan-idea")).toHaveCount(2);
   await expect(day).not.toContainText("nên có");
 
   // "Sửa" is on every card without hovering, in "Gọn" too.
   const second = day.getByTestId("plan-idea").filter({ hasText: "Đi bộ sau bữa tối" });
   await expect(day.getByRole("button", { name: "Sửa" })).toHaveCount(2);
-  await plan.getByText("Gọn", { exact: true }).click();
+  const filters = page.getByTestId("plan-filters");
+  await filters.getByText("Gọn", { exact: true }).click();
   await expect(day.getByRole("button", { name: "Sửa" })).toHaveCount(2);
-  await plan.getByText("Đầy đủ", { exact: true }).click();
+  await filters.getByText("Đầy đủ", { exact: true }).click();
   // The text itself is not editable any more: one way to edit.
   await expect(day.getByRole("button", { name: /Sửa chủ đề/ })).toHaveCount(0);
 
@@ -2785,6 +2805,15 @@ test("30-day plan: 2 ideas a day, and each idea is edited from its Sửa button"
   await expect(edited).toContainText("Tiêu hoá");
   await expect(edited).toContainText("Đầy bụng khó ngủ");
   await expect(edited).toContainText("Nằm ngay sau ăn là sai");
+
+  // Closing the drawer keeps the page where it was; the day's chips show the edit.
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await page.locator(".ant-drawer-close").click();
+  await expect(day).toBeHidden();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  await expect(
+    plan.getByTestId("plan-day-5").getByTestId("plan-chip").filter({ hasText: "Đi bộ 15 phút" }),
+  ).toHaveCount(1);
 });
 
 /** "dd/mm/yyyy" of today in Vietnam, moved by `days`; with the short weekday the calendar shows ("CN 08/11"). */
@@ -2792,7 +2821,7 @@ function vietnamDate(days: number): string {
   return vietnamDay(days).full;
 }
 
-function vietnamDay(days: number): { full: string; short: string; cell: string } {
+function vietnamDay(days: number): { full: string; short: string; cell: string; long: string } {
   const [year, month, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" })
     .format(new Date())
     .split("-")
@@ -2801,7 +2830,8 @@ function vietnamDay(days: number): { full: string; short: string; cell: string }
   const pad = (n: number) => String(n).padStart(2, "0");
   const short = `${pad(date.getUTCDate())}/${pad(date.getUTCMonth() + 1)}`;
   const weekday = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][date.getUTCDay()];
-  return { full: `${short}/${date.getUTCFullYear()}`, short, cell: `${weekday} ${short}` };
+  const long = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"][date.getUTCDay()];
+  return { full: `${short}/${date.getUTCFullYear()}`, short, cell: `${weekday} ${short}`, long: `${long}, ${short}` };
 }
 
 test("30-day plan: weeks of days, today's ideas on top, and settings saved together", async ({ page }) => {
@@ -2840,11 +2870,17 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   expect(patches).toBe(1);
   await expect(plan.getByTestId("plan-verdict")).toContainText("/12 video");
 
-  // The calendar: day 7 is today, with its weekday and date, and is the day shown below.
+  // The calendar: day 7 is today, with its weekday and date; a day opens in a drawer only when picked.
   const seventh = plan.getByTestId("plan-day-7");
   await expect(seventh).toContainText(vietnamDay(0).cell);
   await expect(seventh).toContainText("Hôm nay");
-  await expect(plan.getByTestId("plan-day-panel")).toContainText("Ngày 7");
+  const dayPanel = page.getByTestId("plan-day-panel");
+  const dayTitle = page.getByTestId("plan-day-title");
+  await expect(dayPanel).toHaveCount(0);
+  await plan.getByRole("button", { name: "Chọn ngày 7" }).click();
+  await expect(dayTitle).toHaveText(`Ngày 7 — ${vietnamDay(0).long}`);
+  await page.locator(".ant-drawer-close").click();
+  await expect(dayPanel).toBeHidden();
   await expect(plan.getByTestId("plan-week-2")).toContainText(
     `Tuần 2 · ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
   );
@@ -2856,13 +2892,16 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await add.getByRole("button", { name: "Thêm" }).click();
   await expect(add).toBeHidden();
   await expect(plan.getByTestId("plan-day-12").getByTestId("plan-chip")).toHaveText(/Ngủ trưa 20 phút/);
-  await expect(plan.getByTestId("plan-day-panel")).toContainText("Ngày 12");
+  await expect(dayTitle).toHaveText(`Ngày 12 — ${vietnamDay(5).long}`);
+  await expect(dayPanel.getByTestId("plan-idea")).toHaveCount(1);
   await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng · 0 đã làm · 0 đã lên lịch");
 
-  // Picking a day shows it below.
+  // Another day opens in the drawer in its place.
+  await page.locator(".ant-drawer-close").click();
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
-  await expect(plan.getByTestId("plan-day-panel")).toContainText("Ngày 13");
-  await expect(plan.getByTestId("plan-day-panel")).toContainText("Chưa có ý tưởng");
+  await expect(dayTitle).toContainText("Ngày 13");
+  await expect(dayPanel).toContainText("Chưa có ý tưởng");
+  await page.locator(".ant-drawer-close").click();
 
   // Dragging a chip onto another day moves the idea there.
   await plan.getByTestId("plan-day-12").getByTestId("plan-chip").dragTo(plan.getByTestId("plan-day-13"));
@@ -2873,7 +2912,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   const strip = plan.getByTestId("plan-today-strip");
   await expect(plan.getByTestId("plan-today")).toHaveText("Hôm nay là ngày 7/30");
   await plan.getByRole("button", { name: "Chọn ngày 7" }).click();
-  await plan.getByRole("button", { name: "Thêm ý tưởng ngày 7", exact: true }).click();
+  await page.getByRole("button", { name: "Thêm ý tưởng ngày 7", exact: true }).click();
   const addToday = page.getByRole("dialog", { name: "Thêm ý tưởng ngày 7" });
   await addToday.getByLabel("Chủ đề").fill("Uống trà gừng sau bữa sáng");
   await addToday.getByRole("button", { name: "Thêm" }).click();
@@ -2883,8 +2922,12 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(todayIdea.getByRole("button", { name: "Sửa" })).toBeVisible();
   await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+ · Đã lên lịch \d+ · Ngày còn trống \d+$/);
 
-  // The filters apply to the day shown, not to the calendar.
-  await plan.getByLabel("Tìm ý tưởng").fill("không có ý nào như thế");
-  await expect(plan.getByTestId("plan-day-panel")).toContainText("Không có ý tưởng khớp");
+  // The filters apply to the day in the drawer, not to the calendar, and stay when it is closed.
+  await page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng").fill("không có ý nào như thế");
+  await expect(dayPanel).toContainText("Không có ý tưởng khớp");
   await expect(plan.getByTestId("plan-day-13").getByTestId("plan-chip")).toHaveCount(1);
+  await page.locator(".ant-drawer-close").click();
+  await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
+  await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
+  await expect(dayPanel).toContainText("Không có ý tưởng khớp");
 });

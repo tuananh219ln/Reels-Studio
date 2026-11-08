@@ -22,6 +22,7 @@ import {
   Col,
   Collapse,
   DatePicker,
+  Drawer,
   Empty,
   Flex,
   Form,
@@ -388,6 +389,12 @@ function PlanView({
   // The day shown under the calendar: today while the plan runs, else day 1; a new start date moves it to today.
   const runningDay = (today: number | null) => (today !== null && today >= 1 && today <= PLAN_DAYS ? today : 1);
   const [selected, setSelected] = useState(() => runningDay(plan.today_day));
+  // The day open in the drawer; the calendar stays usable beside it, and closing it keeps the filters and the scroll.
+  const [openDay, setOpenDay] = useState<number | null>(null);
+  const openOn = (day: number) => {
+    setSelected(day);
+    setOpenDay(day);
+  };
   const [todaySeen, setTodaySeen] = useState(plan.today_day);
   if (todaySeen !== plan.today_day) {
     setTodaySeen(plan.today_day);
@@ -469,87 +476,109 @@ function PlanView({
             <MonthCalendar
               plan={plan}
               selected={selected}
-              onSelect={setSelected}
+              onSelect={openOn}
               onAdd={(day) => {
-                setSelected(day);
+                openOn(day);
                 onAdd(day);
               }}
               move={move}
             />
-            <Flex wrap gap={8} align="center" data-testid="plan-filters">
-              <Select<PlanItemStatus>
-                allowClear
-                placeholder="Tất cả trạng thái"
-                aria-label="Lọc trạng thái"
-                value={filters.status}
-                onChange={(status) => setFilters({ ...filters, status: status ?? null })}
-                options={(Object.keys(STATUS_LABELS) as PlanItemStatus[]).map((status) => ({
-                  value: status,
-                  label: STATUS_LABELS[status],
-                }))}
-                style={{ minWidth: 170 }}
-              />
-              <Select<string>
-                allowClear
-                placeholder="Tất cả nhóm nỗi đau"
-                aria-label="Lọc nhóm nỗi đau"
-                value={filters.group}
-                onChange={(group) => setFilters({ ...filters, group: group ?? null })}
-                options={[...new Set(planned.map((item) => item.pain_group).filter(Boolean))]
-                  .sort((a, b) => a.localeCompare(b, "vi"))
-                  .map((group) => ({ value: group, label: group }))}
-                style={{ minWidth: 200 }}
-              />
-              <Input
-                allowClear
-                placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook"
-                aria-label="Tìm ý tưởng"
-                value={filters.query}
-                onChange={(event) => setFilters({ ...filters, query: event.target.value })}
-                style={{ width: 340, maxWidth: "100%" }}
-              />
-              <Typography.Text type="secondary" data-testid="plan-matches">
-                {shown.length}/{planned.length} ý tưởng khớp
-              </Typography.Text>
-              <Button
-                onClick={() => setFilters(NO_FILTERS)}
-                disabled={!filters.status && !filters.group && !filters.query}
-              >
-                Xóa lọc
-              </Button>
-              <Segmented
-                aria-label="Chế độ thẻ"
-                value={compact ? "compact" : "full"}
-                onChange={(value) => setCompact(value === "compact")}
-                options={[
-                  { value: "full", label: "Đầy đủ" },
-                  { value: "compact", label: "Gọn" },
-                ]}
-              />
-              <Button
-                icon={<InboxOutlined />}
-                onClick={() => setShowBacklog((open) => !open)}
-                style={{ marginLeft: "auto" }}
-              >
+            <Flex justify="flex-end">
+              <Button icon={<InboxOutlined />} onClick={() => setShowBacklog((open) => !open)}>
                 {showBacklog ? "Đóng Backlog" : `Mở Backlog (${backlog.length})`}
               </Button>
             </Flex>
-            {/* The chosen day in full; the filters and "Gọn" apply here, never to the calendar. */}
-            <DayCard
-              day={selected}
-              plan={plan}
-              items={byDay(selected).filter((item) => matches(item, filters))}
-              total={byDay(selected).length}
-              compact={compact}
-              onAdd={() => onAdd(selected)}
-              onDrop={(id) => {
-                const item = plan.items.find((row) => row.id === id);
-                if (item) move(item, selected);
-              }}
-              onChange={change}
-              move={move}
-            />
           </Flex>
+
+          <Drawer
+            open={openDay !== null}
+            onClose={() => setOpenDay(null)}
+            mask={false}
+            size="min(520px, 100vw)"
+            data-testid="plan-day-drawer"
+            title={dayTitle(plan, selected)}
+            extra={
+              <Button
+                size="small"
+                icon={<PlusOutlined />}
+                aria-label={`Thêm ý tưởng ngày ${selected}`}
+                disabled={byDay(selected).length >= MAX_PER_DAY}
+                onClick={() => onAdd(selected)}
+              >
+                Thêm ý
+              </Button>
+            }
+          >
+            <Flex vertical gap={12}>
+              <Flex wrap gap={8} align="center" data-testid="plan-filters">
+                <Select<PlanItemStatus>
+                  allowClear
+                  placeholder="Tất cả trạng thái"
+                  aria-label="Lọc trạng thái"
+                  value={filters.status}
+                  onChange={(status) => setFilters({ ...filters, status: status ?? null })}
+                  options={(Object.keys(STATUS_LABELS) as PlanItemStatus[]).map((status) => ({
+                    value: status,
+                    label: STATUS_LABELS[status],
+                  }))}
+                  style={{ minWidth: 170 }}
+                />
+                <Select<string>
+                  allowClear
+                  placeholder="Tất cả nhóm nỗi đau"
+                  aria-label="Lọc nhóm nỗi đau"
+                  value={filters.group}
+                  onChange={(group) => setFilters({ ...filters, group: group ?? null })}
+                  options={[...new Set(planned.map((item) => item.pain_group).filter(Boolean))]
+                    .sort((a, b) => a.localeCompare(b, "vi"))
+                    .map((group) => ({ value: group, label: group }))}
+                  style={{ minWidth: 200 }}
+                />
+                <Input
+                  allowClear
+                  placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook"
+                  aria-label="Tìm ý tưởng"
+                  value={filters.query}
+                  onChange={(event) => setFilters({ ...filters, query: event.target.value })}
+                  style={{ width: 340, maxWidth: "100%" }}
+                />
+                <Typography.Text type="secondary" data-testid="plan-matches">
+                  {shown.length}/{planned.length} ý tưởng khớp
+                </Typography.Text>
+                <Button
+                  onClick={() => setFilters(NO_FILTERS)}
+                  disabled={!filters.status && !filters.group && !filters.query}
+                >
+                  Xóa lọc
+                </Button>
+                <Segmented
+                  aria-label="Chế độ thẻ"
+                  value={compact ? "compact" : "full"}
+                  onChange={(value) => setCompact(value === "compact")}
+                  options={[
+                    { value: "full", label: "Đầy đủ" },
+                    { value: "compact", label: "Gọn" },
+                  ]}
+                />
+              </Flex>
+              {/* The chosen day in full; the filters and "Gọn" apply here, never to the calendar. */}
+              <DayCard
+                bare
+                day={selected}
+                plan={plan}
+                items={byDay(selected).filter((item) => matches(item, filters))}
+                total={byDay(selected).length}
+                compact={compact}
+                onAdd={() => onAdd(selected)}
+                onDrop={(id) => {
+                  const item = plan.items.find((row) => row.id === id);
+                  if (item) move(item, selected);
+                }}
+                onChange={change}
+                move={move}
+              />
+            </Flex>
+          </Drawer>
         </Col>
         {showBacklog && (
           <Col flex="300px">
@@ -568,6 +597,23 @@ function dayDate(plan: Plan, day: number) {
         .add(day - 1, "day")
         .locale("vi")
     : null;
+}
+
+/** The drawer's title: "Ngày N — Thứ …, dd/mm" once the plan has a start date, with "Hôm nay" on today. */
+function dayTitle(plan: Plan, day: number): ReactNode {
+  const date = dayDate(plan, day);
+  const weekday = date ? date.format("dddd") : "";
+  return (
+    <Flex align="center" gap={8}>
+      <span data-testid="plan-day-title">
+        Ngày {day}
+        {date && ` — ${weekday.charAt(0).toUpperCase()}${weekday.slice(1)}, ${date.format("DD/MM")}`}
+      </span>
+      {plan.today_day === day && (
+        <Typography.Text style={{ fontSize: 12, fontWeight: 500, color: COLORS.primary }}>Hôm nay</Typography.Text>
+      )}
+    </Flex>
+  );
 }
 
 /** The status colours of the idea chips. */
@@ -997,6 +1043,7 @@ function useDropZone(onDrop: (itemId: number) => void) {
 }
 
 function DayCard({
+  bare,
   day,
   plan,
   items,
@@ -1007,6 +1054,8 @@ function DayCard({
   onChange,
   move,
 }: {
+  /** In the day's drawer, whose own title names the day and adds an idea. */
+  bare?: boolean;
   day: number;
   plan: Plan;
   /** The day's ideas the filters let through; `total` counts them all. */
@@ -1026,28 +1075,36 @@ function DayCard({
     <Card
       size="small"
       data-testid="plan-day-panel"
+      variant={bare ? "borderless" : undefined}
+      styles={bare ? { body: { padding: 0 } } : undefined}
       title={
-        <Flex align="center" gap={8}>
-          <span>Ngày {day}</span>
-          {date && (
-            <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
-              {date.format("dddd, DD/MM")}
-            </Typography.Text>
-          )}
-          {today && (
-            <Typography.Text style={{ fontSize: 12, fontWeight: 500, color: COLORS.primary }}>Hôm nay</Typography.Text>
-          )}
-        </Flex>
+        bare ? undefined : (
+          <Flex align="center" gap={8}>
+            <span>Ngày {day}</span>
+            {date && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                {date.format("dddd, DD/MM")}
+              </Typography.Text>
+            )}
+            {today && (
+              <Typography.Text style={{ fontSize: 12, fontWeight: 500, color: COLORS.primary }}>
+                Hôm nay
+              </Typography.Text>
+            )}
+          </Flex>
+        )
       }
       extra={
-        <Button
-          size="small"
-          type="text"
-          icon={<PlusOutlined />}
-          aria-label={`Thêm ý tưởng ngày ${day}`}
-          disabled={total >= MAX_PER_DAY}
-          onClick={onAdd}
-        />
+        bare ? undefined : (
+          <Button
+            size="small"
+            type="text"
+            icon={<PlusOutlined />}
+            aria-label={`Thêm ý tưởng ngày ${day}`}
+            disabled={total >= MAX_PER_DAY}
+            onClick={onAdd}
+          />
+        )
       }
       style={{ outline: over ? "2px dashed #fa8c16" : undefined }}
       {...handlers}
@@ -1165,6 +1222,9 @@ function PostNumbers({ posts, shareGoal }: { posts: PlanPost[]; shareGoal: numbe
                 </Typography.Text>
               )}
             </>
+          )}
+          {post.latest_views !== null && (
+            <span data-testid="plan-idea-latest-views"> · hiện {post.latest_views.toLocaleString("vi-VN")} view</span>
           )}
         </Typography.Text>
       ))}

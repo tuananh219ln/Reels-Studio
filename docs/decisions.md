@@ -36,6 +36,25 @@ to it:
 A person watches a sample MP4 (a 4:3 and a 9:16 photo, the top and bottom half, a backdrop clip, start 2 s for 3 s)
 before this is called done, as for any render change.
 
+## 2026-11-08 — A plan day opens in a drawer
+
+"Bổ sung 3" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md), the owner's choice for both "Đầy đủ"
+and "Gọn": the chosen day shown in full under the calendar pushed the page down and lost the calendar on a long plan.
+Clicking a day (its cell, or "+ Thêm ý" on an empty one) now opens it in a drawer with every action an idea card had,
+titled "Ngày N — Thứ …, dd/mm" from the plan's start date; nothing is shown under the calendar until a day is picked.
+The filters and "Đầy đủ | Gọn" move into the drawer and are kept when it closes; the drawer has no mask, so the page
+keeps its scroll and the Backlog can still be dragged from, but it covers the right of the calendar while open. This
+replaces "the chosen day in full below them (today by default)" of the 2026-11-08 entry "The 30-day plan reads as a
+month calendar"; the "Hôm nay" strip stays, and nothing changes in the api.
+## 2026-11-08 — A group's Video tab shows each video's views, as a table or a list
+
+"Bổ sung 2" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md). The numbers are those the video
+list already worked out for `/videos` (2026-11-03 post numbers): "View" adds up every live Facebook post's `latest`
+reading, and the 48-hour views, shares and share/view are of the post with the most views, so the group's tab and
+"Video" agree. `GET /videos` only gains `post.views_48h`; a video not out yet has no `post`, so the tab shows "—",
+never a zero. "Bảng | Danh sách" is remembered per browser, like the video list's grid or list (2026-11-03), and
+switching keeps the search and the status filter. A plan card adds the newest views beside the 48-hour line, which
+stays the one compared with the Page's median.
 ## 2026-11-08 — A topic group may have its own voice, which its new videos start with
 
 "Bổ sung 1" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md): the owner runs two Pages from one
