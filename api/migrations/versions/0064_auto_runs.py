@@ -1,7 +1,7 @@
 """Semi-automatic posting: a Page's switch, preparing time and TikTok account, and the day's runs ("lượt chạy")
 
-Revision ID: 0063
-Revises: 0062
+Revision ID: 0064
+Revises: 0063
 Create Date: 2026-11-08
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0063"
-down_revision = "0062"
+revision = "0064"
+down_revision = "0063"
 branch_labels = None
 depends_on = None
 
