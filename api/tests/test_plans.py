@@ -512,6 +512,7 @@ def test_cards_carry_the_48_hour_numbers_of_each_facebook_post(an, db, me, stora
         "fanpage_name": "Vườn nhà",
         "views": 1200,
         "shares": 6,
+        "latest_views": 10800,  # the newest reading, beside the 48-hour one, never in its place
         "measured_at": done["measured_at"],
         "median_views": 100,
         "samples": 6,  # the five others and this one
@@ -521,6 +522,7 @@ def test_cards_carry_the_48_hour_numbers_of_each_facebook_post(an, db, me, stora
     [pending] = posts["Chưa đo"]
     assert pending["publication_id"] == waiting_post.id
     assert (pending["views"], pending["shares"], pending["times_median"], pending["share_rate"]) == (None,) * 4
+    assert pending["latest_views"] is None
     assert posts["Chưa đăng"] == [] and posts["Không video"] == []
 
 
