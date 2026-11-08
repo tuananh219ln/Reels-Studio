@@ -168,6 +168,40 @@ test("Tự viết: a pasted script becomes scenes at once, with no AI and a safe
   await expect(page.getByTestId("hand-written-review")).toBeVisible();
 });
 
+test("Tạo video starts on the topic group the member last made a video in", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/knowledge");
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Vườn rau");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  const garden = page.locator('[data-topic="Vườn rau"]');
+  await garden.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await garden.getByLabel("Prompt viết kịch bản", { exact: true }).fill("Viết kịch bản trồng rau về [Chủ đề]");
+  await garden.getByRole("button", { name: "Lưu", exact: true }).first().click();
+  await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
+
+  // With no choice yet, the dialog starts on the first group with a prompt.
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  let dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog.getByLabel("Nhóm chủ đề")).toBeVisible();
+  await expect(dialog).toContainText("Sức khỏe");
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Vườn rau");
+  await dialog.getByText("Tự viết", { exact: true }).click();
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("rau mầm");
+  await dialog.getByLabel("Kịch bản", { exact: true }).fill("Rau mầm *dễ trồng*\nĐọc: Rau mầm trồng trong một tuần.");
+  await dialog.getByRole("button", { name: "Tạo video" }).click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+
+  // The choice is kept on the server: a fresh page (or another device) starts on it.
+  await page.goto("/videos");
+  await page.reload();
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog.getByLabel("Nhóm chủ đề")).toBeVisible();
+  await expect(dialog).toContainText("Vườn rau");
+  await expect(dialog).not.toContainText("Sức khỏe");
+});
+
 test("music library page from the menu", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Thư viện nhạc" }).click();

@@ -607,6 +607,20 @@ class UserVideoDefaults(Base):
     )
 
 
+class UserLastChoices(Base):
+    """What a member last picked where a form asks for a Page or a topic group (brief part B3): the forms start on it,
+    each member on their own. A removed Page or group leaves the choice empty."""
+
+    __tablename__ = "user_last_choices"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id", ondelete="SET NULL"))
+    knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class AppSetting(Base):
     """A team-wide setting from the Cài đặt pages, by key (e.g. "llm_provider")."""
 

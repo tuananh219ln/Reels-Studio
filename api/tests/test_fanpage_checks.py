@@ -280,6 +280,7 @@ def test_the_publish_dialog_knows_a_page_with_a_broken_token(an, db, me, storage
         "name": "Trang Dưỡng Sinh",
         "owner": me.name,
         "owner_id": me.id,
+        "knowledge_topic_id": None,
         "error": page.check_error,
     }
 

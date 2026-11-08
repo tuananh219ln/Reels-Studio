@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type QueueItem, type VideoDetail } from "@/lib/api";
 import { useMe } from "@/components/MeContext";
 import { pageOptions } from "@/lib/myPages";
+import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
 import FormDrawer from "@/components/FormDrawer";
 
 const OWN_PAGE = 0;
@@ -31,6 +32,16 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
   // A post the worker made from the queue shows up on the video as it is reloaded; read the queue again with it.
   useEffect(load, [load, video.publications.length]);
 
+  // "Page của tôi" while the member has a Page of the video's group; without one, the Page they last chose (B3).
+  function openDrawer() {
+    setOpen(true);
+    if (myPageOfGroup(video, me.id) === null) {
+      loadLastChoices().then((last) => {
+        if (video.fanpages.some((row) => row.id === last.fanpage_id)) setPage(last.fanpage_id as number);
+      });
+    }
+  }
+
   async function add() {
     setBusy(true);
     try {
@@ -39,6 +50,7 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
         fanpage_id: page === OWN_PAGE ? null : page,
         auto_comment: autoComment,
       });
+      if (page !== OWN_PAGE) await saveLastChoice({ fanpage_id: page });
       setItem(answer.item);
       setOpen(false);
       message.success(`Đã thêm vào hàng chờ của “${answer.item.fanpage}”`);
@@ -77,11 +89,7 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
   }
   return (
     <>
-      <Button
-        icon={<UnorderedListOutlined />}
-        disabled={video.locked || video.mp4_outdated}
-        onClick={() => setOpen(true)}
-      >
+      <Button icon={<UnorderedListOutlined />} disabled={video.locked || video.mp4_outdated} onClick={openDrawer}>
         Thêm vào hàng chờ
       </Button>
       <FormDrawer

@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — The forms start on a member's own choices, the last one kept on the server
+
+Part B3 of the brief ([docs/specs/chu-thuong-ca-nhan-hoa](specs/chu-thuong-ca-nhan-hoa/brief.md)), with the owner's
+answer that the last choice is kept on the server by account (so it follows a member to any device, and is never a
+teammate's): `user_last_choices` (migration 0061) holds the Page and the topic group a member last picked, saved by
+the web once a video is made, posted or queued to a chosen Page. "Tạo video" starts on the idea's or the asked group,
+else the last group, else one of the member's own (B2). "Đăng bài" starts on the member's own Page of the video's
+group, else the last Page. The queue keeps "Page của tôi cho nhóm" first and starts on the last Page only when the
+member has no Page of that group. Voice and music are not picked in these forms: a new video takes them from its
+maker's own defaults (B1). Nothing in the posting flow itself changes.
+
 ## 2026-11-08 — The 30-day plan reads as a month calendar, with today on top and its settings saved together
 
 PR 2 of [docs/specs/plan-tab-redesign](specs/plan-tab-redesign/brief.md), the layout the owner approved on a clickable

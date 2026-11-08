@@ -950,11 +950,14 @@ def video_payload(db: DbSession, video: Video) -> dict:
                 "owner": page.owner.name if page.owner else None,
                 # Whose it is: the page lists the viewer's own Pages first (brief part B2).
                 "owner_id": page.owner_id,
+                # The group it posts: the publish dialog starts on the viewer's own Page of the video's group (B3).
+                "knowledge_topic_id": page.knowledge_topic_id,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)
         ],
         "knowledge_topic": topic.name if topic else None,
+        "knowledge_topic_id": video.knowledge_topic_id,
         "plan_idea": _plan_idea(db, video),
         "script_by": script_writer(db, video) if video.has_script else None,
         "clone_of": {

@@ -63,6 +63,7 @@ import FilterSelect from "@/components/FilterSelect";
 import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
 import { useRememberedView, type View } from "@/lib/view";
+import { loadLastChoices, saveLastChoice } from "@/lib/lastChoices";
 import FormDrawer from "@/components/FormDrawer";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
 
@@ -957,6 +958,7 @@ function NewVideoModal({
   const [form] = Form.useForm<NewVideo>();
   const [busy, setBusy] = useState(false);
   const [topics, setTopics] = useState<KnowledgeTopic[] | null>(null);
+  const [lastGroup, setLastGroup] = useState<number | null>(null);
   const [llm, setLlm] = useState<ActiveLlm | null>(null);
   // The plan idea the video is made from; typing a topic by hand works as before.
   const [picked, setPicked] = useState<PlanItem | null>(startItem);
@@ -1018,8 +1020,12 @@ function NewVideoModal({
 
   useEffect(() => {
     if (open) {
-      api<Knowledge>("/knowledge")
-        .then((data) => setTopics(data.topics))
+      // The form starts on the member's last group, so wait for it as well (it never fails).
+      Promise.all([api<Knowledge>("/knowledge"), loadLastChoices()])
+        .then(([data, last]) => {
+          setLastGroup(last.knowledge_topic_id);
+          setTopics(data.topics);
+        })
         .catch((err) => message.error(errorMessage(err)));
       // Only informative: a failure here leaves the line out and never blocks creating the video.
       api<ActiveLlm>("/settings/llm/active")
@@ -1042,6 +1048,7 @@ function NewVideoModal({
             ai_effects: mode === "ai" && aiEffects,
             video_mode: videoMode,
           });
+      await saveLastChoice({ knowledge_topic_id: values.knowledge_topic_id });
       router.push(`/videos/${video.id}`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -1140,13 +1147,16 @@ function NewVideoModal({
           requiredMark={false}
           onFinish={submit}
           initialValues={{
-            // The idea's or the asked group, else one of the member's own groups (their Pages'), else the first with a
-            // script prompt.
+            // The idea's or the asked group, else the member's last group, else one of their own groups (their
+            // Pages'), else the first with a script prompt.
             knowledge_topic_id:
               startItem?.knowledge_topic_id ??
               startGroup ??
-              (topics.find((topic) => topic.mine && topic.script_prompt) ?? topics.find((topic) => topic.script_prompt))
-                ?.id,
+              (
+                topics.find((topic) => topic.id === lastGroup && topic.script_prompt) ??
+                topics.find((topic) => topic.mine && topic.script_prompt) ??
+                topics.find((topic) => topic.script_prompt)
+              )?.id,
             topic: startItem?.topic,
             sample_mode: startSample ? "reuse" : "quick",
             sample_source: "link",

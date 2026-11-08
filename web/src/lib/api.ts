@@ -339,7 +339,15 @@ export type VideoDetail = VideoRow & {
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages; `owner` is the member whose Page it is. */
   /** The team's Pages in use; `owner_id` puts the viewer's own first in a picker (lib/myPages). */
-  fanpages: { id: number; name: string; owner: string | null; owner_id: number | null; error: string | null }[];
+  fanpages: {
+    id: number;
+    name: string;
+    owner: string | null;
+    owner_id: number | null;
+    /** The topic group the Page posts. */
+    knowledge_topic_id: number | null;
+    error: string | null;
+  }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
   publication: Post | null;
   /** Every post of the video, newest first, cancelled and deleted ones included. */
@@ -347,6 +355,7 @@ export type VideoDetail = VideoRow & {
   /** The Pages that already hold the current MP4. */
   posted_fanpage_ids: number[];
   knowledge_topic: string | null;
+  knowledge_topic_id: number | null;
   /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
   script_by: string | null;
   clone_of: { title: string; request: string } | null;

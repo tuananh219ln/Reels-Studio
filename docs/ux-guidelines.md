@@ -74,9 +74,12 @@ Built:
 - **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, one row each, bold
   labels in a column (one above the other under 576 px): "Kiểu video" (not for "Từ video mẫu"), "Cách viết" ("AI
   viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row (the member's own groups, those of
-  the Pages they own and use, first under "Nhóm của tôi", and one of them chosen at first unless an idea or a group's
-  "Tạo video" chose one); below it the topic. Wherever a Page is picked to post or queue a video, the member's own
-  Pages come first under "Trang của tôi", the others under "Trang khác" with their owner's name. The footer has a
+  the Pages they own and use, first under "Nhóm của tôi"; unless an idea or a group's "Tạo video" chose one, it
+  starts on the group the member last made a video in, else on one of their own); below it the topic. Wherever a Page
+  is picked to post or queue a video, the member's own Pages come first under "Trang của tôi", the others under
+  "Trang khác" with their owner's name. "Đăng bài" starts on the member's own Page of the video's group, else on the
+  Page they last posted to. The last group and Page are kept on the server by account, so they follow the member to
+  any device and never come from a teammate. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
   button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
@@ -160,7 +163,8 @@ Built:
   đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
-  ("Page của tôi cho nhóm “…”" by default, or any Page in use) and "Tự bình luận"; once queued, the button
+  ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
+  Page in use) and "Tự bình luận"; once queued, the button
   becomes "Trong hàng chờ của “Page”" (linking to Quản lý Page), with the reason when it could not be
   scheduled and "Bỏ khỏi hàng chờ"; it comes back once the worker has scheduled the post.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
