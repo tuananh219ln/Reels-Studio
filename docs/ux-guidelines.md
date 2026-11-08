@@ -504,10 +504,14 @@ Built:
   videos, then a confirmation). Groups opened once stay loaded, so unsaved text in one survives opening
   another. A new group starts empty, and "Tạo video" cannot pick a group without a script prompt. The
   group is chosen in "Tạo video"; a clone keeps its source's group. Tabs, the group opening on "Video":
-  - "Video (N)": the group's videos newest first in a compact table (thumbnail, title with its topic and
-    plan day, status, who made it, when), a search over title and topic that ignores accents, a status
-    filter, and "Tạo video", which opens "Tạo video" on `/videos` with this group chosen (hidden while
-    the group has no script prompt);
+  - "Video (N)": the group's videos newest first, as "Bảng | Danh sách" (remembered in the browser,
+    "Bảng" until chosen): a compact table (thumbnail, title with its topic and plan day, kind, status,
+    platforms, "View" (every live Facebook post's newest reading added up), "View 48h", "Share" and
+    "Share/view" (the 48-hour reading of the post with the most views), who made it, when) or a card per
+    video (a larger picture, title, status, platforms and one line of those numbers, "Chưa có số liệu
+    đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
+    topic that ignores accents and a status filter, both kept when switching, and "Tạo video", which
+    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
   - "Prompt": the six prompts listed on the left (Viết kịch bản, Nhân bản, Học từ video mẫu, Phân tích
     video mẫu, Sửa theo góp ý, Viết bài), each tagged "Đã sửa", "Mặc định" or "Trống", and the chosen
     one edited on the right with "Lưu" and "Khôi phục mặc định"; text typed in one and not saved
@@ -545,7 +549,7 @@ Built:
     "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in the plan shows in the form, which stays
     open), "Chuyển về Backlog" and "Xoá", and under them one line per Facebook post with its 48-hour numbers
     ("<Page>: N view, N share, share/view x,xx% đạt/không đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu"
-    under 5 measured posts; "chưa đo 48h" before);
+    under 5 measured posts; "chưa đo 48h" before), ending with "· hiện N view", the newest reading, once read;
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).

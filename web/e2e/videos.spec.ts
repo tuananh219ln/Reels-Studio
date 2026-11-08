@@ -288,6 +288,21 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await expect(videos.getByText("Không có video nào khớp")).toBeVisible();
   await videos.getByLabel("Tìm video của nhóm").fill("rau mam");
   await expect(videos.getByRole("row")).toHaveCount(2);
+  // An unposted video shows dashes for its numbers, never a zero it does not have.
+  await expect(videos.getByRole("columnheader", { name: "View 48h" })).toBeVisible();
+  await expect(videos.getByRole("row").nth(1)).toContainText("—");
+  // "Danh sách" keeps the search, and is remembered in this browser.
+  await videos.getByText("Danh sách", { exact: true }).click();
+  await expect(videos.getByTestId("topic-video-card")).toHaveCount(1);
+  await expect(videos.getByTestId("topic-video-numbers")).toHaveText("Chưa có số liệu đăng");
+  await expect(videos.getByLabel("Tìm video của nhóm")).toHaveValue("rau mam");
+  await videos.getByLabel("Tìm video của nhóm").fill("khong co");
+  await expect(videos.getByText("Không có video nào khớp")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await expect(videos.getByTestId("topic-video-card")).toHaveCount(1);
+  await videos.getByText("Bảng", { exact: true }).click();
+  await expect(videos.getByRole("row")).toHaveCount(2);
 
   // "Tạo video" on another group's tab opens the dialog on that group, not the first one.
   await page.getByLabel("Tên nhóm chủ đề mới").fill("Vườn rau");

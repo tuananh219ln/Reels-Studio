@@ -98,7 +98,10 @@ export type VideoRowPost = {
   fanpages: string[];
   pages: number;
   at: string;
+  /** Every live post's newest reading added up; null until one is read. */
   views: number | null;
+  /** The 48-hour views of the post with the most views; `shares` and `share_rate` are of that reading. */
+  views_48h: number | null;
   shares: number | null;
   share_rate: number | null;
   /** Whether share/view reaches the team's goal (analytics.SHARE_GOAL). */
@@ -769,6 +772,8 @@ export type PlanPost = {
   fanpage_name: string;
   views: number | null;
   shares: number | null;
+  /** The newest reading's views, shown beside the 48-hour numbers; null until a first reading. */
+  latest_views: number | null;
   share_rate: number | null;
   /** Views over the Page's 60-day median, rounded to 0.1; null while the Page has fewer than 5 measured posts. */
   times_median: number | null;

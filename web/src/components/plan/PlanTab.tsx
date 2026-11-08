@@ -1166,6 +1166,9 @@ function PostNumbers({ posts, shareGoal }: { posts: PlanPost[]; shareGoal: numbe
               )}
             </>
           )}
+          {post.latest_views !== null && (
+            <span data-testid="plan-idea-latest-views"> · hiện {post.latest_views.toLocaleString("vi-VN")} view</span>
+          )}
         </Typography.Text>
       ))}
     </Flex>
