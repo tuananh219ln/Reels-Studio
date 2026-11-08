@@ -304,7 +304,7 @@ A scene may hold an uploaded video clip instead of a photo
   rounded corners), so only `y` (its centre, kept between 480 and 1440), `start` and `seconds` change: the api forces
   `x` to 540 and clamps `y` on every save, and ignores `size`, `style` and `animation` (stored as `medium`, `half`,
   `none`). It is added by `POST /api/layers/half-photo` (`scene_id` with `media_id` from the library, or `url` of a
-  photo, downloaded like a scene's link) or `POST /api/layers/half-photo/upload` (multipart `scene_id` and `file`),
+  photo, downloaded like a scene's link, or `scene_photo`: a copy of the scene's own photo, replacing its "Ảnh món") or `POST /api/layers/half-photo/upload` (multipart `scene_id` and `file`),
   at `y` 480, `start` 0 and `seconds` 60, so it shows with the scene's narration until the next scene whatever that
   narration's length; never on the title scene, and one photo layer ("Ảnh món" or this) per scene. It shows on every
   kind of video and joins the fingerprint with its `image_key`. The job copies its photo as `inset-NN.ext`; the

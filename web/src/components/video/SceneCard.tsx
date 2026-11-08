@@ -59,6 +59,7 @@ import ClipBlurModal from "./ClipBlurModal";
 import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
+import HalfPhotoPanel from "./HalfPhotoPanel";
 import PhotoLayerPanel from "./PhotoLayerPanel";
 import { photoLayer } from "./videoModes";
 import SceneViewer from "./SceneViewer";
@@ -185,6 +186,7 @@ export default function SceneCard({
   generating = false,
   editing = false,
   backdrop = false,
+  backdropScene = null,
 }: {
   scene: SceneData;
   label: string;
@@ -192,6 +194,8 @@ export default function SceneCard({
   /** "Video xuyên suốt": the title scene's picture is the backdrop of every scene; a content scene's own photo
    * shows only as its "Ảnh món". */
   backdrop?: boolean;
+  /** The title scene, whose picture runs under a content scene of a "Video xuyên suốt". */
+  backdropScene?: SceneData | null;
   /** An image job is making this scene's photo ("Tạo ảnh AI" on this card). */
   generating?: boolean;
   /** An image_edit job ("Sửa ảnh" on this card) is changing this scene's photo. */
@@ -277,6 +281,7 @@ export default function SceneCard({
               </Typography.Text>
             )}
             {backdrop && !scene.is_title && <PhotoLayerPanel scene={scene} />}
+            {!scene.is_title && <HalfPhotoPanel scene={scene} backdrop={backdrop ? backdropScene : null} />}
             {ownPicture && (
               <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
             )}

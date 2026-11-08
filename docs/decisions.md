@@ -14,6 +14,15 @@ folder before starting a new round of work and never silently reverse a logged d
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-09 — "Ảnh chèn nửa khung" on every scene card, and "Ảnh món" turned into it
+
+Asked by tuananh219ln after the first version: the half-frame photo could only be added and placed in "Xem trước", and
+a "Video xuyên suốt" scene card showed no backdrop, so a member placing a photo by its "Ảnh món" saw neither the
+1080-wide box nor the video under it. Each content scene's card now has "Ảnh chèn nửa khung" over a 9:16 frame of
+what is under it (the backdrop playing, or the scene's own picture) with the scene's text on top, and "Đổi ảnh món
+thành ảnh chèn" copies the scene's photo into a half-frame photo in place of its "Ảnh món". "Ảnh món" itself and its
+settings stay as they are (owner's choice, same day).
+
 ## 2026-11-09 — "Ảnh chèn nửa khung": a photo layer of its own beside "Ảnh món", on every kind of video
 
 Asked by tuananh219ln from a spec ("Đặc tả: Lớp ảnh chèn nửa khung", by Looper), whose model replaced the photo layer

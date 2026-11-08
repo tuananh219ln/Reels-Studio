@@ -1003,7 +1003,7 @@ and "Ảnh món" is kept:
 "Từ kho tư liệu". The photo fills a box as wide as the frame and half as tall (cut to fill, never stretched, with a
 thin white edge and rounded corners), lands on the top half and shows with the scene's narration until the next
 scene. It is dragged only up and down on the phone, over the scene's own picture or the video's backdrop, and snaps
-to "Nửa trên", "Giữa" and "Nửa dưới" (also quick choices in "Chỉnh cảnh"); its start and length can be typed. It sits
+to "Nửa trên", "Giữa" and "Nửa dưới" (also quick choices in "Chỉnh cảnh"); its start and length can be typed. Every content scene's card on the video page has the same tools ("Ảnh chèn nửa khung") over a 9:16 frame of what lies under it: the scene's own photo or clip, or on a "Video xuyên suốt" the backdrop playing, with the scene's text box on top, so the photo is placed without opening the studio. "Dùng ảnh của cảnh" makes the scene's own photo the half-frame photo; on a scene with "Ảnh món" it reads "Đổi ảnh món thành ảnh chèn" and replaces it. It sits
 under the scene's text, captions and the other layers, which keep their places; the text gets no shade of its own,
 so a box style keeps it readable over a busy photo. One photo layer per scene; removing it asks first, since its
 photo goes with it.

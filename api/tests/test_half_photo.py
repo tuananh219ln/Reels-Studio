@@ -173,3 +173,20 @@ def test_the_assistant_adds_one_from_the_library_and_cannot_move_it_across(mcp_c
     assert not moved.get("isError"), moved
     db.refresh(row)
     assert (row.x, row.y) == (540, 1440)
+
+
+def test_the_scenes_own_photo_becomes_its_half_frame_photo_in_place_of_its_ảnh_món(an, db, me, storage):
+    video = make_video(db, storage, me)
+    video.mode = "single"
+    db.commit()
+    scene = first_scene(db, video)
+    assert an.post("/api/layers", json={"scene_id": scene.id, "kind": "photo"}).status_code == 201
+    moved = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
+    assert moved.status_code == 201, moved.json()
+    (layer,) = scene_json(moved.json(), scene.id)["layers"]
+    assert (layer["style"], layer["x"], layer["y"]) == ("half", 540, 480), "the Ảnh món is replaced"
+    own = db.get(SceneLayer, layer["id"]).image_key
+    db.refresh(scene)
+    assert own != scene.image_key and storage.exists(own) and storage.exists(scene.image_key), "a copy of its own"
+    again = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
+    assert again.status_code == 422, "a half-frame photo is not replaced by another"

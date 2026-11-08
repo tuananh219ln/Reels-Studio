@@ -275,21 +275,28 @@ def delete_layer(
 
 class HalfPhotoBody(BaseModel):
     scene_id: int
-    # One of the two: a photo of the team's "Kho tư liệu", or a link to a photo.
+    # One of the three: a photo of the team's "Kho tư liệu", a link to a photo, or the scene's own photo (which turns
+    # its "Ảnh món", if it has one, into the half-frame photo).
     media_id: int | None = None
     url: str | None = None
+    scene_photo: bool = False
 
 
-def store_half_photo(db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str) -> dict:
+def store_half_photo(
+    db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str, replace: bool = False
+) -> dict:
     """A half-frame photo over the scene, as a copy of its own: across the top half of the frame, for the whole
     scene (the owner's choice: it shows with the narration and leaves with the scene); the render lays it under the
-    scene's text and its other layers."""
+    scene's text and its other layers. With `replace` it takes the place of the scene's "Ảnh món"."""
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     if scene.is_title:
         raise invalid(TITLE_ERROR)
-    if any(layer.kind == "photo" for layer in scene.layers):
-        raise invalid(ONE_PHOTO_ERROR)
+    for layer in [layer for layer in scene.layers if layer.kind == "photo"]:
+        if not replace or is_half_layer(layer):
+            raise invalid(ONE_PHOTO_ERROR)
+        scene.layers.remove(layer)
+        db.delete(layer)
     last = db.scalar(select(func.max(SceneLayer.position)).where(SceneLayer.scene_id == scene.id))
     key = new_key(video.id, f"layer-{scene.id}", extension)
     db.add(
@@ -326,10 +333,19 @@ def add_half_photo(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    """A half-frame photo from the library (`media_id`) or from a link to a photo (`url`)."""
+    """A half-frame photo from the library (`media_id`), from a link to a photo (`url`) or from the scene's own photo
+    (`scene_photo`, in place of its "Ảnh món")."""
     url = (body.url or "").strip()
-    if (body.media_id is None) == (not url):
-        raise invalid("Chọn một ảnh: từ kho tư liệu hoặc một link ảnh")
+    if [body.media_id is not None, bool(url), body.scene_photo].count(True) != 1:
+        raise invalid("Chọn một ảnh: từ kho tư liệu, một link ảnh hoặc ảnh của cảnh")
+    if body.scene_photo:
+        scene = db.get(Scene, body.scene_id)
+        if scene is None:
+            raise ApiError(404, "scene_not_found", "Không tìm thấy cảnh")
+        if not scene.image_key or not storage.exists(scene.image_key):
+            raise invalid("Cảnh chưa có ảnh để làm ảnh chèn")
+        data, extension = storage.path(scene.image_key).read_bytes(), scene.image_key.rsplit(".", 1)[-1]
+        return store_half_photo(db, storage, body.scene_id, data, extension, replace=True)
     if body.media_id is not None:
         item = db.get(MediaItem, body.media_id)
         if item is None:
