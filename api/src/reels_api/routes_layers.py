@@ -62,7 +62,7 @@ KINDS = ("text", "sticker", "photo")
 KIND_ERROR = 'Loại lớp phải là "text", "sticker" hoặc "photo"'
 TITLE_ERROR = "Cảnh tiêu đề không có lớp chữ, sticker hay ảnh: nó là ảnh bìa của video"
 HALF_SECONDS = MAX_SECONDS  # a new half-frame photo's: to the end of its scene
-ONE_PHOTO_ERROR = "Cảnh này đã có một lớp ảnh (ảnh món hoặc ảnh chèn): xoá lớp đó trước"
+ONE_PHOTO_ERROR = "Cảnh này đã có ảnh món hoặc ảnh chèn: xoá lớp ảnh đó trước"
 
 
 class LayerBody(BaseModel):
