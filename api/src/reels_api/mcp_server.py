@@ -783,7 +783,6 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         kind: Literal["text", "sticker", "photo"],
         text: Annotated[str | None, Field(max_length=200)] = None,
         sticker: str | None = None,
-        image: Annotated[str | None, Field(max_length=2000)] = None,
         start: float | None = None,
         seconds: float | None = None,
         x: int | None = None,
@@ -796,19 +795,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         `seconds` giây từ giây `start` của cảnh; x, y là tâm trong khung 1080×1920. Kiểu, cỡ, hiệu ứng, sticker
         lấy từ "Đọc lựa chọn dựng video". Không có trên cảnh tiêu đề.
 
-        kind "photo" là ảnh chèn nửa khung (cần image: ID tư liệu trong kho, hoặc link một ảnh): luôn rộng 1080,
-        cao 960, cắt phủ kín, viền trắng, ở nửa trên khung (x 540, y 480) và hiện đến hết cảnh; các trường khác bị
-        bỏ qua, chỉnh y (480 nửa trên, 960 giữa, 1440 nửa dưới), start, seconds sau bằng "Sửa lớp". Ảnh nằm dưới
-        chữ của cảnh và các lớp khác. Mỗi cảnh một lớp ảnh."""
+        kind "photo" là ảnh chèn nửa khung, chỉ cho Video xuyên suốt: ảnh món của cảnh (gán ảnh cho cảnh bằng các
+        công cụ ảnh của cảnh như mọi khi) hiện rộng 1080, cao 960, cắt phủ kín, viền trắng, ở nửa trên khung (x 540,
+        y 480) và hiện đến hết cảnh; các trường khác bị bỏ qua, chỉnh y (480 nửa trên, 960 giữa, 1440 nửa dưới),
+        start, seconds sau bằng "Sửa lớp". Ảnh nằm dưới chữ của cảnh và các lớp khác. Mỗi cảnh một lớp ảnh."""
         if kind == "photo":
-            if not image or not image.strip():
-                raise ToolError('Ảnh chèn cần "image": ID tư liệu trong kho hoặc link một ảnh')
-            source = image.strip()
-            photo = layer_routes.HalfPhotoBody(
-                scene_id=scene_id,
-                media_id=int(source) if source.isdigit() else None,
-                url=None if source.isdigit() else source,
-            )
+            photo = layer_routes.HalfPhotoBody(scene_id=scene_id, scene_photo=True)
             return await run_in_threadpool(
                 invoke,
                 lambda db, me: video_link(layer_routes.add_half_photo(photo, me, db, get_storage())),

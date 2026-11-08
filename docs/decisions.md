@@ -14,6 +14,17 @@ folder before starting a new round of work and never silently reverse a logged d
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-09 — "Ảnh chèn nửa khung" only on a "Video xuyên suốt", and it is the scene's dish photo
+
+The owner's clarification, reversing two points of the entries below: **only a "Video xuyên suốt" has half-frame
+photos** (the first entry's "on every kind of video" came from the agent's own recommendation, not the owner's
+intent); a slide video stays exactly as it was. And **the half-frame photo is the scene's dish photo**, shown at
+1080×960: the scene's picture tools (the "Tự tìm ảnh" pick, stock search, Google, library, upload, link, AI photo,
+crop, retouch) find and edit it unchanged, as they did for "Ảnh món", plus the up-and-down placing on the card. So the
+web's own upload and library buttons for it are gone; a photo of its own stays possible through the api for the ones
+already made, and "Dùng ảnh của cảnh" lets that copy go. A half-frame photo made on a slide video before is kept, not
+drawn (like "Ảnh món" there).
+
 ## 2026-11-09 — "Ảnh chèn nửa khung" on every scene card, and "Ảnh món" turned into it
 
 Asked by tuananh219ln after the first version: the half-frame photo could only be added and placed in "Xem trước", and

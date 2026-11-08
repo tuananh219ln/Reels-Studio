@@ -359,8 +359,8 @@ def _own_photo(layer: SceneLayer) -> dict:
 
 def drawn_layers(video: Video, scene: Scene) -> list[SceneLayer]:
     """The layers the render lays over the scene: photo layers ("Ảnh món") only over a backdrop; on a slide video
-    they are kept for switching back, and not drawn. A half-frame photo shows on every kind of video."""
-    return [layer for layer in scene.layers if layer.kind != "photo" or is_half_layer(layer) or is_backdrop(video)]
+    they are kept for switching back, and not drawn; so are half-frame photos (2026-11-09: only over a backdrop)."""
+    return [layer for layer in scene.layers if layer.kind != "photo" or is_backdrop(video)]
 
 
 def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:

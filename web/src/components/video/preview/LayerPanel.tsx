@@ -1,10 +1,9 @@
 "use client";
 
-import { DeleteOutlined, FolderOpenOutlined, FontSizeOutlined, PictureOutlined } from "@ant-design/icons";
-import { Button, Divider, Flex, Input, InputNumber, Popconfirm, Segmented, Select, Typography, Upload } from "antd";
+import { DeleteOutlined, FontSizeOutlined, PictureOutlined } from "@ant-design/icons";
+import { Button, Divider, Flex, Input, InputNumber, Popconfirm, Segmented, Select, Typography } from "antd";
 import { useState } from "react";
-import { upload, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
-import MediaLibraryPicker from "../MediaLibraryPicker";
+import { api, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
 import { ANIMATIONS, HALF_PLACES, SIZES, STICKERS, TEXT_STYLES, isHalf, layerName } from "./layers";
 
 const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
@@ -21,29 +20,29 @@ export function LayerTools({
   onAdd,
   onSaved,
   onPick,
+  backdrop = false,
 }: {
   scene: SceneData | undefined;
   editable: boolean;
+  /** "Video xuyên suốt": the half-frame photo is the scene's own photo, found with the scene's picture tools. */
+  backdrop?: boolean;
   onAdd: (body: Record<string, unknown>) => void;
   /** Saves a change and shows the saved video (false when it failed, its error already shown). */
   onSaved: (call: () => Promise<VideoDetail>) => Promise<boolean>;
   onPick: (id: number) => void;
 }) {
   const allowed = editable && scene !== undefined && !scene.is_title;
-  // One photo layer per scene: "Ảnh món" or a half-frame photo.
-  // A half-frame photo still showing its scene's photo takes the one added here.
-  const hasPhoto =
-    scene?.layers.some((layer) => layer.kind === "photo" && !(isHalf(layer) && layer.own_image === false)) ?? false;
+  // One photo layer per scene: an older video's "Ảnh món" or a half-frame photo.
+  const hasPhoto = scene?.layers.some((layer) => layer.kind === "photo") ?? false;
   const insetAllowed = allowed && !hasPhoto;
   const [busy, setBusy] = useState(false);
-  const [library, setLibrary] = useState(false);
 
-  /** A half-frame photo from the member's computer, picked once added so it can be dragged at once. */
-  async function addInset(file: File) {
+  /** A half-frame photo showing the scene's photo, picked once added so it can be dragged at once. */
+  async function addInset() {
     if (!scene) return;
     setBusy(true);
     await onSaved(async () => {
-      const saved = await upload<VideoDetail>("/layers/half-photo/upload", file, { scene_id: String(scene.id) });
+      const saved = await api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, scene_photo: true });
       const added = [saved.title_scene, ...saved.scenes].find((item) => item?.id === scene.id)?.layers.find(isHalf);
       if (added) onPick(added.id);
       return saved;
@@ -82,39 +81,28 @@ export function LayerTools({
           </button>
         ))}
       </div>
-      <Divider style={{ margin: "4px 0" }} />
-      <Typography.Text strong>Ảnh chèn nửa khung</Typography.Text>
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        {hasPhoto && !scene?.is_title
-          ? "Cảnh này đã có một lớp ảnh. Xoá lớp đó trong “Chỉnh cảnh” để chèn ảnh khác."
-          : "Ảnh rộng hết khung, cao nửa khung, viền trắng, hiện cùng lời đọc đến hết cảnh. Kéo lên xuống trên điện thoại để đặt chỗ."}
-      </Typography.Text>
-      <Flex gap={8} wrap data-testid="half-photo-tools">
-        <Upload
-          accept="image/*"
-          showUploadList={false}
-          disabled={!insetAllowed || busy}
-          beforeUpload={(file) => {
-            void addInset(file);
-            return false;
-          }}
-        >
-          <Button icon={<PictureOutlined />} disabled={!insetAllowed} loading={busy}>
-            Ảnh từ máy
-          </Button>
-        </Upload>
-        <Button icon={<FolderOpenOutlined />} disabled={!insetAllowed || busy} onClick={() => setLibrary(true)}>
-          Từ kho tư liệu
-        </Button>
-      </Flex>
-      {library && scene && (
-        <MediaLibraryPicker
-          sceneId={scene.id}
-          videoId={scene.video_id}
-          hasPicture={false}
-          inset
-          onClose={() => setLibrary(false)}
-        />
+      {backdrop && (
+        // Only a "Video xuyên suốt" has one: the scene's dish photo across half the frame, found and edited with the
+        // scene's picture tools in "Chỉnh cảnh" › "Ảnh chèn", as "Ảnh món" was.
+        <>
+          <Divider style={{ margin: "4px 0" }} />
+          <Typography.Text strong>Ảnh chèn nửa khung</Typography.Text>
+          <Flex vertical gap={6} data-testid="half-photo-tools">
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {hasPhoto && !scene?.is_title
+                ? "Cảnh này đã có ảnh chèn: kéo lên xuống trên điện thoại, tìm hay sửa ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."
+                : "Ảnh của cảnh, rộng hết khung, cao nửa khung, hiện cùng lời đọc đến hết cảnh. Tìm hay sửa ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."}
+            </Typography.Text>
+            <Button
+              icon={<PictureOutlined />}
+              disabled={!insetAllowed || busy}
+              loading={busy}
+              onClick={() => void addInset()}
+            >
+              Thêm ảnh chèn
+            </Button>
+          </Flex>
+        </>
       )}
     </Flex>
   );

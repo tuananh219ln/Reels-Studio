@@ -90,7 +90,7 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   narration and never touches the team's defaults or another video. It returns the video's whole `options`.
 - `set_scene_effects` (transition, colour, music level, "Tự khớp lời đọc"; `default` goes back to the video's),
   `reorder_scenes`, `split_scene`, `delete_scene` (content scenes only).
-- `add_layer`, `update_layer`, `delete_layer` for text and sticker layers and half-frame photos (`kind` "photo" with `image`, a library id or a photo link; only `y`, `start`, `seconds` change); `add_sound`, `delete_sound`;
+- `add_layer`, `update_layer`, `delete_layer` for text and sticker layers and half-frame photos on a "Video xuyên suốt" (`kind` "photo": the scene's own photo at 1080×960; only `y`, `start`, `seconds` change); `add_sound`, `delete_sound`;
   `set_audio` for the music from the library, its volume and the narration on or off.
 - **Looking at its work**, like AIEV's "every frame verified": `view_scene` returns the scene's preview frame (the
   photo or the clip's first frame with the scene's text placed as the render places it), and

@@ -298,26 +298,26 @@ A scene may hold an uploaded video clip instead of a photo
   of the render and of the fingerprint. The render job copies the scene's photo into the script's layer as
   `image`; a photo layer whose scene has no photo blocks the render. A machine on older code refuses such a video:
   `backdrop` is sent to it only when on, as an option it does not know.
-- **Half-frame photos ("Ảnh chèn nửa khung"):** a photo layer with `style = "half"` and a photo of its own,
-  `scene_layers.image_key` (migration 0063; a copy, deleted with the layer or its scene). It is always 1080×960
-  (`layers.render_half`: scaled by max(1080 / width, 960 / height), cut in the middle, an 8 px white edge with
-  rounded corners), so only `y` (its centre, kept between 480 and 1440), `start` and `seconds` change: the api forces
-  `x` to 540 and clamps `y` on every save, and ignores `size`, `style` and `animation` (stored as `medium`, `half`,
-  `none`). It is added by `POST /api/layers/half-photo` (`scene_id` with `media_id` from the library, or `url` of a
-  photo, downloaded like a scene's link, or `scene_photo`: a copy of the scene's own photo, replacing its "Ảnh món") or `POST /api/layers/half-photo/upload` (multipart `scene_id` and `file`),
-  at `y` 480, `start` 0 and `seconds` 60, so it shows with the scene's narration until the next scene whatever that
-  narration's length; never on the title scene, and one photo layer ("Ảnh món" or this) per scene. One without
-  `image_key` shows its scene's photo (`videos.layer_photo_key`), as "Ảnh món" does: a "Video xuyên suốt" script gives
-  each scene that names a dish such a layer (`videos.half_layer`), and the first photo added to it becomes its own
-  (`own_image` in the payload says which); without either photo it blocks the render. "Ảnh món" is no longer made by
-  the app (the web has no settings for it) but older videos keep and render theirs. It shows on every
-  kind of video and joins the fingerprint with its `image_key`. The job copies its photo as `inset-NN.ext`; the
-  render lays it in the scene's own chain (`graph.InsetInput`, its inputs after the layers'), over the picture after
-  its zoom and colour and under the scene's text box, so captions, text and sticker layers stay on top; its seconds
-  are counted in the scene's own picture, which starts `clip_lead` before the scene. The studio draws it inside the
-  scene's picture, under the box, and drags it only up and down, snapping to 480, 960 and 1440 within 40 px. A
-  machine on older code refuses the style rather than drawing it wrong. The assistant adds one with `add_layer`
-  (`kind` "photo", `image` a library id or a link).
+- **Half-frame photos ("Ảnh chèn nửa khung"):** a photo layer with `style = "half"`, only on a `single` video
+  (2026-11-09): the api refuses one on a slide video, and one kept from switching is left out of a slide video's render
+  and fingerprint, like "Ảnh món". It shows its scene's photo (`videos.layer_photo_key`), so the scene's picture tools
+  find and edit it, unless it has a photo of its own, `scene_layers.image_key` (migration 0063; a copy, deleted with the
+  layer or its scene; `own_image` in the payload), which only the api's other ways in give it. It is always 1080×960
+  (`layers.render_half`: scaled by max(1080 / width, 960 / height), cut in the middle, an 8 px white edge with rounded
+  corners), so only `y` (its centre, kept between 480 and 1440), `start` and `seconds` change: the api forces `x` to
+  540 and clamps `y` on every save, and ignores `size`, `style` and `animation` (stored as `medium`, `half`, `none`).
+  `POST /api/layers/half-photo` with `scene_photo` (the web's and the assistant's way, `link_scene_photo`) adds one
+  showing the scene's photo, turns an "Ảnh món" into one, or lets one's own copy go; `media_id` (the library), `url` (a
+  photo's link) and `POST /api/layers/half-photo/upload` give it a photo of its own. A new one has `y` 480, `start` 0
+  and `seconds` 60, so it shows with the scene's narration until the next scene; never on the title scene, one photo
+  layer per scene. A script gives each scene that names a dish one (`videos.half_layer`); without a photo it blocks the
+  render. "Ảnh món" is no longer made by the web, but older videos keep and render theirs. It joins the fingerprint
+  with its own `image_key` when it has one. The job copies its photo as `inset-NN.ext`; the render lays it in the
+  scene's own chain (`graph.InsetInput`, its inputs after the layers'), over the picture after its zoom and colour and
+  under the scene's text box, so captions, text and sticker layers stay on top; its seconds are counted in the scene's
+  own picture, which starts `clip_lead` before the scene. The studio and the scene cards draw it inside the scene's
+  picture, under the box, and drag it only up and down, snapping to 480, 960 and 1440 within 40 px. A machine on older
+  code refuses the style rather than drawing it wrong. The assistant adds one with `add_layer` (`kind` "photo").
 - **Sound:** `scene_sounds` (migration 0039; `sound`, `start` into the scene, `volume`, deleted with its scene),
   `scenes.music_level` and `videos.music_start`, all named presets or bounded numbers of
   [sounds.py](../worker/src/reels_render/sounds.py). [routes_sounds.py](../api/src/reels_api/routes_sounds.py)
