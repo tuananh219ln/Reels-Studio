@@ -1155,6 +1155,8 @@ def delete_scene(
     if scene.is_title:
         raise ApiError(409, "title_scene", "Không xóa được cảnh tiêu đề")
     files = [scene.image_key, scene.voice_key, scene.video_key, scene.image_original_key]
+    # Half-frame photos keep a copy of their own, which goes with the scene.
+    files += [layer.image_key for layer in scene.layers]
     db.delete(scene)
     payload = _saved(db, video)
     for key in files:

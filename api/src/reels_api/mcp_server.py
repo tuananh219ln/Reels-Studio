@@ -765,12 +765,13 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             invoke, lambda db, me: video_link(videos.delete_scene(scene_id, me, db, get_storage())), write=True
         )
 
-    @tool("Thêm lớp chữ hoặc sticker", read=False)
+    @tool("Thêm lớp chữ, sticker hoặc ảnh chèn", read=False)
     async def add_layer(
         scene_id: int,
-        kind: Literal["text", "sticker"],
+        kind: Literal["text", "sticker", "photo"],
         text: Annotated[str | None, Field(max_length=200)] = None,
         sticker: str | None = None,
+        image: Annotated[str | None, Field(max_length=2000)] = None,
         start: float | None = None,
         seconds: float | None = None,
         x: int | None = None,
@@ -781,7 +782,26 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     ) -> dict:
         """Thêm lớp chữ (kind "text", cần text) hoặc sticker (kind "sticker", cần sticker) nổi trên cảnh trong
         `seconds` giây từ giây `start` của cảnh; x, y là tâm trong khung 1080×1920. Kiểu, cỡ, hiệu ứng, sticker
-        lấy từ "Đọc lựa chọn dựng video". Không có trên cảnh tiêu đề."""
+        lấy từ "Đọc lựa chọn dựng video". Không có trên cảnh tiêu đề.
+
+        kind "photo" là ảnh chèn nửa khung (cần image: ID tư liệu trong kho, hoặc link một ảnh): luôn rộng 1080,
+        cao 960, cắt phủ kín, viền trắng, ở nửa trên khung (x 540, y 480) và hiện đến hết cảnh; các trường khác bị
+        bỏ qua, chỉnh y (480 nửa trên, 960 giữa, 1440 nửa dưới), start, seconds sau bằng "Sửa lớp". Ảnh nằm dưới
+        chữ của cảnh và các lớp khác. Mỗi cảnh một lớp ảnh."""
+        if kind == "photo":
+            if not image or not image.strip():
+                raise ToolError('Ảnh chèn cần "image": ID tư liệu trong kho hoặc link một ảnh')
+            source = image.strip()
+            photo = layer_routes.HalfPhotoBody(
+                scene_id=scene_id,
+                media_id=int(source) if source.isdigit() else None,
+                url=None if source.isdigit() else source,
+            )
+            return await run_in_threadpool(
+                invoke,
+                lambda db, me: video_link(layer_routes.add_half_photo(photo, me, db, get_storage())),
+                write=True,
+            )
         values = given(text=text, sticker=sticker, start=start, seconds=seconds, x=x, y=y)
         values |= given(size=size, style=style, animation=animation)
         body = layer_routes.NewLayerBody(scene_id=scene_id, kind=kind, **values)
@@ -789,7 +809,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             invoke, lambda db, me: video_link(layer_routes.add_layer(body, me, db)), write=True
         )
 
-    @tool("Sửa lớp chữ hoặc sticker", read=False)
+    @tool("Sửa lớp chữ, sticker hoặc ảnh", read=False)
     async def update_layer(
         layer_id: int,
         text: Annotated[str | None, Field(max_length=200)] = None,
@@ -802,7 +822,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         style: str | None = None,
         animation: str | None = None,
     ) -> dict:
-        """Sửa các trường được truyền của một lớp (ID lớp có trong "Đọc video", mục layers của cảnh)."""
+        """Sửa các trường được truyền của một lớp (ID lớp có trong "Đọc video", mục layers của cảnh). Ảnh chèn nửa
+        khung (kind "photo", style "half") chỉ đổi y (tâm, kẹp trong 480–1440), start và seconds; x luôn là 540."""
         values = given(text=text, sticker=sticker, start=start, seconds=seconds, x=x, y=y)
         values |= given(size=size, style=style, animation=animation)
         body = layer_routes.LayerBody(**values)
@@ -810,11 +831,13 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             invoke, lambda db, me: video_link(layer_routes.patch_layer(layer_id, body, me, db)), write=True
         )
 
-    @tool("Xoá lớp chữ hoặc sticker", read=False)
+    @tool("Xoá lớp chữ, sticker hoặc ảnh", read=False)
     async def delete_layer(layer_id: int) -> dict:
-        """Xoá một lớp chữ hoặc sticker."""
+        """Xoá một lớp chữ, sticker hoặc ảnh (ảnh chèn xoá cùng bản sao ảnh của nó)."""
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(layer_routes.delete_layer(layer_id, me, db)), write=True
+            invoke,
+            lambda db, me: video_link(layer_routes.delete_layer(layer_id, me, db, get_storage())),
+            write=True,
         )
 
     @tool("Thêm âm thanh", read=False)

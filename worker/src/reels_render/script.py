@@ -9,7 +9,7 @@ from .blur import parse_blur
 from .captions import Word
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
-from .layers import ANIMATIONS, PHOTO_SHAPES, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
+from .layers import ANIMATIONS, HALF, PHOTO_SHAPES, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
 from .markup import MarkupError, Run, parse_scene_text
 from .sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS, SceneSound
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
@@ -241,7 +241,9 @@ def _parse_layers(value: object, label: str, base_dir: Path) -> tuple[Layer, ...
                 raise InputError(f'{where}: lớp ảnh cần "image"')
             if not (base_dir / image).is_file():
                 raise InputError(f"{where}: không tìm thấy file ảnh {image}")
-        style_presets, default_style = (PHOTO_SHAPES, "rounded") if kind == "photo" else (TEXT_STYLES, "outline")
+        # A photo layer is framed (PHOTO_SHAPES) or a half-frame photo (layers.HALF).
+        photo_styles = {**PHOTO_SHAPES, HALF: None}
+        style_presets, default_style = (photo_styles, "rounded") if kind == "photo" else (TEXT_STYLES, "outline")
         layer = Layer(
             kind=kind,
             text=text if kind == "text" else "",

@@ -983,6 +983,15 @@ and "Ảnh món" is kept:
   cut-out photo; Nhỏ, Vừa, Lớn; Trái, Giữa, Phải, Dưới; and an entrance), dragged anywhere in "Xem trước". The
   preview plays the backdrop under every scene, as the MP4 does.
 
+**Ảnh chèn nửa khung** (any kind of video, any content scene): "Chữ & sticker" in "Xem trước" has "Ảnh từ máy" and
+"Từ kho tư liệu". The photo fills a box as wide as the frame and half as tall (cut to fill, never stretched, with a
+thin white edge and rounded corners), lands on the top half and shows with the scene's narration until the next
+scene. It is dragged only up and down on the phone, over the scene's own picture or the video's backdrop, and snaps
+to "Nửa trên", "Giữa" and "Nửa dưới" (also quick choices in "Chỉnh cảnh"); its start and length can be typed. It sits
+under the scene's text, captions and the other layers, which keep their places; the text gets no shade of its own,
+so a box style keeps it readable over a busy photo. One photo layer per scene; removing it asks first, since its
+photo goes with it.
+
 "Nghỉ sau lời đọc" (Thiết lập › Âm thanh: Ngắn 0,4 s, Vừa 0,7 s, Dài 1 s) is the pause after each scene's
 narration for scenes whose seconds follow it; changing it changes those scenes' seconds at once.
 

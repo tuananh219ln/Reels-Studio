@@ -11,6 +11,31 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-09 — "Ảnh chèn nửa khung": a photo layer of its own beside "Ảnh món", on every kind of video
+
+Asked by tuananh219ln from a spec ("Đặc tả: Lớp ảnh chèn nửa khung", by Looper), whose model replaced the photo layer
+of 2026-11-07. The owner chose instead to keep "Ảnh món" and every setting it has, and add the half-frame photo next
+to it:
+
+- **A style of the photo layer, not a new kind** (`kind = "photo"`, `style = "half"`), as the spec asked, with its
+  own photo in a new column `scene_layers.image_key` (the spec wanted no new column, but "Ảnh món" shows the scene's
+  photo, so a photo of the layer's own has to be stored somewhere). Size stays a constant of the render code
+  (1080×960), so only `y`, `start` and `seconds` change; the server forces `x` to 540 and clamps `y` to 480–1440.
+- **On every kind of video**, not only "Video xuyên suốt" (owner's choice); on a backdrop video it is placed over
+  the backdrop in the preview, as it will be rendered.
+- **A thin white edge with rounded corners** (owner's request, after the spec put borders out of scope), inside the
+  1080×960 box.
+- **Shown with the narration until the next scene** (owner's request): a new one lasts `seconds` 60, which the
+  render stops at the scene's end, so it follows the narration however long it becomes, like "Ảnh món"; the
+  spec's "as long as the scene" as a number would go stale when the narration changes.
+- **Under the scene's text box**, not only under the other layers: the spec's test has the title text readable over
+  it. No automatic shade behind the text (the spec's open question; owner's choice): a box style does that.
+- One photo layer per scene ("Ảnh món" or this), never on the title scene (it is the cover, 2026-11-01). Removing
+  one is not undone ("Hoàn tác"), since its photo copy goes with it; the studio asks first.
+
+A person watches a sample MP4 (a 4:3 and a 9:16 photo, the top and bottom half, a backdrop clip, start 2 s for 3 s)
+before this is called done, as for any render change.
+
 ## 2026-11-08 — A topic group may have its own voice, which its new videos start with
 
 "Bổ sung 1" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md): the owner runs two Pages from one

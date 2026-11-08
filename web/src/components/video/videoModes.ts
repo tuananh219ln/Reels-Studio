@@ -1,4 +1,5 @@
 import type { SceneData, SceneLayer, VideoDetail, VideoMode, VideoOptions } from "@/lib/api";
+import { isHalf } from "./preview/layers";
 
 /** "Kiểu video" (api videos.MODES). */
 export const VIDEO_MODES: { value: VideoMode; label: string; hint: string }[] = [
@@ -50,21 +51,26 @@ export function isBackdrop(video: Pick<VideoDetail, "mode">): boolean {
   return video.mode === "single";
 }
 
+/** The scene's "Ảnh món": a photo layer showing the scene's own photo (not a half-frame photo with its own). */
 export function photoLayer(layers: SceneLayer[]): SceneLayer | undefined {
-  return layers.find((layer) => layer.kind === "photo");
+  return layers.find((layer) => layer.kind === "photo" && !isHalf(layer));
 }
 
 /**
  * The scenes as the preview plays them. Over a backdrop ("Video xuyên suốt") each content scene shows the title
  * scene's photo, or its clip picked up where the scene before left it, looping over the part from the title scene's
  * start to the clip's end (as the render core's backdrop_start does),
- * joined by hard cuts; on a slide video the photo layers, kept for switching back, are left out.
+ * joined by hard cuts, so a half-frame photo is placed over the backdrop it will be rendered over; on a slide video
+ * "Ảnh món", kept for switching back, is left out, while a half-frame photo shows on every kind of video.
  */
 export function previewScenes(video: VideoDetail): SceneData[] {
   const all = [video.title_scene, ...video.scenes].filter((scene): scene is SceneData => scene !== null);
   const title = video.title_scene;
   if (!isBackdrop(video) || title === null) {
-    return all.map((scene) => ({ ...scene, layers: scene.layers.filter((layer) => layer.kind !== "photo") }));
+    return all.map((scene) => ({
+      ...scene,
+      layers: scene.layers.filter((layer) => layer.kind !== "photo" || isHalf(layer)),
+    }));
   }
   let at = 0;
   return all.map((scene) => {
