@@ -530,14 +530,13 @@ def numbers_48h(db: DbSession, items: list[TopicPlanItem]) -> dict[int, list[dic
     ).all()
     if not posts:
         return {}
-    marks = {
-        mark.publication_id: mark
+    readings = {
+        (mark.publication_id, mark.window): mark
         for mark in db.scalars(
-            select(PostMetrics).where(
-                PostMetrics.publication_id.in_([post.id for post, _ in posts]), PostMetrics.window == "48h"
-            )
+            select(PostMetrics).where(PostMetrics.publication_id.in_([post.id for post, _ in posts]))
         )
     }
+    marks = {publication_id: mark for (publication_id, window), mark in readings.items() if window == "48h"}
     by_page = analytics.medians(db)
     found: dict[int, list[dict]] = {}
     for post, page_name in posts:
@@ -549,6 +548,8 @@ def numbers_48h(db: DbSession, items: list[TopicPlanItem]) -> dict[int, list[dic
                 "fanpage_name": page_name or "",
                 "views": views,
                 "shares": shares,
+                # The newest reading, shown beside the 48-hour one and never in its place.
+                "latest_views": latest.views if (latest := readings.get((post.id, "latest"))) else None,
                 "measured_at": mark.measured_at.isoformat() if mark else None,
                 **analytics.of_post(post, views, shares, by_page),
             }

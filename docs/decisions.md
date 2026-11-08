@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — A group's Video tab shows each video's views, as a table or a list
+
+"Bổ sung 2" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md). The numbers are those the video
+list already worked out for `/videos` (2026-11-03 post numbers): "View" adds up every live Facebook post's `latest`
+reading, and the 48-hour views, shares and share/view are of the post with the most views, so the group's tab and
+"Video" agree. `GET /videos` only gains `post.views_48h`; a video not out yet has no `post`, so the tab shows "—",
+never a zero. "Bảng | Danh sách" is remembered per browser, like the video list's grid or list (2026-11-03), and
+switching keeps the search and the status filter. A plan card adds the newest views beside the 48-hour line, which
+stays the one compared with the Page's median.
 ## 2026-11-08 — A topic group may have its own voice, which its new videos start with
 
 "Bổ sung 1" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md): the owner runs two Pages from one

@@ -1,7 +1,7 @@
 "use client";
 
-import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Empty, Flex, Input, Select, Table, Typography, theme } from "antd";
+import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
+import { App, Button, Card, Empty, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
@@ -13,6 +13,48 @@ function plain(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/gi, "d").toLowerCase();
 }
 
+type View = "table" | "list";
+const VIEW_KEY = "topic-videos-view";
+
+/** "Bảng | Danh sách", remembered in this browser, as useRememberedView (lib/view.ts) does; the table until chosen. */
+function useView(): [View, (view: View) => void] {
+  const [view, setView] = useState<View>(() => {
+    try {
+      return window.localStorage.getItem(VIEW_KEY) === "list" ? "list" : "table";
+    } catch {
+      return "table";
+    }
+  });
+  return [
+    view,
+    (next) => {
+      setView(next);
+      try {
+        window.localStorage.setItem(VIEW_KEY, next);
+      } catch {
+        // Not remembered, still shown.
+      }
+    },
+  ];
+}
+
+const count = (value: number | null | undefined) => (value == null ? "—" : value.toLocaleString("vi-VN"));
+const percent = (value: number | null | undefined) =>
+  value == null
+    ? "—"
+    : `${(value * 100).toLocaleString("vi-VN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+
+/** A posted video's numbers; a video not out yet shows dashes, never a zero it does not have. */
+function numbers(row: VideoRow) {
+  const post = row.post?.state === "posted" ? row.post : null;
+  return {
+    views: post?.views ?? null,
+    views48: post?.views_48h ?? null,
+    shares: post?.shares ?? null,
+    rate: post?.share_rate ?? null,
+  };
+}
+
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
 export default function TopicVideos({ topicId, canCreate }: { topicId: number; canCreate: boolean }) {
   const { message } = App.useApp();
@@ -20,6 +62,7 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
   const [rows, setRows] = useState<VideoRow[] | null>(null);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [view, setView] = useView();
 
   useEffect(() => {
     api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`)
@@ -60,6 +103,15 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
             onChange={(value) => setStatus(value ?? null)}
             options={statuses.map((label) => ({ value: label, label }))}
           />
+          <Segmented<View>
+            aria-label="Chế độ hiển thị"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: "table", label: "Bảng", icon: <TableOutlined /> },
+              { value: "list", label: "Danh sách", icon: <AppstoreOutlined /> },
+            ]}
+          />
         </Flex>
         {canCreate && (
           <Link prefetch={false} href={`/videos?group=${topicId}`}>
@@ -69,96 +121,195 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
           </Link>
         )}
       </Flex>
-      <Table<VideoRow>
-        size="small"
-        rowKey="id"
-        loading={rows === null}
-        dataSource={shown}
-        pagination={shown.length > 20 ? { pageSize: 20, showSizeChanger: false } : false}
-        scroll={{ x: 760 }}
-        locale={{
-          emptyText: (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
-            />
-          ),
-        }}
-        columns={[
-          {
-            key: "thumbnail",
-            width: 56,
-            render: (_, row) =>
-              row.thumbnail_url ? (
+      {view === "list" ? (
+        <VideoCards rows={rows} shown={shown} />
+      ) : (
+        <Table<VideoRow>
+          size="small"
+          rowKey="id"
+          loading={rows === null}
+          dataSource={shown}
+          pagination={shown.length > 20 ? { pageSize: 20, showSizeChanger: false } : false}
+          scroll={{ x: 760 }}
+          locale={{
+            emptyText: (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
+              />
+            ),
+          }}
+          columns={[
+            {
+              key: "thumbnail",
+              width: 56,
+              render: (_, row) =>
+                row.thumbnail_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- the api serves the thumbnail; next/image adds nothing here
+                  <img
+                    src={row.thumbnail_url}
+                    alt=""
+                    width={36}
+                    height={64}
+                    style={{ objectFit: "cover", borderRadius: token.borderRadiusSM, display: "block" }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: 36,
+                      height: 64,
+                      borderRadius: token.borderRadiusSM,
+                      background: token.colorFillTertiary,
+                    }}
+                  />
+                ),
+            },
+            {
+              key: "title",
+              title: "Video",
+              render: (_, row) => (
+                <Flex vertical style={{ minWidth: 0 }}>
+                  <Link prefetch={false} href={`/videos/${row.id}`}>
+                    <Typography.Text strong ellipsis style={{ color: "inherit", maxWidth: 300 }}>
+                      {row.title || row.topic}
+                    </Typography.Text>
+                  </Link>
+                  <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 300 }}>
+                    {row.topic}
+                    {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}
+                  </Typography.Text>
+                </Flex>
+              ),
+            },
+            {
+              key: "kind",
+              title: "Loại",
+              width: 170,
+              render: (_, row) => <VideoKindTags video={row} />,
+            },
+            {
+              key: "status",
+              title: "Trạng thái",
+              width: 110,
+              render: (_, row) => <VideoStatusTags video={row} only="status" />,
+            },
+            {
+              key: "platforms",
+              title: "Đã đăng",
+              width: 110,
+              render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
+            },
+            {
+              key: "views",
+              title: "View",
+              width: 90,
+              align: "right",
+              render: (_, row) => count(numbers(row).views),
+            },
+            {
+              key: "views48",
+              title: "View 48h",
+              width: 90,
+              align: "right",
+              render: (_, row) => count(numbers(row).views48),
+            },
+            {
+              key: "shares",
+              title: "Share",
+              width: 70,
+              align: "right",
+              render: (_, row) => count(numbers(row).shares),
+            },
+            {
+              key: "rate",
+              title: "Share/view",
+              width: 100,
+              align: "right",
+              render: (_, row) => percent(numbers(row).rate),
+            },
+            {
+              key: "made",
+              title: "Tạo",
+              width: 150,
+              render: (_, row) => (
+                <Flex vertical>
+                  <Typography.Text ellipsis>{row.created_by}</Typography.Text>
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    {formatDateTime(row.created_at)}
+                  </Typography.Text>
+                </Flex>
+              ),
+            },
+          ]}
+        />
+      )}
+    </Flex>
+  );
+}
+
+/** "Danh sách": a card per video, with a larger picture, its status and its main numbers. */
+function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[] }) {
+  const { token } = theme.useToken();
+  if (rows !== null && shown.length === 0) {
+    return (
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description={rows.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
+      />
+    );
+  }
+  return (
+    <Flex vertical gap={8} data-testid="topic-video-cards">
+      {(rows === null ? [] : shown).map((row) => {
+        const figures = numbers(row);
+        return (
+          <Card key={row.id} size="small" data-testid="topic-video-card" styles={{ body: { padding: 10 } }}>
+            <Flex gap={12} align="flex-start">
+              {row.thumbnail_url ? (
                 // eslint-disable-next-line @next/next/no-img-element -- the api serves the thumbnail; next/image adds nothing here
                 <img
                   src={row.thumbnail_url}
                   alt=""
-                  width={36}
-                  height={64}
-                  style={{ objectFit: "cover", borderRadius: token.borderRadiusSM, display: "block" }}
+                  width={72}
+                  height={128}
+                  style={{ objectFit: "cover", borderRadius: token.borderRadius, display: "block", flex: "none" }}
                 />
               ) : (
                 <div
                   style={{
-                    width: 36,
-                    height: 64,
-                    borderRadius: token.borderRadiusSM,
+                    width: 72,
+                    height: 128,
+                    flex: "none",
+                    borderRadius: token.borderRadius,
                     background: token.colorFillTertiary,
                   }}
                 />
-              ),
-          },
-          {
-            key: "title",
-            title: "Video",
-            render: (_, row) => (
-              <Flex vertical style={{ minWidth: 0 }}>
+              )}
+              <Flex vertical gap={6} style={{ minWidth: 0, flex: 1 }}>
                 <Link prefetch={false} href={`/videos/${row.id}`}>
-                  <Typography.Text strong ellipsis style={{ color: "inherit", maxWidth: 300 }}>
+                  <Typography.Text strong style={{ color: "inherit" }}>
                     {row.title || row.topic}
                   </Typography.Text>
                 </Link>
-                <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 300 }}>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                   {row.topic}
-                  {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}
-                </Typography.Text>
-              </Flex>
-            ),
-          },
-          {
-            key: "kind",
-            title: "Loại",
-            width: 170,
-            render: (_, row) => <VideoKindTags video={row} />,
-          },
-          {
-            key: "status",
-            title: "Trạng thái",
-            width: 110,
-            render: (_, row) => <VideoStatusTags video={row} only="status" />,
-          },
-          {
-            key: "platforms",
-            title: "Đã đăng",
-            width: 110,
-            render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
-          },
-          {
-            key: "made",
-            title: "Tạo",
-            width: 150,
-            render: (_, row) => (
-              <Flex vertical>
-                <Typography.Text ellipsis>{row.created_by}</Typography.Text>
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""} · {row.created_by},{" "}
                   {formatDateTime(row.created_at)}
                 </Typography.Text>
+                <Flex wrap gap={8} align="center">
+                  <VideoStatusTags video={row} only="status" />
+                  <PostedPlatforms postedOn={row.posted_on} />
+                </Flex>
+                <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="topic-video-numbers">
+                  {figures.views === null && figures.views48 === null
+                    ? "Chưa có số liệu đăng"
+                    : `${count(figures.views)} view · 48h: ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
+                </Typography.Text>
               </Flex>
-            ),
-          },
-        ]}
-      />
+            </Flex>
+          </Card>
+        );
+      })}
     </Flex>
   );
 }
