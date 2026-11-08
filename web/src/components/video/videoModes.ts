@@ -13,31 +13,8 @@ export const VIDEO_MODES: { value: VideoMode; label: string; hint: string }[] = 
     label: "Video xuyên suốt",
     hint:
       "Một ảnh hoặc video nền chạy suốt cả video (chọn ở cảnh tiêu đề), các cảnh chỉ đổi chữ và lời đọc; " +
-      "cảnh nêu tên món thì thêm ảnh món chồng lên nền, ví dụ “5 món kết hợp với chuối xanh”.",
+      "cảnh nêu tên món thì có ảnh chèn nửa khung chồng lên nền, ví dụ “5 món kết hợp với chuối xanh”.",
   },
-];
-
-/** A photo layer's frame (reels_render.layers.PHOTO_SHAPES). */
-export const PHOTO_SHAPES = [
-  { value: "rounded", label: "Bo góc" },
-  { value: "circle", label: "Tròn" },
-  { value: "square", label: "Vuông" },
-  { value: "plain", label: "Giữ nguyên" },
-];
-
-/** A photo layer's width (reels_render.layers.SIZES[...].photo): 35%, 48% and 65% of the frame. */
-export const PHOTO_SIZES = [
-  { value: "small", label: "Nhỏ" },
-  { value: "medium", label: "Vừa" },
-  { value: "large", label: "Lớn" },
-];
-
-/** Where a photo goes at once: its centre in the 1080×1920 frame. Left and right match a new layer's places. */
-export const PHOTO_PLACES = [
-  { label: "Trái", x: 367, y: 835 },
-  { label: "Giữa", x: 540, y: 835 },
-  { label: "Phải", x: 713, y: 835 },
-  { label: "Dưới", x: 540, y: 1250 },
 ];
 
 /** "Nghỉ sau lời đọc" (api video_options.VOICE_PAUSES). */

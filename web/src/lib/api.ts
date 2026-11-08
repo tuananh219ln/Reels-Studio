@@ -183,6 +183,8 @@ export type SceneLayer = {
   animation: string;
   /** The exact picture the render lays on. */
   image_url: string;
+  /** A half-frame photo's: whether its photo is its own (false: it shows its scene's photo). */
+  own_image?: boolean;
 };
 
 /** A sound effect heard from a second of its scene (reels_render.sounds), made by FFmpeg. */

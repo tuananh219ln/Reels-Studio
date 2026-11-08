@@ -678,6 +678,7 @@ export default function VideoPage() {
                   scene={scene}
                   label={`Cảnh ${index + 1}`}
                   backdrop={isBackdrop(video)}
+                  backdropScene={video.title_scene}
                   generating={job?.kind === "image" && job.scene_id === scene.id}
                   editing={job?.kind === "image_edit" && job.scene_id === scene.id}
                   voiceEnabled={video.voice_enabled}

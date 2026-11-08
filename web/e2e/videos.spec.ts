@@ -930,6 +930,18 @@ test("studio half-frame photo: uploaded across the top half, dragged only down t
   await expect.poll(place).toEqual(["0%", "50%", "100%"]);
   const inspector = studio.getByTestId("preview-scene-editor");
   await expect(inspector.getByLabel("Vị trí ảnh chèn").locator(".ant-segmented-item-selected")).toHaveText("Nửa dưới");
+
+  // The scene's card shows it too, full width over the scene's frame, and moves it with a quick choice.
+  // The first Escape lets go of the picked photo, the second closes the studio.
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expect(studio).toHaveCount(0);
+  const card = page.getByTestId("scene").first().getByTestId("half-photo-panel");
+  const onCard = card.getByTestId("half-photo-stage").getByTestId("preview-layer");
+  const cardPlace = () => onCard.evaluate((element) => [element.style.left, element.style.top, element.style.width]);
+  await expect.poll(cardPlace).toEqual(["0%", "50%", "100%"]);
+  await card.getByLabel("Vị trí ảnh chèn").getByText("Nửa trên").click();
+  await expect.poll(cardPlace).toEqual(["0%", "0%", "100%"]);
 });
 
 test("studio sounds: a sound effect added at the playhead, heard, made louder and undone", async ({ page }) => {

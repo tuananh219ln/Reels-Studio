@@ -82,6 +82,7 @@ from .videos import (
     blur_of,
     drawn_layers,
     drop_original,
+    half_layer,
     is_backdrop,
     is_half_layer,
     is_published,
@@ -90,7 +91,6 @@ from .videos import (
     made_voice_seconds,
     new_key,
     pending_publication,
-    photo_layer,
     refresh_thumbnail,
     render_signature,
     run_checks,
@@ -499,7 +499,6 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
             voice_text=script.title_voice,
         )
     )
-    photos = 0
     for position, scene in enumerate(script.scenes, start=1):
         photo = is_backdrop(video) and bool(scene.keywords or scene.keywords_en)
         db.add(
@@ -515,11 +514,10 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
                 image_prompt=scene.image_prompt,
                 voice_text=scene.voice,
                 # "Video xuyên suốt": a scene the AI named a dish for (it wrote that dish's photo keywords) shows it
-                # as a photo layer, found by "Tự tìm ảnh" or chosen on its card.
-                layers=[photo_layer(photos)] if photo else [],
+                # as a half-frame photo of the scene's photo, found by "Tự tìm ảnh" or chosen on its card.
+                layers=[half_layer()] if photo else [],
             )
         )
-        photos += photo
     # The team's "Mẫu dựng" for new videos, if one is chosen, then the AI's own picks when it was asked for them.
     autoedit.apply_default(db, video)
     autoedit.apply_ai_effects(db, video, [scene.effects for scene in script.scenes])

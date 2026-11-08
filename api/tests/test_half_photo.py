@@ -173,3 +173,43 @@ def test_the_assistant_adds_one_from_the_library_and_cannot_move_it_across(mcp_c
     assert not moved.get("isError"), moved
     db.refresh(row)
     assert (row.x, row.y) == (540, 1440)
+
+
+def test_the_scenes_own_photo_becomes_its_half_frame_photo_in_place_of_its_ảnh_món(an, db, me, storage):
+    video = make_video(db, storage, me)
+    video.mode = "single"
+    db.commit()
+    scene = first_scene(db, video)
+    assert an.post("/api/layers", json={"scene_id": scene.id, "kind": "photo"}).status_code == 201
+    moved = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
+    assert moved.status_code == 201, moved.json()
+    (layer,) = scene_json(moved.json(), scene.id)["layers"]
+    assert (layer["style"], layer["x"], layer["y"]) == ("half", 540, 480), "the Ảnh món is replaced"
+    own = db.get(SceneLayer, layer["id"]).image_key
+    db.refresh(scene)
+    assert own != scene.image_key and storage.exists(own) and storage.exists(scene.image_key), "a copy of its own"
+    again = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
+    assert again.status_code == 422, "a half-frame photo is not replaced by another"
+
+
+def test_a_half_frame_photo_without_its_own_shows_its_scenes_until_one_is_added(an, db, me, storage):
+    """What a "Video xuyên suốt" script gives a scene naming a dish: the scene's photo, until a member adds one."""
+    from reels_api.videos import half_layer
+
+    video = make_video(db, storage, me)
+    video.mode = "single"
+    scene = first_scene(db, video)
+    scene.layers.append(half_layer())
+    db.commit()
+    (layer,) = scene_json(an.get(f"/api/videos/{video.id}").json(), scene.id)["layers"]
+    assert layer["own_image"] is False
+    assert Image.open(io.BytesIO(an.get(layer["image_url"]).content)).size == (1080, 960)
+    an.patch(f"/api/layers/{layer['id']}", json={"y": 1440})
+    added = upload(an, scene.id)
+    assert added.status_code == 201, added.json()
+    (filled,) = scene_json(added.json(), scene.id)["layers"]
+    assert (filled["id"], filled["own_image"], filled["y"]) == (layer["id"], True, 1440), "it takes the photo, in place"
+    scene.image_key = None
+    db.commit()
+    blocking = scene_json(an.get(f"/api/videos/{video.id}").json(), scene.id)["blocking"]
+    assert not any("ảnh chèn" in issue for issue in blocking), "its own photo is enough"

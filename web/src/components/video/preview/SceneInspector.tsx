@@ -10,8 +10,9 @@ import {
   SceneTextField,
   SceneVoiceField,
 } from "../SceneCard";
-import PhotoLayerPanel from "../PhotoLayerPanel";
+import HalfPhotoPanel from "../HalfPhotoPanel";
 import { photoLayer } from "../videoModes";
+import { isHalf } from "./layers";
 
 /**
  * The studio's "Chỉnh cảnh N" panel beside the phone: everything about the scene being shown, so a scene is made
@@ -80,11 +81,14 @@ export default function SceneInspector({
           backdrop && !saved.is_title
             ? {
                 key: "media",
-                label: "Ảnh món",
+                label: "Ảnh chèn",
                 children: (
+                  // The half-frame photo over the backdrop (the preview's `scene` carries it); an older video's
+                  // "Ảnh món" shows its photo, which "Đổi ảnh món thành ảnh chèn" turns into one.
                   <Flex vertical gap={8}>
-                    <PhotoLayerPanel scene={saved} />
-                    {photoLayer(saved.layers) && (
+                    <HalfPhotoPanel scene={saved} backdrop={scene} />
+                    {(photoLayer(saved.layers) ||
+                      saved.layers.some((layer) => isHalf(layer) && layer.own_image === false)) && (
                       <ScenePicture
                         scene={saved}
                         voiceEnabled={voiceEnabled}
