@@ -127,10 +127,10 @@ def _make_video(
         reference_id=sample.id,
         reference_mode=mode,
     )
-    video_options.apply_team_defaults(db, video)
+    video_options.apply_defaults(db, video, me.user_id)
     db.add(video)
     db.flush()
-    apply_default_music(db, video, get_storage())
+    apply_default_music(db, video, get_storage(), me.user_id)
     _enqueue(db, video, "learn", me)
     return _saved(db, video)
 

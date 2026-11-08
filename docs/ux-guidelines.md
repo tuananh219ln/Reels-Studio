@@ -435,9 +435,10 @@ Built:
     rows ("Chữ khó đọc trên nền hộp này. …"); Độ trong của hộp (Theo kiểu, Đặc, Hơi trong, Trong, Không nền) while
     the style has a box, Không nền turning the box colour row into Màu viền chữ; these rows change only the video (or the defaults), not the team style, whose card
     is then no longer marked; picking Không hộp puts the box colour and opacity back to Theo kiểu;
-    Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and "Lấy
-    theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
-    with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
+    Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and a line linking
+    to the member's defaults ("Video mới lấy mặc định của người tạo…"). There is no button to take the
+    defaults back (removed 2026-11-08). A new video starts with its maker's defaults (their own, or the
+    team's while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
     Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and
@@ -692,7 +693,12 @@ Built:
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
   The content takes the whole width beside the list:
-  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): the same three cards as
+  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): "Mặc định của" chooses "Của tôi (<tên>)"
+    (the default) or "Của nhóm", locked while editing, with a line saying whose are being edited: the
+    member's own ("Đang sửa mặc định riêng của tài khoản <tên>"), the team's shown because they have none
+    yet ("… chưa có mặc định riêng nên đang dùng mặc định của nhóm"; saving creates their own from them),
+    or the team's ("Đang sửa mặc định của cả nhóm", used by members without their own). With their own,
+    "Dùng mặc định nhóm" (with a confirmation) drops them. Then the same three cards as
     a video's "Thiết lập" tab plus the music level, and "Nhạc nền mặc định" under "Âm thanh" (the chosen
     library track with its player, "Chọn từ thư viện" / "Đổi bài" opening the library picker, "Bỏ nhạc mặc định";
     a track deleted from the library since says so in yellow), from 1600 px "Âm thanh" and "Hình ảnh" down the

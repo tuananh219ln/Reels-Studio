@@ -1,6 +1,6 @@
 "use client";
 
-import { App, Button, Flex, Popconfirm, Typography } from "antd";
+import { App, Button, Flex, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { COLORS } from "@/app/theme";
@@ -88,17 +88,8 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
         <TextSettings values={values} onChange={change} disabled={disabled} />
       </div>
       <Flex wrap gap={8} align="center">
-        <Popconfirm
-          title="Lấy toàn bộ thiết lập theo mặc định nhóm?"
-          description="Giọng đọc, âm lượng, chuyển cảnh, kiểu chữ và phụ đề của video này sẽ đổi theo mặc định."
-          okText="Lấy theo mặc định"
-          cancelText="Huỷ"
-          onConfirm={() => save({ reset_options: true })}
-        >
-          <Button disabled={disabled}>Lấy theo mặc định nhóm</Button>
-        </Popconfirm>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Sửa mặc định ở{" "}
+          Video mới lấy mặc định của người tạo. Sửa mặc định của bạn ở{" "}
           <Link prefetch={false} href="/settings/defaults">
             Cài đặt › Thiết lập mặc định
           </Link>

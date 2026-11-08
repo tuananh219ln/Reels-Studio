@@ -594,6 +594,19 @@ class LlmProvider(Base):
     updated_by: Mapped[User | None] = relationship()
 
 
+class UserVideoDefaults(Base):
+    """A member's own "Thiết lập mặc định": every setting their new videos start with, the team's (AppSetting
+    "video_defaults") copied when they first saved their own and changed since. No row: the team's apply."""
+
+    __tablename__ = "user_video_defaults"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSONB)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class AppSetting(Base):
     """A team-wide setting from the Cài đặt pages, by key (e.g. "llm_provider")."""
 
