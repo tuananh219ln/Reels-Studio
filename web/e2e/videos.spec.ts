@@ -2242,6 +2242,37 @@ test("text size: a smaller size on Thiết lập redraws the scenes' previews, t
   await expect(titlePreview).not.toHaveAttribute("src", titleBefore ?? "");
 });
 
+test("text case: keeping the text as typed redraws the scenes' previews, and the title has its own", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  const scenePreview = page.getByTestId("scene").first().getByTestId("scene-preview");
+  const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
+  const [sceneBefore, titleBefore] = [await scenePreview.getAttribute("src"), await titlePreview.getAttribute("src")];
+  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  const text = page.getByTestId("text-settings");
+  const sceneCase = text.getByLabel("Dạng chữ", { exact: true });
+  // Capitals, the original template, until a member chooses otherwise.
+  await expect(sceneCase.getByRole("radio", { name: "Viết hoa toàn bộ" })).toBeChecked();
+  await sceneCase.getByText("Giữ nguyên như đã nhập", { exact: true }).click();
+  await expect(scenePreview).not.toHaveAttribute("src", sceneBefore ?? "");
+  await expect(titlePreview).toHaveAttribute("src", titleBefore ?? "");
+
+  await text.getByText("Tiêu đề", { exact: true }).click();
+  const titleCase = text.getByLabel("Dạng chữ tiêu đề", { exact: true });
+  await expect(titleCase.getByRole("radio", { name: "Viết hoa toàn bộ" })).toBeChecked();
+  await titleCase.getByText("Giữ nguyên như đã nhập", { exact: true }).click();
+  await expect(titlePreview).not.toHaveAttribute("src", titleBefore ?? "");
+  // Saved with the video: a reload keeps both choices.
+  await page.reload();
+  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  await expect(
+    text.getByLabel("Dạng chữ", { exact: true }).getByRole("radio", { name: "Giữ nguyên như đã nhập" }),
+  ).toBeChecked();
+});
+
 /** A dialog's box once its zoom-in has finished, so what is measured or dragged is where it stays. */
 async function settledBox(page: Page, locator: ReturnType<Page["locator"]>) {
   await expect(page.locator('.ant-modal[class*="zoom"]')).toHaveCount(0);

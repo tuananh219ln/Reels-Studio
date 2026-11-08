@@ -1,6 +1,9 @@
 import unicodedata
 from dataclasses import dataclass
 
+# "Dạng chữ": "upper" draws every letter as a capital (the original template), "keep" draws the text as typed.
+TEXT_CASES = ("upper", "keep")
+
 
 @dataclass(frozen=True)
 class Run:
@@ -17,9 +20,16 @@ def normalize_text(text: str) -> str:
     return unicodedata.normalize("NFC", unicodedata.normalize("NFC", text).upper())
 
 
-def parse_scene_text(text: str) -> list[list[Run]]:
+def cased(lines: list[list[Run]], case: str) -> list[list[Run]]:
+    """The lines in the letter case chosen (TEXT_CASES); the marked runs stay marked."""
+    if case == "keep":
+        return lines
+    return [[Run(normalize_text(run.text), run.red) for run in line] for line in lines]
+
+
+def parse_scene_text(text: str, case: str = "upper") -> list[list[Run]]:
     """Split scene text into manual lines of runs; `*...*` marks red runs and may span lines."""
-    text = normalize_text(text.replace("\r\n", "\n"))
+    text = unicodedata.normalize("NFC", text.replace("\r\n", "\n"))
     if not text.strip():
         raise MarkupError("chữ trống")
     if any(not line.strip() for line in text.split("\n")):
@@ -38,4 +48,4 @@ def parse_scene_text(text: str) -> list[list[Run]]:
                 lines.append([])
             if chunk:
                 lines[-1].append(Run(chunk, red=index % 2 == 1))
-    return lines
+    return cased(lines, case)

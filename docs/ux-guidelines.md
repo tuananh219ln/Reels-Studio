@@ -803,7 +803,10 @@ with named presets a video can switch (its "Thiết lập" tab, defaults on Cài
   - yellow background (`#FFD60A`) with black text (`#111111`). Outlined text without a box was
     rejected as the default because it is hard to read on bright photos; it is offered only as the
     opt-in "Không hộp" preset below;
-  - bold, uppercase, centered, at most 960 px wide;
+  - bold, centered, at most 960 px wide; uppercase by default. "Dạng chữ" on a video's Thiết lập
+    (and on Cài đặt › Mặc định video) keeps the text as typed instead, for the content scenes and
+    their text layers, and on its own for the title ("Dạng chữ tiêu đề"); the red marked words keep
+    their colour either way, and the editor's previews are drawn the same way;
   - keywords marked `*...*` are drawn in red (`#E10600`);
   - long text wraps and shrinks, and is rejected only if it still does not fit: the title starts
     at 96 px and shrinks to 64 px (at most 5 lines); body text starts at 84 px and shrinks to

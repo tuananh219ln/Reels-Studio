@@ -7,6 +7,7 @@ code defaults below render exactly the original template.
 
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.markup import TEXT_CASES
 from reels_render.options import (
     BOX_OPACITIES,
     CAPTIONS,
@@ -54,6 +55,10 @@ DEFAULTS: dict = {
     # The text box's size, the content scenes' and the title's ("large": the original template).
     "text_size": "large",
     "title_text_size": "large",
+    # "Dạng chữ", the content scenes' (and their text layers') and the title's: "upper" (the original template) or
+    # "keep", drawn as typed.
+    "text_case": "upper",
+    "title_text_case": "upper",
     # The content scenes' text box centre in the frame, [x, y]; None: the template's place. A scene's own wins.
     "text_position": None,
     # "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it ("Tự khớp lời đọc").
@@ -76,6 +81,8 @@ LOOK_FIELDS = (
     "title_box_opacity",
     "text_size",
     "title_text_size",
+    "text_case",
+    "title_text_case",
 )
 # Left out of the MP4 fingerprint while unused, so videos rendered before each existed stay current.
 LATER_LOOK_FIELDS = LOOK_FIELDS[2:]
@@ -103,6 +110,8 @@ CHOICES = {
     "captions": CAPTIONS,
     "text_size": TEXT_SIZE_NAMES,
     "title_text_size": TEXT_SIZE_NAMES,
+    "text_case": TEXT_CASES,
+    "title_text_case": TEXT_CASES,
 }
 
 
@@ -125,6 +134,8 @@ LABELS = {
     "captions": "Phụ đề theo giọng",
     "text_size": "Cỡ chữ",
     "title_text_size": "Cỡ chữ tiêu đề",
+    "text_case": "Dạng chữ",
+    "title_text_case": "Dạng chữ tiêu đề",
     "ducking": "Nhỏ nhạc khi có giọng",
     "voice_pause": "Nghỉ sau lời đọc",
     "voice_enabled": "Giọng đọc",
@@ -236,7 +247,9 @@ def text_look(video: Video) -> tuple[str, ...]:
 
 
 # What a content scene's box is drawn with; the title's depends on every look field.
-SCENE_LOOK_FIELDS = ("text_style", "text_color", "box_color", "accent_color", "box_opacity", "text_size")
+SCENE_LOOK_FIELDS = ("text_style", "text_color", "box_color", "accent_color", "box_opacity", "text_size", "text_case")
+# The scenes' letter case is not the title's, which has its own.
+TITLE_LOOK_FIELDS = tuple(name for name in LOOK_FIELDS if name != "text_case")
 
 
 def text_size(video: Video | None, is_title: bool) -> str:
@@ -246,11 +259,18 @@ def text_size(video: Video | None, is_title: bool) -> str:
     return effective(video)["title_text_size" if is_title else "text_size"]
 
 
+def text_case(video: Video | None, is_title: bool) -> str:
+    """The letter case a scene's text is drawn in (reels_render.markup.TEXT_CASES); its text layers take the scenes'."""
+    if video is None:
+        return DEFAULTS["text_case"]
+    return effective(video)["title_text_case" if is_title else "text_case"]
+
+
 def preview_look(video: Video, is_title: bool) -> list[str]:
     """The look values a scene preview's address carries: none while they are the defaults (so previews cached
     before stay valid), and only what that scene is drawn with, so a title-only change leaves the scenes' alone."""
     values = effective(video)
-    names = LOOK_FIELDS if is_title else SCENE_LOOK_FIELDS
+    names = TITLE_LOOK_FIELDS if is_title else SCENE_LOOK_FIELDS
     look = [values[name] for name in names]
     return [] if look == [DEFAULTS[name] for name in names] else look
 

@@ -115,6 +115,12 @@ typed errors (subclasses of `RenderError`) whose Vietnamese messages go into the
   up to a tenth of a second (`timeline.fit_seconds`); its `seconds` are the minimum. A scene whose seconds follow
   its narration ("Tự khớp lời đọc") is given 0.2 s + the narration + the video's "Nghỉ sau lời đọc"
   (`options.voice_pause`: 0.4, 0.7 or 1 s; 0.4 by default, as before) by the api, so the render itself is unchanged.
+- **Letter case ("Dạng chữ", `RenderOptions.text_case` and `title_text_case`):** a script's text is read as typed
+  (`markup.parse_scene_text(text, case="keep")`); the render draws each scene's lines in the case chosen for it
+  (`render.scene_lines`): `"upper"`, every letter a capital as the original template (the default, and every video
+  made before the option), or `"keep"`, as typed. Text layers take the scenes' case. The api draws its previews,
+  checks that text fits, and draws layer pictures in the same case. A video that keeps the text as typed is sent to a
+  render machine with that option, so a machine on older code refuses it instead of drawing capitals.
 - **Backdrop ("Video xuyên suốt", `RenderOptions.backdrop`):** the title scene's photo or clip runs under every
   scene (`render.with_backdrop`); the content scenes bring no picture. The scenes join by hard cuts (`concat`)
   whatever their transitions, and scene colours are not used. A clip used from past its first second is first cut

@@ -1973,7 +1973,8 @@ def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSe
     scene = _scene(db, scene_id)
     video = db.get(Video, scene.video_id)
     size = video_options.text_size(video, scene.is_title)
-    if not scene.text.strip() or text_problem(scene.text, scene.is_title, size) is not None:
+    case = video_options.text_case(video, scene.is_title)
+    if not scene.text.strip() or text_problem(scene.text, scene.is_title, size, case) is not None:
         raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
     box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(video))
     buffer = io.BytesIO()

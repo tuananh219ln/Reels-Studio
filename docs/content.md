@@ -69,7 +69,8 @@ off.
 
 One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Claude by default) returns JSON with:
 
-1. 5 title options, each ≤ 12 words and uppercase.
+1. 5 title options, each ≤ 12 words, written as ordinary sentences: the video draws them in capitals
+   unless its "Dạng chữ tiêu đề" keeps the text as typed.
 2. 5–7 content scenes, each with seconds, on-screen text (≤ 10 words, `*word*` in red, manual line
    breaks), and an AI image prompt in English that describes only what is in the photo (the dish
    or ingredient, how it is laid out, the angle). The title scene gets one too

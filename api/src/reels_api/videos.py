@@ -46,6 +46,7 @@ from .video_options import (
     look_signature,
     preview_look,
     render_options,
+    text_case,
     text_size,
     voice_id,
     voice_pause,
@@ -323,10 +324,12 @@ def drawn_layers(video: Video, scene: Scene) -> list[SceneLayer]:
     return [layer for layer in scene.layers if layer.kind != "photo" or is_backdrop(video)]
 
 
-def layer_payload(layer: SceneLayer) -> dict:
-    # Its picture changes only with what is drawn, not with where or when it shows; a photo layer's with its photo.
+def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:
+    # Its picture changes only with what is drawn, not with where or when it shows; a photo layer's with its photo, a
+    # text layer's with the letter case it is drawn in (the scenes' "Dạng chữ"; capitals keep the earlier addresses).
     photo = layer.scene.image_key if layer.kind == "photo" else None
-    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []))
+    kept = [case] if layer.kind == "text" and case != "upper" else []
+    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []), *kept)
     return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
 
 
@@ -441,6 +444,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             own_picture or bool(scene.keywords or scene.keywords_en),
             scene.video_speed,
             text_size(video, scene.is_title),
+            text_case(video, scene.is_title),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -705,7 +709,7 @@ def motion_payload(scene: Scene) -> dict | None:
 
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
-    size = text_size(video, scene.is_title)
+    size, case = text_size(video, scene.is_title), text_case(video, scene.is_title)
     voice_seconds = made_voice_seconds(video, scene)
     style = preview_look(video, scene.is_title)
     position = text_position(video, scene)
@@ -766,13 +770,13 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene))}" if still else None,
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
-            if scene.text.strip() and text_problem(scene.text, scene.is_title, size) is None
+            if scene.text.strip() and text_problem(scene.text, scene.is_title, size, case) is None
             else None
         ),
-        "text_problem": text_problem(scene.text, scene.is_title, size),
+        "text_problem": text_problem(scene.text, scene.is_title, size, case),
         "transition": scene.transition,
         "color": scene.color,
-        "layers": [layer_payload(layer) for layer in scene.layers],
+        "layers": [layer_payload(layer, text_case(video, False)) for layer in scene.layers],
         "sounds": [sound_payload(sound) for sound in scene.sounds],
         "music_level": scene.music_level,
         # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.

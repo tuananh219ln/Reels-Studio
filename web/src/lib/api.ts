@@ -626,6 +626,10 @@ export type VideoOptions = {
   /** The text box's size ("Cỡ chữ"): the content scenes' and the title's; "large" is the original template. */
   text_size: "large" | "medium" | "small";
   title_text_size: "large" | "medium" | "small";
+  /** "Dạng chữ": "upper" draws every letter as a capital (the original template), "keep" as typed. The scenes'
+   * case is also their text layers'; the title has its own. */
+  text_case: "upper" | "keep";
+  title_text_case: "upper" | "keep";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
   /** "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it. */

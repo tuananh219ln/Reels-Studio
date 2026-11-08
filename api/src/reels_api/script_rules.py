@@ -39,6 +39,7 @@ class SceneInput:
     has_keywords: bool = True  # Vietnamese or English photo keywords, for "Tìm ảnh" and the picker
     clip_speed: float = 1.0  # a scene takes this many seconds of clip for each second it lasts
     text_size: str = "large"  # the size its text box is drawn at (reels_render.textbox.TEXT_SIZES)
+    text_case: str = "upper"  # the letter case its text is drawn in (reels_render.markup.TEXT_CASES)
 
 
 @dataclass(frozen=True)
@@ -58,12 +59,13 @@ def count_words(text: str) -> int:
     return len(text.replace("*", "").replace("\n", " ").split())
 
 
-def text_problem(text: str, is_title: bool, size: str = "large") -> str | None:
-    """Why reels_render would refuse this text, or None. Also the reason shown instead of a preview."""
+def text_problem(text: str, is_title: bool, size: str = "large", case: str = "upper") -> str | None:
+    """Why reels_render would refuse this text, drawn at `size` in `case` ("Dạng chữ"), or None. Also the reason
+    shown instead of a preview."""
     if not text.strip():
         return None  # a scene without text simply has no box
     try:
-        lines = parse_scene_text(text)
+        lines = parse_scene_text(text, case)
     except MarkupError as err:
         return f"Chữ sai cách đánh dấu: {err}"
     try:
@@ -97,7 +99,7 @@ def check_script(
 
     every = ([title] if title else []) + scenes
     for index, scene in enumerate(every):
-        problem = text_problem(scene.text, scene.is_title, scene.text_size)
+        problem = text_problem(scene.text, scene.is_title, scene.text_size, scene.text_case)
         if problem:
             block(Issue(problem, scene.id))
         if not scene.has_image:

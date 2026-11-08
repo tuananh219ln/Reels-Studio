@@ -137,4 +137,8 @@ def options_dict(options) -> dict:
     for name in ("backdrop", "clip_blur"):
         if not values[name]:
             del values[name]
+    # Likewise "Dạng chữ" only when the text is drawn as typed: an older machine would draw it in capitals.
+    for name in ("text_case", "title_text_case"):
+        if values[name] == "upper":
+            del values[name]
     return values

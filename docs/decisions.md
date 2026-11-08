@@ -11,6 +11,25 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — "Dạng chữ": a video's text may be drawn as typed; capitals stay the default
+
+The owner's call (namtc, [brief](specs/chu-thuong-ca-nhan-hoa/brief.md), part A): every letter on a video was drawn as a
+capital, whatever was typed. "Dạng chữ" on a video's Thiết lập and on Cài đặt › Mặc định video offers "Giữ nguyên như đã
+nhập" or "Viết hoa toàn bộ", stored as `text_case` and `title_text_case` in the video's options.
+
+- **The title has its own choice** ("Dạng chữ tiêu đề"), like its text size; **text layers take the scenes'**.
+- **Capitals stay the default**, so every video made before, and every video whose team default is unchanged, renders
+  and previews exactly as before (the MP4 fingerprint and preview addresses leave the option out while it is the
+  default). The marked `*words*` keep their colour either way.
+- **A render machine on older code refuses** a video that keeps the text as typed (the option is sent only then), as
+  for `backdrop` and `clip_blur`, instead of drawing it in capitals.
+- **Titles are asked as ordinary sentences.** The output format and the default script prompt no longer ask the AI
+  for capital titles: the video draws them in capitals by default, and with "Giữ nguyên" a title written in capitals
+  would stay in capitals. A topic group's own saved prompt is app data and keeps whatever it says.
+- Whether a text layer fits is still checked in capitals when it is saved (capitals are the wider letters, so this is
+  the stricter check); a scene's text is checked in its own case, so its preview and its "Chữ tràn hộp" match the
+  render.
+
 ## 2026-11-08 — Google Ảnh photos come in through the team's Chrome extension, only stock sites are left out
 
 Owner's choice (namtc), replacing the 2026-11-02 entry's "the app must not pick them by itself": photos may be taken

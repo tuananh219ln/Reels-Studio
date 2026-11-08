@@ -7,6 +7,7 @@ Colours may also be any "#RRGGBB" (the page warns about faint ones); sizes stay 
 from dataclasses import dataclass
 
 from .errors import InputError
+from .markup import TEXT_CASES
 from .textbox import Palette, is_hex, palette_for, title_palette
 
 TRANSITIONS = ("fade", "cut", "slide")
@@ -44,6 +45,9 @@ class RenderOptions:
     title_box_opacity: str = "auto"
     text_size: str = "large"  # the content scenes' text box (textbox.TEXT_SIZES); "large" is the original
     title_text_size: str = "large"  # the title scene's
+    # "Dạng chữ" (markup.TEXT_CASES): the content scenes' text and the text layers, and the title scene's.
+    text_case: str = "upper"
+    title_text_case: str = "upper"
     # "Video xuyên suốt": the title scene's photo or clip runs under every scene, joined by hard cuts, and the text
     # boxes fade in and out instead; photo layers ("Ảnh món") are laid on only then.
     backdrop: bool = False
@@ -65,6 +69,8 @@ class RenderOptions:
             ("captions", self.captions, CAPTIONS),
             ("text_size", self.text_size, TEXT_SIZE_NAMES),
             ("title_text_size", self.title_text_size, TEXT_SIZE_NAMES),
+            ("text_case", self.text_case, TEXT_CASES),
+            ("title_text_case", self.title_text_case, TEXT_CASES),
         ):
             if value not in allowed:
                 raise InputError(f"Tuỳ chọn {name} không hợp lệ: {value!r} (chọn một trong {', '.join(allowed)})")
