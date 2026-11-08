@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — The 30-day plan reads as a month calendar, with today on top and its settings saved together
+
+PR 2 of [docs/specs/plan-tab-redesign](specs/plan-tab-redesign/brief.md), the layout the owner approved on a clickable
+draft: the 30 day cards and the strip of 30 small cells give way to five weeks of day cells, with the ideas as chips
+in their status colour, and the chosen day in full below them (today by default). A "Hôm nay" strip with today's ideas
+and their next step replaces the one-line "Hôm nay là ngày N/30". The start date, ideas per day, posting times and
+the video target move into a "Thiết lập" panel that no longer saves each field as it changes: "Lưu" sends the changed
+fields in one request and "Huỷ" drops them, so a slip in one field no longer reshapes the plan at once. The filters
+and "Gọn" apply to the chosen day only; dragging onto a day, onto the Backlog tab and "Xếp vào ngày…" work as before.
+No change to the api.
+
 ## 2026-11-08 — A plan day holds 1 to 10 ideas, and an idea is edited from its "Sửa" button
 
 PR 1 of [docs/specs/plan-tab-redesign](specs/plan-tab-redesign/brief.md), at the owner's request: the team's Pages

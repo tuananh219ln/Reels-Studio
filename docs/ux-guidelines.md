@@ -505,32 +505,36 @@ Built:
     side on a wide screen;
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
-  - start date ("Hôm nay là ngày N/30"), ideas per day (1–10), "Giờ đăng" (1–10 times, as tags), "Đã làm
-    X/Y ý tưởng" with a bar, and a strip of 30 small cells, one a day (Trống, Có ý tưởng, Đang làm, Đủ
-    video, Đã lên lịch đủ; today outlined), each a link to its day;
+  - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
+    video", and "Sửa" (before a start date: "Chọn ngày bắt đầu để app biết hôm nay là ngày mấy"; "Kế hoạch chưa bắt
+    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days); under it "Đã làm X/Y · Đã lên lịch N · Ngày còn trống N";
   - "Tiến độ verdict: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
     target to set; it only counts, the line under it says the verdict is still decided in a meeting;
-  - "Nhập file JSON/CSV" and "Tạo bằng AI", both ending in a preview table with errors (which block
-    saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as a draft
-    ("Xem trước" / "Bỏ") until then; a failed one shows its error;
+  - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
+    start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Mục tiêu video cho verdict", changed in
+    place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
+    with errors (which block saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as
+    a draft ("Xem trước" / "Bỏ") until then; a failed one shows its error;
   - "Prompt kế hoạch", folded, with "Lưu" and "Khôi phục mặc định";
-  - above the days, filters for the session only: status, pain group (A–Z) and a search over topic,
-    pain group, pain and hook that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp",
-    "Xóa lọc", and "Đầy đủ | Gọn" (kept in the browser as `plan-compact`; a compact card shows its
-    title, status, numbers and buttons, and opens on its title or arrow);
-  - the 30 days on one page, one card each (its date and weekday once a start date is set, "Hôm nay"
-    in orange on today's, a line counting its shown ideas by status, "Không có ý tưởng khớp" when the filters
-    hide them all), each idea with a 3 px left border in its status colour, its topic, pain group,
-    pain and hook, a status tag (Ý tưởng, Đã tạo video,
-    Đã viết kịch bản, Xong, Đã lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while
-    no post is set, "Tạo video" or "Mở video" with "Sửa" beside it (always shown, "Gọn" too: one "Sửa ý tưởng"
-    form with the four fields, saved together by "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in
-    the plan shows in the form, which stays open), "Chuyển về Backlog" and "Xoá", and under them one line
-    per Facebook post with its 48-hour numbers ("<Page>: N view, N share, share/view x,xx% đạt/không
-    đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu" under 5 measured posts; "chưa đo 48h"
-    before). "+" adds an idea (greyed out at 10); dragging an idea onto another day moves it there.
-    "Mở Backlog" opens the Backlog beside the days, to drag
-    ideas between them;
+  - the status colours, then the calendar: five weeks ("Tuần N · dd/mm – dd/mm", or the day numbers before a start
+    date, with "N ý tưởng · N đã làm · N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
+    A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
+    their status colour (never filtered); an empty one has a dashed "+ Thêm ý". Clicking a cell shows that day
+    below (outlined; today by default, else day 1). Dragging a chip or a card onto a cell moves the idea there; a
+    full day (10) refuses it;
+  - the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
+    that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp", "Xóa lọc", "Đầy đủ | Gọn" (kept in the
+    browser as `plan-compact`; a compact card shows its title, status, numbers and buttons, and opens on its title
+    or arrow) and "Mở Backlog", which opens the Backlog beside the calendar, to drag ideas between them;
+  - the chosen day in full: its date, "Hôm nay", "+" (greyed out at 10), a line counting its shown ideas by status
+    ("Không có ý tưởng khớp" when the filters hide them all), and each idea with a 3 px left border in its status
+    colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong, Đã
+    lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while no post is set, "Tạo video" or "Mở video"
+    with "Sửa" beside it (always shown, "Gọn" too: one "Sửa ý tưởng" form with the four fields, saved together by
+    "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in the plan shows in the form, which stays
+    open), "Chuyển về Backlog" and "Xoá", and under them one line per Facebook post with its 48-hour numbers
+    ("<Page>: N view, N share, share/view x,xx% đạt/không đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu"
+    under 5 measured posts; "chưa đo 48h" before);
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
