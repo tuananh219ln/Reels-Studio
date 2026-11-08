@@ -10,6 +10,7 @@ from .errors import FFmpegError, InputError, MissingImagesError, OutputNotReplac
 from .graph import (
     MAX_CLIP_PIXELS,
     CaptionInput,
+    InsetInput,
     LayerInput,
     SceneInput,
     SoundInput,
@@ -18,7 +19,7 @@ from .graph import (
     clip_lead,
 )
 from .images import normalize_image
-from .layers import layer_corner, render_layer
+from .layers import HALF_HEIGHT, half_y, layer_corner, render_layer
 from .markup import Run, cased
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .script import Scene, Script
@@ -142,14 +143,21 @@ def render_video(
                     )
             # Each layer from its start into the scene, for its seconds, but never past the scene's end.
             scene_end = (scene_start + timeline.scene_frames[index]) / FPS
+            insets = []
             for number, layer in enumerate(scene.layers):
                 start = scene_start / FPS + layer.start
                 # A photo layer ("Ảnh món") is kept on a slide video but shown only over a backdrop.
-                if start >= scene_end or (layer.kind == "photo" and not options.backdrop):
+                if start >= scene_end or (layer.kind == "photo" and not layer.half and not options.backdrop):
                     continue
                 picture = render_layer(layer, options.text_case)
                 path = work_dir / f"layer-{index:02d}-{number:02d}.png"
                 picture.save(path)
+                if layer.half:
+                    # Under the scene's text box, in the seconds of the scene's own picture.
+                    lead = clip_lead(index, cut)
+                    end = min(start + layer.seconds, scene_end) - scene_start / FPS
+                    insets.append(InsetInput(path, half_y(layer.y) - HALF_HEIGHT // 2, layer.start + lead, end + lead))
+                    continue
                 left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
                 layers.append(
                     LayerInput(path, left, top, start, min(start + layer.seconds, scene_end), layer.animation)
@@ -177,6 +185,7 @@ def render_video(
                     video_sound=heard[index],
                     loop=options.backdrop and video_start is not None,
                     blur=scene.video_blur if video_start is not None else (),
+                    insets=tuple(insets),
                     motion_span=(
                         (scene_start - timeline.scene_frames[index], timeline.total_frames)
                         if options.backdrop and video_start is None

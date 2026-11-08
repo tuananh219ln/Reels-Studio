@@ -52,6 +52,7 @@ import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
 import { LayerList, LayerTools } from "./preview/LayerPanel";
 import LayerStage from "./preview/LayerStage";
+import { isHalf } from "./preview/layers";
 import { NoteBar, NoteTools } from "./preview/NotePanel";
 import { SoundList, SoundStage, SoundTools } from "./preview/SoundPanel";
 import { musicGain } from "./preview/sounds";
@@ -761,6 +762,21 @@ export default function VideoPreview({
 
   /** A layer removed; "Hoàn tác" adds it back (on top of the scene's others). */
   function removeLayer(layer: SceneLayer, sceneId: number) {
+    if (isHalf(layer)) {
+      // Its own copy of the photo goes with it, so this cannot be undone: asked first.
+      modal.confirm({
+        title: "Xoá ảnh chèn?",
+        content: "Ảnh chèn bị xoá hẳn, không hoàn tác được. Muốn dùng lại thì thêm ảnh lần nữa.",
+        okText: "Xoá",
+        okButtonProps: { danger: true },
+        cancelText: "Huỷ",
+        onOk: () => {
+          setPickedLayer(null);
+          return save(() => api<VideoDetail>(`/layers/${layer.id}`, "DELETE"));
+        },
+      });
+      return;
+    }
     let current = layer.id;
     const fields = Object.fromEntries(LAYER_FIELDS.map((key) => [key, layer[key]]));
     setPickedLayer(null);
@@ -1079,7 +1095,15 @@ export default function VideoPreview({
             </>
           )}
 
-          {tool === "layers" && <LayerTools scene={scene} editable={layersEditable} onAdd={addLayer} />}
+          {tool === "layers" && (
+            <LayerTools
+              scene={scene}
+              editable={layersEditable}
+              onAdd={addLayer}
+              onSaved={save}
+              onPick={setPickedLayer}
+            />
+          )}
 
           {tool === "auto" && <AutoEditPanel editable={editable} videoId={video.id} onApply={applyTemplate} />}
 
@@ -1277,6 +1301,19 @@ export default function VideoPreview({
                       atEnd
                       boxes={boxes}
                       onBox={(url, size) => setBoxes((current) => ({ ...current, [url]: size }))}
+                      insets={
+                        <LayerStage
+                          under
+                          layers={scenes[phase.prev].layers.filter(isHalf)}
+                          // The scene going out holds its last frame, and its half-frame photo as it was then.
+                          elapsed={() => (scenes[phase.prev ?? 0]?.fitted_seconds ?? 0) - 0.001}
+                          stage={stage}
+                          selected={null}
+                          editable={false}
+                          onSelect={() => undefined}
+                          onMove={() => undefined}
+                        />
+                      }
                     />
                   )}
                   {scene && (
@@ -1296,6 +1333,21 @@ export default function VideoPreview({
                       onEditText={canDrag ? () => setTyping({ sceneId: scene.id, value: scene.text }) : undefined}
                       warn={covered.length > 0}
                       seekTo={seek}
+                      insets={
+                        // Half-frame photos over the scene's picture (the backdrop on a "Video xuyên suốt"), under
+                        // its text box, as the render lays them; dragged only up and down.
+                        <LayerStage
+                          key={scene.id}
+                          under
+                          layers={scene.layers.filter(isHalf)}
+                          elapsed={() => position() - startOf(phase.index)}
+                          stage={stage}
+                          selected={pickedLayer}
+                          editable={layersEditable && still}
+                          onSelect={setPickedLayer}
+                          onMove={(layer, x, y) => changeLayer(layer, "di chuyển ảnh chèn", { x, y })}
+                        />
+                      }
                     />
                   )}
                   {/* Guides while dragging: the frame's middle, which the box snaps to when it comes near. */}
@@ -1343,10 +1395,10 @@ export default function VideoPreview({
                   {platform !== "none" && (
                     <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
                   )}
-                  {scene && scene.layers.length > 0 && (
+                  {scene && scene.layers.some((layer) => !isHalf(layer)) && (
                     <LayerStage
                       key={scene.id}
-                      layers={scene.layers}
+                      layers={scene.layers.filter((layer) => !isHalf(layer))}
                       elapsed={() => position() - startOf(phase.index)}
                       stage={stage}
                       selected={pickedLayer}
@@ -1516,6 +1568,7 @@ function SceneLayer({
   onEditText,
   warn = false,
   seekTo = null,
+  insets = null,
 }: {
   video: VideoDetail;
   scene: SceneData;
@@ -1537,6 +1590,8 @@ function SceneLayer({
   warn?: boolean;
   /** The clip time to show while the trim bar is dragged; null plays the clip as the scene does. */
   seekTo?: number | null;
+  /** Drawn over the picture and under the text box: the scene's half-frame photos. */
+  insets?: React.ReactNode;
 }) {
   const grab = useRef<{ dx: number; dy: number; last: [number, number] | null } | null>(null);
   // A finger holds the box a moment before it moves, so a quick swipe still changes scene.
@@ -1725,6 +1780,7 @@ function SceneLayer({
           <Typography.Text style={{ color: "#bfbfbf" }}>Chưa có ảnh</Typography.Text>
         </Flex>
       )}
+      {insets}
       {box && (
         // The exact box image the render draws, placed where the render puts it.
         // eslint-disable-next-line @next/next/no-img-element -- drawn by the api with the renderer's own code

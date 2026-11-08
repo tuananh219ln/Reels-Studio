@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
+from reels_render.layers import is_half
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_TAIL, fit_seconds
 
@@ -314,21 +315,37 @@ LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size",
 
 
 def layer_fields(layer: SceneLayer) -> dict:
-    """A layer as the render script and the studio read it (reels_render.layers.Layer); a photo layer's photo is its
-    scene's own, added by the render job."""
+    """A layer as the render script and the studio read it (reels_render.layers.Layer); a photo layer's photo (its
+    scene's own, or a half-frame photo's own) is added by the render job."""
     return {field: getattr(layer, field) for field in LAYER_FIELDS}
+
+
+def is_half_layer(layer: SceneLayer) -> bool:
+    """ "Ảnh chèn nửa khung" (reels_render.layers.HALF): a photo of its own across half the frame."""
+    return is_half(layer.kind, layer.style)
+
+
+def layer_photo_key(layer: SceneLayer) -> str | None:
+    """The photo a photo layer shows: a half-frame photo's own, or its scene's ("Ảnh món")."""
+    if layer.kind != "photo":
+        return None
+    return layer.image_key if is_half_layer(layer) else layer.scene.image_key
+
+
+def _own_photo(layer: SceneLayer) -> dict:
+    return {"image_key": layer.image_key} if layer.image_key else {}
 
 
 def drawn_layers(video: Video, scene: Scene) -> list[SceneLayer]:
     """The layers the render lays over the scene: photo layers ("Ảnh món") only over a backdrop; on a slide video
-    they are kept for switching back, and not drawn."""
-    return [layer for layer in scene.layers if layer.kind != "photo" or is_backdrop(video)]
+    they are kept for switching back, and not drawn. A half-frame photo shows on every kind of video."""
+    return [layer for layer in scene.layers if layer.kind != "photo" or is_half_layer(layer) or is_backdrop(video)]
 
 
 def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:
     # Its picture changes only with what is drawn, not with where or when it shows; a photo layer's with its photo, a
     # text layer's with the letter case it is drawn in (the scenes' "Dạng chữ"; capitals keep the earlier addresses).
-    photo = layer.scene.image_key if layer.kind == "photo" else None
+    photo = layer_photo_key(layer)
     kept = [case] if layer.kind == "text" and case != "upper" else []
     look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []), *kept)
     return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
@@ -363,7 +380,8 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             *([["transition", scene.transition]] if scene.transition else []),
             *([["color", scene.color]] if scene.color else []),
             *(
-                [["layers", [layer_fields(layer) for layer in layers]]]
+                # A half-frame photo's own photo joins too; other layers have none, so their fingerprint stays.
+                [["layers", [layer_fields(layer) | _own_photo(layer) for layer in layers]]]
                 if (layers := drawn_layers(video, scene))
                 else []
             ),
@@ -458,7 +476,10 @@ def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Sc
     if is_backdrop(video):
         for scene in scenes:
             # A photo layer shows its scene's photo: a clip, or no picture, leaves it nothing to show.
-            if any(layer.kind == "photo" for layer in scene.layers) and not scene.image_key:
+            if (
+                any(layer.kind == "photo" and not is_half_layer(layer) for layer in scene.layers)
+                and not scene.image_key
+            ):
                 checks.blocking.append(Issue(PHOTO_LAYER_MISSING, scene.id, "image"))
     return checks
 

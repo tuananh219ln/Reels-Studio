@@ -10,17 +10,20 @@ import { useEditor } from "./AutoSaveField";
 /**
  * "Kho tư liệu" from a scene: the library's photos and clips, opened on the folder of the product the video sells,
  * with Google Ảnh and TikTok searches for that product whose pasted links land in the same folder. "Dùng" copies the
- * item into the scene.
+ * item into the scene; with `inset` a photo becomes the scene's "Ảnh chèn nửa khung" instead, and clips cannot be
+ * picked.
  */
 export default function MediaLibraryPicker({
   sceneId,
   videoId,
   hasPicture,
+  inset = false,
   onClose,
 }: {
   sceneId: number;
   videoId: number;
   hasPicture: boolean;
+  inset?: boolean;
   onClose: () => void;
 }) {
   const { message, modal } = App.useApp();
@@ -77,8 +80,12 @@ export default function MediaLibraryPicker({
     const go = async () => {
       setUsing(mediaId);
       try {
-        editor.onSaved(await api<VideoDetail>(`/media/${mediaId}/use`, "POST", { scene_id: sceneId }));
-        message.success("Đã dùng tư liệu cho cảnh");
+        editor.onSaved(
+          inset
+            ? await api<VideoDetail>("/layers/half-photo", "POST", { scene_id: sceneId, media_id: mediaId })
+            : await api<VideoDetail>(`/media/${mediaId}/use`, "POST", { scene_id: sceneId }),
+        );
+        message.success(inset ? "Đã chèn ảnh vào cảnh" : "Đã dùng tư liệu cho cảnh");
         onClose();
       } catch (err) {
         message.error(errorMessage(err));
@@ -86,7 +93,7 @@ export default function MediaLibraryPicker({
         setUsing(null);
       }
     };
-    if (!hasPicture) return go();
+    if (inset || !hasPicture) return go();
     modal.confirm({
       title: "Thay hình của cảnh?",
       content: "Ảnh hoặc clip đang có của cảnh sẽ được thay bằng tư liệu này.",
@@ -97,7 +104,14 @@ export default function MediaLibraryPicker({
   }
 
   return (
-    <Modal open title="Kho tư liệu" footer={null} width={900} onCancel={onClose} destroyOnHidden>
+    <Modal
+      open
+      title={inset ? "Ảnh chèn từ kho tư liệu" : "Kho tư liệu"}
+      footer={null}
+      width={900}
+      onCancel={onClose}
+      destroyOnHidden
+    >
       {keyword === null || folder === null ? (
         <Spin />
       ) : (
@@ -121,11 +135,22 @@ export default function MediaLibraryPicker({
             <MediaGrid
               items={data.items}
               empty="Chưa có tư liệu: tìm trên Google, TikTok rồi dán link ở trên, hoặc kéo thư mục vào trang Kho tư liệu"
-              actions={(item) => [
-                <Button key="use" type="link" size="small" loading={using === item.id} onClick={() => use(item.id)}>
-                  Dùng
-                </Button>,
-              ]}
+              actions={(item) =>
+                // An inset is a photo: a clip has nothing to pick.
+                inset && item.kind !== "photo"
+                  ? []
+                  : [
+                      <Button
+                        key="use"
+                        type="link"
+                        size="small"
+                        loading={using === item.id}
+                        onClick={() => use(item.id)}
+                      >
+                        {inset ? "Chèn" : "Dùng"}
+                      </Button>,
+                    ]
+              }
             />
           )}
           <Typography.Text type="secondary">
