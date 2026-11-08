@@ -23,6 +23,7 @@ import { api, errorMessage, type Knowledge, type KnowledgeTopic } from "@/lib/ap
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import { usePlanTabs } from "@/components/plan/PlanTab";
+import { VoicePicker } from "@/components/video/VideoSettings";
 
 export default function KnowledgePage() {
   const { message } = App.useApp();
@@ -364,14 +365,17 @@ function TopicBody({
           },
           {
             key: "words",
-            label: "Từ cấm & ảnh",
+            label: "Từ cấm, ảnh & giọng",
             children: (
               <Row gutter={[16, 16]}>
                 <Col xs={24} xl={12}>
                   <BannedWordsCard initial={topic.banned_words} update={update} />
                 </Col>
                 <Col xs={24} xl={12}>
-                  <PhotoHintCard initial={topic.photo_hint} update={update} />
+                  <Flex vertical gap={16}>
+                    <PhotoHintCard initial={topic.photo_hint} update={update} />
+                    <GroupVoiceCard initial={topic.voice_id} update={update} />
+                  </Flex>
                 </Col>
               </Row>
             ),
@@ -678,6 +682,42 @@ function PhotoHintCard({ initial, update }: { initial: string; update: Update })
       />
       <Button type="primary" loading={busy} style={{ marginTop: 12 }} onClick={save}>
         Lưu gợi ý
+      </Button>
+    </Card>
+  );
+}
+
+/** "Giọng mặc định của nhóm": the voice new videos of this group start with, over their maker's defaults. */
+function GroupVoiceCard({ initial, update }: { initial: string; update: Update }) {
+  const { message } = App.useApp();
+  const [voice, setVoice] = useState(initial);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      setVoice((await update({ voice_id: voice })).voice_id);
+      message.success("Đã lưu giọng của nhóm");
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Giọng mặc định của nhóm" size="small">
+      <Typography.Paragraph type="secondary">
+        Video tạo mới trong nhóm này đọc bằng giọng này, thay cho giọng trong Thiết lập mặc định của người tạo. Video đã
+        có không đổi; đổi giọng riêng trên từng video vẫn được. Để trống thì theo Thiết lập mặc định như cũ.
+      </Typography.Paragraph>
+      <VoicePicker
+        values={{ voice_id: voice }}
+        unset="Theo Thiết lập mặc định của người tạo"
+        onChange={(changes) => setVoice(changes.voice_id ?? "")}
+      />
+      <Button type="primary" loading={busy} disabled={voice === initial} style={{ marginTop: 12 }} onClick={save}>
+        Lưu giọng
       </Button>
     </Card>
   );

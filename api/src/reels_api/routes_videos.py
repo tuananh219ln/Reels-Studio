@@ -2099,6 +2099,7 @@ class TopicPatchBody(BaseModel):
     learn_prompt: str | None = None
     analyze_prompt: str | None = None
     article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
+    voice_id: str | None = None  # the group's own voice; "" leaves it to each maker's defaults
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -2131,6 +2132,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "learn_prompt": topic.learn_prompt,
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
+                "voice_id": topic.voice_id,
                 "video_count": counts.get(topic.id, 0),
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
@@ -2224,6 +2226,11 @@ def patch_topic(
     if body.article_prompt is not None:
         article_prompt = _optional_prompt(body.article_prompt)
         topic.article_prompt = "" if article_prompt == knowledge.default_article_prompt() else article_prompt
+    if body.voice_id is not None:
+        try:
+            topic.voice_id = video_options.clean({"voice_id": body.voice_id})["voice_id"]
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
     topic.updated_by_id = me.user_id
     db.commit()
     return _knowledge_payload(db, me.user_id)
