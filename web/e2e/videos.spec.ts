@@ -923,11 +923,14 @@ test("half-frame photo: only on a backdrop video, the scene's dish photo across 
   // A quick choice, then a drag up and sideways: it stays across the frame and snaps to the top half.
   await panel.getByLabel("Vị trí ảnh chèn").getByText("Nửa dưới").click();
   await expect.poll(place).toEqual(["0%", "50%", "100%"]);
+  // The mouse acts on the screen: the card's frame is brought into view first.
+  await stage.scrollIntoViewIfNeeded();
   const box = (await stage.boundingBox())!;
   const from = (await photo.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 - box.height * 0.48, { steps: 8 });
+  // Up past the top half: kept there.
+  await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 - box.height * 0.55, { steps: 8 });
   await page.mouse.up();
   await expect.poll(place).toEqual(["0%", "0%", "100%"]);
 });
