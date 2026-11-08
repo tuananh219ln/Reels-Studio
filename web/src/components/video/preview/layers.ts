@@ -52,9 +52,36 @@ export function layerCorner(width: number, height: number, layer: Pick<SceneLaye
   return [left, top];
 }
 
-/** A layer's name in lists: its text, its sticker's name, or "Ảnh món". */
+/**
+ * "Ảnh chèn nửa khung" (layers.HALF): a photo layer with a photo of its own, as wide as the frame and half as tall,
+ * that moves only up and down, from the top half to the bottom half; the server keeps it there too.
+ */
+export const HALF = "half";
+export const HALF_X = FRAME_WIDTH / 2;
+export const HALF_Y_MIN = FRAME_HEIGHT / 4;
+export const HALF_Y_MAX = (FRAME_HEIGHT * 3) / 4;
+/** Where a dragged half-frame photo snaps to when it comes this close: the top half, the middle, the bottom half. */
+export const HALF_PLACES = [
+  { label: "Nửa trên", y: HALF_Y_MIN },
+  { label: "Giữa", y: FRAME_HEIGHT / 2 },
+  { label: "Nửa dưới", y: HALF_Y_MAX },
+];
+const HALF_SNAP = 40;
+
+export function isHalf(layer: Pick<SceneLayer, "kind" | "style">): boolean {
+  return layer.kind === "photo" && layer.style === HALF;
+}
+
+/** A half-frame photo's centre down the frame: kept inside it, and snapped to a nearby half or the middle. */
+export function halfY(y: number): number {
+  const kept = Math.round(Math.min(Math.max(y, HALF_Y_MIN), HALF_Y_MAX));
+  return HALF_PLACES.find((place) => Math.abs(place.y - kept) <= HALF_SNAP)?.y ?? kept;
+}
+
+/** A layer's name in lists: its text, its sticker's name, "Ảnh chèn" or "Ảnh món". */
 export function layerName(layer: SceneLayer): string {
   if (layer.kind === "text") return layer.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
+  if (isHalf(layer)) return "Ảnh chèn nửa khung";
   if (layer.kind === "photo") return "Ảnh món";
   return STICKERS.find((item) => item.value === layer.sticker)?.label ?? layer.sticker;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { SceneLayer } from "@/lib/api";
-import { ENTRANCE_SECONDS, FRAME_HEIGHT, FRAME_WIDTH, layerCorner } from "./layers";
+import { ENTRANCE_SECONDS, FRAME_HEIGHT, FRAME_WIDTH, HALF_X, halfY, isHalf, layerCorner } from "./layers";
 
 // The render core's slide-up distance (layers.SLIDE_UP_PX), in frame pixels.
 const SLIDE_UP = 120;
@@ -12,7 +12,8 @@ const percent = (value: number, of: number) => `${(value / of) * 100}%`;
  * The scene's layers on the phone, each the exact picture the render lays on, shown for its own seconds and coming
  * in as the render's overlay does (fading over 0.3 s, a slide moving it the same way). It follows the preview's
  * clock every frame without rendering again. While the preview stands still a layer can be picked (outlined) and
- * dragged to a new place.
+ * dragged to a new place; a half-frame photo only up and down. With `under` the layers sit in their scene's own
+ * stacking, under its text box (half-frame photos, as the render lays them).
  */
 export default function LayerStage({
   layers,
@@ -22,6 +23,7 @@ export default function LayerStage({
   editable,
   onSelect,
   onMove,
+  under = false,
 }: {
   layers: SceneLayer[];
   /** Seconds into the scene, read every frame. */
@@ -32,6 +34,7 @@ export default function LayerStage({
   editable: boolean;
   onSelect: (id: number) => void;
   onMove: (layer: SceneLayer, x: number, y: number) => void;
+  under?: boolean;
 }) {
   const [sizes, setSizes] = useState<Record<string, { width: number; height: number }>>({});
   const [dragged, setDragged] = useState<{ id: number; x: number; y: number } | null>(null);
@@ -88,8 +91,12 @@ export default function LayerStage({
     const move = (moveEvent: PointerEvent) => {
       const point = framePoint(moveEvent);
       if (!point) return;
-      const x = Math.min(FRAME_WIDTH, Math.max(0, layer.x + point[0] - from[0]));
-      const y = Math.min(FRAME_HEIGHT, Math.max(0, layer.y + point[1] - from[1]));
+      // A half-frame photo only goes up and down, from the top half to the bottom half, snapping to them.
+      const half = isHalf(layer);
+      const x = half ? HALF_X : Math.min(FRAME_WIDTH, Math.max(0, layer.x + point[0] - from[0]));
+      const y = half
+        ? halfY(layer.y + point[1] - from[1])
+        : Math.min(FRAME_HEIGHT, Math.max(0, layer.y + point[1] - from[1]));
       last = [x, y];
       setDragged({ id: layer.id, x, y });
     };
@@ -129,7 +136,7 @@ export default function LayerStage({
             onPointerDown={(event) => startDrag(event, layer)}
             style={{
               position: "absolute",
-              zIndex: 2,
+              zIndex: under ? undefined : 2,
               visibility: "hidden",
               left: corner ? percent(corner[0], FRAME_WIDTH) : 0,
               top: corner ? percent(corner[1], FRAME_HEIGHT) : 0,

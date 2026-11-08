@@ -378,7 +378,7 @@ class SceneSound(Base):
 
 
 class SceneLayer(Base):
-    """A text or sticker layer over a scene for its own seconds (reels_render.layers), added in the studio."""
+    """A text, sticker or photo layer over a scene for its own seconds (reels_render.layers), added in the studio."""
 
     __tablename__ = "scene_layers"
 
@@ -395,6 +395,8 @@ class SceneLayer(Base):
     size: Mapped[str] = mapped_column(String(8), default="medium")
     style: Mapped[str] = mapped_column(String(16), default="outline")
     animation: Mapped[str] = mapped_column(String(16), default="fade")
+    # The photo of a half-frame photo layer (style "half"), its own copy; "Ảnh món" shows its scene's photo instead.
+    image_key: Mapped[str | None] = mapped_column(String(200))
 
     scene: Mapped[Scene] = relationship(back_populates="layers")
 

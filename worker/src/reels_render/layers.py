@@ -1,7 +1,9 @@
 """Text, sticker and photo layers laid over a scene for their own seconds: each a named preset, drawn once as a picture.
 
 A photo layer ("Ảnh món") shows its scene's own photo framed over a video with one backdrop ("Video xuyên suốt");
-the render lays it on only in that mode.
+the render lays it on only in that mode. A photo layer of style "half" ("Ảnh chèn nửa khung") shows a photo of its
+own on every kind of video, always as wide as the frame and half as tall, cut to fill that box, and moves only up and
+down; the render lays it under the scene's text box and the other layers.
 
 The api draws the same picture for the studio's preview (GET /api/layers/{id}/image.png), so the phone shows exactly
 what the render overlays; only the entrance is played by CSS there. Keep the labels in step with
@@ -81,6 +83,15 @@ PHOTO_SHADOW_BLUR = 14
 PHOTO_SHADOW_ALPHA = 0.45
 PHOTO_MAX_HEIGHT = 1100  # a tall photo is cut to this, so it never fills the frame from top to bottom
 
+# "Ảnh chèn nửa khung": a photo layer's style apart from PHOTO_SHAPES, since its photo is its own and its size fixed.
+HALF = "half"
+HALF_LABEL = "Ảnh chèn nửa khung"
+HALF_WIDTH, HALF_HEIGHT = FRAME_WIDTH, FRAME_HEIGHT // 2
+HALF_X = FRAME_WIDTH // 2  # its centre across, always
+HALF_Y_MIN, HALF_Y_MAX = HALF_HEIGHT // 2, FRAME_HEIGHT - HALF_HEIGHT // 2  # its centre down: top half to bottom half
+HALF_EDGE = 8  # the white edge around it, in frame pixels
+HALF_RADIUS = 36  # its rounded corners, in frame pixels
+
 STICKERS: dict[str, Named] = {
     "arrow_down": Named("Mũi tên xuống"),
     "arrow_right": Named("Mũi tên phải"),
@@ -117,6 +128,20 @@ class Layer:
     animation: str = "fade"
     image: Path | None = None  # a photo layer's photo
 
+    @property
+    def half(self) -> bool:
+        return is_half(self.kind, self.style)
+
+
+def is_half(kind: str, style: str) -> bool:
+    """A photo layer "Ảnh chèn nửa khung"."""
+    return kind == "photo" and style == HALF
+
+
+def half_y(y: float) -> int:
+    """The centre of a half-frame photo kept inside the frame: from the top half (480) to the bottom half (1440)."""
+    return round(min(max(y, HALF_Y_MIN), HALF_Y_MAX))
+
 
 def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
     """The layer as a transparent picture, as large as what it shows, a text layer's letters in `case`
@@ -131,19 +156,42 @@ def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
     if layer.kind == "photo":
         if layer.image is None:
             raise ValueError("lớp ảnh chưa có ảnh")
+        if layer.half:
+            return render_half(layer.image)
         return render_photo(layer.image, SIZES[layer.size].photo, layer.style)
     return _sticker(layer.sticker, SIZES[layer.size].sticker)
+
+
+def _open_photo(path: Path) -> Image.Image:
+    try:
+        with Image.open(path) as source:
+            source.load()
+            return ImageOps.exif_transpose(source).convert("RGBA")
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as err:
+        raise ValueError(f"ảnh hỏng hoặc không đọc được ({err})") from None
+
+
+def render_half(path: Path) -> Image.Image:
+    """ "Ảnh chèn nửa khung": the photo scaled to cover HALF_WIDTH × HALF_HEIGHT (by max(1080 / width, 960 / height))
+    and cut in the middle, never stretched, inside a white edge with rounded corners, transparent only outside those
+    corners. Raises ValueError for a file that is not a photo."""
+    picture = _open_photo(path).convert("RGB")
+    size = (HALF_WIDTH, HALF_HEIGHT)
+    photo = ImageOps.fit(picture, size, Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+    card = Image.new("RGBA", size, (255, 255, 255, 255))
+    card.putalpha(_shape_mask(size, HALF_RADIUS, False))
+    inner_size = (HALF_WIDTH - 2 * HALF_EDGE, HALF_HEIGHT - 2 * HALF_EDGE)
+    inner = _shape_mask(inner_size, HALF_RADIUS - HALF_EDGE, False)
+    card.paste(
+        photo.crop((HALF_EDGE, HALF_EDGE, HALF_WIDTH - HALF_EDGE, HALF_HEIGHT - HALF_EDGE)), (HALF_EDGE,) * 2, inner
+    )
+    return card
 
 
 def render_photo(path: Path, width: int, shape: str) -> Image.Image:
     """The photo `width` pixels wide in its frame: cut square for "circle" and "square", with a white edge and a
     soft shadow below, transparent around it. Raises ValueError for a file that is not a photo."""
-    try:
-        with Image.open(path) as source:
-            source.load()
-            picture = ImageOps.exif_transpose(source).convert("RGBA")
-    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError) as err:
-        raise ValueError(f"ảnh hỏng hoặc không đọc được ({err})") from None
+    picture = _open_photo(path)
     if shape in ("circle", "square"):
         side = min(picture.size)
         left, top = (picture.width - side) // 2, (picture.height - side) // 2

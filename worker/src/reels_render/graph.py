@@ -45,6 +45,19 @@ class SceneInput:
     # A backdrop photo's motion runs once over the whole video: (frames before this scene, frames of the video).
     motion_span: tuple[int, int] | None = None
     blur: tuple[tuple[float, float, float, float], ...] = ()  # boxes of the clip blurred (blur.py)
+    # Half-frame photos ("Ảnh chèn nửa khung") over the picture and under its text box, not moved by its zoom.
+    insets: tuple["InsetInput", ...] = ()
+
+
+@dataclass(frozen=True)
+class InsetInput:
+    """A half-frame photo's picture laid across the frame at `top`, from `start` to `end` seconds of its scene's own
+    picture (which starts half a crossfade before the scene when it fades in: graph.clip_lead)."""
+
+    image: Path
+    top: int
+    start: float
+    end: float
 
 
 @dataclass(frozen=True)
@@ -214,9 +227,12 @@ def build_filter_graph(
     clip_sounds: list[bool] | None = None,
     spans: list[tuple[int, int] | None] | None = None,
     blurs: list[tuple] | None = None,
+    insets: list[tuple[InsetInput, ...]] | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
-    narration of each scene that has one (`voices` says which do), then the caption images. A scene that `clips`
+    narration of each scene that has one (`voices` says which do), then the caption images, the layers' and last
+    the `insets` pictures, scene by scene; a scene's insets go over its picture (after its zoom and colour) and under
+    its text box. A scene that `clips`
     marks has a video clip in its image's place, played at its `speeds` entry; the clip's own sound is heard only
     when `clip_sounds` marks the scene, on the narration's track, so the music ducks under it as under a voice.
     A scene's `transitions` entry replaces the video's transition into it, and its `colors` entry grades it.
@@ -238,6 +254,9 @@ def build_filter_graph(
     lengths = timeline.scene_frames if cut else timeline.clip_frames
     spans = spans or [None] * count
     blurs = blurs or [()] * count
+    insets = insets or [()] * count
+    first_caption = 2 * len(box_positions) + (music_volume is not None) + sum(voices or [])
+    next_inset = first_caption + len(captions) + len(layers or [])
     chains: list[str] = []
     for index, ((box_x, box_y), frames) in enumerate(zip(box_positions, lengths)):
         image, box = 2 * index, 2 * index + 1
@@ -245,12 +264,19 @@ def build_filter_graph(
             chains.append(_clip_chain(image, frames, f"bg{index}", speeds[index], colors[index], blurs[index]))
         else:
             chains.append(_photo_chain(image, frames, f"bg{index}", options, colors[index], spans[index]))
+        under = f"bg{index}"
+        for number, inset in enumerate(insets[index]):
+            shown = f"between(t,{inset.start:.3f},{inset.end:.3f})"
+            label = f"bg{index}i{number}"
+            chains.append(f"[{under}][{next_inset}:v]overlay=x=0:y={inset.top}:enable='{shown}'[{label}]")
+            under = label
+            next_inset += 1
         text = f"{box}:v"
         fades = _text_fades(index, count, frames) if options.backdrop else []
         if fades:
             chains.append(f"[{box}:v]format=rgba,{','.join(fades)}[t{index}]")
             text = f"t{index}"
-        chains.append(f"[bg{index}][{text}]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
+        chains.append(f"[{under}][{text}]overlay=x={box_x}:y={box_y},format=yuv420p,setsar=1[v{index}]")
 
     if cut:
         joined = "".join(f"[v{index}]" for index in range(count))
@@ -266,7 +292,6 @@ def build_filter_graph(
                 f":duration={_seconds(XFADE_FRAMES if xfade else 1)}:offset={_seconds(offset)}[{label}]"
             )
             previous = label
-    first_caption = 2 * len(box_positions) + (music_volume is not None) + sum(voices or [])
     for index, caption in enumerate(captions):
         label = f"c{index}"
         chains.append(
@@ -443,6 +468,10 @@ def build_ffmpeg_args(
     for layer in layers or []:
         # Looped up to where it leaves, so its entrance has frames to fade in on.
         argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{layer.end:.3f}", "-i", str(layer.image)]
+    for scene in scenes:
+        for inset in scene.insets:
+            # Looped up to where it leaves its scene's picture, which is drawn from its own second 0.
+            argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{inset.end:.3f}", "-i", str(inset.image)]
     graph = build_filter_graph(
         [(scene.box_x, scene.box_y) for scene in scenes],
         timeline,
@@ -460,6 +489,7 @@ def build_ffmpeg_args(
         [scene.video_sound for scene in scenes],
         [scene.motion_span for scene in scenes],
         [scene.blur for scene in scenes],
+        [scene.insets for scene in scenes],
     )
     argv += [
         "-filter_complex",

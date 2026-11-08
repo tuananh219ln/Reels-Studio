@@ -1,12 +1,15 @@
 "use client";
 
-import { DeleteOutlined, FontSizeOutlined } from "@ant-design/icons";
-import { Button, Flex, Input, InputNumber, Popconfirm, Segmented, Select, Typography } from "antd";
+import { DeleteOutlined, FolderOpenOutlined, FontSizeOutlined, PictureOutlined } from "@ant-design/icons";
+import { Button, Divider, Flex, Input, InputNumber, Popconfirm, Segmented, Select, Typography, Upload } from "antd";
 import { useState } from "react";
-import type { SceneData, SceneLayer } from "@/lib/api";
-import { ANIMATIONS, SIZES, STICKERS, TEXT_STYLES, layerName } from "./layers";
+import { upload, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
+import MediaLibraryPicker from "../MediaLibraryPicker";
+import { ANIMATIONS, HALF_PLACES, SIZES, STICKERS, TEXT_STYLES, isHalf, layerName } from "./layers";
 
 const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
+/** A layer's longest seconds (routes_layers.MAX_SECONDS): longer than any scene, so "to the end of its scene". */
+const WHOLE_SCENE = 60;
 
 /**
  * "Chữ & sticker" in the tools column: a new text layer, or one of the stickers (drawn by the render core), added to
@@ -16,12 +19,36 @@ export function LayerTools({
   scene,
   editable,
   onAdd,
+  onSaved,
+  onPick,
 }: {
   scene: SceneData | undefined;
   editable: boolean;
   onAdd: (body: Record<string, unknown>) => void;
+  /** Saves a change and shows the saved video (false when it failed, its error already shown). */
+  onSaved: (call: () => Promise<VideoDetail>) => Promise<boolean>;
+  onPick: (id: number) => void;
 }) {
   const allowed = editable && scene !== undefined && !scene.is_title;
+  // One photo layer per scene: "Ảnh món" or a half-frame photo.
+  const hasPhoto = scene?.layers.some((layer) => layer.kind === "photo") ?? false;
+  const insetAllowed = allowed && !hasPhoto;
+  const [busy, setBusy] = useState(false);
+  const [library, setLibrary] = useState(false);
+
+  /** A half-frame photo from the member's computer, picked once added so it can be dragged at once. */
+  async function addInset(file: File) {
+    if (!scene) return;
+    setBusy(true);
+    await onSaved(async () => {
+      const saved = await upload<VideoDetail>("/layers/half-photo/upload", file, { scene_id: String(scene.id) });
+      const added = [saved.title_scene, ...saved.scenes].find((item) => item?.id === scene.id)?.layers.find(isHalf);
+      if (added) onPick(added.id);
+      return saved;
+    });
+    setBusy(false);
+  }
+
   return (
     <Flex vertical gap={12} data-testid="layer-tools">
       <Typography.Text strong>Chữ & sticker</Typography.Text>
@@ -53,6 +80,40 @@ export function LayerTools({
           </button>
         ))}
       </div>
+      <Divider style={{ margin: "4px 0" }} />
+      <Typography.Text strong>Ảnh chèn nửa khung</Typography.Text>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        {hasPhoto && !scene?.is_title
+          ? "Cảnh này đã có một lớp ảnh. Xoá lớp đó trong “Chỉnh cảnh” để chèn ảnh khác."
+          : "Ảnh rộng hết khung, cao nửa khung, viền trắng, hiện cùng lời đọc đến hết cảnh. Kéo lên xuống trên điện thoại để đặt chỗ."}
+      </Typography.Text>
+      <Flex gap={8} wrap data-testid="half-photo-tools">
+        <Upload
+          accept="image/*"
+          showUploadList={false}
+          disabled={!insetAllowed || busy}
+          beforeUpload={(file) => {
+            void addInset(file);
+            return false;
+          }}
+        >
+          <Button icon={<PictureOutlined />} disabled={!insetAllowed} loading={busy}>
+            Ảnh từ máy
+          </Button>
+        </Upload>
+        <Button icon={<FolderOpenOutlined />} disabled={!insetAllowed || busy} onClick={() => setLibrary(true)}>
+          Từ kho tư liệu
+        </Button>
+      </Flex>
+      {library && scene && (
+        <MediaLibraryPicker
+          sceneId={scene.id}
+          videoId={scene.video_id}
+          hasPicture={false}
+          inset
+          onClose={() => setLibrary(false)}
+        />
+      )}
     </Flex>
   );
 }
@@ -124,6 +185,45 @@ function LayerRow({
   const commit = (field: "start" | "seconds", value: number | null, saved: number) => {
     if (value !== null && value !== saved) onPatch("đổi giờ của lớp", { [field]: value });
   };
+  const half = isHalf(layer);
+  // The render stops every layer at its scene's end, so a layer lasting past it shows to the end.
+  const toEnd = layer.start + layer.seconds >= sceneSeconds;
+  const times = (
+    <Flex gap={8} wrap>
+      <InputNumber
+        aria-label="Giây bắt đầu của lớp"
+        size="small"
+        min={0}
+        max={Math.max(0, sceneSeconds - 0.3)}
+        step={0.1}
+        precision={1}
+        value={start}
+        disabled={!editable}
+        onChange={setStart}
+        onBlur={() => commit("start", start, layer.start)}
+        onPressEnter={() => commit("start", start, layer.start)}
+        prefix="từ"
+        suffix="s"
+        style={{ width: 100 }}
+      />
+      <InputNumber
+        aria-label="Số giây của lớp"
+        size="small"
+        min={0.3}
+        max={WHOLE_SCENE}
+        step={0.1}
+        precision={1}
+        value={length}
+        disabled={!editable}
+        onChange={setLength}
+        onBlur={() => commit("seconds", length, layer.seconds)}
+        onPressEnter={() => commit("seconds", length, layer.seconds)}
+        prefix="dài"
+        suffix="s"
+        style={{ width: 100 }}
+      />
+    </Flex>
+  );
   return (
     <Flex
       vertical
@@ -147,16 +247,49 @@ function LayerRow({
         }}
       >
         <Typography.Text strong style={{ fontSize: 12, flex: "none" }}>
-          {layer.kind === "text" ? "Chữ" : "Sticker"}
+          {layer.kind === "text" ? "Chữ" : layer.kind === "photo" ? "Ảnh" : "Sticker"}
         </Typography.Text>
         <Typography.Text ellipsis style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
           {layerName(layer)}
         </Typography.Text>
         <Typography.Text type="secondary" style={{ fontSize: 12, flex: "none" }}>
-          {seconds(layer.start)}–{seconds(layer.start + layer.seconds)}s
+          {seconds(layer.start)}–{toEnd ? "hết cảnh" : `${seconds(layer.start + layer.seconds)}s`}
         </Typography.Text>
       </Flex>
-      {open && (
+      {open && half && (
+        <Flex vertical gap={8}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Rộng hết khung, cao nửa khung. Kéo lên xuống trên điện thoại (hút vào nửa trên, giữa, nửa dưới) hoặc chọn
+            nhanh:
+          </Typography.Text>
+          <Segmented
+            size="small"
+            aria-label="Vị trí ảnh chèn"
+            // A place dragged in between matches none of the quick places.
+            value={HALF_PLACES.find((place) => place.y === layer.y)?.label ?? ""}
+            disabled={!editable}
+            options={HALF_PLACES.map((place) => place.label)}
+            onChange={(label) => {
+              const chosen = HALF_PLACES.find((place) => place.label === label);
+              if (chosen) onPatch("đổi vị trí ảnh chèn", { y: chosen.y });
+            }}
+          />
+          {times}
+          <Flex gap={8} wrap>
+            <Button
+              size="small"
+              disabled={!editable || (layer.start === 0 && toEnd)}
+              onClick={() => onPatch("hiện ảnh cả cảnh", { start: 0, seconds: WHOLE_SCENE })}
+            >
+              Hiện cả cảnh
+            </Button>
+            <Button size="small" danger icon={<DeleteOutlined />} disabled={!editable} onClick={onRemove}>
+              Xoá ảnh
+            </Button>
+          </Flex>
+        </Flex>
+      )}
+      {open && !half && (
         <Flex vertical gap={8}>
           {layer.kind === "text" && (
             <Input.TextArea
@@ -196,40 +329,7 @@ function LayerRow({
             options={ANIMATIONS}
             onChange={(animation) => onPatch("đổi hiệu ứng vào", { animation })}
           />
-          <Flex gap={8} wrap>
-            <InputNumber
-              aria-label="Giây bắt đầu của lớp"
-              size="small"
-              min={0}
-              max={Math.max(0, sceneSeconds - 0.3)}
-              step={0.1}
-              precision={1}
-              value={start}
-              disabled={!editable}
-              onChange={setStart}
-              onBlur={() => commit("start", start, layer.start)}
-              onPressEnter={() => commit("start", start, layer.start)}
-              prefix="từ"
-              suffix="s"
-              style={{ width: 100 }}
-            />
-            <InputNumber
-              aria-label="Số giây của lớp"
-              size="small"
-              min={0.3}
-              max={60}
-              step={0.1}
-              precision={1}
-              value={length}
-              disabled={!editable}
-              onChange={setLength}
-              onBlur={() => commit("seconds", length, layer.seconds)}
-              onPressEnter={() => commit("seconds", length, layer.seconds)}
-              prefix="dài"
-              suffix="s"
-              style={{ width: 100 }}
-            />
-          </Flex>
+          {times}
           <Popconfirm
             title="Xoá lớp này?"
             okText="Xoá"
