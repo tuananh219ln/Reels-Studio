@@ -25,7 +25,7 @@ from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 from reels_render.timeline import VOICE_TAIL
 
 from . import config
-from .models import AppSetting, UserVideoDefaults, Video
+from .models import AppSetting, KnowledgeTopic, UserVideoDefaults, Video
 from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_vieneu
 
 DEFAULTS_KEY = "video_defaults"
@@ -375,7 +375,11 @@ def forget_member_defaults(db: DbSession, user_id: int) -> None:
 
 
 def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
-    """A new video takes its maker's defaults (member_defaults)."""
+    """A new video takes its maker's defaults (member_defaults), and the voice of its topic group when the group has
+    one: video's own › group's › maker's own › team's. Set `video.knowledge_topic_id` first."""
     defaults = member_defaults(db, user_id)
     video.voice_enabled, video.music_volume = defaults["voice_enabled"], defaults["music_volume"]
     video.options = {name: defaults[name] for name in DEFAULTS}
+    group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+    if group is not None and group.voice_id:
+        video.options["voice_id"] = group.voice_id

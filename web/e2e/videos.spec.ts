@@ -201,7 +201,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await cloneCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt nhân bản")).toBeVisible();
-  await health.getByRole("tab", { name: "Từ cấm & ảnh" }).click();
+  await health.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
   await health.getByLabel("Từ cấm", { exact: true }).fill("thần dược\nđặc trị");
   await health.getByRole("button", { name: "Lưu từ cấm" }).click();
   await expect(page.getByText("Đã lưu danh sách từ cấm")).toBeVisible();
@@ -216,7 +216,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await beauty.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(beauty.getByLabel("Prompt viết kịch bản", { exact: true })).toHaveValue("");
   await expect(beauty.getByRole("tab", { name: /^Viết kịch bản/ })).toContainText("Trống");
-  await beauty.getByRole("tab", { name: "Từ cấm & ảnh" }).click();
+  await beauty.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
   await expect(beauty.getByLabel("Từ cấm", { exact: true })).toHaveValue("");
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
 
@@ -234,7 +234,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
   await cloneItem.click();
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
-  await health.getByRole("tab", { name: "Từ cấm & ảnh" }).click();
+  await health.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
   await expect(health.getByLabel("Từ cấm", { exact: true })).toHaveValue("thần dược\nđặc trị");
   await health.getByRole("tab", { name: "Prompt", exact: true }).click();
   await scriptItem.click();
@@ -305,6 +305,44 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await expect(dialog).toContainText("Vườn rau");
   await expect(dialog).not.toContainText("Sức khỏe");
   await expect(page).toHaveURL(/\/videos$/);
+});
+
+test("knowledge topics: a group's own voice is what its new videos start with", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await page.goto("/knowledge");
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Già Mà Khỏe");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  const group = page.locator('[data-topic="Già Mà Khỏe"]');
+  await group.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await group.getByLabel("Prompt viết kịch bản", { exact: true }).fill("Viết kịch bản dưỡng sinh về [Chủ đề]");
+  await group.getByRole("button", { name: "Lưu", exact: true }).first().click();
+  await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
+
+  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  const card = group.locator(".ant-card").filter({ hasText: "Giọng mặc định của nhóm" });
+  await expect(card).toContainText("Theo Thiết lập mặc định của người tạo");
+  await expect(card.getByRole("button", { name: "Lưu giọng" })).toBeDisabled();
+  await card.getByLabel("Giọng đọc").click();
+  await card.getByLabel("Giọng đọc").fill("Mai");
+  await page.keyboard.press("Enter");
+  await card.getByRole("button", { name: "Lưu giọng" }).click();
+  await expect(page.getByText("Đã lưu giọng của nhóm")).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: /Già Mà Khỏe/ }).click();
+  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await expect(card.locator(".ant-select")).toContainText("Mai");
+
+  // A new video of the group reads with the group's voice, with nothing set on it by hand.
+  await group.getByRole("tab", { name: /^Video/ }).click();
+  await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("ngâm chân nước ấm");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+  const id = page.url().split("/").pop();
+  const video = await (await page.request.get(`/api/videos/${id}`)).json();
+  expect(video.options.voice_id).toBe("fake-voice-mai");
 });
 
 async function newVideoWithScript(page: Page, topic: string) {

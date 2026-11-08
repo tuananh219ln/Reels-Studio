@@ -21,6 +21,16 @@ The filters and "Đầy đủ | Gọn" move into the drawer and are kept when it
 keeps its scroll and the Backlog can still be dragged from, but it covers the right of the calendar while open. This
 replaces "the chosen day in full below them (today by default)" of the 2026-11-08 entry "The 30-day plan reads as a
 month calendar"; the "Hôm nay" strip stays, and nothing changes in the api.
+## 2026-11-08 — A topic group may have its own voice, which its new videos start with
+
+"Bổ sung 1" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md): the owner runs two Pages from one
+account, each with its standard voice (Ăn Lành Sống Khỏe: ElevenLabs Chi; Già Mà Khỏe: VieNeu Huyền My), and one
+member has only one "Thiết lập mặc định". A topic group now has a voice (`knowledge_topics.voice_id`, migration 0062),
+chosen on Kho kiến thức with the same picker. A new video of the group takes it, however it is made (the web, MCP, a
+sample video, all through `video_options.apply_defaults`): the video's own voice › the group's › the maker's own
+defaults › the team's. This adds a step to the 2026-11-08 entry "Each member has their own video defaults", whose
+rule stands for every other setting. A clone keeps its source's voice, existing videos never change, and an empty
+group voice leaves things as they were. No change to TTS: a VieNeu voice out of credit still fails the job.
 
 ## 2026-11-08 — Every list of the team's work starts on the member's own, "Cả đội" one click away
 
