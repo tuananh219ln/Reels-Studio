@@ -505,7 +505,7 @@ Built:
     side on a wide screen;
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
-  - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Giờ đăng" (1–5 times, as tags), "Đã làm
+  - start date ("Hôm nay là ngày N/30"), ideas per day (1–10), "Giờ đăng" (1–10 times, as tags), "Đã làm
     X/Y ý tưởng" with a bar, and a strip of 30 small cells, one a day (Trống, Có ý tưởng, Đang làm, Đủ
     video, Đã lên lịch đủ; today outlined), each a link to its day;
   - "Tiến độ verdict: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
@@ -521,13 +521,15 @@ Built:
   - the 30 days on one page, one card each (its date and weekday once a start date is set, "Hôm nay"
     in orange on today's, a line counting its shown ideas by status, "Không có ý tưởng khớp" when the filters
     hide them all), each idea with a 3 px left border in its status colour, its topic, pain group,
-    pain and hook editable in place (saved when the edit ends), a status tag (Ý tưởng, Đã tạo video,
+    pain and hook, a status tag (Ý tưởng, Đã tạo video,
     Đã viết kịch bản, Xong, Đã lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while
-    no post is set, "Tạo video" or "Mở video", "Chuyển về Backlog" and "Xoá", and under them one line
+    no post is set, "Tạo video" or "Mở video" with "Sửa" beside it (always shown, "Gọn" too: one "Sửa ý tưởng"
+    form with the four fields, saved together by "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in
+    the plan shows in the form, which stays open), "Chuyển về Backlog" and "Xoá", and under them one line
     per Facebook post with its 48-hour numbers ("<Page>: N view, N share, share/view x,xx% đạt/không
     đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu" under 5 measured posts; "chưa đo 48h"
-    before). "+" adds an idea (greyed out at 5); dragging an idea onto another day moves it there. A
-    day with 1–2 ideas says it should have 3–5. "Mở Backlog" opens the Backlog beside the days, to drag
+    before). "+" adds an idea (greyed out at 10); dragging an idea onto another day moves it there.
+    "Mở Backlog" opens the Backlog beside the days, to drag
     ideas between them;
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group

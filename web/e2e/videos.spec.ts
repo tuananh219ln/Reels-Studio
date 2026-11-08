@@ -2616,3 +2616,79 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await expect(idea).toContainText(/Đã tạo video|Đã viết kịch bản/);
   await expect(idea.getByRole("link", { name: /Mở video/ })).toBeVisible();
 });
+
+test("30-day plan: 2 ideas a day, and each idea is edited from its Sửa button", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  const plan = health.getByTestId("plan-tab");
+
+  // Pages post 1-2 videos a day: 2 is accepted and kept.
+  const perDay = plan.getByLabel("Số ý tưởng mỗi ngày");
+  await perDay.fill("2");
+  await perDay.blur();
+  await expect(perDay).toHaveValue("2");
+  await page.reload();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  await expect(perDay).toHaveValue("2");
+
+  // Two ideas on day 5, typed in; the day says nothing about being short.
+  for (const topic of ["Uống nước ấm buổi sáng", "Đi bộ sau bữa tối"]) {
+    await plan.getByRole("button", { name: "Thêm ý tưởng ngày 5", exact: true }).click();
+    const add = page.getByRole("dialog", { name: "Thêm ý tưởng ngày 5" });
+    await add.getByLabel("Chủ đề").fill(topic);
+    await add.getByRole("button", { name: "Thêm" }).click();
+    await expect(add).toBeHidden();
+  }
+  const day = plan.getByTestId("plan-day-5");
+  await expect(day.getByTestId("plan-idea")).toHaveCount(2);
+  await expect(day).not.toContainText("nên có");
+
+  // "Sửa" is on every card without hovering, in "Gọn" too.
+  const second = day.getByTestId("plan-idea").filter({ hasText: "Đi bộ sau bữa tối" });
+  await expect(day.getByRole("button", { name: "Sửa" })).toHaveCount(2);
+  await plan.getByText("Gọn", { exact: true }).click();
+  await expect(day.getByRole("button", { name: "Sửa" })).toHaveCount(2);
+  await plan.getByText("Đầy đủ", { exact: true }).click();
+  // The text itself is not editable any more: one way to edit.
+  await expect(day.getByRole("button", { name: /Sửa chủ đề/ })).toHaveCount(0);
+
+  // "Huỷ" leaves the idea as it was and asks nothing of the server.
+  let patches = 0;
+  page.on("request", (request) => {
+    if (/\/api\/plans\/items\/\d+$/.test(request.url()) && request.method() === "PATCH") patches += 1;
+  });
+  await second.getByRole("button", { name: "Sửa" }).click();
+  const edit = page.getByRole("dialog", { name: "Sửa ý tưởng" });
+  await expect(edit.getByLabel("Chủ đề")).toHaveValue("Đi bộ sau bữa tối");
+  await edit.getByLabel("Chủ đề").fill("Không lưu");
+  await edit.getByRole("button", { name: "Huỷ" }).click();
+  await expect(edit).toBeHidden();
+  await expect(second).toContainText("Đi bộ sau bữa tối");
+  expect(patches).toBe(0);
+
+  // An error from the server shows in the form, which stays open.
+  await second.getByRole("button", { name: "Sửa" }).click();
+  await expect(edit.getByLabel("Chủ đề")).toHaveValue("Đi bộ sau bữa tối");
+  await edit.getByLabel("Chủ đề").fill("Uống nước ấm buổi sáng");
+  await edit.getByRole("button", { name: "Lưu" }).click();
+  await expect(edit.getByRole("alert")).toContainText("Kế hoạch đã có chủ đề này");
+  await expect(edit).toBeVisible();
+
+  // "Lưu" saves the four fields in one request.
+  await edit.getByLabel("Chủ đề").fill("Đi bộ 15 phút sau bữa tối");
+  await edit.getByLabel("Nhóm nỗi đau").fill("Tiêu hoá");
+  await edit.getByLabel("Nỗi đau người xem").fill("Đầy bụng khó ngủ");
+  await edit.getByLabel("Góc hook").fill("Nằm ngay sau ăn là sai");
+  patches = 0;
+  await edit.getByRole("button", { name: "Lưu" }).click();
+  await expect(edit).toBeHidden();
+  expect(patches).toBe(1);
+  const edited = day.getByTestId("plan-idea").filter({ hasText: "Đi bộ 15 phút sau bữa tối" });
+  await expect(edited).toContainText("Tiêu hoá");
+  await expect(edited).toContainText("Đầy bụng khó ngủ");
+  await expect(edited).toContainText("Nằm ngay sau ăn là sai");
+});

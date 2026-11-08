@@ -3,6 +3,7 @@
 import {
   DeleteOutlined,
   DownOutlined,
+  EditOutlined,
   ImportOutlined,
   InboxOutlined,
   PlayCircleOutlined,
@@ -61,8 +62,9 @@ import FormDrawer from "@/components/FormDrawer";
 import { COLORS } from "@/app/theme";
 
 const PLAN_DAYS = 30;
-const MIN_PER_DAY = 3;
-const MAX_PER_DAY = 5;
+// Pages post 1-2 videos a day, some more: plans.MIN_PER_DAY and MAX_PER_DAY of the api.
+const MIN_PER_DAY = 1;
+const MAX_PER_DAY = 10;
 const JOB_POLL_MS = 3000;
 const DRAG_TYPE = "text/plan-item";
 
@@ -153,7 +155,7 @@ type Move = (item: PlanItem, day: number | null) => void;
 type Preview = PlanPreview & { fromAi: boolean };
 
 /**
- * "Kế hoạch 30 ngày" and "Backlog" of one topic group, as two tabs sharing one plan: 3-5 video ideas a day, imported,
+ * "Kế hoạch 30 ngày" and "Backlog" of one topic group, as two tabs sharing one plan: 1-10 video ideas a day, imported,
  * written by AI or typed in, and the ideas kept for later. An idea is dragged between days and the Backlog.
  */
 export function usePlanTabs(topicId: number): {
@@ -977,17 +979,9 @@ function IdeaCard({
   const router = useRouter();
   const { token } = theme.useToken();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const full = !compact || open;
   const path = `/plans/items/${item.id}`;
-  // Each field saves on its own when the edit ends (Enter or leaving the field).
-  const edit = (field: keyof Omit<PlanIdeaFields, "day">, label: string) => ({
-    tooltip: `Sửa ${label}`,
-    onChange: (value: string) => {
-      if (value !== item[field]) {
-        void onChange(() => api<Plan>(path, "PATCH", { [field]: value }));
-      }
-    },
-  });
   return (
     <div
       draggable
@@ -1008,7 +1002,6 @@ function IdeaCard({
       <Flex justify="space-between" align="flex-start" gap={4}>
         <Typography.Paragraph
           strong
-          editable={edit("topic", "chủ đề")}
           style={{ margin: 0, flex: 1, cursor: compact ? "pointer" : undefined }}
           onClick={compact ? () => setOpen((value) => !value) : undefined}
         >
@@ -1036,14 +1029,12 @@ function IdeaCard({
         )}
       </Flex>
       <Flex vertical gap={2} style={{ marginTop: 4, fontSize: 13, display: full ? undefined : "none" }}>
-        <Typography.Text type="secondary" editable={edit("pain_group", "nhóm nỗi đau")}>
-          {item.pain_group || "—"}
-        </Typography.Text>
-        <Typography.Paragraph editable={edit("pain", "nỗi đau")} style={{ margin: 0, fontSize: 13 }}>
+        <Typography.Text type="secondary">{item.pain_group || "—"}</Typography.Text>
+        <Typography.Paragraph style={{ margin: 0, fontSize: 13 }}>
           <Typography.Text type="secondary">Nỗi đau: </Typography.Text>
           {item.pain}
         </Typography.Paragraph>
-        <Typography.Paragraph editable={edit("hook", "góc hook")} style={{ margin: 0, fontSize: 13 }}>
+        <Typography.Paragraph style={{ margin: 0, fontSize: 13 }}>
           <Typography.Text type="secondary">Hook: </Typography.Text>
           {item.hook}
         </Typography.Paragraph>
@@ -1055,21 +1046,26 @@ function IdeaCard({
       </Flex>
       {dayPicker && <div style={{ marginTop: 6 }}>{dayPicker}</div>}
       <Flex justify="space-between" align="center" style={{ marginTop: 6 }}>
-        {item.video_id ? (
-          <Link prefetch={false} href={`/videos/${item.video_id}`}>
-            <PlayCircleOutlined /> Mở video
-          </Link>
-        ) : (
-          <Button
-            size="small"
-            type="primary"
-            ghost
-            icon={<VideoCameraAddOutlined />}
-            onClick={() => router.push(`/videos?plan_item=${item.id}`)}
-          >
-            Tạo video
+        <Flex align="center" gap={6}>
+          {item.video_id ? (
+            <Link prefetch={false} href={`/videos/${item.video_id}`}>
+              <PlayCircleOutlined /> Mở video
+            </Link>
+          ) : (
+            <Button
+              size="small"
+              type="primary"
+              ghost
+              icon={<VideoCameraAddOutlined />}
+              onClick={() => router.push(`/videos?plan_item=${item.id}`)}
+            >
+              Tạo video
+            </Button>
+          )}
+          <Button size="small" icon={<EditOutlined />} onClick={() => setEditing(true)}>
+            Sửa
           </Button>
-        )}
+        </Flex>
         <Flex gap={2}>
           {item.day !== null && (
             <Tooltip title="Chuyển về Backlog">
@@ -1095,7 +1091,83 @@ function IdeaCard({
         </Flex>
       </Flex>
       <PostNumbers posts={item.posts ?? []} shareGoal={shareGoal} />
+      <EditIdeaDrawer item={item} open={editing} onClose={() => setEditing(false)} onChange={onChange} />
     </div>
+  );
+}
+
+/** "Sửa ý tưởng": the four fields of an idea in one form, saved together by "Lưu"; "Huỷ" changes nothing. */
+function EditIdeaDrawer({
+  item,
+  open,
+  onClose,
+  onChange,
+}: {
+  item: PlanItem;
+  open: boolean;
+  onClose: () => void;
+  onChange: Change;
+}) {
+  const [form] = Form.useForm<Omit<PlanIdeaFields, "day">>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Back to the idea as saved, so what "Huỷ" dropped is not there when the form opens again.
+  const close = () => {
+    setError(null);
+    form.resetFields();
+    onClose();
+  };
+  return (
+    <FormDrawer
+      title="Sửa ý tưởng"
+      open={open}
+      onClose={close}
+      onOk={() => form.submit()}
+      okText="Lưu"
+      cancelText="Huỷ"
+      confirmLoading={busy}
+      destroyOnHidden
+    >
+      {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
+      <Form
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        initialValues={{ topic: item.topic, pain_group: item.pain_group, pain: item.pain, hook: item.hook }}
+        onFinish={async (values) => {
+          setBusy(true);
+          setError(null);
+          try {
+            // One request for the four fields; a refusal stays in the form, which stays open.
+            const plan = await api<Plan>(`/plans/items/${item.id}`, "PATCH", values);
+            await onChange(async () => plan, "Đã lưu ý tưởng");
+            close();
+          } catch (err) {
+            setError(errorMessage(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Form.Item
+          label="Chủ đề"
+          name="topic"
+          rules={[{ required: true, whitespace: true, message: "Hãy nhập chủ đề" }]}
+          extra="Dùng làm Chủ đề khi tạo video"
+        >
+          <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
+        </Form.Item>
+        <Form.Item label="Nhóm nỗi đau" name="pain_group">
+          <Input maxLength={100} />
+        </Form.Item>
+        <Form.Item label="Nỗi đau người xem" name="pain">
+          <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={1000} />
+        </Form.Item>
+        <Form.Item label="Góc hook" name="hook">
+          <Input maxLength={500} />
+        </Form.Item>
+      </Form>
+    </FormDrawer>
   );
 }
 

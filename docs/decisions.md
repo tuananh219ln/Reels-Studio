@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — A plan day holds 1 to 10 ideas, and an idea is edited from its "Sửa" button
+
+PR 1 of [docs/specs/plan-tab-redesign](specs/plan-tab-redesign/brief.md), at the owner's request: the team's Pages
+post 1–2 videos a day, so "3–5 a day" (2026-11-03 below) could not be set to 2. A day now holds 1 to 10 ideas
+(`plans.MIN_PER_DAY`, `MAX_PER_DAY`, and the same two numbers in `PlanTab.tsx`); more than 10 is refused everywhere,
+and with a floor of 1 no day warns of being short any more. The posting times follow, 1 to 10, as they are tied to
+the ideas of a day; a plan holds up to 300 dated ideas, as many as the Backlog. Plans kept at 3–5 a day are untouched.
+The fields of an idea are no longer edited in place (a pencil seen only on hover, each field saved on its own, which
+members did not find and could trip over by clicking the text): every card has a "Sửa" button, in "Gọn" too, that
+opens one "Sửa ý tưởng" form with the four fields, saved by one request on "Lưu"; "Huỷ" changes nothing, and a
+refusal stays in the form.
+
 ## 2026-11-08 — A member's own Pages and topic groups come first where one is picked
 
 Part B2 of the brief, with the owner's answer that "my topics" are the topic groups of the Pages a member owns

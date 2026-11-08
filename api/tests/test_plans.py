@@ -91,21 +91,31 @@ def test_start_date_tells_which_day_today_is(an, topic_id):
     start = plans.today() - timedelta(days=2)
     plan = an.patch(path, json={"start_date": start.isoformat(), "per_day": 5}).json()
     assert (plan["start_date"], plan["today_day"], plan["per_day"]) == (start.isoformat(), 3, 5)
-    assert an.patch(path, json={"per_day": 6}).json()["message"] == "Số ý tưởng mỗi ngày phải từ 3 đến 5"
     assert an.patch(path, json={"start_date": None}).json()["today_day"] is None
 
 
-def test_ideas_are_added_at_most_five_a_day_and_never_twice(an, topic_id):
-    for n in range(1, 6):
+def test_ideas_per_day_go_from_1_to_10(an, topic_id):
+    """Pages post 1-2 videos a day, so a plan may ask for as few as 1 idea a day, and up to 10."""
+    path = f"/api/plans/{topic_id}"
+    for per_day in (1, 2, 10):
+        assert an.patch(path, json={"per_day": per_day}).json()["per_day"] == per_day
+    for per_day in (0, 11):
+        refused = an.patch(path, json={"per_day": per_day})
+        assert (refused.status_code, refused.json()["message"]) == (422, "Số ý tưởng mỗi ngày phải từ 1 đến 10")
+    assert an.get(path).json()["per_day"] == 10
+
+
+def test_ideas_are_added_at_most_ten_a_day_and_never_twice(an, topic_id):
+    for n in range(1, 11):
         assert add(an, topic_id, 2, f"Ý tưởng {n}", pain="sợ", hook="hook").status_code == 201
-    full = add(an, topic_id, 2, "Ý tưởng 6")
-    assert (full.status_code, full.json()["message"]) == (409, "Ngày 2 đã đủ 5 ý tưởng")
+    full = add(an, topic_id, 2, "Ý tưởng 11")
+    assert (full.status_code, full.json()["message"]) == (409, "Ngày 2 đã đủ 10 ý tưởng")
     twice = add(an, topic_id, 3, "  ý TƯỞNG   1 ")
     assert (twice.status_code, twice.json()["message"]) == (409, "Kế hoạch đã có chủ đề này (ngày 2)")
     assert add(an, topic_id, 31, "x").json()["message"] == "Ngày phải từ 1 đến 30"
     assert add(an, topic_id, 1, "  ").json()["message"] == "Thiếu chủ đề"
     plan = an.get(f"/api/plans/{topic_id}").json()
-    assert ideas_of(plan, 2) == [f"Ý tưởng {n}" for n in range(1, 6)]
+    assert ideas_of(plan, 2) == [f"Ý tưởng {n}" for n in range(1, 11)]
     item = plan["items"][0]
     assert (item["position"], item["pain"], item["hook"], item["status"], item["status_label"]) == (
         1,
@@ -157,6 +167,26 @@ def test_a_120_idea_json_file_is_previewed_then_saved(an, topic_id):
     saved = an.put(f"/api/plans/{topic_id}/items", json={"ideas": preview["ideas"]}).json()
     assert len(saved["items"]) == 120
     assert [item["position"] for item in saved["items"] if item["day"] == 30] == [1, 2, 3, 4]
+
+
+def test_a_plan_of_two_ideas_a_day_is_not_short_and_one_of_eleven_is_too_many(an, topic_id):
+    two = json.dumps(sample_plan(per_day=2), ensure_ascii=False).encode()
+    preview = an.post(f"/api/plans/{topic_id}/import", files={"file": ("plan.json", two)}).json()
+    assert (len(preview["ideas"]), preview["errors"], preview["warnings"]) == (60, [], [])
+    eleven = json.dumps(sample_plan(days=1, per_day=11), ensure_ascii=False).encode()
+    preview = an.post(f"/api/plans/{topic_id}/import", files={"file": ("plan.json", eleven)}).json()
+    assert "Ngày 1 có 11 ý tưởng, tối đa 10" in preview["errors"]
+
+
+def test_a_plan_kept_at_four_a_day_is_unchanged(an, topic_id):
+    path = f"/api/plans/{topic_id}"
+    four = json.dumps(sample_plan(per_day=4), ensure_ascii=False).encode()
+    preview = an.post(f"{path}/import", files={"file": ("plan.json", four)}).json()
+    an.put(f"{path}/items", json={"ideas": preview["ideas"]})
+    plan = an.patch(path, json={"per_day": 4}).json()
+    assert plan["per_day"] == 4 and len(plan["items"]) == 120
+    assert all(len(ideas_of(plan, day)) == 4 for day in range(1, 31))
+    assert add(an, topic_id, 1, "Ý tưởng thứ năm").status_code == 201
 
 
 def test_a_csv_file_reports_the_rows_it_cannot_read(an, topic_id):
@@ -301,11 +331,11 @@ def test_today_tells_up_to_which_day_videos_are_made_ahead(an, db, me, storage, 
 
 
 def test_backlog_ideas_have_no_day_no_daily_limit_and_move_to_and_from_days(an, topic_id):
-    for n in range(1, 7):
+    for n in range(1, 13):
         assert add(an, topic_id, None, f"Để dành {n}").status_code == 201
     plan = an.get(f"/api/plans/{topic_id}").json()
-    assert ideas_of(plan, None) == [f"Để dành {n}" for n in range(1, 7)]
-    assert [item["position"] for item in plan["items"]] == [1, 2, 3, 4, 5, 6]
+    assert ideas_of(plan, None) == [f"Để dành {n}" for n in range(1, 13)]
+    assert [item["position"] for item in plan["items"]] == list(range(1, 13))
     twice = add(an, topic_id, 4, "để dành 1")
     assert (twice.status_code, twice.json()["message"]) == (409, "Kế hoạch đã có chủ đề này (trong Backlog)")
     # A Backlog idea is not "made" in the 30-day progress.
@@ -314,14 +344,14 @@ def test_backlog_ideas_have_no_day_no_daily_limit_and_move_to_and_from_days(an, 
     first = plan["items"][0]["id"]
     moved = an.patch(f"/api/plans/items/{first}", json={"day": 3}).json()
     assert ideas_of(moved, 3) == ["Để dành 1"] and ideas_of(moved, None)[0] == "Để dành 2"
-    assert [item["position"] for item in moved["items"] if item["day"] is None] == [1, 2, 3, 4, 5]
+    assert [item["position"] for item in moved["items"] if item["day"] is None] == list(range(1, 12))
     back = an.patch(f"/api/plans/items/{first}", json={"day": None}).json()
     assert ideas_of(back, 3) == [] and ideas_of(back, None)[-1] == "Để dành 1"
 
-    for n in range(1, 6):
+    for n in range(1, 11):
         add(an, topic_id, 7, f"Ngày 7 số {n}")
     full = an.patch(f"/api/plans/items/{first}", json={"day": 7})
-    assert (full.status_code, full.json()["message"]) == (409, "Ngày 7 đã đủ 5 ý tưởng")
+    assert (full.status_code, full.json()["message"]) == (409, "Ngày 7 đã đủ 10 ý tưởng")
 
 
 def test_saving_a_plan_keeps_the_backlog_but_takes_an_idea_it_now_plans(an, db, me, storage, topic_id):
@@ -366,7 +396,10 @@ def test_posting_times_are_checked_and_sorted(an, topic_id):
     assert an.get(path).json()["post_times"] == ["07:00", "11:30", "17:00", "20:00", "21:30"]
     assert an.patch(path, json={"post_times": ["20:00", "7:05"]}).json()["post_times"] == ["07:05", "20:00"]
     assert an.patch(path, json={"post_times": ["25:00"]}).json()["message"] == "Giờ đăng “25:00” phải có dạng HH:MM"
-    assert an.patch(path, json={"post_times": []}).json()["message"] == "Cần từ 1 đến 5 giờ đăng"
+    assert an.patch(path, json={"post_times": []}).json()["message"] == "Cần từ 1 đến 10 giờ đăng"
+    eleven = [f"{hour:02d}:00" for hour in range(6, 17)]
+    assert an.patch(path, json={"post_times": eleven}).json()["message"] == "Cần từ 1 đến 10 giờ đăng"
+    assert len(an.patch(path, json={"post_times": eleven[:10]}).json()["post_times"]) == 10
 
 
 def test_an_idea_is_suggested_to_go_out_on_its_day_at_the_time_of_its_place(an, db, topic_id):
@@ -588,6 +621,19 @@ def test_the_plan_job_writes_the_month_in_three_calls_as_a_draft(committed, tmp_
         assert db.scalars(select(TopicPlanItem)).all() == []
 
 
+def test_the_plan_job_writes_two_ideas_a_day_when_the_plan_asks_for_two(committed, tmp_path):
+    user = add_user(committed)
+    with committed() as db:
+        first_topic(db).plan_per_day = 2
+        db.commit()
+    prompts = []
+    job = run_plan(committed, tmp_path, user, plan_call(prompts))
+    assert job.status == "done" and "mỗi ngày đúng 2 ý tưởng" in prompts[0]
+    with committed() as db:
+        ideas = first_topic(db).plan_draft["ideas"]
+        assert len(ideas) == 60 and {idea["day"] for idea in ideas} == set(range(1, 31))
+
+
 def test_an_unusable_plan_answer_is_asked_once_more_then_fails(committed, tmp_path):
     user = add_user(committed)
     missing_day = json.dumps(plan_json(1, 9))
@@ -599,11 +645,11 @@ def test_an_unusable_plan_answer_is_asked_once_more_then_fails(committed, tmp_pa
 
 
 def test_a_plan_answer_is_repaired_where_it_can_be():
-    answer = plan_json(1, 10, per_day=6)
+    answer = plan_json(1, 10, per_day=11)
     answer["days"][0]["ideas"][0]["topic"] = "Đã có"
     answer["days"][1]["ideas"][0]["hook"] = "h" * 900
     answer["days"].append({"day": 11, "ideas": [{"topic": "Ngày khác"}]})
     ideas = plans.parse_output("Đây là kế hoạch: " + json.dumps(answer), 1, 10, {"đã có"})
-    assert len(ideas) == 50 and "Đã có" not in [idea.topic for idea in ideas]
+    assert len(ideas) == 100 and "Đã có" not in [idea.topic for idea in ideas]
     assert max(len(idea.hook) for idea in ideas) == plans.MAX_HOOK_LENGTH
     assert all(idea.day <= 10 for idea in ideas)
