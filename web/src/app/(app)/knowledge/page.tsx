@@ -115,6 +115,11 @@ export default function KnowledgePage() {
                         {topic.name}
                       </Typography.Text>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                        {topic.mine && (
+                          <Typography.Text style={{ fontSize: 12, color: token.colorPrimaryText }}>
+                            Của tôi ·{" "}
+                          </Typography.Text>
+                        )}
                         {topic.video_count} video
                         {!topic.script_prompt && (
                           <Typography.Text type="warning" style={{ fontSize: 12 }}>

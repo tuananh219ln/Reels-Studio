@@ -11,6 +11,62 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — The forms start on a member's own choices, the last one kept on the server
+
+Part B3 of the brief ([docs/specs/chu-thuong-ca-nhan-hoa](specs/chu-thuong-ca-nhan-hoa/brief.md)), with the owner's
+answer that the last choice is kept on the server by account (so it follows a member to any device, and is never a
+teammate's): `user_last_choices` (migration 0061) holds the Page and the topic group a member last picked, saved by
+the web once a video is made, posted or queued to a chosen Page. "Tạo video" starts on the idea's or the asked group,
+else the last group, else one of the member's own (B2). "Đăng bài" starts on the member's own Page of the video's
+group, else the last Page. The queue keeps "Page của tôi cho nhóm" first and starts on the last Page only when the
+member has no Page of that group. Voice and music are not picked in these forms: a new video takes them from its
+maker's own defaults (B1). Nothing in the posting flow itself changes.
+
+## 2026-11-08 — The 30-day plan reads as a month calendar, with today on top and its settings saved together
+
+PR 2 of [docs/specs/plan-tab-redesign](specs/plan-tab-redesign/brief.md), the layout the owner approved on a clickable
+draft: the 30 day cards and the strip of 30 small cells give way to five weeks of day cells, with the ideas as chips
+in their status colour, and the chosen day in full below them (today by default). A "Hôm nay" strip with today's ideas
+and their next step replaces the one-line "Hôm nay là ngày N/30". The start date, ideas per day, posting times and
+the video target move into a "Thiết lập" panel that no longer saves each field as it changes: "Lưu" sends the changed
+fields in one request and "Huỷ" drops them, so a slip in one field no longer reshapes the plan at once. The filters
+and "Gọn" apply to the chosen day only; dragging onto a day, onto the Backlog tab and "Xếp vào ngày…" work as before.
+No change to the api.
+
+## 2026-11-08 — A plan day holds 1 to 10 ideas, and an idea is edited from its "Sửa" button
+
+PR 1 of [docs/specs/plan-tab-redesign](specs/plan-tab-redesign/brief.md), at the owner's request: the team's Pages
+post 1–2 videos a day, so "3–5 a day" (2026-11-03 below) could not be set to 2. A day now holds 1 to 10 ideas
+(`plans.MIN_PER_DAY`, `MAX_PER_DAY`, and the same two numbers in `PlanTab.tsx`); more than 10 is refused everywhere,
+and with a floor of 1 no day warns of being short any more. The posting times follow, 1 to 10, as they are tied to
+the ideas of a day; a plan holds up to 300 dated ideas, as many as the Backlog. Plans kept at 3–5 a day are untouched.
+The fields of an idea are no longer edited in place (a pencil seen only on hover, each field saved on its own, which
+members did not find and could trip over by clicking the text): every card has a "Sửa" button, in "Gọn" too, that
+opens one "Sửa ý tưởng" form with the four fields, saved by one request on "Lưu"; "Huỷ" changes nothing, and a
+refusal stays in the form.
+
+## 2026-11-08 — A member's own Pages and topic groups come first where one is picked
+
+Part B2 of the brief, with the owner's answer that "my topics" are the topic groups of the Pages a member owns
+(`fanpages.owner_id`, 2026-11-03, and `knowledge_topic_id`), so no new column: a group is "mine" while a Page I own
+and use posts it. Quản lý Page gets "Trang của tôi / Tất cả" (mine by default once I own a Page in use); the create
+dialog lists my groups first and starts on one of them; the Page pickers for posting and the queue list my Pages
+first. Nothing is hidden from teammates: "Tất cả" and "Trang khác" keep every Page in reach, as the brief's scope
+says.
+
+## 2026-11-08 — Each member has their own video defaults; the team's start those who have none
+
+Part B1 of the brief ([docs/specs/chu-thuong-ca-nhan-hoa](specs/chu-thuong-ca-nhan-hoa/brief.md)), with the owner's
+answers of 2026-11-08: the settings are personal, as the money is per member (2026-10-31). Each member has their own
+"Thiết lập mặc định" (`user_video_defaults`, migration 0060); a new video takes its maker's (their own, else the
+team's), its default music included, however it is made (the web, MCP, a sample video). A member's own are a full copy
+taken from the team's when they first save, so later changes to the team's no longer reach them until they choose
+"Dùng mặc định nhóm". The team's stay, edited by any member as before (there are no roles), for members without their
+own. Cài đặt › Thiết lập mặc định opens on the member's own and says whose are being edited. "Lấy theo mặc định nhóm"
+on a video's "Thiết lập" tab is removed, with the API's `reset_options`, at the owner's request; this changes the
+2026-11-03 entry's "a video's own Thiết lập tab" sentence and the 2026-11-07 music entry's mention of that button.
+Existing videos never change, as before (2026-11-01).
+
 ## 2026-11-08 — A video written through MCP names the assistant that wrote it
 
 Reported by the owner: a video Muse wrote was tagged "Claude (MCP)", and its page said "Kịch bản viết bởi Claude của

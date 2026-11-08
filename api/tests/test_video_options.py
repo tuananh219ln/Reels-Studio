@@ -68,7 +68,7 @@ def test_bad_defaults_are_refused(an):
         assert refused.status_code == 422 and refused.json()["message"].startswith(message), values
 
 
-def test_a_video_changes_its_own_settings_and_can_take_the_team_defaults_back(an, db, me, storage):
+def test_a_video_changes_its_own_settings_and_later_defaults_never_change_them(an, db, me, storage):
     video = make_video(db, storage, me)
     before = an.get(f"/api/videos/{video.id}").json()["title_scene"]["preview_url"]
     payload = an.patch(f"/api/videos/{video.id}", json={"options": {"captions": "word", "text_style": "dark"}}).json()
@@ -78,10 +78,12 @@ def test_a_video_changes_its_own_settings_and_can_take_the_team_defaults_back(an
     refused = an.patch(f"/api/videos/{video.id}", json={"options": {"voice_volume": 101}})
     assert refused.status_code == 422
 
+    # "Lấy theo mặc định nhóm" is gone (each member has their own defaults now): defaults changed later, and the
+    # old request, leave the video's own settings alone.
     an.put(DEFAULTS_URL, json={"values": {"motion": "pan", "voice_enabled": False}})
-    reset = an.patch(f"/api/videos/{video.id}", json={"reset_options": True}).json()
-    assert reset["options"]["motion"] == "pan" and reset["options"]["captions"] == "off"
-    assert reset["voice_enabled"] is False
+    kept = an.patch(f"/api/videos/{video.id}", json={"reset_options": True}).json()
+    assert kept["options"]["motion"] == "zoom_in" and kept["options"]["captions"] == "word"
+    assert kept["voice_enabled"] is True
 
 
 def test_a_style_change_redraws_the_thumbnail(an, db, me, storage):

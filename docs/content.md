@@ -211,7 +211,7 @@ with scheduling.
 
 ### 30-Day Topic Plan (built)
 
-Each topic group has a plan of 30 days with 3–5 video ideas a day (owner's plan, 2026-11-03). An idea
+Each topic group has a plan of 30 days with 1–10 video ideas a day (owner's plan, 2026-11-03; 1–10 since 2026-11-08). An idea
 has a topic (used as the video's Chủ đề), a pain group, the viewer's pain (what they fear, have tried
 or get wrong), and a hook angle for the first 3 seconds. Researching real pains (TikTok, Facebook,
 YouTube comments, health forums) happens outside the app; its result comes in as a file.

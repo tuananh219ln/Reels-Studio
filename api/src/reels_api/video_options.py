@@ -25,7 +25,7 @@ from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 from reels_render.timeline import VOICE_TAIL
 
 from . import config
-from .models import AppSetting, Video
+from .models import AppSetting, UserVideoDefaults, Video
 from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_vieneu
 
 DEFAULTS_KEY = "video_defaults"
@@ -339,7 +339,43 @@ def save_team_defaults(db: DbSession, values: dict, user_id: int) -> dict:
     return merged
 
 
-def apply_team_defaults(db: DbSession, video: Video) -> None:
-    defaults = team_defaults(db)
+def member_defaults(db: DbSession, user_id: int) -> dict:
+    """What a member's new videos start with: their own defaults, or the team's while they have none. A value their
+    copy lacks (a setting added since they saved) is the team's."""
+    own = db.get(UserVideoDefaults, user_id)
+    if own is None or not isinstance(own.value, dict):
+        return team_defaults(db)
+    try:
+        stored = clean(own.value, allow_video_fields=True)
+    except OptionError:
+        return team_defaults(db)
+    return team_defaults(db) | stored
+
+
+def has_own_defaults(db: DbSession, user_id: int) -> bool:
+    return db.get(UserVideoDefaults, user_id) is not None
+
+
+def save_member_defaults(db: DbSession, user_id: int, values: dict) -> dict:
+    """A member's own defaults, started from what they use now (the team's the first time) with `values` changed."""
+    merged = member_defaults(db, user_id) | clean(values, allow_video_fields=True)
+    own = db.get(UserVideoDefaults, user_id)
+    if own is None:
+        db.add(UserVideoDefaults(user_id=user_id, value=merged))
+    else:
+        own.value = merged
+    return merged
+
+
+def forget_member_defaults(db: DbSession, user_id: int) -> None:
+    """Back to the team's defaults ("Dùng mặc định nhóm")."""
+    own = db.get(UserVideoDefaults, user_id)
+    if own is not None:
+        db.delete(own)
+
+
+def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
+    """A new video takes its maker's defaults (member_defaults)."""
+    defaults = member_defaults(db, user_id)
     video.voice_enabled, video.music_volume = defaults["voice_enabled"], defaults["music_volume"]
     video.options = {name: defaults[name] for name in DEFAULTS}

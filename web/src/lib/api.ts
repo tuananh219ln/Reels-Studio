@@ -338,7 +338,16 @@ export type VideoDetail = VideoRow & {
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages; `owner` is the member whose Page it is. */
-  fanpages: { id: number; name: string; owner: string | null; error: string | null }[];
+  /** The team's Pages in use; `owner_id` puts the viewer's own first in a picker (lib/myPages). */
+  fanpages: {
+    id: number;
+    name: string;
+    owner: string | null;
+    owner_id: number | null;
+    /** The topic group the Page posts. */
+    knowledge_topic_id: number | null;
+    error: string | null;
+  }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
   publication: Post | null;
   /** Every post of the video, newest first, cancelled and deleted ones included. */
@@ -346,6 +355,7 @@ export type VideoDetail = VideoRow & {
   /** The Pages that already hold the current MP4. */
   posted_fanpage_ids: number[];
   knowledge_topic: string | null;
+  knowledge_topic_id: number | null;
   /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
   script_by: string | null;
   clone_of: { title: string; request: string } | null;
@@ -474,6 +484,8 @@ export type KnowledgeTopic = {
   /** "Prompt viết bài" ("Bài viết"); "" uses the default. */
   article_prompt: string;
   video_count: number;
+  /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
+  mine: boolean;
 };
 
 export type Fanpage = {
@@ -666,6 +678,14 @@ export type VideoDefaults = VideoOptions & {
   music_track_id: number | null;
   /** Read-only, never sent back: the default track's name and player link, null when none or deleted since. */
   music_track?: { id: number; name: string; url: string } | null;
+};
+
+/** The signed-in member's own defaults (/settings/my-video-defaults): the team's until they save their own. */
+export type MyVideoDefaults = VideoDefaults & {
+  /** They saved their own; false: the team's are shown and used. */
+  own: boolean;
+  /** Whose they are, said on the page. */
+  owner: string;
 };
 
 /** A narration voice; a VieNeu one has an id starting with "vieneu:" (api tts.py). */

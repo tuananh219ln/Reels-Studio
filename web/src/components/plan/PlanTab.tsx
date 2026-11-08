@@ -3,11 +3,13 @@
 import {
   DeleteOutlined,
   DownOutlined,
+  EditOutlined,
   ImportOutlined,
   InboxOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   RobotOutlined,
+  SettingOutlined,
   UpOutlined,
   VideoCameraAddOutlined,
 } from "@ant-design/icons";
@@ -23,11 +25,11 @@ import {
   Empty,
   Flex,
   Form,
+  Grid,
   Input,
   InputNumber,
   Modal,
   Popconfirm,
-  Progress,
   Row,
   Segmented,
   Select,
@@ -61,8 +63,9 @@ import FormDrawer from "@/components/FormDrawer";
 import { COLORS } from "@/app/theme";
 
 const PLAN_DAYS = 30;
-const MIN_PER_DAY = 3;
-const MAX_PER_DAY = 5;
+// Pages post 1-2 videos a day, some more: plans.MIN_PER_DAY and MAX_PER_DAY of the api.
+const MIN_PER_DAY = 1;
+const MAX_PER_DAY = 10;
 const JOB_POLL_MS = 3000;
 const DRAG_TYPE = "text/plan-item";
 
@@ -145,15 +148,12 @@ function useCompact(): [boolean, (compact: boolean) => void] {
   ];
 }
 
-/** Ideas whose post is set or out: nothing is left to do for them. */
-const FINISHED: PlanItemStatus[] = ["scheduled", "posted"];
-
 type Change = (call: () => Promise<Plan>, done?: string) => Promise<boolean>;
 type Move = (item: PlanItem, day: number | null) => void;
 type Preview = PlanPreview & { fromAi: boolean };
 
 /**
- * "Kế hoạch 30 ngày" and "Backlog" of one topic group, as two tabs sharing one plan: 3-5 video ideas a day, imported,
+ * "Kế hoạch 30 ngày" and "Backlog" of one topic group, as two tabs sharing one plan: 1-10 video ideas a day, imported,
  * written by AI or typed in, and the ideas kept for later. An idea is dragged between days and the Backlog.
  */
 export function usePlanTabs(topicId: number): {
@@ -382,58 +382,40 @@ function PlanView({
   onPreview: (preview: Preview) => void;
 }) {
   const [showBacklog, setShowBacklog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [compact, setCompact] = useCompact();
+  // The day shown under the calendar: today while the plan runs, else day 1; a new start date moves it to today.
+  const runningDay = (today: number | null) => (today !== null && today >= 1 && today <= PLAN_DAYS ? today : 1);
+  const [selected, setSelected] = useState(() => runningDay(plan.today_day));
+  const [todaySeen, setTodaySeen] = useState(plan.today_day);
+  if (todaySeen !== plan.today_day) {
+    setTodaySeen(plan.today_day);
+    setSelected(runningDay(plan.today_day));
+  }
   const path = `/plans/${plan.topic_id}`;
   const byDay = (day: number) => plan.items.filter((item) => item.day === day);
   const planned = plan.items.filter((item) => item.day !== null);
   const shown = planned.filter((item) => matches(item, filters));
-  const days = Array.from({ length: PLAN_DAYS }, (_, index) => index + 1);
+  const scheduled = planned.filter((item) => item.status === "scheduled").length;
+  const empty = Array.from({ length: PLAN_DAYS }, (_, index) => index + 1).filter((day) => !byDay(day).length).length;
 
   return (
     <Flex vertical gap={16} data-testid="plan-tab">
       <Card size="small">
-        <Flex wrap gap={16} align="center">
-          <Flex align="center" gap={8}>
-            <Typography.Text>Ngày bắt đầu</Typography.Text>
-            <DatePicker
-              aria-label="Ngày bắt đầu kế hoạch"
-              format="DD/MM/YYYY"
-              placeholder="Chọn ngày 1"
-              value={plan.start_date ? dayjs(plan.start_date) : null}
-              onChange={(value) =>
-                change(() => api<Plan>(path, "PATCH", { start_date: value ? value.format("YYYY-MM-DD") : null }))
-              }
-            />
-          </Flex>
-          <Flex align="center" gap={8}>
-            <Typography.Text>Số ý tưởng mỗi ngày</Typography.Text>
-            <InputNumber
-              aria-label="Số ý tưởng mỗi ngày"
-              min={MIN_PER_DAY}
-              max={MAX_PER_DAY}
-              precision={0}
-              value={plan.per_day}
-              onChange={(value) => value && change(() => api<Plan>(path, "PATCH", { per_day: value }))}
-              style={{ width: 72 }}
-            />
-          </Flex>
-          <PostTimes plan={plan} change={change} />
-          <TodayLine plan={plan} />
-          <Flex vertical style={{ minWidth: 200, marginLeft: "auto" }}>
-            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-              Đã làm {plan.made}/{planned.length} ý tưởng
-            </Typography.Text>
-            <Progress
-              percent={planned.length ? Math.round((plan.made / planned.length) * 100) : 0}
-              size="small"
-              showInfo={false}
-            />
-          </Flex>
-        </Flex>
-        <ProgressStrip plan={plan} />
+        <TodayStrip plan={plan} change={change} />
+        <Typography.Text type="secondary" style={{ display: "block", marginTop: 12 }} data-testid="plan-summary">
+          Đã làm {plan.made}/{planned.length} · Đã lên lịch {scheduled} · Ngày còn trống {empty}
+        </Typography.Text>
         <VerdictTarget plan={plan} change={change} />
         <Flex wrap gap={8} style={{ marginTop: 12 }}>
+          <Button
+            icon={<SettingOutlined />}
+            aria-expanded={showSettings}
+            onClick={() => setShowSettings((value) => !value)}
+          >
+            Thiết lập
+          </Button>
           <ImportButton topicId={plan.topic_id} onPreview={onPreview} />
           <Button
             icon={<RobotOutlined />}
@@ -444,10 +426,9 @@ function PlanView({
           </Button>
         </Flex>
         <Typography.Paragraph type="secondary" style={{ margin: "8px 0 0", fontSize: 13 }}>
-          File và kế hoạch AI đều hiện bảng xem trước; 30 ngày đang có chỉ bị thay khi bấm “Lưu kế hoạch”, Backlog vẫn
-          giữ. AI lập 30 ngày trong 3 lượt (mỗi lượt 10 ngày) với prompt kế hoạch bên dưới và mô hình đang chọn trong
-          Cài đặt. Ý tưởng thứ mấy trong ngày thì gợi ý đăng vào giờ đăng thứ đó.
+          File và kế hoạch AI hiện bảng xem trước; 30 ngày chỉ bị thay khi bấm “Lưu kế hoạch”, Backlog vẫn giữ.
         </Typography.Paragraph>
+        {showSettings && <PlanSettings plan={plan} change={change} onClose={() => setShowSettings(false)} />}
         {plan.job?.status === "failed" && (
           <Alert
             type="error"
@@ -481,84 +462,94 @@ function PlanView({
         onSave={(prompt) => change(() => api<Plan>(path, "PATCH", { prompt }), "Đã lưu prompt kế hoạch")}
       />
 
-      <Flex wrap gap={8} align="center" data-testid="plan-filters">
-        <Select<PlanItemStatus>
-          allowClear
-          placeholder="Tất cả trạng thái"
-          aria-label="Lọc trạng thái"
-          value={filters.status}
-          onChange={(status) => setFilters({ ...filters, status: status ?? null })}
-          options={(Object.keys(STATUS_LABELS) as PlanItemStatus[]).map((status) => ({
-            value: status,
-            label: STATUS_LABELS[status],
-          }))}
-          style={{ minWidth: 170 }}
-        />
-        <Select<string>
-          allowClear
-          placeholder="Tất cả nhóm nỗi đau"
-          aria-label="Lọc nhóm nỗi đau"
-          value={filters.group}
-          onChange={(group) => setFilters({ ...filters, group: group ?? null })}
-          options={[...new Set(planned.map((item) => item.pain_group).filter(Boolean))]
-            .sort((a, b) => a.localeCompare(b, "vi"))
-            .map((group) => ({ value: group, label: group }))}
-          style={{ minWidth: 200 }}
-        />
-        <Input
-          allowClear
-          placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook"
-          aria-label="Tìm ý tưởng"
-          value={filters.query}
-          onChange={(event) => setFilters({ ...filters, query: event.target.value })}
-          style={{ width: 340, maxWidth: "100%" }}
-        />
-        <Typography.Text type="secondary" data-testid="plan-matches">
-          {shown.length}/{planned.length} ý tưởng khớp
-        </Typography.Text>
-        <Button onClick={() => setFilters(NO_FILTERS)} disabled={!filters.status && !filters.group && !filters.query}>
-          Xóa lọc
-        </Button>
-        <Segmented
-          aria-label="Chế độ thẻ"
-          value={compact ? "compact" : "full"}
-          onChange={(value) => setCompact(value === "compact")}
-          options={[
-            { value: "full", label: "Đầy đủ" },
-            { value: "compact", label: "Gọn" },
-          ]}
-        />
-        <Button
-          icon={<InboxOutlined />}
-          onClick={() => setShowBacklog((shown) => !shown)}
-          style={{ marginLeft: "auto" }}
-        >
-          {showBacklog ? "Đóng Backlog" : `Mở Backlog (${backlog.length})`}
-        </Button>
-      </Flex>
-
       <Row gutter={[12, 12]} wrap={false}>
         <Col flex="auto" style={{ minWidth: 0 }}>
-          <Row gutter={[12, 12]}>
-            {days.map((day) => (
-              <Col key={day} xs={24} md={12} xl={showBacklog ? 12 : 8} xxl={8}>
-                <DayCard
-                  day={day}
-                  plan={plan}
-                  items={byDay(day).filter((item) => matches(item, filters))}
-                  total={byDay(day).length}
-                  compact={compact}
-                  onAdd={() => onAdd(day)}
-                  onDrop={(id) => {
-                    const item = plan.items.find((row) => row.id === id);
-                    if (item) move(item, day);
-                  }}
-                  onChange={change}
-                  move={move}
-                />
-              </Col>
-            ))}
-          </Row>
+          <Flex vertical gap={12}>
+            <StatusLegend />
+            <MonthCalendar
+              plan={plan}
+              selected={selected}
+              onSelect={setSelected}
+              onAdd={(day) => {
+                setSelected(day);
+                onAdd(day);
+              }}
+              move={move}
+            />
+            <Flex wrap gap={8} align="center" data-testid="plan-filters">
+              <Select<PlanItemStatus>
+                allowClear
+                placeholder="Tất cả trạng thái"
+                aria-label="Lọc trạng thái"
+                value={filters.status}
+                onChange={(status) => setFilters({ ...filters, status: status ?? null })}
+                options={(Object.keys(STATUS_LABELS) as PlanItemStatus[]).map((status) => ({
+                  value: status,
+                  label: STATUS_LABELS[status],
+                }))}
+                style={{ minWidth: 170 }}
+              />
+              <Select<string>
+                allowClear
+                placeholder="Tất cả nhóm nỗi đau"
+                aria-label="Lọc nhóm nỗi đau"
+                value={filters.group}
+                onChange={(group) => setFilters({ ...filters, group: group ?? null })}
+                options={[...new Set(planned.map((item) => item.pain_group).filter(Boolean))]
+                  .sort((a, b) => a.localeCompare(b, "vi"))
+                  .map((group) => ({ value: group, label: group }))}
+                style={{ minWidth: 200 }}
+              />
+              <Input
+                allowClear
+                placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook"
+                aria-label="Tìm ý tưởng"
+                value={filters.query}
+                onChange={(event) => setFilters({ ...filters, query: event.target.value })}
+                style={{ width: 340, maxWidth: "100%" }}
+              />
+              <Typography.Text type="secondary" data-testid="plan-matches">
+                {shown.length}/{planned.length} ý tưởng khớp
+              </Typography.Text>
+              <Button
+                onClick={() => setFilters(NO_FILTERS)}
+                disabled={!filters.status && !filters.group && !filters.query}
+              >
+                Xóa lọc
+              </Button>
+              <Segmented
+                aria-label="Chế độ thẻ"
+                value={compact ? "compact" : "full"}
+                onChange={(value) => setCompact(value === "compact")}
+                options={[
+                  { value: "full", label: "Đầy đủ" },
+                  { value: "compact", label: "Gọn" },
+                ]}
+              />
+              <Button
+                icon={<InboxOutlined />}
+                onClick={() => setShowBacklog((open) => !open)}
+                style={{ marginLeft: "auto" }}
+              >
+                {showBacklog ? "Đóng Backlog" : `Mở Backlog (${backlog.length})`}
+              </Button>
+            </Flex>
+            {/* The chosen day in full; the filters and "Gọn" apply here, never to the calendar. */}
+            <DayCard
+              day={selected}
+              plan={plan}
+              items={byDay(selected).filter((item) => matches(item, filters))}
+              total={byDay(selected).length}
+              compact={compact}
+              onAdd={() => onAdd(selected)}
+              onDrop={(id) => {
+                const item = plan.items.find((row) => row.id === id);
+                if (item) move(item, selected);
+              }}
+              onChange={change}
+              move={move}
+            />
+          </Flex>
         </Col>
         {showBacklog && (
           <Col flex="300px">
@@ -570,83 +561,303 @@ function PlanView({
   );
 }
 
-function dayFinished(items: PlanItem[]): boolean {
-  return items.length > 0 && items.every((item) => FINISHED.includes(item.status));
+/** The date of a plan day, once a start date is set. */
+function dayDate(plan: Plan, day: number) {
+  return plan.start_date
+    ? dayjs(plan.start_date)
+        .add(day - 1, "day")
+        .locale("vi")
+    : null;
 }
 
-/** One small cell per day, coloured by how far its ideas are: at a glance, how many days ahead are ready. */
-function ProgressStrip({ plan }: { plan: Plan }) {
+/** The status colours of the idea chips. */
+function StatusLegend() {
   const { token } = theme.useToken();
-  const legend = [
-    { color: token.colorFillSecondary, label: "Trống" },
-    { color: token.colorBorder, label: "Có ý tưởng" },
-    { color: token.colorWarning, label: "Đang làm" },
-    { color: token.colorSuccess, label: "Đủ video" },
-    { color: "#722ed1", label: "Đã lên lịch đủ" },
-  ];
-  function color(day: number): [string, string] {
-    const items = plan.items.filter((item) => item.day === day);
-    if (items.length === 0) return [legend[0].color, legend[0].label];
-    if (dayFinished(items)) return [legend[4].color, legend[4].label];
-    if (items.every((item) => item.status !== "idea")) return [legend[3].color, legend[3].label];
-    if (items.some((item) => item.status !== "idea")) return [legend[2].color, legend[2].label];
-    return [legend[1].color, legend[1].label];
-  }
   return (
-    <Flex vertical gap={4} style={{ marginTop: 12 }}>
-      <Flex gap={3} wrap data-testid="plan-strip">
-        {Array.from({ length: PLAN_DAYS }, (_, index) => index + 1).map((day) => {
-          const [fill, label] = color(day);
-          return (
-            <Tooltip key={day} title={`Ngày ${day}: ${label}`}>
-              <a
-                href={`#plan-day-${day}`}
-                aria-label={`Ngày ${day}: ${label}`}
-                style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 3,
-                  background: fill,
-                  outline: plan.today_day === day ? `2px solid ${token.colorPrimary}` : undefined,
-                  outlineOffset: 1,
-                }}
-              />
-            </Tooltip>
-          );
-        })}
-      </Flex>
-      <Flex gap={12} wrap>
-        {legend.map((entry) => (
-          <Flex key={entry.label} align="center" gap={4}>
-            <span
-              style={{ width: 10, height: 10, borderRadius: 2, background: entry.color, display: "inline-block" }}
-            />
-            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {entry.label}
-            </Typography.Text>
-          </Flex>
-        ))}
-      </Flex>
+    <Flex gap={12} wrap data-testid="plan-legend">
+      {(Object.keys(STATUS_LABELS) as PlanItemStatus[]).map((status) => (
+        <Flex key={status} align="center" gap={4}>
+          <span
+            style={{
+              width: 10,
+              height: 10,
+              borderRadius: 2,
+              background: statusColor(status, token),
+              display: "inline-block",
+            }}
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {STATUS_LABELS[status]}
+          </Typography.Text>
+        </Flex>
+      ))}
     </Flex>
   );
 }
 
+const WEEKS = [0, 1, 2, 3, 4].map((week) =>
+  Array.from({ length: Math.min(7, PLAN_DAYS - week * 7) }, (_, index) => week * 7 + index + 1),
+);
+
+/** The 30 days as five weeks of day cells, each listing its ideas as chips; a cell picks the day shown below. */
+function MonthCalendar({
+  plan,
+  selected,
+  onSelect,
+  onAdd,
+  move,
+}: {
+  plan: Plan;
+  selected: number;
+  onSelect: (day: number) => void;
+  onAdd: (day: number) => void;
+  move: Move;
+}) {
+  const screens = Grid.useBreakpoint();
+  const columns = screens.md ? 7 : screens.sm ? 3 : 2;
+  return (
+    <Flex vertical gap={12} data-testid="plan-calendar">
+      {WEEKS.map((days, index) => {
+        const items = plan.items.filter((item) => item.day !== null && days.includes(item.day));
+        const first = dayDate(plan, days[0]);
+        const last = dayDate(plan, days[days.length - 1]);
+        return (
+          <div key={index} data-testid={`plan-week-${index + 1}`}>
+            <Flex wrap gap={8} align="baseline" style={{ marginBottom: 6 }}>
+              <Typography.Text strong>
+                Tuần {index + 1} ·{" "}
+                {first && last
+                  ? `${first.format("DD/MM")} – ${last.format("DD/MM")}`
+                  : `ngày ${days[0]}–${days[days.length - 1]}`}
+              </Typography.Text>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {items.length} ý tưởng · {items.filter((item) => item.status !== "idea").length} đã làm ·{" "}
+                {items.filter((item) => item.status === "scheduled").length} đã lên lịch
+              </Typography.Text>
+            </Flex>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 6 }}>
+              {days.map((day) => (
+                <DayCell
+                  key={day}
+                  day={day}
+                  plan={plan}
+                  selected={day === selected}
+                  onSelect={() => onSelect(day)}
+                  onAdd={() => onAdd(day)}
+                  move={move}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </Flex>
+  );
+}
+
+function DayCell({
+  day,
+  plan,
+  selected,
+  onSelect,
+  onAdd,
+  move,
+}: {
+  day: number;
+  plan: Plan;
+  selected: boolean;
+  onSelect: () => void;
+  onAdd: () => void;
+  move: Move;
+}) {
+  const { token } = theme.useToken();
+  const { message } = App.useApp();
+  const items = plan.items.filter((item) => item.day === day);
+  // Dropping an idea moves it here, as "Xếp vào ngày…" does: a full day takes no more.
+  const { over, handlers } = useDropZone((id) => {
+    const item = plan.items.find((row) => row.id === id);
+    if (!item || item.day === day) return;
+    if (items.length >= MAX_PER_DAY) {
+      message.warning(`Ngày ${day} đã đủ ${MAX_PER_DAY} ý tưởng`);
+      return;
+    }
+    move(item, day);
+  });
+  const date = dayDate(plan, day);
+  const today = plan.today_day === day;
+  return (
+    <div
+      data-testid={`plan-day-${day}`}
+      data-selected={selected}
+      onClick={onSelect}
+      style={{
+        minHeight: 96,
+        minWidth: 0,
+        padding: 6,
+        borderRadius: 8,
+        background: token.colorBgContainer,
+        border: `${selected ? 2 : 1}px solid ${selected ? token.colorPrimary : token.colorBorderSecondary}`,
+        outline: over ? "2px dashed #fa8c16" : undefined,
+        cursor: "pointer",
+      }}
+      {...handlers}
+    >
+      <Flex justify="space-between" align="center" gap={4}>
+        <button
+          type="button"
+          aria-label={`Chọn ngày ${day}`}
+          aria-pressed={selected}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect();
+          }}
+          style={{
+            all: "unset",
+            cursor: "pointer",
+            fontSize: 12,
+            fontWeight: 500,
+            textTransform: "none",
+          }}
+        >
+          {date ? date.format("dd DD/MM") : `Ngày ${day}`}
+        </button>
+        {today && (
+          <Typography.Text style={{ fontSize: 11, fontWeight: 500, color: COLORS.primary }}>Hôm nay</Typography.Text>
+        )}
+      </Flex>
+      <Flex vertical gap={3} style={{ marginTop: 4 }}>
+        {items.map((item) => (
+          <Tooltip key={item.id} title={`${item.topic} · ${item.status_label}`}>
+            <div
+              draggable
+              onDragStart={(event) => event.dataTransfer.setData(DRAG_TYPE, String(item.id))}
+              data-testid="plan-chip"
+              data-status={item.status}
+              style={{
+                fontSize: 12,
+                lineHeight: "18px",
+                padding: "0 4px",
+                borderRadius: 4,
+                borderLeft: `3px solid ${statusColor(item.status, token)}`,
+                background: token.colorFillQuaternary,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                cursor: "grab",
+              }}
+            >
+              {item.topic}
+            </div>
+          </Tooltip>
+        ))}
+        {items.length === 0 && (
+          <Button
+            size="small"
+            type="dashed"
+            block
+            aria-label={`Thêm ý ngày ${day}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onAdd();
+            }}
+          >
+            + Thêm ý
+          </Button>
+        )}
+      </Flex>
+    </div>
+  );
+}
+
+/** "Thiết lập": changed in place and sent together by "Lưu", only the fields that changed; "Huỷ" drops them. */
+function PlanSettings({ plan, change, onClose }: { plan: Plan; change: Change; onClose: () => void }) {
+  const [start, setStart] = useState(plan.start_date);
+  const [perDay, setPerDay] = useState<number | null>(plan.per_day);
+  const [times, setTimes] = useState(plan.post_times);
+  const [target, setTarget] = useState<number | null>(plan.video_target);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    const changes: Record<string, unknown> = {};
+    if (start !== plan.start_date) changes.start_date = start;
+    if (perDay !== null && perDay !== plan.per_day) changes.per_day = perDay;
+    if (times.join() !== plan.post_times.join()) changes.post_times = times;
+    if (target !== plan.video_target) changes.video_target = target;
+    if (Object.keys(changes).length === 0) {
+      onClose();
+      return;
+    }
+    setBusy(true);
+    const saved = await change(() => api<Plan>(`/plans/${plan.topic_id}`, "PATCH", changes), "Đã lưu thiết lập");
+    setBusy(false);
+    if (saved) onClose();
+  }
+
+  return (
+    <Card size="small" style={{ marginTop: 12 }} data-testid="plan-settings">
+      <Flex wrap gap={16} align="center">
+        <Flex align="center" gap={8}>
+          <Typography.Text>Ngày bắt đầu</Typography.Text>
+          <DatePicker
+            aria-label="Ngày bắt đầu kế hoạch"
+            format="DD/MM/YYYY"
+            placeholder="Chọn ngày 1"
+            value={start ? dayjs(start) : null}
+            onChange={(value) => setStart(value ? value.format("YYYY-MM-DD") : null)}
+          />
+        </Flex>
+        <Flex align="center" gap={8}>
+          <Typography.Text>Số ý tưởng mỗi ngày</Typography.Text>
+          <InputNumber
+            aria-label="Số ý tưởng mỗi ngày"
+            min={MIN_PER_DAY}
+            max={MAX_PER_DAY}
+            precision={0}
+            value={perDay}
+            onChange={(value) => setPerDay(value)}
+            style={{ width: 72 }}
+          />
+        </Flex>
+        <PostTimes value={times} onChange={setTimes} />
+        <Flex align="center" gap={8}>
+          <Typography.Text>Mục tiêu video cho verdict</Typography.Text>
+          <InputNumber
+            aria-label="Mục tiêu video"
+            min={1}
+            precision={0}
+            placeholder="Không đặt"
+            value={target}
+            onChange={(value) => setTarget(typeof value === "number" ? value : null)}
+            style={{ width: 110 }}
+          />
+        </Flex>
+      </Flex>
+      <Flex gap={8} style={{ marginTop: 12 }}>
+        <Button type="primary" loading={busy} onClick={() => void save()}>
+          Lưu
+        </Button>
+        <Button disabled={busy} onClick={onClose}>
+          Huỷ
+        </Button>
+      </Flex>
+    </Card>
+  );
+}
+
 /** The group's posting times: the n-th idea of a day is suggested to go out at the n-th one. */
-function PostTimes({ plan, change }: { plan: Plan; change: Change }) {
+function PostTimes({ value, onChange }: { value: string[]; onChange: (times: string[]) => void }) {
   return (
     <Flex align="center" gap={8}>
       <Typography.Text>Giờ đăng</Typography.Text>
       <Select
         mode="tags"
         aria-label="Giờ đăng"
-        value={plan.post_times}
+        value={value}
         tokenSeparators={[",", " "]}
         open={false}
         suffixIcon={null}
         style={{ minWidth: 220 }}
-        onChange={(times: string[]) =>
-          times.length > 0 && change(() => api<Plan>(`/plans/${plan.topic_id}`, "PATCH", { post_times: times }))
-        }
+        onChange={(times: string[]) => onChange(times)}
       />
     </Flex>
   );
@@ -666,6 +877,38 @@ function TodayLine({ plan }: { plan: Plan }) {
     <Typography.Text strong data-testid="plan-today">
       Hôm nay là ngày {plan.today_day}/{PLAN_DAYS}
     </Typography.Text>
+  );
+}
+
+/** "Hôm nay": today's ideas with their next step, or why there is no today yet. */
+function TodayStrip({ plan, change }: { plan: Plan; change: Change }) {
+  const { token } = theme.useToken();
+  const running = plan.today_day !== null && plan.today_day >= 1 && plan.today_day <= PLAN_DAYS;
+  const today = running ? plan.items.filter((item) => item.day === plan.today_day) : [];
+  return (
+    <Flex vertical gap={6} data-testid="plan-today-strip">
+      <TodayLine plan={plan} />
+      {running && today.length === 0 && <Typography.Text type="secondary">Hôm nay chưa có ý tưởng</Typography.Text>}
+      {today.map((item) => (
+        <Flex
+          key={item.id}
+          wrap
+          align="center"
+          gap={8}
+          data-testid="plan-today-idea"
+          style={{ borderLeft: `3px solid ${statusColor(item.status, token)}`, paddingLeft: 8 }}
+        >
+          <Typography.Text strong style={{ flex: "1 1 200px", minWidth: 0 }}>
+            {item.topic}
+          </Typography.Text>
+          <Tag color={PLAN_STATUS_COLORS[item.status]} style={{ marginInlineEnd: 0 }}>
+            {item.status_label}
+          </Tag>
+          <IdeaAction item={item} />
+          <EditIdeaButton item={item} onChange={change} />
+        </Flex>
+      ))}
+    </Flex>
   );
 }
 
@@ -777,17 +1020,12 @@ function DayCard({
 }) {
   // Dropping an idea dragged from another day or the Backlog moves it here, at the end.
   const { over, handlers } = useDropZone((id) => !items.some((item) => item.id === id) && onDrop(id));
-  const date = plan.start_date
-    ? dayjs(plan.start_date)
-        .add(day - 1, "day")
-        .locale("vi")
-    : null;
+  const date = dayDate(plan, day);
   const today = plan.today_day === day;
   return (
     <Card
       size="small"
-      id={`plan-day-${day}`}
-      data-testid={`plan-day-${day}`}
+      data-testid="plan-day-panel"
       title={
         <Flex align="center" gap={8}>
           <span>Ngày {day}</span>
@@ -811,7 +1049,7 @@ function DayCard({
           onClick={onAdd}
         />
       }
-      style={{ height: "100%", outline: over ? "2px dashed #fa8c16" : undefined, scrollMarginTop: 80 }}
+      style={{ outline: over ? "2px dashed #fa8c16" : undefined }}
       {...handlers}
     >
       <Flex vertical gap={8}>
@@ -974,20 +1212,10 @@ function IdeaCard({
   compact?: boolean;
   shareGoal?: number;
 }) {
-  const router = useRouter();
   const { token } = theme.useToken();
   const [open, setOpen] = useState(false);
   const full = !compact || open;
   const path = `/plans/items/${item.id}`;
-  // Each field saves on its own when the edit ends (Enter or leaving the field).
-  const edit = (field: keyof Omit<PlanIdeaFields, "day">, label: string) => ({
-    tooltip: `Sửa ${label}`,
-    onChange: (value: string) => {
-      if (value !== item[field]) {
-        void onChange(() => api<Plan>(path, "PATCH", { [field]: value }));
-      }
-    },
-  });
   return (
     <div
       draggable
@@ -1008,7 +1236,6 @@ function IdeaCard({
       <Flex justify="space-between" align="flex-start" gap={4}>
         <Typography.Paragraph
           strong
-          editable={edit("topic", "chủ đề")}
           style={{ margin: 0, flex: 1, cursor: compact ? "pointer" : undefined }}
           onClick={compact ? () => setOpen((value) => !value) : undefined}
         >
@@ -1036,14 +1263,12 @@ function IdeaCard({
         )}
       </Flex>
       <Flex vertical gap={2} style={{ marginTop: 4, fontSize: 13, display: full ? undefined : "none" }}>
-        <Typography.Text type="secondary" editable={edit("pain_group", "nhóm nỗi đau")}>
-          {item.pain_group || "—"}
-        </Typography.Text>
-        <Typography.Paragraph editable={edit("pain", "nỗi đau")} style={{ margin: 0, fontSize: 13 }}>
+        <Typography.Text type="secondary">{item.pain_group || "—"}</Typography.Text>
+        <Typography.Paragraph style={{ margin: 0, fontSize: 13 }}>
           <Typography.Text type="secondary">Nỗi đau: </Typography.Text>
           {item.pain}
         </Typography.Paragraph>
-        <Typography.Paragraph editable={edit("hook", "góc hook")} style={{ margin: 0, fontSize: 13 }}>
+        <Typography.Paragraph style={{ margin: 0, fontSize: 13 }}>
           <Typography.Text type="secondary">Hook: </Typography.Text>
           {item.hook}
         </Typography.Paragraph>
@@ -1055,21 +1280,10 @@ function IdeaCard({
       </Flex>
       {dayPicker && <div style={{ marginTop: 6 }}>{dayPicker}</div>}
       <Flex justify="space-between" align="center" style={{ marginTop: 6 }}>
-        {item.video_id ? (
-          <Link prefetch={false} href={`/videos/${item.video_id}`}>
-            <PlayCircleOutlined /> Mở video
-          </Link>
-        ) : (
-          <Button
-            size="small"
-            type="primary"
-            ghost
-            icon={<VideoCameraAddOutlined />}
-            onClick={() => router.push(`/videos?plan_item=${item.id}`)}
-          >
-            Tạo video
-          </Button>
-        )}
+        <Flex align="center" gap={6}>
+          <IdeaAction item={item} />
+          <EditIdeaButton item={item} onChange={onChange} />
+        </Flex>
         <Flex gap={2}>
           {item.day !== null && (
             <Tooltip title="Chuyển về Backlog">
@@ -1096,6 +1310,113 @@ function IdeaCard({
       </Flex>
       <PostNumbers posts={item.posts ?? []} shareGoal={shareGoal} />
     </div>
+  );
+}
+
+/** The idea's next step: "Tạo video", or "Mở video" once it has one. */
+function IdeaAction({ item }: { item: PlanItem }) {
+  const router = useRouter();
+  return item.video_id ? (
+    <Link prefetch={false} href={`/videos/${item.video_id}`}>
+      <PlayCircleOutlined /> Mở video
+    </Link>
+  ) : (
+    <Button
+      size="small"
+      type="primary"
+      ghost
+      icon={<VideoCameraAddOutlined />}
+      onClick={() => router.push(`/videos?plan_item=${item.id}`)}
+    >
+      Tạo video
+    </Button>
+  );
+}
+
+function EditIdeaButton({ item, onChange }: { item: PlanItem; onChange: Change }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <>
+      <Button size="small" icon={<EditOutlined />} onClick={() => setEditing(true)}>
+        Sửa
+      </Button>
+      <EditIdeaDrawer item={item} open={editing} onClose={() => setEditing(false)} onChange={onChange} />
+    </>
+  );
+}
+
+/** "Sửa ý tưởng": the four fields of an idea in one form, saved together by "Lưu"; "Huỷ" changes nothing. */
+function EditIdeaDrawer({
+  item,
+  open,
+  onClose,
+  onChange,
+}: {
+  item: PlanItem;
+  open: boolean;
+  onClose: () => void;
+  onChange: Change;
+}) {
+  const [form] = Form.useForm<Omit<PlanIdeaFields, "day">>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Back to the idea as saved, so what "Huỷ" dropped is not there when the form opens again.
+  const close = () => {
+    setError(null);
+    form.resetFields();
+    onClose();
+  };
+  return (
+    <FormDrawer
+      title="Sửa ý tưởng"
+      open={open}
+      onClose={close}
+      onOk={() => form.submit()}
+      okText="Lưu"
+      cancelText="Huỷ"
+      confirmLoading={busy}
+      destroyOnHidden
+    >
+      {error && <Alert type="error" showIcon title={error} style={{ marginBottom: 16 }} />}
+      <Form
+        form={form}
+        layout="vertical"
+        requiredMark={false}
+        initialValues={{ topic: item.topic, pain_group: item.pain_group, pain: item.pain, hook: item.hook }}
+        onFinish={async (values) => {
+          setBusy(true);
+          setError(null);
+          try {
+            // One request for the four fields; a refusal stays in the form, which stays open.
+            const plan = await api<Plan>(`/plans/items/${item.id}`, "PATCH", values);
+            await onChange(async () => plan, "Đã lưu ý tưởng");
+            close();
+          } catch (err) {
+            setError(errorMessage(err));
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Form.Item
+          label="Chủ đề"
+          name="topic"
+          rules={[{ required: true, whitespace: true, message: "Hãy nhập chủ đề" }]}
+          extra="Dùng làm Chủ đề khi tạo video"
+        >
+          <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={300} />
+        </Form.Item>
+        <Form.Item label="Nhóm nỗi đau" name="pain_group">
+          <Input maxLength={100} />
+        </Form.Item>
+        <Form.Item label="Nỗi đau người xem" name="pain">
+          <Input.TextArea autoSize={{ minRows: 2, maxRows: 4 }} maxLength={1000} />
+        </Form.Item>
+        <Form.Item label="Góc hook" name="hook">
+          <Input maxLength={500} />
+        </Form.Item>
+      </Form>
+    </FormDrawer>
   );
 }
 

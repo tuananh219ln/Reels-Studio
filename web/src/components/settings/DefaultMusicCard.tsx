@@ -50,7 +50,7 @@ export default function DefaultMusicCard({
         </Flex>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Video tạo mới nhận một bản sao của bài này; sửa hay xoá bài trong thư viện sau đó không đổi video đã tạo.
-          Video đã có giữ nhạc của nó, kể cả khi bấm “Lấy theo mặc định nhóm”.
+          Video đã có giữ nhạc của nó.
         </Typography.Text>
       </Flex>
       <LibraryPicker

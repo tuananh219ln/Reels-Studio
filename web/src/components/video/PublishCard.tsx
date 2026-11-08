@@ -5,6 +5,9 @@ import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Tabs, T
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useMe } from "@/components/MeContext";
+import { pageOptions } from "@/lib/myPages";
+import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
 import {
   api,
   errorMessage,
@@ -36,6 +39,7 @@ type Platform = "facebook" | "tiktok" | "youtube" | "instagram";
  */
 export function PublishButton({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
+  const { me } = useMe();
   const editor = useEditor();
   // /videos/<id>?publish=<fanpage id>: a suggestion on "Bài đăng" opens the dialog, with that Page picked if given.
   // The button mounts once the video has loaded in the browser, so the address is there to read.
@@ -60,7 +64,16 @@ export function PublishButton({ video }: { video: VideoDetail }) {
   }, [asked, router, pathname]);
   const [autoComment, setAutoComment] = useState(true);
   const [busy, setBusy] = useState(false);
-  const fanpage = picked ?? (video.fanpages.length === 1 ? video.fanpages[0].id : null);
+  // The member's own Page of the video's group, else the Page they last posted to (B3), else the only one.
+  const [lastPage, setLastPage] = useState<number | null>(null);
+  useEffect(() => {
+    if (open) loadLastChoices().then((last) => setLastPage(last.fanpage_id));
+  }, [open]);
+  const startPage =
+    myPageOfGroup(video, me.id) ??
+    (video.fanpages.some((page) => page.id === lastPage) ? lastPage : null) ??
+    (video.fanpages.length === 1 ? video.fanpages[0].id : null);
+  const fanpage = picked ?? startPage;
   const chosen = video.fanpages.find((page) => page.id === fanpage);
   const name = chosen?.name;
   const sameMp4 = fanpage !== null && video.posted_fanpage_ids.includes(fanpage);
@@ -81,6 +94,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
           auto_comment: autoComment,
         }),
       );
+      await saveLastChoice({ fanpage_id: fanpage });
       setOpen(false);
       // The next post starts fresh: a time kept from this one would schedule it by mistake.
       setMode("now");
@@ -124,10 +138,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
           placeholder="Chọn Fanpage"
           onChange={setPicked}
           style={{ maxWidth: 320 }}
-          options={video.fanpages.map((page) => ({
-            value: page.id,
-            label: page.owner ? `${page.name}, ${page.owner}` : page.name,
-          }))}
+          options={pageOptions(video.fanpages, me.id)}
         />
         <Radio.Group
           value={mode}

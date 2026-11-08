@@ -73,7 +73,13 @@ Built:
 - **Login** and **user management**.
 - **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, one row each, bold
   labels in a column (one above the other under 576 px): "Kiểu video" (not for "Từ video mẫu"), "Cách viết" ("AI
-  viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row; below it the topic. The footer has a
+  viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row (the member's own groups, those of
+  the Pages they own and use, first under "Nhóm của tôi"; unless an idea or a group's "Tạo video" chose one, it
+  starts on the group the member last made a video in, else on one of their own); below it the topic. Wherever a Page
+  is picked to post or queue a video, the member's own Pages come first under "Trang của tôi", the others under
+  "Trang khác" with their owner's name. "Đăng bài" starts on the member's own Page of the video's group, else on the
+  Page they last posted to. The last group and Page are kept on the server by account, so they follow the member to
+  any device and never come from a teammate. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
   button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
@@ -157,7 +163,8 @@ Built:
   đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
-  ("Page của tôi cho nhóm “…”" by default, or any Page in use) and "Tự bình luận"; once queued, the button
+  ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
+  Page in use) and "Tự bình luận"; once queued, the button
   becomes "Trong hàng chờ của “Page”" (linking to Quản lý Page), with the reason when it could not be
   scheduled and "Bỏ khỏi hàng chờ"; it comes back once the worker has scheduled the post.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
@@ -435,9 +442,10 @@ Built:
     rows ("Chữ khó đọc trên nền hộp này. …"); Độ trong của hộp (Theo kiểu, Đặc, Hơi trong, Trong, Không nền) while
     the style has a box, Không nền turning the box colour row into Màu viền chữ; these rows change only the video (or the defaults), not the team style, whose card
     is then no longer marked; picking Không hộp puts the box colour and opacity back to Theo kiểu;
-    Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and "Lấy
-    theo mặc định nhóm" with a confirmation. A new video starts with the team's defaults; a clone
-    with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
+    Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and a line linking
+    to the member's defaults ("Video mới lấy mặc định của người tạo…"). There is no button to take the
+    defaults back (removed 2026-11-08). A new video starts with its maker's defaults (their own, or the
+    team's while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
     Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and
@@ -481,7 +489,7 @@ Built:
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): two columns (stacked on a phone). On the left, a narrow card "Nhóm
   chủ đề" that stays in view while the page scrolls: one line per topic group with its video count and
-  "Chưa có prompt" when it has none (the chosen line highlighted with an orange left edge, the first
+  "Chưa có prompt" when it has none, "Của tôi" before the count on the groups of the member's own Pages (the chosen line highlighted with an orange left edge, the first
   group chosen on arrival), and under them a small field with a "+" button ("Thêm nhóm"; the new group
   is opened). On the right, the chosen group: its name as a heading with a pencil ("Đổi tên", renamed in
   place with "Lưu tên" / "Huỷ", Esc cancels), a line "N video · K prompt đã sửa" (and that it cannot
@@ -501,30 +509,36 @@ Built:
     side on a wide screen;
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
-  - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Giờ đăng" (1–5 times, as tags), "Đã làm
-    X/Y ý tưởng" with a bar, and a strip of 30 small cells, one a day (Trống, Có ý tưởng, Đang làm, Đủ
-    video, Đã lên lịch đủ; today outlined), each a link to its day;
+  - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
+    video", and "Sửa" (before a start date: "Chọn ngày bắt đầu để app biết hôm nay là ngày mấy"; "Kế hoạch chưa bắt
+    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days); under it "Đã làm X/Y · Đã lên lịch N · Ngày còn trống N";
   - "Tiến độ verdict: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
     target to set; it only counts, the line under it says the verdict is still decided in a meeting;
-  - "Nhập file JSON/CSV" and "Tạo bằng AI", both ending in a preview table with errors (which block
-    saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as a draft
-    ("Xem trước" / "Bỏ") until then; a failed one shows its error;
+  - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
+    start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Mục tiêu video cho verdict", changed in
+    place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
+    with errors (which block saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as
+    a draft ("Xem trước" / "Bỏ") until then; a failed one shows its error;
   - "Prompt kế hoạch", folded, with "Lưu" and "Khôi phục mặc định";
-  - above the days, filters for the session only: status, pain group (A–Z) and a search over topic,
-    pain group, pain and hook that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp",
-    "Xóa lọc", and "Đầy đủ | Gọn" (kept in the browser as `plan-compact`; a compact card shows its
-    title, status, numbers and buttons, and opens on its title or arrow);
-  - the 30 days on one page, one card each (its date and weekday once a start date is set, "Hôm nay"
-    in orange on today's, a line counting its shown ideas by status, "Không có ý tưởng khớp" when the filters
-    hide them all), each idea with a 3 px left border in its status colour, its topic, pain group,
-    pain and hook editable in place (saved when the edit ends), a status tag (Ý tưởng, Đã tạo video,
-    Đã viết kịch bản, Xong, Đã lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while
-    no post is set, "Tạo video" or "Mở video", "Chuyển về Backlog" and "Xoá", and under them one line
-    per Facebook post with its 48-hour numbers ("<Page>: N view, N share, share/view x,xx% đạt/không
-    đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu" under 5 measured posts; "chưa đo 48h"
-    before). "+" adds an idea (greyed out at 5); dragging an idea onto another day moves it there. A
-    day with 1–2 ideas says it should have 3–5. "Mở Backlog" opens the Backlog beside the days, to drag
-    ideas between them;
+  - the status colours, then the calendar: five weeks ("Tuần N · dd/mm – dd/mm", or the day numbers before a start
+    date, with "N ý tưởng · N đã làm · N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
+    A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
+    their status colour (never filtered); an empty one has a dashed "+ Thêm ý". Clicking a cell shows that day
+    below (outlined; today by default, else day 1). Dragging a chip or a card onto a cell moves the idea there; a
+    full day (10) refuses it;
+  - the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
+    that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp", "Xóa lọc", "Đầy đủ | Gọn" (kept in the
+    browser as `plan-compact`; a compact card shows its title, status, numbers and buttons, and opens on its title
+    or arrow) and "Mở Backlog", which opens the Backlog beside the calendar, to drag ideas between them;
+  - the chosen day in full: its date, "Hôm nay", "+" (greyed out at 10), a line counting its shown ideas by status
+    ("Không có ý tưởng khớp" when the filters hide them all), and each idea with a 3 px left border in its status
+    colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong, Đã
+    lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while no post is set, "Tạo video" or "Mở video"
+    with "Sửa" beside it (always shown, "Gọn" too: one "Sửa ý tưởng" form with the four fields, saved together by
+    "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in the plan shows in the form, which stays
+    open), "Chuyển về Backlog" and "Xoá", and under them one line per Facebook post with its 48-hour numbers
+    ("<Page>: N view, N share, share/view x,xx% đạt/không đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu"
+    under 5 measured posts; "chưa đo 48h" before);
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
@@ -692,7 +706,12 @@ Built:
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
   The content takes the whole width beside the list:
-  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): the same three cards as
+  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): "Mặc định của" chooses "Của tôi (<tên>)"
+    (the default) or "Của nhóm", locked while editing, with a line saying whose are being edited: the
+    member's own ("Đang sửa mặc định riêng của tài khoản <tên>"), the team's shown because they have none
+    yet ("… chưa có mặc định riêng nên đang dùng mặc định của nhóm"; saving creates their own from them),
+    or the team's ("Đang sửa mặc định của cả nhóm", used by members without their own). With their own,
+    "Dùng mặc định nhóm" (with a confirmation) drops them. Then the same three cards as
     a video's "Thiết lập" tab plus the music level, and "Nhạc nền mặc định" under "Âm thanh" (the chosen
     library track with its player, "Chọn từ thư viện" / "Đổi bài" opening the library picker, "Bỏ nhạc mặc định";
     a track deleted from the library since says so in yellow), from 1600 px "Âm thanh" and "Hình ảnh" down the
@@ -726,8 +745,10 @@ Built:
     side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
     model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
-  - **Quản lý Page** (`/fanpages`, its own menu item under "Video", outside Cài đặt): a line of counts (đang
-    dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid
+  - **Quản lý Page** (`/fanpages`, its own menu item under "Video", outside Cài đặt): "Trang nào" chooses
+    "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on
+    "Trang của tôi" without one, the empty card points to "Tất cả" to take a Page. Then a line of counts (đang
+    dùng, lỗi kết nối, ngừng dùng) of what is shown, then a small card per Page in use, broken ones first, in a grid
     that fits as many cards of at least 320 px as the width allows. A card shows the Page's initial,
     its name linking to the Page's dashboard, its id and the token's last four characters, and a tag:
     "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line

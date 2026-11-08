@@ -27,7 +27,7 @@ class PlanPatchBody(BaseModel):
     start_date: date | None = None  # null clears it
     per_day: int | None = None
     prompt: str | None = None
-    post_times: list[str] | None = None  # "HH:MM", 1 to 5
+    post_times: list[str] | None = None  # "HH:MM", 1 to plans.MAX_POST_TIMES
     video_target: int | None = None  # null clears it
 
 
@@ -57,7 +57,7 @@ class BacklogBody(BaseModel):
 
 
 def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
-    """Locked: changes to one plan happen one after another, so the 5-a-day limit holds."""
+    """Locked: changes to one plan happen one after another, so the MAX_PER_DAY-a-day limit holds."""
     topic = db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == topic_id).with_for_update())
     if topic is None:
         raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")

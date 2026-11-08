@@ -158,7 +158,6 @@ class VideoPatchBody(BaseModel):
     music_start: object = None  # seconds into the song where the video's music starts
     voice_enabled: bool | None = None
     options: dict | None = None  # some of video_options.DEFAULTS
-    reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
     mode: str | None = None  # videos.MODES; switching keeps every photo, clip and layer
     content_type: str | None = None  # "Loại nội dung"; "" for none
 
@@ -340,10 +339,10 @@ def start_video(
         written_via=via,
         assistant_app=app,
     )
-    video_options.apply_team_defaults(db, video)
+    video_options.apply_defaults(db, video, me.user_id)
     db.add(video)
     db.flush()
-    apply_default_music(db, video, get_storage())
+    apply_default_music(db, video, get_storage(), me.user_id)
     if idea is not None:
         idea.video_id = video.id
     if manual:
@@ -363,11 +362,11 @@ def start_video(
     return video
 
 
-def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage) -> None:
-    """A new video starts with the team's default music (Cài đặt › Thiết lập mặc định), copied like "Chọn từ thư
-    viện" does, so editing or deleting the track later never changes the video. Nothing when no default is set or
-    the track is gone. Only new videos: "Lấy theo mặc định nhóm" keeps the music a video already has."""
-    track_id = video_options.team_defaults(db).get("music_track_id")
+def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage, user_id: int) -> None:
+    """A new video starts with its maker's default music (Cài đặt › Thiết lập mặc định, theirs or the team's),
+    copied like "Chọn từ thư viện" does, so editing or deleting the track later never changes the video. Nothing when
+    no default is set or the track is gone. Only new videos: the music a video already has is never replaced."""
+    track_id = video_options.member_defaults(db, user_id).get("music_track_id")
     track = db.get(MusicTrack, track_id) if track_id else None
     if track is None or not storage.exists(track.storage_key):
         return
@@ -495,8 +494,6 @@ def patch_video(
         video.content_type = kind
     look = video_options.text_look(video)
     pause = video_options.voice_pause(video)
-    if body.reset_options:
-        video_options.apply_team_defaults(db, video)
     if body.options:
         try:
             changes = video_options.clean(body.options)
@@ -2101,8 +2098,20 @@ class TopicPatchBody(BaseModel):
 MAX_PHOTO_HINT_LENGTH = 1000
 
 
-def _knowledge_payload(db: DbSession) -> dict:
+def my_topic_ids(db: DbSession, user_id: int) -> set[int]:
+    """ "My" topic groups: those of the Pages the member owns and uses (brief part B2)."""
+    return set(
+        db.scalars(
+            select(Fanpage.knowledge_topic_id).where(
+                Fanpage.owner_id == user_id, Fanpage.active.is_(True), Fanpage.knowledge_topic_id.is_not(None)
+            )
+        )
+    )
+
+
+def _knowledge_payload(db: DbSession, user_id: int) -> dict:
     counts = dict(db.execute(select(Video.knowledge_topic_id, func.count()).group_by(Video.knowledge_topic_id)).all())
+    mine = my_topic_ids(db, user_id)
     return {
         "topics": [
             {
@@ -2117,6 +2126,8 @@ def _knowledge_payload(db: DbSession) -> dict:
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
                 "video_count": counts.get(topic.id, 0),
+                # A group of a Page the member owns: listed first where a group is picked.
+                "mine": topic.id in mine,
             }
             for topic in knowledge.all_topics(db)
         ],
@@ -2166,14 +2177,14 @@ def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
 
 @router.get("/knowledge")
 def get_knowledge(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.post("/knowledge/topics", status_code=201)
 def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     db.add(KnowledgeTopic(name=_topic_name(db, body.name), updated_by_id=me.user_id))
     db.commit()
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.patch("/knowledge/topics/{topic_id}")
@@ -2209,7 +2220,7 @@ def patch_topic(
         topic.article_prompt = "" if article_prompt == knowledge.default_article_prompt() else article_prompt
     topic.updated_by_id = me.user_id
     db.commit()
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.delete("/knowledge/topics/{topic_id}")
@@ -2229,4 +2240,4 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     music_topics.drop_topic(db, topic.name)
     db.delete(topic)
     db.commit()
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)

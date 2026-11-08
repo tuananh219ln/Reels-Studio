@@ -275,7 +275,14 @@ def test_the_publish_dialog_knows_a_page_with_a_broken_token(an, db, me, storage
     fanpages.check(db, page)
     video = make_video(db, storage, me, scene_count=1)
     (listed,) = an.get(f"/api/videos/{video.id}").json()["fanpages"]
-    assert listed == {"id": page.id, "name": "Trang Dưỡng Sinh", "owner": me.name, "error": page.check_error}
+    assert listed == {
+        "id": page.id,
+        "name": "Trang Dưỡng Sinh",
+        "owner": me.name,
+        "owner_id": me.id,
+        "knowledge_topic_id": None,
+        "error": page.check_error,
+    }
 
 
 def test_connecting_with_a_user_token_keeps_the_pages_token_only(an, db, me, fakes):

@@ -28,8 +28,8 @@ from .models import Fanpage, Job, KnowledgeTopic, PostMetrics, Publication, Topi
 log = logging.getLogger(__name__)
 
 PLAN_DAYS = 30
-MIN_PER_DAY = 3
-MAX_PER_DAY = 5
+MIN_PER_DAY = 1
+MAX_PER_DAY = 10
 # The AI writes 10 days per call: a whole month in one answer would be cut off by the output limit.
 DAYS_PER_CALL = 10
 MAX_TOPIC_LENGTH = 300  # what a video's Chủ đề may hold (routes_videos.MAX_TOPIC_LENGTH)
@@ -128,7 +128,7 @@ def day_label(day: int | None) -> str:
 
 
 def check_post_times(times: list[str]) -> list[str]:
-    """1 to 5 times of day, "HH:MM", in order; the message is shown to members."""
+    """1 to MAX_POST_TIMES times of day, "HH:MM", in order; the message is shown to members."""
     if not 1 <= len(times) <= MAX_POST_TIMES:
         raise PlanError(f"Cần từ 1 đến {MAX_POST_TIMES} giờ đăng")
     cleaned = []
