@@ -521,6 +521,14 @@ class Fanpage(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
     # "HH:MM" in Vietnam, when its queue posts; None: the group's posting times.
     post_times: Mapped[list | None] = mapped_column(JSONB)
+    # "Bán tự động" (auto_runs.py): each day at `prepare_time` (Vietnam) the worker makes today's plan ideas into
+    # videos waiting for the owner's approval; it never posts without it.
+    auto_prepare: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    prepare_time: Mapped[str] = mapped_column(String(5), default="08:00", server_default="08:00")
+    # The owner's TikTok account its approved videos go to as drafts; None: TikTok is skipped.
+    tiktok_account_id: Mapped[int | None] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="SET NULL"))
+    # "Bản TikTok riêng": a TikTok version cloned and rendered for the draft, instead of the Facebook MP4.
+    tiktok_own_version: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
@@ -1071,3 +1079,40 @@ class VideoPresence(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     editing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class AutoRun(Base):
+    """One plan idea of one day on a Page in "Bán tự động" (auto_runs.py), or the day's note when nothing was made.
+
+    `status`: preparing | ready (chờ duyệt) | approved | rejected | failed | skipped, with `reason` in Vietnamese.
+    A "tiktok" run (`role`, `parent_id`) is the TikTok version of its parent when the Page makes its own."""
+
+    __tablename__ = "auto_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"))
+    day: Mapped[date] = mapped_column(Date)
+    plan_item_id: Mapped[int | None] = mapped_column(ForeignKey("topic_plan_items.id", ondelete="SET NULL"))
+    idea_topic: Mapped[str] = mapped_column(Text, default="", server_default="")
+    role: Mapped[str] = mapped_column(String(8), default="facebook", server_default="facebook")
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("auto_runs.id", ondelete="CASCADE"))
+    video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
+    status: Mapped[str] = mapped_column(String(16))
+    # script | photos | render | tiktok | done: where a preparing run is in its chain.
+    stage: Mapped[str] = mapped_column(String(16), default="script", server_default="script")
+    job_id: Mapped[int | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"))  # the job waited on
+    photos_queued: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    reason: Mapped[str | None] = mapped_column(Text)
+    banned: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")  # banned-word warnings
+    skip_tiktok: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # None: no TikTok for this run; waiting | sent | skipped | failed once approved.
+    tiktok_state: Mapped[str | None] = mapped_column(String(16))
+    tiktok_reason: Mapped[str | None] = mapped_column(Text)
+    publication_id: Mapped[int | None] = mapped_column(ForeignKey("publications.id", ondelete="SET NULL"))
+    tiktok_publication_id: Mapped[int | None] = mapped_column(ForeignKey("publications.id", ondelete="SET NULL"))
+    decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

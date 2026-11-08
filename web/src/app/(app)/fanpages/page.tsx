@@ -23,6 +23,7 @@ import {
   Segmented,
   Select,
   Space,
+  Switch,
   Tooltip,
   Typography,
 } from "antd";
@@ -155,6 +156,91 @@ function OwnerLine({
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
           Tài khoản Shopee thiếu App ID/Secret hoặc đang ngừng dùng: bình luận dùng link dán tay
         </Typography.Text>
+      )}
+    </Flex>
+  );
+}
+
+/** "Bán tự động", for the Page's owner: each morning at its time the app makes today's plan ideas into videos
+ * waiting for approval in the "Hôm nay" strip of the group's plan; nothing is posted before that. */
+function AutoLine({
+  row,
+  accounts,
+  onRows,
+}: {
+  row: Fanpage;
+  accounts: AffiliateAccount[];
+  onRows: (rows: Fanpage[]) => void;
+}) {
+  const { message } = App.useApp();
+  const [time, setTime] = useState(row.auto?.prepare_time ?? "08:00");
+  const auto = row.auto;
+  if (!auto) {
+    return null;
+  }
+
+  async function save(body: object) {
+    try {
+      onRows(await api<Fanpage[]>(`/fanpages/${row.id}/auto`, "PUT", body));
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+
+  const tiktok = accounts.filter((account) => account.platform === "tiktok" && account.active);
+  return (
+    <Flex vertical gap={6} data-testid="fanpage-auto">
+      <Flex align="center" gap={8} wrap>
+        <Switch
+          size="small"
+          checked={auto.auto_prepare}
+          aria-label={`Bán tự động ${row.name}`}
+          onChange={(checked) => save({ auto_prepare: checked })}
+        />
+        <Typography.Text style={{ fontSize: 12 }}>Bán tự động, chuẩn bị lúc</Typography.Text>
+        <Input
+          size="small"
+          aria-label={`Giờ chuẩn bị ${row.name}`}
+          value={time}
+          style={{ width: 70 }}
+          onChange={(event) => setTime(event.target.value)}
+          onBlur={() => time !== auto.prepare_time && save({ prepare_time: time })}
+          onPressEnter={() => time !== auto.prepare_time && save({ prepare_time: time })}
+        />
+      </Flex>
+      {auto.auto_prepare && (
+        <>
+          <Select
+            size="small"
+            aria-label={`Tài khoản TikTok của ${row.name}`}
+            placeholder="Không gửi nháp TikTok"
+            allowClear
+            value={auto.tiktok_account_id}
+            options={tiktok.map((account) => ({ value: account.id, label: `TikTok: ${account.name}` }))}
+            onChange={(accountId: number | undefined) => save({ tiktok_account_id: accountId ?? null })}
+            notFoundContent={
+              <Typography.Text type="secondary">Thêm và kết nối ở Cấu hình › Tài khoản affiliate</Typography.Text>
+            }
+          />
+          {auto.tiktok_problem && (
+            <Typography.Text type="warning" style={{ fontSize: 12 }}>
+              {auto.tiktok_problem}: video vẫn đăng Facebook, bỏ qua TikTok
+            </Typography.Text>
+          )}
+          {auto.tiktok_account_id !== null && (
+            <Checkbox
+              checked={auto.tiktok_own_version}
+              onChange={(event) => save({ tiktok_own_version: event.target.checked })}
+            >
+              <Typography.Text style={{ fontSize: 12 }}>
+                Bản TikTok riêng (viết lại và render thêm một bản, tốn thêm một lượt AI)
+              </Typography.Text>
+            </Checkbox>
+          )}
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Video dựng sẵn chờ bạn duyệt ở dải “Hôm nay” trong tab Kế hoạch của nhóm; chưa duyệt thì không đăng.
+          </Typography.Text>
+        </>
       )}
     </Flex>
   );
@@ -296,6 +382,7 @@ function PageCard({
         </Typography.Text>
       )}
       <OwnerLine row={row} accounts={accounts} onRows={onRows} />
+      <AutoLine row={row} accounts={accounts} onRows={onRows} />
       {scheduled && <ScheduleLine page={scheduled} />}
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
