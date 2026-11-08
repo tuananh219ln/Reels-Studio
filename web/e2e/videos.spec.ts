@@ -263,9 +263,25 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   test.setTimeout(120_000);
   await loginAsSeed(page);
   await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  // "Loại nội dung" is typed on the video's page; the tags beside it say how the video was made.
+  const kindLine = page.getByTestId("video-kind-line");
+  await expect(kindLine).toContainText("AI viết");
+  await kindLine.getByLabel("Loại nội dung").fill("Hướng dẫn trồng");
+  await kindLine.getByLabel("Loại nội dung").press("Enter");
+  await page.reload();
+  await expect(page.getByTestId("video-kind-line").getByLabel("Loại nội dung")).toHaveValue("Hướng dẫn trồng");
+  // Every list shows the kind and, platform by platform, whether the video is out there yet.
+  await page.goto("/videos");
+  const card = page.getByTestId("video-card").first();
+  await expect(card.getByTestId("video-content-type")).toHaveText("Hướng dẫn trồng");
+  await expect(card.getByTestId("video-kind")).toContainText("AI viết");
+  await expect(card.getByTestId("posted-platforms").locator('[data-posted="true"]')).toHaveCount(0);
+
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   const videos = page.locator('[data-topic="Sức khỏe"]').getByTestId("topic-videos");
+  await expect(videos.getByTestId("video-content-type")).toHaveText("Hướng dẫn trồng");
+  await expect(videos.getByTestId("posted-platforms")).toHaveCount(1);
   await expect(videos.getByRole("row")).toHaveCount(2); // the header and the one video
   await expect(videos).toContainText("rau mầm trồng tại nhà");
   await videos.getByLabel("Tìm video của nhóm").fill("khong co");
@@ -1010,7 +1026,9 @@ test("Đăng bài: a Facebook video's MP4 goes to TikTok and YouTube Shorts from
   // The video's posts on every platform are listed together, and its card says where else it is out.
   await expect(page.getByTestId("other-post")).toContainText("YouTube Shorts");
   await page.getByRole("menuitem", { name: "Video" }).click();
-  await expect(page.getByTestId("video-elsewhere").first()).toHaveText("+ YouTube");
+  const platforms = page.getByTestId("video-card").first().getByTestId("posted-platforms");
+  await expect(platforms.locator('[data-platform="youtube"]')).toHaveAttribute("data-posted", "true");
+  await expect(platforms.locator('[data-platform="instagram"]')).toHaveAttribute("data-posted", "false");
 });
 
 test("a posted video appears in Bài đăng and its calendar", async ({ page }) => {

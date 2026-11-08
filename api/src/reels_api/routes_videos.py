@@ -110,6 +110,7 @@ from .videos import (
 router = APIRouter(prefix="/api")
 
 MAX_TOPIC_LENGTH = 300
+MAX_CONTENT_TYPE_LENGTH = 40  # videos.content_type
 MAX_TEXT_LENGTH = 500
 MAX_VOICE_LENGTH = 1000
 MAX_LONG_TEXT_LENGTH = 5000
@@ -159,6 +160,7 @@ class VideoPatchBody(BaseModel):
     options: dict | None = None  # some of video_options.DEFAULTS
     reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
     mode: str | None = None  # videos.MODES; switching keeps every photo, clip and layer
+    content_type: str | None = None  # "Loại nội dung"; "" for none
 
 
 class ScenePatchBody(BaseModel):
@@ -268,9 +270,9 @@ def _ensure_renderable(db: DbSession, video: Video) -> None:
 @router.get("/videos")
 def list_videos(
     q: str = "",
-    knowledge_topic_id: int | None = None,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
+    knowledge_topic_id: int | None = None,
 ) -> list[dict]:
     """Every video, newest first; `q` searches the topic and the title, `knowledge_topic_id` keeps one topic group's
     (its "Video" tab in Kho kiến thức)."""
@@ -287,6 +289,16 @@ def list_videos(
     videos = db.scalars(query).all()
     extras = list_extras(db, videos)
     return [list_payload(db, video, family, extras[video.id]) for video in videos]
+
+
+@router.get("/video-content-types")
+def content_types(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[str]:
+    """The "Loại nội dung" the team's videos use, to pick from: one per type whatever its case, in Vietnamese order
+    (the first spelling met wins)."""
+    seen: dict[str, str] = {}
+    for kind in db.scalars(select(Video.content_type).where(Video.content_type != "").order_by(Video.id)):
+        seen.setdefault(kind.casefold(), kind)
+    return sorted(seen.values(), key=lambda kind: unicodedata.normalize("NFD", kind).casefold())
 
 
 @router.post("/videos", status_code=201)
@@ -470,6 +482,11 @@ def patch_video(
         if body.mode not in MODES:
             raise invalid("Kiểu video không có trong danh sách")
         video.mode = body.mode
+    if "content_type" in fields and body.content_type is not None:
+        kind = " ".join(unicodedata.normalize("NFC", body.content_type).split())
+        if len(kind) > MAX_CONTENT_TYPE_LENGTH:
+            raise invalid(f"Loại nội dung tối đa {MAX_CONTENT_TYPE_LENGTH} ký tự")
+        video.content_type = kind
     look = video_options.text_look(video)
     pause = video_options.voice_pause(video)
     if body.reset_options:

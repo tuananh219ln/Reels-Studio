@@ -33,7 +33,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
-import VideoStatusTags, { platformName } from "@/components/VideoStatusTags";
+import VideoStatusTags from "@/components/VideoStatusTags";
+import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import {
@@ -476,16 +477,6 @@ function CardChip({
   );
 }
 
-const PLATFORM_NAMES = { facebook: "Facebook", tiktok: "TikTok", youtube: "YouTube", instagram: "Instagram" };
-
-/** The platforms the video's own MP4 is out on besides the one it was made for, or "" when none. */
-function elsewhere(row: VideoRow): string {
-  return row.posted_on
-    .filter((platform) => platform !== row.platform)
-    .map((platform) => PLATFORM_NAMES[platform])
-    .join(", ");
-}
-
 /** "TikTok · Nháp", "TikTok · Đã đăng": the versions on a card or row, each opening its own page. */
 function VersionLinks({ versions }: { versions: VideoRow[] }) {
   const { token } = theme.useToken();
@@ -634,6 +625,13 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
           <Typography.Paragraph strong ellipsis={{ rows: 2, tooltip: name }} style={{ margin: 0, lineHeight: "20px" }}>
             {name}
           </Typography.Paragraph>
+          {/* Its kind on the left; where it is out on the right, every platform's icon in colour once posted there. */}
+          <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
+            <VideoKindTags video={row} />
+            <div style={{ flex: "none", paddingTop: 2 }}>
+              <PostedPlatforms postedOn={row.posted_on} size={13} />
+            </div>
+          </Flex>
           {post ? (
             <div style={{ marginTop: 6 }}>
               <Typography.Text type="secondary" style={small} ellipsis={{ tooltip: post.fanpage }}>
@@ -678,15 +676,6 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
               <StatusText tone={cardTone(row)} data-testid="video-status">
                 {post ? (post.state === "posted" ? "Đã đăng" : "Đã lên lịch") : row.status_label}
               </StatusText>
-              <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
-                {platformName(row)}
-              </span>
-              {elsewhere(row) && (
-                // The same MP4 posted on other platforms too (TikTok, YouTube Shorts, Instagram Reels).
-                <span data-testid="video-elsewhere" style={{ color: token.colorTextSecondary }}>
-                  + {elsewhere(row)}
-                </span>
-              )}
             </Flex>
             <Typography.Text type="secondary" style={{ ...small, textAlign: "right", flex: "none" }}>
               {row.created_by}, {shortDate(row.created_at, false)}
@@ -734,7 +723,7 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
         rowKey="id"
         dataSource={rows}
         pagination={{ pageSize: 50, hideOnSinglePage: true }}
-        scroll={{ x: 1180 }}
+        scroll={{ x: 1520 }}
         onRow={(row) => ({
           onClick: () => router.push(`/videos/${row.id}`),
           style: { cursor: "pointer" },
@@ -754,6 +743,12 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
             ),
           },
           {
+            title: "Loại",
+            key: "kind",
+            width: 210,
+            render: (_, row) => <VideoKindTags video={row} />,
+          },
+          {
             title: "Trạng thái",
             key: "status",
             width: 200,
@@ -768,6 +763,12 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
                 <VersionLinks versions={versions.get(row.id) ?? []} />
               </Flex>
             ),
+          },
+          {
+            title: "Đã đăng",
+            key: "platforms",
+            width: 130,
+            render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
           },
           {
             title: "Đăng",

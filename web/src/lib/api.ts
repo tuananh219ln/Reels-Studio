@@ -73,7 +73,17 @@ export type VideoRow = {
   plan_day: number | null;
   /** Its Facebook posts in one line; null when none is out or set for later. */
   post: VideoRowPost | null;
+  /** How its script came (api videos.made_via): the team's AI, "Tự viết", "Từ video mẫu", "Nhân bản" or a member's
+   * own Claude through MCP. */
+  made_via: VideoMadeVia;
+  mode: VideoMode;
+  /** The products attached to it; 0 on a video's own page, where they are listed instead. */
+  product_count?: number;
+  /** "Loại nội dung" a member gave it (Hướng dẫn, Mẹo nhanh...); "" for none. */
+  content_type: string;
 };
+
+export type VideoMadeVia = "ai" | "manual" | "sample" | "clone" | "assistant";
 
 /** A video's posts on the list: views are every live post's latest reading added up; the 48-hour numbers are of
  * its post with the most views. */

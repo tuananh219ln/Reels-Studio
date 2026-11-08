@@ -113,7 +113,12 @@ Built:
   creator ("Của tôi" first, then the team), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
   nhóm chủ đề" or "Cả đội" while empty; sort "Mới nhất" or "Nhiều view nhất". With a group chosen, a grey line
   under the filters counts its videos made this week (from Monday, Vietnam time): new, out, still drafts. Every card, row
-  and video page names its platform ("Facebook" or "TikTok") beside its status. A TikTok version sits on its source's card (or row) as a small "TikTok ·
+  and video page (and a topic group's "Video" tab in Kho kiến thức) shows the video's kind as small tags: its
+  "Loại nội dung" (blue, typed on the video page, see below), "Bản TikTok" for a TikTok version (a Facebook video,
+  the default, has no platform tag), how its script came (AI viết, Tự viết, Từ video mẫu, Nhân bản, Claude (MCP)),
+  "Xuyên suốt" for a backdrop video and "Sản phẩm" (with a count above one) when products are attached; and
+  "Đã đăng" as four icons, Facebook, TikTok, YouTube and Instagram, each in its colour once the video is out
+  there and grey until then (the name on hover). A TikTok version sits on its source's card (or row) as a small "TikTok ·
   Nháp" / "TikTok · Đã đăng" link that opens it, not on a card of its own; it gets its own card when a platform
   is chosen or its source is filtered out. A Facebook video at 3× its Page's median or more at 48 hours with no
   TikTok version shows "+ Tạo bản TikTok" there instead, opening its "Tạo bản TikTok" drawer. Two views, remembered in the browser; a click opens the video:
@@ -125,15 +130,18 @@ Built:
     (the year only when it is not this one), or "Chưa đăng"; at 48 hours "N× trung vị" (orange and
     bold from 10×) and "N% share" (green once it reaches the goal); a warning on its own line (a job's
     stage while posted, "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot
-    and a word ("Đã đăng", "Đã lên lịch", or Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi, with
-    "TikTok" after it) and on the right the creator and the day it was made; under them, small, the
-    topic group and its plan day;
-  - a list, one row per video: small thumbnail and title, the status (with "Đã đăng" or "Đã lên lịch"
-    under it), "Đăng" (Page and time, or "Chưa đăng"), "View" (sortable), "48h" (the multiple or
+    and a word ("Đã đăng", "Đã lên lịch", or Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) and on
+    the right the creator and the day it was made; under them, small, the topic group and its plan day.
+    The kind tags sit under the title with the "Đã đăng" icons on their right;
+  - a list, one row per video: small thumbnail and title, "Loại" (the kind tags), the status (with "Đã
+    đăng" or "Đã lên lịch" under it), "Đã đăng" (the platform icons), "Đăng" (Page and time, or "Chưa đăng"), "View" (sortable), "48h" (the multiple or
     "chưa đủ dữ liệu", the share/view under it) and "Tạo" (group, plan day, creator, day). Above the videos, one
   banner per topic group whose plan has a today: "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video"
   with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
+  Under the status line, "Loại nội dung": a small field typed freely or picked from the types the team's
+  videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
+  characters, then the kind tags and the "Đã đăng" icons.
   A video made "Từ video mẫu" has a "Video mẫu" card above the scenes: the sample's link (opens in a
   new tab) or file name, its length and the way chosen; the AI's analysis, the stills (a strip of
   small 9:16 pictures with their second, what the AI saw in each on hover) and the sample's words

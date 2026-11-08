@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import VideoStatusTags from "@/components/VideoStatusTags";
+import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 
 /** Accents and case ignored, so "rau mam" finds "Rau mầm". */
 function plain(text: string): string {
@@ -74,7 +75,7 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
         loading={rows === null}
         dataSource={shown}
         pagination={shown.length > 20 ? { pageSize: 20, showSizeChanger: false } : false}
-        scroll={{ x: 640 }}
+        scroll={{ x: 760 }}
         locale={{
           emptyText: (
             <Empty
@@ -114,11 +115,11 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
             render: (_, row) => (
               <Flex vertical style={{ minWidth: 0 }}>
                 <Link prefetch={false} href={`/videos/${row.id}`}>
-                  <Typography.Text strong ellipsis style={{ color: "inherit", maxWidth: 420 }}>
+                  <Typography.Text strong ellipsis style={{ color: "inherit", maxWidth: 300 }}>
                     {row.title || row.topic}
                   </Typography.Text>
                 </Link>
-                <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 420 }}>
+                <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 300 }}>
                   {row.topic}
                   {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}
                 </Typography.Text>
@@ -126,17 +127,35 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
             ),
           },
           {
+            key: "kind",
+            title: "Loại",
+            width: 170,
+            render: (_, row) => <VideoKindTags video={row} />,
+          },
+          {
             key: "status",
             title: "Trạng thái",
-            width: 180,
+            width: 110,
             render: (_, row) => <VideoStatusTags video={row} only="status" />,
           },
-          { key: "created_by", title: "Người tạo", width: 150, dataIndex: "created_by" },
           {
-            key: "created_at",
-            title: "Ngày tạo",
+            key: "platforms",
+            title: "Đã đăng",
+            width: 110,
+            render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
+          },
+          {
+            key: "made",
+            title: "Tạo",
             width: 150,
-            render: (_, row) => formatDateTime(row.created_at),
+            render: (_, row) => (
+              <Flex vertical>
+                <Typography.Text ellipsis>{row.created_by}</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  {formatDateTime(row.created_at)}
+                </Typography.Text>
+              </Flex>
+            ),
           },
         ]}
       />

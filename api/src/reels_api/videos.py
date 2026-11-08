@@ -32,6 +32,7 @@ from .models import (
     TopicPlanItem,
     User,
     Video,
+    VideoAffiliateProduct,
     VideoNote,
     VideoReference,
 )
@@ -797,6 +798,20 @@ def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | N
 ASSISTANT_WRITER = "Claude của thành viên qua kết nối MCP (gói đăng ký, không tốn phí AI của nhóm)"
 
 
+def made_via(video: Video) -> str:
+    """How the video's script came: "assistant" (a member's own Claude through MCP), "sample" ("Từ video mẫu"),
+    "clone" ("Nhân bản", a TikTok version included), "manual" ("Tự viết") or "ai" (the team's AI service)."""
+    if video.written_via == "assistant":
+        return "assistant"
+    if video.reference_id is not None or video.reference_mode:
+        return "sample"
+    if video.clone_source:
+        return "clone"
+    if video.hand_written:
+        return "manual"
+    return "ai"
+
+
 def script_writer(db: DbSession, video: Video) -> str | None:
     """Who wrote the video's script, so reviewers know what they read: a member's own Claude through MCP, or the
     provider and model of the job that wrote it."""
@@ -917,10 +932,14 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
         "mode": video.mode,
+        "made_via": made_via(video),
+        "content_type": video.content_type,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id), by_page),
         "publications": [publication_payload(post, by_page) for post in posts],
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
+        # Where it is out, as on the list: the page's row of platform icons.
+        "posted_on": list_extras(db, [video])[video.id]["posted_on"],
         "fanpages": [
             {
                 "id": page.id,
@@ -1010,6 +1029,13 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
     on_tiktok = set(
         db.scalars(select(Publication.video_id).where(Publication.video_id.in_(ids), Publication.platform == "tiktok"))
     )
+    products = dict(
+        db.execute(
+            select(VideoAffiliateProduct.video_id, func.count())
+            .where(VideoAffiliateProduct.video_id.in_(ids))
+            .group_by(VideoAffiliateProduct.video_id)
+        ).all()
+    )
     # Where each video is out: Facebook from its live posts, the others from any post recorded or sent there.
     elsewhere: dict[int, set[str]] = {}
     for video_id, platform in db.execute(
@@ -1036,6 +1062,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
             "post": _post_summary(live, later, readings, by_page),
             # A TikTok post of this video (its TikTok version's or its own MP4's): the card says "Đã đăng" for it.
             "tiktok_posted": video.id in on_tiktok,
+            # The products attached to it (their links go in the pinned comment): the list marks a product video.
+            "product_count": products.get(video.id, 0),
             # Every platform the video is out on, in a fixed order, for the card's "Đã đăng" line.
             "posted_on": [
                 platform
@@ -1113,10 +1141,22 @@ def list_payload(
         "cloned": video.id in family[1],
         "created_by": video.created_by.name,
         "created_at": video.created_at.isoformat(),
+        # Its kind on the list: how the script came, how it is built, its products and its "Loại nội dung".
+        "made_via": made_via(video),
+        "mode": video.mode,
+        "content_type": video.content_type,
         **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
         **(
-            extras or {"knowledge_topic": None, "plan_day": None, "post": None, "tiktok_posted": False, "posted_on": []}
+            extras
+            or {
+                "knowledge_topic": None,
+                "plan_day": None,
+                "post": None,
+                "tiktok_posted": False,
+                "posted_on": [],
+                "product_count": 0,
+            }
         ),
     }

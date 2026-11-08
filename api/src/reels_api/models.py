@@ -268,6 +268,8 @@ class Video(Base):
     # suốt"), the title scene's photo or clip under every scene, a scene's own photo shown only as its photo layer.
     # Switching keeps every photo, clip and layer, so switching back loses nothing.
     mode: Mapped[str] = mapped_column(String(16), default="slides", server_default="slides")
+    # "Loại nội dung": what kind of content a member says it is (Hướng dẫn, Mẹo nhanh...), free text; "" for none.
+    content_type: Mapped[str] = mapped_column(String(40), default="", server_default="")
     variant_of_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
     # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

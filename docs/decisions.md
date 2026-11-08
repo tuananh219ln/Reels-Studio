@@ -11,6 +11,17 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — Every list of videos shows its kind and, platform by platform, where it is out
+
+The owner's request: the lists should say what kind of video each one is and whether it is posted on each platform,
+on cards and rows alike. The owner chose four marks of kind: how the script came (from data the video already holds:
+`written_via`, `reference_id`/`reference_mode`, `clone_source`, `hand_written`), "Xuyên suốt" for a backdrop video,
+"Sản phẩm" for attached products, and a "Loại nội dung" the member types (`videos.content_type`, migration 0058). It is
+free text with suggestions from the types already used, not a managed list: the team can start using it at once, and a
+list can still be made from what is typed. "Đã đăng" is four platform icons, in colour where the video is out. The
+word "Facebook"/"TikTok" beside the status goes (the owner found it redundant beside the icons); a TikTok version is
+tagged "Bản TikTok" instead, a Facebook video being the default.
+
 ## 2026-11-08 — Kho kiến thức opens a group on its videos; prompts are edited one at a time
 
 The owner's request (namtc): a tab with the topic group's videos, and the screen redesigned. Chosen with the owner
