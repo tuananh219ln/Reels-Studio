@@ -795,7 +795,9 @@ def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | N
     }
 
 
-ASSISTANT_WRITER = "Claude của thành viên qua kết nối MCP (gói đăng ký, không tốn phí AI của nhóm)"
+def assistant_writer(app: str) -> str:
+    """Who wrote a script through MCP, named by the assistant (ChatGPT, Claude, Muse...) when it is known."""
+    return f"{app or 'Trợ lý AI'} của thành viên qua kết nối MCP (gói đăng ký, không tốn phí AI của nhóm)"
 
 
 def made_via(video: Video) -> str:
@@ -816,7 +818,7 @@ def script_writer(db: DbSession, video: Video) -> str | None:
     """Who wrote the video's script, so reviewers know what they read: a member's own Claude through MCP, or the
     provider and model of the job that wrote it."""
     if video.written_via == "assistant":
-        return ASSISTANT_WRITER
+        return assistant_writer(video.assistant_app)
     job = db.scalar(
         select(Job)
         .where(Job.video_id == video.id, Job.kind.in_(("script", "clone", "learn")), Job.status == "done")
@@ -933,6 +935,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "voice_enabled": video.voice_enabled,
         "mode": video.mode,
         "made_via": made_via(video),
+        "assistant_app": video.assistant_app,
         "content_type": video.content_type,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id), by_page),
@@ -1143,6 +1146,7 @@ def list_payload(
         "created_at": video.created_at.isoformat(),
         # Its kind on the list: how the script came, how it is built, its products and its "Loại nội dung".
         "made_via": made_via(video),
+        "assistant_app": video.assistant_app,
         "mode": video.mode,
         "content_type": video.content_type,
         **_status(db, video, job, failed),

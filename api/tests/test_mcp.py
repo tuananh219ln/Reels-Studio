@@ -14,8 +14,8 @@ from sqlalchemy import func, select
 
 from reels_api.db import get_db
 from reels_api.main import create_app
-from reels_api.models import Job, Scene
-from reels_api.videos import ASSISTANT_WRITER
+from reels_api.models import Job, Scene, Video
+from reels_api.videos import assistant_writer
 
 PUBLIC = WEB_ORIGIN + "/api/mcp"
 CALLBACK = "https://chatgpt.com/connector_platform_oauth_redirect"
@@ -565,6 +565,22 @@ def test_muse_connects_with_read_and_write_and_edits_a_video(mcp_client, db, sto
     db.refresh(scene)
     assert scene.voice_text == "Muse sửa."
 
+    # A video Muse writes says so: on its page and on every list, never "Claude".
+    made = call(
+        mcp_client,
+        tokens.json()["access_token"],
+        "create_video_from_script",
+        topic="Muse viết",
+        knowledge_topic_id=video.knowledge_topic_id,
+        script="Cảnh một\nĐọc: Lời một.",
+    )
+    assert not made.get("isError"), made
+    written = db.scalar(select(Video).where(Video.topic == "Muse viết"))
+    assert written.assistant_app == "Muse"
+    assert payload(made)["script_by"].startswith("Muse của thành viên qua kết nối MCP")
+    row = next(row for row in mcp_client.get("/api/videos").json() if row["id"] == written.id)
+    assert (row["made_via"], row["assistant_app"]) == ("assistant", "Muse")
+
 
 def test_the_hosted_apps_and_claude_code_keep_their_names(mcp_client, db):
     assert register(mcp_client).json()["client_name"] == "ChatGPT"
@@ -672,7 +688,9 @@ def test_a_product_video_is_made_from_a_hand_written_script_without_an_ai_job(mc
     video = db.scalar(select(Video).where(Video.topic == "Nồi chiên 5L"))
     assert video.hand_written and video.has_script and video.created_by_id == user.id
     assert video.written_via == "assistant"
-    assert payload(made)["script_by"] == ASSISTANT_WRITER
+    # The default test connection is ChatGPT's: the video names it, not "Claude".
+    assert payload(made)["script_by"] == assistant_writer("ChatGPT")
+    assert video.assistant_app == "ChatGPT"
     assert db.scalar(select(Job.id).where(Job.video_id == video.id)) is None
     scenes = db.scalars(
         select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)).order_by(Scene.position)
@@ -777,7 +795,9 @@ def test_a_script_written_from_the_group_prompt_is_saved_like_a_job_and_named_as
     # No script job: the team's AI service was not asked. "Tự tìm ảnh" follows, as after a job.
     kinds = db.scalars(select(Job.kind).where(Job.video_id == video.id)).all()
     assert kinds == ["photos"]
-    assert payload(made)["script_by"] == ASSISTANT_WRITER
+    # The default test connection is ChatGPT's: the video names it, not "Claude".
+    assert payload(made)["script_by"] == assistant_writer("ChatGPT")
+    assert video.assistant_app == "ChatGPT"
 
 
 def test_a_script_the_parser_cannot_read_is_refused_and_makes_no_video(mcp_client, db):

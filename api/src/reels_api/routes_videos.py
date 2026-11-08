@@ -307,7 +307,12 @@ def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: 
 
 
 def start_video(
-    body: NewVideoBody, me: Session, db: DbSession, written: GeneratedScript | None = None, via: str = ""
+    body: NewVideoBody,
+    me: Session,
+    db: DbSession,
+    written: GeneratedScript | None = None,
+    via: str = "",
+    app: str = "",
 ) -> Video:
     """A new video, its script queued, typed ("Tự viết") or, as `written`, already written from the group's prompt by
     a member's own Claude through MCP (`via` "assistant"): saved as the script job saves an answer, with no LLM call.
@@ -333,6 +338,7 @@ def start_video(
         ai_effects=body.ai_effects and not manual,
         mode=body.video_mode,
         written_via=via,
+        assistant_app=app,
     )
     video_options.apply_team_defaults(db, video)
     db.add(video)

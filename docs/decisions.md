@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — A video written through MCP names the assistant that wrote it
+
+Reported by the owner: a video Muse wrote was tagged "Claude (MCP)", and its page said "Kịch bản viết bởi Claude của
+thành viên". Since Muse and ChatGPT connect too (2026-11-08 above), `written_via = "assistant"` no longer says which
+assistant it was. The video now keeps the connection's assistant (`videos.assistant_app`, migration 0059, from
+`mcp_auth.app_of` on the client's registered callback, as the consent page names it), and its page and lists name
+it. Videos made before cannot be told apart and say "Trợ lý AI". This corrects the wording of the 2026-11-07 entry
+("Scripts are written by the member's own Claude through MCP"), whose decision stands.
+
 ## 2026-11-08 — Every list of videos shows its kind and, platform by platform, where it is out
 
 The owner's request: the lists should say what kind of video each one is and whether it is posted on each platform,

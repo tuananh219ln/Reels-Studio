@@ -6,6 +6,7 @@ import logging
 import tempfile
 import unicodedata
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -39,7 +40,7 @@ from . import routes_videos as videos
 from .claude import ScriptOutputError, parse_output
 from .db import get_db
 from .errors import ApiError
-from .mcp_auth import connection_for, public_url
+from .mcp_auth import app_of, connection_for, public_url, registered
 from .models import KnowledgeTopic, Scene, TopicPlanItem, Video
 from .storage import get_storage
 from .videos import marks_of
@@ -48,6 +49,8 @@ log = logging.getLogger(__name__)
 
 # `videos.written_via` of a script the member's own Claude wrote here; the video page names it as such.
 ASSISTANT = "assistant"
+# The assistant of the connection a tool runs for (mcp_auth.app_of), set by invoke for the operation it runs.
+CALLING_APP: ContextVar[str] = ContextVar("calling_app", default="")
 # The script JSON the assistant sends back: about 5 KB in practice, well under the 128 KB request limit.
 MAX_SCRIPT_JSON = 60_000
 
@@ -187,6 +190,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 if found is None:
                     raise ToolError("Kết nối đã bị thu hồi hoặc hết hạn")
                 connection, me = found
+                CALLING_APP.set(app_of(registered(connection.client.redirect_uri)[0]))
                 if write and "reels:write" not in connection.scopes.split():
                     raise ToolError("Kết nối chỉ có quyền đọc, hãy cấp thêm quyền sửa")
                 payload = operation(db, me)
@@ -427,7 +431,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 ai_effects=ai_effects,
                 video_mode=video_mode,
             )
-            return video_link(videos._saved(db, videos.start_video(body, me, db, written, via=ASSISTANT)))
+            return video_link(
+                videos._saved(db, videos.start_video(body, me, db, written, via=ASSISTANT, app=CALLING_APP.get()))
+            )
 
         return await run_in_threadpool(invoke, operation, write=True)
 
@@ -444,7 +450,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         body = videos.NewVideoBody(topic=topic, knowledge_topic_id=knowledge_topic_id, mode="manual", script=script)
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(videos._saved(db, videos.start_video(body, me, db, via=ASSISTANT))),
+            lambda db, me: video_link(
+                videos._saved(db, videos.start_video(body, me, db, via=ASSISTANT, app=CALLING_APP.get()))
+            ),
             write=True,
         )
 

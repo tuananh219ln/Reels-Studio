@@ -76,6 +76,8 @@ export type VideoRow = {
   /** How its script came (api videos.made_via): the team's AI, "Tự viết", "Từ video mẫu", "Nhân bản" or a member's
    * own Claude through MCP. */
   made_via: VideoMadeVia;
+  /** The assistant that wrote it through MCP (ChatGPT, Claude, Claude Code, Muse); "" when unknown or not via MCP. */
+  assistant_app: string;
   mode: VideoMode;
   /** The products attached to it; 0 on a video's own page, where they are listed instead. */
   product_count?: number;

@@ -115,7 +115,8 @@ Built:
   under the filters counts its videos made this week (from Monday, Vietnam time): new, out, still drafts. Every card, row
   and video page (and a topic group's "Video" tab in Kho kiến thức) shows the video's kind as small tags: its
   "Loại nội dung" (blue, typed on the video page, see below), "Bản TikTok" for a TikTok version (a Facebook video,
-  the default, has no platform tag), how its script came (AI viết, Tự viết, Từ video mẫu, Nhân bản, Claude (MCP)),
+  the default, has no platform tag), how its script came (AI viết, Tự viết, Từ video mẫu, Nhân bản, or the assistant that wrote it
+  through MCP: "Muse (MCP)", "ChatGPT (MCP)", "Claude (MCP)", "Trợ lý AI (MCP)" when unknown),
   "Xuyên suốt" for a backdrop video and "Sản phẩm" (with a count above one) when products are attached; and
   "Đã đăng" as four icons, Facebook, TikTok, YouTube and Instagram, each in its colour once the video is out
   there and grey until then (the name on hover). A TikTok version sits on its source's card (or row) as a small "TikTok ·

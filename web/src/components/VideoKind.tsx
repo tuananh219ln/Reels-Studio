@@ -10,7 +10,8 @@ const MADE_VIA: Record<VideoMadeVia, { label: string; hint: string }> = {
   manual: { label: "Tự viết", hint: "Kịch bản do thành viên tự viết, chưa được AI rà soát an toàn" },
   sample: { label: "Từ video mẫu", hint: "Kịch bản học từ một video mẫu" },
   clone: { label: "Nhân bản", hint: "Nhân bản từ một video khác" },
-  assistant: { label: "Claude (MCP)", hint: "Kịch bản do Claude của thành viên viết qua kết nối MCP" },
+  // Named by the assistant itself below (ChatGPT, Claude, Muse...); "Trợ lý AI" for videos made before it was kept.
+  assistant: { label: "Trợ lý AI (MCP)", hint: "Kịch bản do trợ lý AI của thành viên viết qua kết nối MCP" },
 };
 
 /** What kind of video it is, as small tags: its "Loại nội dung" first, "Bản TikTok" for a TikTok version, how its
@@ -19,9 +20,15 @@ const MADE_VIA: Record<VideoMadeVia, { label: string; hint: string }> = {
 export function VideoKindTags({
   video,
 }: {
-  video: Pick<VideoRow, "made_via" | "mode" | "content_type" | "product_count" | "platform">;
+  video: Pick<VideoRow, "made_via" | "assistant_app" | "mode" | "content_type" | "product_count" | "platform">;
 }) {
-  const made = MADE_VIA[video.made_via] ?? MADE_VIA.ai;
+  const made =
+    video.made_via === "assistant" && video.assistant_app
+      ? {
+          label: `${video.assistant_app} (MCP)`,
+          hint: `Kịch bản do ${video.assistant_app} của thành viên viết qua kết nối MCP`,
+        }
+      : (MADE_VIA[video.made_via] ?? MADE_VIA.ai);
   const tag = { marginInlineEnd: 0, fontSize: 12, lineHeight: "18px", paddingInline: 6 };
   return (
     <Flex wrap gap={4} data-testid="video-kind">

@@ -18,7 +18,7 @@ Where the script is written decides who pays, and the video page says which one 
 | Started from | Written by | Cost | Video page shows |
 | --- | --- | --- | --- |
 | "Tạo video" in the app (or `create_video` over MCP) | The team's AI service, a script job | API key on Cài đặt › Mô hình AI | "Kịch bản viết bởi Claude · <model>" (provider and model of the job) |
-| A chat in Claude (web, Desktop, Claude Code) connected here | The member's own Claude | The member's Pro/Max plan, nothing to the team | "Kịch bản viết bởi Claude của thành viên qua kết nối MCP" |
+| A chat in an assistant connected here (ChatGPT, Claude, Claude Code, Muse) | The member's own assistant | The member's own plan, nothing to the team | "Kịch bản viết bởi <assistant> của thành viên qua kết nối MCP", e.g. "Muse của thành viên…" ("Trợ lý AI" for videos made before 2026-11-08) |
 
 A topic group's video is written with the group's own prompt either way:
 
@@ -38,7 +38,9 @@ A topic group's video is written with the group's own prompt either way:
    titles, scenes with voice, photo keywords and image prompts, caption, hashtags, pinned comment, self review and
    music ideas; then the team's "Mẫu dựng", the Shopee suggestions and "Tự tìm ảnh" follow as after a job. JSON the
    parser cannot read is refused with the reason, for the assistant to fix. The video is marked
-   `videos.written_via = "assistant"` (migration 0056).
+   `videos.written_via = "assistant"` (migration 0056) and `videos.assistant_app` names the assistant of the
+   connection (migration 0059, from the client's registered callback, `mcp_auth.app_of`); the lists tag it
+   "<assistant> (MCP)".
 
 The server's instructions make this the default; `create_video` (the team's API) is used only when the member asks
 for it. `create_video_from_script` (below) is also marked as written by the member's Claude.
