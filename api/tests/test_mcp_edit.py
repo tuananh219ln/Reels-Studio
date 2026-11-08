@@ -222,3 +222,109 @@ def test_the_assistant_is_told_how_to_find_a_photo_for_each_scene(mcp_client, db
     )
     instructions = started.json()["result"]["instructions"]
     assert "Tìm ảnh kho miễn phí" in instructions and "CAPTCHA" in instructions and "Sửa ảnh của cảnh" in instructions
+
+
+CHI = "5yEPTrA0uAhZsBEhHjfi"  # an ElevenLabs voice id, bare
+
+
+def video_options_of(client, token, video) -> dict:
+    return payload(call(client, token, "get_video", video_id=video.id))["options"]
+
+
+def test_the_assistant_sets_a_videos_voice_and_title_size_and_nothing_else(mcp_client, db, storage):  # noqa: F811
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user, scene_count=1)
+    other = make_video(db, storage, user, scene_count=1)
+    before = video_options_of(mcp_client, token, video)
+    done = call(mcp_client, token, "set_video_options", video_id=video.id, voice_id=CHI, title_text_size="small")
+    assert not done.get("isError"), done
+    after = video_options_of(mcp_client, token, video)
+    assert payload(done)["options"] == after
+    assert after == before | {"voice_id": CHI, "title_text_size": "small"}
+    assert video_options_of(mcp_client, token, other) == before
+
+    one = call(mcp_client, token, "set_video_options", video_id=video.id, voice_id="vieneu:Ngọc Lan")
+    assert not one.get("isError"), one
+    assert video_options_of(mcp_client, token, video) == after | {"voice_id": "vieneu:Ngọc Lan"}
+
+
+def test_every_setting_of_the_tab_can_be_set_and_cleared(mcp_client, db, storage):  # noqa: F811
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user, scene_count=1)
+    values = {
+        "voice_speed": 1.2,
+        "voice_volume": 80,
+        "voice_pause": 0.7,
+        "ducking": True,
+        "transition": "cut",
+        "motion": "pan",
+        "zoom": "light",
+        "text_style": "white",
+        "text_color": "#ff0000",
+        "title_style": "yellow",
+        "box_color": "#000000",
+        "accent_color": "#00FF00",
+        "box_opacity": "soft",
+        "title_text_style": "dark",
+        "title_text_color": "white",
+        "title_box_color": "#111111",
+        "title_accent_color": "#222222",
+        "title_box_opacity": "clear",
+        "captions": "word",
+        "text_size": "medium",
+        "text_position": [540, 1200],
+    }
+    done = call(mcp_client, token, "set_video_options", video_id=video.id, **values)
+    assert not done.get("isError"), done
+    stored = video_options_of(mcp_client, token, video)
+    assert {name: stored[name] for name in values} == values | {"text_color": "#FF0000"}
+    cleared = call(mcp_client, token, "set_video_options", video_id=video.id, reset_text_position=True, voice_id="")
+    assert not cleared.get("isError"), cleared
+    assert video_options_of(mcp_client, token, video) == stored | {"text_position": None, "voice_id": ""}
+
+
+def test_a_wrong_value_is_refused_and_nothing_is_saved(mcp_client, db, storage):  # noqa: F811
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user, scene_count=1)
+    before = video_options_of(mcp_client, token, video)
+    wrong = call(mcp_client, token, "set_video_options", video_id=video.id, voice_id=CHI, title_text_size="tiny")
+    assert wrong["isError"]
+    assert "Cỡ chữ tiêu đề" in wrong["content"][0]["text"]
+    assert call(mcp_client, token, "set_video_options", video_id=video.id, voice_id="hai từ")["isError"]
+    assert call(mcp_client, token, "set_video_options", video_id=video.id, text_color="tím")["isError"]
+    assert video_options_of(mcp_client, token, video) == before
+
+
+def test_a_read_only_connection_cannot_set_video_options(mcp_client, db, storage):  # noqa: F811
+    from reels_api.models import McpConnection
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user, scene_count=1)
+    before = video_options_of(mcp_client, token, video)
+    row = db.scalar(select(McpConnection))
+    row.scopes = "reels:read"
+    db.commit()
+    refused = call(mcp_client, token, "set_video_options", video_id=video.id, title_text_size="small")
+    assert refused["isError"] and "quyền" in refused["content"][0]["text"]
+    assert video_options_of(mcp_client, token, video) == before
+
+
+def test_the_settings_tool_and_its_choices_come_from_the_tabs_rules(mcp_client, db):  # noqa: F811
+    from test_mcp import rpc
+
+    from reels_api import video_options
+
+    _, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    tools = {tool["name"]: tool for tool in rpc(mcp_client, token, "tools/list").json()["result"]["tools"]}
+    schema = tools["set_video_options"]["inputSchema"]
+    assert schema["required"] == ["video_id"]
+    assert set(video_options.DEFAULTS) <= set(schema["properties"])
+    assert tools["set_video_options"]["annotations"]["readOnlyHint"] is False
+    listed = payload(call(mcp_client, token, "list_edit_options"))["video_options"]
+    assert listed["title_text_size"] == list(video_options.CHOICES["title_text_size"])
+    assert listed["voice_pause"] == list(video_options.VOICE_PAUSES)

@@ -29,7 +29,7 @@ from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 
-from . import clips, jobs, motion, remote_media
+from . import clips, jobs, motion, remote_media, video_options
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -552,6 +552,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                     :100
                 ],
                 "frame": {"width": 1080, "height": 1920},
+                # The video's own settings (tab "Thiết lập"), for "Thiết lập video".
+                "video_options": video_options.choices(),
             }
 
         return await run_in_threadpool(invoke, operation)
@@ -847,6 +849,82 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             if settings or payload is None:
                 payload = videos.patch_video(video_id, videos.VideoPatchBody(**settings), me, db, storage)
             return video_link(payload)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    allowed = video_options.choices()
+
+    def one_of(name: str):
+        """A setting's argument, described with the values the tab accepts (video_options checks them)."""
+        values = allowed[name]
+        shown = ", ".join(str(value) for value in values) if isinstance(values, list) else values
+        return Field(description=f"{video_options.LABELS.get(name, name)}: {shown}")
+
+    @tool("Thiết lập video", read=False)
+    async def set_video_options(
+        video_id: int,
+        voice_id: Annotated[str | None, Field(description=allowed["voice_id"], max_length=64)] = None,
+        voice_speed: Annotated[float | None, one_of("voice_speed")] = None,
+        voice_volume: Annotated[int | None, Field(description="Âm lượng giọng đọc, 0–100 (%)")] = None,
+        voice_pause: Annotated[float | None, one_of("voice_pause")] = None,
+        ducking: Annotated[bool | None, one_of("ducking")] = None,
+        transition: Annotated[str | None, one_of("transition")] = None,
+        motion: Annotated[str | None, one_of("motion")] = None,
+        zoom: Annotated[str | None, one_of("zoom")] = None,
+        text_style: Annotated[str | None, one_of("text_style")] = None,
+        text_color: Annotated[str | None, one_of("text_color")] = None,
+        title_style: Annotated[str | None, one_of("title_style")] = None,
+        box_color: Annotated[str | None, one_of("box_color")] = None,
+        accent_color: Annotated[str | None, one_of("accent_color")] = None,
+        box_opacity: Annotated[str | None, one_of("box_opacity")] = None,
+        title_text_style: Annotated[str | None, one_of("title_text_style")] = None,
+        title_text_color: Annotated[str | None, one_of("title_text_color")] = None,
+        title_box_color: Annotated[str | None, one_of("title_box_color")] = None,
+        title_accent_color: Annotated[str | None, one_of("title_accent_color")] = None,
+        title_box_opacity: Annotated[str | None, one_of("title_box_opacity")] = None,
+        captions: Annotated[str | None, one_of("captions")] = None,
+        text_size: Annotated[str | None, one_of("text_size")] = None,
+        title_text_size: Annotated[str | None, one_of("title_text_size")] = None,
+        text_position: Annotated[
+            list[int] | None, Field(description="Tâm hộp chữ các cảnh [x, y] trong khung 1080×1920")
+        ] = None,
+        reset_text_position: bool = False,
+    ) -> dict:
+        """Đổi tuỳ chọn dựng của một video như tab "Thiết lập" trên web: chỉ các trường được truyền, trường khác
+        giữ nguyên; một giá trị sai thì không lưu gì. Giá trị hợp lệ có trong "Đọc lựa chọn dựng video", mục
+        video_options. reset_text_position đưa hộp chữ về chỗ mặc định của mẫu. Không tạo giọng, không render:
+        giọng mới được tạo khi render hoặc bấm tạo giọng trên web. Trả về bộ tuỳ chọn đầy đủ sau khi lưu."""
+        changes = given(
+            voice_id=voice_id,
+            voice_speed=voice_speed,
+            voice_volume=voice_volume,
+            voice_pause=voice_pause,
+            ducking=ducking,
+            transition=transition,
+            motion=motion,
+            zoom=zoom,
+            text_style=text_style,
+            text_color=text_color,
+            title_style=title_style,
+            box_color=box_color,
+            accent_color=accent_color,
+            box_opacity=box_opacity,
+            title_text_style=title_text_style,
+            title_text_color=title_text_color,
+            title_box_color=title_box_color,
+            title_accent_color=title_accent_color,
+            title_box_opacity=title_box_opacity,
+            captions=captions,
+            text_size=text_size,
+            title_text_size=title_text_size,
+            text_position=text_position,
+        )
+        if reset_text_position:
+            changes["text_position"] = None
+
+        def operation(db, me):
+            saved = videos.patch_video(video_id, videos.VideoPatchBody(options=changes), me, db, get_storage())
+            return video_link({"id": saved["id"], "options": saved["options"]})
 
         return await run_in_threadpool(invoke, operation, write=True)
 
