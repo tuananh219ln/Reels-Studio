@@ -22,10 +22,12 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
   in `docs/` that describe the changed behaviour are updated in the same PR.
 - **Bug fixes start with a failing test.** Write a test that reproduces the bug and watch it fail
   before fixing; the test stays as the regression guard.
-- **Decisions are logged.** Read [docs/decisions.md](docs/decisions.md) before starting a new
-  round of work. Never silently reverse a logged decision: if the work conflicts with one, stop
-  and surface the conflict so the user can decide. A new decision made during the work is
-  recorded there, dated, in the same PR.
+- **Decisions are logged.** Read [docs/decisions.md](docs/decisions.md) and the files in
+  [docs/decisions/](docs/decisions/) before starting a new round of work. Never silently reverse a
+  logged decision: if the work conflicts with one, stop and surface the conflict so the user can
+  decide. A new decision made during the work is a new file in `docs/decisions/`
+  (`YYYY-MM-DD-short-name.md`), in the same PR; nothing is added to `docs/decisions.md` any more, so
+  parallel branches never conflict on it.
 - **Report in three parts** (in the PR description): what changed; which checks and tests were
   actually run, with their real results; and what is unfinished or turned up outside the task.
   Never claim a check passed that was not run.
@@ -36,7 +38,7 @@ no agent-specific copies, so edit the file here and in `docs/`, never a generate
 
 | Task | Read |
 | --- | --- |
-| Starting a new round of work | [docs/decisions.md](docs/decisions.md) |
+| Starting a new round of work | [docs/decisions.md](docs/decisions.md) and [docs/decisions/](docs/decisions/) |
 | Any feature | [docs/project.md](docs/project.md), [docs/architecture.md](docs/architecture.md), [docs/patterns.md](docs/patterns.md) |
 | Database, API, jobs, worker, render | [docs/architecture.md](docs/architecture.md) (Data Model, Video Pipeline, Render Core) |
 | Prompt, script, knowledge base, safety rules | [docs/content.md](docs/content.md) |

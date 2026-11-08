@@ -19,7 +19,7 @@ from sqlalchemy import Connection, Engine, create_engine, inspect, select, text,
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
-from . import affiliate_rounds, comments_inbox, config, fanpages, metrics, page_queue, post_comments
+from . import affiliate_rounds, auto_runs, comments_inbox, config, fanpages, metrics, page_queue, post_comments
 from .jobs import queue_post_checks, work_dir
 from .models import Job
 from .sessions import now
@@ -143,6 +143,8 @@ def serve(factory: sessionmaker, lock: Connection) -> None:
             post_comments.write_due(factory)
             comments_inbox.run_round(factory)
             affiliate_rounds.run_round(factory)
+            # Every few seconds, so a run's next job follows the last one closely.
+            auto_runs.run_round(factory)
             next_metrics = time.monotonic() + METRICS_SECONDS
         job_id = claim_next(factory)
         if job_id is None:

@@ -523,7 +523,14 @@ Built:
     to the Backlog):
   - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
     video", and "Sửa" (before a start date: "Chọn ngày bắt đầu để app biết hôm nay là ngày mấy"; "Kế hoạch chưa bắt
-    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days); under it "Đã làm X/Y · Đã lên lịch N · Ngày còn trống N";
+    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days); then "Bán tự động hôm nay" when the group's Pages have
+    runs today (re-read every 10 seconds while open): per run the Page, the idea, its status (Đang dựng, Chờ duyệt,
+    Đã duyệt, Không duyệt, Lỗi, Bỏ qua) and why ("Đang chờ máy render", the failed job's error, "Hôm nay chưa có ý
+    tưởng trong kế hoạch"), a yellow alert listing banned words, and while it waits the MP4 to play, the voice and
+    music, "Mở video" (scene photos and script) and "Bản TikTok riêng" when made; the Page's owner gets "Bỏ qua TikTok
+    cho video này" (or why no draft would go), "Duyệt" and "Không duyệt" (confirmed); others read "Chờ chủ Page
+    duyệt". Once approved: "Facebook: hẹn đăng <time> · TikTok: …". Under it "Đã làm X/Y · Đã lên lịch N · Ngày còn
+    trống N";
   - "Tiến độ verdict: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
     target to set; it only counts, the line under it says the verdict is still decided in a meeting;
   - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
@@ -622,7 +629,10 @@ Built:
 - **Quản lý Page**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
-  group and posting times and reorders its queue; others read them as a line.
+  group and posting times and reorders its queue; others read them as a line. Under the owner line, the owner's
+  "Bán tự động" switch with its preparing time ("08:00" by default, saved on Enter or leaving the field) and, once on,
+  the TikTok account its drafts go to (one of their own; "Không gửi nháp TikTok" when none, a warning when its
+  connection is missing or expired), "Bản TikTok riêng" (off by default) and where the videos wait for approval.
 - **Đăng bài**, a menu group. Nothing is posted or approved here: a member reviews and posts a
   video from "Đăng" on its page; "Bài đăng" only retries a failed post.
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or

@@ -507,6 +507,15 @@ export type Fanpage = {
   mine: boolean;
   /** The Shopee account whose links its comments carry, shown only to its owner. */
   shopee_account: { id: number; name: string; usable: boolean } | null;
+  /** "Bán tự động", shown only to its owner (api routes_fanpages `_auto`). */
+  auto: {
+    auto_prepare: boolean;
+    prepare_time: string;
+    tiktok_account_id: number | null;
+    tiktok_own_version: boolean;
+    /** Why a TikTok draft would not go, once an account is chosen. */
+    tiktok_problem: string | null;
+  } | null;
   /** The worker's last check of the token (api fanpages.check). */
   check: {
     checked_at: string | null;
@@ -1349,4 +1358,29 @@ export type QueueOverview = {
   pages: QueuePage[];
   topics: { id: number; name: string }[];
   fill_ahead_hours: number;
+};
+
+/** A run of "Bán tự động" (api auto_runs.payload): one plan idea of one day on one Page. */
+export type AutoRunStatus = "preparing" | "ready" | "approved" | "rejected" | "failed" | "skipped";
+export type AutoRun = {
+  id: number;
+  day: string;
+  fanpage: { id: number; name: string };
+  /** The Page's owner: only they approve. */
+  can_decide: boolean;
+  plan_item_id: number | null;
+  idea_topic: string;
+  status: AutoRunStatus;
+  stage: string;
+  reason: string | null;
+  /** Banned-word warnings: the video still waits for approval, flagged. */
+  banned: string[];
+  video: { id: number; mp4_url: string | null; voice_id: string; music: string | null } | null;
+  tiktok_video_id: number | null;
+  tiktok_ready: boolean;
+  tiktok_problem: string | null;
+  tiktok_state: "waiting" | "sent" | "skipped" | "failed" | null;
+  tiktok_reason: string | null;
+  post_at: string | null;
+  decided_at: string | null;
 };

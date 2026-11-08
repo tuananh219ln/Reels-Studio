@@ -3,9 +3,12 @@
 Settled product and technical decisions, each with a short reason, so every person and every
 coding agent working on this repo knows why things are the way they are.
 
-How to use: add a new decision as a new entry at the top, with its date. Never edit an old entry.
-If a new decision replaces an old one, say so in the new entry. Agents read this file before
-starting a new round of work and never silently reverse a logged decision (see
+How to use: **from 2026-11-09 a new decision is a file of its own in [decisions/](decisions/)**, named
+`YYYY-MM-DD-short-name.md` and opening with `# YYYY-MM-DD — Title`, so two branches adding decisions never touch
+the same lines ([decisions/2026-11-09-one-file-per-decision.md](decisions/2026-11-09-one-file-per-decision.md)).
+This file keeps the decisions made before, newest first; nothing is added to it any more. Never edit an old
+decision, here or there: if a new one replaces an old one, say so in the new one. Agents read this file and the
+folder before starting a new round of work and never silently reverse a logged decision (see
 [AGENTS.md](../AGENTS.md)).
 
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect

@@ -961,3 +961,32 @@ def test_the_consent_answer_sends_the_browser_on_with_a_link_it_can_also_click(m
     assert parse_qs(urlparse(target).query)["state"] == ["client-state"]
     assert approved.text.count(escape(target, quote=True)) == 2  # the refresh and the link
     assert approved.headers["cache-control"] == "no-store"
+
+
+def test_the_assistant_reads_todays_semi_automatic_runs_and_cannot_approve_them(mcp_client, db, storage):
+    from reels_api import fanpages, plans
+    from reels_api.models import AutoRun
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user)
+    page = fanpages.save(db, "111", "Ăn Lành Sống Khỏe", "EAAB-token-111", user.id)
+    db.flush()
+    db.add(
+        AutoRun(
+            fanpage_id=page.id,
+            day=plans.today(),
+            idea_topic="Ngâm chân nước ấm",
+            video_id=video.id,
+            status="ready",
+            stage="done",
+            banned=["Có từ cấm: “thần dược”"],
+        )
+    )
+    db.commit()
+    tools = {tool["name"]: tool for tool in rpc(mcp_client, token, "tools/list").json()["result"]["tools"]}
+    assert tools["list_auto_runs"]["annotations"]["readOnlyHint"] is True
+    assert not any("approve" in name for name in tools)
+    [run] = payload(call(mcp_client, token, "list_auto_runs"))["runs"]
+    assert (run["status"], run["idea_topic"], run["video"]["id"]) == ("ready", "Ngâm chân nước ấm", video.id)
+    assert run["banned"] == ["Có từ cấm: “thần dược”"] and run["can_decide"] is True
