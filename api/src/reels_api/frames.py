@@ -32,7 +32,10 @@ def text_box(
     text: str, is_title: bool, options: RenderOptions = DEFAULT_OPTIONS, centre: Centre = None
 ) -> tuple[Image.Image, tuple[int, int]]:
     """The exact RGBA box image render_video overlays for this scene, and where it goes."""
-    layout = layout_sized(parse_scene_text(text), options.title_text_size if is_title else options.text_size, is_title)
+    case = options.title_text_case if is_title else options.text_case
+    layout = layout_sized(
+        parse_scene_text(text, case), options.title_text_size if is_title else options.text_size, is_title
+    )
     palette = options.title_palette() if is_title else options.scene_palette()
     position = tuple(centre) if centre else None
     return render_box(layout, palette), place_box(layout.width, layout.height, position, is_title)
@@ -54,7 +57,8 @@ def compose_frame(
             upright = ImageOps.exif_transpose(source).convert("RGB")
     frame = ImageOps.fit(upright, (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC, centering=(0.5, 0.5))
     size = options.title_text_size if is_title else options.text_size
-    if text.strip() and text_problem(text, is_title, size) is None:
+    case = options.title_text_case if is_title else options.text_case
+    if text.strip() and text_problem(text, is_title, size, case) is None:
         box, position = text_box(text, is_title, options, centre)
         frame.paste(box, position, box)
     return _yuv420(frame)

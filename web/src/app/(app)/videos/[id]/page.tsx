@@ -34,6 +34,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
 import VideoStatusTags from "@/components/VideoStatusTags";
+import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import PostContent from "@/components/video/PostContent";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
@@ -353,6 +354,17 @@ export default function VideoPage() {
               {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by}
             </Typography.Text>
             <PresenceAvatars others={others} />
+          </Flex>
+          <Flex wrap align="center" gap={8} style={{ marginTop: 6 }} data-testid="video-kind-line">
+            <ContentTypeField
+              key={video.content_type}
+              value={video.content_type}
+              disabled={video.locked}
+              onSave={(content_type) => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { content_type }))}
+            />
+            {/* The type is in the field already; the tags say how the video was made. */}
+            <VideoKindTags video={{ ...video, content_type: "" }} />
+            <PostedPlatforms postedOn={video.posted_on ?? []} />
           </Flex>
           {video.clone_of && (
             <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="clone-of">

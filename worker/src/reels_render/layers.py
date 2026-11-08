@@ -118,11 +118,12 @@ class Layer:
     image: Path | None = None  # a photo layer's photo
 
 
-def render_layer(layer: Layer) -> Image.Image:
-    """The layer as a transparent picture, as large as what it shows. Raises ValueError for text that will not fit."""
+def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
+    """The layer as a transparent picture, as large as what it shows, a text layer's letters in `case`
+    (markup.TEXT_CASES, the video's scenes' "Dạng chữ"). Raises ValueError for text that will not fit."""
     if layer.kind == "text":
         try:
-            lines = parse_scene_text(layer.text)
+            lines = parse_scene_text(layer.text, case)
             layout = layout_text(lines, SIZES[layer.size].text)
         except (MarkupError, TextFitError) as err:
             raise ValueError(str(err)) from None

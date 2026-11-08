@@ -274,6 +274,8 @@ def test_every_setting_of_the_tab_can_be_set_and_cleared(mcp_client, db, storage
         "title_box_opacity": "clear",
         "captions": "word",
         "text_size": "medium",
+        "text_case": "keep",
+        "title_text_case": "keep",
         "text_position": [540, 1200],
     }
     done = call(mcp_client, token, "set_video_options", video_id=video.id, **values)

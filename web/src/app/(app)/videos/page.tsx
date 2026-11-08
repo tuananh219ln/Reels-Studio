@@ -33,7 +33,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
-import VideoStatusTags, { platformName } from "@/components/VideoStatusTags";
+import VideoStatusTags from "@/components/VideoStatusTags";
+import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import {
@@ -118,6 +119,8 @@ export default function VideosPage() {
   const [startItem, setStartItem] = useState<PlanItem | null>(null);
   // The sample video "Tạo thêm video từ mẫu này" on a video page starts from ("Từ video mẫu", way "reuse").
   const [startSample, setStartSample] = useState<number | null>(null);
+  // The topic group "Tạo video" on a group's "Video" tab in Kho kiến thức starts with.
+  const [startGroup, setStartGroup] = useState<number | null>(null);
   // A new dialog each time it opens, so it starts from `startItem` and nothing picked before.
   const [opened, setOpened] = useState(0);
   const [today, setToday] = useState<PlanToday[]>([]);
@@ -139,9 +142,10 @@ export default function VideosPage() {
   const [view, chooseView] = useRememberedView(VIEW_KEY);
   const [sort, setSort] = useState<Sort>("new");
 
-  function startFrom(item: PlanItem | null, sample: number | null = null) {
+  function startFrom(item: PlanItem | null, sample: number | null = null, group: number | null = null) {
     setStartItem(item);
     setStartSample(sample);
+    setStartGroup(group);
     setOpened((count) => count + 1);
     setCreating(true);
   }
@@ -175,8 +179,24 @@ export default function VideosPage() {
 
   // /videos?plan_item=<id>: opened from an idea's "Tạo video" in Kho kiến thức.
   // /videos?reference=<id>: "Tạo thêm video từ mẫu này" on a video made from a sample video.
+  // /videos?group=<id>: "Tạo video" on a topic group's "Video" tab in Kho kiến thức.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const group = Number(params.get("group"));
+    if (group > 0) {
+      router.replace("/videos");
+      // Opens once the group is known to be there, so a deleted one says so instead of another group.
+      api<Knowledge>("/knowledge")
+        .then((knowledge) => {
+          if (knowledge.topics.some((topic) => topic.id === group)) {
+            startFrom(null, null, group);
+          } else {
+            message.error("Không tìm thấy nhóm chủ đề (có thể đã bị xoá)");
+          }
+        })
+        .catch((err) => message.error(errorMessage(err)));
+      return;
+    }
     const sample = Number(params.get("reference"));
     if (sample > 0) {
       router.replace("/videos");
@@ -358,11 +378,13 @@ export default function VideosPage() {
         open={creating}
         startItem={startItem}
         startSample={startSample}
+        startGroup={startGroup}
         today={today}
         onClose={() => {
           setCreating(false);
           setStartItem(null);
           setStartSample(null);
+          setStartGroup(null);
         }}
       />
     </>
@@ -453,16 +475,6 @@ function CardChip({
       {children}
     </span>
   );
-}
-
-const PLATFORM_NAMES = { facebook: "Facebook", tiktok: "TikTok", youtube: "YouTube", instagram: "Instagram" };
-
-/** The platforms the video's own MP4 is out on besides the one it was made for, or "" when none. */
-function elsewhere(row: VideoRow): string {
-  return row.posted_on
-    .filter((platform) => platform !== row.platform)
-    .map((platform) => PLATFORM_NAMES[platform])
-    .join(", ");
 }
 
 /** "TikTok · Nháp", "TikTok · Đã đăng": the versions on a card or row, each opening its own page. */
@@ -613,6 +625,13 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
           <Typography.Paragraph strong ellipsis={{ rows: 2, tooltip: name }} style={{ margin: 0, lineHeight: "20px" }}>
             {name}
           </Typography.Paragraph>
+          {/* Its kind on the left; where it is out on the right, every platform's icon in colour once posted there. */}
+          <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
+            <VideoKindTags video={row} />
+            <div style={{ flex: "none", paddingTop: 2 }}>
+              <PostedPlatforms postedOn={row.posted_on} size={13} />
+            </div>
+          </Flex>
           {post ? (
             <div style={{ marginTop: 6 }}>
               <Typography.Text type="secondary" style={small} ellipsis={{ tooltip: post.fanpage }}>
@@ -657,15 +676,6 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
               <StatusText tone={cardTone(row)} data-testid="video-status">
                 {post ? (post.state === "posted" ? "Đã đăng" : "Đã lên lịch") : row.status_label}
               </StatusText>
-              <span data-testid="video-platform" style={{ color: token.colorTextSecondary }}>
-                {platformName(row)}
-              </span>
-              {elsewhere(row) && (
-                // The same MP4 posted on other platforms too (TikTok, YouTube Shorts, Instagram Reels).
-                <span data-testid="video-elsewhere" style={{ color: token.colorTextSecondary }}>
-                  + {elsewhere(row)}
-                </span>
-              )}
             </Flex>
             <Typography.Text type="secondary" style={{ ...small, textAlign: "right", flex: "none" }}>
               {row.created_by}, {shortDate(row.created_at, false)}
@@ -713,7 +723,7 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
         rowKey="id"
         dataSource={rows}
         pagination={{ pageSize: 50, hideOnSinglePage: true }}
-        scroll={{ x: 1180 }}
+        scroll={{ x: 1520 }}
         onRow={(row) => ({
           onClick: () => router.push(`/videos/${row.id}`),
           style: { cursor: "pointer" },
@@ -733,6 +743,12 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
             ),
           },
           {
+            title: "Loại",
+            key: "kind",
+            width: 210,
+            render: (_, row) => <VideoKindTags video={row} />,
+          },
+          {
             title: "Trạng thái",
             key: "status",
             width: 200,
@@ -747,6 +763,12 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
                 <VersionLinks versions={versions.get(row.id) ?? []} />
               </Flex>
             ),
+          },
+          {
+            title: "Đã đăng",
+            key: "platforms",
+            width: 130,
+            render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
           },
           {
             title: "Đăng",
@@ -895,12 +917,14 @@ function NewVideoModal({
   open,
   startItem,
   startSample,
+  startGroup,
   today,
   onClose,
 }: {
   open: boolean;
   startItem: PlanItem | null;
   startSample: number | null;
+  startGroup: number | null;
   today: PlanToday[];
   onClose: () => void;
 }) {
@@ -1095,7 +1119,8 @@ function NewVideoModal({
           requiredMark={false}
           onFinish={submit}
           initialValues={{
-            knowledge_topic_id: startItem?.knowledge_topic_id ?? topics.find((topic) => topic.script_prompt)?.id,
+            knowledge_topic_id:
+              startItem?.knowledge_topic_id ?? startGroup ?? topics.find((topic) => topic.script_prompt)?.id,
             topic: startItem?.topic,
             sample_mode: startSample ? "reuse" : "quick",
             sample_source: "link",

@@ -110,6 +110,7 @@ from .videos import (
 router = APIRouter(prefix="/api")
 
 MAX_TOPIC_LENGTH = 300
+MAX_CONTENT_TYPE_LENGTH = 40  # videos.content_type
 MAX_TEXT_LENGTH = 500
 MAX_VOICE_LENGTH = 1000
 MAX_LONG_TEXT_LENGTH = 5000
@@ -159,6 +160,7 @@ class VideoPatchBody(BaseModel):
     options: dict | None = None  # some of video_options.DEFAULTS
     reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
     mode: str | None = None  # videos.MODES; switching keeps every photo, clip and layer
+    content_type: str | None = None  # "Loại nội dung"; "" for none
 
 
 class ScenePatchBody(BaseModel):
@@ -266,8 +268,17 @@ def _ensure_renderable(db: DbSession, video: Video) -> None:
 
 
 @router.get("/videos")
-def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+def list_videos(
+    q: str = "",
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    knowledge_topic_id: int | None = None,
+) -> list[dict]:
+    """Every video, newest first; `q` searches the topic and the title, `knowledge_topic_id` keeps one topic group's
+    (its "Video" tab in Kho kiến thức)."""
     query = select(Video).order_by(Video.created_at.desc(), Video.id.desc())
+    if knowledge_topic_id is not None:
+        query = query.where(Video.knowledge_topic_id == knowledge_topic_id)
     if q.strip():
         literal = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{unicodedata.normalize('NFC', literal)}%"
@@ -280,13 +291,28 @@ def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSessio
     return [list_payload(db, video, family, extras[video.id]) for video in videos]
 
 
+@router.get("/video-content-types")
+def content_types(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[str]:
+    """The "Loại nội dung" the team's videos use, to pick from: one per type whatever its case, in Vietnamese order
+    (the first spelling met wins)."""
+    seen: dict[str, str] = {}
+    for kind in db.scalars(select(Video.content_type).where(Video.content_type != "").order_by(Video.id)):
+        seen.setdefault(kind.casefold(), kind)
+    return sorted(seen.values(), key=lambda kind: unicodedata.normalize("NFD", kind).casefold())
+
+
 @router.post("/videos", status_code=201)
 def create_video(body: NewVideoBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     return _saved(db, start_video(body, me, db))
 
 
 def start_video(
-    body: NewVideoBody, me: Session, db: DbSession, written: GeneratedScript | None = None, via: str = ""
+    body: NewVideoBody,
+    me: Session,
+    db: DbSession,
+    written: GeneratedScript | None = None,
+    via: str = "",
+    app: str = "",
 ) -> Video:
     """A new video, its script queued, typed ("Tự viết") or, as `written`, already written from the group's prompt by
     a member's own Claude through MCP (`via` "assistant"): saved as the script job saves an answer, with no LLM call.
@@ -312,6 +338,7 @@ def start_video(
         ai_effects=body.ai_effects and not manual,
         mode=body.video_mode,
         written_via=via,
+        assistant_app=app,
     )
     video_options.apply_team_defaults(db, video)
     db.add(video)
@@ -461,6 +488,11 @@ def patch_video(
         if body.mode not in MODES:
             raise invalid("Kiểu video không có trong danh sách")
         video.mode = body.mode
+    if "content_type" in fields and body.content_type is not None:
+        kind = " ".join(unicodedata.normalize("NFC", body.content_type).split())
+        if len(kind) > MAX_CONTENT_TYPE_LENGTH:
+            raise invalid(f"Loại nội dung tối đa {MAX_CONTENT_TYPE_LENGTH} ký tự")
+        video.content_type = kind
     look = video_options.text_look(video)
     pause = video_options.voice_pause(video)
     if body.reset_options:
@@ -1973,7 +2005,8 @@ def scene_textbox(scene_id: int, me: Session = Depends(current_member), db: DbSe
     scene = _scene(db, scene_id)
     video = db.get(Video, scene.video_id)
     size = video_options.text_size(video, scene.is_title)
-    if not scene.text.strip() or text_problem(scene.text, scene.is_title, size) is not None:
+    case = video_options.text_case(video, scene.is_title)
+    if not scene.text.strip() or text_problem(scene.text, scene.is_title, size, case) is not None:
         raise ApiError(404, "no_text_box", "Cảnh này không có chữ để đặt vị trí")
     box, _ = frames.text_box(scene.text, scene.is_title, video_options.render_options(video))
     buffer = io.BytesIO()

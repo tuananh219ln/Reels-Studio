@@ -73,7 +73,19 @@ export type VideoRow = {
   plan_day: number | null;
   /** Its Facebook posts in one line; null when none is out or set for later. */
   post: VideoRowPost | null;
+  /** How its script came (api videos.made_via): the team's AI, "Tự viết", "Từ video mẫu", "Nhân bản" or a member's
+   * own Claude through MCP. */
+  made_via: VideoMadeVia;
+  /** The assistant that wrote it through MCP (ChatGPT, Claude, Claude Code, Muse); "" when unknown or not via MCP. */
+  assistant_app: string;
+  mode: VideoMode;
+  /** The products attached to it; 0 on a video's own page, where they are listed instead. */
+  product_count?: number;
+  /** "Loại nội dung" a member gave it (Hướng dẫn, Mẹo nhanh...); "" for none. */
+  content_type: string;
 };
+
+export type VideoMadeVia = "ai" | "manual" | "sample" | "clone" | "assistant";
 
 /** A video's posts on the list: views are every live post's latest reading added up; the 48-hour numbers are of
  * its post with the most views. */
@@ -626,6 +638,10 @@ export type VideoOptions = {
   /** The text box's size ("Cỡ chữ"): the content scenes' and the title's; "large" is the original template. */
   text_size: "large" | "medium" | "small";
   title_text_size: "large" | "medium" | "small";
+  /** "Dạng chữ": "upper" draws every letter as a capital (the original template), "keep" as typed. The scenes'
+   * case is also their text layers'; the title has its own. */
+  text_case: "upper" | "keep";
+  title_text_case: "upper" | "keep";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
   /** "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it. */

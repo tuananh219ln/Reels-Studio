@@ -147,7 +147,8 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
     lines = []
     if text.strip():
         try:
-            lines = parse_scene_text(text)
+            # Kept as typed; the render draws them in the case chosen for the video (render.scene_lines).
+            lines = parse_scene_text(text, case="keep")
         except MarkupError as err:
             raise InputError(f"{label}: {err}") from None
 

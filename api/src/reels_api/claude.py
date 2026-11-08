@@ -26,7 +26,8 @@ FALLBACK_SECONDS = 4
 OUTPUT_FORMAT = """\
 ĐỊNH DẠNG ĐẦU RA (bắt buộc): chỉ trả về đúng một object JSON, không kèm chữ nào khác, không bọc trong ```.
 Các trường:
-- "titles": 5 tiêu đề viết hoa, mỗi tiêu đề tối đa 12 từ.
+- "titles": 5 tiêu đề viết như câu thường (chỉ viết hoa chữ đầu câu và tên riêng; video tự viết hoa khi chọn "Viết
+  hoa toàn bộ"), mỗi tiêu đề tối đa 12 từ.
 - "title_voice": lời đọc cho cảnh tiêu đề: một câu mở đầu gây tò mò về chủ đề chung, hợp với cả 5 tiêu đề (không đọc lại
   nguyên văn tiêu đề nào), 8–12 từ.
   Khi đọc, cảnh có lời đọc chỉ đọc lời đọc, không đọc chữ trên màn hình: chữ là nhãn ngắn, lời đọc là phần diễn giải.

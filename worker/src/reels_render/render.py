@@ -19,6 +19,7 @@ from .graph import (
 )
 from .images import normalize_image
 from .layers import layer_corner, render_layer
+from .markup import Run, cased
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .script import Scene, Script
 from .sounds import SOUND_VOLUMES
@@ -68,10 +69,10 @@ def render_video(
             raise InputError(f"Không tìm thấy file nhạc: {music}")
 
     layouts = []
-    for index, scene in enumerate(script.all_scenes):
+    for index, (scene, lines) in enumerate(zip(script.all_scenes, scene_lines(script, options))):
         try:
             size = options.title_text_size if index == 0 else options.text_size
-            layouts.append(layout_sized(scene.lines, size, is_title=index == 0) if scene.lines else None)
+            layouts.append(layout_sized(lines, size, is_title=index == 0) if lines else None)
         except TextFitError as err:
             raise InputError(f"{scene.label}: {err}") from None
     # A scene with narration is lengthened to fit it; its seconds are the minimum.
@@ -146,7 +147,7 @@ def render_video(
                 # A photo layer ("Ảnh món") is kept on a slide video but shown only over a backdrop.
                 if start >= scene_end or (layer.kind == "photo" and not options.backdrop):
                     continue
-                picture = render_layer(layer)
+                picture = render_layer(layer, options.text_case)
                 path = work_dir / f"layer-{index:02d}-{number:02d}.png"
                 picture.save(path)
                 left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
@@ -210,6 +211,14 @@ def render_video(
             temp.unlink(missing_ok=True)
             raise
     return _publish(temp, output)
+
+
+def scene_lines(script: Script, options: RenderOptions) -> list[list[list[Run]]]:
+    """Each scene's text lines (empty without text) in the letter case chosen for it: the title's, or the scenes'."""
+    return [
+        cased(scene.lines, options.title_text_case if index == 0 else options.text_case)
+        for index, scene in enumerate(script.all_scenes)
+    ]
 
 
 def clip_sound_heard(ffprobe: str, scene: Scene, on_warning: Callable[[str], None] | None) -> bool:

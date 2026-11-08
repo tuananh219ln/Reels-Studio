@@ -32,6 +32,7 @@ from .models import (
     TopicPlanItem,
     User,
     Video,
+    VideoAffiliateProduct,
     VideoNote,
     VideoReference,
 )
@@ -46,6 +47,7 @@ from .video_options import (
     look_signature,
     preview_look,
     render_options,
+    text_case,
     text_size,
     voice_id,
     voice_pause,
@@ -323,10 +325,12 @@ def drawn_layers(video: Video, scene: Scene) -> list[SceneLayer]:
     return [layer for layer in scene.layers if layer.kind != "photo" or is_backdrop(video)]
 
 
-def layer_payload(layer: SceneLayer) -> dict:
-    # Its picture changes only with what is drawn, not with where or when it shows; a photo layer's with its photo.
+def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:
+    # Its picture changes only with what is drawn, not with where or when it shows; a photo layer's with its photo, a
+    # text layer's with the letter case it is drawn in (the scenes' "Dạng chữ"; capitals keep the earlier addresses).
     photo = layer.scene.image_key if layer.kind == "photo" else None
-    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []))
+    kept = [case] if layer.kind == "text" and case != "upper" else []
+    look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []), *kept)
     return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
 
 
@@ -441,6 +445,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             own_picture or bool(scene.keywords or scene.keywords_en),
             scene.video_speed,
             text_size(video, scene.is_title),
+            text_case(video, scene.is_title),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -705,7 +710,7 @@ def motion_payload(scene: Scene) -> dict | None:
 
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
-    size = text_size(video, scene.is_title)
+    size, case = text_size(video, scene.is_title), text_case(video, scene.is_title)
     voice_seconds = made_voice_seconds(video, scene)
     style = preview_look(video, scene.is_title)
     position = text_position(video, scene)
@@ -766,13 +771,13 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "frame_url": f"{image}/frame.jpg?v={_version(still, scene.video_start, blur_of(scene))}" if still else None,
         "textbox_url": (
             f"{image}/textbox.png?v={_version(scene.text, *preview_look(video, scene.is_title))}"
-            if scene.text.strip() and text_problem(scene.text, scene.is_title, size) is None
+            if scene.text.strip() and text_problem(scene.text, scene.is_title, size, case) is None
             else None
         ),
-        "text_problem": text_problem(scene.text, scene.is_title, size),
+        "text_problem": text_problem(scene.text, scene.is_title, size, case),
         "transition": scene.transition,
         "color": scene.color,
-        "layers": [layer_payload(layer) for layer in scene.layers],
+        "layers": [layer_payload(layer, text_case(video, False)) for layer in scene.layers],
         "sounds": [sound_payload(sound) for sound in scene.sounds],
         "music_level": scene.music_level,
         # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.
@@ -790,14 +795,30 @@ def _labels(video: Video, title: Scene | None, scenes: list[Scene], job: Job | N
     }
 
 
-ASSISTANT_WRITER = "Claude của thành viên qua kết nối MCP (gói đăng ký, không tốn phí AI của nhóm)"
+def assistant_writer(app: str) -> str:
+    """Who wrote a script through MCP, named by the assistant (ChatGPT, Claude, Muse...) when it is known."""
+    return f"{app or 'Trợ lý AI'} của thành viên qua kết nối MCP (gói đăng ký, không tốn phí AI của nhóm)"
+
+
+def made_via(video: Video) -> str:
+    """How the video's script came: "assistant" (a member's own Claude through MCP), "sample" ("Từ video mẫu"),
+    "clone" ("Nhân bản", a TikTok version included), "manual" ("Tự viết") or "ai" (the team's AI service)."""
+    if video.written_via == "assistant":
+        return "assistant"
+    if video.reference_id is not None or video.reference_mode:
+        return "sample"
+    if video.clone_source:
+        return "clone"
+    if video.hand_written:
+        return "manual"
+    return "ai"
 
 
 def script_writer(db: DbSession, video: Video) -> str | None:
     """Who wrote the video's script, so reviewers know what they read: a member's own Claude through MCP, or the
     provider and model of the job that wrote it."""
     if video.written_via == "assistant":
-        return ASSISTANT_WRITER
+        return assistant_writer(video.assistant_app)
     job = db.scalar(
         select(Job)
         .where(Job.video_id == video.id, Job.kind.in_(("script", "clone", "learn")), Job.status == "done")
@@ -913,10 +934,15 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
         "mode": video.mode,
+        "made_via": made_via(video),
+        "assistant_app": video.assistant_app,
+        "content_type": video.content_type,
         "options": effective(video),
         "publication": publication_payload(publication_of(db, video.id), by_page),
         "publications": [publication_payload(post, by_page) for post in posts],
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
+        # Where it is out, as on the list: the page's row of platform icons.
+        "posted_on": list_extras(db, [video])[video.id]["posted_on"],
         "fanpages": [
             {
                 "id": page.id,
@@ -1006,6 +1032,13 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
     on_tiktok = set(
         db.scalars(select(Publication.video_id).where(Publication.video_id.in_(ids), Publication.platform == "tiktok"))
     )
+    products = dict(
+        db.execute(
+            select(VideoAffiliateProduct.video_id, func.count())
+            .where(VideoAffiliateProduct.video_id.in_(ids))
+            .group_by(VideoAffiliateProduct.video_id)
+        ).all()
+    )
     # Where each video is out: Facebook from its live posts, the others from any post recorded or sent there.
     elsewhere: dict[int, set[str]] = {}
     for video_id, platform in db.execute(
@@ -1032,6 +1065,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
             "post": _post_summary(live, later, readings, by_page),
             # A TikTok post of this video (its TikTok version's or its own MP4's): the card says "Đã đăng" for it.
             "tiktok_posted": video.id in on_tiktok,
+            # The products attached to it (their links go in the pinned comment): the list marks a product video.
+            "product_count": products.get(video.id, 0),
             # Every platform the video is out on, in a fixed order, for the card's "Đã đăng" line.
             "posted_on": [
                 platform
@@ -1109,10 +1144,23 @@ def list_payload(
         "cloned": video.id in family[1],
         "created_by": video.created_by.name,
         "created_at": video.created_at.isoformat(),
+        # Its kind on the list: how the script came, how it is built, its products and its "Loại nội dung".
+        "made_via": made_via(video),
+        "assistant_app": video.assistant_app,
+        "mode": video.mode,
+        "content_type": video.content_type,
         **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
         **(
-            extras or {"knowledge_topic": None, "plan_day": None, "post": None, "tiktok_posted": False, "posted_on": []}
+            extras
+            or {
+                "knowledge_topic": None,
+                "plan_day": None,
+                "post": None,
+                "tiktok_posted": False,
+                "posted_on": [],
+                "product_count": 0,
+            }
         ),
     }

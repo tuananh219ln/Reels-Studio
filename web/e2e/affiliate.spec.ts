@@ -158,19 +158,20 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await expect(clone.getByLabel("Yêu cầu đổi")).toHaveValue(/Viết lại cho TikTok/);
   await clone.getByRole("button", { name: "Tạo bản TikTok" }).click();
   await expect(page).not.toHaveURL(source);
-  await expect(page.getByTestId("video-platform")).toHaveText("TikTok");
+  await expect(page.getByTestId("video-platform")).toHaveText("Bản TikTok");
   await expect(page.getByTestId("variants")).toContainText("Bản Facebook gốc:");
   await expect(page.getByRole("button", { name: "Tạo bản TikTok" })).toHaveCount(0);
 
   // On the list the version sits on its source's card, not on a card of its own, and opens from there.
   await page.getByRole("link", { name: "Danh sách video" }).click();
   await expect(page.getByTestId("video-card")).toHaveCount(1);
-  // The source card says its own platform, so the TikTok link is not the only platform on it.
-  await expect(page.getByTestId("video-card").getByTestId("video-platform")).toHaveText("Facebook");
+  // Only a TikTok version is tagged with its platform; the Facebook source card shows where it is out instead.
+  await expect(page.getByTestId("video-card").getByTestId("video-platform")).toHaveCount(0);
+  await expect(page.getByTestId("video-card").getByTestId("posted-platforms")).toHaveCount(1);
   const version = page.getByTestId("video-version");
   await expect(version).toHaveText(/TikTok\s*Nháp/);
   await version.click();
-  await expect(page.getByTestId("video-platform")).toHaveText("TikTok");
+  await expect(page.getByTestId("video-platform")).toHaveText("Bản TikTok");
   await page.goBack();
   // Choosing a platform shows every video on its own card again.
   await chooseOption(page, page.getByLabel("Lọc theo nền tảng"), "TikTok");

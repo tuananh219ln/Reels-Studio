@@ -18,7 +18,7 @@ from PIL import Image
 from sqlalchemy import select
 
 from reels_api import analytics
-from reels_api.models import Fanpage, Job, PostMetrics, Publication, Scene, TopicPlanItem, Video
+from reels_api.models import Fanpage, Job, KnowledgeTopic, PostMetrics, Publication, Scene, TopicPlanItem, Video
 from reels_api.sessions import now
 
 
@@ -89,6 +89,21 @@ def test_list_searches_title_and_topic_and_shows_status(an, db, me, storage):
     assert [row["topic"] for row in an.get("/api/videos", params={"q": "XƯƠNG"}).json()] == ["xương khớp"]
     row = an.get("/api/videos").json()[0]
     assert {"thumbnail_url", "status_label", "created_by", "created_at", "mp4_outdated", "rerender_failed"} <= set(row)
+
+
+def test_list_keeps_one_topic_groups_videos_for_its_tab_in_kho_kien_thuc(an, db, me, storage):
+    health = first_topic(db)
+    other = KnowledgeTopic(name="Vườn rau tại nhà")
+    db.add(other)
+    db.flush()
+    mine = make_video(db, storage, me, topic="tim mạch")
+    garden = make_video(db, storage, me, topic="rau mầm")
+    garden.knowledge_topic_id = other.id
+    db.flush()
+    assert [row["id"] for row in an.get("/api/videos", params={"knowledge_topic_id": other.id}).json()] == [garden.id]
+    rows = an.get("/api/videos", params={"knowledge_topic_id": health.id, "q": "tim"}).json()
+    assert [row["id"] for row in rows] == [mine.id]
+    assert {row["id"] for row in an.get("/api/videos").json()} == {mine.id, garden.id}
 
 
 def _post(db, me, video, page, status="published", at=None, latest=None, h48=None):

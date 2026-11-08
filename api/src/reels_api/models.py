@@ -228,6 +228,9 @@ class Video(Base):
     # "assistant": the script was written by a member's own Claude through MCP (on their plan, at no cost to the
     # team's AI service); "": by the team's AI service in a job, or typed by a member.
     written_via: Mapped[str] = mapped_column(String(20), default="", server_default="")
+    # Which assistant wrote it through MCP (mcp_auth.app_of: ChatGPT, Claude, Claude Code, Muse); "" when unknown
+    # (made before this was kept) or not written through MCP.
+    assistant_app: Mapped[str] = mapped_column(String(20), default="", server_default="")
     title_options: Mapped[list] = mapped_column(JSONB, default=list)
     caption: Mapped[str] = mapped_column(Text, default="")
     hashtags: Mapped[list] = mapped_column(JSONB, default=list)
@@ -268,6 +271,8 @@ class Video(Base):
     # suốt"), the title scene's photo or clip under every scene, a scene's own photo shown only as its photo layer.
     # Switching keeps every photo, clip and layer, so switching back loses nothing.
     mode: Mapped[str] = mapped_column(String(16), default="slides", server_default="slides")
+    # "Loại nội dung": what kind of content a member says it is (Hướng dẫn, Mẹo nhanh...), free text; "" for none.
+    content_type: Mapped[str] = mapped_column(String(40), default="", server_default="")
     variant_of_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
     # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

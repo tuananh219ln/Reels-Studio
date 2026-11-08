@@ -491,6 +491,38 @@ function SizeField({
   );
 }
 
+const TEXT_CASES = [
+  { value: "keep", label: "Giữ nguyên như đã nhập" },
+  { value: "upper", label: "Viết hoa toàn bộ" },
+];
+
+/** "Dạng chữ": the text drawn as typed, or every letter a capital (the original template); marked words keep their colour. */
+function CaseField({
+  label,
+  hint,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: VideoOptions["text_case"] | undefined;
+  disabled?: boolean;
+  onChange: (textCase: VideoOptions["text_case"]) => void;
+}) {
+  return (
+    <Field label={label} hint={hint}>
+      <Segmented
+        aria-label={label}
+        options={TEXT_CASES}
+        value={value ?? "upper"}
+        disabled={disabled}
+        onChange={(textCase) => onChange(textCase as VideoOptions["text_case"])}
+      />
+    </Field>
+  );
+}
+
 export function TextSettings({ values, onChange, disabled }: Props) {
   const [target, setTarget] = useState<"scenes" | "title">("scenes");
   const title = titleLook(values);
@@ -517,6 +549,13 @@ export function TextSettings({ values, onChange, disabled }: Props) {
               value={values.text_size}
               disabled={disabled}
               onChange={(text_size) => onChange({ text_size })}
+            />
+            <CaseField
+              label="Dạng chữ"
+              hint="Áp dụng cho chữ các cảnh và lớp chữ trên cảnh."
+              value={values.text_case}
+              disabled={disabled}
+              onChange={(text_case) => onChange({ text_case })}
             />
             <Field
               label="Phụ đề theo giọng đọc"
@@ -559,6 +598,13 @@ export function TextSettings({ values, onChange, disabled }: Props) {
               value={values.title_text_size}
               disabled={disabled}
               onChange={(title_text_size) => onChange({ title_text_size })}
+            />
+            <CaseField
+              label="Dạng chữ tiêu đề"
+              hint="Riêng cho cảnh tiêu đề, không theo các cảnh."
+              value={values.title_text_case}
+              disabled={disabled}
+              onChange={(title_text_case) => onChange({ title_text_case })}
             />
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               Tiêu đề cũng là ảnh thumbnail của video. Phụ đề không hiện trên cảnh tiêu đề.

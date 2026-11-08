@@ -17,9 +17,10 @@ from sqlalchemy.orm import Session as DbSession
 from reels_render.layers import ANIMATIONS, PHOTO_SHAPES, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
+from . import video_options
 from .db import get_db
 from .errors import ApiError
-from .models import Scene, SceneLayer, Session
+from .models import Scene, SceneLayer, Session, Video
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
 from .videos import ensure_unlocked, is_backdrop, lock_scene, photo_layer, video_payload
@@ -242,7 +243,8 @@ def layer_image(
         image = storage.path(scene.image_key)
     buffer = io.BytesIO()
     try:
-        picture = render_layer(as_layer(row, image))
+        # Drawn like the render draws it: a text layer's letters in the video's scenes' "Dạng chữ".
+        picture = render_layer(as_layer(row, image), video_options.text_case(db.get(Video, scene.video_id), False))
     except ValueError as err:
         raise ApiError(422, "photo_unreadable", f"Không vẽ được ảnh món: {err}") from None
     picture.save(buffer, "PNG")

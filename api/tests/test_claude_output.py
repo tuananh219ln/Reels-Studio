@@ -64,6 +64,12 @@ def test_the_format_keeps_hashtags_out_of_the_caption():
     assert "không ghi hashtag trong caption" in OUTPUT_FORMAT
 
 
+def test_titles_are_asked_as_ordinary_sentences_the_video_capitalises_them_itself():
+    # "Dạng chữ" (Viết hoa toàn bộ, the default) draws them in capitals; "Giữ nguyên" shows them as written.
+    titles = next(line for line in OUTPUT_FORMAT.splitlines() if line.startswith('- "titles"'))
+    assert "viết như câu thường" in titles and "tiêu đề viết hoa" not in titles
+
+
 @pytest.mark.parametrize(
     ("raw", "reason"),
     [
