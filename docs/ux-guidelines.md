@@ -535,14 +535,16 @@ Built:
   - the status colours, then the calendar: five weeks ("Tuần N · dd/mm – dd/mm", or the day numbers before a start
     date, with "N ý tưởng · N đã làm · N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
     A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
-    their status colour (never filtered); an empty one has a dashed "+ Thêm ý". Clicking a cell shows that day
-    below (outlined; today by default, else day 1). Dragging a chip or a card onto a cell moves the idea there; a
-    full day (10) refuses it;
-  - the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
+    their status colour (never filtered); an empty one has a dashed "+ Thêm ý", which also opens the day. Clicking
+    a cell outlines it and opens that day in a drawer on the right ("Ngày N — Thứ …, dd/mm" from the start date,
+    "Hôm nay" on today's, "+ Thêm ý" greyed out at 10), with no mask, so the calendar stays usable beside it;
+    closing it keeps the page's scroll and the filters. Dragging a chip or a card onto a cell moves the idea there;
+    a full day (10) refuses it. "Mở Backlog" sits above the calendar and opens the Backlog beside it, to drag ideas
+    between them;
+  - in the drawer, the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
     that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp", "Xóa lọc", "Đầy đủ | Gọn" (kept in the
     browser as `plan-compact`; a compact card shows its title, status, numbers and buttons, and opens on its title
-    or arrow) and "Mở Backlog", which opens the Backlog beside the calendar, to drag ideas between them;
-  - the chosen day in full: its date, "Hôm nay", "+" (greyed out at 10), a line counting its shown ideas by status
+    or arrow), then the day in full: a line counting its shown ideas by status
     ("Không có ý tưởng khớp" when the filters hide them all), and each idea with a 3 px left border in its status
     colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong, Đã
     lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while no post is set, "Tạo video" or "Mở video"

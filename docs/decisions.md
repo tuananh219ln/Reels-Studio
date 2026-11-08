@@ -11,6 +11,16 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — A plan day opens in a drawer
+
+"Bổ sung 3" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md), the owner's choice for both "Đầy đủ"
+and "Gọn": the chosen day shown in full under the calendar pushed the page down and lost the calendar on a long plan.
+Clicking a day (its cell, or "+ Thêm ý" on an empty one) now opens it in a drawer with every action an idea card had,
+titled "Ngày N — Thứ …, dd/mm" from the plan's start date; nothing is shown under the calendar until a day is picked.
+The filters and "Đầy đủ | Gọn" move into the drawer and are kept when it closes; the drawer has no mask, so the page
+keeps its scroll and the Backlog can still be dragged from, but it covers the right of the calendar while open. This
+replaces "the chosen day in full below them (today by default)" of the 2026-11-08 entry "The 30-day plan reads as a
+month calendar"; the "Hôm nay" strip stays, and nothing changes in the api.
 ## 2026-11-08 — A group's Video tab shows each video's views, as a table or a list
 
 "Bổ sung 2" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md). The numbers are those the video
