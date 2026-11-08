@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — Kho kiến thức opens a group on its videos; prompts are edited one at a time
+
+The owner's request (namtc): a tab with the topic group's videos, and the screen redesigned. Chosen with the owner
+among proposals: the group list stays a narrow left column; the group opens on "Video (N)", a compact table of its
+videos (`GET /api/videos?knowledge_topic_id=`) with "Tạo video" opening the dialog on that group
+(`/videos?group=<id>`); "Prompt" lists the six prompts on the left, each tagged "Đã sửa", "Mặc định" or "Trống", and
+edits the chosen one, every editor staying loaded so unsaved text survives; the banned words and "Gợi ý tìm ảnh" get
+their own tab; renaming moves onto the heading and "Xoá nhóm" under "⋯". Nothing about what a group holds changes.
+
 ## 2026-11-08 — "Dạng chữ": a video's text may be drawn as typed; capitals stay the default
 
 The owner's call (namtc, [brief](specs/chu-thuong-ca-nhan-hoa/brief.md), part A): every letter on a video was drawn as a

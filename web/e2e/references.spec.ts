@@ -148,15 +148,26 @@ test("Kho kiến thức: the sample video prompts show their default until a gro
   const health = page.locator('[data-topic="Sức khỏe"]');
   const learn = health.getByLabel("Prompt học từ video mẫu", { exact: true });
   const analyze = health.getByLabel("Prompt phân tích video mẫu", { exact: true });
+  const learnItem = health.getByRole("tab", { name: /^Học từ video mẫu/ });
+  const analyzeItem = health.getByRole("tab", { name: /^Phân tích video mẫu/ });
+  await health.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await learnItem.click();
   await expect(learn).toHaveValue(/^Bạn là biên kịch video ngắn/);
+  await expect(learnItem).toContainText("Mặc định");
+  await analyzeItem.click();
   await expect(analyze).toHaveValue(/^Bạn là chuyên gia phân tích video ngắn/);
 
+  await learnItem.click();
   await learn.fill("Học video mẫu cho [chủ đề]");
   const learnCard = health.locator(".ant-card").filter({ hasText: "Prompt học từ video mẫu" });
   await learnCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt học từ video mẫu")).toBeVisible();
+  await expect(learnItem).toContainText("Đã sửa");
   await page.reload();
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await health.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await learnItem.click();
   await expect(learn).toHaveValue("Học video mẫu cho [chủ đề]");
+  await analyzeItem.click();
   await expect(analyze).toHaveValue(/^Bạn là chuyên gia phân tích video ngắn/);
 });

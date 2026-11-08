@@ -118,6 +118,8 @@ export default function VideosPage() {
   const [startItem, setStartItem] = useState<PlanItem | null>(null);
   // The sample video "Tạo thêm video từ mẫu này" on a video page starts from ("Từ video mẫu", way "reuse").
   const [startSample, setStartSample] = useState<number | null>(null);
+  // The topic group "Tạo video" on a group's "Video" tab in Kho kiến thức starts with.
+  const [startGroup, setStartGroup] = useState<number | null>(null);
   // A new dialog each time it opens, so it starts from `startItem` and nothing picked before.
   const [opened, setOpened] = useState(0);
   const [today, setToday] = useState<PlanToday[]>([]);
@@ -139,9 +141,10 @@ export default function VideosPage() {
   const [view, chooseView] = useRememberedView(VIEW_KEY);
   const [sort, setSort] = useState<Sort>("new");
 
-  function startFrom(item: PlanItem | null, sample: number | null = null) {
+  function startFrom(item: PlanItem | null, sample: number | null = null, group: number | null = null) {
     setStartItem(item);
     setStartSample(sample);
+    setStartGroup(group);
     setOpened((count) => count + 1);
     setCreating(true);
   }
@@ -175,8 +178,24 @@ export default function VideosPage() {
 
   // /videos?plan_item=<id>: opened from an idea's "Tạo video" in Kho kiến thức.
   // /videos?reference=<id>: "Tạo thêm video từ mẫu này" on a video made from a sample video.
+  // /videos?group=<id>: "Tạo video" on a topic group's "Video" tab in Kho kiến thức.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const group = Number(params.get("group"));
+    if (group > 0) {
+      router.replace("/videos");
+      // Opens once the group is known to be there, so a deleted one says so instead of another group.
+      api<Knowledge>("/knowledge")
+        .then((knowledge) => {
+          if (knowledge.topics.some((topic) => topic.id === group)) {
+            startFrom(null, null, group);
+          } else {
+            message.error("Không tìm thấy nhóm chủ đề (có thể đã bị xoá)");
+          }
+        })
+        .catch((err) => message.error(errorMessage(err)));
+      return;
+    }
     const sample = Number(params.get("reference"));
     if (sample > 0) {
       router.replace("/videos");
@@ -358,11 +377,13 @@ export default function VideosPage() {
         open={creating}
         startItem={startItem}
         startSample={startSample}
+        startGroup={startGroup}
         today={today}
         onClose={() => {
           setCreating(false);
           setStartItem(null);
           setStartSample(null);
+          setStartGroup(null);
         }}
       />
     </>
@@ -895,12 +916,14 @@ function NewVideoModal({
   open,
   startItem,
   startSample,
+  startGroup,
   today,
   onClose,
 }: {
   open: boolean;
   startItem: PlanItem | null;
   startSample: number | null;
+  startGroup: number | null;
   today: PlanToday[];
   onClose: () => void;
 }) {
@@ -1095,7 +1118,8 @@ function NewVideoModal({
           requiredMark={false}
           onFinish={submit}
           initialValues={{
-            knowledge_topic_id: startItem?.knowledge_topic_id ?? topics.find((topic) => topic.script_prompt)?.id,
+            knowledge_topic_id:
+              startItem?.knowledge_topic_id ?? startGroup ?? topics.find((topic) => topic.script_prompt)?.id,
             topic: startItem?.topic,
             sample_mode: startSample ? "reuse" : "quick",
             sample_source: "link",

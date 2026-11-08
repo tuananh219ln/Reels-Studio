@@ -266,8 +266,17 @@ def _ensure_renderable(db: DbSession, video: Video) -> None:
 
 
 @router.get("/videos")
-def list_videos(q: str = "", me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
+def list_videos(
+    q: str = "",
+    knowledge_topic_id: int | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> list[dict]:
+    """Every video, newest first; `q` searches the topic and the title, `knowledge_topic_id` keeps one topic group's
+    (its "Video" tab in Kho kiến thức)."""
     query = select(Video).order_by(Video.created_at.desc(), Video.id.desc())
+    if knowledge_topic_id is not None:
+        query = query.where(Video.knowledge_topic_id == knowledge_topic_id)
     if q.strip():
         literal = q.strip().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         pattern = f"%{unicodedata.normalize('NFC', literal)}%"

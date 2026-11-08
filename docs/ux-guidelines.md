@@ -470,17 +470,28 @@ Built:
     Suite), "Hủy đăng" for a post not yet public and "Xóa" for a public one, each with a confirmation,
     and a public post's numbers as on "Bài đăng" (without "Cập nhật view");
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
-- **Kho kiến thức** (`/knowledge`): two columns (stacked on a phone). On the left, the card "Nhóm
-  chủ đề": a field and "Thêm nhóm" (the new group is opened), then one line per topic group with its
-  video count and "Chưa có prompt" when it has none; the chosen line is highlighted, the first group
-  is chosen on arrival. On the right, the chosen group: its name as a heading with how many videos use
-  it, the name field with "Đổi tên", and "Xoá nhóm" (disabled while the group has videos). Groups
-  opened once stay loaded, so unsaved text in one survives opening another. A new group starts
-  empty, and "Tạo video" cannot pick a group without a script prompt. The group is chosen in "Tạo
-  video"; a clone keeps its source's group. Two tabs: "Prompt và từ cấm" (the script prompt and the
-  clone prompt, each with "Lưu" and "Khôi phục mặc định", and beside them on a wide screen the banned
-  words with "Lưu từ cấm", then "Gợi ý tìm ảnh" with "Lưu gợi ý"), "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on
-  the tab's name goes to the Backlog):
+- **Kho kiến thức** (`/knowledge`): two columns (stacked on a phone). On the left, a narrow card "Nhóm
+  chủ đề" that stays in view while the page scrolls: one line per topic group with its video count and
+  "Chưa có prompt" when it has none (the chosen line highlighted with an orange left edge, the first
+  group chosen on arrival), and under them a small field with a "+" button ("Thêm nhóm"; the new group
+  is opened). On the right, the chosen group: its name as a heading with a pencil ("Đổi tên", renamed in
+  place with "Lưu tên" / "Huỷ", Esc cancels), a line "N video · K prompt đã sửa" (and that it cannot
+  make videos without a script prompt), and "⋯" holding "Xoá nhóm" (disabled while the group has
+  videos, then a confirmation). Groups opened once stay loaded, so unsaved text in one survives opening
+  another. A new group starts empty, and "Tạo video" cannot pick a group without a script prompt. The
+  group is chosen in "Tạo video"; a clone keeps its source's group. Tabs, the group opening on "Video":
+  - "Video (N)": the group's videos newest first in a compact table (thumbnail, title with its topic and
+    plan day, status, who made it, when), a search over title and topic that ignores accents, a status
+    filter, and "Tạo video", which opens "Tạo video" on `/videos` with this group chosen (hidden while
+    the group has no script prompt);
+  - "Prompt": the six prompts listed on the left (Viết kịch bản, Nhân bản, Học từ video mẫu, Phân tích
+    video mẫu, Sửa theo góp ý, Viết bài), each tagged "Đã sửa", "Mặc định" or "Trống", and the chosen
+    one edited on the right with "Lưu" and "Khôi phục mặc định"; text typed in one and not saved
+    survives choosing another;
+  - "Từ cấm & ảnh": the banned words with "Lưu từ cấm" and "Gợi ý tìm ảnh" with "Lưu gợi ý", side by
+    side on a wide screen;
+  - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
+    to the Backlog):
   - start date ("Hôm nay là ngày N/30"), ideas per day (3–5), "Giờ đăng" (1–5 times, as tags), "Đã làm
     X/Y ý tưởng" with a bar, and a strip of 30 small cells, one a day (Trống, Có ý tưởng, Đang làm, Đủ
     video, Đã lên lịch đủ; today outlined), each a link to its day;

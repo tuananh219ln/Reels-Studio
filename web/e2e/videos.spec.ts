@@ -171,23 +171,37 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   const health = page.locator('[data-topic="Sức khỏe"]');
+  // A group opens on its videos; the prompts are one tab, each prompt chosen on its left.
+  await expect(health.getByRole("tab", { name: /^Video/ })).toHaveAttribute("aria-selected", "true");
+  await health.getByRole("tab", { name: "Prompt", exact: true }).click();
   const scriptCard = health.locator(".ant-card").filter({ hasText: "Prompt viết kịch bản" });
   const cloneCard = health.locator(".ant-card").filter({ hasText: "Prompt nhân bản" });
   const prompt = health.getByLabel("Prompt viết kịch bản", { exact: true });
   const clonePrompt = health.getByLabel("Prompt nhân bản", { exact: true });
+  const scriptItem = health.getByRole("tab", { name: /^Viết kịch bản/ });
+  const cloneItem = health.getByRole("tab", { name: /^Nhân bản/ });
   await expect(prompt).toHaveValue(/Chủ đề: \[Chủ đề\]/);
+  await expect(cloneItem).toContainText("Mặc định");
+  await cloneItem.click();
   await expect(clonePrompt).toHaveValue(/^Video gốc: "\[tiêu đề\]"/);
 
+  await scriptItem.click();
   await prompt.fill("   ");
   await expect(scriptCard.getByRole("button", { name: "Lưu", exact: true })).toBeDisabled();
   await prompt.fill("Prompt mới cho [Chủ đề]");
-  // Unsaved text in another box survives this save.
+  // Unsaved text in another prompt survives this save.
+  await cloneItem.click();
   await clonePrompt.fill("Biến thể của [tiêu đề] chưa lưu");
+  await scriptItem.click();
   await scriptCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
+  await expect(scriptItem).toContainText("Đã sửa");
+  await expect(health).toContainText("1 prompt đã sửa");
+  await cloneItem.click();
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await cloneCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt nhân bản")).toBeVisible();
+  await health.getByRole("tab", { name: "Từ cấm & ảnh" }).click();
   await health.getByLabel("Từ cấm", { exact: true }).fill("thần dược\nđặc trị");
   await health.getByRole("button", { name: "Lưu từ cấm" }).click();
   await expect(page.getByText("Đã lưu danh sách từ cấm")).toBeVisible();
@@ -196,7 +210,13 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("button", { name: "Thêm nhóm" }).click();
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
   const beauty = page.locator('[data-topic="Làm đẹp"]');
+  await expect(beauty).toContainText("Chưa có prompt viết kịch bản");
+  await expect(beauty.getByText("Nhóm này chưa có video nào")).toBeVisible();
+  await expect(beauty.getByRole("button", { name: "Tạo video" })).toHaveCount(0);
+  await beauty.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(beauty.getByLabel("Prompt viết kịch bản", { exact: true })).toHaveValue("");
+  await expect(beauty.getByRole("tab", { name: /^Viết kịch bản/ })).toContainText("Trống");
+  await beauty.getByRole("tab", { name: "Từ cấm & ảnh" }).click();
   await expect(beauty.getByLabel("Từ cấm", { exact: true })).toHaveValue("");
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
 
@@ -210,19 +230,65 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
 
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await health.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
+  await cloneItem.click();
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
+  await health.getByRole("tab", { name: "Từ cấm & ảnh" }).click();
   await expect(health.getByLabel("Từ cấm", { exact: true })).toHaveValue("thần dược\nđặc trị");
+  await health.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await scriptItem.click();
   await scriptCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
   await expect(prompt).toHaveValue(/^Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40\+\./);
+  await cloneItem.click();
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await expect(page.getByRole("dialog")).toBeHidden();
 
+  // Renamed in place on its heading.
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
-  await beauty.getByRole("button", { name: "Xoá nhóm" }).click();
-  await page.getByRole("tooltip").getByRole("button", { name: "Xoá" }).click();
+  await beauty.getByRole("button", { name: "Đổi tên" }).click();
+  await beauty.getByLabel("Tên nhóm chủ đề").fill("Làm đẹp da");
+  await beauty.getByRole("button", { name: "Lưu tên" }).click();
+  await expect(page.getByText("Đã lưu tên nhóm chủ đề")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Làm đẹp da/ })).toBeVisible();
+  const renamed = page.locator('[data-topic="Làm đẹp da"]');
+  await renamed.getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await page.getByRole("menuitem", { name: "Xoá nhóm" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Xoá" }).click();
   await expect(page.getByRole("button", { name: /Làm đẹp/ })).toHaveCount(0);
+});
+
+test("knowledge topics: a group's Video tab lists its videos and makes a new one in it", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau mầm trồng tại nhà");
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const videos = page.locator('[data-topic="Sức khỏe"]').getByTestId("topic-videos");
+  await expect(videos.getByRole("row")).toHaveCount(2); // the header and the one video
+  await expect(videos).toContainText("rau mầm trồng tại nhà");
+  await videos.getByLabel("Tìm video của nhóm").fill("khong co");
+  await expect(videos.getByText("Không có video nào khớp")).toBeVisible();
+  await videos.getByLabel("Tìm video của nhóm").fill("rau mam");
+  await expect(videos.getByRole("row")).toHaveCount(2);
+
+  // "Tạo video" on another group's tab opens the dialog on that group, not the first one.
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Vườn rau");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  const garden = page.locator('[data-topic="Vườn rau"]');
+  await garden.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await garden.getByLabel("Prompt viết kịch bản", { exact: true }).fill("Viết kịch bản trồng rau về [Chủ đề]");
+  await garden.getByRole("button", { name: "Lưu", exact: true }).first().click();
+  await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
+  await garden.getByRole("tab", { name: /^Video/ }).click();
+  await garden.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  // The group's name shows in the dialog only as the chosen group (the list of groups is closed).
+  await expect(dialog.getByLabel("Nhóm chủ đề")).toBeVisible();
+  await expect(dialog).toContainText("Vườn rau");
+  await expect(dialog).not.toContainText("Sức khỏe");
+  await expect(page).toHaveURL(/\/videos$/);
 });
 
 async function newVideoWithScript(page: Page, topic: string) {
