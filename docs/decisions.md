@@ -59,6 +59,18 @@ nhập" or "Viết hoa toàn bộ", stored as `text_case` and `title_text_case` 
   the stricter check); a scene's text is checked in its own case, so its preview and its "Chữ tràn hộp" match the
   render.
 
+## 2026-11-08 — The assistant sets a video's "Thiết lập" settings through the tab's own save; voice ids by form
+
+Asked by the product owner (brief in `docs/specs/mcp-video-options/`): every new video takes the team's default
+voice and title size, and changing them meant opening the web page for each video. The MCP tool
+`set_video_options` sends only the settings given through the same `PATCH /videos/{id}` handler and
+`video_options.clean` the tab uses, so it accepts exactly what the tab accepts, refuses the whole change on one wrong
+value, and never touches the team's defaults or other videos. `list_edit_options` lists the accepted values from the
+same lists. A voice id is checked for its form only (bare ElevenLabs id or `vieneu:<id>`), as the web does: checking
+it against the services' voice lists would call ElevenLabs and VieNeu on every save, and a voice that does not exist
+already fails when the narration is made. The tool makes no narration (2026-11-07: the assistant edits like the
+studio).
+
 ## 2026-11-08 — Google Ảnh photos come in through the team's Chrome extension, only stock sites are left out
 
 Owner's choice (namtc), replacing the 2026-11-02 entry's "the app must not pick them by itself": photos may be taken

@@ -79,7 +79,15 @@ member gives with `add_media_from_links`, and puts an item in a scene with `set_
 The assistant edits with the studio's own handlers, presets and locks (nothing the web page cannot do):
 
 - `list_edit_options` reads the presets it may use: transitions, colour presets, music levels, layer styles,
-  sizes, entrance effects, stickers, sound effects and their volumes, and the team's music library.
+  sizes, entrance effects, stickers, sound effects and their volumes, the team's music library, and
+  `video_options`: what each setting of the video's "Thiết lập" tab accepts (`video_options.choices()`, built
+  from the same lists the tab's save checks).
+- `set_video_options` changes a video's "Thiết lập" settings (voice, reading speed and volume, pause after the
+  narration, ducking, transition, motion, zoom, text box and title looks, captions, text sizes, text position).
+  Only the arguments sent change; it goes through the same `PATCH /videos/{id}` handler and `video_options.clean`
+  as the tab, so one wrong value saves nothing. A voice id is checked for its form only (a bare ElevenLabs id or
+  `vieneu:<id>`), as on the web; a voice that does not exist fails when the narration is made. It makes no
+  narration and never touches the team's defaults or another video. It returns the video's whole `options`.
 - `set_scene_effects` (transition, colour, music level, "Tự khớp lời đọc"; `default` goes back to the video's),
   `reorder_scenes`, `split_scene`, `delete_scene` (content scenes only).
 - `add_layer`, `update_layer`, `delete_layer` for text and sticker layers; `add_sound`, `delete_sound`;
