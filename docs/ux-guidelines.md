@@ -516,8 +516,9 @@ Built:
     video mẫu, Sửa theo góp ý, Viết bài), each tagged "Đã sửa", "Mặc định" or "Trống", and the chosen
     one edited on the right with "Lưu" and "Khôi phục mặc định"; text typed in one and not saved
     survives choosing another;
-  - "Từ cấm & ảnh": the banned words with "Lưu từ cấm" and "Gợi ý tìm ảnh" with "Lưu gợi ý", side by
-    side on a wide screen;
+  - "Từ cấm, ảnh & giọng": the banned words with "Lưu từ cấm" beside "Gợi ý tìm ảnh" with "Lưu gợi ý"
+    and "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing "Theo Thiết lập
+    mặc định của người tạo", cleared with ×) with "Lưu giọng";
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
   - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở

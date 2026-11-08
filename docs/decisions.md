@@ -20,6 +20,16 @@ reading, and the 48-hour views, shares and share/view are of the post with the m
 never a zero. "Bảng | Danh sách" is remembered per browser, like the video list's grid or list (2026-11-03), and
 switching keeps the search and the status filter. A plan card adds the newest views beside the 48-hour line, which
 stays the one compared with the Page's median.
+## 2026-11-08 — A topic group may have its own voice, which its new videos start with
+
+"Bổ sung 1" of [docs/specs/semi-auto-posting](specs/semi-auto-posting/brief.md): the owner runs two Pages from one
+account, each with its standard voice (Ăn Lành Sống Khỏe: ElevenLabs Chi; Già Mà Khỏe: VieNeu Huyền My), and one
+member has only one "Thiết lập mặc định". A topic group now has a voice (`knowledge_topics.voice_id`, migration 0062),
+chosen on Kho kiến thức with the same picker. A new video of the group takes it, however it is made (the web, MCP, a
+sample video, all through `video_options.apply_defaults`): the video's own voice › the group's › the maker's own
+defaults › the team's. This adds a step to the 2026-11-08 entry "Each member has their own video defaults", whose
+rule stands for every other setting. A clone keeps its source's voice, existing videos never change, and an empty
+group voice leaves things as they were. No change to TTS: a VieNeu voice out of credit still fails the job.
 
 ## 2026-11-08 — Every list of the team's work starts on the member's own, "Cả đội" one click away
 

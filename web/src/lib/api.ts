@@ -487,6 +487,8 @@ export type KnowledgeTopic = {
   analyze_prompt: string;
   /** "Prompt viết bài" ("Bài viết"); "" uses the default. */
   article_prompt: string;
+  /** The group's own narration voice, which its new videos start with; "" leaves it to each maker's defaults. */
+  voice_id: string;
   video_count: number;
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;

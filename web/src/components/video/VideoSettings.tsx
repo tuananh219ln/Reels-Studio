@@ -102,11 +102,21 @@ function Field({ label, children, hint }: { label: string; children: React.React
   );
 }
 
-export function VoicePicker({ values, onChange, disabled }: Props) {
+/** `unset`: the voice may be left unchosen (a topic group's voice), shown as this placeholder and cleared with ×;
+ * otherwise an empty voice is the server's default voice. */
+export function VoicePicker({
+  values,
+  onChange,
+  disabled,
+  unset,
+}: Pick<Props, "onChange" | "disabled"> & {
+  values: Pick<SettingsValues, "voice_id"> & Partial<SettingsValues>;
+  unset?: string;
+}) {
   const voices = useVoices();
   const audio = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
-  const chosen = values.voice_id || voices?.defaultId || "";
+  const chosen = unset ? values.voice_id : values.voice_id || voices?.defaultId || "";
   const sample = voices?.voices.find((voice) => voice.id === chosen)?.preview_url;
 
   function listen() {
@@ -156,8 +166,10 @@ export function VoicePicker({ values, onChange, disabled }: Props) {
           loading={voices === null}
           disabled={disabled}
           value={chosen || undefined}
+          placeholder={unset}
+          allowClear={Boolean(unset)}
           showSearch={{ optionFilterProp: "label" }}
-          onChange={(id) => onChange({ voice_id: id === voices?.defaultId ? "" : id })}
+          onChange={(id) => onChange({ voice_id: unset ? (id ?? "") : id === voices?.defaultId ? "" : id })}
           options={options}
         />
         <Tooltip title={sample ? "Nghe thử giọng mẫu (không tốn ký tự)" : "Giọng này không có bản nghe thử"}>
