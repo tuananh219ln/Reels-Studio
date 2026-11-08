@@ -203,6 +203,22 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
     return cleaned
 
 
+def choices() -> dict:
+    """What each setting accepts, from the same lists `clean` checks against (the assistant's connection reads it)."""
+    return (
+        {name: list(values) for name, values in CHOICES.items()}
+        | {name: [*values, "#RRGGBB"] for name, values in COLORS.items()}
+        | {
+            "voice_id": "ElevenLabs voice id, or vieneu:<id>; empty: the team's server voice",
+            "voice_speed": {"min": MIN_SPEED, "max": MAX_SPEED, "step": SPEED_STEP},
+            "voice_volume": {"min": 0, "max": 100},
+            "voice_pause": list(VOICE_PAUSES),
+            "ducking": [True, False],
+            "text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
+        }
+    )
+
+
 def clean_position(value: object) -> list[int] | None:
     """A text box centre [x, y] inside the frame, or None; the message is shown to members."""
     if value is None:
