@@ -243,13 +243,13 @@ def test_new_videos_start_with_the_default_music_and_older_ones_keep_theirs(an, 
     assert an.put(DEFAULTS_URL, json={"values": {"music_track_id": None}}).json()["music_track_id"] is None
 
 
-def test_taking_the_team_defaults_back_keeps_the_video_music(an, db, me, storage):
+def test_a_new_default_music_keeps_the_music_a_video_already_has(an, db, me, storage):
     video = make_video(db, storage, me)
     an.post(f"/api/videos/{video.id}/music", files={"file": ("cu.mp3", OTHER_MP3, "audio/mpeg")})
     track = add_track(an).json()
     an.put(DEFAULTS_URL, json={"values": {"music_track_id": track["id"]}})
-    reset = an.patch(f"/api/videos/{video.id}", json={"reset_options": True}).json()
-    assert reset["music"]["name"] == "cu.mp3"
+    kept = an.patch(f"/api/videos/{video.id}", json={"reset_options": True}).json()
+    assert kept["music"]["name"] == "cu.mp3"
 
 
 def test_a_missing_or_wrong_default_track_is_refused(an):

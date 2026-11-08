@@ -668,6 +668,14 @@ export type VideoDefaults = VideoOptions & {
   music_track?: { id: number; name: string; url: string } | null;
 };
 
+/** The signed-in member's own defaults (/settings/my-video-defaults): the team's until they save their own. */
+export type MyVideoDefaults = VideoDefaults & {
+  /** They saved their own; false: the team's are shown and used. */
+  own: boolean;
+  /** Whose they are, said on the page. */
+  owner: string;
+};
+
 /** A narration voice; a VieNeu one has an id starting with "vieneu:" (api tts.py). */
 export type Voice = {
   id: string;

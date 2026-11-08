@@ -158,7 +158,6 @@ class VideoPatchBody(BaseModel):
     music_start: object = None  # seconds into the song where the video's music starts
     voice_enabled: bool | None = None
     options: dict | None = None  # some of video_options.DEFAULTS
-    reset_options: bool = False  # "Lấy theo mặc định nhóm": the team's defaults replace every setting
     mode: str | None = None  # videos.MODES; switching keeps every photo, clip and layer
     content_type: str | None = None  # "Loại nội dung"; "" for none
 
@@ -340,10 +339,10 @@ def start_video(
         written_via=via,
         assistant_app=app,
     )
-    video_options.apply_team_defaults(db, video)
+    video_options.apply_defaults(db, video, me.user_id)
     db.add(video)
     db.flush()
-    apply_default_music(db, video, get_storage())
+    apply_default_music(db, video, get_storage(), me.user_id)
     if idea is not None:
         idea.video_id = video.id
     if manual:
@@ -363,11 +362,11 @@ def start_video(
     return video
 
 
-def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage) -> None:
-    """A new video starts with the team's default music (Cài đặt › Thiết lập mặc định), copied like "Chọn từ thư
-    viện" does, so editing or deleting the track later never changes the video. Nothing when no default is set or
-    the track is gone. Only new videos: "Lấy theo mặc định nhóm" keeps the music a video already has."""
-    track_id = video_options.team_defaults(db).get("music_track_id")
+def apply_default_music(db: DbSession, video: Video, storage: DirectoryStorage, user_id: int) -> None:
+    """A new video starts with its maker's default music (Cài đặt › Thiết lập mặc định, theirs or the team's),
+    copied like "Chọn từ thư viện" does, so editing or deleting the track later never changes the video. Nothing when
+    no default is set or the track is gone. Only new videos: the music a video already has is never replaced."""
+    track_id = video_options.member_defaults(db, user_id).get("music_track_id")
     track = db.get(MusicTrack, track_id) if track_id else None
     if track is None or not storage.exists(track.storage_key):
         return
@@ -495,8 +494,6 @@ def patch_video(
         video.content_type = kind
     look = video_options.text_look(video)
     pause = video_options.voice_pause(video)
-    if body.reset_options:
-        video_options.apply_team_defaults(db, video)
     if body.options:
         try:
             changes = video_options.clean(body.options)

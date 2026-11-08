@@ -11,6 +11,19 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — Each member has their own video defaults; the team's start those who have none
+
+Part B1 of the brief ([docs/specs/chu-thuong-ca-nhan-hoa](specs/chu-thuong-ca-nhan-hoa/brief.md)), with the owner's
+answers of 2026-11-08: the settings are personal, as the money is per member (2026-10-31). Each member has their own
+"Thiết lập mặc định" (`user_video_defaults`, migration 0060); a new video takes its maker's (their own, else the
+team's), its default music included, however it is made (the web, MCP, a sample video). A member's own are a full copy
+taken from the team's when they first save, so later changes to the team's no longer reach them until they choose
+"Dùng mặc định nhóm". The team's stay, edited by any member as before (there are no roles), for members without their
+own. Cài đặt › Thiết lập mặc định opens on the member's own and says whose are being edited. "Lấy theo mặc định nhóm"
+on a video's "Thiết lập" tab is removed, with the API's `reset_options`, at the owner's request; this changes the
+2026-11-03 entry's "a video's own Thiết lập tab" sentence and the 2026-11-07 music entry's mention of that button.
+Existing videos never change, as before (2026-11-01).
+
 ## 2026-11-08 — A video written through MCP names the assistant that wrote it
 
 Reported by the owner: a video Muse wrote was tagged "Claude (MCP)", and its page said "Kịch bản viết bởi Claude của

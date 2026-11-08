@@ -2118,12 +2118,14 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   );
 });
 
-test("video settings: team defaults reach a new video, which then changes its own", async ({ page }) => {
+test("video settings: a member's defaults reach their new video, which then changes its own", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();
   await page.getByRole("tab", { name: "Thiết lập mặc định" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
+  // The page opens on the signed-in member's own defaults, and says whose they are.
+  await expect(page.getByTestId("defaults-whose")).toContainText(`Tài khoản ${SEED.name} chưa có mặc định riêng`);
   // Read-only until "Chỉnh sửa"; "Huỷ" drops what was changed.
   await expect(page.getByRole("slider", { name: "Tốc độ đọc" })).toHaveAttribute("aria-disabled", "true");
   await page.getByRole("button", { name: "Chỉnh sửa" }).click();
@@ -2156,7 +2158,8 @@ test("video settings: team defaults reach a new video, which then changes its ow
   await page.mouse.up();
   await expect(volume).toHaveAttribute("aria-valuenow", "50");
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
-  await expect(page.getByText("Đã lưu mặc định")).toBeVisible();
+  await expect(page.getByText("Đã lưu mặc định của bạn")).toBeVisible();
+  await expect(page.getByTestId("defaults-whose")).toContainText(`mặc định riêng của tài khoản ${SEED.name}`);
 
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
@@ -2293,9 +2296,37 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
 });
 
+test("video defaults: a member's own are kept apart from the team's, and the team's come back", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/settings/defaults");
+  const whose = page.getByTestId("defaults-whose");
+  await expect(whose).toContainText("chưa có mặc định riêng");
+  await expect(page.getByRole("button", { name: "Dùng mặc định nhóm" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Chỉnh sửa" }).click();
+  await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
+  await page.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(whose).toContainText("mặc định riêng của tài khoản");
+
+  // The team's are not touched by a member's own.
+  await page.getByLabel("Mặc định của").getByText("Của nhóm").click();
+  await expect(whose).toContainText("Đang sửa mặc định của cả nhóm");
+  await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).not.toBeChecked();
+
+  // Back on "Của tôi", the member goes back to the team's.
+  await page
+    .getByLabel("Mặc định của")
+    .getByText(/^Của tôi/)
+    .click();
+  await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).toBeChecked();
+  await page.getByRole("button", { name: "Dùng mặc định nhóm" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Dùng mặc định nhóm" }).click();
+  await expect(whose).toContainText("chưa có mặc định riêng");
+  await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).not.toBeChecked();
+});
+
 test("text settings from an api without the colour options still open, on Theo kiểu", async ({ page }) => {
   // An api older than the page (e.g. not restarted after an update) leaves the new colours out.
-  await page.route("**/api/settings/video-defaults", async (route) => {
+  await page.route(/\/api\/settings\/(my-)?video-defaults$/, async (route) => {
     const response = await route.fetch();
     const older = await response.json();
     delete older.box_color;
