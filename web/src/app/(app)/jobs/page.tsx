@@ -10,6 +10,7 @@ import PageHeader from "@/components/PageHeader";
 import UserAvatar from "@/components/UserAvatar";
 import { usePolling } from "@/lib/polling";
 import StatusText, { type StatusTone } from "@/components/StatusText";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import FilterSelect from "@/components/FilterSelect";
 
 const REFRESH_MS = 5000;
@@ -68,11 +69,13 @@ export default function JobsPage() {
   const [kind, setKind] = useState<string | null>(null);
   const [person, setPerson] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  // The member's own jobs first; the api filters, as the log is read a page at a time.
+  const [whose, setWhose] = useState<Whose>("mine");
 
   const reload = useCallback(
     async (quiet = false) => {
       try {
-        const page = await api<JobRow[]>("/jobs");
+        const page = await api<JobRow[]>(`/jobs?whose=${whose}`);
         setShown((rows) => (pagedBack.current ? merge(page, rows) : page));
         setHasMore((more) => more || page.length === PAGE_SIZE);
       } catch (err) {
@@ -83,13 +86,22 @@ export default function JobsPage() {
         setLoading(false);
       }
     },
-    [message],
+    [message, whose],
   );
+
+  function chooseWhose(next: Whose) {
+    pagedBack.current = false;
+    setShown([]);
+    setHasMore(false);
+    setLoading(true);
+    setPerson(null);
+    setWhose(next);
+  }
 
   async function loadOlder() {
     setLoadingMore(true);
     try {
-      const page = await api<JobRow[]>(`/jobs?before=${shown[shown.length - 1].id}`);
+      const page = await api<JobRow[]>(`/jobs?whose=${whose}&before=${shown[shown.length - 1].id}`);
       pagedBack.current = true;
       setShown((rows) => merge(page, rows));
       setHasMore(page.length === PAGE_SIZE);
@@ -127,7 +139,7 @@ export default function JobsPage() {
         (!words || row.video_title.toLocaleLowerCase("vi").includes(words)),
     );
   }, [shown, view, kind, person, search]);
-  const filtering = view !== "all" || kind !== null || person !== null || search.trim() !== "";
+  const filtering = whose === "mine" || view !== "all" || kind !== null || person !== null || search.trim() !== "";
 
   const columns: ColumnsType<JobRow> = [
     {
@@ -244,14 +256,17 @@ export default function JobsPage() {
           options={options(shown.map((row) => row.kind_label))}
           style={{ minWidth: 170 }}
         />
-        <FilterSelect
-          aria-label="Người bấm"
-          placeholder="Mọi người"
-          value={person}
-          onChange={(value) => setPerson(value ?? null)}
-          options={options(shown.map((row) => row.created_by))}
-          style={{ minWidth: 150 }}
-        />
+        <WhoseFilter value={whose} onChange={chooseWhose} />
+        {whose === "all" && (
+          <FilterSelect
+            aria-label="Người bấm"
+            placeholder="Mọi người"
+            value={person}
+            onChange={(value) => setPerson(value ?? null)}
+            options={options(shown.map((row) => row.created_by))}
+            style={{ minWidth: 150 }}
+          />
+        )}
       </PageHeader>
       <Card styles={{ body: { padding: 0 } }}>
         <Table<JobRow>

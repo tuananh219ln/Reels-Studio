@@ -376,6 +376,7 @@ def payload(db: DbSession, article: Article) -> dict:
         "busy": job is not None and job.status in ACTIVE_JOB_STATUSES,
         "checks": checks(article, group.banned_words if group else []),
         "created_by": article.created_by.name,
+        "created_by_id": article.created_by_id,
         "created_at": article.created_at.isoformat(),
         "updated_at": article.updated_at.isoformat(),
     }

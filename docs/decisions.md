@@ -11,6 +11,18 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — Every list of the team's work starts on the member's own, "Cả đội" one click away
+
+The brief's rule over part B ([docs/specs/chu-thuong-ca-nhan-hoa](specs/chu-thuong-ca-nhan-hoa/brief.md)): "lists
+should have a filter and a default by user". B2 did it only for Quản lý Page. Video (its creator filter), Bài viết,
+Bài đăng (list and calendar), Bình luận and Jobs now have "Của tôi / Cả đội". A video, an article or a job is mine
+when I made it; a post, and a comment under it, when I posted it or it is on a Page I own (the money is per member,
+2026-10-31). The fully loaded lists start on "Của tôi" once the member has a row there, else on "Cả đội", as Quản lý
+Page does, so a newcomer never opens an empty list; Jobs and Bình luận are paged or capped, so the api filters
+(`whose=mine`) and they start on "Của tôi". Nothing is hidden: "Cả đội" shows everyone's, as the brief's scope says.
+The KPIs and suggestions above Bài đăng stay the team's. Shared libraries (Kho tư liệu, Thư viện nhạc, Kho kiến thức)
+and Affiliate (out of the brief's scope) are not filtered.
+
 ## 2026-11-08 — The forms start on a member's own choices, the last one kept on the server
 
 Part B3 of the brief ([docs/specs/chu-thuong-ca-nhan-hoa](specs/chu-thuong-ca-nhan-hoa/brief.md)), with the owner's

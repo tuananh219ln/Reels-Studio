@@ -130,8 +130,9 @@ export default function VideosPage() {
   const router = useRouter();
   const { me } = useMe();
   const [status, setStatus] = useState<StatusFilter>("all");
-  // Null is everyone; a name is that member's videos ("Của tôi" is the signed-in member).
-  const [creator, setCreator] = useState<string | null>(null);
+  // Null is everyone; a name is that member's videos ("Của tôi" is the signed-in member). Undefined until chosen:
+  // "Của tôi" once the member has made a video, "Cả đội" before.
+  const [creatorPick, setCreator] = useState<string | null | undefined>(undefined);
   const [platform, setPlatform] = useState<"all" | "facebook" | "tiktok">("all");
   const [fanpage, setFanpage] = useState<string | null>(null);
   // The topic group shown, remembered in this browser: a member usually works on one group at a time.
@@ -234,11 +235,13 @@ export default function VideosPage() {
     }
   }
 
+  const creator =
+    creatorPick !== undefined ? creatorPick : (rows ?? []).some((row) => row.created_by_id === me.id) ? me.name : null;
   const match = STATUS_FILTERS.find((item) => item.value === status)!.match;
   const kept = (rows ?? []).filter(
     (row) =>
       match(row) &&
-      (!creator || row.created_by === creator) &&
+      (!creator || (creator === me.name ? row.created_by_id === me.id : row.created_by === creator)) &&
       (platform === "all" || row.platform === platform) &&
       (!fanpage || Boolean(row.post?.fanpages.includes(fanpage))) &&
       (!group || row.knowledge_topic === group),

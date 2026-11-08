@@ -10,6 +10,7 @@ import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import StatusText, { type StatusTone } from "@/components/StatusText";
 import FilterSelect from "@/components/FilterSelect";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 
 const REFRESH_MS = 10_000;
 
@@ -129,14 +130,16 @@ export default function CommentsPage() {
   const [data, setData] = useState<PageComments | null>(null);
   const [fanpage, setFanpage] = useState<number | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Comments under the member's own posts or on their Pages first; the api filters, as the list is capped.
+  const [whose, setWhose] = useState<Whose>("mine");
 
   const load = useCallback(async () => {
     try {
-      setData(await api<PageComments>(`/comments?state=${view}`));
+      setData(await api<PageComments>(`/comments?state=${view}&whose=${whose}`));
     } catch (err) {
       message.error(errorMessage(err));
     }
-  }, [view, message]);
+  }, [view, whose, message]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads when the view changes; state is set only after the request answers
@@ -195,6 +198,14 @@ export default function CommentsPage() {
           <Alert key={item.fanpage + item.error} type="warning" showIcon title={`${item.fanpage}: ${item.error}`} />
         ))}
         <Flex gap={8} wrap>
+          <WhoseFilter
+            value={whose}
+            onChange={(next) => {
+              setData(null);
+              setFanpage(null);
+              setWhose(next);
+            }}
+          />
           <Segmented
             value={view}
             onChange={(value) => setView(value as "open" | "all")}
@@ -216,7 +227,12 @@ export default function CommentsPage() {
         </Flex>
         {data && rows.length === 0 ? (
           <Card>
-            <Empty description={view === "open" ? "Không còn bình luận nào chờ trả lời" : "Chưa có bình luận nào"} />
+            <Empty
+              description={
+                (view === "open" ? "Không còn bình luận nào chờ trả lời" : "Chưa có bình luận nào") +
+                (whose === "mine" ? " trên bài và Page của bạn. Chọn “Cả đội” để xem của mọi người." : "")
+              }
+            />
           </Card>
         ) : (
           rows.map((row) => <CommentCard key={row.id} row={row} onChanged={changed} />)

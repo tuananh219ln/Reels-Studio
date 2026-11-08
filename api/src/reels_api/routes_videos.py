@@ -1778,13 +1778,18 @@ JOB_LIST_LIMIT = 300
 
 @router.get("/jobs")
 def list_jobs(
-    before: int | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+    before: int | None = None,
+    whose: Literal["all", "mine"] = "all",
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
 ) -> list[dict]:
     """The job log: newest first, including cancelled jobs and every retry. One page per call; `before`
-    (the oldest job id shown) gives the next, older page."""
+    (the oldest job id shown) gives the next, older page. `whose=mine` keeps the jobs the member started."""
     query = select(Job).order_by(Job.id.desc()).limit(JOB_LIST_LIMIT)
     if before is not None:
         query = query.where(Job.id < before)
+    if whose == "mine":
+        query = query.where(Job.created_by_id == me.user_id)
     jobs = db.scalars(query).all()
     titles = {}
     rows = []
@@ -1814,6 +1819,7 @@ def list_jobs(
                 "kind_label": JOB_KINDS.get(job.kind, job.kind) + (" (1 cảnh)" if job.scene_id is not None else ""),
                 "status": job.status,
                 "created_by": job.created_by.name,
+                "created_by_id": job.created_by_id,
                 "created_at": job.created_at.isoformat(),
                 "started_at": job.started_at.isoformat() if job.started_at else None,
                 "duration_seconds": round((ended - job.started_at).total_seconds(), 1)
