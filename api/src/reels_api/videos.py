@@ -1148,6 +1148,8 @@ def list_payload(
         "has_tiktok_version": video.id in family[0],
         "cloned": video.id in family[1],
         "created_by": video.created_by.name,
+        # Whose it is: the list starts on the viewer's own ("Của tôi").
+        "created_by_id": video.created_by_id,
         "created_at": video.created_at.isoformat(),
         # Its kind on the list: how the script came, how it is built, its products and its "Loại nội dung".
         "made_via": made_via(video),

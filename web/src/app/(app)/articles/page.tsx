@@ -19,6 +19,8 @@ import {
 import ArticleThumb from "@/components/ArticleThumb";
 import PageHeader from "@/components/PageHeader";
 import FilterSelect from "@/components/FilterSelect";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import { useMe } from "@/components/MeContext";
 import FormDrawer from "@/components/FormDrawer";
 import StatusText from "@/components/StatusText";
 import { ARTICLE_STATUS_TONES, numbersLine } from "@/components/article/ArticlePosting";
@@ -130,6 +132,9 @@ export default function ArticlesPage() {
   const [group, setGroup] = useState<string | null>(null);
   const [kind, setKind] = useState<ArticleKind | null>(null);
   const [creating, setCreating] = useState(false);
+  const { me } = useMe();
+  // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has made an article).
+  const [whosePick, setWhose] = useState<Whose | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -145,8 +150,14 @@ export default function ArticlesPage() {
   }, [load]);
   usePolling(load, REFRESH_MS);
 
-  const rows = (data?.articles ?? []).filter(
-    (row) => (!group || row.group_name === group) && (!kind || row.kind === kind),
+  const all = data?.articles ?? [];
+  const mineCount = all.filter((row) => row.created_by_id === me.id).length;
+  const whose = whosePick ?? (mineCount > 0 ? "mine" : "all");
+  const rows = all.filter(
+    (row) =>
+      (whose === "all" || row.created_by_id === me.id) &&
+      (!group || row.group_name === group) &&
+      (!kind || row.kind === kind),
   );
   const groups = [...new Set((data?.articles ?? []).map((row) => row.group_name).filter(Boolean))] as string[];
 
@@ -245,6 +256,7 @@ export default function ArticlesPage() {
           </Button>
         }
       >
+        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={all.length} />
         <FilterSelect<string>
           value={group}
           placeholder="Mọi nhóm chủ đề"
@@ -270,7 +282,13 @@ export default function ArticlesPage() {
             dataSource={rows}
             pagination={false}
             scroll={{ x: 1100 }}
-            locale={{ emptyText: <Empty description="Chưa có bài viết nào" /> }}
+            locale={{
+              emptyText: (
+                <Empty
+                  description={whose === "mine" ? "Không có bài viết nào của bạn khớp bộ lọc" : "Chưa có bài viết nào"}
+                />
+              ),
+            }}
           />
         )}
       </Card>

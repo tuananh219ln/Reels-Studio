@@ -18,6 +18,8 @@ import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import StatusText from "@/components/StatusText";
 import FilterSelect from "@/components/FilterSelect";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import { useMe } from "@/components/MeContext";
 
 /** The order a video's status tags are listed in. */
 const STATUSES: ShownStatus[] = ["failed", "pending", "scheduled", "published", "cancelled", "deleted"];
@@ -72,6 +74,9 @@ function Posts() {
   const [status, setStatus] = useState<StatusFilter>("active");
   const [fanpage, setFanpage] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>("latest");
+  const { me } = useMe();
+  // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has a post).
+  const [whosePick, setWhose] = useState<Whose | null>(null);
 
   const load = useCallback(
     () =>
@@ -91,7 +96,13 @@ function Posts() {
   const busy = (posts ?? []).some((post) => post.busy || post.metrics.pending);
   usePolling(() => (busy ? load() : Promise.resolve()), 3000);
 
-  const all = posts ?? [];
+  // "Của tôi": the posts the member made, or on a Page they own.
+  const isMine = (post: PostRow) => post.created_by_id === me.id || post.fanpage_owner_id === me.id;
+  const everyone = posts ?? [];
+  const mineCount = everyone.filter(isMine).length;
+  const whose = whosePick ?? (mineCount > 0 ? "mine" : "all");
+  const all = whose === "all" ? everyone : everyone.filter(isMine);
+  const whoseSwitch = <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={everyone.length} />;
   const pages = [...new Set(all.map((post) => post.fanpage).filter((name): name is string => Boolean(name)))];
   const words = folded(query.trim());
   const others = (post: PostRow) =>
@@ -124,7 +135,12 @@ function Posts() {
         <PageHeader
           title="Bài đăng"
           description="Các bài đã hẹn lịch và đã đăng theo ngày, giờ Việt Nam. Bấm một bài để mở video."
-          actions={viewSwitch}
+          actions={
+            <Flex gap={8} wrap>
+              {whoseSwitch}
+              {viewSwitch}
+            </Flex>
+          }
         />
         <PostCalendar posts={all} />
       </>
@@ -143,6 +159,7 @@ function Posts() {
         />
       </div>
       <Flex wrap gap={12} align="center" style={{ padding: 16 }}>
+        {whoseSwitch}
         <Input
           aria-label="Tìm theo tiêu đề"
           prefix={<SearchOutlined />}
@@ -199,7 +216,9 @@ function Posts() {
                 ? "Không có bài đăng nào khớp"
                 : all.length > 0
                   ? "Không có bài nào đang hoạt động"
-                  : "Chưa có video nào đã đăng hoặc hẹn lịch"
+                  : whose === "mine"
+                    ? "Bạn chưa có bài đăng nào. Chọn “Cả đội” để xem của mọi người."
+                    : "Chưa có video nào đã đăng hoặc hẹn lịch"
             }
           />
         ) : (

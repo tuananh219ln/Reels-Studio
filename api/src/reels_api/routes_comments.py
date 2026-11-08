@@ -83,9 +83,13 @@ def _one(db: DbSession, comment: PageComment) -> dict:
 
 @router.get("")
 def list_comments(
-    state: Literal["open", "all"] = "open", me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+    state: Literal["open", "all"] = "open",
+    whose: Literal["all", "mine"] = "all",
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
 ) -> dict:
-    """`open`: comments still waiting for an answer, and those whose reply or hide is on its way or failed."""
+    """`open`: comments still waiting for an answer, and those whose reply or hide is on its way or failed. `mine`:
+    those under a post the member made or on a Page they own."""
     query = (
         select(PageComment)
         .options(
@@ -94,6 +98,13 @@ def list_comments(
         .order_by(PageComment.created_at.desc(), PageComment.id.desc())
         .limit(LIST_LIMIT)
     )
+    if whose == "mine":
+        mine = (
+            select(Publication.id)
+            .outerjoin(Fanpage, Fanpage.id == Publication.fanpage_id)
+            .where((Publication.created_by_id == me.user_id) | (Fanpage.owner_id == me.user_id))
+        )
+        query = query.where(PageComment.publication_id.in_(mine))
     if state == "open":
         query = query.where(
             PageComment.hidden.is_(False),

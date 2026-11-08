@@ -62,6 +62,7 @@ export type VideoRow = {
   has_tiktok_version: boolean;
   cloned: boolean;
   created_by: string;
+  created_by_id: number;
   created_at: string;
   status: VideoStatus;
   status_label: string;
@@ -845,6 +846,7 @@ export type ArticleIssue = { message: string; field: string };
 /** A photo or text post for a Page ("Bài viết"; api articles.payload). A draft until posting is built. */
 export type Article = {
   id: number;
+  created_by_id: number;
   knowledge_topic_id: number | null;
   group_name: string | null;
   kind: ArticleKind;
@@ -1174,6 +1176,9 @@ export type PostAttempt =
   { state: "working"; job_id: null; error: null } | { state: "failed"; job_id: number; error: string | null };
 
 export type PostRow = Post & {
+  /** Whose it is: who posted it, and who owns its Page ("Của tôi" keeps either). */
+  created_by_id: number;
+  fanpage_owner_id: number | null;
   video_id: number;
   title: string;
   thumbnail_url: string | null;
@@ -1194,6 +1199,7 @@ export type JobRow = {
   kind_label: string;
   status: JobInfo["status"];
   created_by: string;
+  created_by_id: number;
   created_at: string;
   started_at: string | null;
   duration_seconds: number | null;

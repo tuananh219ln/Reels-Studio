@@ -202,6 +202,63 @@ test("Tạo video starts on the topic group the member last made a video in", as
   await expect(dialog).not.toContainText("Sức khỏe");
 });
 
+async function handWrittenVideo(page: Page, topic: string) {
+  await page.goto("/videos");
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByText("Tự viết", { exact: true }).click();
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill(topic);
+  await dialog.getByLabel("Kịch bản", { exact: true }).fill(`${topic} *dễ trồng*\nĐọc: ${topic} trồng trong một tuần.`);
+  await dialog.getByRole("button", { name: "Tạo video" }).click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+}
+
+test("each list starts on the member's own work, and Cả đội shows everyone's", async ({ page, browser }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await handWrittenVideo(page, "rau mầm");
+  await page.getByRole("menuitem", { name: "Bài viết" }).click();
+  await page.getByRole("button", { name: "Tạo bài viết" }).click();
+  const drawer = page.getByRole("dialog", { name: "Tạo bài viết" });
+  await drawer.getByLabel("Chủ đề của bài").fill("ngâm chân nước gừng");
+  await drawer.getByRole("button", { name: "Tạo bài" }).click();
+  await expect(page).toHaveURL(/\/articles\/\d+$/);
+
+  await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
+  const binh = await newPage(browser);
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+
+  // Without work of their own a list starts on everyone's, so it is never empty for a newcomer.
+  await expect(binh.getByText("rau mầm")).toBeVisible();
+  await binh.goto("/articles");
+  const whose = binh.getByLabel("Của ai");
+  await expect(whose.getByRole("radio", { name: "Cả đội (1)" })).toBeChecked();
+  await expect(binh.getByText("ngâm chân nước gừng")).toBeVisible();
+  await whose.getByText("Của tôi (0)").click();
+  await expect(binh.getByText("ngâm chân nước gừng")).toHaveCount(0);
+  await binh.goto("/posts");
+  await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Cả đội (0)" })).toBeChecked();
+  // Jobs and comments are read from the api a page at a time, so they start on the member's own.
+  await binh.goto("/jobs");
+  await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Của tôi" })).toBeChecked();
+  await binh.goto("/comments");
+  await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Của tôi" })).toBeChecked();
+
+  // Once they have made a video, the list starts on theirs; the creator filter still reaches a teammate's.
+  await handWrittenVideo(binh, "cải xoăn");
+  await binh.goto("/videos");
+  await expect(binh.getByLabel("Người tạo")).toBeVisible();
+  await expect(binh.getByText("cải xoăn")).toBeVisible();
+  await expect(binh.getByText("rau mầm")).toHaveCount(0);
+  await chooseOption(binh, binh.getByLabel("Người tạo"), SEED.name);
+  await expect(binh.getByText("rau mầm")).toBeVisible();
+  await expect(binh.getByText("cải xoăn")).toHaveCount(0);
+});
+
 test("music library page from the menu", async ({ page }) => {
   await loginAsSeed(page);
   await page.getByRole("menuitem", { name: "Thư viện nhạc" }).click();

@@ -397,7 +397,7 @@ Later phases add the Instagram, YouTube, and TikTok publishing APIs.
 3. Members give every scene a photo or clip (upload, or a stock photo the api stores); "Tạo ảnh AI cho cảnh thiếu" instead runs an image job that generates the missing photos with the AI image provider and stores them the same way; "Tạo ảnh AI" on one scene's card runs the same job for that scene only (`jobs.scene_id`), replacing its photo or clip, and any failure there fails the job while the scene keeps what it had. Members then edit the script, music, and post texts; each field saves on its own.
 4. "Render" enqueues a render job after the pre-render checks pass.
 5. The worker renders the MP4 from the saved data into storage and records it on the video.
-6. The video page plays and downloads the MP4; `/jobs` lists every job.
+6. The video page plays and downloads the MP4; `/jobs` lists every job (`whose=mine`: the ones the member started).
 
 ## Data Model
 
@@ -606,8 +606,8 @@ Planned:
     each round sends up to 3 replies or hides members asked for, then reads the comments of up to 3
     live posts of the last 14 days due a reading (every 30 minutes, or at once after "Tải bình luận
     mới", `POST /api/comments/refresh`). The Page's own comments are left out. `GET /api/comments`
-    lists the newest 300 (`state=open`: not answered, hidden or set aside, or whose last send failed),
-    with the reel, its Page and the Pages whose reading failed. `POST /api/comments/{id}/reply`
+    lists the newest 300 (`state=open`: not answered, hidden or set aside, or whose last send failed;
+    `whose=mine`: under a post the member made or on a Page they own), with the reel, its Page and the Pages whose reading failed. `POST /api/comments/{id}/reply`
     (1–2000 characters, 409 once replied through the app), `/hide` and `/dismiss` only record what the
     member asked; a reply or hide is stamped before Facebook is asked and never resent by itself,
     and a retried reply first looks for the Page's reply with the same text. Replies are written by

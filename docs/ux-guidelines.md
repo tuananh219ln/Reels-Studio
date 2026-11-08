@@ -49,7 +49,14 @@ thumbnail is a grey tile with an icon.
 
 Every list's toolbar reads the same way: its search box first, then its filters, then its sort. A filter
 is a [FilterSelect](../web/src/components/FilterSelect.tsx): typing searches its options (accents do not
-matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội"). The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
+matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội").
+Every list of the team's work starts on the member's own: Video (its creator filter), Bài viết, Bài đăng (list and
+calendar), Bình luận and Jobs have "Của tôi / Cả đội" ([WhoseFilter](../web/src/components/WhoseFilter.tsx), with
+counts where the whole list is loaded), and Quản lý Page has "Trang của tôi / Tất cả". "Của tôi" is what the
+member made; for a post or a comment, what is under a post they made or on a Page they own; for a job, what they
+started. The loaded lists start on "Của tôi" once the member has a row there and on "Cả đội" before, so a newcomer
+never opens an empty list; Jobs and Bình luận, read from the api a page at a time, start on "Của tôi". "Cả đội"
+always shows everyone's work. Shared libraries (Kho tư liệu, Thư viện nhạc, Kho kiến thức) are not filtered. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
 the login starts with the same header ([PageHeader](../web/src/components/PageHeader.tsx)): the
 title with the page's main action on its right ("Tạo video", "Tải nhạc lên", "Thêm Fanpage"…), a
 line saying what the page is for when it needs one, then its search and filters on one row;
@@ -116,7 +123,7 @@ Built:
   status (Cần làm: a draft older than 2 days, a failed job, an MP4 behind the edits, or a finished video not out
   on Facebook or TikTok; Nháp, Đang xử lý, Xong, Lỗi, MP4 cần render lại), platform, Fanpage (any Page the video
   is out on or set for), topic group ("Sức khỏe (12)", its number of videos; remembered in the browser) and
-  creator ("Của tôi" first, then the team), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
+  creator ("Của tôi" first, then the team; it starts on "Của tôi" once the member has made a video), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
   nhóm chủ đề" or "Cả đội" while empty; sort "Mới nhất" or "Nhiều view nhất". With a group chosen, a grey line
   under the filters counts its videos made this week (from Monday, Vietnam time): new, out, still drafts. Every card, row
   and video page (and a topic group's "Video" tab in Kho kiến thức) shows the video's kind as small tags: its

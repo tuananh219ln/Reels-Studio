@@ -33,6 +33,9 @@ def _payload(db: DbSession, video: Video, post: Publication, by_page: dict) -> d
     title, _ = split_scenes(db, video)
     return {
         **publication_payload(post, by_page),
+        # Whose it is: "Của tôi" keeps the posts a member made or that are on a Page they own.
+        "created_by_id": post.created_by_id,
+        "fanpage_owner_id": post.fanpage.owner_id if post.fanpage else None,
         "video_id": video.id,
         "title": title_of(video, title) or video.topic,
         "thumbnail_url": thumbnail_url(video),
