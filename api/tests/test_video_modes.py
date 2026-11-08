@@ -276,8 +276,10 @@ def test_a_backdrop_script_names_a_dish_only_where_it_shows_one(committed, tmp_p
     assert BACKDROP_FORMAT in prompts[0]
     with committed() as db:
         _, scenes = split_scenes(db, db.get(Video, video_id))
-        kinds = [[(layer.kind, layer.x) for layer in scene.layers] for scene in scenes]
-    assert kinds == [[("photo", 367)], [], [("photo", 713)]], "left and right by turns among the photos"
+        kinds = [[(layer.kind, layer.style, layer.x, layer.y, layer.image_key) for layer in s.layers] for s in scenes]
+    # Such a video uses only half-frame photos (2026-11-09), showing the scene's photo until it has its own.
+    half = ("photo", "half", 540, 480, None)
+    assert kinds == [[half], [], [half]], "a half-frame photo where the scene names a dish"
 
 
 def test_a_slide_script_gets_no_backdrop_rules_and_no_photo_layers(committed, tmp_path):  # noqa: F811

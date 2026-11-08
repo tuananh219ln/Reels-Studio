@@ -52,6 +52,28 @@ export default function HalfPhotoPanel({
 
   const move = (target: SceneLayer, y: number) => run(() => api<VideoDetail>(`/layers/${target.id}`, "PATCH", { y }));
 
+  /** A photo from the computer or the library: a new half-frame photo, or one for a half-frame photo without its own. */
+  const pickers = (
+    <Flex gap={6} wrap>
+      <Upload
+        accept="image/*"
+        showUploadList={false}
+        disabled={frozen || busy}
+        beforeUpload={(file) => {
+          void run(() => upload<VideoDetail>("/layers/half-photo/upload", file, { scene_id: String(scene.id) }));
+          return false;
+        }}
+      >
+        <Button size="small" icon={<PictureOutlined />} disabled={frozen} loading={busy}>
+          Ảnh từ máy
+        </Button>
+      </Upload>
+      <Button size="small" icon={<FolderOpenOutlined />} disabled={frozen || busy} onClick={() => setLibrary(true)}>
+        Từ kho
+      </Button>
+    </Flex>
+  );
+
   const ground = backdrop ?? scene;
   const picture = ground.frame_url ?? ground.preview_url;
   const corner = box && scene.textbox_url ? placeBox(box, scene.placed_at, false) : null;
@@ -131,6 +153,15 @@ export default function HalfPhotoPanel({
       )}
       {layer ? (
         <>
+          {layer.own_image === false && (
+            // A "Video xuyên suốt" script's: it shows the scene's photo until it has one of its own.
+            <>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Ảnh chèn đang dùng ảnh của cảnh (đổi ở khung ảnh của cảnh bên dưới), hoặc chọn ảnh khác:
+              </Typography.Text>
+              {pickers}
+            </>
+          )}
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Kéo ảnh lên xuống trong khung, hoặc chọn nhanh:
           </Typography.Text>
@@ -186,29 +217,7 @@ export default function HalfPhotoPanel({
               {otherPhoto ? "Đổi ảnh món thành ảnh chèn" : "Dùng ảnh của cảnh"}
             </Button>
           )}
-          <Flex gap={6} wrap>
-            <Upload
-              accept="image/*"
-              showUploadList={false}
-              disabled={frozen || busy || otherPhoto}
-              beforeUpload={(file) => {
-                void run(() => upload<VideoDetail>("/layers/half-photo/upload", file, { scene_id: String(scene.id) }));
-                return false;
-              }}
-            >
-              <Button size="small" icon={<PictureOutlined />} disabled={frozen || otherPhoto} loading={busy}>
-                Ảnh từ máy
-              </Button>
-            </Upload>
-            <Button
-              size="small"
-              icon={<FolderOpenOutlined />}
-              disabled={frozen || busy || otherPhoto}
-              onClick={() => setLibrary(true)}
-            >
-              Từ kho
-            </Button>
-          </Flex>
+          {!otherPhoto && pickers}
         </>
       )}
       {error && <Alert type="error" showIcon title={error} />}

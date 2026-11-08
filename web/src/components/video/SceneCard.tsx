@@ -60,7 +60,7 @@ import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
 import HalfPhotoPanel from "./HalfPhotoPanel";
-import PhotoLayerPanel from "./PhotoLayerPanel";
+import { isHalf } from "./preview/layers";
 import { photoLayer } from "./videoModes";
 import SceneViewer from "./SceneViewer";
 import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
@@ -210,8 +210,13 @@ export default function SceneCard({
   const editor = useEditor();
   const frozen = editor.locked || editor.readOnly;
   const patch = (body: ScenePatch) => patchScene(scene, body);
-  // Over a backdrop, a content scene's photo (and how to find it) matters only for its "Ảnh món".
-  const ownPicture = !backdrop || scene.is_title || Boolean(photoLayer(scene.layers));
+  // Over a backdrop, a content scene's photo (and how to find it) matters only for a photo layer showing it: an
+  // older video's "Ảnh món", or a half-frame photo without a photo of its own.
+  const ownPicture =
+    !backdrop ||
+    scene.is_title ||
+    Boolean(photoLayer(scene.layers)) ||
+    scene.layers.some((layer) => isHalf(layer) && layer.own_image === false);
 
   return (
     <Card
@@ -280,7 +285,6 @@ export default function SceneCard({
                 Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
               </Typography.Text>
             )}
-            {backdrop && !scene.is_title && <PhotoLayerPanel scene={scene} />}
             {!scene.is_title && <HalfPhotoPanel scene={scene} backdrop={backdrop ? backdropScene : null} />}
             {ownPicture && (
               <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />

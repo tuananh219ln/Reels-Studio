@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
-from reels_render.layers import is_half
+from reels_render.layers import HALF, HALF_X, HALF_Y_MIN, is_half
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_TAIL, fit_seconds
 
@@ -74,11 +74,31 @@ POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
 # How a video is built (Video.mode): each scene over its own photo or clip, or one backdrop ("Video xuyên suốt").
 MODES = {"slides": "Slide ảnh", "single": "Video xuyên suốt"}
 PHOTO_LAYER_MISSING = "Cảnh có ảnh món nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc tắt ảnh món"
+HALF_PHOTO_MISSING = "Cảnh có ảnh chèn nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc xoá ảnh chèn"
 # A new photo layer ("Ảnh món"): medium, for the whole scene (the render stops it at the scene's end), on the left or
 # the right of the frame by turns from one photo to the next, a little above the middle, coming up from below.
 PHOTO_LAYER_X = (367, 713)
 PHOTO_LAYER_Y = 835
 PHOTO_LAYER_SECONDS = 60
+
+
+def half_layer() -> SceneLayer:
+    """A half-frame photo ("Ảnh chèn nửa khung") over the top half for the whole scene, showing its scene's photo
+    until it has its own: what a "Video xuyên suốt" script gives a scene that names a dish (owner's choice,
+    2026-11-09: such a video uses only half-frame photos)."""
+    return SceneLayer(
+        position=1,
+        kind="photo",
+        text="",
+        sticker="",
+        start=0,
+        seconds=PHOTO_LAYER_SECONDS,
+        x=HALF_X,
+        y=HALF_Y_MIN,
+        size="medium",
+        style=HALF,
+        animation="none",
+    )
 
 
 def photo_layer(photos_before: int) -> SceneLayer:
@@ -326,10 +346,11 @@ def is_half_layer(layer: SceneLayer) -> bool:
 
 
 def layer_photo_key(layer: SceneLayer) -> str | None:
-    """The photo a photo layer shows: a half-frame photo's own, or its scene's ("Ảnh món")."""
+    """The photo a photo layer shows: a half-frame photo's own, else its scene's (as "Ảnh món" always does): the one a
+    "Video xuyên suốt" script gives a scene that names a dish has none of its own until a member picks one."""
     if layer.kind != "photo":
         return None
-    return layer.image_key if is_half_layer(layer) else layer.scene.image_key
+    return (layer.image_key if is_half_layer(layer) else None) or layer.scene.image_key
 
 
 def _own_photo(layer: SceneLayer) -> dict:
@@ -348,7 +369,9 @@ def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:
     photo = layer_photo_key(layer)
     kept = [case] if layer.kind == "text" and case != "upper" else []
     look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []), *kept)
-    return {"id": layer.id, **layer_fields(layer), "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
+    # A half-frame photo says whether its photo is its own or its scene's, so the card shows where to choose it.
+    own = {"own_image": bool(layer.image_key)} if is_half_layer(layer) else {}
+    return {"id": layer.id, **layer_fields(layer), **own, "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
 
 
 def sound_fields(sound: SceneSound) -> dict:
@@ -473,14 +496,12 @@ def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Sc
     title_input, scene_input = scene_inputs(video, title, scenes)
     posts = {name: getattr(video, name) for name in POST_FIELDS}
     checks = check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
-    if is_backdrop(video):
-        for scene in scenes:
-            # A photo layer shows its scene's photo: a clip, or no picture, leaves it nothing to show.
-            if (
-                any(layer.kind == "photo" and not is_half_layer(layer) for layer in scene.layers)
-                and not scene.image_key
-            ):
-                checks.blocking.append(Issue(PHOTO_LAYER_MISSING, scene.id, "image"))
+    for scene in scenes:
+        # A photo layer without a photo of its own shows its scene's: a clip, or no picture, leaves it nothing.
+        drawn = drawn_layers(video, scene)
+        if any(layer.kind == "photo" and not layer_photo_key(layer) for layer in drawn):
+            missing = HALF_PHOTO_MISSING if any(is_half_layer(layer) for layer in drawn) else PHOTO_LAYER_MISSING
+            checks.blocking.append(Issue(missing, scene.id, "image"))
     return checks
 
 

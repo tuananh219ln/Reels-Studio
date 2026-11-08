@@ -991,13 +991,15 @@ and "Ảnh món" is kept:
 
 - **Slide ảnh** (the default, every older video): each scene over its own photo or clip, as below.
 - **Video xuyên suốt:** one photo or clip, the title scene's, runs under the whole video ("5 công dụng của chuối
-  xanh"). The title card says so; the content cards hide their picture, search terms and photo prompt, and show
-  "Ảnh món trong cảnh này" instead. Scenes join by hard cuts and the text fades in and out (0.3 s), so the
+  xanh"). The title card says so; the content cards hide their picture, search terms and photo prompt unless a
+  photo layer shows the scene's photo. Scenes join by hard cuts and the text fades in and out (0.3 s), so the
   backdrop never jumps; a short clip loops from the title scene's "Bắt đầu từ giây". In the studio a content scene has
-  no transition, colour or speed of its own. A scene that names a dish turns on its "Ảnh món": the scene's own photo,
-  chosen with the scene's usual picture tools, framed over the backdrop (Bo góc, Tròn, Vuông, or Giữ nguyên for a
-  cut-out photo; Nhỏ, Vừa, Lớn; Trái, Giữa, Phải, Dưới; and an entrance), dragged anywhere in "Xem trước". The
-  preview plays the backdrop under every scene, as the MP4 does.
+  no transition, colour or speed of its own. Such a video uses only half-frame photos ("Ảnh chèn nửa khung", below;
+  2026-11-09): a scene that names a dish gets one showing the scene's own photo, chosen with the scene's usual picture
+  tools (shown on the card while it has no photo of its own), or a photo picked for it. The "Ảnh món" settings
+  (frames, sizes, places, entrance) are gone from the page; an older video's "Ảnh món" still renders, and its card
+  offers "Đổi ảnh món thành ảnh chèn". The preview and each card's frame play the backdrop under every scene, as the
+  MP4 does.
 
 **Ảnh chèn nửa khung** (any kind of video, any content scene): "Chữ & sticker" in "Xem trước" has "Ảnh từ máy" and
 "Từ kho tư liệu". The photo fills a box as wide as the frame and half as tall (cut to fill, never stretched, with a

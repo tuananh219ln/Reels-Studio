@@ -23,6 +23,13 @@ what is under it (the backdrop playing, or the scene's own picture) with the sce
 thành ảnh chèn" copies the scene's photo into a half-frame photo in place of its "Ảnh món". "Ảnh món" itself and its
 settings stay as they are (owner's choice, same day).
 
+Later the same day the owner went further: **a "Video xuyên suốt" uses only half-frame photos.** The "Ảnh món"
+settings (frame, size, place, entrance) leave the page and the studio, reversing that part of 2026-11-07; a script
+gives each scene that names a dish a half-frame photo showing the scene's photo (found by "Tự tìm ảnh" or chosen on
+the card) until one of its own is added. Older videos' "Ảnh món" layers are not changed: they keep rendering as before,
+and their cards offer "Đổi ảnh món thành ảnh chèn". The api still accepts a new "Ảnh món" (`POST /api/layers` with
+`kind` "photo") for now, unused by the web.
+
 ## 2026-11-09 — "Ảnh chèn nửa khung": a photo layer of its own beside "Ảnh món", on every kind of video
 
 Asked by tuananh219ln from a spec ("Đặc tả: Lớp ảnh chèn nửa khung", by Looper), whose model replaced the photo layer

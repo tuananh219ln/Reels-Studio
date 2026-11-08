@@ -292,13 +292,23 @@ def store_half_photo(
     ensure_unlocked(db, video)
     if scene.is_title:
         raise invalid(TITLE_ERROR)
+    key = new_key(video.id, f"layer-{scene.id}", extension)
     for layer in [layer for layer in scene.layers if layer.kind == "photo"]:
+        if is_half_layer(layer) and not layer.image_key:
+            # A half-frame photo still showing its scene's photo (a "Video xuyên suốt" script's) takes this one,
+            # keeping its place and seconds.
+            layer.image_key = key
+            storage.save_bytes(key, data)
+            try:
+                return _saved(db, video)
+            except Exception:
+                storage.delete(key)
+                raise
         if not replace or is_half_layer(layer):
             raise invalid(ONE_PHOTO_ERROR)
         scene.layers.remove(layer)
         db.delete(layer)
     last = db.scalar(select(func.max(SceneLayer.position)).where(SceneLayer.scene_id == scene.id))
-    key = new_key(video.id, f"layer-{scene.id}", extension)
     db.add(
         SceneLayer(
             scene_id=scene.id,

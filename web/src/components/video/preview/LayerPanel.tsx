@@ -31,7 +31,9 @@ export function LayerTools({
 }) {
   const allowed = editable && scene !== undefined && !scene.is_title;
   // One photo layer per scene: "Ảnh món" or a half-frame photo.
-  const hasPhoto = scene?.layers.some((layer) => layer.kind === "photo") ?? false;
+  // A half-frame photo still showing its scene's photo takes the one added here.
+  const hasPhoto =
+    scene?.layers.some((layer) => layer.kind === "photo" && !(isHalf(layer) && layer.own_image === false)) ?? false;
   const insetAllowed = allowed && !hasPhoto;
   const [busy, setBusy] = useState(false);
   const [library, setLibrary] = useState(false);
