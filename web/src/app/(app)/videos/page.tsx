@@ -1,5 +1,7 @@
 "use client";
 
+import type { SelectProps } from "antd";
+
 import {
   AppstoreOutlined,
   ClockCircleOutlined,
@@ -870,6 +872,25 @@ type NewVideo = { topic: string; knowledge_topic_id: number; script?: string } &
 /** "Từ video mẫu" ("sample") learns the script from a sample video (components/video/SampleFields). */
 type Mode = "ai" | "sample" | "manual";
 
+/** The create dialog's topic groups: the member's own (their Pages' groups) first, under "Nhóm của tôi". Only the AI's
+ * way needs a group's script prompt; a sample video has a default prompt. */
+function groupOptions(topics: KnowledgeTopic[], mode: Mode): NonNullable<SelectProps["options"]> {
+  const option = (topic: KnowledgeTopic) => ({
+    value: topic.id,
+    label: topic.script_prompt || mode !== "ai" ? topic.name : `${topic.name} (chưa có prompt)`,
+    disabled: !topic.script_prompt && mode === "ai",
+  });
+  const mine = topics.filter((topic) => topic.mine).map(option);
+  const others = topics.filter((topic) => !topic.mine).map(option);
+  if (mine.length === 0 || others.length === 0) {
+    return [...mine, ...others];
+  }
+  return [
+    { label: "Nhóm của tôi", title: "Nhóm của tôi", options: mine },
+    { label: "Nhóm khác", title: "Nhóm khác", options: others },
+  ];
+}
+
 const SCRIPT_HINT = `Mỗi đoạn (cách nhau một dòng trống) là một cảnh. Dòng bắt đầu bằng “Đọc:” là lời đọc của cảnh.
 
 Vừng đen *giàu canxi*
@@ -1119,8 +1140,13 @@ function NewVideoModal({
           requiredMark={false}
           onFinish={submit}
           initialValues={{
+            // The idea's or the asked group, else one of the member's own groups (their Pages'), else the first with a
+            // script prompt.
             knowledge_topic_id:
-              startItem?.knowledge_topic_id ?? startGroup ?? topics.find((topic) => topic.script_prompt)?.id,
+              startItem?.knowledge_topic_id ??
+              startGroup ??
+              (topics.find((topic) => topic.mine && topic.script_prompt) ?? topics.find((topic) => topic.script_prompt))
+                ?.id,
             topic: startItem?.topic,
             sample_mode: startSample ? "reuse" : "quick",
             sample_source: "link",
@@ -1193,14 +1219,7 @@ function NewVideoModal({
                 rules={[{ required: true, message: "Hãy chọn nhóm chủ đề" }]}
                 style={{ marginBottom: 0, gridColumn: "1 / -1" }}
               >
-                <Select
-                  options={topics.map((topic) => ({
-                    value: topic.id,
-                    // Only the AI's way needs the group's script prompt; a sample video has a default prompt.
-                    label: topic.script_prompt || mode !== "ai" ? topic.name : `${topic.name} (chưa có prompt)`,
-                    disabled: !topic.script_prompt && mode === "ai",
-                  }))}
-                />
+                <Select options={groupOptions(topics, mode)} />
               </Form.Item>
             </div>
             {!sample && (

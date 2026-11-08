@@ -74,6 +74,19 @@ test("a Page's owner gives it a topic group and its own posting times on Quản 
   await card.getByRole("button", { name: "Dùng giờ của nhóm" }).click();
   await expect(card).toContainText("Theo giờ đăng của nhóm chủ đề (giờ Việt Nam).");
   await expect(card.locator(".ant-select-selection-item", { hasText: "21:30" })).toHaveCount(1);
+
+  // The member's own Pages are shown first on Quản lý Page, and their group is "của tôi" everywhere a group is picked.
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  const whose = page.getByLabel("Trang nào");
+  await expect(whose.getByRole("radio", { name: "Trang của tôi (1)" })).toBeChecked();
+  await whose.getByText("Tất cả (1)").click();
+  await expect(page.getByRole("link", { name: "Trang Dưỡng Sinh" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
+  await expect(page.getByRole("button", { name: new RegExp(GROUP) })).toContainText("Của tôi");
+  await page.getByRole("menuitem", { name: "Video" }).click();
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog).toContainText(GROUP);
 });
 
 test("a rendered video added to its Page's queue is scheduled there by the worker", async ({ page }) => {

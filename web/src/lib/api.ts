@@ -338,7 +338,8 @@ export type VideoDetail = VideoRow & {
   /** The video's own settings from its "Thiết lập" tab. */
   options: VideoOptions;
   /** The Pages in use, connected on /fanpages; `owner` is the member whose Page it is. */
-  fanpages: { id: number; name: string; owner: string | null; error: string | null }[];
+  /** The team's Pages in use; `owner_id` puts the viewer's own first in a picker (lib/myPages). */
+  fanpages: { id: number; name: string; owner: string | null; owner_id: number | null; error: string | null }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
   publication: Post | null;
   /** Every post of the video, newest first, cancelled and deleted ones included. */
@@ -474,6 +475,8 @@ export type KnowledgeTopic = {
   /** "Prompt viết bài" ("Bài viết"); "" uses the default. */
   article_prompt: string;
   video_count: number;
+  /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
+  mine: boolean;
 };
 
 export type Fanpage = {

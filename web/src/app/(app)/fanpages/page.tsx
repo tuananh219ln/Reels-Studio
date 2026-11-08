@@ -20,6 +20,7 @@ import {
   Flex,
   Input,
   Popconfirm,
+  Segmented,
   Select,
   Space,
   Tooltip,
@@ -535,6 +536,8 @@ function TokenModal({
 export default function FanpagesPage() {
   const { message } = App.useApp();
   const [rows, setRows] = useState<Fanpage[] | null>(null);
+  // "Trang của tôi" or "Tất cả"; null until chosen (the default follows whether the member owns a Page).
+  const [whose, setWhose] = useState<"mine" | "all" | null>(null);
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
@@ -575,8 +578,12 @@ export default function FanpagesPage() {
     return () => clearTimeout(timer);
   }, [pending, rows, load]);
 
-  const inUse = (rows ?? []).filter((row) => row.active).sort(byNeed);
-  const stopped = (rows ?? []).filter((row) => !row.active);
+  // "Trang của tôi" by default for a member who owns a Page in use; "Tất cả" otherwise or once chosen.
+  const ownsOne = (rows ?? []).some((row) => row.active && row.mine);
+  const showing = whose ?? (ownsOne ? "mine" : "all");
+  const shown = (rows ?? []).filter((row) => showing === "all" || row.mine);
+  const inUse = shown.filter((row) => row.active).sort(byNeed);
+  const stopped = shown.filter((row) => !row.active);
   const broken = inUse.filter((row) => row.check.error).length;
 
   return (
@@ -599,7 +606,16 @@ export default function FanpagesPage() {
       />
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
-          <Flex gap={8} wrap>
+          <Flex gap={8} wrap align="center">
+            <Segmented
+              aria-label="Trang nào"
+              value={showing}
+              onChange={(next) => setWhose(next as "mine" | "all")}
+              options={[
+                { value: "mine", label: `Trang của tôi (${rows.filter((row) => row.mine).length})` },
+                { value: "all", label: `Tất cả (${rows.length})` },
+              ]}
+            />
             <StatusText tone="success">{inUse.length} đang dùng</StatusText>
             {broken > 0 && <StatusText tone="danger">{broken} lỗi kết nối</StatusText>}
             {stopped.length > 0 && <StatusText tone="idle">{stopped.length} ngừng dùng</StatusText>}
@@ -609,7 +625,15 @@ export default function FanpagesPage() {
           <Card loading />
         ) : inUse.length === 0 ? (
           <Card>
-            <Empty description={stopped.length ? "Không có Fanpage nào đang dùng" : "Chưa kết nối Fanpage nào"}>
+            <Empty
+              description={
+                showing === "mine"
+                  ? "Bạn chưa có Fanpage nào đang dùng. Xem mục “Tất cả” để nhận Page."
+                  : stopped.length
+                    ? "Không có Fanpage nào đang dùng"
+                    : "Chưa kết nối Fanpage nào"
+              }
+            >
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
                 Thêm Fanpage
               </Button>

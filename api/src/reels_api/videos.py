@@ -948,6 +948,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
                 "id": page.id,
                 "name": page.name,
                 "owner": page.owner.name if page.owner else None,
+                # Whose it is: the page lists the viewer's own Pages first (brief part B2).
+                "owner_id": page.owner_id,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)

@@ -73,7 +73,10 @@ Built:
 - **Login** and **user management**.
 - **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, one row each, bold
   labels in a column (one above the other under 576 px): "Kiểu video" (not for "Từ video mẫu"), "Cách viết" ("AI
-  viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row; below it the topic. The footer has a
+  viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row (the member's own groups, those of
+  the Pages they own and use, first under "Nhóm của tôi", and one of them chosen at first unless an idea or a group's
+  "Tạo video" chose one); below it the topic. Wherever a Page is picked to post or queue a video, the member's own
+  Pages come first under "Trang của tôi", the others under "Trang khác" with their owner's name. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
   button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
@@ -482,7 +485,7 @@ Built:
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): two columns (stacked on a phone). On the left, a narrow card "Nhóm
   chủ đề" that stays in view while the page scrolls: one line per topic group with its video count and
-  "Chưa có prompt" when it has none (the chosen line highlighted with an orange left edge, the first
+  "Chưa có prompt" when it has none, "Của tôi" before the count on the groups of the member's own Pages (the chosen line highlighted with an orange left edge, the first
   group chosen on arrival), and under them a small field with a "+" button ("Thêm nhóm"; the new group
   is opened). On the right, the chosen group: its name as a heading with a pencil ("Đổi tên", renamed in
   place with "Lưu tên" / "Huỷ", Esc cancels), a line "N video · K prompt đã sửa" (and that it cannot
@@ -732,8 +735,10 @@ Built:
     side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
     model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
-  - **Quản lý Page** (`/fanpages`, its own menu item under "Video", outside Cài đặt): a line of counts (đang
-    dùng, lỗi kết nối, ngừng dùng), then a small card per Page in use, broken ones first, in a grid
+  - **Quản lý Page** (`/fanpages`, its own menu item under "Video", outside Cài đặt): "Trang nào" chooses
+    "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on
+    "Trang của tôi" without one, the empty card points to "Tất cả" to take a Page. Then a line of counts (đang
+    dùng, lỗi kết nối, ngừng dùng) of what is shown, then a small card per Page in use, broken ones first, in a grid
     that fits as many cards of at least 320 px as the width allows. A card shows the Page's initial,
     its name linking to the Page's dashboard, its id and the token's last four characters, and a tag:
     "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line

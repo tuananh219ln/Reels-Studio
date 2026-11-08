@@ -2098,8 +2098,20 @@ class TopicPatchBody(BaseModel):
 MAX_PHOTO_HINT_LENGTH = 1000
 
 
-def _knowledge_payload(db: DbSession) -> dict:
+def my_topic_ids(db: DbSession, user_id: int) -> set[int]:
+    """ "My" topic groups: those of the Pages the member owns and uses (brief part B2)."""
+    return set(
+        db.scalars(
+            select(Fanpage.knowledge_topic_id).where(
+                Fanpage.owner_id == user_id, Fanpage.active.is_(True), Fanpage.knowledge_topic_id.is_not(None)
+            )
+        )
+    )
+
+
+def _knowledge_payload(db: DbSession, user_id: int) -> dict:
     counts = dict(db.execute(select(Video.knowledge_topic_id, func.count()).group_by(Video.knowledge_topic_id)).all())
+    mine = my_topic_ids(db, user_id)
     return {
         "topics": [
             {
@@ -2114,6 +2126,8 @@ def _knowledge_payload(db: DbSession) -> dict:
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
                 "video_count": counts.get(topic.id, 0),
+                # A group of a Page the member owns: listed first where a group is picked.
+                "mine": topic.id in mine,
             }
             for topic in knowledge.all_topics(db)
         ],
@@ -2163,14 +2177,14 @@ def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
 
 @router.get("/knowledge")
 def get_knowledge(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.post("/knowledge/topics", status_code=201)
 def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     db.add(KnowledgeTopic(name=_topic_name(db, body.name), updated_by_id=me.user_id))
     db.commit()
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.patch("/knowledge/topics/{topic_id}")
@@ -2206,7 +2220,7 @@ def patch_topic(
         topic.article_prompt = "" if article_prompt == knowledge.default_article_prompt() else article_prompt
     topic.updated_by_id = me.user_id
     db.commit()
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.delete("/knowledge/topics/{topic_id}")
@@ -2226,4 +2240,4 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     music_topics.drop_topic(db, topic.name)
     db.delete(topic)
     db.commit()
-    return _knowledge_payload(db)
+    return _knowledge_payload(db, me.user_id)

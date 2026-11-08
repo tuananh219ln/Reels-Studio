@@ -11,6 +11,15 @@ starting a new round of work and never silently reverse a logged decision (see
 The entries dated 2026-10-31 were recorded retroactively: the decisions were already in effect
 in the MVP and described across `docs/`; this log gathers them in one place.
 
+## 2026-11-08 — A member's own Pages and topic groups come first where one is picked
+
+Part B2 of the brief, with the owner's answer that "my topics" are the topic groups of the Pages a member owns
+(`fanpages.owner_id`, 2026-11-03, and `knowledge_topic_id`), so no new column: a group is "mine" while a Page I own
+and use posts it. Quản lý Page gets "Trang của tôi / Tất cả" (mine by default once I own a Page in use); the create
+dialog lists my groups first and starts on one of them; the Page pickers for posting and the queue list my Pages
+first. Nothing is hidden from teammates: "Tất cả" and "Trang khác" keep every Page in reach, as the brief's scope
+says.
+
 ## 2026-11-08 — Each member has their own video defaults; the team's start those who have none
 
 Part B1 of the brief ([docs/specs/chu-thuong-ca-nhan-hoa](specs/chu-thuong-ca-nhan-hoa/brief.md)), with the owner's

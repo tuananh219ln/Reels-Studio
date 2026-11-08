@@ -5,6 +5,8 @@ import { Alert, App, Button, Checkbox, Flex, Popconfirm, Select, Typography } fr
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type QueueItem, type VideoDetail } from "@/lib/api";
+import { useMe } from "@/components/MeContext";
+import { pageOptions } from "@/lib/myPages";
 import FormDrawer from "@/components/FormDrawer";
 
 const OWN_PAGE = 0;
@@ -13,6 +15,7 @@ const OWN_PAGE = 0;
  * time, and the worker schedules it there. By default it goes to the member's own Page of the video's topic group. */
 export default function QueueButton({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
+  const { me } = useMe();
   const [item, setItem] = useState<QueueItem | null>(null);
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<number>(OWN_PAGE);
@@ -108,10 +111,7 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
                   ? `Page của tôi cho nhóm “${video.knowledge_topic}”`
                   : "Page của tôi cùng nhóm chủ đề",
               },
-              ...video.fanpages.map((row) => ({
-                value: row.id,
-                label: row.owner ? `${row.name}, ${row.owner}` : row.name,
-              })),
+              ...pageOptions(video.fanpages, me.id),
             ]}
           />
           <Checkbox checked={autoComment} onChange={(event) => setAutoComment(event.target.checked)}>

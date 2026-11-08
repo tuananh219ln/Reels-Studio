@@ -5,6 +5,8 @@ import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Tabs, T
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useMe } from "@/components/MeContext";
+import { pageOptions } from "@/lib/myPages";
 import {
   api,
   errorMessage,
@@ -36,6 +38,7 @@ type Platform = "facebook" | "tiktok" | "youtube" | "instagram";
  */
 export function PublishButton({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
+  const { me } = useMe();
   const editor = useEditor();
   // /videos/<id>?publish=<fanpage id>: a suggestion on "Bài đăng" opens the dialog, with that Page picked if given.
   // The button mounts once the video has loaded in the browser, so the address is there to read.
@@ -124,10 +127,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
           placeholder="Chọn Fanpage"
           onChange={setPicked}
           style={{ maxWidth: 320 }}
-          options={video.fanpages.map((page) => ({
-            value: page.id,
-            label: page.owner ? `${page.name}, ${page.owner}` : page.name,
-          }))}
+          options={pageOptions(video.fanpages, me.id)}
         />
         <Radio.Group
           value={mode}
