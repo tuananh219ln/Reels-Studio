@@ -601,7 +601,7 @@ export function TextSettings({ values, onChange, disabled }: Props) {
             />
             <CaseField
               label="Dạng chữ tiêu đề"
-              hint="Riêng cho cảnh tiêu đề và ảnh thumbnail."
+              hint="Riêng cho cảnh tiêu đề, không theo các cảnh."
               value={values.title_text_case}
               disabled={disabled}
               onChange={(title_text_case) => onChange({ title_text_case })}
