@@ -15,7 +15,13 @@ from sqlalchemy.orm import selectinload
 from .models import EditLog, KnowledgeTopic
 
 TOPIC = "knowledge_topic"
-ENTITY_TYPES = (TOPIC,)
+# The team's shared settings, one history per page of Cài đặt › Cấu hình (settings_log.py, routes_render_nodes.py,
+# routes_templates.py): a card's id on the two settings pages, a template's id, 1 for the render machines.
+SETTINGS_AI = "settings_ai"
+SETTINGS_SOURCES = "settings_sources"
+RENDER = "render_settings"
+TEMPLATE = "edit_template"
+ENTITY_TYPES = (TOPIC, SETTINGS_AI, SETTINGS_SOURCES, RENDER, TEMPLATE)
 
 # What a topic group's history follows: what members edit on Kho kiến thức, including its plan's settings.
 TOPIC_FIELDS = (

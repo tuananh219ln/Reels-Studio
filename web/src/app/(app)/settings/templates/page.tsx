@@ -2,9 +2,10 @@
 
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Select, Spin, Tag, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Select, Spin, Tag, theme, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
+import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
 import { api, errorMessage, type EditTemplate, type EditTemplates } from "@/lib/api";
 
 /**
@@ -15,6 +16,9 @@ export default function EditTemplatesPage() {
   const { message } = App.useApp();
   const [list, setList] = useState<EditTemplates | null>(null);
   const [busy, setBusy] = useState(false);
+  const { token } = theme.useToken();
+  // The saved templates' latest change, read again after every change (each answers with the list anew).
+  const latest = Object.values(useLatestEdits("edit_template", list)).sort((a, b) => b.id - a.id)[0];
 
   const run = useCallback(
     async (call: () => Promise<EditTemplates>, done?: string) => {
@@ -41,20 +45,22 @@ export default function EditTemplatesPage() {
       <SettingsHeader
         title="Mẫu dựng"
         description="Mẫu dựng gồm chuyển cảnh, màu, âm thanh và lớp chữ cuối video, áp được cho cả video bằng “Tự dựng” trong xem trước. Lưu mẫu mới từ một video ưng ý ở đó."
+        actions={<PageHistory entityType="edit_template" title="Mẫu dựng" />}
       />
       {list === null ? (
         <Spin />
       ) : (
         <Flex vertical gap={16}>
+          {/* The one card of this shared page that is the member's own. */}
           <Card
             size="small"
             title="Video mới của tôi tự áp mẫu"
-            extra={<Tag color="blue">Của tôi (theo người dùng)</Tag>}
+            extra={<Tag color="blue">Của tôi</Tag>}
+            style={{ borderColor: token.colorPrimaryBorder }}
           >
             <Flex vertical gap={8}>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Thiết lập riêng của tài khoản (theo người dùng): chỉ áp cho video mới do bạn tạo, không phải thiết lập
-                chung của team.
+                Chỉ áp cho video mới do bạn tạo.
               </Typography.Text>
               <Select
                 aria-label="Mẫu cho video mới"
@@ -84,6 +90,7 @@ export default function EditTemplatesPage() {
           {list.templates.map((item) => (
             <TemplateCard key={item.id} template={item} isDefault={list.default === item.id} busy={busy} run={run} />
           ))}
+          <LastEdit entry={latest} entityType="edit_template" title="Mẫu dựng" />
         </Flex>
       )}
     </>

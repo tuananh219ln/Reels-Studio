@@ -21,6 +21,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type LlmProvider, type LlmSettings } from "@/lib/api";
 import { COLORS } from "@/app/theme";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
+import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
 import VieneuKeyCard from "@/components/settings/VieneuKeyCard";
 import StatusText from "@/components/StatusText";
 
@@ -233,6 +234,8 @@ export default function AiSettingsPage() {
   const [settings, setSettings] = useState<LlmSettings | null>(null);
   const [open, setOpen] = useState<string[] | null>(null);
   const [switching, setSwitching] = useState(false);
+  // Read again after every save: each one answers with the settings anew.
+  const latest = useLatestEdits("settings_ai", settings);
 
   const load = useCallback(async () => {
     try {
@@ -259,12 +262,16 @@ export default function AiSettingsPage() {
   }
 
   const active = settings?.providers.find((provider) => provider.active);
+  // The history names a provider's fields by the provider ("OpenAI · Model").
+  const owners = Object.fromEntries((settings?.providers ?? []).map((provider) => [provider.id, provider.name]));
+  owners.vieneu = "VieNeu";
 
   return (
     <>
       <SettingsHeader
         title="Mô hình AI"
         description="Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó. Key giọng đọc VieNeu cũng nhập ở đây."
+        actions={<PageHistory entityType="settings_ai" title="Mô hình AI" owners={owners} />}
       />
       {/* The choice beside the list on a wide screen, and staying in view while the list scrolls. */}
       <Row gutter={[24, 16]}>
@@ -296,10 +303,28 @@ export default function AiSettingsPage() {
                   title={`Viết kịch bản sẽ lỗi: ${active.problem}`}
                 />
               )}
+              <LastEdit
+                entry={latest["1"]}
+                entityType="settings_ai"
+                entityId={1}
+                title="AI viết kịch bản"
+                owners={owners}
+              />
             </Card>
             {/* The narration voices of VieNeu: their key lives here, with the other AI services' keys. */}
             <div style={{ marginTop: 16 }}>
-              <VieneuKeyCard />
+              <VieneuKeyCard
+                onSaved={() => void load()}
+                footer={
+                  <LastEdit
+                    entry={latest["2"]}
+                    entityType="settings_ai"
+                    entityId={2}
+                    title="Giọng đọc VieNeu"
+                    owners={owners}
+                  />
+                }
+              />
             </div>
           </div>
         </Col>

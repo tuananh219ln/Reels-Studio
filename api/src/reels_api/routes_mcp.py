@@ -426,4 +426,4 @@ def disconnect(connection_id: int, me: Session = Depends(current_member), db: Db
 
 @router.get("/api/mcp/manage")
 def manage(me: Session = Depends(current_member)):
-    return RedirectResponse("/chatgpt", status_code=303, headers=PRIVATE_HEADERS)
+    return RedirectResponse("/settings/mcp", status_code=303, headers=PRIVATE_HEADERS)

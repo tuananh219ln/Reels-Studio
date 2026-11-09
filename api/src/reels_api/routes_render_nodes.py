@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import motion, render_nodes
+from . import edit_log, motion, render_nodes
 from .db import get_db
 from .errors import ApiError
 from .models import AppSetting, Job, RenderNode, Session, Video
@@ -69,6 +69,11 @@ def overview(db: DbSession) -> dict:
     return {"enabled": render_nodes.enabled(db), "waiting": waiting, "nodes": [node_payload(n) for n in nodes]}
 
 
+def _log(db: DbSession, me: Session, action: str, changes: dict) -> None:
+    """ "Lịch sử" of Máy render: the team's one card, its mode and the machines added and removed (never a token)."""
+    edit_log.record(db, edit_log.RENDER, 1, action, me.user_id, label="Máy render", changes=changes)
+
+
 @router.get("/api/render-nodes")
 def list_nodes(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     return overview(db)
@@ -83,6 +88,7 @@ def add_node(body: NodeBody, me: Session = Depends(current_member), db: DbSessio
     token = new_session_token()
     node = RenderNode(name=name, token_hash=hash_session_token(token), created_by_id=me.user_id)
     db.add(node)
+    _log(db, me, "create", {"machine": {"old": None, "new": name}})
     db.commit()
     return {"node": node_payload(node), "token": token}
 
@@ -96,6 +102,7 @@ def delete_node(node_id: int, me: Session = Depends(current_member), db: DbSessi
     # Its job, if any, goes back to the queue for another machine.
     for job in db.scalars(select(Job).where(Job.node_id == node.id, Job.node_stage == "taken")):
         job.node_stage, job.node_id, job.node_seen_at = "ready", None, None
+    _log(db, me, "delete", {"machine": {"old": node.name, "new": None}})
     db.delete(node)
     db.commit()
     return overview(db)
@@ -105,11 +112,14 @@ def delete_node(node_id: int, me: Session = Depends(current_member), db: DbSessi
 def set_enabled(body: SettingBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """On: renders and motion scenes wait for a render machine. Off: the VPS worker renders them again; jobs already
     waiting stay for a machine (cancel and render again to have the VPS do one)."""
+    was = render_nodes.enabled(db)
     row = db.get(AppSetting, render_nodes.SETTING)
     if row is None:
         row = AppSetting(key=render_nodes.SETTING)
         db.add(row)
     row.value, row.updated_by_id = body.enabled, me.user_id
+    if was != body.enabled:
+        _log(db, me, "update", {"enabled": {"old": was, "new": body.enabled}})
     db.commit()
     return overview(db)
 
