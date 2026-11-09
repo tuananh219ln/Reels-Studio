@@ -64,7 +64,7 @@ from .models import (
     VideoNote,
 )
 from .openverse import Openverse, OpenverseError
-from .ownership import ensure_none_of_others, ensure_owner
+from .ownership import ensure_can_take_down, ensure_none_of_others, ensure_owner, ensure_page_owner
 from .pexels import Pexels, PexelsError
 from .pixabay import ORIENTATIONS, Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, plain_title, text_problem
@@ -751,6 +751,7 @@ def publish(
     fanpage = db.get(Fanpage, body.fanpage_id)
     if fanpage is None or not fanpage.active:
         raise invalid("Hãy chọn một Fanpage đang dùng")
+    ensure_page_owner(fanpage, me.user_id)
     if fanpage.id in posted_fanpage_ids(video, publications_of(db, video.id)):
         raise ApiError(
             409, "already_published", "Bản MP4 này đang có trên Fanpage đó, hãy render bản mới hoặc xóa bài cũ"
@@ -777,7 +778,7 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     video = lock_video(db, video_id)
     post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
-    ensure_owner(post.created_by_id, me.user_id, "bài đăng này")
+    ensure_can_take_down(db, post, me.user_id)
     if post.status not in OPEN_POST_STATUSES:
         raise ApiError(409, "post_closed", "Bài này đã hủy hoặc đã xóa")
     job = active_job(db, video.id)
