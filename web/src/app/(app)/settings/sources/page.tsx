@@ -19,7 +19,20 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { SettingsHeader, SettingsSection as Section } from "@/components/settings/SettingsBlocks";
+import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
 import StatusText from "@/components/StatusText";
+
+/** The history names a source's fields by the source ("Pexels · Khoá: đã đổi khoá …k3P1"). */
+const SOURCE_NAMES: Record<string, string> = {
+  pixabay: "Pixabay",
+  pexels: "Pexels",
+  unsplash: "Unsplash",
+  wikimedia: "Wikimedia",
+  openverse: "Openverse",
+  gemini: "Gemini",
+  cloudflare: "Cloudflare",
+  elevenlabs: "ElevenLabs",
+};
 
 type Key = { origin: "saved" | "unreadable" | "env" | null; hint: string; signup_url: string };
 type Source = {
@@ -161,6 +174,8 @@ export default function SourcesPage() {
   const [data, setData] = useState<Sources | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [style, setStyle] = useState<string | null>(null);
+  // Read again after every save: each one answers with the page's data anew.
+  const latest = useLatestEdits("settings_sources", data);
 
   const load = useCallback(async () => {
     try {
@@ -233,6 +248,7 @@ export default function SourcesPage() {
       <SettingsHeader
         title="Nguồn tư liệu"
         description="Kho ảnh và video miễn phí, ảnh AI và giọng đọc của cả nhóm. Key dán ở đây được mã hoá khi lưu, không bao giờ hiện lại, và được dùng thay key trong file .env của máy chủ."
+        actions={<PageHistory entityType="settings_sources" title="Nguồn tư liệu" owners={SOURCE_NAMES} />}
       />
       <Section
         title="Kho ảnh và video miễn phí"
@@ -303,6 +319,13 @@ export default function SourcesPage() {
             ))}
           </Row>
         </Flex>
+        <LastEdit
+          entry={latest["1"]}
+          entityType="settings_sources"
+          entityId={1}
+          title="Kho ảnh và video miễn phí"
+          owners={SOURCE_NAMES}
+        />
       </Section>
 
       {data && (
@@ -444,6 +467,13 @@ export default function SourcesPage() {
               )}
             </Row>
           </Flex>
+          <LastEdit
+            entry={latest["2"]}
+            entityType="settings_sources"
+            entityId={2}
+            title="Dịch vụ AI"
+            owners={SOURCE_NAMES}
+          />
         </Section>
       )}
     </Flex>
