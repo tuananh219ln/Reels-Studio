@@ -1092,7 +1092,7 @@ test("auto edit: the app's template on a video, undone, saved as a template and 
   await expect(timeline.getByTestId("lane-layers")).toHaveCount(0);
   await page.keyboard.press("Escape");
 
-  // Cấu hình › Mẫu dựng: "Vườn nhà" for every new video, put on as soon as its script is written.
+  // Cài đặt › Mẫu dựng: "Vườn nhà" for every new video, put on as soon as its script is written.
   await page.goto("/settings/templates");
   await expect(page.getByTestId("template-card")).toHaveCount(2);
   await chooseOption(page, page.getByLabel("Mẫu cho video mới"), "Vườn nhà");
@@ -2286,7 +2286,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
 }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
-  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   // A tab clicked before /settings redirects to its first tab loses to that redirect.
   await expect(page).toHaveURL(/\/settings\/defaults$/);
   await page.getByRole("tab", { name: "Mô hình AI" }).click();
@@ -2330,7 +2330,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
 test("video settings: a member's defaults reach their new video, which then changes its own", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
-  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   await page.getByRole("tab", { name: "Thiết lập mặc định" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
   // The page opens on the signed-in member's own defaults: none saved yet, so nothing to set back.
@@ -2480,7 +2480,7 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await expect(scene.getByTestId("scene-video")).toBeVisible();
   const videoUrl = page.url();
 
-  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
   await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
   await expect(page).toHaveURL(/\/settings\/sources$/);

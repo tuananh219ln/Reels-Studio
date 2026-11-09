@@ -17,7 +17,7 @@ from .models import EditLog, KnowledgeTopic
 TOPIC = "knowledge_topic"
 # A member on Quản lý người dùng: disabled, enabled, given a temporary password (never its value), their things handed on.
 USER = "user"
-# The team's shared settings, one history per page of Cài đặt › Cấu hình (settings_log.py, routes_render_nodes.py,
+# The team's shared settings, one history per tab of Cài đặt (settings_log.py, routes_render_nodes.py,
 # routes_templates.py): a card's id on the two settings pages, a template's id, 1 for the render machines.
 SETTINGS_AI = "settings_ai"
 SETTINGS_SOURCES = "settings_sources"

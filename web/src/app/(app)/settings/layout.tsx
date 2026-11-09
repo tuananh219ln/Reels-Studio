@@ -15,7 +15,7 @@ import PageHeader from "@/components/PageHeader";
 
 type Tab = { key: string; label: string; hint: string; icon: React.ReactNode };
 
-/** The "Cấu hình" tabs, the member's own first, then the team's; each tab is its own page, so a link or a reload
+/** The "Cài đặt" tabs, the member's own first, then the team's; each tab is its own page, so a link or a reload
  * opens the same tab. */
 const GROUPS: { key: string; label: string; color: string; tabs: Tab[] }[] = [
   {
@@ -94,7 +94,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <>
-      <PageHeader title="Cấu hình" />
+      <PageHeader title="Cài đặt" />
       {wide ? (
         <Flex gap={28} align="flex-start">
           <div style={{ position: "sticky", top: 16, width: 240, flex: "none" }}>

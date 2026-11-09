@@ -1,21 +1,16 @@
-""" "Bình luận": visitors' comments under the reels the app posted, read by the worker, answered and hidden by members.
+"""Visitors' comments under the reels and articles the app posted, read by the worker so an article can answer one
+("Trả lời bình luận", routes_comments.py).
 
-Like reading a post's numbers (metrics.py) none of this is a job: between jobs the worker
-- sends what members asked for: a reply (`reply_text`) or a hide, up to `BATCH` a round; and
-- reads the comments of up to `BATCH` live posts due a reading: each post of the last `FOLLOW_DAYS` days, every
-  `READ_EVERY`, or at once after "Tải bình luận mới".
-A request never calls Facebook.
-
-A reply or a hide is stamped before Facebook is asked and never sent again by itself: a failure is recorded on the
-comment and waits for a member. A member's retry of a reply whose answer was lost first looks for the Page's reply with
-the same text, as the affiliate comment does (post_comments.py). Replies are written by members; nothing here writes
-words of its own.
+Like reading a post's numbers (metrics.py) this is not a job: between jobs the worker reads the comments of up to
+`BATCH` live posts due a reading, each post of the last `FOLLOW_DAYS` days every `READ_EVERY`. A request never calls
+Facebook. The "Bình luận" page that answered and hid comments is gone (decisions 2026-11-10): nothing here writes to
+Facebook, and a reply or hide asked for before it went is never sent.
 """
 
 import logging
 from datetime import timedelta
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
@@ -28,8 +23,6 @@ log = logging.getLogger("reels_api.comments_inbox")
 
 READ_EVERY = timedelta(minutes=30)
 FOLLOW_DAYS = 14
-# Opening "Bình luận" asks for a reading of a reel whose last one is older than this.
-ON_OPEN = timedelta(minutes=15)
 BATCH = 3
 
 
@@ -62,28 +55,6 @@ def due_reads(db: DbSession, limit: int = BATCH) -> list[Publication]:
     return list(db.scalars(query))
 
 
-def ask_for_reading(db: DbSession) -> None:
-    """ "Tải bình luận mới": every followed post is due at once."""
-    db.execute(
-        update(Publication)
-        .where(_followed(now()))
-        .values(comments_read_at=None)
-        .execution_options(synchronize_session=False)
-    )
-
-
-def ask_if_stale(db: DbSession) -> int:
-    """Opening "Bình luận": every followed post read more than `ON_OPEN` ago is due at once. Returns how many."""
-    at = now()
-    result = db.execute(
-        update(Publication)
-        .where(_followed(at), Publication.comments_read_at <= at - ON_OPEN)
-        .values(comments_read_at=None)
-        .execution_options(synchronize_session=False)
-    )
-    return result.rowcount
-
-
 def read(db: DbSession, post: Publication) -> None:
     """Read the post's comments once and keep them. Commits."""
     post.comments_read_at = now()
@@ -110,76 +81,22 @@ def read(db: DbSession, post: Publication) -> None:
     db.commit()
 
 
-def _reply_due():
-    return and_(
-        PageComment.reply_requested_at.is_not(None),
-        PageComment.reply_id.is_(None),
-        or_(PageComment.reply_sent_at.is_(None), PageComment.reply_sent_at < PageComment.reply_requested_at),
-    )
-
-
-def _hide_due():
-    return and_(
-        PageComment.hide_requested_at.is_not(None),
-        PageComment.hidden.is_(False),
-        or_(PageComment.hide_sent_at.is_(None), PageComment.hide_sent_at < PageComment.hide_requested_at),
-    )
-
-
-def due_sends(db: DbSession, limit: int = BATCH) -> list[PageComment]:
-    query = select(PageComment).where(or_(_reply_due(), _hide_due())).order_by(PageComment.id).limit(limit)
-    return list(db.scalars(query))
-
-
-def send(db: DbSession, comment: PageComment) -> None:
-    """Send the reply or the hide a member asked for, once. Commits."""
-    post = db.get(Publication, comment.publication_id)
-    # A hide goes first: a reply under a comment that is being hidden can wait for the next round.
-    hiding = comment.hide_requested_at is not None and not comment.hidden
-    hiding = hiding and (comment.hide_sent_at is None or comment.hide_sent_at < comment.hide_requested_at)
-    may_exist = comment.reply_sent_at is not None
-    if hiding:
-        comment.hide_sent_at = now()
-    else:
-        comment.reply_sent_at = now()
-    db.commit()
-    try:
-        page = fanpages.load_page(db, post.fanpage_id)
-        if hiding:
-            facebook.hide_comment(page, comment.remote_id)
-            comment.hidden = True
-        else:
-            text = comment.reply_text or ""
-            found = facebook.page_comment(page, comment.remote_id, text) if may_exist else None
-            comment.reply_id = found or facebook.post_comment(page, comment.remote_id, text)
-            comment.answered = True
-    except FacebookError as err:
-        comment.error = err.message
-        db.commit()
-        log.warning("Could not answer comment %s: %s %s", comment.id, err.message, err.detail)
-        return
-    comment.error = None
-    db.commit()
-
-
 def run_round(factory: sessionmaker) -> None:
     """One round of the worker. Nothing here may stop the queue: a failure is logged and the next round goes on."""
-    for find, act, what in ((due_sends, send, "answer comment"), (due_reads, read, "read the comments of post")):
+    try:
+        with factory() as db:
+            ids = [post.id for post in due_reads(db)]
+    except Exception:
+        log.exception("Could not look for posts whose comments are due a reading")
+        return
+    for post_id in ids:
         try:
             with factory() as db:
-                ids = [row.id for row in find(db)]
+                post = db.get(Publication, post_id)
+                if post is not None:
+                    read(db, post)
         except Exception:
-            log.exception("Could not look for work to %s", what)
-            continue
-        model = PageComment if act is send else Publication
-        for row_id in ids:
-            try:
-                with factory() as db:
-                    row = db.get(model, row_id)
-                    if row is not None:
-                        act(db, row)
-            except Exception:
-                log.exception("Could not %s %s", what, row_id)
+            log.exception("Could not read the comments of post %s", post_id)
 
 
 def state(comment: PageComment) -> str:

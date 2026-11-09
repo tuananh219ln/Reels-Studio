@@ -79,8 +79,9 @@ app replaces CapCut, so the output is a finished MP4.
    the posted and scheduled ones in a month, both in Vietnam time. The worker checks each Page's token twice a day (and on "Kiểm tra ngay"), so a
    broken one shows on "Quản lý Page" and in "Đăng" before a post fails, and keeps the Page's
    followers with this week's gain, and its views, reach and engagements by day from Page Insights.
-   "Bình luận" gathers visitors' comments under the app's reels on every Page, to answer as the
-   Page, hide or set aside. Opening "Quản lý Page", "Bài đăng" or "Bình luận" asks the worker
+   The worker also reads visitors' comments under the app's reels and articles, so an article can answer one
+   ("Trả lời bình luận"); the "Bình luận" page that answered them went on 2026-11-10. Opening "Quản lý Page" or
+   "Bài đăng" asks the worker
    to read again what it has not read in 15 minutes, so nobody has to press a button first.
    **Posting queues on "Quản lý Page"** (built): each Page posts one topic group at its own posting times, or the group's.
    A member adds a rendered video they have watched with "Thêm vào hàng chờ"; it goes to their own
@@ -100,7 +101,7 @@ app replaces CapCut, so the output is a finished MP4.
    Shopee's search as on a video, or by a pasted link. "Đăng" posts it to a Page chosen then, now or at a time; the
    worker writes the pinned comment and the products' links under it (pinned by hand). The same caption is never posted twice
    on one Page, and a second Page or a reel within two hours asks first. Posts are taken down and checked like reels,
-   visitors' comments under them show on "Bình luận", and their numbers are read at 48 hours: reach, shares,
+   visitors' comments under them can be answered by a new article, and their numbers are read at 48 hours: reach, shares,
    comments, reactions, against the Page's median reach of articles. "Làm reel từ bài này" starts a video draft on
    its topic. Articles are not in "Bài đăng", a Page's dashboard or its posting queue.
 
@@ -109,7 +110,7 @@ app replaces CapCut, so the output is a finished MP4.
    writes a "Tự viết" script, gives scenes TikTok clips, photos from links or items of the "Kho tư liệu" it has looked
    at, and attaches affiliate products. **Kho tư liệu** (built, `/media`): folders of the team's own photos and clips,
    and links from Google Ảnh and TikTok pasted back after searching for the product. Members authorize and revoke OAuth connections
-   on Cấu hình › Kết nối MCP; see [chatgpt.md](chatgpt.md).
+   on Cài đặt › Kết nối MCP; see [chatgpt.md](chatgpt.md).
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
     comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài
     đăng" shows them, sorts by views, compares each with its Page's median at 48 hours and shows the

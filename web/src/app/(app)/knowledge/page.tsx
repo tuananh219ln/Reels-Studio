@@ -1009,7 +1009,7 @@ function GroupTemplatesCard({ topic, update }: { topic: KnowledgeTopic; update: 
     <Card title="Mẫu dựng của nhóm" size="small" style={{ maxWidth: 640 }}>
       <Typography.Paragraph type="secondary">
         Gắn các mẫu dựng (lưu từ video trong “Tự dựng”) cho nhóm và chọn một mẫu cho video mới của nhóm. Thứ tự ưu tiên
-        khi video mới được viết xong cảnh: mẫu chọn riêng trên video › mẫu của nhóm › mẫu của người tạo (Cấu hình › Mẫu
+        khi video mới được viết xong cảnh: mẫu chọn riêng trên video › mẫu của nhóm › mẫu của người tạo (Cài đặt › Mẫu
         dựng) › không áp. Video đã có giữ nguyên.
       </Typography.Paragraph>
       {library === null ? (

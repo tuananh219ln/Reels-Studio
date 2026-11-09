@@ -1,36 +1,24 @@
-""" "Bình luận": visitors' comments under the app's reels, to answer, hide or set aside. Every action only records what a
-member asked for; the worker sends it to Facebook (comments_inbox.py)."""
+"""Visitors' comments under the app's reels and articles, read by the worker (comments_inbox.py), listed for an article
+that answers one ("Trả lời bình luận"). The "Bình luận" page that answered, hid and set them aside is gone (decisions
+2026-11-10)."""
 
-import unicodedata
 from typing import Literal
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
 from . import articles, comments_inbox, facebook
 from .db import get_db
-from .errors import ApiError
 from .models import Article, Fanpage, PageComment, Publication, Session, Video
-from .routes_videos import invalid
-from .sessions import current_member, now
+from .sessions import current_member
 from .videos import split_scenes, title_of
 
 router = APIRouter(prefix="/api/comments")
 
 # The newest comments shown; at 1–3 reels a day followed for 14 days this is weeks of comments.
 LIST_LIMIT = 300
-MAX_REPLY_LENGTH = 2000
-
-
-class ReplyBody(BaseModel):
-    text: str
-
-
-class DismissBody(BaseModel):
-    dismissed: bool
 
 
 def _payload(db: DbSession, comment: PageComment, titles: dict[int, str]) -> dict:
@@ -67,18 +55,6 @@ def _payload(db: DbSession, comment: PageComment, titles: dict[int, str]) -> dic
             else None,
         },
     }
-
-
-def _comment(db: DbSession, comment_id: int) -> PageComment:
-    comment = db.get(PageComment, comment_id, with_for_update=True)
-    if comment is None:
-        raise ApiError(404, "comment_not_found", "Không tìm thấy bình luận")
-    return comment
-
-
-def _one(db: DbSession, comment: PageComment) -> dict:
-    db.commit()
-    return _payload(db, comment, {})
 
 
 @router.get("")
@@ -124,57 +100,3 @@ def list_comments(
     ]
     last = db.scalar(select(Publication.comments_read_at).order_by(Publication.comments_read_at.desc().nulls_last()))
     return {"comments": rows, "read_errors": errors, "read_at": last.isoformat() if last else None}
-
-
-@router.post("/refresh")
-def refresh(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Tải bình luận mới": the worker reads every followed reel within seconds."""
-    comments_inbox.ask_for_reading(db)
-    db.commit()
-    return {"ok": True}
-
-
-@router.post("/freshen")
-def freshen(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """Opening the page: the worker reads the reels not read lately, within seconds."""
-    asked = comments_inbox.ask_if_stale(db)
-    db.commit()
-    return {"asked": asked}
-
-
-@router.post("/{comment_id}/reply")
-def reply(
-    comment_id: int, body: ReplyBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
-) -> dict:
-    text = unicodedata.normalize("NFC", body.text.replace("\r\n", "\n")).strip()
-    if not text:
-        raise invalid("Hãy viết câu trả lời")
-    if len(text) > MAX_REPLY_LENGTH:
-        raise invalid(f"Câu trả lời dài quá {MAX_REPLY_LENGTH} ký tự")
-    comment = _comment(db, comment_id)
-    if comment.reply_id is not None:
-        raise ApiError(409, "already_replied", "Bình luận này đã được trả lời qua app")
-    if comment.hidden:
-        raise ApiError(409, "comment_hidden", "Bình luận này đã bị ẩn")
-    comment.reply_text, comment.reply_requested_at, comment.error = text, now(), None
-    comment.handled_by_id = me.user_id
-    return _one(db, comment)
-
-
-@router.post("/{comment_id}/hide")
-def hide(comment_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    comment = _comment(db, comment_id)
-    if not comment.hidden:
-        comment.hide_requested_at, comment.error, comment.handled_by_id = now(), None, me.user_id
-    return _one(db, comment)
-
-
-@router.post("/{comment_id}/dismiss")
-def dismiss(
-    comment_id: int, body: DismissBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
-) -> dict:
-    """ "Bỏ qua": no answer needed (a thank-you, an emoji); "Bỏ qua" again brings it back."""
-    comment = _comment(db, comment_id)
-    comment.dismissed_at = now() if body.dismissed else None
-    comment.handled_by_id = me.user_id if body.dismissed else comment.handled_by_id
-    return _one(db, comment)

@@ -150,7 +150,7 @@ function OwnerLine({
           call(`/fanpages/${row.id}/shopee-account`, "PUT", { account_id: accountId ?? null })
         }
         notFoundContent={
-          <Typography.Text type="secondary">Thêm tài khoản ở Cấu hình › Tài khoản affiliate</Typography.Text>
+          <Typography.Text type="secondary">Thêm tài khoản ở Cài đặt › Tài khoản affiliate</Typography.Text>
         }
       />
       {row.shopee_account && !row.shopee_account.usable && (
@@ -220,7 +220,7 @@ function AutoLine({
             options={tiktok.map((account) => ({ value: account.id, label: `TikTok: ${account.name}` }))}
             onChange={(accountId: number | undefined) => save({ tiktok_account_id: accountId ?? null })}
             notFoundContent={
-              <Typography.Text type="secondary">Thêm và kết nối ở Cấu hình › Tài khoản affiliate</Typography.Text>
+              <Typography.Text type="secondary">Thêm và kết nối ở Cài đặt › Tài khoản affiliate</Typography.Text>
             }
           />
           {auto.tiktok_problem && (
