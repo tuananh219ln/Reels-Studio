@@ -8,7 +8,7 @@ from html import escape
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from conftest import WEB_ORIGIN, login, make_user, make_video
+from conftest import WEB_ORIGIN, first_topic, login, make_user, make_video
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
@@ -994,6 +994,63 @@ def test_affiliate_products_are_listed_and_only_approved_ones_attach(mcp_client,
     assert not attached.get("isError"), attached
     chosen = select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == video.id)
     assert db.scalars(chosen).all() == [approved.id]
+
+
+def test_the_assistant_lists_my_products_first_and_says_whose_commission_a_teammates_earns(
+    mcp_client, db, storage, fakes
+):
+    from test_affiliate_accounts import live_post, page_of, product
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    teammate = make_user(db, email="binh@doi.vn", name="Trần Bình")
+    other_topic = mcp_client.post("/api/knowledge/topics", json={"name": "Ăn Lành Sống Khỏe"}).json()["topics"][-1]
+    mine = product(db, user, name="Gối của An", url="https://s.shopee.vn/an", price=100000)
+    theirs = product(db, teammate, name="Gối của Bình", url="https://s.shopee.vn/binh", price=900000)
+    elsewhere = product(db, user, name="Gối nhóm khác", price=500000)
+    elsewhere.knowledge_topic_id = other_topic["id"]
+    db.commit()
+
+    listed = payload(call(mcp_client, token, "list_affiliate_products", query="Gối"))
+    assert [row["id"] for row in listed["products"]] == [elsewhere.id, mine.id], "only mine by default"
+    assert listed["products"][0]["created_by"] == "Nguyễn Văn An" and listed["products"][0]["mine"] is True
+    everyone = payload(call(mcp_client, token, "list_affiliate_products", query="Gối", whose="all"))
+    by_id = {row["id"]: row for row in everyone["products"]}
+    assert by_id[theirs.id]["mine"] is False and by_id[theirs.id]["created_by"] == "Trần Bình"
+
+    post = live_post(db, storage, user, fakes, page_of(db, teammate))
+    video = db.get(Video, post.video_id)
+    video.knowledge_topic_id = first_topic(db).id
+    db.commit()
+    ranked = payload(call(mcp_client, token, "list_affiliate_products", query="Gối", video_id=video.id))
+    assert [row["id"] for row in ranked["products"]] == [mine.id, elsewhere.id], "the video's group comes first"
+
+    attached = call(mcp_client, token, "set_video_products", video_id=video.id, product_ids=[mine.id, theirs.id])
+    assert not attached.get("isError"), attached
+    answer = payload(attached)
+    by_id = {row["id"]: row for row in answer["products"]}
+    assert by_id[mine.id]["mine"] is True and by_id[mine.id]["commission"][0]["user_name"] == "Nguyễn Văn An"
+    assert by_id[theirs.id]["commission"][0]["mine"] is False
+    assert len(answer["commission_warnings"]) == 1 and "Trần Bình" in answer["commission_warnings"][0]
+
+
+def test_attaching_a_teammates_product_to_an_unposted_video_warns_whose_link_it_is(mcp_client, db, storage):
+    from test_affiliate_accounts import product
+
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    teammate = make_user(db, email="binh@doi.vn", name="Trần Bình")
+    video = make_video(db, storage, user)
+    theirs = product(db, teammate, name="Gối của Bình", url="https://s.shopee.vn/binh")
+    answer = payload(call(mcp_client, token, "set_video_products", video_id=video.id, product_ids=[theirs.id]))
+    assert answer["products"][0]["mine"] is False and answer["products"][0]["commission"] == []
+    assert len(answer["commission_warnings"]) == 1 and "Trần Bình" in answer["commission_warnings"][0]
+    tiktok = make_video(db, storage, user)
+    tiktok.platform = "tiktok"
+    db.commit()
+    tea = product(db, teammate, name="Trà", platform="tiktok_shop", url="https://www.tiktok.com/view/product/1")
+    answer = payload(call(mcp_client, token, "set_video_products", video_id=tiktok.id, product_ids=[tea.id]))
+    assert answer["products"][0]["mine"] is False and answer["commission_warnings"] == [], "no comment on TikTok"
 
 
 def test_a_scene_takes_a_photo_from_a_link_and_a_read_only_connection_cannot(

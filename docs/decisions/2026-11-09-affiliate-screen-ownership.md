@@ -35,3 +35,7 @@ stand and are what this follows.
   their affiliate link with the importer's while "Người thêm" still named them). Such rows are kept as they are and
   listed; the file is previewed first. One saved link per product stays the rule; a link per member, with the Page
   owner's used on their Page, is a possible later change, not made here.
+- **The assistant (MCP) picks the member's own products** (owner's approval, in this PR): `list_affiliate_products`
+  lists only the products the member added unless asked for the whole team, and `set_video_products` answers with
+  whose commission each product earns, with a line for every case that is not the member's, so the assistant says
+  so. Attaching a teammate's product stays allowed, as on the screen.
