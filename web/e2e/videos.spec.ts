@@ -2795,6 +2795,14 @@ test("30-day plan: the plan prompt's history puts back the app's default", async
 
 test("30-day plan: an idea added for today becomes a video, linked both ways", async ({ page }) => {
   await loginAsSeed(page);
+  // The banner shows the plans of the member's own groups only: those their Pages post.
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  const queue = page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");
+  await chooseOption(page, queue.getByLabel("Nhóm chủ đề của Trang Dưỡng Sinh"), "Sức khỏe");
+  await expect(queue).toContainText("Theo giờ đăng của nhóm chủ đề (giờ Việt Nam).");
   await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   const health = page.locator('[data-topic="Sức khỏe"]');

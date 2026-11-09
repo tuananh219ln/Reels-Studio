@@ -154,8 +154,10 @@ Built:
   - a list, one row per video: small thumbnail and title, "Loại" (the kind tags), the status (with "Đã
     đăng" or "Đã lên lịch" under it), "Đã đăng" (the platform icons), "Đăng" (Page and time, or "Chưa đăng"), "View" (sortable), "48h" (the multiple or
     "chưa đủ dữ liệu", the share/view under it) and "Tạo" (group, plan day, creator, day). Above the videos, one
-  banner per topic group whose plan has a today: "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video"
-  with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
+  banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
+  "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video" with "Làm tiếp" (the next idea not made), or green once
+  all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
+  for the member's own groups.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   Under the status line, "Loại nội dung": a small field typed freely or picked from the types the team's
   videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
