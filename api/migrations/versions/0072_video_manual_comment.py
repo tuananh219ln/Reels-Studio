@@ -1,16 +1,16 @@
 """A video whose affiliate links a member pasted by hand on Facebook ("Đã dán link tay"): the app keeps out of its
 posts' comments
 
-Revision ID: 0071
-Revises: 0070
+Revision ID: 0072
+Revises: 0071
 Create Date: 2026-11-09
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0071"
-down_revision = "0070"
+revision = "0072"
+down_revision = "0071"
 branch_labels = None
 depends_on = None
 
