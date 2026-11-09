@@ -16,7 +16,7 @@ field, the scene, or the job banner); technical detail sits in a collapsed "Chi 
 
 ## ChatGPT and Claude connection
 
-Cấu hình › Kết nối MCP (`/settings/mcp`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
+Cài đặt › Kết nối MCP (`/settings/mcp`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
 ChatGPT, Claude and Claude Code (with the copyable `claude mcp add` command), and the current
 member's connections, each named by its app, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
 opens the same page with a consent card titled “Cho phép <app> kết nối?”, naming the member and the
@@ -55,11 +55,11 @@ its owner); a teammate sees none, or, where a row keeps its buttons in fixed pla
 ("Chỉ người đăng bài này mới hủy hoặc xóa được"). A topic group's "Xoá nhóm" reads "(chỉ người tạo nhóm)" for others.
 
 Every list of the team's work starts on the member's own: Video (its creator filter), Bài viết, Bài đăng (list and
-calendar), Bình luận and Jobs have "Của tôi / Cả đội" ([WhoseFilter](../web/src/components/WhoseFilter.tsx), with
+calendar) and Jobs have "Của tôi / Cả đội" ([WhoseFilter](../web/src/components/WhoseFilter.tsx), with
 counts where the whole list is loaded), and Quản lý Page has "Trang của tôi / Tất cả". "Của tôi" is what the
 member made; for a post or a comment, what is under a post they made or on a Page they own; for a job, what they
 started. The loaded lists start on "Của tôi" once the member has a row there and on "Cả đội" before, so a newcomer
-never opens an empty list; Jobs and Bình luận, read from the api a page at a time, start on "Của tôi". "Cả đội"
+never opens an empty list; Jobs, read from the api a page at a time, starts on "Của tôi". "Cả đội"
 always shows everyone's work. Shared libraries (Kho tư liệu, Thư viện nhạc, Kho kiến thức) are not filtered. The logo in the menu and on the sign-in page is that icon beside "Reels Studio". Every page behind
 the login starts with the same header ([PageHeader](../web/src/components/PageHeader.tsx)): the
 title with the page's main action on its right ("Tạo video", "Tải nhạc lên", "Thêm Fanpage"…), a
@@ -539,7 +539,7 @@ Built:
   - "Mẫu dựng": "Mẫu dựng của nhóm", a multiple choice of the saved templates the group holds ("Mẫu của nhóm") and
     the one its new videos take ("Mẫu cho video mới của nhóm": "Không áp mẫu của nhóm", "Gợi ý của app" or one of
     the group's), with "Lưu mẫu dựng". The order a new video's template is picked in is spelled out above them:
-    chosen on the video › the group's › the maker's own (Cấu hình › Mẫu dựng) › none. Cấu hình › Mẫu dựng tags each
+    chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none. Cài đặt › Mẫu dựng tags each
     template with the groups that hold it;
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
@@ -663,7 +663,7 @@ Built:
     videos it is attached to;
   - "Doanh thu": the signed-in member's own Shopee orders over 7, 30 or 90 days, with totals and one
     row per video and Page; nobody else's.
-- **Cấu hình › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
+- **Cài đặt › Tài khoản affiliate** (`/settings/affiliate-accounts`): the member's own Shopee
   accounts (App ID, the Secret's last characters, "Kiểm tra kết nối") and TikTok accounts (profile
   link, and the TikTok connection: "Đã kết nối @username, còn hạn tới …" with an avatar and "Ngắt
   kết nối", "Chưa kết nối TikTok" with "Kết nối TikTok", or a warning with "Kết nối lại" when TikTok
@@ -677,8 +677,9 @@ Built:
   "Bán tự động" switch with its preparing time ("08:00" by default, saved on Enter or leaving the field) and, once on,
   the TikTok account its drafts go to (one of their own; "Không gửi nháp TikTok" when none, a warning when its
   connection is missing or expired), "Bản TikTok riêng" (off by default) and where the videos wait for approval.
-- **Đăng bài**, a menu group. Nothing is posted or approved here: a member reviews and posts a
-  video from "Đăng" on its page; "Bài đăng" only retries a failed post.
+- **Bài đăng** and posting. Nothing is posted or approved here: a member reviews and posts a
+  video from "Đăng" on its page; "Bài đăng" only retries a failed post. (The "Bình luận" page, which answered
+  visitors' comments as the Page, went on 2026-11-10.)
   - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or
     posted again shows its title once. The row has the video's thumbnail (the title scene, or the
     pale tile) and title, which open the video, "N bài đăng" with its Pages, one status tag per
@@ -764,13 +765,11 @@ Built:
   Each row: the video title with its kind and job number under it, a status tag with an icon, who
   started it, start with the duration under it, AI call count with the model that wrote a script
   ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
-- **Cài đặt**, a menu group, last in the sidebar, with one page: **Cấu hình** (Pages moved out to
-  **Quản lý Page**, its own menu item under "Video", since a Page's queue is daily work).
-  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" whose tabs come in two groups, each
+- **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
   headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
   Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab
   per job; no tab is split between the groups. Each tab has its own address so a link or a reload keeps the tab; the
-  menu keeps "Cấu hình" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
+  menu keeps "Cài đặt" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
   is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
   line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
@@ -819,7 +818,7 @@ Built:
     side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
     model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
-  - **Quản lý Page** (`/fanpages`, its own menu item under "Video", outside Cài đặt): "Trang nào" chooses
+  - **Quản lý Page** (`/fanpages`, under "Đăng và kiếm tiền" in the menu): "Trang nào" chooses
     "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on
     "Trang của tôi" without one, the empty card points to "Tất cả" to take a Page. Then a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng) of what is shown, then a small card per Page in use, broken ones first, in a grid
@@ -882,6 +881,11 @@ Built:
       posts and free times.
     Numbers Facebook does not give are not shown (followers against non-followers, content types, traffic
     sources, unfollows, 3-second and 1-minute views). An unknown Page shows "Không tìm thấy Fanpage".
+
+The menu (built, 2026-11-10) is four groups, each under a small grey heading that cannot be folded, in the order of
+the work: **Tạo nội dung** (Video, Bài viết), **Đăng và kiếm tiền** (Bài đăng, Quản lý Page, Affiliate), **Tài
+nguyên** (Kho kiến thức, Kho tư liệu, Thư viện nhạc) and **Quản trị** (Quản lý người dùng, Job logs, Cài đặt).
+No menu item opens a sub-menu.
 
 Phones (below 992 px wide; built):
 
@@ -958,7 +962,7 @@ relied on (samples in the PR that added them).
   seconds), Trượt (the next scene slides in from the right over 0.4 s). The total length is the
   same for all three.
 - **Cỡ chữ** (`text_size` for the content scenes, `title_text_size` for the title; on "Thiết lập" › Chữ and on
-  Cấu hình › Thiết lập mặc định): Lớn (the original template: the largest font that fits, the title 96 down to
+  Cài đặt › Thiết lập mặc định): Lớn (the original template: the largest font that fits, the title 96 down to
   64 px in at most 5 lines, a scene 84 down to 60 px in 3), Vừa or Nhỏ. Vừa and Nhỏ start from the font Lớn would
   choose ×0,82 and ×0,68, never below 54 / 44 px for the title and 50 / 42 px for a scene, and shrink further only
   to fit, so they are smaller even for a long title, and a text too long for Lớn may fit at a smaller size (the
@@ -999,7 +1003,7 @@ relied on (samples in the PR that added them).
   text or narration: that is the script's own call to action, so it is kept as written and only the template's
   other parts apply. A member's template is saved from a video in the
   studio (its scenes' transitions, most used colour, the first content scene's sounds that has any, the title's
-  sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename and remove, both shown to the
+  sounds and music level, the last scene's layers). Cài đặt › Mẫu dựng lists them (rename and remove, both shown to the
   template's maker only; "Xoá" first says how many members put it on their new videos and which groups hold it) and
   picks, under
   "Của tôi (theo người dùng)", the one put on the signed-in member's own new videos as soon as their scenes are

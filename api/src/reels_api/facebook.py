@@ -496,15 +496,6 @@ def _time(value: object) -> datetime:
         return datetime.now(UTC)
 
 
-def hide_comment(page: Page, comment_id: str) -> None:
-    body = urllib.parse.urlencode({"is_hidden": "true", "access_token": page.token}).encode()
-    url = f"{config.facebook_api_url()}/{urllib.parse.quote(comment_id, safe='')}"
-    try:
-        _send(urllib.request.Request(url, data=body, method="POST"), REQUEST_TIMEOUT)
-    except FacebookError as err:
-        raise _comment_error(err) from None
-
-
 def _gone(page: Page, err: FacebookError) -> bool:
     """Whether a failed read or delete of a reel means Facebook no longer has it. Facebook answers a reel it deleted
     with a 400 (#100), the same as one this token may not read, so that answer counts only while the same token still

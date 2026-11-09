@@ -3,7 +3,7 @@
 import { Flex, Typography } from "antd";
 import type { ReactNode } from "react";
 
-/** The top of every "Cấu hình" tab: its name, a line on what it sets, and its main actions on the right. */
+/** The top of every "Cài đặt" tab: its name, a line on what it sets, and its main actions on the right. */
 export function SettingsHeader({
   title,
   description,

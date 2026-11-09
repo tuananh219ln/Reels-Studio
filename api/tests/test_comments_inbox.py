@@ -1,4 +1,5 @@
-""" "Bình luận" (comments_inbox.py, routes_comments.py): reading visitors' comments, answering and hiding them."""
+"""Visitors' comments (comments_inbox.py, routes_comments.py): the worker reads them for an article that answers one.
+The "Bình luận" page that answered, hid and set them aside is gone (decisions 2026-11-10)."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -118,111 +119,23 @@ def test_a_reel_facebook_no_longer_has_is_named_gone(db, me, storage, fakes):
     assert post.comments_error == "Facebook không còn reel này"
 
 
-def test_opening_the_comments_page_asks_for_reels_not_read_lately(an, db, me, storage, fakes):
+def test_answering_hiding_and_setting_aside_are_gone(an, db, me, storage, fakes):
     post = add_post(db, storage, me, fakes)
-    comments_inbox.read(db, post)
-    assert an.post(f"{URL}/freshen").json() == {"asked": 0}, "read a moment ago"
-
-    post.comments_read_at = datetime.now(UTC) - timedelta(minutes=20)
-    db.commit()
-    assert reads(db) == []
-    assert an.post(f"{URL}/freshen").json() == {"asked": 1}
-    assert reads(db) == [post.id]
-    assert an.post(f"{URL}/freshen").json() == {"asked": 0}, "a reading already asked for is not asked again"
-
-
-def test_load_new_comments_makes_every_followed_post_due(an, db, me, storage, fakes):
-    post = add_post(db, storage, me, fakes)
-    comments_inbox.read(db, post)
-    assert an.post(f"{URL}/refresh").status_code == 200
-    assert reads(db) == [post.id]
-
-
-# Answering
-
-
-def test_a_reply_is_sent_once_by_the_worker(an, db, me, storage, fakes):
-    post = add_post(db, storage, me, fakes)
-    visitor = fakes.add_visitor_comment(post.remote_id, "Mua nồi ở đâu ạ?")
+    fakes.add_visitor_comment(post.remote_id, "Mua ở đâu ạ?")
     comments_inbox.read(db, post)
     (comment,) = stored(db)
+    for path, body in (("reply", {"text": "Dạ"}), ("hide", None), ("dismiss", {"dismissed": True})):
+        assert an.post(f"{URL}/{comment.id}/{path}", json=body).status_code in (404, 405), path
+    for path in ("refresh", "freshen"):
+        assert an.post(f"{URL}/{path}").status_code in (404, 405), path
 
-    row = an.post(f"{URL}/{comment.id}/reply", json={"text": "  Link trong bình luận ghim ạ  "}).json()
-    assert row["state"] == "sending" and row["reply_text"] == "Link trong bình luận ghim ạ"
-    assert fakes.facebook_comments[visitor]["message"] == "Mua nồi ở đâu ạ?", "a request never calls Facebook"
 
-    (due,) = comments_inbox.due_sends(db)
-    comments_inbox.send(db, due)
-    replies = [c for c in fakes.facebook_comments.values() if c["object"] == visitor]
-    assert [reply["message"] for reply in replies] == ["Link trong bình luận ghim ạ"]
-    assert comments_inbox.due_sends(db) == []
-    assert open_list(an) == [], "an answered comment leaves the open list"
+def test_the_comment_list_stays_for_an_article_that_answers_one(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    fakes.add_visitor_comment(post.remote_id, "Canh bí đao nấu với gì ngon ạ?", "Cô Lan")
+    comments_inbox.read(db, post)
     (row,) = an.get(f"{URL}?state=all").json()["comments"]
-    assert row["state"] == "answered" and row["handled_by"] == me.name
-    refused = an.post(f"{URL}/{comment.id}/reply", json={"text": "Lần nữa"})
-    assert refused.status_code == 409
-
-
-def test_a_failed_reply_stays_open_with_its_reason_and_is_not_resent_by_itself(an, db, me, storage, fakes):
-    post = add_post(db, storage, me, fakes)
-    fakes.add_visitor_comment(post.remote_id, "Hỏi chút ạ")
-    comments_inbox.read(db, post)
-    (comment,) = stored(db)
-    an.post(f"{URL}/{comment.id}/reply", json={"text": "Dạ"})
-    fakes.facebook_comment_refused = True
-    comments_inbox.send(db, comments_inbox.due_sends(db)[0])
-    assert comments_inbox.due_sends(db) == []
-    (row,) = open_list(an)
-    assert row["state"] == "open" and "pages_manage_engagement" in row["error"]
-
-
-def test_a_reply_whose_answer_was_lost_is_not_written_twice_on_retry(an, db, me, storage, fakes):
-    post = add_post(db, storage, me, fakes)
-    visitor = fakes.add_visitor_comment(post.remote_id, "Hỏi chút ạ")
-    comments_inbox.read(db, post)
-    (comment,) = stored(db)
-    an.post(f"{URL}/{comment.id}/reply", json={"text": "Dạ cô"})
-    fakes.facebook_comment_replies_lost = 1
-    comments_inbox.send(db, comments_inbox.due_sends(db)[0])
-    an.post(f"{URL}/{comment.id}/reply", json={"text": "Dạ cô"})
-    comments_inbox.send(db, comments_inbox.due_sends(db)[0])
-    assert [c["message"] for c in fakes.facebook_comments.values() if c["object"] == visitor] == ["Dạ cô"]
-    assert stored(db)[0].reply_id
-
-
-def test_an_empty_or_long_reply_is_refused(an, db, me, storage, fakes):
-    post = add_post(db, storage, me, fakes)
-    fakes.add_visitor_comment(post.remote_id, "Hỏi")
-    comments_inbox.read(db, post)
-    (comment,) = stored(db)
-    assert an.post(f"{URL}/{comment.id}/reply", json={"text": "  "}).status_code == 422
-    assert an.post(f"{URL}/{comment.id}/reply", json={"text": "x" * 2001}).status_code == 422
-    assert an.post(f"{URL}/999999/reply", json={"text": "Dạ"}).status_code == 404
-
-
-# Hiding and setting aside
-
-
-def test_hide_sends_once_and_the_comment_leaves_the_list(an, db, me, storage, fakes):
-    post = add_post(db, storage, me, fakes)
-    spam = fakes.add_visitor_comment(post.remote_id, "Kiếm tiền online inbox mình")
-    comments_inbox.read(db, post)
-    (comment,) = stored(db)
-    assert an.post(f"{URL}/{comment.id}/hide").json()["state"] == "sending"
-    comments_inbox.send(db, comments_inbox.due_sends(db)[0])
-    assert fakes.facebook_comments[spam]["hidden"] is True
-    assert open_list(an) == [] and comments_inbox.due_sends(db) == []
-
-
-def test_dismiss_sets_a_comment_aside_and_back(an, db, me, storage, fakes):
-    post = add_post(db, storage, me, fakes)
-    fakes.add_visitor_comment(post.remote_id, "❤️")
-    comments_inbox.read(db, post)
-    (comment,) = stored(db)
-    assert an.post(f"{URL}/{comment.id}/dismiss", json={"dismissed": True}).json()["state"] == "dismissed"
-    assert open_list(an) == []
-    an.post(f"{URL}/{comment.id}/dismiss", json={"dismissed": False})
-    (row,) = open_list(an)
+    assert (row["author"], row["message"]) == ("Cô Lan", "Canh bí đao nấu với gì ngon ạ?")
     assert row["post"]["fanpage"] == "Trang Dưỡng Sinh" and row["post"]["reel_url"].endswith(post.remote_id)
 
 
@@ -230,16 +143,23 @@ def test_comments_need_a_login(client):
     assert client.get(URL).status_code == 401
 
 
-def test_the_worker_round_sends_and_reads(committed, fakes, tmp_path):  # noqa: F811
+def test_the_worker_round_reads_and_sends_nothing(committed, fakes, tmp_path):  # noqa: F811
     from reels_api.storage import DirectoryStorage
 
     user = add_user(committed)
     storage = DirectoryStorage(tmp_path / "storage")
     with committed() as db:
         post = add_post(db, storage, user, fakes)
-        fakes.add_visitor_comment(post.remote_id, "Hay quá")
+        visitor = fakes.add_visitor_comment(post.remote_id, "Hay quá")
     comments_inbox.run_round(committed)
     with committed() as db:
-        assert [row.message for row in db.scalars(select(PageComment))] == ["Hay quá"]
+        (row,) = db.scalars(select(PageComment))
+        assert row.message == "Hay quá"
+        # A reply asked for on the old "Bình luận" page, before it went, is never sent.
+        row.reply_text, row.reply_requested_at = "Cảm ơn cô", datetime.now(UTC)
+        db.commit()
+    comments_inbox.run_round(committed)
+    assert [c for c in fakes.facebook_comments.values() if c["object"] == visitor] == []
+    with committed() as db:
         db.execute(PageComment.__table__.delete())
         db.commit()

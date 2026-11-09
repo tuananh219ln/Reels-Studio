@@ -298,10 +298,8 @@ test("each list starts on the member's own work, and Cả đội shows everyone'
   await expect(binh.getByText("ngâm chân nước gừng")).toHaveCount(0);
   await binh.goto("/posts");
   await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Cả đội (0)" })).toBeChecked();
-  // Jobs and comments are read from the api a page at a time, so they start on the member's own.
+  // Jobs are read from the api a page at a time, so they start on the member's own.
   await binh.goto("/jobs");
-  await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Của tôi" })).toBeChecked();
-  await binh.goto("/comments");
   await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Của tôi" })).toBeChecked();
 
   // Once they have made a video, the list starts on theirs; the creator filter still reaches a teammate's.
@@ -322,15 +320,27 @@ test("music library page from the menu", async ({ page }) => {
   await expect(page.getByText("Chưa có bài nhạc nào")).toBeVisible();
 });
 
-test("Quản lý Page opens from the menu, outside the Cài đặt group", async ({ page }) => {
+test("the menu is four headed groups in the order of the work, with no Bình luận", async ({ page }) => {
   await loginAsSeed(page);
-  const settings = page.getByRole("menuitem", { name: "Cài đặt" });
+  const menu = page.getByRole("menu").first();
+  for (const heading of ["Tạo nội dung", "Đăng và kiếm tiền", "Tài nguyên", "Quản trị"]) {
+    await expect(menu.getByText(heading, { exact: true })).toBeVisible();
+  }
+  const items = await menu.getByRole("menuitem").allInnerTexts();
+  expect(items.map((item) => item.trim())).toEqual([
+    "Video",
+    "Bài viết",
+    "Bài đăng",
+    "Quản lý Page",
+    "Affiliate",
+    "Kho kiến thức",
+    "Kho tư liệu",
+    "Thư viện nhạc",
+    "Quản lý người dùng",
+    "Job logs",
+    "Cài đặt",
+  ]);
   const fanpages = page.getByRole("menuitem", { name: "Quản lý Page" });
-  await expect(fanpages).toBeVisible();
-  // Folding Cài đặt away leaves it in the menu: it is no longer a setting.
-  await settings.click();
-  await expect(page.getByRole("menuitem", { name: "Cấu hình" })).toBeHidden();
-  await expect(fanpages).toBeVisible();
   await fanpages.click();
   await expect(page.getByRole("heading", { name: "Quản lý Page" })).toBeVisible();
   await expect(page).toHaveURL(/\/fanpages$/);
@@ -434,20 +444,9 @@ test("a Page stopped and never posted to can be deleted", async ({ page }) => {
   await expect(page.getByText("Chưa kết nối Fanpage nào")).toBeVisible();
 });
 
-test("Bình luận opens from the Đăng bài menu and starts empty", async ({ page }) => {
+test("Cài đặt holds the defaults, AI model and sources as tabs, each with its own address", async ({ page }) => {
   await loginAsSeed(page);
-  await page.getByRole("menuitem", { name: "Bình luận" }).click();
-  await expect(page).toHaveURL(/\/comments$/);
-  await expect(page.getByText("Không còn bình luận nào chờ trả lời")).toBeVisible();
-  await page.getByText("Tất cả", { exact: true }).click();
-  await expect(page.getByText("Chưa có bình luận nào")).toBeVisible();
-  await page.getByRole("button", { name: "Tải bình luận mới" }).click();
-  await expect(page.getByText("Đã nhờ worker tải bình luận mới", { exact: false })).toBeVisible();
-});
-
-test("Cấu hình holds the defaults, AI model and sources as tabs, each with its own address", async ({ page }) => {
-  await loginAsSeed(page);
-  await page.getByRole("menuitem", { name: "Cấu hình" }).click();
+  await page.getByRole("menuitem", { name: "Cài đặt" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
   await expect(page.getByRole("tab", { name: "Thiết lập mặc định" })).toHaveAttribute("aria-selected", "true");
   // The member's own settings first, then the team's, each group under its name; Kết nối MCP is the member's.
@@ -468,10 +467,10 @@ test("Cấu hình holds the defaults, AI model and sources as tabs, each with it
   await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
   await expect(page).toHaveURL(/\/settings\/sources$/);
   await expect(page.getByTestId("source-elevenlabs")).toBeVisible();
-  // A reload stays on the same tab, and the menu keeps Cấu hình selected.
+  // A reload stays on the same tab, and the menu keeps Cài đặt selected.
   await page.reload();
   await expect(page.getByRole("tab", { name: "Nguồn tư liệu" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("menuitem", { name: "Cấu hình" })).toHaveClass(/ant-menu-item-selected/);
+  await expect(page.getByRole("menuitem", { name: "Cài đặt" })).toHaveClass(/ant-menu-item-selected/);
   await page.getByRole("tab", { name: "Mô hình AI" }).click();
   await expect(page).toHaveURL(/\/settings\/ai$/);
 });

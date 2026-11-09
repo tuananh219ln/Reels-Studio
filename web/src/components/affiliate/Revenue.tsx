@@ -30,7 +30,7 @@ export default function Revenue() {
         description={
           <span>
             Chưa có tài khoản Shopee nào của bạn. Thêm ở{" "}
-            <Link href="/settings/affiliate-accounts">Cấu hình › Tài khoản affiliate</Link>.
+            <Link href="/settings/affiliate-accounts">Cài đặt › Tài khoản affiliate</Link>.
           </span>
         }
       />

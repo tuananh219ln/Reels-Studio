@@ -8,7 +8,7 @@ import { api, errorMessage, type EditTemplates } from "@/lib/api";
 /**
  * "Tự dựng" in the tools column: each "Mẫu dựng" (the app's own first, then the members') with what it does, put on
  * the whole video with one click (undone with Ctrl+Z); and "Lưu video này thành mẫu", the video's look as a new
- * team template. Templates are managed on Cấu hình › Mẫu dựng.
+ * team template. Templates are managed on Cài đặt › Mẫu dựng.
  */
 export default function AutoEditPanel({
   editable,

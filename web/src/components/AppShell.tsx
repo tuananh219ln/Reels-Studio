@@ -2,9 +2,7 @@
 
 import {
   BookOutlined,
-  CommentOutlined,
   ClockCircleOutlined,
-  ControlOutlined,
   FolderOpenOutlined,
   CustomerServiceOutlined,
   KeyOutlined,
@@ -13,7 +11,6 @@ import {
   EditOutlined,
   FacebookOutlined,
   FileTextOutlined,
-  NotificationOutlined,
   PlaySquareOutlined,
   SettingOutlined,
   ShoppingOutlined,
@@ -31,35 +28,43 @@ import { MeContext } from "./MeContext";
 import UserAvatar from "./UserAvatar";
 import { COLORS } from "@/app/theme";
 
-const POST_GROUP = "group:posts";
-const SETTINGS_GROUP = "group:settings";
-
-const NAV = [
-  { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
-  { key: "/articles", icon: <FileTextOutlined />, label: "Bài viết" },
-  { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý Page" },
+// The menu in four headed groups, always open, in the order of the work: make it, post it and earn from it, the
+// material it is made from, then running the app (decisions 2026-11-10).
+const NAV: { key: string; label: string; children: { key: string; icon: React.ReactNode; label: string }[] }[] = [
   {
-    key: POST_GROUP,
-    icon: <NotificationOutlined />,
-    label: "Đăng bài",
+    key: "group:make",
+    label: "Tạo nội dung",
     children: [
-      { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
-      { key: "/comments", icon: <CommentOutlined />, label: "Bình luận" },
+      { key: "/videos", icon: <PlaySquareOutlined />, label: "Video" },
+      { key: "/articles", icon: <FileTextOutlined />, label: "Bài viết" },
     ],
   },
-  { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
-  { key: "/media", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
-  { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
-  { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate" },
-  { key: "/users", icon: <TeamOutlined />, label: "Quản lý người dùng" },
-  { key: "/jobs", icon: <ClockCircleOutlined />, label: "Job logs" },
   {
-    key: SETTINGS_GROUP,
-    icon: <SettingOutlined />,
-    label: "Cài đặt",
+    key: "group:post",
+    label: "Đăng và kiếm tiền",
     children: [
+      { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
+      { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý Page" },
+      { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate" },
+    ],
+  },
+  {
+    key: "group:library",
+    label: "Tài nguyên",
+    children: [
+      { key: "/knowledge", icon: <BookOutlined />, label: "Kho kiến thức" },
+      { key: "/media", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
+      { key: "/music", icon: <CustomerServiceOutlined />, label: "Thư viện nhạc" },
+    ],
+  },
+  {
+    key: "group:admin",
+    label: "Quản trị",
+    children: [
+      { key: "/users", icon: <TeamOutlined />, label: "Quản lý người dùng" },
+      { key: "/jobs", icon: <ClockCircleOutlined />, label: "Job logs" },
       // One page with tabs, the member's own then the team's (settings/layout.tsx), "Kết nối MCP" too.
-      { key: "/settings", icon: <ControlOutlined />, label: "Cấu hình" },
+      { key: "/settings", icon: <SettingOutlined />, label: "Cài đặt" },
     ],
   },
 ];
@@ -127,14 +132,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     ),
   });
   const selected =
-    NAV.flatMap((item) => item.children ?? [item]).find((item) => pathname.startsWith(item.key))?.key ?? "/videos";
+    NAV.flatMap((group) => group.children).find((item) => pathname.startsWith(item.key))?.key ?? "/videos";
   const menu = (
     <Menu
       mode="inline"
       selectedKeys={[selected]}
-      defaultOpenKeys={[POST_GROUP, SETTINGS_GROUP]}
       style={{ border: "none", padding: "0 6px" }}
-      items={NAV.map((item) => (item.children ? { ...item, children: item.children.map(pageItem) } : pageItem(item)))}
+      items={NAV.map((group) => ({ type: "group" as const, ...group, children: group.children.map(pageItem) }))}
       onClick={() => setDrawerOpen(false)}
     />
   );

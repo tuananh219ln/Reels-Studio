@@ -31,9 +31,9 @@ POLL_SECONDS = 1.0
 WAIT_SECONDS = 5.0
 # How often scheduled reels whose time has passed are looked for, to be checked on Facebook.
 POST_CHECK_SECONDS = 60.0
-# How often posts whose numbers are due (metrics.py), Pages due a check (fanpages.py) and comments due
-# (post_comments.py), and visitors' comments to read or answer (comments_inbox.py) are looked for: often, so
-# "Cập nhật view", "Kiểm tra ngay", "Bình luận ngay" and a reply answer in seconds.
+# How often posts whose numbers are due (metrics.py), Pages due a check (fanpages.py), comments due
+# (post_comments.py) and visitors' comments to read (comments_inbox.py) are looked for: often, so
+# "Cập nhật view", "Kiểm tra ngay" and "Bình luận ngay" answer in seconds.
 METRICS_SECONDS = 5.0
 DEFAULT_JOB_TIMEOUT = 15 * 60
 RESTARTED = "Worker khởi động lại giữa chừng"
