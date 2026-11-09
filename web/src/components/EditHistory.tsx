@@ -41,7 +41,9 @@ type Kind =
   /** A short value: "old → new". */
   | "value"
   /** A whole thing's history: which parts each entry changed. */
-  | "fields";
+  | "fields"
+  /** Shared settings: each change on a line of its own, as `describe` words it (a key only by its last characters). */
+  | "settings";
 
 type Props = {
   entityType: string;
@@ -61,6 +63,8 @@ type Props = {
   onRestored?: () => void | Promise<void>;
   /** The names of the fields, for `kind` "fields" and "value" lists. */
   fieldLabels?: Record<string, string>;
+  /** For `kind` "settings": one change as a line, e.g. "Khoá Pexels: đã đổi khoá …k3P1". */
+  describe?: (field: string, change: { old: unknown; new: unknown }) => string;
   /** Replaces the "Lịch sử" button, e.g. the "Sửa lần cuối" line. */
   trigger?: (open: () => void) => React.ReactNode;
 };
@@ -182,9 +186,16 @@ function EntryRow({
         <Typography.Text strong>{entry.user?.name ?? "Thành viên đã xoá"}</Typography.Text>
         <Typography.Text type="secondary">{formatDateTime(entry.created_at)}</Typography.Text>
         {SOURCES[entry.source] && <Tag color="purple">{SOURCES[entry.source]}</Tag>}
-        {kind === "fields" || !field ? null : later === 0 ? <Tag>Đang dùng</Tag> : null}
+        {kind === "fields" || kind === "settings" || !field ? null : later === 0 ? <Tag>Đang dùng</Tag> : null}
       </Flex>
-      {kind === "fields" ? (
+      {kind === "settings" ? (
+        <Flex vertical gap={2}>
+          {entry.label && <Typography.Text type="secondary">{entry.label}</Typography.Text>}
+          {Object.entries(entry.changes).map(([name, value]) => (
+            <Typography.Text key={name}>{props.describe?.(name, value) ?? name}</Typography.Text>
+          ))}
+        </Flex>
+      ) : kind === "fields" ? (
         <Typography.Text type="secondary">
           {Object.keys(entry.changes)
             .map((name) => fieldLabels?.[name] ?? name)

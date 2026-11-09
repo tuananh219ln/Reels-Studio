@@ -37,14 +37,19 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: webDir,
   async headers() {
     return [
-      {
-        source: "/chatgpt",
+      // The consent screen and the connections: never embeddable under another site's UI.
+      ...["/chatgpt", "/settings/mcp"].map((source) => ({
+        source,
         headers: [
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
           { key: "X-Frame-Options", value: "DENY" },
         ],
-      },
+      })),
     ];
+  },
+  async redirects() {
+    // "Kết nối ChatGPT / Claude" moved into Cấu hình as "Kết nối MCP"; old links (and the browser's #ticket) still arrive there.
+    return [{ source: "/chatgpt", destination: "/settings/mcp", permanent: false }];
   },
   async rewrites() {
     return [

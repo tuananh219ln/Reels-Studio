@@ -27,6 +27,8 @@ export type UserRow = {
   last_login_at: string | null;
   active_sessions: number;
   is_me: boolean;
+  /** What was last done to the member on this page, by whom and when (api routes_users `_action`). */
+  last_action: { action: "disable" | "enable" | "temp_password"; by: string | null; at: string } | null;
 };
 
 export type VideoStatus =
@@ -210,6 +212,8 @@ export type EditTemplate = {
   summary: string[];
   /** The topic groups that hold it. */
   topics: { id: number; name: string }[];
+  /** How many members put it on their new videos. */
+  members_using: number;
 };
 
 export type EditTemplates = {

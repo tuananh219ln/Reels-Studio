@@ -14,7 +14,8 @@ type VieneuKey = {
 
 /** "Giọng đọc VieNeu" on Cài đặt › Mô hình AI: paste, replace or remove the VieNeu API key. Its voices then join the
  * "Giọng" picker of Thiết lập mặc định and of each video. Stored like the other keys (api source_keys.py). */
-export default function VieneuKeyCard() {
+/** `footer`: shown under the card's text (the "Sửa lần cuối" line); `onSaved` after a key is saved or removed. */
+export default function VieneuKeyCard({ footer, onSaved }: { footer?: React.ReactNode; onSaved?: () => void } = {}) {
   const { message } = App.useApp();
   const [state, setState] = useState<VieneuKey | null>(null);
   const [pasting, setPasting] = useState(false);
@@ -39,6 +40,7 @@ export default function VieneuKeyCard() {
       show(await api<{ vieneu?: VieneuKey }>("/settings/sources/vieneu/key", "PUT", { api_key: apiKey }));
       setKey("");
       forgetVoices();
+      onSaved?.();
       message.success(apiKey ? "Đã lưu API key của VieNeu" : "Đã xoá API key của VieNeu");
     } catch (err) {
       message.error(errorMessage(err));
@@ -126,6 +128,7 @@ export default function VieneuKeyCard() {
           Key được mã hoá khi lưu và không bao giờ hiện lại.
         </Typography.Text>
       </Flex>
+      {footer}
     </Card>
   );
 }

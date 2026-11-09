@@ -34,6 +34,16 @@ def list_entries(
     }
 
 
+@router.get("/latest")
+def latest(entity_type: str, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Each thing's (or settings card's) latest entry, by id: the "Sửa lần cuối" line of the settings pages."""
+    if entity_type not in edit_log.ENTITY_TYPES:
+        raise invalid("Không có lịch sử cho loại này")
+    return {
+        "latest": {str(key): edit_log.payload(entry) for key, entry in edit_log.last_edits(db, entity_type).items()}
+    }
+
+
 class RestoreBody(BaseModel):
     entity_type: str
     entity_id: int

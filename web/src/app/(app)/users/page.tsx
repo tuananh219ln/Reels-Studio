@@ -1,15 +1,22 @@
 "use client";
 
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, Space, Table, Tag, Typography } from "antd";
+import { App, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useState } from "react";
 import UserAvatar from "@/components/UserAvatar";
-import { ApiError, api, formatLastLogin, type UserRow } from "@/lib/api";
+import { ApiError, api, formatDateTime, formatLastLogin, type UserRow } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import FormDrawer from "@/components/FormDrawer";
 
 type NewUser = { email: string; name: string; password: string };
+
+/** The "Thao tác gần nhất" column: what was last done to the member here. */
+const ACTIONS: Record<NonNullable<UserRow["last_action"]>["action"], string> = {
+  disable: "Vô hiệu hoá",
+  enable: "Kích hoạt lại",
+  temp_password: "Đặt mật khẩu tạm",
+};
 
 const passwordRules = [
   { required: true, message: "Nhập mật khẩu tạm" },
@@ -23,6 +30,7 @@ export default function UsersPage() {
   const [query, setQuery] = useState("");
   const [adding, setAdding] = useState(false);
   const [tempFor, setTempFor] = useState<UserRow | null>(null);
+  const [disabling, setDisabling] = useState<UserRow | null>(null);
 
   const reload = useCallback(
     async (q: string) => {
@@ -70,6 +78,18 @@ export default function UsersPage() {
     { title: "Đăng nhập gần nhất", key: "last_login", render: (_, row) => formatLastLogin(row.last_login_at) },
     { title: "Phiên hoạt động", dataIndex: "active_sessions", align: "right" },
     {
+      title: "Thao tác gần nhất",
+      key: "last_action",
+      width: 190,
+      render: (_, row) =>
+        row.last_action ? (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="user-last-action">
+            {ACTIONS[row.last_action.action]} bởi {row.last_action.by ?? "thành viên đã xoá"},{" "}
+            {formatDateTime(row.last_action.at)}
+          </Typography.Text>
+        ) : null,
+    },
+    {
       title: "Thao tác",
       key: "actions",
       width: 500,
@@ -80,38 +100,34 @@ export default function UsersPage() {
         }
         if (!row.is_active) {
           return (
-            <Button
-              size="small"
-              onClick={() =>
-                confirm("Kích hoạt lại người dùng?", `${row.email} sẽ đăng nhập được trở lại.`, "Kích hoạt lại", () =>
-                  act(`/users/${row.id}/enable`, "Đã kích hoạt lại"),
-                )
-              }
-            >
-              Kích hoạt lại
-            </Button>
+            <Space wrap size={6}>
+              <Button
+                size="small"
+                onClick={() =>
+                  confirm("Kích hoạt lại người dùng?", `${row.email} sẽ đăng nhập được trở lại.`, "Kích hoạt lại", () =>
+                    act(`/users/${row.id}/enable`, "Đã kích hoạt lại"),
+                  )
+                }
+              >
+                Kích hoạt lại
+              </Button>
+              <Button size="small" onClick={() => setTempFor(row)}>
+                Đặt mật khẩu tạm
+              </Button>
+            </Space>
           );
         }
         return (
           <Space wrap size={6}>
-            <Button
-              size="small"
-              danger
-              onClick={() =>
-                confirm(
-                  "Vô hiệu hoá người dùng?",
-                  `${row.email} sẽ không đăng nhập được và bị đăng xuất khỏi mọi thiết bị ngay.`,
-                  "Vô hiệu hoá",
-                  () => act(`/users/${row.id}/disable`, "Đã vô hiệu hoá"),
-                  true,
-                )
-              }
-            >
+            <Button size="small" danger onClick={() => setDisabling(row)}>
               Vô hiệu hoá
             </Button>
-            <Button size="small" onClick={() => setTempFor(row)}>
-              Đặt mật khẩu tạm
-            </Button>
+            {/* Only a disabled account gets a temporary password: disable, set it, enable again. */}
+            <Tooltip title="Chỉ đặt mật khẩu tạm cho tài khoản đã vô hiệu hoá: vô hiệu hoá, đặt mật khẩu tạm rồi kích hoạt lại.">
+              <Button size="small" disabled>
+                Đặt mật khẩu tạm
+              </Button>
+            </Tooltip>
             <Button
               size="small"
               onClick={() =>
@@ -169,6 +185,17 @@ export default function UsersPage() {
         onAdded={() => {
           setAdding(false);
           reload(query);
+        }}
+      />
+      <DisableModal
+        row={disabling}
+        members={rows.filter((member) => member.is_active && member.id !== disabling?.id)}
+        onClose={() => setDisabling(null)}
+        onDisable={async (transferTo) => {
+          if (disabling) {
+            await act(`/users/${disabling.id}/disable`, "Đã vô hiệu hoá", { transfer_to: transferTo });
+          }
+          setDisabling(null);
         }}
       />
       <TempPasswordModal
@@ -283,5 +310,77 @@ function TempPasswordModal({
         </Form.Item>
       </Form>
     </FormDrawer>
+  );
+}
+
+/** "Vô hiệu hoá": the member's name typed to confirm, and, if wanted, the active member who takes their Pages, topic
+ * groups, plan ideas and templates ("Chuyển quyền sở hữu cho…"). */
+function DisableModal({
+  row,
+  members,
+  onClose,
+  onDisable,
+}: {
+  row: UserRow | null;
+  members: UserRow[];
+  onClose: () => void;
+  onDisable: (transferTo: number | null) => Promise<void>;
+}) {
+  const [typed, setTyped] = useState("");
+  const [transferTo, setTransferTo] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const matches = row !== null && typed.trim() === row.name.trim();
+
+  return (
+    <Modal
+      title="Vô hiệu hoá người dùng?"
+      open={row !== null}
+      onCancel={onClose}
+      okText="Vô hiệu hoá"
+      cancelText="Huỷ"
+      okButtonProps={{ danger: true, disabled: !matches }}
+      confirmLoading={busy}
+      destroyOnHidden
+      afterClose={() => {
+        setTyped("");
+        setTransferTo(null);
+      }}
+      onOk={async () => {
+        setBusy(true);
+        await onDisable(transferTo);
+        setBusy(false);
+      }}
+    >
+      <Space direction="vertical" size={12} style={{ width: "100%" }}>
+        <Typography.Text>{row?.email} sẽ không đăng nhập được và bị đăng xuất khỏi mọi thiết bị ngay.</Typography.Text>
+        <div>
+          <Typography.Text>Chuyển quyền sở hữu cho (không bắt buộc)</Typography.Text>
+          <Select
+            aria-label="Chuyển quyền sở hữu cho"
+            allowClear
+            placeholder="Giữ nguyên, không chuyển"
+            value={transferTo ?? undefined}
+            onChange={(value) => setTransferTo(value ?? null)}
+            options={members.map((member) => ({ value: member.id, label: member.name }))}
+            style={{ width: "100%", marginTop: 4 }}
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Page, nhóm chủ đề, ý tưởng kế hoạch và mẫu dựng của người này chuyển sang người được chọn. Page bỏ tài khoản
+            Shopee, TikTok và bán tự động cũ để người nhận tự gắn lại.
+          </Typography.Text>
+        </div>
+        <div>
+          <Typography.Text>
+            Nhập tên <Typography.Text strong>{row?.name}</Typography.Text> để xác nhận
+          </Typography.Text>
+          <Input
+            aria-label="Nhập tên để xác nhận"
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+            style={{ marginTop: 4 }}
+          />
+        </div>
+      </Space>
+    </Modal>
   );
 }
