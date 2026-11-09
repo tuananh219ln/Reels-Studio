@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
+from sqlalchemy.orm import object_session
 
 from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, post_comments, shopee
 from .db import get_db
@@ -236,13 +237,30 @@ def _expected_commission(product: AffiliateProduct) -> int:
     return round(product.price * product.commission_rate / 100)
 
 
-def _payload(product: AffiliateProduct) -> dict:
+def _video_count(db: DbSession, product_ids: list[int]) -> dict[int, int]:
+    """How many videos each product is attached to."""
+    if not product_ids:
+        return {}
+    return dict(
+        db.execute(
+            select(VideoAffiliateProduct.product_id, func.count())
+            .where(VideoAffiliateProduct.product_id.in_(product_ids))
+            .group_by(VideoAffiliateProduct.product_id)
+        ).all()
+    )
+
+
+def _payload(product: AffiliateProduct, video_count: int | None = None) -> dict:
+    if video_count is None:
+        session = object_session(product)
+        video_count = _video_count(session, [product.id]).get(product.id, 0) if session and product.id else 0
     return {
         "id": product.id,
         "created_by_id": product.created_by_id,  # only they delete it
         # Its saved link (`url`) is theirs: a Page without its own Shopee account puts it in the comment.
         "created_by": product.created_by.name,
         "has_saved_link": product.url is not None,
+        "video_count": video_count,
         "knowledge_topic_id": product.knowledge_topic_id,
         "topic": product.topic.name,
         "platform": product.platform,
@@ -395,6 +413,8 @@ def _video_payload(db: DbSession, video: Video, posts: list[Publication], user_i
         "id": video.id,
         "title": title_of(video, title) or video.topic,
         "thumbnail_url": thumbnail_url(video),
+        # Its group's products come first in "+ Gắn sản phẩm".
+        "knowledge_topic_id": video.knowledge_topic_id,
         "platform": video.platform,
         # "Đã dán link tay": the app writes and edits none of its comments; its products are only a record.
         "manual_comment": video.manual_comment,
@@ -732,12 +752,19 @@ def list_products(
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
 ) -> list[dict]:
-    return [_payload(product) for product in _ranked(db, topic_id, status, q, platform)]
+    products = _ranked(db, topic_id, status, q, platform)
+    counts = _video_count(db, [product.id for product in products])
+    return [_payload(product, counts.get(product.id, 0)) for product in products]
 
 
 @router.get("/options")
 def options(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     mine = my_topic_ids(db, me.user_id)
+    products = dict(
+        db.execute(
+            select(AffiliateProduct.knowledge_topic_id, func.count()).group_by(AffiliateProduct.knowledge_topic_id)
+        ).all()
+    )
     return {
         "platforms": [{"value": value, "label": label} for value, label in affiliate.PLATFORMS.items()],
         "shop_types": {
@@ -746,7 +773,19 @@ def options(me: Session = Depends(current_member), db: DbSession = Depends(get_d
         },
         # "mine": a group a Page I own and use posts (decisions 2026-11-08), listed first in the filter.
         "topics": [
-            {"id": topic.id, "name": topic.name, "mine": topic.id in mine} for topic in knowledge.all_topics(db)
+            {"id": topic.id, "name": topic.name, "mine": topic.id in mine, "product_count": products.get(topic.id, 0)}
+            for topic in knowledge.all_topics(db)
+        ],
+        # The Pages in use and the group each posts, so a file can be imported "for a Page" into its group.
+        "pages": [
+            {
+                "id": page.id,
+                "name": page.name,
+                "mine": page.owner_id == me.user_id,
+                "owner_name": _name(db, page.owner_id),
+                "knowledge_topic_id": page.knowledge_topic_id,
+            }
+            for page in db.scalars(select(Fanpage).where(Fanpage.active.is_(True)).order_by(Fanpage.name))
         ],
         # Whether a pasted Shopee link can be read: some member has a Shopee account with App ID and Secret.
         "shopee_lookup": affiliate_rounds.team_account(db, me.user_id) is not None,
@@ -895,16 +934,11 @@ def _from_links(
     return found
 
 
-@router.post("/import", status_code=201)
-def import_products(body: ImportBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Nhập file": the CSV of Shopee Affiliate's "Lấy link hàng loạt" (item id, name, price, shop, commission,
-    product link, affiliate link). Stars, sales and the shop's type are not in it: the worker reads them when a member
-    has a Shopee account with App ID, otherwise a member fills them in before approving. A product already in the list
-    takes the file's link and figures; an approved one keeps its approval unless it no longer meets the rules."""
-    topic = _topic(db, body.knowledge_topic_id)
-    if len(body.text) > MAX_IMPORT_CHARS:
+def _parsed_file(text_in: str) -> tuple[list[tuple[int, dict]], list[dict]]:
+    """The file's rows as (row number, product fields), and the rows left out with why."""
+    if len(text_in) > MAX_IMPORT_CHARS:
         raise invalid("File quá lớn, hãy chia nhỏ")
-    text = body.text.lstrip(BOM)
+    text = text_in.lstrip(BOM)
     try:
         dialect = csv.Sniffer().sniff(text.split("\n", 1)[0], delimiters=",;\t")
     except csv.Error:
@@ -927,20 +961,65 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
         raise invalid("File không có sản phẩm nào")
     if len(data) > MAX_IMPORT_ROWS:
         raise invalid(f"Mỗi lần nhập tối đa {MAX_IMPORT_ROWS} sản phẩm")
-    ask = affiliate_rounds.team_account(db, me.user_id) is not None
-    parsed: list[dict] = []
+    parsed: list[tuple[int, dict]] = []
     errors = []
     for number, row in data:
         cells = {
             field: row[index] if index is not None and index < len(row) else "" for field, index in columns.items()
         }
         try:
-            parsed.append(_imported(cells))
+            parsed.append((number, _imported(cells)))
         except ApiError as err:
             errors.append({"row": number, "message": err.message})
-    known, _ = _known(db, {fields["shopee_item_id"] for fields in parsed}, set())
+    return parsed, errors
+
+
+def _sorted_rows(
+    db: DbSession, parsed: list[tuple[int, dict]], user_id: int
+) -> tuple[dict[int, AffiliateProduct], list[dict]]:
+    """Each row as new, mine (a product of mine already listed: its figures and link are updated) or others (a
+    teammate's: kept as it is, so their link and commission never change hands)."""
+    known, _ = _known(db, {fields["shopee_item_id"] for _, fields in parsed}, set())
+    rows = []
+    for number, fields in parsed:
+        product = known.get(fields["shopee_item_id"])
+        state = "new" if product is None else "mine" if product.created_by_id == user_id else "others"
+        rows.append(
+            {
+                "row": number,
+                "name": fields["name"],
+                "state": state,
+                "by": product.created_by.name if product is not None else None,
+                "topic": product.topic.name if product is not None else None,
+            }
+        )
+    return known, rows
+
+
+@router.post("/import/preview")
+def preview_import(body: ImportBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """What "Nhập" would do with the file, row by row; writes nothing."""
+    _topic(db, body.knowledge_topic_id)
+    parsed, errors = _parsed_file(body.text)
+    _, rows = _sorted_rows(db, parsed, me.user_id)
+    return {"rows": rows, "errors": errors}
+
+
+@router.post("/import", status_code=201)
+def import_products(body: ImportBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Nhập file": the CSV of Shopee Affiliate's "Lấy link hàng loạt" (item id, name, price, shop, commission,
+    product link, affiliate link). Stars, sales and the shop's type are not in it: the worker reads them when a member
+    has a Shopee account with App ID, otherwise a member fills them in before approving. A product of mine already in
+    the list takes the file's link and figures (an approved one keeps its approval unless it no longer meets the
+    rules); a teammate's is left as it is and listed in `others`, so their link is never replaced by mine."""
+    topic = _topic(db, body.knowledge_topic_id)
+    parsed, errors = _parsed_file(body.text)
+    known, rows = _sorted_rows(db, parsed, me.user_id)
+    ask = affiliate_rounds.team_account(db, me.user_id) is not None
     added = updated = 0
-    for fields in parsed:
+    for (_, fields), row in zip(parsed, rows, strict=True):
+        if row["state"] == "others":
+            continue
         product = known.get(fields["shopee_item_id"])
         if product is None:
             product = AffiliateProduct(
@@ -964,7 +1043,12 @@ def import_products(body: ImportBody, me: Session = Depends(current_member), db:
             _clear_approval(product)
         updated += 1
     db.commit()
-    return {"added": added, "updated": updated, "errors": errors, "lookup": ask}
+    others = [
+        {"row": row["row"], "name": row["name"], "by": row["by"], "topic": row["topic"]}
+        for row in rows
+        if row["state"] == "others"
+    ]
+    return {"added": added, "updated": updated, "kept": len(others), "others": others, "errors": errors, "lookup": ask}
 
 
 @router.post("/{product_id}/lookup")

@@ -390,9 +390,10 @@ test("Sản phẩm: my groups first, who added each product, and stars or sales 
 
   await page.goto("/affiliate");
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
-  await page.getByLabel("Lọc theo nhóm chủ đề").click();
-  await expect(page.locator(".ant-select-item-group").first()).toHaveText("Nhóm của tôi");
-  await page.getByLabel("Lọc theo nhóm chủ đề").press("Escape");
+  // My groups first, each with the Pages that post it.
+  const groups = page.getByRole("navigation", { name: "Nhóm chủ đề" });
+  await expect(groups).toContainText("Nhóm của tôi");
+  await expect(groups.getByRole("button", { name: /Sức khỏe/ })).toContainText("Trang Dưỡng Sinh");
 
   await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
   const adding = page.getByRole("dialog", { name: "Thêm sản phẩm" });
@@ -421,4 +422,58 @@ test("Sản phẩm: my groups first, who added each product, and stars or sales 
   await expect(product.getByTestId("quick-fill")).toHaveCount(0);
   await product.getByRole("button", { name: "Duyệt" }).click();
   await expect(product).toContainText("Đã duyệt");
+});
+
+test("Nhập file: a preview first, and a teammate's product keeps their link", async ({ page, browser }) => {
+  await loginAsSeed(page);
+  await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  const header =
+    "Mã sản phẩm,Tên sản phẩm,Giá,Doanh thu,Tên cửa hàng,Tỉ lệ hoa hồng,Hoa hồng,Link sản phẩm,Link ưu đãi\n";
+  const row = (id: number, name: string, link: string) =>
+    `${id},${name},"45,0k",0,Shop,"2,5%",₫900,https://shopee.vn/product/1/${id},${link}\n`;
+  // Through the browser's fetch, so the request carries the Origin the CSRF guard wants.
+  await binh.evaluate(
+    async (text) => {
+      const { topics } = await fetch("/api/affiliate-products/options").then((response) => response.json());
+      await fetch("/api/affiliate-products/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ knowledge_topic_id: topics[0].id, text }),
+      });
+    },
+    header + row(21, "Gối của Bình", "https://s.shopee.vn/binh"),
+  );
+
+  await page.goto("/affiliate");
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await page.getByRole("button", { name: "Nhập file" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: "lay-link-hang-loat.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      header + row(21, "Gối của Bình", "https://s.shopee.vn/an") + row(22, "Nồi của An", "https://s.shopee.vn/an-2"),
+    ),
+  });
+  const preview = dialog.getByTestId("import-preview");
+  await expect(preview).toContainText("Mới 1");
+  await expect(preview).toContainText("Của người khác 1");
+  await expect(preview).toContainText("“Gối của Bình” của Trần Bình (nhóm Sức khỏe) được giữ nguyên link của họ");
+  await dialog.getByRole("button", { name: "Nhập 1 sản phẩm" }).click();
+  await expect(dialog.getByText("“Gối của Bình” của Trần Bình được giữ nguyên link của họ")).toBeVisible();
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  await expect(dialog).toBeHidden();
+  await page
+    .getByLabel("Của ai")
+    .getByText(/Cả đội/)
+    .click();
+  await expect(page.getByRole("row", { name: /Gối của Bình/ })).toContainText("Người thêm: Trần Bình");
+  await expect(page.getByRole("row", { name: /Nồi của An/ })).toContainText("Người thêm: bạn");
 });

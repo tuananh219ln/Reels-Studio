@@ -240,7 +240,7 @@ def test_only_shopee_links_are_pasted_on_a_video(an, db, me, storage, link):
 def test_the_file_from_shopee_affiliate_is_imported_as_drafts(an, db):
     response = import_file(an, db, f"﻿{FILE_HEADER}{FILE_ROW}\n")
     assert response.status_code == 201, response.text
-    assert response.json() == {"added": 1, "updated": 0, "errors": [], "lookup": False}
+    assert response.json() == {"added": 1, "updated": 0, "kept": 0, "others": [], "errors": [], "lookup": False}
     product = only_product(an)
     assert product["name"] == "Combo 3 Gói Hạt Giống Rau Ăn Lá (Rau Muống, Mồng Tơi)"
     assert (product["price"], product["commission_rate"], product["shop_name"]) == (45000, 2.5, "HỒNG HÀ F1 SEEDS")

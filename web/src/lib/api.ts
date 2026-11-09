@@ -1058,6 +1058,8 @@ export type AffiliateProduct = {
   /** Who added it: its saved link (`url`) is theirs, used in the comment of a Page without its own Shopee account. */
   created_by: string;
   has_saved_link: boolean;
+  /** How many videos it is attached to. */
+  video_count: number;
   knowledge_topic_id: number;
   topic: string;
   platform: ProductPlatform;
@@ -1093,15 +1095,36 @@ export type AffiliateOptions = {
   platforms: { value: ProductPlatform; label: string }[];
   shop_types: Record<ProductPlatform, { value: string; label: string }[]>;
   /** `mine`: a group of a Page the member owns and uses, listed first. */
-  topics: { id: number; name: string; mine: boolean }[];
+  topics: { id: number; name: string; mine: boolean; product_count: number }[];
+  /** The Pages in use and the group each posts, to import "for a Page". */
+  pages: AffiliatePage[];
   /** Some member has a Shopee account with App ID, so a pasted link is filled in by itself. */
   shopee_lookup: boolean;
+};
+
+export type AffiliatePage = {
+  id: number;
+  name: string;
+  mine: boolean;
+  owner_name: string | null;
+  knowledge_topic_id: number | null;
+};
+
+/** A teammate's product the file also holds: left as it is, so their link stays theirs. */
+export type AffiliateImportOther = { row: number; name: string; by: string | null; topic: string | null };
+
+/** What "Nhập" would do with each row of the file, before anything is written. */
+export type AffiliateImportPreview = {
+  rows: { row: number; name: string; state: "new" | "mine" | "others"; by: string | null; topic: string | null }[];
+  errors: { row: number; message: string }[];
 };
 
 /** What "Nhập file" did with Shopee Affiliate's file. */
 export type AffiliateImport = {
   added: number;
   updated: number;
+  kept: number;
+  others: AffiliateImportOther[];
   errors: { row: number; message: string }[];
   /** The worker will read stars, sales and the shop's type from Shopee. */
   lookup: boolean;
@@ -1119,6 +1142,7 @@ export type AffiliateVideo = {
   /** The member posted it, or it is live on a Page or TikTok account of theirs. */
   mine: boolean;
   thumbnail_url: string | null;
+  knowledge_topic_id: number | null;
   /** "Đã dán link tay": the app writes and edits none of its comments; its products are only a record. */
   manual_comment: boolean;
   /** Its live posts, newest first: where each went and whose it is. */

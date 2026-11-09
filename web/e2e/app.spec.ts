@@ -486,12 +486,17 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   await product.getByRole("button", { name: "Duyệt" }).click();
   await expect(product).toContainText("Đã duyệt");
 
-  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Nháp");
-  await expect(page.getByText("Chưa có sản phẩm nào")).toBeVisible();
+  const stages = page.getByLabel("Lọc theo trạng thái");
+  await stages.getByText("Chờ duyệt (0)").click();
+  await expect(page.getByText("Không có sản phẩm nào khớp")).toBeVisible();
   await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /status=draft/);
-  await chooseOption(page, page.getByLabel("Lọc theo nhóm chủ đề"), "Sức khỏe");
+  await page
+    .getByRole("navigation", { name: "Nhóm chủ đề" })
+    .getByRole("button", { name: /Sức khỏe/ })
+    .click();
+  await expect(page.getByTestId("product-group")).toHaveText("Sức khỏe");
   await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /topic_id=\d+/);
-  await page.getByLabel("Lọc theo trạng thái").press("Escape");
+  await stages.getByText("Tất cả (1)").click();
   await page.getByRole("tab", { name: "Video đã đăng" }).click();
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
   await expect(product).toBeVisible();

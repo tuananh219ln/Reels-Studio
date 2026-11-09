@@ -1,13 +1,16 @@
 "use client";
 
 import { InboxOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Form, Input, Segmented, Select, Typography, Upload } from "antd";
+import { Alert, App, Button, Flex, Form, Input, Segmented, Select, Tag, Typography, Upload } from "antd";
 import Link from "next/link";
 import { useState } from "react";
-import { api, errorMessage, type AffiliateImport, type AffiliateOptions } from "@/lib/api";
+import { api, errorMessage, type AffiliateImport, type AffiliateImportPreview, type AffiliateOptions } from "@/lib/api";
 import FormDrawer from "@/components/FormDrawer";
 
 export type AddMode = "links" | "file";
+
+/** Where the products go: a Page (into the group it posts) or a group chosen by name. */
+type Target = "page" | "topic";
 
 const MAX_FILE_BYTES = 2_000_000;
 
@@ -16,6 +19,7 @@ const MAX_FILE_BYTES = 2_000_000;
 export default function AddProductDrawer({
   mode,
   options,
+  startTopicId,
   onClose,
   onManual,
   onDone,
@@ -23,6 +27,8 @@ export default function AddProductDrawer({
   /** null: closed. */
   mode: AddMode | null;
   options: AffiliateOptions;
+  /** The group open on the list, chosen to start with. */
+  startTopicId?: number;
   onClose: () => void;
   onManual: () => void;
   onDone: () => void | Promise<void>;
@@ -30,6 +36,9 @@ export default function AddProductDrawer({
   const { message } = App.useApp();
   const [tab, setTab] = useState<AddMode>("links");
   const [topicId, setTopicId] = useState<number>();
+  const [target, setTarget] = useState<Target>("topic");
+  const [pageId, setPageId] = useState<number>();
+  const [preview, setPreview] = useState<AffiliateImportPreview | null>(null);
   const [links, setLinks] = useState("");
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [result, setResult] = useState<AffiliateImport | null>(null);
@@ -44,16 +53,48 @@ export default function AddProductDrawer({
       setLinks("");
       setFile(null);
       setResult(null);
+      setPreview(null);
+      // From a group on the list, that group; else my first Page that posts a group, else a group by name.
+      const myPage = options.pages.find((page) => page.mine && page.knowledge_topic_id !== null);
+      setTarget(startTopicId === undefined && myPage ? "page" : "topic");
+      setPageId(myPage?.id);
+      setTopicId(startTopicId);
     }
   }
 
-  // With one topic group there is nothing to choose.
-  const topic = topicId ?? (options.topics.length === 1 ? options.topics[0].id : undefined);
+  // A Page's products go into the group it posts; with one topic group there is nothing to choose.
+  const chosenPage = options.pages.find((page) => page.id === pageId);
+  const topic =
+    target === "page"
+      ? (chosenPage?.knowledge_topic_id ?? undefined)
+      : (topicId ?? (options.topics.length === 1 ? options.topics[0].id : undefined));
+  const topicName = options.topics.find((one) => one.id === topic)?.name;
+
+  /** What "Nhập" would do with the file in this group, row by row; nothing is written. */
+  async function loadPreview(text: string, group: number | undefined) {
+    setPreview(null);
+    if (group === undefined || !text) {
+      return;
+    }
+    try {
+      setPreview(
+        await api<AffiliateImportPreview>("/affiliate-products/import/preview", "POST", {
+          knowledge_topic_id: group,
+          text,
+        }),
+      );
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+  const taking = preview ? preview.rows.filter((row) => row.state !== "others").length : 0;
   const pasted = links
     .split(/\s+/)
     .map((link) => link.trim())
     .filter(Boolean);
-  const ready = topic !== undefined && (tab === "links" ? pasted.length > 0 && options.shopee_lookup : file !== null);
+  const ready =
+    topic !== undefined &&
+    (tab === "links" ? pasted.length > 0 && options.shopee_lookup : file !== null && (preview === null || taking > 0));
 
   async function submit() {
     if (!ready) {
@@ -77,8 +118,9 @@ export default function AddProductDrawer({
         text: file?.text ?? "",
       });
       const counts = [`thêm ${done.added}`, done.updated > 0 ? `cập nhật ${done.updated}` : ""].filter(Boolean);
-      message.success(`Đã nhập: ${counts.join(", ")} sản phẩm`);
-      if (done.errors.length > 0 || !done.lookup) {
+      message.success(`Đã nhập vào “${topicName}”: ${counts.join(", ")} sản phẩm`);
+      setPreview(null);
+      if (done.errors.length > 0 || done.kept > 0 || !done.lookup) {
         // Stay open so the member reads which rows were left out and what is still to fill in.
         setResult(done);
         setFile(null);
@@ -100,7 +142,7 @@ export default function AddProductDrawer({
       open={mode !== null}
       onClose={onClose}
       onOk={submit}
-      okText={tab === "links" ? "Thêm" : "Nhập"}
+      okText={tab === "links" ? "Thêm" : preview ? `Nhập ${taking} sản phẩm` : "Nhập"}
       confirmLoading={busy}
       okButtonProps={{ disabled: !ready }}
       width={560}
@@ -120,14 +162,66 @@ export default function AddProductDrawer({
           ]}
         />
         <Form layout="vertical" requiredMark={false} component="div">
-          <Form.Item label="Nhóm chủ đề" required>
-            <Select
-              aria-label="Nhóm chủ đề"
-              placeholder="Chọn nhóm chủ đề"
-              value={topic}
-              onChange={setTopicId}
-              options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
-            />
+          <Form.Item label="Nhập vào" required>
+            <Flex vertical gap={8}>
+              <Segmented<Target>
+                aria-label="Nhập vào"
+                value={target}
+                onChange={(next) => {
+                  setTarget(next);
+                  const group =
+                    next === "page" ? (chosenPage?.knowledge_topic_id ?? undefined) : (topicId ?? undefined);
+                  void loadPreview(file?.text ?? "", group);
+                }}
+                options={[
+                  { value: "page", label: "Theo Page" },
+                  { value: "topic", label: "Theo nhóm" },
+                ]}
+              />
+              {target === "page" ? (
+                <>
+                  <Select
+                    aria-label="Page"
+                    placeholder="Chọn Page"
+                    value={pageId}
+                    onChange={(id) => {
+                      setPageId(id);
+                      const group = options.pages.find((page) => page.id === id)?.knowledge_topic_id ?? undefined;
+                      void loadPreview(file?.text ?? "", group);
+                    }}
+                    options={[...options.pages]
+                      .sort((a, b) => Number(b.mine) - Number(a.mine))
+                      .map((page) => ({
+                        value: page.id,
+                        disabled: page.knowledge_topic_id === null,
+                        label:
+                          page.name +
+                          (page.mine ? "" : ` · ${page.owner_name ?? "chưa có chủ"}`) +
+                          (page.knowledge_topic_id === null ? " (chưa gắn nhóm chủ đề)" : ""),
+                      }))}
+                    notFoundContent="Chưa có Page nào"
+                  />
+                  {topicName && (
+                    <Typography.Text type="secondary">
+                      Sản phẩm vào nhóm “{topicName}”, dùng cho mọi Page đăng nhóm này.
+                    </Typography.Text>
+                  )}
+                </>
+              ) : (
+                <Select
+                  aria-label="Nhóm chủ đề"
+                  placeholder="Chọn nhóm chủ đề"
+                  value={topic}
+                  onChange={(id) => {
+                    setTopicId(id);
+                    void loadPreview(file?.text ?? "", id);
+                  }}
+                  options={[...options.topics]
+                    .sort((a, b) => Number(b.mine) - Number(a.mine))
+                    .map((one) => ({ value: one.id, label: one.name }))}
+                />
+              )}
+            </Flex>
           </Form.Item>
           {tab === "links" ? (
             <>
@@ -163,7 +257,7 @@ export default function AddProductDrawer({
           ) : (
             <Form.Item
               label="File từ Shopee Affiliate"
-              extra="Trong Shopee Affiliate, mở Lấy link hàng loạt, tạo link rồi tải file CSV về và thả vào đây. Sản phẩm đã có trong danh sách được cập nhật link và hoa hồng."
+              extra="Trong Shopee Affiliate, mở Lấy link hàng loạt, tạo link rồi tải file CSV về và thả vào đây. Sản phẩm bạn đã thêm trước đó được cập nhật link và hoa hồng; sản phẩm của người khác giữ nguyên link của họ."
             >
               <Upload.Dragger
                 accept=".csv,text/csv"
@@ -178,6 +272,7 @@ export default function AddProductDrawer({
                     (text) => {
                       setFile({ name: picked.name, text });
                       setResult(null);
+                      void loadPreview(text, topic);
                     },
                     () => message.error("Không đọc được file"),
                   );
@@ -192,6 +287,38 @@ export default function AddProductDrawer({
             </Form.Item>
           )}
         </Form>
+        {tab === "file" && preview && (
+          <Alert
+            type={preview.rows.some((row) => row.state === "others") || preview.errors.length > 0 ? "warning" : "info"}
+            showIcon
+            title="Xem trước"
+            description={
+              <Flex vertical gap={6} data-testid="import-preview">
+                <Flex wrap gap={6}>
+                  <Tag color="green">Mới {preview.rows.filter((row) => row.state === "new").length}</Tag>
+                  <Tag>Đã có của bạn {preview.rows.filter((row) => row.state === "mine").length}</Tag>
+                  <Tag color="gold">Của người khác {preview.rows.filter((row) => row.state === "others").length}</Tag>
+                  <Tag color="red">Lỗi {preview.errors.length}</Tag>
+                </Flex>
+                {preview.rows.some((row) => row.state === "mine") && (
+                  <span>Sản phẩm đã có của bạn được cập nhật giá, hoa hồng và link.</span>
+                )}
+                {preview.rows
+                  .filter((row) => row.state === "others")
+                  .map((row) => (
+                    <span key={row.row}>
+                      Dòng {row.row}: “{row.name}” của {row.by} (nhóm {row.topic}) được giữ nguyên link của họ.
+                    </span>
+                  ))}
+                {preview.errors.map((error) => (
+                  <span key={error.row}>
+                    Dòng {error.row}: {error.message}
+                  </span>
+                ))}
+              </Flex>
+            }
+          />
+        )}
         {result && (
           <Alert
             type={result.errors.length > 0 ? "warning" : "info"}
@@ -201,6 +328,11 @@ export default function AddProductDrawer({
             }`}
             description={
               <Flex vertical gap={4}>
+                {result.others.map((other) => (
+                  <span key={`other-${other.row}`}>
+                    Dòng {other.row}: “{other.name}” của {other.by} được giữ nguyên link của họ.
+                  </span>
+                ))}
                 {result.errors.map((error) => (
                   <span key={error.row}>
                     Dòng {error.row}: {error.message}

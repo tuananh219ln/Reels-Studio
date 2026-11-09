@@ -1,14 +1,6 @@
 "use client";
 
-import {
-  AppstoreOutlined,
-  CloseOutlined,
-  FacebookFilled,
-  ProfileOutlined,
-  SearchOutlined,
-  TableOutlined,
-  TikTokFilled,
-} from "@ant-design/icons";
+import { AppstoreOutlined, CloseOutlined, ProfileOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
 import { App, Button, Card, Empty, Flex, Input, Segmented, Select, Table, Tabs, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
@@ -25,6 +17,7 @@ import FilterSelect from "@/components/FilterSelect";
 import { useMe } from "@/components/MeContext";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import PlacesChip from "./PlacesChip";
 
 type Product = AffiliateVideo["products"][number];
 
@@ -200,7 +193,7 @@ export default function PostedVideos() {
     return save(video, () => api<AffiliateVideo>(`/affiliate-products/videos/${video.id}/manual`, "PUT", { manual }));
   }
 
-  /** "Facebook · time · Xem Reel", then one chip per Page or TikTok account; a teammate's names its owner. */
+  /** "Facebook · time · Xem Reel", then where it is live (one Page or account by name; several as a logo and "+n"). */
   function where(video: AffiliateVideo) {
     return (
       <>
@@ -215,31 +208,13 @@ export default function PostedVideos() {
             </>
           )}
         </Typography.Text>
-        <Flex wrap gap={4}>
-          {video.posts.map((post, index) => {
-            const theirs = post.owner_id !== me.id;
-            const owner = post.owner_name ?? "chưa có chủ";
-            const kind = post.platform === "tiktok" ? "Tài khoản TikTok" : "Page";
-            const Icon = post.platform === "tiktok" ? TikTokFilled : FacebookFilled;
-            return (
-              <Tooltip
-                key={index}
-                title={theirs ? `${kind} của ${owner}: hoa hồng ở đây về ${owner}` : `${kind} của bạn`}
-              >
-                <Tag
-                  bordered={false}
-                  color={theirs ? "gold" : undefined}
-                  icon={<Icon />}
-                  style={{ marginInlineEnd: 0 }}
-                  data-testid="video-post"
-                >
-                  {post.name ?? "không rõ"}
-                  {theirs ? ` · ${owner}` : ""}
-                </Tag>
-              </Tooltip>
-            );
-          })}
-        </Flex>
+        <PlacesChip
+          places={video.posts.map((post) => ({
+            platform: post.platform,
+            name: post.name ?? "không rõ",
+            owner: post.owner_id === me.id ? null : (post.owner_name ?? "chưa có chủ"),
+          }))}
+        />
       </>
     );
   }
@@ -257,14 +232,25 @@ export default function PostedVideos() {
   function products(video: AffiliateVideo) {
     const attached = new Set(video.products.map((product) => product.id));
     const wanted = video.platform === "tiktok" ? "tiktok_shop" : "shopee";
-    const choices = approved
-      .filter((product) => !attached.has(product.id) && product.problems.length === 0 && product.platform === wanted)
-      .map((product) => ({
-        value: product.id,
-        label:
-          `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)` +
-          (product.created_by_id === me.id ? "" : ` · Người thêm: ${product.created_by}`),
-      }));
+    const option = (product: AffiliateProduct) => ({
+      value: product.id,
+      label:
+        `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)` +
+        (product.created_by_id === me.id ? "" : ` · Người thêm: ${product.created_by}`),
+    });
+    const free = approved.filter(
+      (product) => !attached.has(product.id) && product.problems.length === 0 && product.platform === wanted,
+    );
+    // The video's own group first: its products were picked for this kind of video.
+    const own = free.filter((product) => product.knowledge_topic_id === video.knowledge_topic_id);
+    const rest = free.filter((product) => product.knowledge_topic_id !== video.knowledge_topic_id);
+    const choices =
+      own.length > 0 && rest.length > 0
+        ? [
+            { label: "Nhóm của video", options: own.map(option) },
+            { label: "Nhóm khác", options: rest.map(option) },
+          ]
+        : free.map(option);
     const ids = video.products.map((product) => product.id);
     return (
       <Flex vertical gap={6}>

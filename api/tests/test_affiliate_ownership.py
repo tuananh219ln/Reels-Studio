@@ -347,3 +347,99 @@ def test_each_post_says_how_its_comment_stands_and_the_video_has_its_cover(an, d
     row = videos(an)[video.id]
     assert row["manual_comment"] is False and row["posts"][0]["comment"] == "done"
     assert "thumbnail_url" in row
+
+
+# Importing Shopee Affiliate's file into a group, never over a teammate's link
+
+FILE_HEADER = "Mã sản phẩm,Tên sản phẩm,Giá,Doanh thu,Tên cửa hàng,Tỉ lệ hoa hồng,Hoa hồng,Link sản phẩm,Link ưu đãi\n"
+
+
+def file_row(item_id: int, name: str, link: str) -> str:
+    return f'{item_id},{name},"45,0k",0,Shop,"2,5%",₫900,https://shopee.vn/product/1/{item_id},{link}\n'
+
+
+def test_importing_a_teammates_product_keeps_their_link_and_says_so(an, binh, db, me, other):
+    theirs = binh.post(
+        f"{URL}/import",
+        json={
+            "knowledge_topic_id": first_topic(db).id,
+            "text": FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/binh"),
+        },
+    ).json()
+    assert theirs["added"] == 1
+
+    text = FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/an") + file_row(12, "Nồi", "https://s.shopee.vn/an-2")
+    done = an.post(f"{URL}/import", json={"knowledge_topic_id": first_topic(db).id, "text": text}).json()
+    assert (done["added"], done["updated"], done["kept"]) == (1, 0, 1)
+    assert done["others"] == [{"row": 2, "name": "Gối", "by": "Trần Bình", "topic": "Sức khỏe"}]
+    rows = {row["name"]: row for row in an.get(URL).json()}
+    assert rows["Gối"]["url"] == "https://s.shopee.vn/binh" and rows["Gối"]["created_by"] == "Trần Bình"
+
+
+def test_reimporting_my_own_product_updates_it(an, db):
+    topic = first_topic(db).id
+    an.post(
+        f"{URL}/import",
+        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/a")},
+    )
+    done = an.post(
+        f"{URL}/import",
+        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(11, "Gối mới", "https://s.shopee.vn/b")},
+    ).json()
+    assert (done["added"], done["updated"], done["kept"]) == (0, 1, 0)
+    (row,) = an.get(URL).json()
+    assert (row["name"], row["url"]) == ("Gối mới", "https://s.shopee.vn/b")
+
+
+def test_the_preview_sorts_the_files_rows_and_writes_nothing(an, binh, db, me, other):
+    topic = first_topic(db).id
+    binh.post(
+        f"{URL}/import",
+        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(11, "Gối", "https://s.shopee.vn/binh")},
+    )
+    an.post(
+        f"{URL}/import",
+        json={"knowledge_topic_id": topic, "text": FILE_HEADER + file_row(12, "Nồi", "https://s.shopee.vn/an")},
+    )
+    text = (
+        FILE_HEADER
+        + file_row(11, "Gối", "https://s.shopee.vn/an")
+        + file_row(12, "Nồi", "https://s.shopee.vn/an")
+        + file_row(13, "Trà", "https://s.shopee.vn/an")
+        + "abc,Lỗi,x,0,Shop,1%,0,,\n"
+    )
+    preview = an.post(f"{URL}/import/preview", json={"knowledge_topic_id": topic, "text": text}).json()
+    assert [(row["row"], row["name"], row["state"]) for row in preview["rows"]] == [
+        (2, "Gối", "others"),
+        (3, "Nồi", "mine"),
+        (4, "Trà", "new"),
+    ]
+    assert preview["rows"][0]["by"] == "Trần Bình"
+    assert preview["errors"] == [{"row": 5, "message": "Mã sản phẩm không hợp lệ"}]
+    assert len(an.get(URL).json()) == 2, "nothing was written"
+
+
+def test_options_list_the_pages_with_their_groups_and_each_groups_products(an, db, me, other):
+    mine_page = page(db, me, "p-an", "Trang An")
+    mine_page.knowledge_topic_id = first_topic(db).id
+    page(db, other, "p-binh", "Trang Bình")
+    db.commit()
+    product(db, me, "Gối")
+    options = an.get(f"{URL}/options").json()
+    assert {(row["name"], row["mine"], row["knowledge_topic_id"]) for row in options["pages"]} == {
+        ("Trang An", True, first_topic(db).id),
+        ("Trang Bình", False, None),
+    }
+    (health,) = [topic for topic in options["topics"] if topic["name"] == "Sức khỏe"]
+    assert health["product_count"] == 1
+
+
+def test_a_product_counts_its_videos_and_a_video_names_its_group(an, db, me, storage):
+    fanpage = page(db, me, "p-an", "Trang An")
+    video = make_video(db, storage, me, scene_count=1)
+    post(db, video, me, fanpage)
+    row = product(db, me, url="https://s.shopee.vn/a")
+    attach(db, video, row)
+    (listed,) = an.get(URL).json()
+    assert listed["video_count"] == 1
+    assert videos(an)[video.id]["knowledge_topic_id"] == video.knowledge_topic_id

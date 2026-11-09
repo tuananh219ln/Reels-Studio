@@ -28,3 +28,10 @@ stand and are what this follows.
   their orders never reach a video in "Doanh thu".
 - **"Video đã đăng" has three views** (owner's choice of all three): a table to scan, cards with the cover, and a list
   beside the open video, remembered per browser; the table is the default.
+- **"Sản phẩm" is read by topic group, imported "for a Page" or a group** (owner's approval of the redesign): the
+  groups sit on the left with the Pages that post them; a file or links go into one group, chosen directly or as the
+  group a Page posts. Products stay one row per Shopee item in one group, shared by the team.
+- **An import never replaces a teammate's link** (a bug found in the review: re-importing a teammate's item overwrote
+  their affiliate link with the importer's while "Người thêm" still named them). Such rows are kept as they are and
+  listed; the file is previewed first. One saved link per product stays the rule; a link per member, with the Page
+  owner's used on their Page, is a possible later change, not made here.

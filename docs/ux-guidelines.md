@@ -620,17 +620,22 @@ Built:
     with the error on hover, "Dán tay", "Gắn giỏ trong app TikTok"), with "Sao chép" for the pinned comment
     and "Đã dán link tay" / "Bỏ dán tay": a video marked so is never commented by the app (nor edited),
     and its products are only a record;
-  - "Sản phẩm": products ranked by expected commission per order, with their platform tag ("Tìm qua
-    API" for those Shopee's search found), shop, type, "Người thêm: <tên>" ("bạn" for the member's own;
-    its tooltip says that saved link goes in the comment of a Page without its own Shopee account), rating,
-    sales, price, and status; filters by name or shop, topic group ("Nhóm của tôi", the groups of the
-    Pages the member owns and uses, then "Nhóm khác"; one plain list when they own none), platform and
-    status; "Thêm sản phẩm" opens a drawer with two tabs, "Dán link
-    Shopee" (a topic group and one link per line, up to 50; the rest is read from Shopee, so it needs a
-    Shopee account with App ID somewhere in the team and says so when there is none) and "Nhập file"
-    (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in; rows left out are listed by number, and
-    without an App ID the drawer says stars, sales and shop type are still to fill in); "Nhập file" on
-    the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
+  - "Sản phẩm": the topic groups on the left ("Tất cả nhóm", then "Nhóm của tôi", the groups of the Pages the member
+    owns and uses, and "Nhóm khác"), each with how many products it holds and the Pages that post it (one by name,
+    several as a logo and "+n" named on hover, gold when a teammate's is among them). On the right the open group's
+    name, "Dùng cho video của N Page", "Xuất CSV", "Nhập file" and "Thêm sản phẩm"; "Tôi thêm / Cả đội" (by who added
+    the product), search by name or shop and platform; tabs "Tất cả", "Cần điền sao, lượt bán", "Chờ duyệt", "Đã
+    duyệt" with counts. Products ranked by expected commission per order, each with its platform tag ("Tìm qua API"
+    for those Shopee's search found), its group when all groups show, "Người thêm: <tên>" ("bạn" for the member's
+    own; its tooltip says that saved link goes in the comment of a Page without its own Shopee account) and how many
+    videos carry it, shop and type, rating and sales, commission per order with its rate and price, and status.
+    "Thêm sản phẩm" opens a drawer: "Nhập vào" by Page (into the group it posts; a Page without a group cannot be
+    picked) or by group (the open group to start with), then two tabs, "Dán link Shopee" (one link per line, up to
+    50; the rest is read from Shopee, so it needs a Shopee account with App ID somewhere in the team and says so when
+    there is none) and "Nhập file" (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in, previewed before anything
+    is written: new, already mine, a teammate's and rows in error; a teammate's product keeps their link and is
+    listed by row, a product of mine is updated; without an App ID the drawer says stars, sales and shop type are
+    still to fill in); "Nhập file" on the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
     platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
     Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
     a "Lấy lại thông tin" button. A Shopee draft whose stars or sales are under the rule links its Shopee
