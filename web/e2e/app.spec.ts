@@ -523,7 +523,9 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
     buffer: Buffer.from(csv),
   });
   await expect(dialog.getByText("lay-link-hang-loat.csv")).toBeVisible();
-  await dialog.getByRole("button", { name: "Nhập", exact: true }).click();
+  // The preview comes first and names the count on the button.
+  await expect(dialog.getByTestId("import-preview")).toContainText("Mới 1");
+  await dialog.getByRole("button", { name: "Nhập 1 sản phẩm" }).click();
   // Without a Shopee App ID the drawer stays open to say what is still to fill in.
   await expect(dialog.getByText("File không có số sao, lượt bán và loại shop")).toBeVisible();
   const product = row(page, "Combo hạt giống rau mùa hè");
@@ -562,7 +564,8 @@ async function importRows(page: Page, ...rows: string[]) {
     mimeType: "text/csv",
     buffer: Buffer.from(header + rows.join("")),
   });
-  await dialog.getByRole("button", { name: "Nhập", exact: true }).click();
+  await expect(dialog.getByTestId("import-preview")).toContainText(`Mới ${rows.length}`);
+  await dialog.getByRole("button", { name: `Nhập ${rows.length} sản phẩm` }).click();
   await expect(dialog.getByText("File không có số sao, lượt bán và loại shop")).toBeVisible();
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   await expect(dialog).toBeHidden();
