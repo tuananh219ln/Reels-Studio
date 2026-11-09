@@ -597,19 +597,30 @@ Built:
   used the track keep their copy). The topics to choose and filter by are the groups of Kho kiến thức, in its order,
   then "chung" (a hint under the field says so).
 - **Affiliate** (`/affiliate`), a line saying what the page is for, then three tabs:
-  - "Video đã đăng": filters over the loaded videos: tabs with counts ("Tất cả", "Chưa gắn sản
+  - "Video đã đăng": "Của tôi / Cả đội" first (a video is mine when I posted it or it is live on a Page or
+    TikTok account of mine; it starts on "Của tôi" once I have one, else on "Cả đội"), then filters over
+    the videos it shows: tabs with counts ("Tất cả", "Chưa gắn sản
     phẩm", "Đã gắn", "Cần xem lại" for a video with a product that lost its approval or no longer
     meets the rules), "Tìm theo tiêu đề video" and "Mọi nền tảng" (Facebook or TikTok); the counts
     follow the search and platform, and "Không có video nào khớp" when nothing matches. Then
     Facebook reels and TikTok posts made by hand, newest first, each tagged with its
-    platform, with the script's suggestions, a picker of approved products of the video's platform
-    (labelled with the expected commission per order), and for a reel a copy button for the pinned
+    platform and, in small text, every Page or TikTok account it is live on with its owner ("chủ: bạn"),
+    with the script's suggestions, a picker of approved products of the video's platform
+    (labelled with the expected commission per order, and "Người thêm: <tên>" when a teammate added it).
+    Under the picker, one line per attached Shopee product and Page whose commission is not the member's
+    own: in yellow whose it is (the Page's own Shopee account, its owner's; or, on a Page without a
+    Shopee account with App ID, the product's saved link, the member who added it), in red when the Page
+    has no such account and the product has no saved link, so it is left out of that Page's comment.
+    Nothing is refused for it. Then for a reel a copy button for the pinned
     comment with one link per product ("Gắn giỏ trong app TikTok" for TikTok). A product that lost its
     approval or no longer meets the rules stays attached with a yellow tag, and its link is left out of
     the copied text;
   - "Sản phẩm": products ranked by expected commission per order, with their platform tag ("Tìm qua
-    API" for those Shopee's search found), shop, type, rating, sales, price, and status; filters by name
-    or shop, topic group, platform and status; "Thêm sản phẩm" opens a drawer with two tabs, "Dán link
+    API" for those Shopee's search found), shop, type, "Người thêm: <tên>" ("bạn" for the member's own;
+    its tooltip says that saved link goes in the comment of a Page without its own Shopee account), rating,
+    sales, price, and status; filters by name or shop, topic group ("Nhóm của tôi", the groups of the
+    Pages the member owns and uses, then "Nhóm khác"; one plain list when they own none), platform and
+    status; "Thêm sản phẩm" opens a drawer with two tabs, "Dán link
     Shopee" (a topic group and one link per line, up to 50; the rest is read from Shopee, so it needs a
     Shopee account with App ID somewhere in the team and says so when there is none) and "Nhập file"
     (Shopee Affiliate's "Lấy link hàng loạt" CSV dropped in; rows left out are listed by number, and
@@ -617,10 +628,10 @@ Built:
     the toolbar opens that tab. "Nhập tay" at the bottom opens the full form ("Nhập tay sản phẩm",
     platform first; the link is optional for TikTok Shop). A row being read shows "Đang lấy thông tin từ
     Shopee…" and the list follows it every 3 seconds; one that could not be read shows why in red, with
-    a "Lấy lại thông tin" button. A Shopee draft whose stars, sales and shop type nobody has read (a row
-    of the file, or a link, with no App ID in the team) says they are to be filled in by hand, links its
-    Shopee page, and takes the three on the row itself (shop type, stars, sales, "Lưu"; the same save as
-    "Sửa"), so it can be approved without opening "Sửa" for each one. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
+    a "Lấy lại thông tin" button. A Shopee draft whose stars or sales are under the rule links its Shopee
+    page and takes shop type, stars and sales on the row itself ("Lưu"; the same save as "Sửa"), so it can
+    be approved without opening "Sửa" for each one: empty for one nobody has read (a row of the file, or
+    a link, with no App ID in the team, which it says), else holding what the product has. "Sửa", "Xoá", "Duyệt", "Bỏ duyệt",
     "Xuất CSV". Rows ticked in their checkbox (only those the filters show) can be approved together with
     "Duyệt đã chọn" (those not meeting the rules stay drafts and are counted in the message), deleted
     together with "Xoá đã chọn", after a confirmation, or cleared with "Bỏ chọn". A row that fails the rules shows why,

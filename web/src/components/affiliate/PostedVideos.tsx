@@ -5,8 +5,17 @@ import { App, Card, Flex, Input, Segmented, Select, Table, Tag, Typography } fro
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type AffiliateProduct, type AffiliateVideo } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  formatDateTime,
+  type AffiliateCommission,
+  type AffiliateProduct,
+  type AffiliateVideo,
+} from "@/lib/api";
 import FilterSelect from "@/components/FilterSelect";
+import { useMe } from "@/components/MeContext";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 
 /** What a member pastes as the reel's pinned comment: the script's sentence, then one link per product. */
 function usable(product: AffiliateVideo["products"][number]): boolean {
@@ -28,6 +37,19 @@ const LINKED: { value: Linked; label: string }[] = [
   { value: "review", label: "Cần xem lại" },
 ];
 
+/** One line per Page where the product's commission is not the member's own: whose it is, or that the product will
+ * not be in that Page's comment at all. Nothing is refused: a teammate's video may carry a member's product. */
+function commissionNote(product: string, line: AffiliateCommission): string {
+  const page = `Page ${line.fanpage_name}`;
+  if (line.kind === "no_link") {
+    return `${product}: ${page} chưa có tài khoản Shopee dùng được và sản phẩm chưa có link affiliate — sản phẩm sẽ không có trong bình luận.`;
+  }
+  if (line.kind === "saved_link") {
+    return `${product}: ${page} chưa có tài khoản Shopee dùng được — bình luận dùng link của ${line.user_name}, hoa hồng về tài khoản đó.`;
+  }
+  return `${product}: ${page} — hoa hồng về tài khoản Shopee của ${line.user_name}.`;
+}
+
 /** Lower case and one Unicode form, so a typed "Đ" or a composed vowel still finds the title. */
 function folded(text: string): string {
   return text.normalize("NFC").toLocaleLowerCase("vi");
@@ -43,7 +65,10 @@ function pinnedText(video: AffiliateVideo): string {
 /** The posted videos (Facebook reels, TikTok posts made by hand), each with the products attached to it. */
 export default function PostedVideos() {
   const { message } = App.useApp();
+  const { me } = useMe();
   const [videos, setVideos] = useState<AffiliateVideo[]>([]);
+  // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has a posted video).
+  const [whosePick, setWhose] = useState<Whose | null>(null);
   const [approved, setApproved] = useState<AffiliateProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
@@ -102,6 +127,12 @@ export default function PostedVideos() {
             <Tag>{video.platform === "tiktok" ? "TikTok" : "Facebook"}</Tag>
             {formatDateTime(video.published_at)}
           </Typography.Text>
+          {video.posts.map((post, index) => (
+            <Typography.Text key={index} type="secondary" style={{ fontSize: 12 }} data-testid="video-post">
+              {post.platform === "tiktok" ? "TikTok" : "Page"} {post.name ?? "không rõ"} · chủ:{" "}
+              {post.owner_id === me.id ? "bạn" : (post.owner_name ?? "chưa có")}
+            </Typography.Text>
+          ))}
           {video.reel_url && (
             <a href={video.reel_url} target="_blank" rel="noreferrer">
               {video.platform === "tiktok" ? "Xem bài TikTok" : "Xem Reel"}
@@ -131,7 +162,9 @@ export default function PostedVideos() {
             )
             .map((product) => ({
               value: product.id,
-              label: `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)`,
+              label:
+                `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)` +
+                (product.created_by_id === me.id ? "" : ` · Người thêm: ${product.created_by}`),
             })),
         ];
         return (
@@ -154,6 +187,20 @@ export default function PostedVideos() {
                   {product.status === "approved" ? "Không còn đạt tiêu chí" : "Đã bỏ duyệt"}: {product.name}
                 </Tag>
               ))}
+            {video.products.flatMap((product) =>
+              product.commission
+                .filter((line) => line.kind === "no_link" || line.user_id !== me.id)
+                .map((line) => (
+                  <Typography.Text
+                    key={`${product.id}-${line.fanpage_id}`}
+                    type={line.kind === "no_link" ? "danger" : "warning"}
+                    style={{ fontSize: 12 }}
+                    data-testid="commission-note"
+                  >
+                    {commissionNote(product.name, line)}
+                  </Typography.Text>
+                )),
+            )}
           </Flex>
         );
       },
@@ -177,8 +224,11 @@ export default function PostedVideos() {
 
   // The search and platform narrow the videos first, so each tab counts what it would show.
   const words = folded(query.trim());
+  const mineCount = videos.filter((video) => video.mine).length;
+  const whose = whosePick ?? (mineCount > 0 ? "mine" : "all");
   const matching = videos.filter(
     (video) =>
+      (whose === "all" || video.mine) &&
       (platform === null || video.platform === platform) &&
       (!words || folded(video.title).includes(words)) &&
       (productId === null || video.products.some((product) => product.id === productId)),
@@ -215,6 +265,7 @@ export default function PostedVideos() {
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 280, maxWidth: "100%" }}
         />
+        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={videos.length} />
         <Segmented<Linked>
           aria-label="Lọc theo sản phẩm đã gắn"
           value={linked}
@@ -251,7 +302,13 @@ export default function PostedVideos() {
           loading={loading}
           pagination={{ pageSize: 50, hideOnSinglePage: true }}
           scroll={{ x: 1000 }}
-          locale={{ emptyText: filtered ? "Không có video nào khớp" : "Chưa có video nào đã đăng" }}
+          locale={{
+            emptyText: filtered
+              ? "Không có video nào khớp"
+              : whose === "mine" && videos.length > 0
+                ? "Bạn chưa có video nào đã đăng. Chọn “Cả đội” để xem của mọi người."
+                : "Chưa có video nào đã đăng",
+          }}
         />
       </Card>
     </>

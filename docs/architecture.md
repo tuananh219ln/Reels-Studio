@@ -618,7 +618,11 @@ Planned:
     lost answer first looks for the Page's comment with the same text. A failed attempt (or no text to write)
     is recorded and waits for a member. Products are attached on the video page before posting, or on
     `/affiliate` after, with `PUT /api/affiliate-products/videos/{id}`; changing them asks the worker to edit
-    each live post's comment. Every post payload has `comment` (`state`: off, waiting, pending, done or failed;
+    each live post's comment. `GET /api/affiliate-products/videos` gives each video its live posts (`posts`:
+    the Page or TikTok account, its owner, and `has_shopee_account`, `affiliate.page_account` as the comment
+    uses it), `mine` (posted by the member or live on a Page or account of theirs) and, per attached Shopee
+    product, `commission`: for each Page, `affiliate.commission_to` (`page_account`, `saved_link` or `no_link`,
+    the same choice `link_for` makes) and whose it is. Every post payload has `comment` (`state`: off, waiting, pending, done or failed;
     `auto`, `error`, `text`, `at`). Members still pin the comment on Facebook.
   - **Shopee** ([affiliate_rounds.py](../api/src/reels_api/affiliate_rounds.py), [shopee.py](../api/src/reels_api/shopee.py))
     is the worker's too, between jobs: the suggestions of one asked video per round (a new script asks by itself

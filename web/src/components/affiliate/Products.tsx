@@ -105,6 +105,17 @@ export default function Products() {
     await reload();
   }
 
+  // "Nhóm của tôi" (the groups of the Pages the member owns and uses) first; one plain list when there are none.
+  const topicOption = (topic: AffiliateOptions["topics"][number]) => ({ value: topic.id, label: topic.name });
+  const myTopics = options.topics.filter((topic) => topic.mine);
+  const topicOptions =
+    myTopics.length === 0
+      ? options.topics.map(topicOption)
+      : [
+          { label: "Nhóm của tôi", options: myTopics.map(topicOption) },
+          { label: "Nhóm khác", options: options.topics.filter((topic) => !topic.mine).map(topicOption) },
+        ].filter((group) => group.options.length > 0);
+
   const listed = new Set(products.map((product) => product.id));
   const selected = ticked.filter((id) => listed.has(id));
 
@@ -183,6 +194,11 @@ export default function Products() {
         <Flex vertical gap={2}>
           <span>{product.shop_name || "—"}</span>
           <Typography.Text type="secondary">{product.shop_type_label}</Typography.Text>
+          <Tooltip title="Link lưu sẵn của sản phẩm được dùng trong bình luận khi Page đăng bài chưa có tài khoản Shopee dùng được.">
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              Người thêm: {product.created_by_id === me.id ? "bạn" : product.created_by}
+            </Typography.Text>
+          </Tooltip>
         </Flex>
       ),
     },
@@ -314,8 +330,8 @@ export default function Products() {
             placeholder="Mọi nhóm chủ đề"
             value={topicId}
             onChange={(value) => setFilters({ ...filters, topicId: value })}
-            options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
-            style={{ width: 180 }}
+            options={topicOptions}
+            style={{ width: 220 }}
           />
           <FilterSelect
             aria-label="Lọc theo nền tảng"

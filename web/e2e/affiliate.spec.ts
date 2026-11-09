@@ -260,3 +260,141 @@ test("an article's products show even when its page never saw the search pending
   // "route.fetch: Test ended" (CI run 42369438965). Remove the route and let such a read be dropped quietly.
   await page.unrouteAll({ behavior: "ignoreErrors" });
 });
+
+test("Video đã đăng starts on the member's own and says whose commission each product earns", async ({ page }) => {
+  await loginAsSeed(page);
+  const me = (await (await page.request.get("/api/me")).json()) as { id: number };
+  const post = (name: string, ownerId: number, owner: string) => ({
+    platform: "facebook",
+    fanpage_id: ownerId,
+    name,
+    fanpage_name: name,
+    owner_id: ownerId,
+    owner_name: owner,
+    has_shopee_account: false,
+  });
+  const video = (id: number, title: string, mine: boolean, posts: object[], products: object[]) => ({
+    id,
+    title,
+    platform: "facebook",
+    reel_url: null,
+    published_at: "2026-11-09T01:00:00+00:00",
+    suggestions: [],
+    pinned_comment: "",
+    mine,
+    posts,
+    products,
+  });
+  // A posted reel needs a render and Facebook's whole flow; the api's side is covered by test_affiliate_ownership.py.
+  await page.route("**/api/affiliate-products/videos", (route) =>
+    route.fulfill({
+      json: [
+        video(
+          1,
+          "Trà gừng cho người trên 50",
+          true,
+          [post("Trang Dưỡng Sinh", me.id, "Nguyễn Văn An")],
+          [
+            {
+              id: 7,
+              name: "Gối cao su",
+              url: "https://s.shopee.vn/cua-binh",
+              status: "approved",
+              problems: [],
+              created_by_id: me.id + 1,
+              created_by: "Trần Bình",
+              has_saved_link: true,
+              commission: [
+                {
+                  fanpage_id: me.id,
+                  fanpage_name: "Trang Dưỡng Sinh",
+                  kind: "saved_link",
+                  user_id: me.id + 1,
+                  user_name: "Trần Bình",
+                },
+              ],
+            },
+            {
+              id: 8,
+              name: "Nồi hầm",
+              url: null,
+              status: "approved",
+              problems: [],
+              created_by_id: me.id,
+              created_by: "Nguyễn Văn An",
+              has_saved_link: false,
+              commission: [
+                {
+                  fanpage_id: me.id,
+                  fanpage_name: "Trang Dưỡng Sinh",
+                  kind: "no_link",
+                  user_id: null,
+                  user_name: null,
+                },
+              ],
+            },
+          ],
+        ),
+        video(2, "Bài của đồng đội", false, [post("Trang Bình", me.id + 1, "Trần Bình")], []),
+      ],
+    }),
+  );
+  await page.goto("/affiliate");
+  const mine = page.getByRole("row", { name: /Trà gừng cho người trên 50/ });
+  await expect(mine.getByTestId("video-post")).toHaveText("Page Trang Dưỡng Sinh · chủ: bạn");
+  const notes = mine.getByTestId("commission-note");
+  await expect(notes).toHaveText([
+    "Gối cao su: Page Trang Dưỡng Sinh chưa có tài khoản Shopee dùng được — bình luận dùng link của Trần Bình, hoa hồng về tài khoản đó.",
+    "Nồi hầm: Page Trang Dưỡng Sinh chưa có tài khoản Shopee dùng được và sản phẩm chưa có link affiliate — sản phẩm sẽ không có trong bình luận.",
+  ]);
+  await expect(page.getByRole("row", { name: /Bài của đồng đội/ })).toHaveCount(0);
+
+  await page.getByLabel("Của ai").getByText("Cả đội (2)").click();
+  const theirs = page.getByRole("row", { name: /Bài của đồng đội/ });
+  await expect(theirs.getByTestId("video-post")).toHaveText("Page Trang Bình · chủ: Trần Bình");
+});
+
+test("Sản phẩm: my groups first, who added each product, and stars or sales fixed on the row", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  const card = page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");
+  await chooseOption(page, card.getByLabel("Nhóm chủ đề của Trang Dưỡng Sinh"), "Sức khỏe");
+  await expect(card).toContainText("Theo giờ đăng của nhóm chủ đề");
+
+  await page.goto("/affiliate");
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await page.getByLabel("Lọc theo nhóm chủ đề").click();
+  await expect(page.locator(".ant-select-item-group").first()).toHaveText("Nhóm của tôi");
+  await page.getByLabel("Lọc theo nhóm chủ đề").press("Escape");
+
+  await page.getByRole("button", { name: "Thêm sản phẩm" }).click();
+  const adding = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  await adding.getByRole("button", { name: "Nhập tay" }).click();
+  await expect(adding).toBeHidden();
+  const dialog = page.getByRole("dialog", { name: "Nhập tay sản phẩm" });
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  await dialog.getByLabel("Tên sản phẩm").fill("Vừng đen rang");
+  await dialog.getByLabel("Link affiliate").fill("https://s.shopee.vn/abc");
+  await dialog.getByLabel("Tên shop").fill("Nhà Vừng");
+  await chooseOption(page, dialog.getByLabel("Loại shop"), "Shopee Mall");
+  await dialog.getByLabel("Số sao").fill("4.8");
+  await dialog.getByLabel("Lượt bán").fill("50");
+  await dialog.getByLabel("Giá (đ)").fill("100000");
+  await dialog.getByLabel("Hoa hồng (%)").fill("10");
+  await dialog.getByRole("button", { name: "Thêm" }).click();
+
+  const product = page.getByRole("row", { name: /Vừng đen rang/ });
+  await expect(product).toContainText("Người thêm: bạn");
+  await expect(product).toContainText("Lượt bán dưới 100");
+  const quick = product.getByTestId("quick-fill");
+  await expect(quick.getByLabel("Số sao của Vừng đen rang")).toHaveValue("4.8");
+  await quick.getByLabel("Lượt bán của Vừng đen rang").fill("500");
+  await quick.getByRole("button", { name: "Lưu" }).click();
+  await expect(product).toContainText("4.8 / 500");
+  await expect(product.getByTestId("quick-fill")).toHaveCount(0);
+  await product.getByRole("button", { name: "Duyệt" }).click();
+  await expect(product).toContainText("Đã duyệt");
+});

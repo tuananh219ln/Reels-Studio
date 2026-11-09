@@ -1055,6 +1055,9 @@ export type AffiliateProduct = {
   id: number;
   /** Only they delete it. */
   created_by_id: number;
+  /** Who added it: its saved link (`url`) is theirs, used in the comment of a Page without its own Shopee account. */
+  created_by: string;
+  has_saved_link: boolean;
   knowledge_topic_id: number;
   topic: string;
   platform: ProductPlatform;
@@ -1079,6 +1082,8 @@ export type AffiliateProduct = {
   checked_by: string | null;
   /** Why it cannot be approved; empty when it can. */
   problems: string[];
+  /** Its stars or sales are under the approval rule ("Sửa nhanh" on the row). */
+  short_on_counts: boolean;
   /** A pasted link or an imported row the worker is reading from Shopee ("pending"), or could not read ("failed"). */
   lookup: "pending" | "failed" | null;
   lookup_error: string | null;
@@ -1087,7 +1092,8 @@ export type AffiliateProduct = {
 export type AffiliateOptions = {
   platforms: { value: ProductPlatform; label: string }[];
   shop_types: Record<ProductPlatform, { value: string; label: string }[]>;
-  topics: { id: number; name: string }[];
+  /** `mine`: a group of a Page the member owns and uses, listed first. */
+  topics: { id: number; name: string; mine: boolean }[];
   /** Some member has a Shopee account with App ID, so a pasted link is filled in by itself. */
   shopee_lookup: boolean;
 };
@@ -1110,7 +1116,36 @@ export type AffiliateVideo = {
   published_at: string;
   suggestions: string[];
   pinned_comment: string;
-  products: Pick<AffiliateProduct, "id" | "name" | "url" | "status" | "problems">[];
+  /** The member posted it, or it is live on a Page or TikTok account of theirs. */
+  mine: boolean;
+  /** Its live posts, newest first: where each went and whose it is. */
+  posts: AffiliateVideoPost[];
+  products: (Pick<
+    AffiliateProduct,
+    "id" | "name" | "url" | "status" | "problems" | "created_by_id" | "created_by" | "has_saved_link"
+  > & { commission: AffiliateCommission[] })[];
+};
+
+export type AffiliateVideoPost = {
+  platform: VideoPlatform;
+  fanpage_id: number | null;
+  /** The Page's name, or the TikTok account's. */
+  name: string | null;
+  fanpage_name: string | null;
+  owner_id: number | null;
+  owner_name: string | null;
+  /** The Page has a Shopee account its comments make links with (App ID and Secret, its owner's). */
+  has_shopee_account: boolean;
+};
+
+/** Whose commission a product's link in one Page's comment earns: the Page's own account, the product's saved link
+ * (the member who added it), or no link at all (the product is left out of that comment). */
+export type AffiliateCommission = {
+  fanpage_id: number;
+  fanpage_name: string;
+  kind: "page_account" | "saved_link" | "no_link";
+  user_id: number | null;
+  user_name: string | null;
 };
 
 /** Shopee's suggestions for a video, grouped by its product ideas. */
