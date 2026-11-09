@@ -185,6 +185,9 @@ class KnowledgeTopic(Base):
         secondary=knowledge_topic_templates, order_by="EditTemplate.name"
     )
     edit_template_default: Mapped[object | None] = mapped_column(JSONB(none_as_null=True))
+    # "Thứ tự nguồn ảnh": the stock sources in the order its videos ask them ("Tự tìm ảnh", the picker, "Tìm ảnh").
+    # None: the app's order (routes_videos.STOCK_SOURCES). Sources missing from it follow in the app's order.
+    stock_order: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
     # Who made the group: only they delete it (ownership.py); None (made before 2026-11-09, maker unknown): nobody.
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -340,6 +343,9 @@ class Scene(Base):
     image_error: Mapped[str | None] = mapped_column(Text)
     # Picked by the app after the script ("Tự tìm ảnh"): shown as "Tự chọn, kiểm tra lại" until the photo changes.
     image_auto: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # A stock photo whose licence asks for credit (a Wikimedia CC BY/BY-SA photo): {url, license, author, page, source,
+    # line}. It counts only while `url` is still the scene's image_source, so any other photo silently ends it.
+    image_credit: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # "Sửa ảnh" (image_edit.py): the photo the scene had before its first edit, so "Khôi phục ảnh gốc" brings it back.
     # None for a photo never edited; any new photo, clip or removal drops it (videos.drop_original).
     image_original_key: Mapped[str | None] = mapped_column(String(200))

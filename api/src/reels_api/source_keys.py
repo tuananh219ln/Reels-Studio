@@ -1,4 +1,4 @@
-"""API keys of the stock libraries (Pixabay, Pexels), both AI image providers (Gemini, Cloudflare Workers AI) and
+"""API keys of the stock libraries (Pixabay, Pexels, Unsplash), both AI image providers (Gemini, Cloudflare Workers AI) and
 ElevenLabs (narration), pasted on Cài đặt › Nguồn tư liệu, and VieNeu (narration too), pasted on Cài đặt › Mô hình AI.
 
 A key saved there is stored encrypted (crypto) and wins over the server's .env; with none saved, the .env key is
@@ -14,6 +14,7 @@ SETTING_KEY = "source_keys"  # app_settings value: {name: encrypted key}
 ENV_NAMES = {
     "pixabay": "PIXABAY_API_KEY",
     "pexels": "PEXELS_API_KEY",
+    "unsplash": "UNSPLASH_ACCESS_KEY",
     "gemini": "IMAGE_GEN_API_KEY",
     "cloudflare": "IMAGE_GEN_CF_API_KEY",
     "elevenlabs": "ELEVENLABS_API_KEY",

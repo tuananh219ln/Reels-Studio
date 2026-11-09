@@ -281,10 +281,17 @@ def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(ge
 
 # --- Cài đặt › Nguồn tư liệu ---
 
-SOURCE_KINDS = {"pixabay": "Ảnh và video", "pexels": "Ảnh và video", "openverse": "Ảnh (chỉ ảnh không cần ghi nguồn)"}
+SOURCE_KINDS = {
+    "pixabay": "Ảnh và video",
+    "pexels": "Ảnh và video",
+    "unsplash": "Ảnh (gói miễn phí 50 lượt tìm/giờ cho cả nhóm)",
+    "wikimedia": "Ảnh, tìm được món Việt bằng tiếng Việt (có ảnh cần ghi nguồn: app sẽ cảnh báo)",
+    "openverse": "Ảnh (chỉ ảnh không cần ghi nguồn)",
+}
 SOURCE_SIGNUP = {
     "pixabay": "https://pixabay.com/api/docs/",
     "pexels": "https://www.pexels.com/api/",
+    "unsplash": "https://unsplash.com/oauth/applications",
     "gemini": "https://aistudio.google.com/apikey",
     "cloudflare": "https://dash.cloudflare.com/profile/api-tokens",
     "elevenlabs": "https://elevenlabs.io/app/settings/api-keys",

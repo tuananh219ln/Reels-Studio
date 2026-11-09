@@ -730,15 +730,24 @@ def test_stock_sources_list_what_is_configured(an, fakes):
     sources = an.get("/api/stock/sources").json()
     assert [(item["id"], item["available"]) for item in sources] == [
         ("pexels", True),
+        ("unsplash", True),
         ("pixabay", True),
+        ("wikimedia", True),
         ("openverse", True),
     ]
 
 
-def test_stock_sources_hide_pexels_without_a_key(an, fakes, monkeypatch):
+def test_stock_sources_mark_pexels_without_a_key(an, fakes, monkeypatch):
+    # Listed, not hidden: the picker shows it greyed out as "chưa cấu hình key".
     monkeypatch.setenv("PEXELS_API_KEY", "")
-    sources = {item["id"]: item["available"] for item in an.get("/api/stock/sources").json()}
-    assert sources == {"pixabay": True, "pexels": False, "openverse": True}
+    sources = {item["id"]: (item["available"], item["missing_key"]) for item in an.get("/api/stock/sources").json()}
+    assert sources == {
+        "pexels": (False, True),
+        "unsplash": (True, False),
+        "pixabay": (True, False),
+        "wikimedia": (True, False),
+        "openverse": (True, False),
+    }
 
 
 def test_pixabay_through_the_stock_endpoints(an, db, me, storage, fakes):

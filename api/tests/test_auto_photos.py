@@ -132,7 +132,7 @@ def test_a_failing_source_moves_on_to_the_next(committed, fakes, storage):
     assert job.status == "done"
     scenes = scenes_of(committed, video_id)
     assert all(scene.image_key for scene in scenes)
-    assert fakes.pixabay_queries, "Pixabay, the next source, was asked"
+    assert fakes.unsplash_queries, "Unsplash, the next source in the app's order, was asked"
     assert len(fakes.pexels_queries) == 1, "a source that failed is not asked again in the same job"
 
 
@@ -151,6 +151,8 @@ def test_when_every_source_fails_the_job_says_so_and_the_script_stays(committed,
     video_id = scripted(committed, storage, user)
     fakes.pixabay_mode = "cloudflare_block"
     fakes.pexels_mode = "error500"
+    fakes.unsplash_mode = "error500"
+    fakes.wikimedia_mode = "error500"
     fakes.openverse_mode = "error500"
 
     job = run_photos(committed, storage, video_id)
@@ -166,7 +168,7 @@ def test_a_scene_nothing_is_found_for_stays_empty(committed, fakes, storage):
     video_id = scripted(committed, storage, user)
     fakes.pixabay_mode = "empty"
     with committed() as db:
-        db.add(AppSetting(key="stock_sources_off", value=["pexels", "openverse"]))
+        db.add(AppSetting(key="stock_sources_off", value=["pexels", "unsplash", "wikimedia", "openverse"]))
         db.commit()
 
     job = run_photos(committed, storage, video_id)

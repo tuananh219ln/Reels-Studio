@@ -414,14 +414,18 @@ type Busy = "upload" | "video" | "remove" | "find" | "link" | "ai" | "keep" | "r
 
 const PEXELS: StockSource = { id: DEFAULT_SOURCE, label: "Pexels", available: true };
 
-/** The sources "Tìm ảnh" offers, asked once for every scene of the page and again after half a minute. */
-let offeredSources: { at: number; list: Promise<StockSource[]> } | null = null;
+/**
+ * The sources "Tìm ảnh" offers, in the video's topic group's order, usable ones only: asked once for every scene
+ * of the page and again after half a minute.
+ */
+let offeredSources: { at: number; videoId: number; list: Promise<StockSource[]> } | null = null;
 
-function stockSources(): Promise<StockSource[]> {
-  if (offeredSources === null || Date.now() - offeredSources.at > 30_000) {
+function stockSources(videoId: number): Promise<StockSource[]> {
+  if (offeredSources === null || offeredSources.videoId !== videoId || Date.now() - offeredSources.at > 30_000) {
     offeredSources = {
       at: Date.now(),
-      list: api<StockSource[]>("/stock/sources").then(
+      videoId,
+      list: api<StockSource[]>(`/stock/sources?video_id=${videoId}`).then(
         (all) => {
           const offered = all.filter((item) => item.available);
           return offered.length > 0 ? offered : [PEXELS];
@@ -470,7 +474,7 @@ export function ScenePicture({
   const [dragging, setDragging] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [pastedLink, setPastedLink] = useState("");
-  // Where "Tìm ảnh" searches: Pexels (or the first source offered without it) until the member picks another
+  // Where "Tìm ảnh" searches: the first usable source of the topic group's order until the member picks another
   // source from the arrow menu.
   const [findSource, setFindSource] = useState<StockSource>(PEXELS);
   const [sources, setSources] = useState<StockSource[] | null>(null);
@@ -478,19 +482,19 @@ export function ScenePicture({
 
   useEffect(() => {
     let open = true;
-    void stockSources().then((offered) => {
+    void stockSources(scene.video_id).then((offered) => {
       if (!open) {
         return;
       }
       setSources(offered);
       if (!picked.current) {
-        setFindSource(offered.find((item) => item.id === DEFAULT_SOURCE) ?? offered[0]);
+        setFindSource(offered[0]);
       }
     });
     return () => {
       open = false;
     };
-  }, []);
+  }, [scene.video_id]);
 
   // Busy and errors are this scene's own: working on one scene never blocks the others.
   async function run(kind: Busy, action: () => Promise<VideoDetail>) {
@@ -876,6 +880,20 @@ export function ScenePicture({
           )}
         </Flex>
       )}
+      {scene.image_credit && (
+        // A stock photo whose licence asks for credit (Wikimedia CC BY/BY-SA): the post must carry the line.
+        <Flex wrap align="center" gap={4} data-testid="image-credit">
+          <StatusText tone="warning">Cần ghi nguồn khi đăng</StatusText>
+          <Typography.Text type="secondary" copyable={{ text: scene.image_credit.line }} style={{ fontSize: 12 }}>
+            {scene.image_credit.line}
+          </Typography.Text>
+          {scene.image_credit.page && (
+            <Typography.Link href={scene.image_credit.page} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+              Trang ảnh
+            </Typography.Link>
+          )}
+        </Flex>
+      )}
       {scene.video && !compact && (
         // The clip as uploaded, without sound: the render never uses its sound either.
         <video
@@ -1143,6 +1161,7 @@ export function ScenePicture({
       {picking && (
         <StockPicker
           sceneId={scene.id}
+          videoId={scene.video_id}
           keywords={scene.keywords}
           keywordsEn={scene.keywords_en}
           onClose={() => setPicking(false)}

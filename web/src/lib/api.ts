@@ -260,6 +260,7 @@ export type SceneData = {
   image_ai: boolean;
   /** Picked by "Tự tìm ảnh" after the script and not yet changed or kept by a member. */
   image_auto: boolean;
+  image_credit: PhotoCredit | null;
   /** Changed by "Sửa ảnh" since it came in: the card offers "Khôi phục ảnh gốc". */
   image_edited: boolean;
   /** "Tìm chữ/logo tự động": boxes found on the photo shown ([] when none); null until looked for. */
@@ -509,6 +510,10 @@ export type KnowledgeTopic = {
   templates: number[];
   /** The template the group's new videos take ("app" or one of `templates`), over their maker's own; null for none. */
   edit_template_default: "app" | number | null;
+  /** "Thứ tự nguồn ảnh": every stock source, in the order the group's videos ask them; the app's when not custom. */
+  stock_order: string[];
+  /** False while the group takes the app's order (a new group, or one reset to it). */
+  stock_order_custom: boolean;
   video_count: number;
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;
@@ -873,9 +878,14 @@ export type MusicTrack = {
 export type MusicOptions = { topics: string[]; moods: string[] };
 
 /** One "Chọn từ Pixabay" result: `preview` is only a thumbnail to show; `url` is the full photo the server stores. */
-export type PixabayHit = { url: string; preview: string };
+/** `credit`: the line a photo whose licence asks for credit must carry once posted (Wikimedia CC BY...). */
+export type PixabayHit = { url: string; preview: string; credit?: string | null };
 
-export type StockSource = { id: string; label: string; available: boolean; clips?: boolean };
+/** A stock source, in the video's topic group's order; `missing_key`: offered greyed out until a key is pasted. */
+export type StockSource = { id: string; label: string; available: boolean; missing_key?: boolean; clips?: boolean };
+
+/** What a stock photo's licence asks to be credited (a Wikimedia CC BY/BY-SA photo). */
+export type PhotoCredit = { license: string; author: string; page: string; source: string; line: string };
 
 /** A stock video clip in the picker's "Video" mode; `preview` is a still shown straight from the source. */
 export type ClipHit = { id: string; preview: string; url: string; seconds: number };

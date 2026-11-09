@@ -70,6 +70,7 @@ from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, plai
 from .sessions import current_member, now
 from .stock_sites import stock_site
 from .storage import DirectoryStorage, get_storage
+from .unsplash import Unsplash, UnsplashError
 from .uploads import (
     MAX_IMAGE_BYTES,
     MAX_MUSIC_BYTES,
@@ -110,6 +111,7 @@ from .videos import (
     video_not_found,
     video_payload,
 )
+from .wikimedia import Wikimedia, WikimediaError
 
 router = APIRouter(prefix="/api")
 
@@ -1035,6 +1037,7 @@ def split_scene(
         keywords_en=list(scene.keywords_en),
         image_prompt=scene.image_prompt,
         image_source=scene.image_source,
+        image_credit=scene.image_credit,
         # The same picture goes on, so it cuts in rather than showing a transition into itself.
         transition="cut",
         color=scene.color,
@@ -1194,8 +1197,10 @@ def _store_photo(
     extension: str,
     source: str | None,
     auto: bool = False,
+    credit: dict | None = None,
 ) -> dict:
-    """Store a photo in place of the scene's photo or clip; `source` None keeps the photo's source (a crop of it)."""
+    """Store a photo in place of the scene's photo or clip; `source` None keeps the photo's source (a crop of it), and
+    its credit. `credit`: what a new photo's licence asks to be credited (Photo.credit)."""
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     old = [scene.image_key, scene.video_key]
@@ -1206,6 +1211,7 @@ def _store_photo(
     else:
         # A crop is still the edited photo, so "Khôi phục ảnh gốc" stays; another photo forgets the original.
         old.append(drop_original(scene))
+        scene.image_credit = {"url": source, **credit} if credit else None
     key = new_key(video.id, f"scene-{scene.id}", extension)
     storage.save_bytes(key, data)
     scene.image_key, scene.image_source, scene.image_error = key, source, None
@@ -1502,22 +1508,23 @@ def _used_photos(db: DbSession, video_id: int, except_scene: int | None = None) 
 @router.post("/scenes/{scene_id}/find-image")
 def find_other_image(
     scene_id: int,
-    source: str = "pexels",
+    source: str | None = None,
     orientation: str = "vertical",
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
     orientation = _orientation(orientation)
-    client, error_type = _stock_client(source, db)
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
+    # No source named: the first usable one of the video's topic group's order.
+    source = source or first_stock_source(db, video)
+    client, error_type = _stock_client(source, db)
     if source in stock_turned_off(db):
         raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
-    # Each source is searched in the language it indexes: Openverse in Vietnamese, Pixabay and Pexels
-    # in English; the other list is the fallback (scenes scripted before English keywords existed).
-    vietnamese, english = list(scene.keywords), list(scene.keywords_en)
-    keywords = (vietnamese or english) if source == "openverse" else (english or vietnamese)
+    # Each source is searched in the language it indexes: Wikimedia and Openverse in Vietnamese, the others in
+    # English; the other list is the fallback (scenes scripted before English keywords existed).
+    keywords = stock_keywords(source, list(scene.keywords), list(scene.keywords_en))
     current = scene.image_source
     # A photo another scene of this video shows is never picked again.
     used = _used_photos(db, video.id, except_scene=scene.id)
@@ -1534,7 +1541,7 @@ def find_other_image(
         raise ApiError(502, code, f"Không tìm được ảnh: {err.message}") from None
     if photo is None:
         raise ApiError(404, "no_other_image", "Không tìm thấy ảnh khác, hãy đổi từ khóa")
-    return _store_photo(db, storage, scene_id, photo.data, photo.extension, photo.url)
+    return _store_photo(db, storage, scene_id, photo.data, photo.extension, photo.url, credit=photo.credit)
 
 
 def _pixabay_failed(err: PixabayError) -> ApiError:
@@ -1594,9 +1601,20 @@ def choose_pixabay(
 
 # --- Stock sources for the picker ---
 
-# Pexels first: the default of the picker, "Tìm ảnh" and "Tự tìm ảnh".
-STOCK_SOURCES = ("pexels", "pixabay", "openverse")
-STOCK_LABELS = {"pixabay": "Pixabay", "pexels": "Pexels", "openverse": "Openverse"}
+# The app's order, Pexels first: the picker opens on the first source offered, "Tìm ảnh" asks it and "Tự tìm ảnh"
+# goes down the list. A topic group may set its own ("Thứ tự nguồn ảnh", KnowledgeTopic.stock_order).
+STOCK_SOURCES = ("pexels", "unsplash", "pixabay", "wikimedia", "openverse")
+STOCK_LABELS = {
+    "pixabay": "Pixabay",
+    "pexels": "Pexels",
+    "unsplash": "Unsplash",
+    "wikimedia": "Wikimedia Commons",
+    "openverse": "Openverse",
+}
+# Sources that index Vietnamese titles: searched with the scene's Vietnamese keywords first, English as the fallback.
+VIETNAMESE_FIRST = {"openverse", "wikimedia"}
+# Sources that need a key (source_keys); the others answer anonymous calls.
+KEYED_SOURCES = {"pixabay", "pexels", "unsplash"}
 STOCK_OFF_KEY = "stock_sources_off"
 CLIP_DOWNLOAD_SECONDS = 60
 
@@ -1607,15 +1625,42 @@ def _stock_client(source: str, db: DbSession):
         return Pixabay(source_keys.get(db, "pixabay")), PixabayError
     if source == "pexels":
         return Pexels(source_keys.get(db, "pexels")), PexelsError
+    if source == "unsplash":
+        return Unsplash(source_keys.get(db, "unsplash")), UnsplashError
+    if source == "wikimedia":
+        return Wikimedia(), WikimediaError
     if source == "openverse":
         return Openverse(), OpenverseError
     raise invalid("Nguồn ảnh không hợp lệ")
 
 
+def stock_keywords(source: str, vietnamese: list[str], english: list[str]) -> list[str]:
+    """The keywords a source is searched with: the language it indexes, the other list as the fallback."""
+    return (vietnamese or english) if source in VIETNAMESE_FIRST else (english or vietnamese)
+
+
 def stock_configured(source: str, db: DbSession) -> bool:
-    if source in ("pixabay", "pexels"):
+    if source in KEYED_SOURCES:
         return bool(source_keys.get(db, source))
-    return True  # Openverse answers anonymous calls.
+    return True  # Wikimedia and Openverse answer anonymous calls.
+
+
+def clean_stock_order(order: list[str] | None) -> list[str]:
+    """A group's order made whole: its known sources first, the others after them in the app's order."""
+    first = [source for source in dict.fromkeys(order or []) if source in STOCK_SOURCES]
+    return first + [source for source in STOCK_SOURCES if source not in first]
+
+
+def stock_order(db: DbSession, video: Video | None) -> list[str]:
+    """The order a video's photos are looked for in: its topic group's, else the app's."""
+    topic = db.get(KnowledgeTopic, video.knowledge_topic_id) if video and video.knowledge_topic_id else None
+    return clean_stock_order(topic.stock_order if topic else None)
+
+
+def first_stock_source(db: DbSession, video: Video | None) -> str:
+    """Where "Tìm ảnh" and the assistant's search go when no source is named: the first one usable, in order."""
+    order = stock_order(db, video)
+    return next((source for source in order if _stock_available(source, db)), order[0])
 
 
 def stock_turned_off(db: DbSession) -> set[str]:
@@ -1633,16 +1678,21 @@ def _stock_available(source: str, db: DbSession) -> bool:
 
 
 @router.get("/stock/sources")
-def stock_sources(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
-    """The picker's sources; `clips` says which also offer video clips."""
+def stock_sources(
+    video_id: int | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """The picker's sources, in the video's topic group's order (the app's without a video); `clips` says which also
+    offer video clips, `missing_key` which cannot be used until a key is pasted on Cài đặt › Nguồn tư liệu."""
+    video = db.get(Video, video_id) if video_id is not None else None
     return [
         {
             "id": source,
             "label": STOCK_LABELS[source],
             "available": _stock_available(source, db),
+            "missing_key": not stock_configured(source, db),
             "clips": source in stock_clips.SOURCES and _stock_available(source, db),
         }
-        for source in STOCK_SOURCES
+        for source in stock_order(db, video)
     ]
 
 
@@ -1725,7 +1775,7 @@ def choose_stock_clip(
 def search_stock(
     scene_id: int,
     q: str = "",
-    source: str = "pexels",
+    source: str | None = None,
     orientation: str = "vertical",
     hide_used: bool = True,
     me: Session = Depends(current_member),
@@ -1738,6 +1788,8 @@ def search_stock(
     if scene is None:
         raise ApiError(404, "scene_deleted", "Cảnh này đã bị xóa")
     orientation = _orientation(orientation)
+    # No source named: the first usable one of the video's topic group's order.
+    source = source or first_stock_source(db, db.get(Video, scene.video_id))
     used = _used_photos(db, scene.video_id) if hide_used else set()
     keyword = " ".join(q.split())
     if not keyword:
@@ -1755,7 +1807,12 @@ def search_stock(
     return {
         "keyword": keyword,
         "source": source,
-        "hits": [{"url": hit.url, "preview": hit.preview} for hit in hits if hit.url not in used],
+        # `credit`: the line a photo whose licence asks for credit must carry once posted (Wikimedia CC BY...).
+        "hits": [
+            {"url": hit.url, "preview": hit.preview, "credit": hit.credit["line"] if hit.credit else None}
+            for hit in hits
+            if hit.url not in used
+        ],
     }
 
 
@@ -1792,7 +1849,7 @@ def choose_stock(
         raise ApiError(502, "stock_error", f"Không tìm được ảnh: {err.message}") from None
     if photo is None:
         raise ApiError(422, "unusable_image", "Ảnh này không tải được, hãy chọn ảnh khác")
-    return _store_photo(db, storage, scene_id, photo.data, photo.extension, photo.url)
+    return _store_photo(db, storage, scene_id, photo.data, photo.extension, photo.url, credit=photo.credit)
 
 
 # --- Jobs ---
@@ -2125,6 +2182,7 @@ class TopicPatchBody(BaseModel):
     article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
     voice_id: str | None = None  # the group's own voice; "" leaves it to each maker's defaults
     templates: list[int] | None = None  # the group's own "Mẫu dựng" (saved ones' ids)
+    stock_order: list[str] | None = None  # "Thứ tự nguồn ảnh"; [] goes back to the app's order
     edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
 
 
@@ -2162,6 +2220,9 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "created_by_id": topic.created_by_id,
                 "templates": [template.id for template in topic.edit_templates],
                 "edit_template_default": topic.edit_template_default,
+                # "Thứ tự nguồn ảnh": always whole; `stock_order_custom` false while the group takes the app's order.
+                "stock_order": clean_stock_order(topic.stock_order),
+                "stock_order_custom": bool(topic.stock_order),
                 "video_count": counts.get(topic.id, 0),
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
@@ -2260,6 +2321,13 @@ def patch_topic(
             topic.voice_id = video_options.clean({"voice_id": body.voice_id})["voice_id"]
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+    if body.stock_order is not None:
+        unknown = [source for source in body.stock_order if source not in STOCK_SOURCES]
+        if unknown:
+            raise invalid(f"Nguồn ảnh không hợp lệ: {', '.join(unknown[:3])}")
+        order = clean_stock_order(body.stock_order) if body.stock_order else None
+        # The app's own order saved as is stays "the app's", so later changes to it still reach the group.
+        topic.stock_order = None if order == list(STOCK_SOURCES) else order
     _set_group_templates(db, topic, body)
     topic.updated_by_id = me.user_id
     db.commit()

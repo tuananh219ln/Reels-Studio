@@ -50,6 +50,8 @@ class Photo:
     url: str
     data: bytes
     extension: str
+    # What the scene must credit for this photo (wikimedia.credit_of); None: its licence asks for nothing.
+    credit: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,8 @@ class Hit:
     # Size of the file `url` serves, when the source says; None: unknown, so no filter leaves it out.
     width: int | None = None
     height: int | None = None
+    # What using it would have to credit (wikimedia.credit_of); None: its licence asks for nothing.
+    credit: dict | None = None
 
 
 # The picker's "Hướng ảnh": tall photos by default, since the 9:16 frame crops least of them.

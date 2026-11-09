@@ -236,7 +236,7 @@ export default function SourcesPage() {
       />
       <Section
         title="Kho ảnh và video miễn phí"
-        description="Hộp “Chọn từ kho ảnh/video”, nút “Tìm ảnh” và việc tự tìm ảnh dùng các kho này, bắt đầu từ Pexels. Tắt một kho thì nó biến khỏi hộp chọn của cả nhóm."
+        description="Hộp “Chọn từ kho ảnh/video”, nút “Tìm ảnh” và việc tự tìm ảnh dùng các kho này, theo thứ tự dưới đây; mỗi nhóm chủ đề có thể tự sắp thứ tự ở Kho kiến thức. Tắt một kho thì nó biến khỏi hộp chọn của cả nhóm."
       >
         <Flex vertical gap={16}>
           {data?.auto_photos !== undefined && (
@@ -259,7 +259,7 @@ export default function SourcesPage() {
                   </Typography.Text>
                   {order.length > 0 && (
                     <Typography.Text type="secondary" data-testid="stock-order">
-                      Thứ tự tìm: {order.join(" → ")}
+                      Thứ tự tìm chung: {order.join(" → ")}
                     </Typography.Text>
                   )}
                 </Flex>

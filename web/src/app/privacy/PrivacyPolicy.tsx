@@ -37,7 +37,7 @@ const SECTIONS: { heading: string; body: string[] }[] = [
       "Meta (Facebook Graph API): video, mô tả bài, trả lời bình luận; đọc số liệu và bình luận.",
       "Nhà cung cấp AI do nhóm chọn để viết kịch bản (như Anthropic Claude, OpenAI, Google Gemini, Groq, DeepSeek, OpenRouter) và để tạo ảnh (như Cloudflare Workers AI): chủ đề, kịch bản và mô tả cảnh.",
       "ElevenLabs: lời đọc của video, để tạo giọng đọc.",
-      "Pexels, Pixabay, Openverse: từ khoá tìm ảnh. TikTok: chỉ khi thành viên dán link clip để tải.",
+      "Pexels, Pixabay, Unsplash, Wikimedia Commons, Openverse: từ khoá tìm ảnh. TikTok: chỉ khi thành viên dán link clip để tải.",
       "Shopee: để lấy link tiếp thị liên kết và báo cáo.",
       "ChatGPT, Claude: chỉ khi một thành viên tự kết nối tài khoản của mình, để soạn bản nháp video.",
       "Cloudflare chạy phần giao diện web. Dữ liệu và file video được lưu trên máy chủ riêng của nhóm.",

@@ -30,6 +30,7 @@ PEXELS_KEY = "fake-pexels-key"
 OPENVERSE_CLIENT_ID = "fake-openverse-client"
 OPENVERSE_CLIENT_SECRET = "fake-openverse-secret"
 OPENVERSE_TOKEN = "fake-openverse-token"
+UNSPLASH_KEY = "fake-unsplash-key"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
 # Not in env(): VieNeu voices are offered only once a key is set, so tests set this one themselves.
 VIENEU_KEY = "vn_test_fake-vieneu-key"
@@ -257,6 +258,15 @@ class FakeServices:
         self.openverse_queries: list[str] = []
         self.openverse_token_requests = 0
         self.openverse_authorized: list[bool] = []  # per search: did it carry the fake access token?
+        self.wikimedia_mode = "ok"  # ok | error500 | rate_limit
+        # keyword -> [{"name", "license", "artist", "attribution", "width", "height", "mime"}]; missing keys default.
+        self.wikimedia_results: dict[str, list[dict]] = {}
+        self.wikimedia_queries: list[str] = []  # the gsrsearch text as sent
+        self.wikimedia_agents: list[str] = []  # the User-Agent of every Wikimedia search
+        self.unsplash_mode = "ok"  # ok | error500 | rate_limit
+        self.unsplash_results: dict[str, list[str]] = {}
+        self.unsplash_queries: list[str] = []
+        self.unsplash_downloads: list[str] = []  # names whose download_location was called, with the key
         self.image_downloads: list[str] = []
         self.clip_queries: list[tuple[str, str]] = []  # (source, keyword) of video clip searches
         self.clip_downloads: list[str] = []
@@ -388,6 +398,9 @@ class FakeServices:
             "PEXELS_API_KEY": PEXELS_KEY,
             "PEXELS_API_URL": f"{self.url}/pexels",
             "OPENVERSE_API_URL": f"{self.url}/openverse",
+            "WIKIMEDIA_API_URL": f"{self.url}/wikimedia/w/api.php",
+            "UNSPLASH_API_URL": f"{self.url}/unsplash",
+            "UNSPLASH_ACCESS_KEY": UNSPLASH_KEY,
             "OPENVERSE_CLIENT_ID": OPENVERSE_CLIENT_ID,
             "OPENVERSE_CLIENT_SECRET": OPENVERSE_CLIENT_SECRET,
             "ELEVENLABS_API_KEY": ELEVENLABS_KEY,
@@ -686,6 +699,94 @@ class FakeServices:
             for entry in entries
         ]
         return 200, {"result_count": len(results), "page_count": 1, "page": 1, "results": results}
+
+    def _wikimedia(self, query: dict, agent: str) -> tuple[int, object]:
+        search = query.get("gsrsearch", "")
+        with self.lock:
+            self.wikimedia_queries.append(search)
+            self.wikimedia_agents.append(agent)
+            self.stock_searches.append(("wikimedia", dict(query)))
+        if self.wikimedia_mode == "error500":
+            return 500, {"error": "server error"}
+        if self.wikimedia_mode == "rate_limit":
+            return 429, {"error": {"code": "ratelimited"}}
+        keyword = search.replace("filetype:bitmap", "").strip()
+        entries = self.wikimedia_results.get(keyword)
+        if entries is None:
+            entries = [
+                {"name": hashlib.sha1(f"wikimedia-{keyword}-{n}".encode()).hexdigest()[:10]} for n in range(1, 4)
+            ]
+        pages = []
+        for index, entry in enumerate(entries, 1):
+            name = entry["name"]
+            license_name = entry.get("license", "Public domain")
+            meta = {
+                "LicenseShortName": {"value": license_name},
+                "Artist": {
+                    "value": entry.get(
+                        "artist", f'<a href="https://commons.wikimedia.org/wiki/User:{name}">Tác giả {name}</a>'
+                    )
+                },
+                "AttributionRequired": {"value": entry.get("attribution", "false")},
+            }
+            width, height = entry.get("width", 1280), entry.get("height", 1600)
+            pages.append(
+                {
+                    "pageid": index,
+                    "ns": 6,
+                    "title": f"File:{name}.jpg",
+                    "index": index,
+                    "imageinfo": [
+                        {
+                            "url": self.image_url(name),
+                            "descriptionurl": f"{self.url}/wikimedia/wiki/File:{name}.jpg",
+                            "width": width,
+                            "height": height,
+                            "thumburl": self.image_url(name),
+                            "thumbwidth": width,
+                            "thumbheight": height,
+                            "mime": entry.get("mime", "image/jpeg"),
+                            "extmetadata": meta,
+                        }
+                    ],
+                }
+            )
+        # Like the real API, pages come in no particular order: `index` gives the search's.
+        return 200, {"batchcomplete": True, "query": {"pages": list(reversed(pages))}}
+
+    def _unsplash(self, query: dict, authorization: str | None) -> tuple[int, object]:
+        keyword = query.get("query", "")
+        with self.lock:
+            self.unsplash_queries.append(keyword)
+            self.stock_searches.append(("unsplash", dict(query)))
+        if authorization != f"Client-ID {UNSPLASH_KEY}":
+            return 401, {"errors": ["OAuth error: The access token is invalid"]}
+        if self.unsplash_mode == "rate_limit":
+            return 403, "Rate Limit Exceeded"
+        if self.unsplash_mode == "error500":
+            return 500, {"errors": ["server error"]}
+        names = self.unsplash_results.get(keyword) or [
+            hashlib.sha1(f"unsplash-{keyword}-{n}".encode()).hexdigest()[:10] for n in range(1, 4)
+        ]
+        results = [
+            {
+                "id": name,
+                "width": 3000,
+                "height": 4500,
+                "urls": {size: self.image_url(name) for size in ("raw", "full", "regular", "small", "thumb")},
+                "links": {"download_location": f"{self.url}/unsplash/photos/{name}/download"},
+                "user": {"name": f"Photographer {name}"},
+            }
+            for name in names
+        ]
+        return 200, {"total": len(results), "total_pages": 1, "results": results}
+
+    def _unsplash_download(self, name: str, authorization: str | None) -> tuple[int, object]:
+        if authorization != f"Client-ID {UNSPLASH_KEY}":
+            return 401, {"errors": ["OAuth error: The access token is invalid"]}
+        with self.lock:
+            self.unsplash_downloads.append(name)
+        return 200, {"url": self.image_url(name)}
 
     def _tts(self, voice_id: str, key: str, body: dict) -> tuple[int, object]:
         with self.lock:
@@ -1607,6 +1708,15 @@ class FakeServices:
                 elif parts.path == "/openverse/v1/images/":
                     authorized = self.headers.get("Authorization") == f"Bearer {OPENVERSE_TOKEN}"
                     self._send(*fake._openverse(dict(urllib.parse.parse_qsl(parts.query)), authorized))
+                elif parts.path == "/wikimedia/w/api.php":
+                    query = dict(urllib.parse.parse_qsl(parts.query))
+                    self._send(*fake._wikimedia(query, self.headers.get("User-Agent", "")))
+                elif parts.path == "/unsplash/search/photos":
+                    query = dict(urllib.parse.parse_qsl(parts.query))
+                    self._send(*fake._unsplash(query, self.headers.get("Authorization")))
+                elif parts.path.startswith("/unsplash/photos/") and parts.path.endswith("/download"):
+                    name = parts.path.removeprefix("/unsplash/photos/").removesuffix("/download")
+                    self._send(*fake._unsplash_download(name, self.headers.get("Authorization")))
                 elif parts.path == "/tiktok/v2/user/info/":
                     with fake.lock:
                         fake.tiktok_calls.append("/v2/user/info/")

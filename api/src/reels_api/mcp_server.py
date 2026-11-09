@@ -84,6 +84,7 @@ def _jpeg(frame: PILImage.Image) -> Image:
 
 
 STOCK_PREVIEWS = 6
+StockSource = Literal["pexels", "unsplash", "pixabay", "wikimedia", "openverse"]
 
 
 def _preview(url: str) -> Image | str:
@@ -155,9 +156,13 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "từ kịch bản tự viết (không tốn phí AI của nhóm), gắn clip TikTok hoặc ảnh từ link người dùng đưa cho "
             "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. "
             "Cảnh cần chuyển động đẹp hơn (giá, giảm giá, sản phẩm bay vào) thì làm cảnh động bằng HTML + GSAP. "
-            'Tìm ảnh cho từng cảnh: trước hết dùng "Tìm ảnh kho miễn phí" (Pexels, Pixabay, Openverse: dùng thương mại '
-            "được, không watermark) với từ khóa tiếng Anh cụ thể, xem ảnh thu nhỏ, chọn ảnh đúng nội dung cảnh rồi "
-            '"Dùng ảnh kho cho cảnh". Chỉ tìm ảnh trên web khi người dùng yêu cầu hoặc kho không có ảnh hợp; khi đó '
+            'Tìm ảnh cho từng cảnh: trước hết dùng "Tìm ảnh kho miễn phí" (không watermark; không truyền source thì '
+            "tìm nguồn đầu tiên theo thứ tự nguồn ảnh của nhóm chủ đề) với từ khóa tiếng Anh cụ thể cho Pexels, "
+            "Unsplash, Pixabay, tiếng Việt cho Wikimedia và Openverse (món Việt có tên riêng: Wikimedia trước), xem "
+            'ảnh thu nhỏ, chọn ảnh đúng nội dung cảnh rồi "Dùng ảnh kho cho cảnh". Ảnh Wikimedia có thể cần ghi nguồn '
+            '(CC BY/BY-SA): cảnh có image_credit hoặc cảnh báo "Ảnh cần ghi nguồn" thì báo người dùng qua chat kèm '
+            "dòng credit (và qua WhatsApp nếu đang nhắc người dùng ở đó) trước khi đăng. "
+            "Chỉ tìm ảnh trên web khi người dùng yêu cầu hoặc kho không có ảnh hợp; khi đó "
             'ưu tiên ảnh giấy phép Creative Commons, gắn bằng "Tải ảnh/clip từ link"; trang chặn bằng CAPTCHA thì '
             'dừng và báo người dùng, không vượt chặn. Sau khi gắn, gọi "Xem ảnh gốc của cảnh" xem có watermark hay '
             "logo không: ảnh xem trước của trang ảnh stock (Shutterstock, Getty, iStock, Adobe Stock…) thì bỏ, chọn ảnh "
@@ -247,12 +252,18 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
     @tool("Đọc nhóm chủ đề", read=True)
     async def list_topic_groups() -> dict:
-        """Lấy ID và tên nhóm chủ đề để tạo video; không thay đổi prompt của nhóm."""
+        """Lấy ID và tên nhóm chủ đề để tạo video, kèm thứ tự nguồn ảnh của nhóm (tìm nguồn đứng đầu trước); không
+        thay đổi prompt của nhóm."""
         return await run_in_threadpool(
             invoke,
             lambda db, me: {
                 "topics": [
-                    {"id": row.id, "name": row.name, "can_create": bool(row.script_prompt)}
+                    {
+                        "id": row.id,
+                        "name": row.name,
+                        "can_create": bool(row.script_prompt),
+                        "stock_order": videos.clean_stock_order(row.stock_order),
+                    }
                     for row in db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.id))
                 ]
             },
@@ -620,13 +631,16 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     async def search_stock_photos(
         scene_id: int,
         keyword: Annotated[str, Field(min_length=1, max_length=100)],
-        source: Literal["pexels", "pixabay", "openverse"] = "pexels",
+        source: StockSource | None = None,
         orientation: Literal["vertical", "square", "all"] = "vertical",
     ) -> list:
-        """Tìm ảnh trong kho miễn phí (dùng thương mại được, không watermark) cho cảnh, như "Tìm ảnh" trên trang
-        video: trả tối đa 6 ảnh thu nhỏ theo thứ tự số 1–6 kèm url. Pexels và Pixabay tìm tốt nhất bằng tiếng Anh
-        cụ thể ("fresh celery stalks on white background"); Openverse tìm được tiếng Việt. Bỏ ảnh cảnh khác đã dùng.
-        Chọn xong thì "Dùng ảnh kho cho cảnh" với cùng source, keyword, orientation và url."""
+        """Tìm ảnh trong kho miễn phí (không watermark) cho cảnh, như "Tìm ảnh" trên trang video: trả tối đa 6 ảnh
+        thu nhỏ theo thứ tự số 1–6 kèm url. Không truyền source: nguồn đầu tiên dùng được theo thứ tự nguồn ảnh của
+        nhóm chủ đề. Pexels, Unsplash và Pixabay tìm tốt nhất bằng tiếng Anh cụ thể ("fresh celery stalks on white
+        background"); Wikimedia và Openverse tìm được tiếng Việt (món Việt có tên riêng như "canh chua": Wikimedia,
+        thường với orientation "all" vì ảnh món hay chụp ngang). Ảnh cần ghi nguồn (Wikimedia CC BY/BY-SA) có
+        "credit" trong kết quả. Unsplash: gói miễn phí 50 lượt/giờ cho cả nhóm. Bỏ ảnh cảnh khác đã dùng. Chọn xong
+        thì "Dùng ảnh kho cho cảnh" với cùng source, keyword, orientation và url."""
 
         def operation(db, me):
             found = videos.search_stock(scene_id, keyword, source, orientation, True, me, db)
@@ -640,7 +654,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                     {
                         "source": found["source"],
                         "keyword": found["keyword"],
-                        "hits": [{"number": n, "url": hit["url"]} for n, hit in enumerate(hits, 1)],
+                        "hits": [
+                            {"number": n, "url": hit["url"]} | ({"credit": hit["credit"]} if hit.get("credit") else {})
+                            for n, hit in enumerate(hits, 1)
+                        ],
                     },
                     ensure_ascii=False,
                 )
@@ -655,13 +672,15 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     @tool("Dùng ảnh kho cho cảnh", read=False, external=True)
     async def use_stock_photo(
         scene_id: int,
-        source: Literal["pexels", "pixabay", "openverse"],
+        source: StockSource,
         keyword: Annotated[str, Field(min_length=1, max_length=100)],
         url: Annotated[str, Field(max_length=2000)],
         orientation: Literal["vertical", "square", "all"] = "vertical",
     ) -> dict:
         """Tải ảnh đã chọn từ "Tìm ảnh kho miễn phí" về làm ảnh của cảnh (thay ảnh hoặc clip đang có), giữ nguồn
-        ảnh để ghi công. Ảnh phải nằm trong kết quả tìm với cùng source, keyword và orientation."""
+        ảnh để ghi công. Ảnh phải nằm trong kết quả tìm với cùng source, keyword và orientation. Ảnh cần ghi nguồn
+        (Wikimedia CC BY/BY-SA): cảnh có image_credit và cảnh báo "Ảnh cần ghi nguồn"; báo người dùng kèm dòng
+        credit."""
         body = videos.StockChoiceBody(source=source, keyword=keyword, url=url, orientation=orientation)
         return await run_in_threadpool(
             invoke, lambda db, me: video_link(videos.choose_stock(scene_id, body, me, db, get_storage())), write=True

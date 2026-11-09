@@ -93,6 +93,8 @@ when set to an empty string. Containers use real environment variables only.
 | `CLAUDE_MODEL` | worker and api: Claude's model when none is set on Cài đặt › Mô hình AI; the default is `claude-sonnet-5-5` |
 | `PIXABAY_API_KEY` | api: the scene picker's default stock source (and the render core CLI); a key pasted on Cài đặt › Nguồn tư liệu wins over it |
 | `PEXELS_API_KEY` | optional, api: a second picker source (locale vi-VN); without it (or a key pasted on Cài đặt › Nguồn tư liệu) the picker hides Pexels. Openverse needs no key |
+| `UNSPLASH_ACCESS_KEY` | optional, api: Unsplash's Access Key (free "demo" plan, 50 searches an hour for the team); a key pasted on Cài đặt › Nguồn tư liệu wins. Without either, the picker shows Unsplash greyed out ("chưa cấu hình key") and searching it says so. Wikimedia Commons needs no key |
+| `WIKIMEDIA_API_URL`, `UNSPLASH_API_URL` | tests and E2E only: point the two sources at `api/scripts/fake_services.py`; unset in production |
 | `OPENVERSE_CLIENT_ID`, `OPENVERSE_CLIENT_SECRET` | optional, api: a registered Openverse application for its higher rate limits; without them Openverse is called anonymously, and a failed token exchange falls back to anonymous |
 | `STORAGE_DIR` | api and worker: the shared files folder; `/data/storage` in production, `data/storage` at the repo root when empty |
 | `DATABASE_URL` | api and worker: dev database; in production the Coolify Postgres internal URL |

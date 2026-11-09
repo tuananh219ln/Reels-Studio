@@ -2,8 +2,9 @@
 
 A job of its own (kind "photos"), queued when a script or clone job finishes, so a search problem never fails the
 script. It uses the picker's rules: tall photos big enough for the frame, never one another scene shows, sources in
-the picker's order (Pexels, Pixabay, Openverse) minus those turned off or without a key; a source that fails is not
-asked again in the same job. It never makes AI photos (they cost calls). Each photo is stored with `image_auto`, shown
+the video's topic group's order ("Thứ tự nguồn ảnh"; else the app's: Pexels, Unsplash, Pixabay, Wikimedia, Openverse)
+minus those turned off or without a key; a source that fails (Unsplash out of calls, say) is not asked again in the
+same job. A photo whose licence asks for credit keeps it on the scene, which then warns. It never makes AI photos (they cost calls). Each photo is stored with `image_auto`, shown
 as "Tự chọn, kiểm tra lại" until a member changes it: stock libraries often show the wrong dish for Vietnamese food.
 The team can turn it off on Cài đặt › Nguồn tư liệu.
 """
@@ -21,7 +22,6 @@ from .videos import new_key, refresh_thumbnail, split_scenes
 log = logging.getLogger(__name__)
 
 SETTING_KEY = "auto_photos"
-SOURCES = ("pexels", "pixabay", "openverse")
 SECONDS_PER_SCENE = 20
 
 
@@ -57,7 +57,8 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     if title is None:
         return
     off = routes_videos.stock_turned_off(db)
-    alive = [source for source in SOURCES if source not in off and routes_videos.stock_configured(source, db)]
+    order = routes_videos.stock_order(db, video)
+    alive = [source for source in order if source not in off and routes_videos.stock_configured(source, db)]
     used = set(
         db.scalars(select(Scene.image_source).where(Scene.video_id == video.id, Scene.image_source.is_not(None)))
     )
@@ -69,9 +70,8 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         photo = None
         for source in list(alive):
             client, error_type = routes_videos._stock_client(source, db)
-            # Openverse indexes Vietnamese titles, the Western libraries English ones; each list backs the other up.
-            vietnamese, english = list(scene.keywords), list(scene.keywords_en)
-            keywords = (vietnamese or english) if source == "openverse" else (english or vietnamese)
+            # Wikimedia and Openverse index Vietnamese titles, the others English; each list backs the other up.
+            keywords = routes_videos.stock_keywords(source, list(scene.keywords), list(scene.keywords_en))
             if not keywords:
                 break
             try:
@@ -91,6 +91,7 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         key = new_key(video.id, f"scene-{scene.id}", photo.extension)
         storage.save_bytes(key, photo.data)
         scene.image_key, scene.image_source, scene.image_error, scene.image_auto = key, photo.url, None, True
+        scene.image_credit = {"url": photo.url, **photo.credit} if photo.credit else None
         used.add(photo.url)
         if scene.is_title:
             refresh_thumbnail(db, storage, video, scene)

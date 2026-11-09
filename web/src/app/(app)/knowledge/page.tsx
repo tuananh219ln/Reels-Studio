@@ -24,6 +24,7 @@ import { useEffect, useState } from "react";
 import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
+import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
 
@@ -376,6 +377,12 @@ function TopicBody({
                 <Col xs={24} xl={12}>
                   <Flex vertical gap={16}>
                     <PhotoHintCard initial={topic.photo_hint} update={update} />
+                    <StockOrderCard
+                      key={topic.stock_order.join()}
+                      initial={topic.stock_order}
+                      custom={topic.stock_order_custom}
+                      update={update}
+                    />
                     <GroupVoiceCard initial={topic.voice_id} update={update} />
                   </Flex>
                 </Col>

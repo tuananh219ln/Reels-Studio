@@ -99,6 +99,16 @@ def openverse_client_secret() -> str:
     return read_env("OPENVERSE_CLIENT_SECRET")
 
 
+def wikimedia_api_url() -> str:
+    # No key needed. Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return read_env("WIKIMEDIA_API_URL") or "https://commons.wikimedia.org/w/api.php"
+
+
+def unsplash_api_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return (read_env("UNSPLASH_API_URL") or "https://api.unsplash.com").rstrip("/")
+
+
 def image_gen_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("IMAGE_GEN_API_URL") or "https://generativelanguage.googleapis.com").rstrip("/")

@@ -31,6 +31,9 @@ const BACKEND_ENV = {
   PEXELS_API_URL: `${FAKES_URL}/pexels`,
   // Anonymous Openverse (no client id/secret), as production runs by default.
   OPENVERSE_API_URL: `${FAKES_URL}/openverse`,
+  WIKIMEDIA_API_URL: `${FAKES_URL}/wikimedia/w/api.php`,
+  UNSPLASH_ACCESS_KEY: "fake-unsplash-key",
+  UNSPLASH_API_URL: `${FAKES_URL}/unsplash`,
   ELEVENLABS_API_KEY: "fake-elevenlabs-key",
   ELEVENLABS_API_URL: FAKES_URL,
   IMAGE_GEN_API_KEY: "fake-image-gen-key",

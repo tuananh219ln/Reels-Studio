@@ -487,6 +487,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             scene.video_speed,
             text_size(video, scene.is_title),
             text_case(video, scene.is_title),
+            photo_credit(scene),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -752,6 +753,17 @@ def motion_payload(scene: Scene) -> dict | None:
     return {"html": motion["html"], "seconds": motion["seconds"], "pending": bool(motion.get("pending"))}
 
 
+def photo_credit(scene: Scene) -> dict | None:
+    """The credit the scene's shown photo asks for, without its url; None for no photo, a clip, or a photo that needs
+    none. Kept only while the photo it was noted for is still the scene's (any other photo ends it)."""
+    credit = scene.image_credit
+    if not (scene.image_key and not scene.video_key and isinstance(credit, dict)):
+        return None
+    if credit.get("url") != scene.image_source:
+        return None
+    return {name: value for name, value in credit.items() if name != "url"}
+
+
 def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
     image = f"/api/scenes/{scene.id}"
     size, case = text_size(video, scene.is_title), text_case(video, scene.is_title)
@@ -786,6 +798,8 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "image_marks": marks_of(scene),
         # Picked by "Tự tìm ảnh" and not yet changed by a member: the card says "Tự chọn, kiểm tra lại".
         "image_auto": bool(scene.image_key) and scene.image_auto,
+        # A stock photo whose licence asks for credit (Wikimedia CC BY...): the line to put in the post; None if not.
+        "image_credit": photo_credit(scene),
         "image_error": scene.image_error,
         "image_url": f"{image}/image?v={_version(scene.image_key)}" if scene.image_key else None,
         "video": {

@@ -40,6 +40,7 @@ class SceneInput:
     clip_speed: float = 1.0  # a scene takes this many seconds of clip for each second it lasts
     text_size: str = "large"  # the size its text box is drawn at (reels_render.textbox.TEXT_SIZES)
     text_case: str = "upper"  # the letter case its text is drawn in (reels_render.markup.TEXT_CASES)
+    photo_credit: dict | None = None  # the shown photo's licence asks for credit (videos.photo_credit)
 
 
 @dataclass(frozen=True)
@@ -86,6 +87,14 @@ def banned_hits(text: str, banned_words: list[str]) -> list[str]:
     return [word for word in banned_words if _comparable(word) and _comparable(word) in haystack]
 
 
+def credit_warning(credit: dict) -> str:
+    """The warning of a photo whose licence asks for credit: the line to put in the post, and share-alike's extra."""
+    text = f"Ảnh cần ghi nguồn khi đăng: “{credit.get('line') or credit.get('license')}”"
+    if "SA" in str(credit.get("license") or "").upper().replace("-", " ").split():
+        text += "; giấy phép CC BY-SA còn yêu cầu chia sẻ lại video theo cùng giấy phép"
+    return text
+
+
 def check_script(
     title: SceneInput | None,
     scenes: list[SceneInput],
@@ -107,6 +116,8 @@ def check_script(
             if not scene.has_keywords:
                 # A script may leave the keywords out; without them "Tìm ảnh" has nothing to search.
                 warn(Issue("Cảnh chưa có từ khóa tìm ảnh: nhập từ khóa hoặc tải ảnh lên", scene.id, "keywords"))
+        if scene.photo_credit:
+            warn(Issue(credit_warning(scene.photo_credit), scene.id, "image"))
         if not MIN_SECONDS <= scene.seconds <= MAX_SECONDS:
             block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
         neighbours = (index > 0) + (index < len(every) - 1)
