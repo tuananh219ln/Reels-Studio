@@ -32,6 +32,7 @@ import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTo
 import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
+import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
 
@@ -279,6 +280,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   banned_words: "Từ cấm",
   photo_hint: "Gợi ý tìm ảnh",
   voice_id: "Giọng mặc định",
+  stock_order: "Thứ tự nguồn ảnh",
   templates: "Mẫu dựng của nhóm",
   edit_template_default: "Mẫu cho video mới",
   plan_start_date: "Ngày bắt đầu kế hoạch",
@@ -445,6 +447,12 @@ function TopicBody({
                 <Col xs={24} xl={12}>
                   <Flex vertical gap={16}>
                     <PhotoHintCard topicId={topic.id} initial={topic.photo_hint} update={update} reload={reload} />
+                    <StockOrderCard
+                      key={topic.stock_order.join()}
+                      initial={topic.stock_order}
+                      custom={topic.stock_order_custom}
+                      update={update}
+                    />
                     <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
                   </Flex>
                 </Col>

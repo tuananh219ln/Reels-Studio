@@ -1859,6 +1859,46 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 });
 
+test("a topic group puts Wikimedia first: the picker and “Tìm ảnh” follow it", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const group = page.locator('[data-topic="Sức khỏe"]');
+  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  const card = group.getByTestId("stock-order-card");
+  await expect(card).toContainText("Nhóm đang dùng thứ tự chung của app.");
+  await expect(card.getByTestId("stock-order-item").first()).toContainText("Pexels");
+  // Wikimedia is fourth in the app's order: three steps up.
+  for (let step = 0; step < 3; step++) {
+    await card.getByRole("button", { name: "Đưa Wikimedia Commons lên" }).click();
+  }
+  await card.getByRole("button", { name: "Lưu thứ tự" }).click();
+  await expect(card).toContainText("Nhóm đang dùng thứ tự riêng.");
+  await expect(card.getByTestId("stock-order-item").first()).toContainText("Wikimedia Commons");
+
+  await newVideoWithScript(page, "canh chua cá");
+  const scene = page.getByTestId("scene").first();
+  await expect(scene.getByRole("button", { name: "Tìm ảnh (Wikimedia Commons)" })).toBeVisible();
+  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
+  await expect(picker.getByRole("radio", { name: "Wikimedia Commons" })).toBeChecked();
+  await expect(picker.getByText(/ảnh từ Wikimedia Commons cho/)).toBeVisible();
+  await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
+  await picker.getByTestId("stock-hit").first().click();
+  await expect(picker).toBeHidden();
+  // The fake's photos are public domain: no credit asked.
+  await expect(scene.getByTestId("image-credit")).toHaveCount(0);
+
+  // Back to the app's order.
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await card.getByRole("button", { name: "Dùng thứ tự chung" }).click();
+  await expect(card).toContainText("Nhóm đang dùng thứ tự chung của app.");
+  await expect(card.getByTestId("stock-order-item").first()).toContainText("Pexels");
+});
+
 test("AI photos fill the scenes that have none, then the video can render", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);

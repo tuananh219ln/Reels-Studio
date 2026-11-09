@@ -34,35 +34,51 @@ export function keywordsWithFirst(keywords: string[], keyword: string): string[]
   return [keyword, ...keywords.filter((item) => item !== keyword)].slice(0, MAX_KEYWORDS);
 }
 
-/**
- * The keyword a source opens with: Openverse is searched with the Vietnamese terms (its photos are
- * community uploads, titled in Vietnamese), the Western libraries with the English ones; either
- * list backs the other up when it is empty.
- */
-/** The team's default stock library: the picker opens on it and "Tìm ảnh" searches it when it is offered. */
+/** The app's first stock library: used only when the api's list of sources cannot be read. */
 export const DEFAULT_SOURCE = "pexels";
 
+/** Sources that index Vietnamese titles (community uploads): searched with the scene's Vietnamese keywords. */
+export const VIETNAMESE_FIRST = new Set(["wikimedia", "openverse"]);
+
+/**
+ * The keyword a source opens with: Wikimedia and Openverse are searched with the Vietnamese terms, the
+ * Western libraries with the English ones; either list backs the other up when it is empty.
+ */
 function firstKeyword(sourceId: string, keywords: string[], keywordsEn: string[]): string {
-  const preferred = sourceId === "openverse" ? keywords : keywordsEn;
-  const fallback = sourceId === "openverse" ? keywordsEn : keywords;
+  const vietnamese = VIETNAMESE_FIRST.has(sourceId);
+  const preferred = vietnamese ? keywords : keywordsEn;
+  const fallback = vietnamese ? keywordsEn : keywords;
   return preferred[0] ?? fallback[0] ?? "";
 }
 
+/** The picker's source switch: usable sources, and those waiting for a key greyed out with the reason. */
+function sourceOptions(sources: StockSource[]) {
+  return sources.map((item) => ({
+    label: item.available ? item.label : `${item.label} (chưa cấu hình key)`,
+    value: item.id,
+    disabled: !item.available,
+    title: item.available ? undefined : "Dán key ở Cài đặt › Nguồn tư liệu để dùng nguồn này",
+  }));
+}
+
 /**
- * "Chọn từ kho ảnh/video", mounted only while open; its "Video" mode is ClipPicker below. Sources (Pexels, Pixabay, Openverse) come from the api,
- * which hides one that is not configured; each source opens in the language it indexes (English for
- * Pixabay/Pexels, Vietnamese for Openverse) unless the member typed a keyword of their own. The grid
+ * "Chọn từ kho ảnh/video", mounted only while open; its "Video" mode is ClipPicker below. Sources come from the
+ * api in the video's topic group's order ("Thứ tự nguồn ảnh"); the picker opens on the first usable one, shows a
+ * source without its key greyed out, and leaves out one turned off. Each source opens in the language it indexes
+ * (English for Pexels/Unsplash/Pixabay, Vietnamese for Wikimedia/Openverse) unless the member typed a keyword. The grid
  * shows each source's small thumbnails (`preview`) straight from the source; choosing sends the
  * full-size `url` with the keyword and the source it was found with, and the server checks it against
  * that search and stores its own copy. A thumbnail is never saved anywhere.
  */
 export default function StockPicker({
   sceneId,
+  videoId,
   keywords: liveKeywords,
   keywordsEn: liveKeywordsEn,
   onClose,
 }: {
   sceneId: number;
+  videoId: number;
   keywords: string[];
   keywordsEn: string[];
   onClose: () => void;
@@ -130,18 +146,22 @@ export default function StockPicker({
   // snapshot taken at open, so this runs once per opening.
   useEffect(() => {
     open.current = true;
-    api<StockSource[]>("/stock/sources")
+    api<StockSource[]>(`/stock/sources?video_id=${videoId}`)
       .then(
-        (all) => all.filter((item) => item.available),
+        // A source turned off on Cài đặt is left out; one waiting for its key stays, greyed out.
+        (all) => all.filter((item) => item.available || item.missing_key),
         () => [],
       )
-      .then((available) => {
+      .then((listed) => {
         if (!open.current) {
           return;
         }
-        const offered = available.length > 0 ? available : [{ id: DEFAULT_SOURCE, label: "Pexels", available: true }];
+        const usable = listed.filter((item) => item.available);
+        const offered =
+          usable.length > 0 ? listed : [{ id: DEFAULT_SOURCE, label: "Pexels", available: true }, ...listed];
         setSources(offered);
-        const initial = offered.some((item) => item.id === DEFAULT_SOURCE) ? DEFAULT_SOURCE : offered[0].id;
+        // The first usable source of the group's order.
+        const initial = offered.find((item) => item.available)?.id ?? DEFAULT_SOURCE;
         setSource(initial);
         setSearchedSource(initial);
         // The member was quicker than the sources answer: what they typed or searched stays.
@@ -160,7 +180,7 @@ export default function StockPicker({
     };
     // `load` is a plain function that changes every render; depending on it would re-run this each time.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per opening, see above
-  }, [keywords, keywordsEn, sceneId]);
+  }, [keywords, keywordsEn, sceneId, videoId]);
 
   /** A filter changed: the shown keyword is searched again with it. */
   function changeFilters(next: Filters) {
@@ -171,7 +191,7 @@ export default function StockPicker({
   }
 
   const chips = Array.from(
-    new Set(source === "openverse" ? [...keywords, ...keywordsEn] : [...keywordsEn, ...keywords]),
+    new Set(VIETNAMESE_FIRST.has(source) ? [...keywords, ...keywordsEn] : [...keywordsEn, ...keywords]),
   ).filter((keyword) => keyword.trim());
 
   function switchSource(next: string) {
@@ -200,15 +220,15 @@ export default function StockPicker({
       });
       editor.onSaved(saved);
       // Keep the keyword that found the photo at the head of the list its source reads, so the
-      // next search walks on through the same results: Openverse reads the Vietnamese list,
-      // "Tìm ảnh" reads the list of the source it searches.
-      const onOpenverse = searchedSource === "openverse";
-      const list = onOpenverse ? liveKeywords : liveKeywordsEn;
+      // next search walks on through the same results: Wikimedia and Openverse read the Vietnamese
+      // list, "Tìm ảnh" reads the list of the source it searches.
+      const vietnamese = VIETNAMESE_FIRST.has(searchedSource);
+      const list = vietnamese ? liveKeywords : liveKeywordsEn;
       if (list[0] !== searchedFor) {
         saved = await api<VideoDetail>(
           `/scenes/${sceneId}`,
           "PATCH",
-          onOpenverse
+          vietnamese
             ? { keywords: keywordsWithFirst(liveKeywords, searchedFor) }
             : { keywords_en: keywordsWithFirst(liveKeywordsEn, searchedFor) },
         );
@@ -263,9 +283,9 @@ export default function StockPicker({
               aria-label="Nguồn ảnh"
               value={source}
               onChange={(value) => switchSource(String(value))}
-              options={sources.map((item) => ({ label: item.label, value: item.id }))}
+              options={sourceOptions(sources)}
               disabled={choosing !== null}
-              style={{ marginBottom: 12 }}
+              style={{ marginBottom: 12, maxWidth: "100%", overflowX: "auto" }}
             />
           )}
           <Input.Search
@@ -379,6 +399,28 @@ export default function StockPicker({
                       loading="lazy"
                       style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                     />
+                    {hit.credit && (
+                      // A photo whose licence asks for credit (Wikimedia CC BY...): usable, but the post must name it.
+                      <span
+                        title={hit.credit}
+                        data-testid="stock-hit-credit"
+                        style={{
+                          position: "absolute",
+                          left: 4,
+                          right: 4,
+                          bottom: 4,
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          background: "rgba(0,0,0,0.65)",
+                          color: "#fff",
+                          fontSize: 11,
+                          lineHeight: 1.3,
+                          textAlign: "left",
+                        }}
+                      >
+                        Cần ghi nguồn
+                      </span>
+                    )}
                     {choosing === hit.url && (
                       <Flex
                         align="center"

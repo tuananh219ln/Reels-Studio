@@ -73,8 +73,10 @@ def test_a_source_turned_off_disappears_from_the_picker(an, db, me, storage, fak
     scene = scene_of(db, make_video(db, storage, me))
     payload = an.put("/api/settings/sources/pexels", json={"enabled": False}).json()
     assert {item["id"]: item["enabled"] for item in payload["sources"]} == {
-        "pixabay": True,
         "pexels": False,
+        "unsplash": True,
+        "pixabay": True,
+        "wikimedia": True,
         "openverse": True,
     }
     sources = {item["id"]: item for item in an.get("/api/stock/sources").json()}
@@ -113,6 +115,7 @@ def test_a_key_pasted_on_the_sources_page_is_used_and_never_sent_back(an, db, me
         "id": "pexels",
         "label": "Pexels",
         "available": True,
+        "missing_key": False,
         "clips": True,
     }
 
