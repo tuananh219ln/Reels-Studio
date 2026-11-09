@@ -238,9 +238,32 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(health.getByLabel("Từ cấm", { exact: true })).toHaveValue("thần dược\nđặc trị");
   await health.getByRole("tab", { name: "Prompt", exact: true }).click();
   await scriptItem.click();
-  await scriptCard.getByRole("button", { name: "Khôi phục mặc định" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Khôi phục" }).click();
+  // "Lịch sử" of the prompt: who saved what, the difference, and any version (the app's default too) put back.
+  await expect(health).toContainText("Nguyễn Văn An sửa Từ cấm lúc");
+  await scriptCard.getByRole("button", { name: "Lịch sử" }).click();
+  const history = page.getByRole("dialog", { name: "Lịch sử · Prompt viết kịch bản" });
+  const latest = history.getByTestId("edit-history-entry").first();
+  await expect(latest).toContainText("Nguyễn Văn An");
+  await expect(latest).toContainText("Đang dùng");
+  await latest.getByRole("button", { name: "Xem khác biệt" }).click();
+  const diff = page.getByTestId("edit-history-diff");
+  await expect(diff).toContainText("+ Prompt mới cho [Chủ đề]");
+  await expect(diff).toContainText("− Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40+.");
+  await page
+    .getByRole("dialog", { name: /Bản trước → bản này/ })
+    .getByRole("button", { name: "Đóng" })
+    .click();
+  await expect(diff).toBeHidden();
+  await history
+    .getByTestId("edit-history-version")
+    .filter({ hasText: "Bản mặc định của app" })
+    .getByRole("button", { name: "Khôi phục bản này" })
+    .click();
+  await page.getByRole("dialog", { name: "Khôi phục bản này?" }).getByRole("button", { name: "Khôi phục" }).click();
   await expect(prompt).toHaveValue(/^Bạn là biên tập viên kênh Reels dưỡng sinh cho người 40\+\./);
+  await expect(history.getByTestId("edit-history-entry").first()).toContainText("Khôi phục");
+  await history.getByRole("button", { name: "Đóng" }).click();
+  await expect(scriptCard.getByRole("button", { name: "Khôi phục mặc định" })).toHaveCount(0);
   await cloneItem.click();
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await expect(page.getByRole("dialog")).toBeHidden();
@@ -257,6 +280,12 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("menuitem", { name: "Xoá nhóm" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Xoá" }).click();
   await expect(page.getByRole("button", { name: /Làm đẹp/ })).toHaveCount(0);
+  // A deleted group stays in the list's history.
+  await page.getByRole("button", { name: "Lịch sử nhóm chủ đề" }).click();
+  const groups = page.getByRole("dialog", { name: "Lịch sử · Nhóm chủ đề" });
+  await expect(groups.getByTestId("edit-history-entry").first()).toContainText("Xoá");
+  await expect(groups.getByTestId("edit-history-entry").first()).toContainText("“Làm đẹp da”");
+  await expect(groups).toContainText("Làm đẹp → Làm đẹp da");
 });
 
 test("knowledge topics: a group's Video tab lists its videos and makes a new one in it", async ({ page }) => {
@@ -2734,6 +2763,34 @@ test("video page: one poll at a time, none while the tab is hidden, and the menu
     }),
     setHidden(false),
   ]);
+});
+
+test("30-day plan: the plan prompt's history puts back the app's default", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  const plan = health.getByTestId("plan-tab");
+  await plan.getByRole("button", { name: "Prompt kế hoạch" }).click();
+  const prompt = plan.getByLabel("Prompt kế hoạch");
+  const original = await prompt.inputValue();
+  await prompt.fill("Lên 30 ngày ý tưởng cho [Chủ đề nhóm]");
+  await plan.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(page.getByText("Đã lưu prompt kế hoạch")).toBeVisible();
+  await expect(plan.getByRole("button", { name: "Khôi phục mặc định" })).toHaveCount(0);
+
+  await plan.getByRole("button", { name: "Lịch sử" }).click();
+  const history = page.getByRole("dialog", { name: "Lịch sử · Prompt kế hoạch" });
+  await expect(history.getByTestId("edit-history-entry")).toHaveCount(1);
+  await history
+    .getByTestId("edit-history-version")
+    .filter({ hasText: "Bản mặc định của app" })
+    .getByRole("button", { name: "Khôi phục bản này" })
+    .click();
+  await page.getByRole("dialog", { name: "Khôi phục bản này?" }).getByRole("button", { name: "Khôi phục" }).click();
+  await expect(prompt).toHaveValue(original);
+  await expect(history.getByTestId("edit-history-entry")).toHaveCount(2);
 });
 
 test("30-day plan: an idea added for today becomes a video, linked both ways", async ({ page }) => {

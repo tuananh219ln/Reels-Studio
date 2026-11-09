@@ -1,7 +1,7 @@
 """A stock photo's credit on its scene, and each topic group's order of stock sources (Wikimedia, Unsplash)
 
-Revision ID: 0069
-Revises: 0068
+Revision ID: 0070
+Revises: 0069
 Create Date: 2026-11-09
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0069"
-down_revision = "0068"
+revision = "0070"
+down_revision = "0069"
 branch_labels = None
 depends_on = None
 

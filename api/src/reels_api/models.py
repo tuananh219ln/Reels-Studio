@@ -1102,6 +1102,31 @@ class Setting(Base):
     )
 
 
+class EditLog(Base):
+    """One create, edit, delete or restore of a thing the team edits, listed under "Lịch sử" where it is edited
+    (edit_log.py). Keyed by the thing's kind and id, with no foreign key, so a deleted thing's history stays."""
+
+    __tablename__ = "edit_logs"
+    __table_args__ = (Index("ix_edit_logs_entity", "entity_type", "entity_id", "id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entity_type: Mapped[str] = mapped_column(String(40))
+    entity_id: Mapped[int] = mapped_column(Integer)
+    # "create", "update", "delete" or "restore".
+    action: Mapped[str] = mapped_column(String(16))
+    # The thing's name when it happened, readable after the thing is deleted.
+    label: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    # {field: {"old": value, "new": value}}: whole values, so any version can be read and put back.
+    changes: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # Where the change came from: "web" for now; "mcp" and "auto" when those edits are logged.
+    source: Mapped[str] = mapped_column(String(16), default="web", server_default="web")
+    # A restore: the entry whose version was put back.
+    restored_from_id: Mapped[int | None] = mapped_column(Integer)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    user: Mapped[User | None] = relationship()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class VideoPresence(Base):
     """One open video page ("tab": a random id the page picks when it opens), so members see who else is on the
     video and whether they are editing. Rows silent for longer than routes_presence.TIMEOUT are deleted."""

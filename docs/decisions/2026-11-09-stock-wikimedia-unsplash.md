@@ -13,7 +13,7 @@ own names (canh chua, canh nấm…) missing from Pexels, Pixabay and Openverse.
 - **Wikimedia takes every free licence, and the photos that ask for credit are warned.** This reverses, for Wikimedia
   only, the reason of "The picker offers three stock sources; Openverse is public-domain only" (2026-10-31: the
   channel earns money and the app shows no attribution). The owner chose to take CC BY and CC BY-SA photos knowingly:
-  the scene keeps the licence, author and page (`scenes.image_credit`, migration 0069), shows "Cần ghi nguồn khi đăng"
+  the scene keeps the licence, author and page (`scenes.image_credit`, migration 0070), shows "Cần ghi nguồn khi đăng"
   with the line to copy, and the video's pre-render warnings list it (CC BY-SA adds that the video must be shared
   under the same licence). The assistant reads it through MCP and tells the member in chat and on WhatsApp; the app
   sends nothing itself. The app still adds no credit to a post: the member does, from the line. Openverse stays

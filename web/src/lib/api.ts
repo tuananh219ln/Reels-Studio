@@ -517,6 +517,24 @@ export type KnowledgeTopic = {
   video_count: number;
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;
+  /** Its latest logged change ("… sửa … lúc …" under its name); null until the first one. */
+  last_edit: EditLogEntry | null;
+};
+
+/** One create, edit, delete or restore of a thing (GET /api/edit-logs, "Lịch sử"), newest first. */
+export type EditLogEntry = {
+  id: number;
+  entity_type: string;
+  entity_id: number;
+  action: "create" | "update" | "delete" | "restore";
+  /** The thing's name when it happened, kept after it is deleted. */
+  label: string;
+  /** Whole values before and after, by field. */
+  changes: Record<string, { old: unknown; new: unknown }>;
+  source: "web" | "mcp" | "auto";
+  restored_from_id: number | null;
+  user: { id: number; name: string } | null;
+  created_at: string;
 };
 
 export type Fanpage = {

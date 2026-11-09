@@ -198,6 +198,18 @@ def test_a_group_sets_its_own_order_and_its_videos_follow_it(an, db, me, storage
     assert fakes.wikimedia_queries and not fakes.pexels_queries
 
 
+def test_a_group_order_change_is_in_its_history(an, db, me, storage, fakes):
+    topic = first_topic(db)
+    an.patch(f"/api/knowledge/topics/{topic.id}", json={"stock_order": ["wikimedia"]})
+    history = an.get("/api/edit-logs", params={"entity_type": "knowledge_topic", "entity_id": topic.id}).json()
+    changed = [entry for entry in history["entries"] if "stock_order" in (entry.get("changes") or {})]
+    assert (
+        changed
+        and changed[0]["changes"]["stock_order"]["old"] is None
+        and changed[0]["changes"]["stock_order"]["new"][0] == "wikimedia"
+    )
+
+
 def test_a_new_group_starts_on_the_app_order(an, db, me, storage, fakes):
     created = an.post("/api/knowledge/topics", json={"name": "Món Việt"})
     group = next(item for item in created.json()["topics"] if item["name"] == "Món Việt")
