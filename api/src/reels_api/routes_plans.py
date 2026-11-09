@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import plans
+from . import edit_log, plans
 from .db import get_db
 from .errors import ApiError
 from .models import KnowledgeTopic, Session, TopicPlanItem
@@ -200,6 +200,7 @@ def patch_plan(
     topic_id: int, body: PlanPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     topic = _topic(db, topic_id)
+    before = edit_log.topic_snapshot(topic)
     if "start_date" in body.model_fields_set:
         topic.plan_start_date = body.start_date
     if body.per_day is not None:
@@ -224,6 +225,8 @@ def patch_plan(
         # The default text is stored as empty, so a later change of the default reaches this group too.
         topic.plan_prompt = "" if prompt == plans.default_prompt() else prompt
     topic.updated_by_id = me.user_id
+    changes = edit_log.diff(before, edit_log.topic_snapshot(topic))
+    edit_log.record(db, edit_log.TOPIC, topic.id, "update", me.user_id, label=topic.name, changes=changes)
     return _saved(db, topic)
 
 

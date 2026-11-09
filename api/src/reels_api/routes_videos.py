@@ -29,6 +29,7 @@ from . import (
     auto_photos,
     autoedit,
     clips,
+    edit_log,
     frames,
     image_edit,
     image_providers,
@@ -2145,6 +2146,7 @@ def my_topic_ids(db: DbSession, user_id: int) -> set[int]:
 def _knowledge_payload(db: DbSession, user_id: int) -> dict:
     counts = dict(db.execute(select(Video.knowledge_topic_id, func.count()).group_by(Video.knowledge_topic_id)).all())
     mine = my_topic_ids(db, user_id)
+    last = edit_log.last_edits(db, edit_log.TOPIC)
     return {
         "topics": [
             {
@@ -2165,6 +2167,8 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "video_count": counts.get(topic.id, 0),
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
+                # "Sửa lần cuối" under the group's name; None until its first logged change.
+                "last_edit": edit_log.payload(last[topic.id]) if topic.id in last else None,
             }
             for topic in knowledge.all_topics(db)
         ],
@@ -2219,7 +2223,18 @@ def get_knowledge(me: Session = Depends(current_member), db: DbSession = Depends
 
 @router.post("/knowledge/topics", status_code=201)
 def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    db.add(KnowledgeTopic(name=_topic_name(db, body.name), created_by_id=me.user_id, updated_by_id=me.user_id))
+    topic = KnowledgeTopic(name=_topic_name(db, body.name), created_by_id=me.user_id, updated_by_id=me.user_id)
+    db.add(topic)
+    db.flush()
+    edit_log.record(
+        db,
+        edit_log.TOPIC,
+        topic.id,
+        "create",
+        me.user_id,
+        label=topic.name,
+        changes={"name": {"old": None, "new": topic.name}},
+    )
     db.commit()
     return _knowledge_payload(db, me.user_id)
 
@@ -2229,6 +2244,7 @@ def patch_topic(
     topic_id: int, body: TopicPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     topic = _topic(db, topic_id)
+    before = edit_log.topic_snapshot(topic)
     if body.name is not None:
         old_name, topic.name = topic.name, _topic_name(db, body.name, topic.id)
         # The music library is tagged with the groups' names.
@@ -2262,6 +2278,8 @@ def patch_topic(
             raise invalid(str(err)) from None
     _set_group_templates(db, topic, body)
     topic.updated_by_id = me.user_id
+    changes = edit_log.diff(before, edit_log.topic_snapshot(topic))
+    edit_log.record(db, edit_log.TOPIC, topic.id, "update", me.user_id, label=topic.name, changes=changes)
     db.commit()
     return _knowledge_payload(db, me.user_id)
 
@@ -2328,6 +2346,17 @@ def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSes
     if job is not None and job.status != "failed":
         raise ApiError(409, "topic_in_use", "Nhóm chủ đề đang tạo kế hoạch bằng AI nên chưa xoá được")
     music_topics.drop_topic(db, topic.name)
+    # What the group held, readable in the list's history after it is gone.
+    held = {field: value for field, value in edit_log.topic_snapshot(topic).items() if value not in ("", [], None)}
+    edit_log.record(
+        db,
+        edit_log.TOPIC,
+        topic.id,
+        "delete",
+        me.user_id,
+        label=topic.name,
+        changes={field: {"old": value, "new": None} for field, value in held.items()},
+    )
     db.delete(topic)
     db.commit()
     return _knowledge_payload(db, me.user_id)
