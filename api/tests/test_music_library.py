@@ -212,7 +212,7 @@ def test_a_locked_video_cannot_take_a_track(an, db, me, storage):
     assert db.get(Video, video.id).music_key is None
 
 
-DEFAULTS_URL = "/api/settings/video-defaults"
+DEFAULTS_URL = "/api/settings/my-video-defaults"  # the member's own: there are no team defaults any more
 
 
 def new_video(an, db) -> dict:

@@ -1,16 +1,14 @@
 "use client";
 
 import { EditOutlined, UndoOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Col, Flex, Popconfirm, Row, Segmented, Spin, Tag } from "antd";
+import { Alert, App, Button, Col, Flex, Popconfirm, Row, Spin, Tag } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DefaultMusicCard from "@/components/settings/DefaultMusicCard";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { AudioSettings, MotionSettings, TextSettings } from "@/components/video/VideoSettings";
 import { api, errorMessage, type MyVideoDefaults, type VideoDefaults } from "@/lib/api";
 
-type Scope = "mine" | "team";
-
-const URLS: Record<Scope, string> = { mine: "/settings/my-video-defaults", team: "/settings/video-defaults" };
+const DEFAULTS_URL = "/settings/my-video-defaults";
 /** Shown on the page, never sent back. */
 const READ_ONLY = new Set(["music_track", "own", "owner"]);
 
@@ -24,36 +22,31 @@ function changes(saved: VideoDefaults, draft: VideoDefaults): Partial<VideoDefau
   ) as Partial<VideoDefaults>;
 }
 
-/** What new videos start with: the signed-in member's own defaults ("Của tôi", the team's until they save their own)
- * or the team's ("Của nhóm", for members without their own). Existing videos keep their own settings. Read-only until
- * "Chỉnh sửa"; the changes are kept on the page and sent together by "Lưu", or dropped by "Huỷ". */
+/** What the signed-in member's new videos start with: their own defaults, the app's built-in ones until they save
+ * their own. There is no team level: a teammate's defaults never reach them. Existing videos keep their own settings.
+ * Read-only until "Chỉnh sửa"; the changes are kept on the page and sent together by "Lưu", or dropped by "Huỷ". */
 export default function VideoDefaultsPage() {
   const { message } = App.useApp();
-  const [scope, setScope] = useState<Scope>("mine");
-  const [saved, setSaved] = useState<MyVideoDefaults | VideoDefaults | null>(null);
+  const [saved, setSaved] = useState<MyVideoDefaults | null>(null);
   const [draft, setDraft] = useState<VideoDefaults | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(
-    async (which: Scope) => {
-      try {
-        setSaved(await api<MyVideoDefaults | VideoDefaults>(URLS[which]));
-      } catch (err) {
-        message.error(errorMessage(err));
-      }
-    },
-    [message],
-  );
+  const load = useCallback(async () => {
+    try {
+      setSaved(await api<MyVideoDefaults>(DEFAULTS_URL));
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }, [message]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount and on a new scope; state is set only after the request answers
-    void load(scope);
-  }, [load, scope]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
+    void load();
+  }, [load]);
 
   const pending = useMemo(() => (saved && draft ? changes(saved, draft) : {}), [saved, draft]);
   const dirty = Object.keys(pending).length > 0;
   const editing = draft !== null;
-  const mine = scope === "mine" && saved !== null && "own" in saved ? saved : null;
 
   async function save() {
     if (!dirty) {
@@ -62,9 +55,9 @@ export default function VideoDefaultsPage() {
     }
     setBusy(true);
     try {
-      setSaved(await api<MyVideoDefaults | VideoDefaults>(URLS[scope], "PUT", { values: pending }));
+      setSaved(await api<MyVideoDefaults>(DEFAULTS_URL, "PUT", { values: pending }));
       setDraft(null);
-      message.success(scope === "mine" ? "Đã lưu mặc định của bạn" : "Đã lưu mặc định của nhóm");
+      message.success("Đã lưu mặc định của bạn");
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -72,11 +65,11 @@ export default function VideoDefaultsPage() {
     }
   }
 
-  async function backToTeam() {
+  async function backToBuiltIn() {
     setBusy(true);
     try {
-      setSaved(await api<MyVideoDefaults>(URLS.mine, "DELETE"));
-      message.success("Video mới của bạn sẽ dùng mặc định của nhóm");
+      setSaved(await api<MyVideoDefaults>(DEFAULTS_URL, "DELETE"));
+      message.success("Video mới của bạn sẽ dùng mặc định gốc của app");
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -91,11 +84,7 @@ export default function VideoDefaultsPage() {
     <>
       <SettingsHeader
         title="Thiết lập mặc định"
-        description={
-          scope === "mine"
-            ? "Video bạn tạo mới bắt đầu với các thiết lập này (cả nhạc nền mặc định); video nhân bản lấy theo video gốc. Video đã có giữ thiết lập riêng, đổi ở tab “Thiết lập” của từng video."
-            : "Mặc định của nhóm: dùng cho thành viên chưa đặt mặc định riêng, và là điểm bắt đầu khi một thành viên đặt mặc định của mình."
-        }
+        description="Video bạn tạo mới bắt đầu với các thiết lập này (cả nhạc nền mặc định); video nhân bản lấy theo video gốc. Video đã có giữ thiết lập riêng, đổi ở tab “Thiết lập” của từng video."
         actions={
           saved !== null &&
           (editing ? (
@@ -110,16 +99,16 @@ export default function VideoDefaultsPage() {
             </>
           ) : (
             <>
-              {mine?.own && (
+              {saved.own && (
                 <Popconfirm
-                  title="Dùng lại mặc định của nhóm?"
+                  title="Về mặc định gốc của app?"
                   description="Mặc định riêng của bạn sẽ bị bỏ; video đã có không đổi."
-                  okText="Dùng mặc định nhóm"
+                  okText="Về mặc định gốc"
                   cancelText="Huỷ"
-                  onConfirm={() => void backToTeam()}
+                  onConfirm={() => void backToBuiltIn()}
                 >
                   <Button icon={<UndoOutlined />} disabled={busy}>
-                    Dùng mặc định nhóm
+                    Về mặc định gốc
                   </Button>
                 </Popconfirm>
               )}
@@ -131,37 +120,20 @@ export default function VideoDefaultsPage() {
         }
       />
       <Flex vertical gap={12} style={{ marginBottom: 16 }}>
-        <Segmented<Scope>
-          aria-label="Mặc định của"
-          value={scope}
-          disabled={editing}
-          onChange={(next) => {
-            setSaved(null);
-            setScope(next);
-          }}
-          options={[
-            { value: "mine", label: mine?.owner ? `Của tôi (${mine.owner})` : "Của tôi" },
-            { value: "team", label: "Của nhóm" },
-          ]}
-        />
-        {mine && (
+        <Flex align="center" gap={8}>
+          <Tag color="blue">Của tôi (theo người dùng)</Tag>
+          {saved?.owner && <span>{saved.owner}</span>}
+        </Flex>
+        {saved && (
           <Alert
             data-testid="defaults-whose"
-            type={mine.own ? "success" : "info"}
+            type={saved.own ? "success" : "info"}
             showIcon
             title={
-              mine.own
-                ? `Đang sửa mặc định riêng của tài khoản ${mine.owner}.`
-                : `Tài khoản ${mine.owner} chưa có mặc định riêng nên đang dùng mặc định của nhóm. Lưu thay đổi ở đây sẽ tạo mặc định riêng cho bạn.`
+              saved.own
+                ? `Thiết lập riêng của tài khoản ${saved.owner} (theo người dùng): chỉ áp cho video mới do bạn tạo, không phải thiết lập chung của team.`
+                : `Tài khoản ${saved.owner} chưa có mặc định riêng nên video mới đang dùng mặc định gốc của app. Lưu thay đổi ở đây sẽ tạo thiết lập riêng của tài khoản (theo người dùng).`
             }
-          />
-        )}
-        {scope === "team" && (
-          <Alert
-            data-testid="defaults-whose"
-            type="warning"
-            showIcon
-            title="Đang sửa mặc định của cả nhóm: áp dụng cho các thành viên chưa có mặc định riêng."
           />
         )}
       </Flex>

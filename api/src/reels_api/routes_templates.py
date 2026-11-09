@@ -1,18 +1,19 @@
-"""Edit templates ("Mẫu dựng"): the app's own and the team's, saved from a video; putting one on a video ("Tự dựng"
-in the studio); and the one put on every new video. See autoedit.py."""
+"""Edit templates ("Mẫu dựng"): the app's own and the members', saved from a video; putting one on a video ("Tự dựng"
+in the studio); and each member's own one for their new videos. See autoedit.py."""
 
 import unicodedata
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import select, type_coerce
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from . import autoedit
 from .db import get_db
 from .errors import ApiError
-from .models import AppSetting, EditTemplate, Session
+from .models import EditTemplate, KnowledgeTopic, Session, User
 from .sessions import current_member
 from .videos import ensure_unlocked, lock_video, split_scenes, video_payload
 
@@ -52,21 +53,32 @@ def _name(raw: str) -> str:
     return name
 
 
-def _item(key: object, name: str, template: autoedit.Template) -> dict:
+def _item(key: object, name: str, template: autoedit.Template, topics: list[dict]) -> dict:
     return {
         "id": key,
         "name": name,
         "builtin": key == autoedit.APP,
         "data": autoedit.asdict(template),
         "summary": autoedit.summary(template),
+        # The topic groups that hold it (part 2): their new videos may take it.
+        "topics": topics,
     }
 
 
-def listing(db: DbSession) -> dict:
+def topics_by_template(db: DbSession) -> dict[int, list[dict]]:
+    held: dict[int, list[dict]] = {}
+    for topic in db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.name)):
+        for template in topic.edit_templates:
+            held.setdefault(template.id, []).append({"id": topic.id, "name": topic.name})
+    return held
+
+
+def listing(db: DbSession, user_id: int) -> dict:
     rows = db.scalars(select(EditTemplate).order_by(EditTemplate.name)).all()
-    templates = [_item(autoedit.APP, autoedit.APP_NAME, autoedit.APP_TEMPLATE)]
-    templates += [_item(row.id, row.name, autoedit.parse(row.data)) for row in rows]
-    return {"templates": templates, "default": autoedit.default_key(db)}
+    held = topics_by_template(db)
+    templates = [_item(autoedit.APP, autoedit.APP_NAME, autoedit.APP_TEMPLATE, [])]
+    templates += [_item(row.id, row.name, autoedit.parse(row.data), held.get(row.id, [])) for row in rows]
+    return {"templates": templates, "default": autoedit.member_default(db, user_id)}
 
 
 def _commit_name(db: DbSession) -> None:
@@ -79,7 +91,7 @@ def _commit_name(db: DbSession) -> None:
 
 @router.get("")
 def get_templates(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    return listing(db)
+    return listing(db, me.user_id)
 
 
 @router.post("", status_code=201)
@@ -92,7 +104,7 @@ def save_template(body: NewTemplateBody, me: Session = Depends(current_member), 
         raise invalid("Video này chưa có hiệu ứng nào để lưu thành mẫu")
     db.add(EditTemplate(name=name, data=autoedit.asdict(template), created_by_id=me.user_id))
     _commit_name(db)
-    return listing(db)
+    return listing(db, me.user_id)
 
 
 @router.patch("/{template_id}")
@@ -104,7 +116,7 @@ def rename_template(
         raise ApiError(404, "template_not_found", "Mẫu này đã bị xoá")
     row.name = _name(body.name)
     _commit_name(db)
-    return listing(db)
+    return listing(db, me.user_id)
 
 
 @router.delete("/{template_id}")
@@ -112,37 +124,39 @@ def delete_template(template_id: int, me: Session = Depends(current_member), db:
     row = db.get(EditTemplate, template_id)
     if row is None:
         raise ApiError(404, "template_not_found", "Mẫu này đã bị xoá")
-    # The template new videos took goes too: new videos then take none.
-    if autoedit.default_key(db) == template_id:
-        db.get(AppSetting, autoedit.DEFAULT_KEY).value = None
+    # Members and groups who put it on their new videos then put none, and the groups no longer hold it.
+    chose_it = type_coerce(template_id, JSONB)
+    for user in db.scalars(select(User).where(User.edit_template_default == chose_it)):
+        user.edit_template_default = None
+    for topic in db.scalars(select(KnowledgeTopic).where(KnowledgeTopic.edit_templates.any(EditTemplate.id == row.id))):
+        topic.edit_templates.remove(row)
+        if topic.edit_template_default == template_id:
+            topic.edit_template_default = None
     db.delete(row)
     db.commit()
-    return listing(db)
+    return listing(db, me.user_id)
 
 
 @router.put("/default")
 def set_default(body: DefaultBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The template put on every new video once its scenes are written; null for none."""
+    """The signed-in member's own template for their new videos, once its scenes are written; null for none."""
     if body.template is not None and autoedit.find(db, body.template) is None:
         raise invalid("Không có mẫu này")
-    setting = db.get(AppSetting, autoedit.DEFAULT_KEY)
-    if setting is None:
-        db.add(AppSetting(key=autoedit.DEFAULT_KEY, value=body.template, updated_by_id=me.user_id))
-    else:
-        setting.value, setting.updated_by_id = body.template, me.user_id
+    db.get(User, me.user_id).edit_template_default = body.template
     db.commit()
-    return listing(db)
+    return listing(db, me.user_id)
 
 
 @router.post("/apply")
 def apply_template(body: ApplyBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Tự dựng": puts the template on the video (transitions and colour replaced, sounds and layers added)."""
+    """ "Tự dựng": puts the template on the video (transitions and colour replaced, sounds and layers added), in place
+    of the one it wore."""
     video = lock_video(db, body.video_id)
     ensure_unlocked(db, video)
     found = autoedit.find(db, body.template)
     if found is None:
         raise invalid("Không có mẫu này")
-    title, scenes = split_scenes(db, video)
-    autoedit.apply(db, title, scenes, found[1])
+    # Chosen on the video itself: it replaces the template the video wore and wins over its group's and maker's.
+    autoedit.put(db, video, {"id": body.template, "name": found[0], "source": "video"}, found[1])
     db.commit()
     return video_payload(db, video)

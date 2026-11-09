@@ -973,6 +973,12 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "music_volume": video.music_volume,
         "music_start": video.music_start,
         "ai_effects": video.ai_effects,
+        # The "Mẫu dựng" it wears ({id, name, source: video|group|member}), None for none.
+        "edit_template": (
+            {name: video.edit_template.get(name) for name in ("id", "name", "source")}
+            if isinstance(video.edit_template, dict)
+            else None
+        ),
         "notes": notes_payload(db, video, title, scenes),
         "voice_enabled": video.voice_enabled,
         "mode": video.mode,

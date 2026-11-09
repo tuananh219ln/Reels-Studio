@@ -17,7 +17,7 @@ const SECTIONS = [
 ] as const;
 type Section = (typeof SECTIONS)[number]["key"];
 
-/** The video's own settings ("Thiết lập" tab). Each change saves at once; the team's defaults can replace them. */
+/** The video's own settings ("Thiết lập" tab). Each change saves at once; later defaults never replace them. */
 export default function SetupTab({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const editor = useEditor();

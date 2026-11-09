@@ -11,6 +11,7 @@ import {
   Flex,
   Input,
   Row,
+  Select,
   Spin,
   Tabs,
   Tag,
@@ -19,7 +20,7 @@ import {
   Typography,
 } from "antd";
 import { useEffect, useState } from "react";
-import { api, errorMessage, type Knowledge, type KnowledgeTopic } from "@/lib/api";
+import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import { usePlanTabs } from "@/components/plan/PlanTab";
@@ -380,6 +381,11 @@ function TopicBody({
               </Row>
             ),
           },
+          {
+            key: "templates",
+            label: "Mẫu dựng",
+            children: <GroupTemplatesCard topic={topic} update={update} />,
+          },
           ...planTabs,
         ]}
       />
@@ -719,6 +725,80 @@ function GroupVoiceCard({ initial, update }: { initial: string; update: Update }
       <Button type="primary" loading={busy} disabled={voice === initial} style={{ marginTop: 12 }} onClick={save}>
         Lưu giọng
       </Button>
+    </Card>
+  );
+}
+
+/** "Mẫu dựng của nhóm": the saved templates the group holds, and the one its new videos take over their maker's. */
+function GroupTemplatesCard({ topic, update }: { topic: KnowledgeTopic; update: Update }) {
+  const { message } = App.useApp();
+  const [library, setLibrary] = useState<EditTemplates | null>(null);
+  const [held, setHeld] = useState<number[]>(topic.templates);
+  const [chosen, setChosen] = useState<"app" | number | null>(topic.edit_template_default);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api<EditTemplates>("/edit-templates").then(setLibrary, (err) => message.error(errorMessage(err)));
+  }, [message]);
+
+  const saved = topic.templates.join(",") === held.join(",") && topic.edit_template_default === chosen;
+  const names = new Map((library?.templates ?? []).map((item) => [item.id, item.name]));
+
+  async function save() {
+    setBusy(true);
+    try {
+      const after = await update({ templates: held, edit_template_default: chosen });
+      setHeld(after.templates);
+      setChosen(after.edit_template_default);
+      message.success("Đã lưu mẫu dựng của nhóm");
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card title="Mẫu dựng của nhóm" size="small" style={{ maxWidth: 640 }}>
+      <Typography.Paragraph type="secondary">
+        Gắn các mẫu dựng (lưu từ video trong “Tự dựng”) cho nhóm và chọn một mẫu cho video mới của nhóm. Thứ tự ưu tiên
+        khi video mới được viết xong cảnh: mẫu chọn riêng trên video › mẫu của nhóm › mẫu của người tạo (Cấu hình › Mẫu
+        dựng) › không áp. Video đã có giữ nguyên.
+      </Typography.Paragraph>
+      {library === null ? (
+        <Spin />
+      ) : (
+        <Flex vertical gap={12}>
+          <Select
+            mode="multiple"
+            aria-label="Mẫu của nhóm"
+            placeholder="Chưa gắn mẫu nào"
+            value={held}
+            options={library.templates
+              .filter((item) => !item.builtin)
+              .map((item) => ({ value: item.id as number, label: item.name }))}
+            onChange={(ids: number[]) => {
+              setHeld(ids);
+              if (typeof chosen === "number" && !ids.includes(chosen)) setChosen(null);
+            }}
+          />
+          <Select
+            aria-label="Mẫu cho video mới của nhóm"
+            value={chosen === null ? "none" : String(chosen)}
+            options={[
+              { value: "none", label: "Không áp mẫu của nhóm" },
+              { value: "app", label: String(names.get("app") ?? "Gợi ý của app") },
+              ...held.map((id) => ({ value: String(id), label: names.get(id) ?? `Mẫu ${id}` })),
+            ]}
+            onChange={(value: string) => setChosen(value === "none" ? null : value === "app" ? "app" : Number(value))}
+          />
+          <div>
+            <Button type="primary" loading={busy} disabled={saved} onClick={save}>
+              Lưu mẫu dựng
+            </Button>
+          </div>
+        </Flex>
+      )}
     </Card>
   );
 }

@@ -9,7 +9,7 @@ from test_voice import first_scene
 from reels_api import render_nodes, video_options
 from reels_api.videos import render_signature, split_scenes
 
-DEFAULTS_URL = "/api/settings/video-defaults"
+DEFAULTS_URL = "/api/settings/my-video-defaults"  # the member's own: there are no team defaults any more
 
 
 @pytest.fixture

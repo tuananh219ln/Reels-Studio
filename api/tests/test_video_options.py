@@ -8,10 +8,10 @@ from worker_helpers import committed  # noqa: F401  (fixture)
 
 from reels_api import config, tts, video_options
 from reels_api.jobs import make_voices
-from reels_api.models import AppSetting, Video
+from reels_api.models import UserVideoDefaults, Video
 from reels_api.videos import render_signature, split_scenes
 
-DEFAULTS_URL = "/api/settings/video-defaults"
+DEFAULTS_URL = "/api/settings/my-video-defaults"  # the member's own: there are no team defaults any more
 
 
 @pytest.fixture
@@ -38,10 +38,14 @@ def test_a_video_from_before_renders_the_original_template(db, me, storage):
     assert render_signature(video, title, scenes) != before
 
 
-def test_the_team_defaults_apply_to_videos_created_afterwards_only(an, db, me, storage):
+def test_a_members_defaults_apply_to_videos_created_afterwards_only(an, db, me, storage):
     old = make_video(db, storage, me)
     # "music_track": the default music's name for the page, None while there is none.
-    assert an.get(DEFAULTS_URL).json() == video_options.VIDEO_FIELDS | video_options.DEFAULTS | {"music_track": None}
+    assert an.get(DEFAULTS_URL).json() == video_options.VIDEO_FIELDS | video_options.DEFAULTS | {
+        "music_track": None,
+        "own": False,
+        "owner": me.name,
+    }
     saved = an.put(
         DEFAULTS_URL, json={"values": {"transition": "slide", "voice_speed": 1.25, "music_volume": 15}}
     ).json()
@@ -248,7 +252,7 @@ def test_the_reading_speed_is_a_slider_value_and_old_presets_read_as_the_wider_l
         db.commit()
         assert video_options.voice_speed(video) == speed
         assert an.get(f"/api/videos/{video.id}").json()["options"]["voice_speed"] == speed
-    db.add(AppSetting(key=video_options.DEFAULTS_KEY, value={"voice_speed": "fast"}))
+    db.add(UserVideoDefaults(user_id=me.id, value={"voice_speed": "fast"}))
     db.commit()
     assert an.get(DEFAULTS_URL).json()["voice_speed"] == 1.2
 

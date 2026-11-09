@@ -198,17 +198,19 @@ export type SceneSound = {
   url: string;
 };
 
-/** A "Mẫu dựng": the app's own ("app") or the team's, with what it does in Vietnamese lines. */
+/** A "Mẫu dựng": the app's own ("app") or one a member saved, with what it does in Vietnamese lines. */
 export type EditTemplate = {
   id: "app" | number;
   name: string;
   builtin: boolean;
   summary: string[];
+  /** The topic groups that hold it. */
+  topics: { id: number; name: string }[];
 };
 
 export type EditTemplates = {
   templates: EditTemplate[];
-  /** The template put on every new video; null for none. */
+  /** The signed-in member's own template for their new videos; null for none. */
   default: "app" | number | null;
 };
 
@@ -491,6 +493,10 @@ export type KnowledgeTopic = {
   article_prompt: string;
   /** The group's own narration voice, which its new videos start with; "" leaves it to each maker's defaults. */
   voice_id: string;
+  /** The group's own "Mẫu dựng" (saved templates' ids). */
+  templates: number[];
+  /** The template the group's new videos take ("app" or one of `templates`), over their maker's own; null for none. */
+  edit_template_default: "app" | number | null;
   video_count: number;
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;
@@ -697,9 +703,10 @@ export type VideoDefaults = VideoOptions & {
   music_track?: { id: number; name: string; url: string } | null;
 };
 
-/** The signed-in member's own defaults (/settings/my-video-defaults): the team's until they save their own. */
+/** The signed-in member's own defaults (/settings/my-video-defaults): the app's built-in ones until they save their
+ * own. */
 export type MyVideoDefaults = VideoDefaults & {
-  /** They saved their own; false: the team's are shown and used. */
+  /** They saved their own; false: the built-in ones are shown and used. */
   own: boolean;
   /** Whose they are, said on the page. */
   owner: string;

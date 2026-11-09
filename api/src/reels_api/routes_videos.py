@@ -49,6 +49,7 @@ from .models import (
     AffiliateProduct,
     AppSetting,
     Article,
+    EditTemplate,
     Fanpage,
     Job,
     KnowledgeTopic,
@@ -2102,6 +2103,8 @@ class TopicPatchBody(BaseModel):
     analyze_prompt: str | None = None
     article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
     voice_id: str | None = None  # the group's own voice; "" leaves it to each maker's defaults
+    templates: list[int] | None = None  # the group's own "Mẫu dựng" (saved ones' ids)
+    edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -2135,6 +2138,8 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
                 "voice_id": topic.voice_id,
+                "templates": [template.id for template in topic.edit_templates],
+                "edit_template_default": topic.edit_template_default,
                 "video_count": counts.get(topic.id, 0),
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
@@ -2233,9 +2238,33 @@ def patch_topic(
             topic.voice_id = video_options.clean({"voice_id": body.voice_id})["voice_id"]
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+    _set_group_templates(db, topic, body)
     topic.updated_by_id = me.user_id
     db.commit()
     return _knowledge_payload(db, me.user_id)
+
+
+def _set_group_templates(db: DbSession, topic: KnowledgeTopic, body: TopicPatchBody) -> None:
+    """The group's own templates and the one its new videos take ("app" or one of its own; null for none)."""
+    if body.templates is not None:
+        ids = list(dict.fromkeys(body.templates))
+        rows = db.scalars(select(EditTemplate).where(EditTemplate.id.in_(ids))).all() if ids else []
+        if len(rows) != len(ids):
+            raise invalid("Có mẫu dựng không còn trong thư viện")
+        topic.edit_templates = sorted(rows, key=lambda row: row.name)
+    held = {template.id for template in topic.edit_templates}
+    if "edit_template_default" in body.model_fields_set:
+        chosen = body.edit_template_default
+        if (
+            chosen is not None
+            and chosen != autoedit.APP
+            and not (isinstance(chosen, int) and not isinstance(chosen, bool) and chosen in held)
+        ):
+            raise invalid("Mẫu cho video mới của nhóm phải là một mẫu của nhóm")
+        topic.edit_template_default = chosen
+    elif isinstance(topic.edit_template_default, int) and topic.edit_template_default not in held:
+        # A template taken off the group no longer dresses its new videos.
+        topic.edit_template_default = None
 
 
 @router.delete("/knowledge/topics/{topic_id}")
