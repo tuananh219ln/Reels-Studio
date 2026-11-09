@@ -98,3 +98,10 @@ def test_the_pages_owner_takes_down_any_post_on_their_page(an, binh, db, an_user
     db.commit()
     refused = an.post(f"/api/posts/{theirs.id}/take-down")
     assert (refused.status_code, refused.json()["code"]) == (403, "not_owner")
+
+
+def test_the_article_editor_offers_only_my_pages(an, binh, db, an_user, binh_user):
+    add_page(db, an_user)
+    add_page(db, binh_user, page_id="222", name="Trang Bình")
+    assert [page["name"] for page in an.get("/api/articles/options").json()["fanpages"]] == ["Trang Dưỡng Sinh"]
+    assert [page["name"] for page in binh.get("/api/articles/options").json()["fanpages"]] == ["Trang Bình"]

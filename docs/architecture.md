@@ -558,6 +558,11 @@ Planned:
     scheduled post 10 minutes after its time (`queue_post_checks`, looked for every minute), once per
     scheduled time even if it fails, and not while the video has a job; a member queues one any time
     with "Kiểm tra", `POST /api/posts/{id}/check`, for a scheduled or published post.
+  - **Only a Page's owner posts to it**: `POST /api/videos/{id}/publish`, `POST /api/articles/{id}/publish` and
+    `POST /api/queue` with a `fanpage_id` refuse any other member with 403 `not_page_owner`, naming the owner, and
+    a Page with no owner with a pointer to "Nhận Page" (`ownership.ensure_page_owner`); `GET /api/articles/options`
+    lists only the member's own Pages. A post is taken down by whoever posted it or by its Page's owner
+    (`ownership.ensure_can_take_down`).
   - **"Hủy đăng" and "Xóa"** are one endpoint, `POST /api/posts/{id}/take-down`. A post Facebook never
     received (no `remote_id`) becomes cancelled in the request, its queued `publish` job cancelled.
     Any other queues an `unpublish` job, also replacing a queued `publish` job; a running job refuses
