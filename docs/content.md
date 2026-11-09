@@ -102,7 +102,11 @@ How the prompt is built (built, compact version):
   Instructions, script prompt, title formulas, and safety note) with the topic placed at
   `[Chủ đề]`, or appended when that placeholder was removed. The banned-word list follows.
 - **Fixed format:** the JSON output format and a complete example built from the xương khớp sample
-  are code, not editable (see [patterns.md](patterns.md)). It asks for a voice text per scene
+  are code, not editable (see [patterns.md](patterns.md)). It asks for a `content_type`, the video's "Loại nội
+  dung" in 1–4 words: one of the types the team's videos already use, listed just before the format ("Loại nội dung
+  đội đang dùng: …", left out while there are none), or a new short one when none fits (2026-11-10); every script
+  prompt has it: the script job, "Nhân bản", "Từ video mẫu" and the prompt MCP hands to a member's assistant. It asks
+  for a voice text per scene
   (8–15 words, no `*` markup) that explains that scene's on-screen text through the food's
   benefit: what it contains, which part of the body it is good for, and who it suits, without
   reading the on-screen text back word for word. When there is room it adds one short eating tip

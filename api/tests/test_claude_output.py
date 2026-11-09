@@ -183,6 +183,7 @@ def test_format_example_is_valid_json_with_every_field_and_no_image_paths():
         "pinned_comment",
         "self_review",
         "music_suggestions",
+        "content_type",
     }
     assert all(
         set(scene) == {"text", "seconds", "voice", "image_prompt", "keywords", "keywords_en"}

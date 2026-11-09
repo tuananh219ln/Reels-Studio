@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import secrets
+import unicodedata
 from datetime import datetime
 from pathlib import Path
 
@@ -872,6 +873,15 @@ def made_via(video: Video) -> str:
     if video.hand_written:
         return "manual"
     return "ai"
+
+
+def content_types(db: DbSession) -> list[str]:
+    """The "Loại nội dung" the team's videos use: one per type whatever its case (the first spelling met wins), in
+    Vietnamese order. Members pick from them, and the AI that writes a script is told them."""
+    seen: dict[str, str] = {}
+    for kind in db.scalars(select(Video.content_type).where(Video.content_type != "").order_by(Video.id)):
+        seen.setdefault(kind.casefold(), kind)
+    return sorted(seen.values(), key=lambda kind: unicodedata.normalize("NFD", kind).casefold())
 
 
 def script_writer(db: DbSession, video: Video) -> str | None:

@@ -280,6 +280,7 @@ def write(
     *,
     with_images: bool,
     with_analysis: bool,
+    content_types: list[str] | None = None,
 ) -> Learned:
     template = topic.learn_prompt or knowledge.default_learn_prompt()
     seconds = reference.seconds or 0.0
@@ -293,6 +294,7 @@ def write(
         topic.banned_words,
         topic.photo_hint,
         with_analysis=with_analysis,
+        content_types=content_types,
     )
     images = frame_images(storage, reference) if with_images else []
 
