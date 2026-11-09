@@ -1,7 +1,7 @@
 "use client";
 
-import { SearchOutlined } from "@ant-design/icons";
-import { App, Card, Flex, Input, Segmented, Select, Table, Tag, Typography } from "antd";
+import { FacebookFilled, SearchOutlined, TikTokFilled } from "@ant-design/icons";
+import { App, Card, Flex, Input, Segmented, Select, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -37,17 +37,27 @@ const LINKED: { value: Linked; label: string }[] = [
   { value: "review", label: "Cần xem lại" },
 ];
 
-/** One line per Page where the product's commission is not the member's own: whose it is, or that the product will
- * not be in that Page's comment at all. Nothing is refused: a teammate's video may carry a member's product. */
-function commissionNote(product: string, line: AffiliateCommission): string {
+/** One short line per Page where the product's commission is not the member's own: whose it is, or that the product
+ * will not be in that Page's comment at all (the Page is named only when the video is on several). Nothing is
+ * refused: a teammate's video may carry a member's product. */
+function commissionNote(product: string, line: AffiliateCommission, named: boolean): string {
+  const what = named ? `${product} · ${line.fanpage_name}` : product;
+  if (line.kind === "no_link") {
+    return `${what} → không có trong bình luận (chưa có link)`;
+  }
+  return `${what} → hoa hồng về ${line.user_name} (${line.kind === "saved_link" ? "link lưu sẵn" : "tài khoản Shopee của Page"})`;
+}
+
+/** The whole reason, on hover. */
+function commissionWhy(line: AffiliateCommission): string {
   const page = `Page ${line.fanpage_name}`;
   if (line.kind === "no_link") {
-    return `${product}: ${page} chưa có tài khoản Shopee dùng được và sản phẩm chưa có link affiliate — sản phẩm sẽ không có trong bình luận.`;
+    return `${page} chưa có tài khoản Shopee dùng được (có App ID) và sản phẩm chưa có link affiliate lưu sẵn, nên sản phẩm bị bỏ khỏi bình luận của Page này.`;
   }
   if (line.kind === "saved_link") {
-    return `${product}: ${page} chưa có tài khoản Shopee dùng được — bình luận dùng link của ${line.user_name}, hoa hồng về tài khoản đó.`;
+    return `${page} chưa có tài khoản Shopee dùng được, nên bình luận dùng link lưu sẵn của người thêm sản phẩm (${line.user_name}); hoa hồng về tài khoản đó.`;
   }
-  return `${product}: ${page} — hoa hồng về tài khoản Shopee của ${line.user_name}.`;
+  return `${page} có tài khoản Shopee riêng của chủ Page (${line.user_name}); link trong bình luận do tài khoản đó tạo nên hoa hồng về đó.`;
 }
 
 /** Lower case and one Unicode form, so a typed "Đ" or a composed vowel still finds the title. */
@@ -123,21 +133,43 @@ export default function PostedVideos() {
           <Link prefetch={false} href={`/videos/${video.id}`}>
             {video.title}
           </Link>
-          <Typography.Text type="secondary">
-            <Tag>{video.platform === "tiktok" ? "TikTok" : "Facebook"}</Tag>
-            {formatDateTime(video.published_at)}
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            {video.platform === "tiktok" ? "TikTok" : "Facebook"} · {formatDateTime(video.published_at)}
+            {video.reel_url && (
+              <>
+                {" · "}
+                <a href={video.reel_url} target="_blank" rel="noreferrer">
+                  {video.platform === "tiktok" ? "Xem bài TikTok" : "Xem Reel"}
+                </a>
+              </>
+            )}
           </Typography.Text>
-          {video.posts.map((post, index) => (
-            <Typography.Text key={index} type="secondary" style={{ fontSize: 12 }} data-testid="video-post">
-              {post.platform === "tiktok" ? "TikTok" : "Page"} {post.name ?? "không rõ"} · chủ:{" "}
-              {post.owner_id === me.id ? "bạn" : (post.owner_name ?? "chưa có")}
-            </Typography.Text>
-          ))}
-          {video.reel_url && (
-            <a href={video.reel_url} target="_blank" rel="noreferrer">
-              {video.platform === "tiktok" ? "Xem bài TikTok" : "Xem Reel"}
-            </a>
-          )}
+          {/* Where it is live: one chip per Page or TikTok account; a teammate's names its owner, who gets its money. */}
+          <Flex wrap gap={4} style={{ marginTop: 2 }}>
+            {video.posts.map((post, index) => {
+              const theirs = post.owner_id !== me.id;
+              const owner = post.owner_name ?? "chưa có chủ";
+              const kind = post.platform === "tiktok" ? "Tài khoản TikTok" : "Page";
+              const Icon = post.platform === "tiktok" ? TikTokFilled : FacebookFilled;
+              return (
+                <Tooltip
+                  key={index}
+                  title={theirs ? `${kind} của ${owner}: hoa hồng ở đây về ${owner}` : `${kind} của bạn`}
+                >
+                  <Tag
+                    bordered={false}
+                    color={theirs ? "gold" : undefined}
+                    icon={<Icon />}
+                    style={{ marginInlineEnd: 0 }}
+                    data-testid="video-post"
+                  >
+                    {post.name ?? "không rõ"}
+                    {theirs ? ` · ${owner}` : ""}
+                  </Tag>
+                </Tooltip>
+              );
+            })}
+          </Flex>
         </Flex>
       ),
     },
@@ -191,14 +223,15 @@ export default function PostedVideos() {
               product.commission
                 .filter((line) => line.kind === "no_link" || line.user_id !== me.id)
                 .map((line) => (
-                  <Typography.Text
-                    key={`${product.id}-${line.fanpage_id}`}
-                    type={line.kind === "no_link" ? "danger" : "warning"}
-                    style={{ fontSize: 12 }}
-                    data-testid="commission-note"
-                  >
-                    {commissionNote(product.name, line)}
-                  </Typography.Text>
+                  <Tooltip key={`${product.id}-${line.fanpage_id}`} title={commissionWhy(line)}>
+                    <Typography.Text
+                      type={line.kind === "no_link" ? "danger" : "warning"}
+                      style={{ fontSize: 12 }}
+                      data-testid="commission-note"
+                    >
+                      {commissionNote(product.name, line, product.commission.length > 1)}
+                    </Typography.Text>
+                  </Tooltip>
                 )),
             )}
           </Flex>
@@ -255,7 +288,9 @@ export default function PostedVideos() {
 
   return (
     <>
-      <Flex wrap gap={12} align="center" style={{ marginBottom: 16 }}>
+      {/* Whose and which first, the products' state on a row of its own, so the two switches never sit side by side. */}
+      <Flex wrap gap={12} align="center" style={{ marginBottom: 12 }}>
+        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={videos.length} />
         <Input
           aria-label="Tìm theo tiêu đề video"
           prefix={<SearchOutlined />}
@@ -263,15 +298,7 @@ export default function PostedVideos() {
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          style={{ width: 280, maxWidth: "100%" }}
-        />
-        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={videos.length} />
-        <Segmented<Linked>
-          aria-label="Lọc theo sản phẩm đã gắn"
-          value={linked}
-          onChange={setLinked}
-          options={LINKED.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
-          style={{ maxWidth: "100%", overflowX: "auto" }}
+          style={{ width: 240, maxWidth: "100%" }}
         />
         <FilterSelect
           aria-label="Lọc theo nền tảng"
@@ -291,9 +318,16 @@ export default function PostedVideos() {
           onChange={(value) => setProductId(value ?? null)}
           options={productOptions}
           notFoundContent="Chưa video nào gắn sản phẩm"
-          style={{ width: 280, maxWidth: "100%" }}
+          style={{ width: 240, maxWidth: "100%" }}
         />
       </Flex>
+      <Segmented<Linked>
+        aria-label="Lọc theo sản phẩm đã gắn"
+        value={linked}
+        onChange={setLinked}
+        options={LINKED.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
+        style={{ maxWidth: "100%", overflowX: "auto", marginBottom: 16 }}
+      />
       <Card styles={{ body: { padding: 0 } }}>
         <Table<AffiliateVideo>
           rowKey="id"

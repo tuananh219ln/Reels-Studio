@@ -341,17 +341,17 @@ test("Video đã đăng starts on the member's own and says whose commission eac
   );
   await page.goto("/affiliate");
   const mine = page.getByRole("row", { name: /Trà gừng cho người trên 50/ });
-  await expect(mine.getByTestId("video-post")).toHaveText("Page Trang Dưỡng Sinh · chủ: bạn");
+  await expect(mine.getByTestId("video-post")).toHaveText("Trang Dưỡng Sinh");
   const notes = mine.getByTestId("commission-note");
   await expect(notes).toHaveText([
-    "Gối cao su: Page Trang Dưỡng Sinh chưa có tài khoản Shopee dùng được — bình luận dùng link của Trần Bình, hoa hồng về tài khoản đó.",
-    "Nồi hầm: Page Trang Dưỡng Sinh chưa có tài khoản Shopee dùng được và sản phẩm chưa có link affiliate — sản phẩm sẽ không có trong bình luận.",
+    "Gối cao su → hoa hồng về Trần Bình (link lưu sẵn)",
+    "Nồi hầm → không có trong bình luận (chưa có link)",
   ]);
   await expect(page.getByRole("row", { name: /Bài của đồng đội/ })).toHaveCount(0);
 
   await page.getByLabel("Của ai").getByText("Cả đội (2)").click();
   const theirs = page.getByRole("row", { name: /Bài của đồng đội/ });
-  await expect(theirs.getByTestId("video-post")).toHaveText("Page Trang Bình · chủ: Trần Bình");
+  await expect(theirs.getByTestId("video-post")).toHaveText("Trang Bình · Trần Bình");
 });
 
 test("Sản phẩm: my groups first, who added each product, and stars or sales fixed on the row", async ({ page }) => {

@@ -597,18 +597,20 @@ Built:
   used the track keep their copy). The topics to choose and filter by are the groups of Kho kiến thức, in its order,
   then "chung" (a hint under the field says so).
 - **Affiliate** (`/affiliate`), a line saying what the page is for, then three tabs:
-  - "Video đã đăng": "Của tôi / Cả đội" first (a video is mine when I posted it or it is live on a Page or
-    TikTok account of mine; it starts on "Của tôi" once I have one, else on "Cả đội"), then filters over
-    the videos it shows: tabs with counts ("Tất cả", "Chưa gắn sản
+  - "Video đã đăng": a first row with "Của tôi / Cả đội" (a video is mine when I posted it or it is live
+    on a Page or TikTok account of mine; it starts on "Của tôi" once I have one, else on "Cả đội"), the
+    title search, platform and product filters; a second row of tabs with counts over the videos shown ("Tất cả", "Chưa gắn sản
     phẩm", "Đã gắn", "Cần xem lại" for a video with a product that lost its approval or no longer
     meets the rules), "Tìm theo tiêu đề video" and "Mọi nền tảng" (Facebook or TikTok); the counts
     follow the search and platform, and "Không có video nào khớp" when nothing matches. Then
     Facebook reels and TikTok posts made by hand, newest first, each tagged with its
-    platform and, in small text, every Page or TikTok account it is live on with its owner ("chủ: bạn"),
+    platform, time and "Xem Reel" on one line, then one chip per Page or TikTok account it is live on
+    (a teammate's in gold with its owner's name; the tooltip says whose commission it is),
     with the script's suggestions, a picker of approved products of the video's platform
     (labelled with the expected commission per order, and "Người thêm: <tên>" when a teammate added it).
-    Under the picker, one line per attached Shopee product and Page whose commission is not the member's
-    own: in yellow whose it is (the Page's own Shopee account, its owner's; or, on a Page without a
+    Under the picker, one short line per attached Shopee product and Page whose commission is not the
+    member's own ("<sản phẩm> → hoa hồng về <tên> (link lưu sẵn)", the Page named only when the video is on
+    several; the tooltip gives the whole reason): in yellow whose it is (the Page's own Shopee account, its owner's; or, on a Page without a
     Shopee account with App ID, the product's saved link, the member who added it), in red when the Page
     has no such account and the product has no saved link, so it is left out of that Page's comment.
     Nothing is refused for it. Then for a reel a copy button for the pinned
