@@ -1,7 +1,7 @@
 "use client";
 
 import { EditOutlined, UndoOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Col, Flex, Popconfirm, Row, Spin, Tag } from "antd";
+import { App, Button, Col, Flex, Popconfirm, Row, Spin, Tag } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DefaultMusicCard from "@/components/settings/DefaultMusicCard";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
@@ -119,24 +119,6 @@ export default function VideoDefaultsPage() {
           ))
         }
       />
-      <Flex vertical gap={12} style={{ marginBottom: 16 }}>
-        <Flex align="center" gap={8}>
-          <Tag color="blue">Của tôi (theo người dùng)</Tag>
-          {saved?.owner && <span>{saved.owner}</span>}
-        </Flex>
-        {saved && (
-          <Alert
-            data-testid="defaults-whose"
-            type={saved.own ? "success" : "info"}
-            showIcon
-            title={
-              saved.own
-                ? `Thiết lập riêng của tài khoản ${saved.owner} (theo người dùng): chỉ áp cho video mới do bạn tạo, không phải thiết lập chung của team.`
-                : `Tài khoản ${saved.owner} chưa có mặc định riêng nên video mới đang dùng mặc định gốc của app. Lưu thay đổi ở đây sẽ tạo thiết lập riêng của tài khoản (theo người dùng).`
-            }
-          />
-        )}
-      </Flex>
       {values === null ? (
         <Spin />
       ) : (

@@ -16,7 +16,7 @@ field, the scene, or the job banner); technical detail sits in a collapsed "Chi 
 
 ## ChatGPT and Claude connection
 
-Cài đặt › Kết nối ChatGPT / Claude (`/chatgpt`) shows the copyable server URL, how to add it in
+Cấu hình › Kết nối MCP (`/settings/mcp`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
 ChatGPT, Claude and Claude Code (with the copyable `claude mcp add` command), and the current
 member's connections, each named by its app, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
 opens the same page with a consent card titled “Cho phép <app> kết nối?”, naming the member and the
@@ -741,18 +741,24 @@ Built:
   ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
 - **Cài đặt**, a menu group, last in the sidebar, with one page: **Cấu hình** (Pages moved out to
   **Quản lý Page**, its own menu item under "Video", since a Page's queue is daily work).
-  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" with four tabs, each
-  its own address so a link or a reload keeps the tab; the menu keeps "Cấu hình" selected on all four.
+  Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" whose tabs come in two groups, each
+  headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
+  Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab
+  per job; no tab is split between the groups. Each tab has its own address so a link or a reload keeps the tab; the
+  menu keeps "Cấu hình" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
+  is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
-  line on what it holds ("Video mới bắt đầu thế nào", "AI viết kịch bản", "Kho ảnh, ảnh AI, giọng
-  đọc", "Shopee và TikTok của bạn"), beside the tab; narrower, a row above it. Every tab starts the
+  line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
+  VieNeu", "Kho ảnh, ảnh AI, giọng đọc", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
+  narrower, a row above it. Every tab starts the
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
+  A tab of **Chung cả nhóm** has "Lịch sử" among its actions (the page's whole history, newest first, each change
+  on a line: "OpenAI · Model: a → b", a key only as "Khoá: đã đổi khoá …k3P1" / "đã xoá khoá", never its value),
+  and under each of its cards or groups a small "Sửa lần cuối bởi <tên>, <giờ VN>" that opens that card's history
+  ([SharedHistory](../web/src/components/settings/SharedHistory.tsx)); nothing shows before a first logged change.
   The content takes the whole width beside the list:
-  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): only the signed-in member's own, tagged "Của tôi
-    (theo người dùng)" with their name, and a line saying so: "Thiết lập riêng của tài khoản <tên> (theo người
-    dùng): chỉ áp cho video mới do bạn tạo, không phải thiết lập chung của team", or, before they save any, "… chưa
-    có mặc định riêng nên video mới đang dùng mặc định gốc của app" (saving creates their own from them). There is
+  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): only the signed-in member's own. There is
     no team level (removed 2026-11-09). With their own, "Về mặc định gốc" (with a confirmation) drops them, back
     to the app's built-in defaults. Then the same three cards as
     a video's "Thiết lập" tab plus the music level, and "Nhạc nền mặc định" under "Âm thanh" (the chosen

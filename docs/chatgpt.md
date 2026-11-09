@@ -131,7 +131,7 @@ failed check, look at the MP4's frames after it, and say the video is done only 
    The origin must already be in `ALLOWED_ORIGINS`. Leave the variable empty to disable MCP.
    Use the public **web** domain, not the backend domain: browser login, consent and MCP discovery
    use the same origin. HTTPS is required except on localhost/127.0.0.1 for development.
-3. Sign in to Reels Studio and open **Cài đặt → Kết nối ChatGPT / Claude** (`/chatgpt`). Copy the
+3. Sign in to Reels Studio and open **Cài đặt → Cấu hình → Kết nối MCP** (`/settings/mcp`; the old `/chatgpt` sends there). Copy the
    server URL.
 4. Add it to the assistant:
    - **ChatGPT:** in the apps/plugins settings, add a custom MCP server with that URL and choose
@@ -148,7 +148,7 @@ failed check, look at the MP4's frames after it, and say the video is done only 
    signed in another way. The consent screen is the authorize response itself (server-rendered, no script):
    it names your account, the app, the callback's host and the requested access. It used to be a hop to
    the web page `/chatgpt#ticket=...`, where the consent never showed in production, so nothing now
-   stands between the request and the screen. **Kết nối ChatGPT / Claude** only lists and revokes
+   stands between the request and the screen. **Kết nối MCP** only lists and revokes
    connections; opening it by hand never asks for consent.
 6. Choose **Cho phép kết nối**. The answer is a short page that sends the browser on to the app's callback (a
    refresh, and a link to click if it does not). **No OAuth step answers with an HTTP redirect**: in production
@@ -225,7 +225,7 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
   extend the underlying login session, and the connection still ends with it.
 - All tickets/codes/access/refresh tokens are stored only as SHA-256 hashes. The resource URL is
   bound to the authorization and connection; changing the configured URL requires reconnecting.
-- **Cài đặt → Kết nối ChatGPT / Claude → Thu hồi kết nối** revokes one of your connections. Other members
+- **Cài đặt → Cấu hình → Kết nối MCP → Thu hồi kết nối** revokes one of your connections. Other members
   cannot list or revoke it. Signing out of its originating browser session, signing out every
   device, disabling the user, or forcing a password change also prevents further access. A job
   already accepted into the queue remains there; revocation does not interrupt a running job.

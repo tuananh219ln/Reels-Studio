@@ -450,6 +450,21 @@ test("Cấu hình holds the defaults, AI model and sources as tabs, each with it
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
   await expect(page.getByRole("tab", { name: "Thiết lập mặc định" })).toHaveAttribute("aria-selected", "true");
+  // The member's own settings first, then the team's, each group under its name; Kết nối MCP is the member's.
+  const names = await page.getByRole("tab").allInnerTexts();
+  expect(names.map((name) => name.split("\n")[0])).toEqual([
+    "Của tôi",
+    "Thiết lập mặc định",
+    "Tài khoản affiliate",
+    "Kết nối MCP",
+    "Chung cả nhóm",
+    "Mô hình AI",
+    "Nguồn tư liệu",
+    "Mẫu dựng",
+    "Máy render",
+  ]);
+  await page.getByRole("tab", { name: "Kết nối MCP" }).click();
+  await expect(page).toHaveURL(/\/settings\/mcp$/);
   await page.getByRole("tab", { name: "Nguồn tư liệu" }).click();
   await expect(page).toHaveURL(/\/settings\/sources$/);
   await expect(page.getByTestId("source-elevenlabs")).toBeVisible();

@@ -4,6 +4,8 @@ import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, DesktopOutlined, PlusOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Spin, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { SettingsHeader } from "@/components/settings/SettingsBlocks";
+import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
 import StatusText from "@/components/StatusText";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
 
@@ -27,6 +29,8 @@ export default function RenderNodesPage() {
   const [name, setName] = useState("");
   const [adding, setAdding] = useState(false);
   const [token, setToken] = useState<string | null>(null);
+  // Read again after every change: each one answers with the machines anew.
+  const latest = useLatestEdits("render_settings", data);
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +84,11 @@ export default function RenderNodesPage() {
 
   return (
     <Flex vertical gap={16} style={{ maxWidth: 820 }}>
+      <SettingsHeader
+        title="Máy render"
+        description="Máy render của thành viên dựng video cho cả nhóm: máy nào đang rảnh nhận job đang chờ lâu nhất, của bất kỳ ai."
+        actions={<PageHistory entityType="render_settings" title="Máy render" />}
+      />
       <Card size="small">
         <Flex vertical gap={8}>
           <Flex gap={12} align="center" wrap>
@@ -99,6 +108,7 @@ export default function RenderNodesPage() {
             />
           )}
         </Flex>
+        <LastEdit entry={latest["1"]} entityType="render_settings" entityId={1} title="Máy render" />
       </Card>
 
       <Card title="Các máy render" size="small">
