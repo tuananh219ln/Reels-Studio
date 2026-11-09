@@ -89,12 +89,17 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
 
   // The same caption cannot go on the same Page twice. The worker's jobs for the post (its comment, its numbers) can
   // still turn "Đăng" off for a moment while the page polls, and a click landing then is lost: click until it opens.
+  // On a slow runner the drawer could also be shut again before its own "Đăng" was pressed (CI, 2026-11-10), so the
+  // whole step is retried: open it if it is not open, press its "Đăng", see the refusal. Pressing again is harmless,
+  // the api refuses every time.
+  const refused = page.getByText("Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được");
   await expect(async () => {
-    await page.getByRole("button", { name: /^send Đăng$/ }).click({ timeout: 5_000 });
-    await expect(publish).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 30_000 });
-  await publish.getByRole("button", { name: "Đăng", exact: true }).click();
-  await expect(page.getByText("Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được")).toBeVisible();
+    if (!(await publish.isVisible())) {
+      await page.getByRole("button", { name: /^send Đăng$/ }).click({ timeout: 5_000 });
+    }
+    await publish.getByRole("button", { name: "Đăng", exact: true }).click({ timeout: 5_000 });
+    await expect(refused.first()).toBeVisible({ timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
   await publish.getByRole("button", { name: "Huỷ" }).click();
 
   await post.getByRole("button", { name: "Gỡ bài" }).click();
