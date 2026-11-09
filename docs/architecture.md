@@ -824,8 +824,14 @@ Planned:
 - **Users are disabled, never deleted,** and can be re-enabled. Nobody can disable themselves, and at
   least one active user always remains. Disabling locks all active user rows, so two people disabling
   each other at once cannot both succeed.
-- **Temporary passwords** (set when adding a user or by a teammate) force a password change. The
-  API itself blocks everything except `GET /api/me`, the password change, and logout until then.
+- **Temporary passwords** (set when adding a user, or by a teammate on a disabled account only:
+  disable, set it, enable again) force a password change. The API itself blocks everything except
+  `GET /api/me`, the password change, and logout until then.
+- **Who did what to a member** (disable, enable, temporary password, never its value) is kept in
+  `edit_logs` (`entity_type` `user`) and shown on the row ("Thao tác gần nhất", `last_action`).
+  Disabling may hand the member's Pages (dropping their Shopee and TikTok accounts and semi-auto),
+  topic groups, plan ideas and templates to another active member (`POST /api/users/{id}/disable`
+  with `transfer_to`), logged with what moved.
 - **Who is on a video:** an open video page reports itself every 10 s with
   `POST /api/presence/videos/{id}` (`tab`, `editing`) and gets back the other members who have
   the video open, one entry per member (editing if any of their tabs is); it says

@@ -109,8 +109,9 @@ def test_password_change_racing_a_reset_does_not_overwrite_it(committed_app, mon
         assert (user.password_hash, user.must_change_password) == (temp_hash, True)
 
 
-def test_temp_password_racing_a_disable_is_refused(committed_app, monkeypatch):
-    """Another teammate disables the user after this request loaded the row but before it writes."""
+def test_temp_password_racing_an_enable_is_refused(committed_app, monkeypatch):
+    """Another teammate enables the user after this request loaded the row but before it writes: a temporary password
+    goes to a disabled account only (2026-11-09), so the row locked and read again refuses it."""
     app, factory = committed_app
     with factory() as db:
         me = User(
@@ -124,7 +125,7 @@ def test_temp_password_racing_a_disable_is_refused(committed_app, monkeypatch):
             email="binh@doi.vn",
             name="Bình",
             password_hash=hash_password(PASSWORD),
-            is_active=True,
+            is_active=False,
             must_change_password=False,
         )
         db.add_all([me, target])
@@ -136,7 +137,7 @@ def test_temp_password_racing_a_disable_is_refused(committed_app, monkeypatch):
     def check_then_disable(db, user_id, me_session):
         user = real_check(db, user_id, me_session)
         with factory() as other:
-            other.execute(update(User).where(User.id == target.id).values(is_active=False))
+            other.execute(update(User).where(User.id == target.id).values(is_active=True))
             other.commit()
         return user
 
@@ -144,7 +145,7 @@ def test_temp_password_racing_a_disable_is_refused(committed_app, monkeypatch):
     response = client.post(f"/api/users/{target.id}/temp-password", json={"password": "tam-moi-1234"})
 
     assert response.status_code == 409
-    assert response.json()["code"] == "user_disabled"
+    assert response.json()["code"] == "user_active"
     with factory() as db:
         assert db.get(User, target.id).must_change_password is False
 

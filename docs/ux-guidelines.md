@@ -81,7 +81,12 @@ editors, "Chọn từ kho ảnh/video", the text position, "Chọn nhạc từ t
 
 Built:
 
-- **Login** and **user management**.
+- **Login** and **user management**. A row's actions: an active member has "Vô hiệu hoá", "Đặt mật khẩu tạm" (greyed
+  out, its tooltip saying to disable first) and "Đăng xuất khỏi mọi thiết bị"; a disabled one "Kích hoạt lại" and
+  "Đặt mật khẩu tạm"; the member's own row none. "Vô hiệu hoá" opens a centred dialog where the member's name is
+  typed to confirm (the button waits for it), with an optional "Chuyển quyền sở hữu cho" (an active member who takes
+  their Pages, topic groups, plan ideas and templates). "Thao tác gần nhất" says what was last done, by whom and
+  when, in Vietnam time.
 - **Tạo video** (on the video list): a grey strip on top holds what applies to the whole video, one row each, bold
   labels in a column (one above the other under 576 px): "Kiểu video" (not for "Từ video mẫu"), "Cách viết" ("AI
   viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row (the member's own groups, those of

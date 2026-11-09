@@ -37,6 +37,7 @@ def test_list_shows_every_column_and_marks_me(client, me):
             "last_login_at": rows[0]["last_login_at"],
             "active_sessions": 1,
             "is_me": True,
+            "last_action": None,
         }
     ]
     assert datetime.fromisoformat(rows[0]["last_login_at"]).tzinfo is not None
@@ -145,7 +146,8 @@ def test_enable_keeps_password_and_forced_change_flag(app, client, db, me):
     assert other.get("/api/me").json()["must_change_password"] is True
 
 
-def test_temp_password_signs_out_and_forces_a_change(app, client, db):
+def test_temp_password_is_set_on_a_disabled_account_then_forces_a_change(app, client, db):
+    """Recovering a teammate's account: disable it, set a temporary password, enable it again (2026-11-09)."""
     make_user(db, email="binh@doi.vn", name="Bình")
     me = make_user(db)
     login(client)
@@ -153,11 +155,20 @@ def test_temp_password_signs_out_and_forces_a_change(app, client, db):
     login(target, email="binh@doi.vn")
     binh = db.scalar(select(User).where(User.email == "binh@doi.vn"))
 
-    response = client.post(f"/api/users/{binh.id}/temp-password", json={"password": "tam-moi-1234"})
+    active = client.post(f"/api/users/{binh.id}/temp-password", json={"password": "tam-moi-1234"})
+    assert active.status_code == 409
+    assert active.json() == {
+        "code": "user_active",
+        "message": "Chỉ đặt mật khẩu tạm cho tài khoản đã vô hiệu hoá: hãy vô hiệu hoá, đặt mật khẩu tạm rồi kích "
+        "hoạt lại",
+    }
+    assert target.get("/api/me").status_code == 200
 
+    client.post(f"/api/users/{binh.id}/disable", json={})
+    response = client.post(f"/api/users/{binh.id}/temp-password", json={"password": "tam-moi-1234"})
     assert response.status_code == 200
     assert response.json()["active_sessions"] == 0
-    assert target.get("/api/me").status_code == 401
+    client.post(f"/api/users/{binh.id}/enable")
     login(target, email="binh@doi.vn", password="tam-moi-1234")
     assert target.get("/api/me").json()["must_change_password"] is True
     assert me.is_active
@@ -165,13 +176,9 @@ def test_temp_password_signs_out_and_forces_a_change(app, client, db):
 
 def test_temp_password_rules(client, db, me):
     user_id = add(client).json()["id"]
+    client.post(f"/api/users/{user_id}/disable")
     short = client.post(f"/api/users/{user_id}/temp-password", json={"password": "ngan"})
     assert (short.status_code, short.json()["code"]) == (422, "weak_password")
-
-    client.post(f"/api/users/{user_id}/disable")
-    disabled = client.post(f"/api/users/{user_id}/temp-password", json={"password": "tam-moi-1234"})
-    assert disabled.status_code == 409
-    assert disabled.json() == {"code": "user_disabled", "message": "Hãy kích hoạt lại người dùng trước"}
 
 
 @pytest.mark.parametrize("action", ["temp-password", "sign-out-all"])

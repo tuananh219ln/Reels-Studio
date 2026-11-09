@@ -15,7 +15,9 @@ from sqlalchemy.orm import selectinload
 from .models import EditLog, KnowledgeTopic
 
 TOPIC = "knowledge_topic"
-ENTITY_TYPES = (TOPIC,)
+# A member on Quản lý người dùng: disabled, enabled, given a temporary password (never its value), their things handed on.
+USER = "user"
+ENTITY_TYPES = (TOPIC, USER)
 
 # What a topic group's history follows: what members edit on Kho kiến thức, including its plan's settings.
 TOPIC_FIELDS = (
