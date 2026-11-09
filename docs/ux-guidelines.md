@@ -518,9 +518,10 @@ Built:
     opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
   - "Prompt": the six prompts listed on the left (Viết kịch bản, Nhân bản, Học từ video mẫu, Phân tích
     video mẫu, Sửa theo góp ý, Viết bài), each tagged "Đã sửa", "Mặc định" or "Trống", and the chosen
-    one edited on the right with "Lưu" and "Khôi phục mặc định"; text typed in one and not saved
+    one edited on the right with "Lưu", and "Lịch sử" on the card's title (see "Edit history" below; there is
+    no "Khôi phục mặc định": the app's default is a version in the history); text typed in one and not saved
     survives choosing another;
-  - "Từ cấm, ảnh & giọng": the banned words with "Lưu từ cấm" beside "Gợi ý tìm ảnh" with "Lưu gợi ý"
+  - "Từ cấm, ảnh & giọng": each card with "Lịch sử" on its title; the banned words with "Lưu từ cấm" beside "Gợi ý tìm ảnh" with "Lưu gợi ý"
     and "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing "Theo Thiết lập
     mặc định của người tạo", cleared with ×) with "Lưu giọng";
   - "Mẫu dựng": "Mẫu dựng của nhóm", a multiple choice of the saved templates the group holds ("Mẫu của nhóm") and
@@ -547,7 +548,7 @@ Built:
     place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
     with errors (which block saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as
     a draft ("Xem trước" / "Bỏ") until then; a failed one shows its error;
-  - "Prompt kế hoạch", folded, with "Lưu" and "Khôi phục mặc định";
+  - "Prompt kế hoạch", folded, with "Lưu" and "Lịch sử";
   - the status colours, then the calendar: five weeks ("Tuần N · dd/mm – dd/mm", or the day numbers before a start
     date, with "N ý tưởng · N đã làm · N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
     A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
@@ -1129,3 +1130,26 @@ pairing template and for later tuning.
 - **Encoding (built):** libx264, `-preset medium -crf 20`, yuv420p, `+faststart`. For the
   platforms' second compression pass, CRF 18 and a 2 s keyframe interval (`-g 60`) keep motion
   cleaner after Facebook re-encodes the video. This should be measured before adoption.
+
+## Edit history ("Lịch sử")
+
+Where something is edited, its history is shown there, not on a page of its own
+([decision](decisions/2026-11-09-edit-history.md)). Kho kiến thức is the first place it is shown:
+
+- **Under the group's name**, after "N video · N prompt đã sửa": "<member> sửa <part> lúc dd/mm/yyyy hh:mm" (Vietnam
+  time), a link that opens the group's whole history, each entry naming the parts it changed.
+- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Prompt kế hoạch) opens a
+  drawer on the right, newest first. Each entry: its action as a tag (Tạo green, Sửa blue, Xoá red, Khôi phục gold),
+  the member, the time, "qua Claude" or "tự động" when it did not come from the web, and "Đang dùng" on the latest.
+  - A prompt or a text: "+N −M dòng" and "Xem khác biệt", a dialog with the lines removed (red, "−") and added
+    (green, "+") against the version before.
+  - The banned words: the words added (green "+") and removed (red "−").
+  - A short value (the voice): "old → new".
+- **Under the entries**: "Bản trước khi có lịch sử" (what the first logged save replaced) and, for a prompt, "Bản mặc
+  định của app", each with "Xem khác biệt" against what is in use.
+- **"Khôi phục bản này"** on every version but the one in use, for any member. It asks first ("Có N lần sửa sau bản
+  này…"); the version put back becomes a new "Khôi phục" entry and nothing is removed from the history. The card's
+  box then shows it; text typed and not saved in another card stays.
+- **The groups' list** has a history button on "Nhóm chủ đề": the groups made, renamed and deleted, so a deleted
+  group's name is still found.
+
