@@ -3022,7 +3022,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(dayPanel).toHaveCount(0);
   await plan.getByRole("button", { name: "Chọn ngày 7" }).click();
   await expect(dayTitle).toHaveText(`Ngày 7 — ${vietnamDay(0).long}`);
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await expect(dayPanel).toBeHidden();
   await expect(plan.getByTestId("plan-week-2")).toContainText(
     `Tuần 2 · ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
@@ -3040,11 +3040,11 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng · 0 đã làm · 0 đã lên lịch");
 
   // Another day opens in the drawer in its place.
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(dayTitle).toContainText("Ngày 13");
   await expect(dayPanel).toContainText("Chưa có ý tưởng");
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
 
   // Dragging a chip onto another day moves the idea there.
   await plan.getByTestId("plan-day-12").getByTestId("plan-chip").dragTo(plan.getByTestId("plan-day-13"));
@@ -3069,7 +3069,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng").fill("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
   await expect(plan.getByTestId("plan-day-13").getByTestId("plan-chip")).toHaveCount(1);
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
