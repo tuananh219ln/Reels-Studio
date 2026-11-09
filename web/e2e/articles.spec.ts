@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { connectFacebook, loginAsSeed, resetDatabase } from "./helpers";
+import { addUser, connectFacebook, login, loginAsSeed, resetDatabase } from "./helpers";
 
 test.beforeEach(() => resetDatabase());
 
@@ -104,4 +104,31 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
   await page.getByRole("button", { name: "Làm reel từ bài này" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Tạo video" }).click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
+});
+
+test("Bài viết: only a Page's owner is offered it to post to", async ({ page, browser }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  await binh.getByRole("menuitem", { name: "Bài viết" }).click();
+  await binh.getByRole("button", { name: "Tạo bài viết" }).click();
+  const drawer = binh.getByRole("dialog", { name: "Tạo bài viết" });
+  await drawer.getByLabel("Chủ đề của bài").fill("ngâm chân nước gừng");
+  await drawer.getByRole("button", { name: "Tạo bài" }).click();
+  await expect(binh).toHaveURL(/\/articles\/\d+$/);
+  const caption = binh.getByLabel("Caption");
+  await caption.fill("Ngâm chân nước gừng trước khi ngủ\n\nTham khảo, không thay thế tư vấn bác sĩ.");
+  await caption.blur();
+  await expect(binh.getByText("Chưa có caption", { exact: true })).toBeHidden();
+  // An's Page is in use, but Bình does not own it: it is not offered, and Bình is told how to get a Page.
+  await binh.getByRole("button", { name: /^send Đăng$/ }).click();
+  const publish = binh.getByRole("dialog", { name: "Đăng bài viết" });
+  await expect(publish.getByTestId("no-page-of-mine")).toContainText("Chỉ chủ Page mới đăng lên Page đó");
+  await expect(publish.getByLabel("Fanpage")).toHaveCount(0);
 });

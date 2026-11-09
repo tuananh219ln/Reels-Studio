@@ -28,7 +28,7 @@ from .models import (
     Publication,
     Session,
 )
-from .ownership import ensure_owner
+from .ownership import ensure_can_take_down, ensure_owner, ensure_page_owner
 from .routes_affiliate import _ask_comments
 from .routes_videos import MAX_SCHEDULE_DELAY, MIN_SCHEDULE_DELAY, NewVideoBody, create_video, invalid
 from .sessions import current_member, now
@@ -172,10 +172,12 @@ def list_articles(
 
 @router.get("/options")
 def get_options(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """What the editor offers: kinds, card colours, the rules it shows, and the Pages in use to post to."""
+    """What the editor offers: kinds, card colours, the rules it shows, and the Pages to post to: the member's own in
+    use, as only a Page's owner posts to it."""
     pages = [
         {"id": page.id, "name": page.name, "owner": page.owner.name if page.owner else None, "error": page.check_error}
         for page in fanpages.in_use(db)
+        if page.owner_id == me.user_id
     ]
     return {**_options(), "fanpages": pages}
 
@@ -392,6 +394,7 @@ def publish(
     fanpage = db.get(Fanpage, body.fanpage_id)
     if fanpage is None or not fanpage.active:
         raise invalid("Hãy chọn một Fanpage đang dùng")
+    ensure_page_owner(fanpage, me.user_id)
     same_page, others = article_posts.repeats(db, article, fanpage.id)
     if same_page:
         raise ApiError(409, "already_on_page", "Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được")
@@ -424,7 +427,7 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
     """ "Hủy đăng" and "Gỡ bài". A post Facebook never received ends here; any other goes through the worker, which
     decides whether it ends as cancelled or deleted by whether it really went live."""
     article, post = _post(db, post_id)
-    ensure_owner(post.created_by_id, me.user_id, "bài đăng này")
+    ensure_can_take_down(db, post, me.user_id)
     if post.status not in OPEN_POSTS:
         raise ApiError(409, "post_closed", "Bài này đã hủy hoặc đã gỡ")
     job = articles.active_job(db, article.id)

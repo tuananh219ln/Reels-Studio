@@ -87,9 +87,10 @@ Built:
   viết kịch bản", "Từ video mẫu" or "Tự viết") and the topic group across the row (the member's own groups, those of
   the Pages they own and use, first under "Nhóm của tôi"; unless an idea or a group's "Tạo video" chose one, it
   starts on the group the member last made a video in, else on one of their own); below it the topic. Wherever a Page
-  is picked to post or queue a video, the member's own Pages come first under "Trang của tôi", the others under
-  "Trang khác" with their owner's name. "Đăng bài" starts on the member's own Page of the video's group, else on the
-  Page they last posted to. The last group and Page are kept on the server by account, so they follow the member to
+  is picked to post or queue a video or an article, only the member's own Pages are offered (a teammate's Page is
+  not: only a Page's owner posts to it); with none, the picker gives way to a line on how to get one ("Bạn chưa có
+  Fanpage nào. Chỉ chủ Page mới đăng lên Page đó…", with "Mở Quản lý Page"). "Đăng bài" starts on the member's own
+  Page of the video's group, else on the Page of theirs they last posted to. The last group and Page are kept on the server by account, so they follow the member to
   any device and never come from a teammate. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
   đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
@@ -154,8 +155,10 @@ Built:
   - a list, one row per video: small thumbnail and title, "Loại" (the kind tags), the status (with "Đã
     đăng" or "Đã lên lịch" under it), "Đã đăng" (the platform icons), "Đăng" (Page and time, or "Chưa đăng"), "View" (sortable), "48h" (the multiple or
     "chưa đủ dữ liệu", the share/view under it) and "Tạo" (group, plan day, creator, day). Above the videos, one
-  banner per topic group whose plan has a today: "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video"
-  with "Làm tiếp" (the next idea not made), or green once all of today's ideas have a video.
+  banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
+  "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video" with "Làm tiếp" (the next idea not made), or green once
+  all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
+  for the member's own groups.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
   Under the status line, "Loại nội dung": a small field typed freely or picked from the types the team's
   videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40

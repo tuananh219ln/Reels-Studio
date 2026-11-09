@@ -999,10 +999,12 @@ function NewVideoModal({
   const plan = today.find((group) => group.topic_id === groupId);
   const outsidePlan = !picked && plan && typed.trim() && !plan.topics.some((topic) => sameTopic(topic, typed));
   // The group's whole plan: ideas of the coming days and of the Backlog can be made ahead, to schedule their posts.
+  // Only for the member's own groups (of the Pages they own and use); any group can still be picked and typed for.
   const [groupPlan, setGroupPlan] = useState<Plan | null>(null);
   const [allNext, setAllNext] = useState(false);
+  const myGroup = topics?.some((topic) => topic.id === groupId && topic.mine) ?? false;
   useEffect(() => {
-    if (!open || !groupId) {
+    if (!open || !groupId || !myGroup) {
       return;
     }
     let live = true;
@@ -1013,8 +1015,8 @@ function NewVideoModal({
     return () => {
       live = false;
     };
-  }, [open, groupId]);
-  const sections = groupPlan && groupPlan.topic_id === groupId ? ideaSections(groupPlan, allNext) : [];
+  }, [open, groupId, myGroup]);
+  const sections = myGroup && groupPlan && groupPlan.topic_id === groupId ? ideaSections(groupPlan, allNext) : [];
 
   function pick(item: PlanItem) {
     setPicked(item);
