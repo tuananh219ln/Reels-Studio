@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { CheckOutlined, DeleteOutlined, EditOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   App,
@@ -410,6 +411,7 @@ function TopicHeader({
   summary: React.ReactNode;
 }) {
   const { message, modal } = App.useApp();
+  const { me } = useMe();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(topic.name);
   const [busy, setBusy] = useState(false);
@@ -508,8 +510,14 @@ function TopicHeader({
               key: "delete",
               danger: true,
               icon: <DeleteOutlined />,
-              disabled: topic.video_count > 0,
-              label: topic.video_count > 0 ? "Xoá nhóm (nhóm còn video)" : "Xoá nhóm",
+              // Only the group's maker deletes it, and never while it holds videos.
+              disabled: topic.video_count > 0 || topic.created_by_id !== me.id,
+              label:
+                topic.created_by_id !== me.id
+                  ? "Xoá nhóm (chỉ người tạo nhóm)"
+                  : topic.video_count > 0
+                    ? "Xoá nhóm (nhóm còn video)"
+                    : "Xoá nhóm",
               onClick: remove,
             },
           ],

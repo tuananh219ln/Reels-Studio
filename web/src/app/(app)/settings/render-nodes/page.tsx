@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, DesktopOutlined, PlusOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Spin, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
@@ -10,6 +11,8 @@ type RenderNode = {
   id: number;
   name: string;
   created_by: string;
+  /** Only they remove it. */
+  created_by_id: number;
   created_at: string;
   last_seen_at: string | null;
   online: boolean;
@@ -19,6 +22,7 @@ type Overview = { enabled: boolean; waiting: number; nodes: RenderNode[] };
 /** Cài đặt › Máy render: a member's computer renders the team's videos and motion scenes (api render_nodes.py). */
 export default function RenderNodesPage() {
   const { message } = App.useApp();
+  const { me } = useMe();
   const [data, setData] = useState<Overview | null>(null);
   const [name, setName] = useState("");
   const [adding, setAdding] = useState(false);
@@ -115,17 +119,19 @@ export default function RenderNodesPage() {
                     </Typography.Text>
                   </div>
                 </Flex>
-                <Popconfirm
-                  title="Xoá máy render?"
-                  description="Token của máy hết dùng được; job máy đang dựng được trả lại hàng đợi."
-                  okText="Xoá"
-                  cancelText="Huỷ"
-                  onConfirm={() => remove(node)}
-                >
-                  <Button danger icon={<DeleteOutlined />}>
-                    Xoá
-                  </Button>
-                </Popconfirm>
+                {node.created_by_id === me.id && (
+                  <Popconfirm
+                    title="Xoá máy render?"
+                    description="Token của máy hết dùng được; job máy đang dựng được trả lại hàng đợi."
+                    okText="Xoá"
+                    cancelText="Huỷ"
+                    onConfirm={() => remove(node)}
+                  >
+                    <Button danger icon={<DeleteOutlined />}>
+                      Xoá
+                    </Button>
+                  </Popconfirm>
+                )}
               </Flex>
             ))}
           </Flex>

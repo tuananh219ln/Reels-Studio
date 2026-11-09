@@ -2953,4 +2953,18 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
+
+  // A press outside the drawer closes it too, and keeps the scroll, the filters and the chosen day.
+  await plan.getByTestId("plan-legend").scrollIntoViewIfNeeded();
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await plan.getByTestId("plan-legend").click();
+  await expect(dayPanel).toBeHidden();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
+  await expect(dayTitle).toContainText("Ngày 13");
+  await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
+  // A press inside it, or on one of its pop-ups, leaves it open.
+  await page.getByTestId("plan-filters").getByLabel("Lọc trạng thái").click();
+  await page.locator(".ant-select-dropdown").getByText("Ý tưởng", { exact: true }).click();
+  await expect(dayPanel).toBeVisible();
 });

@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import analytics
 from .claude import ClaudeError, fill_placeholders
 from .models import Fanpage, Job, KnowledgeTopic, PostMetrics, Publication, TopicPlanItem, Video
+from .ownership import ensure_none_of_others
 
 log = logging.getLogger(__name__)
 
@@ -413,9 +414,13 @@ def replace_plan(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user_i
     current = items_of(db, topic.id)
     linked = {topic_key(item.topic): item.video_id for item in current if item.video_id}
     planned = {topic_key(idea.topic) for idea in ideas}
-    for item in current:
-        if item.day is not None or topic_key(item.topic) in planned:
-            db.delete(item)
+    leaving = [item for item in current if item.day is not None or topic_key(item.topic) in planned]
+    # The 30 days are replaced only when every idea that goes is the saving member's own (ownership.py).
+    ensure_none_of_others(
+        {"ý tưởng": sum(1 for item in leaving if item.created_by_id != user_id)}, "Kế hoạch 30 ngày của nhóm"
+    )
+    for item in leaving:
+        db.delete(item)
     db.flush()
     positions: dict[int, int] = {}
     for idea in sorted(ideas, key=lambda idea: idea.day):
@@ -425,6 +430,7 @@ def replace_plan(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user_i
                 knowledge_topic_id=topic.id,
                 position=positions[idea.day],
                 video_id=linked.pop(topic_key(idea.topic), None),
+                created_by_id=user_id,
                 updated_by_id=user_id,
                 **asdict(idea),
             )
@@ -455,6 +461,7 @@ def add_to_backlog(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user
                 pain_group=idea.pain_group,
                 pain=idea.pain,
                 hook=idea.hook,
+                created_by_id=user_id,
                 updated_by_id=user_id,
             )
         )
@@ -469,6 +476,7 @@ def item_payload(
     suggested = suggested_post_at(topic, item) if topic is not None and status != "posted" else None
     return {
         "id": item.id,
+        "created_by_id": item.created_by_id,  # only they delete it
         "knowledge_topic_id": item.knowledge_topic_id,
         "day": item.day,
         "position": item.position,

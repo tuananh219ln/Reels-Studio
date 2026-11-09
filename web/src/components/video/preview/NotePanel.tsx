@@ -5,6 +5,7 @@ import { Button, Flex, Input, Popconfirm, Typography } from "antd";
 import { useState } from "react";
 import type { VideoNote } from "@/lib/api";
 import StatusText from "@/components/StatusText";
+import { useMe } from "@/components/MeContext";
 import { clockLabel } from "./PreviewTimeline";
 
 const STATUS: Record<VideoNote["status"], { tone: "warning" | "success" | "danger"; label: string }> = {
@@ -70,6 +71,8 @@ export function NoteTools({
   onRemove: (note: VideoNote) => void;
   onSend: () => void;
 }) {
+  // Only whoever wrote a note deletes it.
+  const { me } = useMe();
   const open = notes.filter((note) => note.status === "open").length;
   return (
     <Flex vertical gap={10} data-testid="note-tools">
@@ -118,23 +121,25 @@ export function NoteTools({
                 <Typography.Text type="secondary" ellipsis style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
                   {note.created_by}
                 </Typography.Text>
-                <Popconfirm
-                  title="Xoá góp ý này?"
-                  okText="Xoá"
-                  cancelText="Huỷ"
-                  okButtonProps={{ danger: true }}
-                  disabled={note.status === "sent"}
-                  onConfirm={() => onRemove(note)}
-                >
-                  <Button
-                    size="small"
-                    type="text"
-                    danger
-                    aria-label="Xoá góp ý"
-                    icon={<DeleteOutlined />}
+                {note.created_by_id === me.id && (
+                  <Popconfirm
+                    title="Xoá góp ý này?"
+                    okText="Xoá"
+                    cancelText="Huỷ"
+                    okButtonProps={{ danger: true }}
                     disabled={note.status === "sent"}
-                  />
-                </Popconfirm>
+                    onConfirm={() => onRemove(note)}
+                  >
+                    <Button
+                      size="small"
+                      type="text"
+                      danger
+                      aria-label="Xoá góp ý"
+                      icon={<DeleteOutlined />}
+                      disabled={note.status === "sent"}
+                    />
+                  </Popconfirm>
+                )}
               </Flex>
               <Typography.Text style={{ fontSize: 13 }}>{note.text}</Typography.Text>
               {note.reply && (

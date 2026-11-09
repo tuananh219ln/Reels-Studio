@@ -58,7 +58,8 @@ export default function PreviewToolbar({
   onMedia: (file: File) => void;
   onTransition: (transition: VideoOptions["transition"]) => void;
   onAddAfter: () => void;
-  onDelete: () => void;
+  /** Absent for a member who did not make the video: only its maker deletes a scene. */
+  onDelete?: () => void;
 }) {
   const file = useRef<HTMLInputElement>(null);
   const sceneEditable = editable && !scenesLocked;
@@ -120,19 +121,21 @@ export default function PreviewToolbar({
         scenesLocked || isTitle || !canSplit,
       )}
       {button("Thêm cảnh sau cảnh này", <PlusOutlined />, onAddAfter, scenesLocked)}
-      <Popconfirm
-        title="Xoá cảnh này?"
-        description="Không hoàn tác được."
-        okText="Xoá"
-        cancelText="Huỷ"
-        okButtonProps={{ danger: true }}
-        onConfirm={onDelete}
-        disabled={!sceneEditable || isTitle}
-      >
-        <Tooltip title={isTitle ? "Cảnh tiêu đề không xoá được" : "Xoá cảnh (Delete)"} placement="left">
-          <Button aria-label="Xoá cảnh" danger icon={<DeleteOutlined />} disabled={!sceneEditable || isTitle} />
-        </Tooltip>
-      </Popconfirm>
+      {onDelete && (
+        <Popconfirm
+          title="Xoá cảnh này?"
+          description="Không hoàn tác được."
+          okText="Xoá"
+          cancelText="Huỷ"
+          okButtonProps={{ danger: true }}
+          onConfirm={onDelete}
+          disabled={!sceneEditable || isTitle}
+        >
+          <Tooltip title={isTitle ? "Cảnh tiêu đề không xoá được" : "Xoá cảnh (Delete)"} placement="left">
+            <Button aria-label="Xoá cảnh" danger icon={<DeleteOutlined />} disabled={!sceneEditable || isTitle} />
+          </Tooltip>
+        </Popconfirm>
+      )}
     </Flex>
   );
 }

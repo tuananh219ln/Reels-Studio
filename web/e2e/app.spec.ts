@@ -213,6 +213,47 @@ async function handWrittenVideo(page: Page, topic: string) {
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 }
 
+test("only a thing's maker is offered to delete it: a teammate sees no Xóa on the video, scene or group", async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await handWrittenVideo(page, "cải mầm");
+  const videoUrl = page.url();
+  await expect(page.getByRole("button", { name: /Xóa$/ }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Xóa cảnh" }).first()).toBeVisible();
+  await page.goto("/knowledge");
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Nhóm của An");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+
+  await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
+  const binh = await newPage(browser);
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+
+  // Bình still opens and edits An's video, but has nothing to delete it or its scenes with.
+  await binh.goto(videoUrl);
+  await expect(binh.getByTestId("scene").first()).toBeVisible();
+  await expect(binh.getByRole("button", { name: /^(delete )?Xóa$/ })).toHaveCount(0);
+  await expect(binh.getByRole("button", { name: "Xóa cảnh" })).toHaveCount(0);
+  // And the api refuses it if asked directly.
+  const id = videoUrl.split("/").pop();
+  const refused = await binh.request.delete(`/api/videos/${id}`, { headers: { Origin: new URL(binh.url()).origin } });
+  expect(refused.status()).toBe(403);
+
+  await binh.goto("/knowledge");
+  await binh.getByRole("button", { name: /Nhóm của An/ }).click();
+  await binh.locator('[data-topic="Nhóm của An"]').getByRole("button", { name: "Thao tác khác với nhóm" }).click();
+  await expect(binh.getByRole("menuitem", { name: "Xoá nhóm (chỉ người tạo nhóm)" })).toHaveAttribute(
+    "aria-disabled",
+    "true",
+  );
+});
+
 test("each list starts on the member's own work, and Cả đội shows everyone's", async ({ page, browser }) => {
   test.setTimeout(120_000);
   await loginAsSeed(page);

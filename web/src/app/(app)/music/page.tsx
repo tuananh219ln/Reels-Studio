@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Popconfirm, Space, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -13,6 +14,7 @@ import PageHeader from "@/components/PageHeader";
 
 export default function MusicPage() {
   const { message } = App.useApp();
+  const { me } = useMe();
   const input = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState<Filters>({ q: "" });
   const [target, setTarget] = useState<TrackTarget | null>(null);
@@ -71,17 +73,19 @@ export default function MusicPage() {
           <Button icon={<EditOutlined />} onClick={() => setTarget({ track })}>
             Sửa
           </Button>
-          <Popconfirm
-            title="Xoá bài này khỏi thư viện?"
-            description="Video đã dùng bài này vẫn giữ nhạc."
-            okText="Xoá"
-            cancelText="Huỷ"
-            onConfirm={() => remove(track)}
-          >
-            <Button danger icon={<DeleteOutlined />}>
-              Xoá
-            </Button>
-          </Popconfirm>
+          {track.created_by_id === me.id && (
+            <Popconfirm
+              title="Xoá bài này khỏi thư viện?"
+              description="Video đã dùng bài này vẫn giữ nhạc."
+              okText="Xoá"
+              cancelText="Huỷ"
+              onConfirm={() => remove(track)}
+            >
+              <Button danger icon={<DeleteOutlined />}>
+                Xoá
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

@@ -261,16 +261,18 @@ export default function SceneCard({
                   onClick={() => onMove?.(1)}
                 />
               </Tooltip>
-              <Popconfirm
-                title="Xóa cảnh này?"
-                okText="Xóa"
-                cancelText="Huỷ"
-                okButtonProps={{ danger: true }}
-                onConfirm={onDelete}
-                disabled={frozen}
-              >
-                <Button aria-label="Xóa cảnh" size="small" danger icon={<DeleteOutlined />} disabled={frozen} />
-              </Popconfirm>
+              {onDelete && (
+                <Popconfirm
+                  title="Xóa cảnh này?"
+                  okText="Xóa"
+                  cancelText="Huỷ"
+                  okButtonProps={{ danger: true }}
+                  onConfirm={onDelete}
+                  disabled={frozen}
+                >
+                  <Button aria-label="Xóa cảnh" size="small" danger icon={<DeleteOutlined />} disabled={frozen} />
+                </Popconfirm>
+              )}
             </>
           )}
         </Space>

@@ -36,12 +36,14 @@ from . import routes_layers as layer_routes
 from . import routes_media as media_routes
 from . import routes_music as music_routes
 from . import routes_sounds as sound_routes
+from . import routes_templates as template_routes
 from . import routes_videos as videos
 from .claude import ScriptOutputError, parse_output
 from .db import get_db
 from .errors import ApiError
 from .mcp_auth import app_of, connection_for, public_url, registered
-from .models import KnowledgeTopic, Scene, TopicPlanItem, Video
+from .models import KnowledgeTopic, Scene, SceneLayer, SceneSound, TopicPlanItem, Video
+from .ownership import ensure_owner
 from .storage import get_storage
 from .videos import marks_of
 
@@ -840,7 +842,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Xoá một lớp chữ, sticker hoặc ảnh (ảnh chèn xoá cùng bản sao ảnh của nó)."""
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(layer_routes.delete_layer(layer_id, me, db, get_storage())),
+            lambda db, me: video_link(
+                layer_routes.delete_layer(_own_part(db, SceneLayer, layer_id, me), me, db, get_storage())
+            ),
             write=True,
         )
 
@@ -857,8 +861,48 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     async def delete_sound(sound_id: int) -> dict:
         """Xoá một hiệu ứng âm thanh (ID có trong "Đọc video", mục sounds của cảnh)."""
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(sound_routes.delete_sound(sound_id, me, db)), write=True
+            invoke,
+            lambda db, me: video_link(sound_routes.delete_sound(_own_part(db, SceneSound, sound_id, me), me, db)),
+            write=True,
         )
+
+    @tool("Xem kho mẫu dựng", read=True)
+    async def list_templates() -> dict:
+        """Các "Mẫu dựng" bạn dùng được: mẫu có sẵn của app, mẫu cá nhân của bạn và mẫu gắn với các nhóm chủ đề
+        (nhóm nào, có phải mẫu mặc định của nhóm không). Mỗi mẫu có tóm tắt: các kiểu chuyển cảnh, có âm thanh từng
+        cảnh không, có lớp chữ cuối không; video_mode null là hợp cả video slides lẫn xuyên suốt. Trước khi áp, ưu
+        tiên mẫu của nhóm chủ đề của video rồi tới mẫu cá nhân; lớp chữ cuối không bao giờ chèn vào cảnh kết kêu gọi
+        của kịch bản. Mẫu dựng khác "Thiết lập video": đổi cái này không đổi cái kia."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: {"templates": template_routes.mcp_listing(db, me.user_id)}
+        )
+
+    @tool("Áp mẫu dựng cho video", read=False)
+    async def apply_template_to_video(video_id: int, template_id: int | Literal["app"]) -> dict:
+        """Áp một mẫu (id trong "Xem kho mẫu dựng", hoặc "app") cho một video như "Tự dựng" trên web: thay chuyển
+        cảnh và màu, thêm âm thanh và lớp chữ cuối (trừ khi cảnh cuối là cảnh kết kêu gọi của kịch bản). Đây là mẫu
+        chọn riêng cho video, cao hơn mẫu của nhóm và của người tạo. Áp sau khi cảnh đã viết xong, trước khi render.
+        Áp mẫu khác sau đó sẽ gỡ âm thanh và lớp chữ của mẫu trước rồi mới áp mẫu mới. Mẫu sai thì không đổi gì."""
+        body = template_routes.ApplyBody(video_id=video_id, template=template_id)
+        return await run_in_threadpool(
+            invoke, lambda db, me: video_link(template_routes.apply_template(body, me, db)), write=True
+        )
+
+    @tool("Lưu video thành mẫu cá nhân", read=False)
+    async def save_video_as_template(
+        video_id: int, name: Annotated[str, Field(min_length=1, max_length=template_routes.MAX_NAME)]
+    ) -> dict:
+        """Lưu phần trình bày hiện tại của video (chuyển cảnh, màu, âm thanh, lớp chữ cuối) thành mẫu mới trong kho
+        CÁ NHÂN của bạn, với tên bạn đặt; không lưu vào nhóm. Tên đã có thì bị từ chối, mẫu cũ giữ nguyên. Chỉ lưu
+        từ video đã render xong và đạt kiểm tra khung hình, khi kho chưa có mẫu phù hợp; ghi rõ mẫu mới trong báo
+        cáo cho người dùng duyệt."""
+        body = template_routes.NewTemplateBody(video_id=video_id, name=name)
+
+        def operation(db, me):
+            template_routes.save_template(body, me, db)
+            return {"templates": template_routes.mcp_listing(db, me.user_id)}
+
+        return await run_in_threadpool(invoke, operation, write=True)
 
     @tool("Nhạc nền và giọng đọc", read=False)
     async def set_audio(
@@ -1039,3 +1083,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         return await run_in_threadpool(invoke, lambda db, me: video_link(videos.render(video_id, me, db)), write=True)
 
     return mcp
+
+
+def _own_part(db, model, part_id: int, me) -> int:
+    """A layer or sound is deleted through MCP only on a video the connected member made (part 4 of
+    docs/specs/per-user-settings-ownership); an id that names nothing is left for the route to refuse."""
+    part = db.get(model, part_id)
+    if part is not None:
+        ensure_owner(part.scene.video.created_by_id, me.user_id, "video này")
+    return part_id

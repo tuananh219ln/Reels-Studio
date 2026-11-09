@@ -11,6 +11,7 @@ from . import affiliate, auto_runs, facebook, fanpages, page_dashboard, plans
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session
+from .ownership import ensure_owner
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -177,6 +178,8 @@ def set_active(
     fanpage_id: int, body: ActiveBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> list[dict]:
     row = _fanpage(db, fanpage_id)
+    # Stopping a Page unlinks it from posting: its owner's call (a Page nobody owns is taken first, "Nhận Page này").
+    ensure_owner(row.owner_id, me.user_id, "Fanpage này (chủ Page)")
     row.active, row.updated_by_id = body.active, me.user_id
     db.commit()
     return _rows(db, me)
@@ -315,6 +318,7 @@ def delete_page(fanpage_id: int, me: Session = Depends(current_member), db: DbSe
     a slip of the mouse cannot remove it; a Page with posts is kept, since "Bài đăng", the medians and who posted what
     point to it."""
     row = _fanpage(db, fanpage_id)
+    ensure_owner(row.owner_id, me.user_id, "Fanpage này (chủ Page)")
     if row.active:
         raise ApiError(409, "fanpage_in_use", "Hãy ngừng dùng Fanpage trước khi xóa")
     posts = fanpages.post_counts(db).get(row.id, 0)

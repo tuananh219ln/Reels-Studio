@@ -121,6 +121,8 @@ export type MediaItem = {
   file_url: string;
   thumb_url: string;
   created_by: string;
+  /** Only they delete it. */
+  created_by_id: number;
   created_at: string;
 };
 
@@ -202,6 +204,8 @@ export type SceneSound = {
 export type EditTemplate = {
   id: "app" | number;
   name: string;
+  /** Who saved it (null for the app's own): only they delete it. */
+  created_by_id: number | null;
   builtin: boolean;
   summary: string[];
   /** The topic groups that hold it. */
@@ -226,6 +230,8 @@ export type VideoNote = {
   status: "open" | "sent" | "done";
   reply: string;
   created_by: string;
+  /** Only they delete it. */
+  created_by_id: number;
   created_at: string;
 };
 
@@ -394,6 +400,8 @@ export type SampleFrame = { second: number; note: string; url: string };
 export type VideoSample = {
   /** null once the sample was deleted; the video keeps its script and clips. */
   id: number | null;
+  /** Who added the sample: only they delete it. */
+  created_by_id: number | null;
   mode: SampleMode;
   mode_label: string;
   source_name: string | null;
@@ -417,6 +425,8 @@ export type SampleSummary = {
   cover_url: string | null;
   video_count: number;
   created_by: string;
+  /** Only they delete it. */
+  created_by_id: number;
   created_at: string;
 };
 
@@ -479,6 +489,8 @@ export type TikTokConnection = {
 export type KnowledgeTopic = {
   id: number;
   name: string;
+  /** Who made the group: only they delete it; null when unknown (nobody deletes it). */
+  created_by_id: number | null;
   script_prompt: string;
   clone_prompt: string;
   /** "Prompt sửa theo góp ý"; "" uses the default. */
@@ -773,6 +785,8 @@ export type PlanItemStatus = "idea" | "started" | "scripted" | "done" | "schedul
 
 export type PlanItem = PlanIdeaFields & {
   id: number;
+  /** Who added it: only they delete it; null for an idea made before makers were kept. */
+  created_by_id: number | null;
   knowledge_topic_id: number;
   position: number;
   status: PlanItemStatus;
@@ -850,6 +864,8 @@ export type MusicTrack = {
   license_note: string;
   url: string;
   created_by: string;
+  /** Only they delete it. */
+  created_by_id: number;
   created_at: string;
 };
 
@@ -952,6 +968,8 @@ export type ArticlePost = {
     };
   };
   created_by: string;
+  /** Only they take it down. */
+  created_by_id: number;
 };
 
 export type ArticleOptions = {
@@ -1004,6 +1022,8 @@ export type ProductPlatform = "shopee" | "tiktok_shop";
 
 export type AffiliateProduct = {
   id: number;
+  /** Only they delete it. */
+  created_by_id: number;
   knowledge_topic_id: number;
   topic: string;
   platform: ProductPlatform;
@@ -1115,6 +1135,8 @@ export type Post = {
   at: string;
   url: string | null;
   created_by: string;
+  /** Only they take it down. */
+  created_by_id: number;
   /** When and by whom it was cancelled or deleted; `closed_by` is null when a check found it so on Facebook. */
   closed_at: string | null;
   closed_by: string | null;

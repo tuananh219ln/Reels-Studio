@@ -14,6 +14,7 @@ from . import routes_videos
 from .db import get_db
 from .errors import ApiError
 from .models import Session, Video, VideoNote
+from .ownership import ensure_owner
 from .sessions import current_member
 from .videos import (
     ensure_unlocked,
@@ -102,6 +103,7 @@ def patch_note(note_id: int, body: NoteBody, me: Session = Depends(current_membe
 @router.delete("/{note_id}")
 def delete_note(note_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     video, note = _note(db, note_id)
+    ensure_owner(note.created_by_id, me.user_id, "góp ý này")
     db.delete(note)
     return _saved(db, video)
 

@@ -185,6 +185,8 @@ class KnowledgeTopic(Base):
         secondary=knowledge_topic_templates, order_by="EditTemplate.name"
     )
     edit_template_default: Mapped[object | None] = mapped_column(JSONB(none_as_null=True))
+    # Who made the group: only they delete it (ownership.py); None (made before 2026-11-09, maker unknown): nobody.
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -209,6 +211,8 @@ class TopicPlanItem(Base):
     pain: Mapped[str] = mapped_column(Text, default="", server_default="")
     hook: Mapped[str] = mapped_column(Text, default="", server_default="")
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), unique=True)
+    # Who added the idea (by hand, or by saving a plan or a Backlog list): only they delete it.
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

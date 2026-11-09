@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import {
   DeleteOutlined,
   DownOutlined,
@@ -123,6 +124,40 @@ function matches(item: PlanItem, filters: Filters): boolean {
     (!filters.group || item.pain_group === filters.group) &&
     (!needle || [item.topic, item.pain_group, item.pain, item.hook].some((text) => searchKey(text).includes(needle)))
   );
+}
+
+const DAY_DRAWER = "plan-day-drawer-root";
+
+/** Where a press does not close the day drawer: the drawer, another day (which switches it), the Backlog (dragged
+ * from while it is open), and anything that pops up from them (menus, confirmations, the "Sửa ý tưởng" form). */
+const KEEPS_DRAWER = [
+  `.${DAY_DRAWER}`,
+  "[data-plan-cell]",
+  "[data-plan-backlog]",
+  ".ant-drawer",
+  ".ant-modal-root",
+  ".ant-select-dropdown",
+  ".ant-dropdown",
+  ".ant-popover",
+  ".ant-picker-dropdown",
+  ".ant-tooltip",
+  ".ant-message",
+  ".ant-notification",
+].join(",");
+
+/** A press anywhere else on the page closes the day drawer, as a mask would (2026-11-09, part 6 of
+ * docs/specs/per-user-settings-ownership), while the drawer keeps no mask: the page keeps its scroll and the Backlog
+ * can still be dragged from (2026-11-08). The filters, the chosen day and the scroll stay as they were. */
+function useClickOutsideToClose(open: boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const onPress = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (target?.isConnected && !target.closest(KEEPS_DRAWER)) close();
+    };
+    document.addEventListener("mousedown", onPress);
+    return () => document.removeEventListener("mousedown", onPress);
+  }, [open, close]);
 }
 
 const COMPACT_KEY = "plan-compact";
@@ -396,6 +431,8 @@ function PlanView({
     setSelected(day);
     setOpenDay(day);
   };
+  const closeDay = useCallback(() => setOpenDay(null), []);
+  useClickOutsideToClose(openDay !== null, closeDay);
   const [todaySeen, setTodaySeen] = useState(plan.today_day);
   if (todaySeen !== plan.today_day) {
     setTodaySeen(plan.today_day);
@@ -493,8 +530,9 @@ function PlanView({
 
           <Drawer
             open={openDay !== null}
-            onClose={() => setOpenDay(null)}
+            onClose={closeDay}
             mask={false}
+            rootClassName={DAY_DRAWER}
             size="min(520px, 100vw)"
             data-testid="plan-day-drawer"
             title={dayTitle(plan, selected)}
@@ -582,7 +620,7 @@ function PlanView({
           </Drawer>
         </Col>
         {showBacklog && (
-          <Col flex="300px">
+          <Col flex="300px" data-plan-backlog>
             <BacklogPanel plan={plan} backlog={backlog} change={change} move={move} compact={compact} />
           </Col>
         )}
@@ -735,6 +773,7 @@ function DayCell({
   return (
     <div
       data-testid={`plan-day-${day}`}
+      data-plan-cell
       data-selected={selected}
       onClick={onSelect}
       style={{
@@ -1278,6 +1317,8 @@ function IdeaCard({
   const [open, setOpen] = useState(false);
   const full = !compact || open;
   const path = `/plans/items/${item.id}`;
+  // Only whoever added the idea deletes it.
+  const { me } = useMe();
   return (
     <div
       draggable
@@ -1358,16 +1399,18 @@ function IdeaCard({
               />
             </Tooltip>
           )}
-          <Popconfirm
-            title="Xoá ý tưởng này?"
-            description={item.video_id ? "Video đã tạo từ ý tưởng vẫn được giữ." : undefined}
-            okText="Xoá"
-            cancelText="Huỷ"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => onChange(() => api<Plan>(path, "DELETE"))}
-          >
-            <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label="Xoá ý tưởng" />
-          </Popconfirm>
+          {item.created_by_id === me.id && (
+            <Popconfirm
+              title="Xoá ý tưởng này?"
+              description={item.video_id ? "Video đã tạo từ ý tưởng vẫn được giữ." : undefined}
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => onChange(() => api<Plan>(path, "DELETE"))}
+            >
+              <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label="Xoá ý tưởng" />
+            </Popconfirm>
+          )}
         </Flex>
       </Flex>
       <PostNumbers posts={item.posts ?? []} shareGoal={shareGoal} />

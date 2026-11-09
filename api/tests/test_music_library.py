@@ -16,7 +16,7 @@ GROUPS = ["tim mạch", "xương khớp", "giấc ngủ", "gan"]
 def me(db):
     user = make_user(db)
     for name in GROUPS:
-        db.add(KnowledgeTopic(name=name, updated_by_id=user.id))
+        db.add(KnowledgeTopic(name=name, created_by_id=user.id, updated_by_id=user.id))
     db.commit()
     return user
 

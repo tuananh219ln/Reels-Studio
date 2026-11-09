@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Select, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
@@ -101,6 +102,7 @@ function TemplateCard({
   run: (call: () => Promise<EditTemplates>, done?: string) => Promise<void>;
 }) {
   const [renaming, setRenaming] = useState<string | null>(null);
+  const { me } = useMe();
   return (
     <Card
       size="small"
@@ -145,25 +147,28 @@ function TemplateCard({
               disabled={busy}
               onClick={() => setRenaming(template.name)}
             />
-            <Popconfirm
-              title={`Xoá mẫu “${template.name}”?`}
-              description={isDefault ? "Video mới sẽ không còn tự áp mẫu nào." : undefined}
-              okText="Xoá"
-              cancelText="Huỷ"
-              okButtonProps={{ danger: true }}
-              onConfirm={() =>
-                void run(() => api<EditTemplates>(`/edit-templates/${template.id}`, "DELETE"), "Đã xoá mẫu")
-              }
-            >
-              <Button
-                size="small"
-                type="text"
-                danger
-                aria-label={`Xoá ${template.name}`}
-                icon={<DeleteOutlined />}
-                disabled={busy}
-              />
-            </Popconfirm>
+            {/* Only whoever saved it deletes it. */}
+            {template.created_by_id === me.id && (
+              <Popconfirm
+                title={`Xoá mẫu “${template.name}”?`}
+                description={isDefault ? "Video mới sẽ không còn tự áp mẫu nào." : undefined}
+                okText="Xoá"
+                cancelText="Huỷ"
+                okButtonProps={{ danger: true }}
+                onConfirm={() =>
+                  void run(() => api<EditTemplates>(`/edit-templates/${template.id}`, "DELETE"), "Đã xoá mẫu")
+                }
+              >
+                <Button
+                  size="small"
+                  type="text"
+                  danger
+                  aria-label={`Xoá ${template.name}`}
+                  icon={<DeleteOutlined />}
+                  disabled={busy}
+                />
+              </Popconfirm>
+            )}
           </Flex>
         )
       }

@@ -690,6 +690,7 @@ def reference_payload(db: DbSession, video: Video) -> dict | None:
     analyzed = bool(sample and sample.analysis.strip())
     return {
         "id": sample.id if sample else None,
+        "created_by_id": sample.created_by_id if sample else None,  # only they delete it
         "mode": video.reference_mode,
         "mode_label": REFERENCE_MODE_LABELS.get(video.reference_mode, video.reference_mode),
         "source_name": sample.source_name if sample else None,
@@ -721,6 +722,7 @@ def publication_payload(post: Publication | None, by_page: dict[int | None, anal
         "at": live_at(post).isoformat(),
         "url": facebook.reel_url(post.remote_id) if published and post.remote_id else None,
         "created_by": post.created_by.name,
+        "created_by_id": post.created_by_id,  # only they take it down
         "closed_at": post.closed_at.isoformat() if post.closed_at else None,
         "closed_by": post.closed_by.name if post.closed_by else None,
         "metrics": metrics.payload(post, by_page),
@@ -899,6 +901,7 @@ def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list
                 "status": note.status,
                 "reply": note.reply,
                 "created_by": author,
+                "created_by_id": note.created_by_id,  # only they delete it
                 "created_at": note.created_at.isoformat(),
             }
         )
@@ -946,6 +949,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "self_review": video.self_review,
         "music_suggestions": video.music_suggestions,
         "created_by": video.created_by.name,
+        # Only its maker deletes it, or its scenes (ownership.py).
+        "created_by_id": video.created_by_id,
         "created_at": video.created_at.isoformat(),
         **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),

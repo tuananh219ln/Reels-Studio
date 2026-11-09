@@ -792,6 +792,22 @@ Planned:
   pages to `/login` before rendering when there is no session cookie; the API validates the session
   on every request. Three pages need no session: `/login`, `/privacy`, the public privacy policy a
   Meta app needs to go Live, and `/terms`, the public terms of service (exactly those paths; they call no API).
+- **Who deletes what** ([ownership.py](../api/src/reels_api/ownership.py), part 4 of
+  [docs/specs/per-user-settings-ownership](specs/per-user-settings-ownership/brief.md)): only the member who made a
+  thing deletes it; anyone else gets 403 `not_owner` ("Chỉ người tạo … mới xoá được"), with no exception. Seeing,
+  using and editing stay shared. It covers a video and its scenes (also MCP's `delete_scene`, `delete_layer` and
+  `delete_sound`, which act only on the connected member's own videos), a topic group
+  (`knowledge_topics.created_by_id`, migration 0068, backfilled from who last changed it, else who made its first
+  video; a group still without one is deleted by nobody) and a plan idea (`topic_plan_items.created_by_id`, the same
+  migration: who last changed it, else its group's maker), saved templates, affiliate products, Kho tư liệu items,
+  music tracks, articles, sample videos, notes, render machines, and taking a post down (video or article: whoever
+  posted it). A Page is stopped or removed only by its owner (`fanpages.owner_id`; one nobody owns is taken first).
+  A video holding a teammate's post, note or queue place, a group holding a teammate's video, plan idea or product,
+  and a 30-day plan whose replaced ideas include a teammate's are refused with 409 `holds_others_work`, naming what
+  is theirs. Payloads carry `created_by_id` (a Page its `owner`), so the web shows "Xóa" only to the maker.
+  Connections (TikTok, affiliate accounts, MCP) and a member's own defaults were already reachable only by them;
+  the queue keeps its rule (the Page's owner or whoever added the video). Text box styles have no maker kept and stay
+  shared.
 - **Login:** email + password only. There is no self-signup. Google login is planned ([#54](https://github.com/tuananh219ln/Reels-Studio/issues/54)). The CLI
   `python -m reels_api create-user` creates the first user and is the
   recovery path: for an existing email it resets the password, re-enables the account, and signs out

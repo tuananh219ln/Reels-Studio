@@ -50,6 +50,10 @@ thumbnail is a grey tile with an icon.
 Every list's toolbar reads the same way: its search box first, then its filters, then its sort. A filter
 is a [FilterSelect](../web/src/components/FilterSelect.tsx): typing searches its options (accents do not
 matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội").
+"Xóa" (and "Hủy đăng"/"Xóa" of a post, "Ngừng dùng" of a Page) is shown only to whoever made the thing (a Page:
+its owner); a teammate sees none, or, where a row keeps its buttons in fixed places, a greyed one saying why
+("Chỉ người đăng bài này mới hủy hoặc xóa được"). A topic group's "Xoá nhóm" reads "(chỉ người tạo nhóm)" for others.
+
 Every list of the team's work starts on the member's own: Video (its creator filter), Bài viết, Bài đăng (list and
 calendar), Bình luận and Jobs have "Của tôi / Cả đội" ([WhoseFilter](../web/src/components/WhoseFilter.tsx), with
 counts where the whole list is loaded), and Quản lý Page has "Trang của tôi / Tất cả". "Của tôi" is what the
@@ -550,7 +554,9 @@ Built:
     their status colour (never filtered); an empty one has a dashed "+ Thêm ý", which also opens the day. Clicking
     a cell outlines it and opens that day in a drawer on the right ("Ngày N — Thứ …, dd/mm" from the start date,
     "Hôm nay" on today's, "+ Thêm ý" greyed out at 10), with no mask, so the calendar stays usable beside it;
-    closing it keeps the page's scroll and the filters. Dragging a chip or a card onto a cell moves the idea there;
+    it closes with its × or a press anywhere else on the page (another day switches it instead, and the Backlog,
+    the drawer's own pop-ups and the "Sửa ý tưởng" form leave it open), and closing it keeps the page's scroll, the
+    filters and the chosen day. Dragging a chip or a card onto a cell moves the idea there;
     a full day (10) refuses it. "Mở Backlog" sits above the calendar and opens the Backlog beside it, to drag ideas
     between them;
   - in the drawer, the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook

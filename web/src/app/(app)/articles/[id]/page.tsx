@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { ArrowLeftOutlined, DeleteOutlined, LinkOutlined, RobotOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Col, Flex, Input, Popconfirm, Result, Row, Select, Spin, Typography } from "antd";
 import Link from "next/link";
@@ -92,6 +93,7 @@ export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { message, modal } = App.useApp();
+  const { me } = useMe();
   const [article, setArticle] = useState<Article | null>(null);
   const [missing, setMissing] = useState(false);
   const [options, setOptions] = useState<ArticleOptions | null>(null);
@@ -239,24 +241,26 @@ export default function ArticlePage() {
             onSaved={show}
             beforePublish={() => saveTyped("caption", caption)}
           />
-          <Popconfirm
-            title="Xoá bài viết này?"
-            okText="Xoá"
-            cancelText="Không"
-            okButtonProps={{ danger: true }}
-            onConfirm={async () => {
-              try {
-                await api(`/articles/${id}`, "DELETE");
-                router.push("/articles");
-              } catch (err) {
-                message.error(errorMessage(err));
-              }
-            }}
-          >
-            <Button danger icon={<DeleteOutlined />} disabled={writing}>
-              Xoá
-            </Button>
-          </Popconfirm>
+          {article.created_by_id === me.id && (
+            <Popconfirm
+              title="Xoá bài viết này?"
+              okText="Xoá"
+              cancelText="Không"
+              okButtonProps={{ danger: true }}
+              onConfirm={async () => {
+                try {
+                  await api(`/articles/${id}`, "DELETE");
+                  router.push("/articles");
+                } catch (err) {
+                  message.error(errorMessage(err));
+                }
+              }}
+            >
+              <Button danger icon={<DeleteOutlined />} disabled={writing}>
+                Xoá
+              </Button>
+            </Popconfirm>
+          )}
         </Flex>
       </Flex>
 

@@ -28,6 +28,7 @@ from .models import (
     Publication,
     Session,
 )
+from .ownership import ensure_owner
 from .routes_affiliate import _ask_comments
 from .routes_videos import MAX_SCHEDULE_DELAY, MIN_SCHEDULE_DELAY, NewVideoBody, create_video, invalid
 from .sessions import current_member, now
@@ -241,6 +242,7 @@ def delete_article(
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
     article = _editable(db, article_id)
+    ensure_owner(article.created_by_id, me.user_id, "bài viết này")
     if any(post.status in OPEN_POSTS for post in article_posts.posts_of(db, article.id)):
         raise ApiError(409, "article_posted", "Bài đang chờ đăng, đã hẹn giờ hoặc đã đăng: gỡ bài trên Facebook trước")
     key = article.image_key
@@ -422,6 +424,7 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
     """ "Hủy đăng" and "Gỡ bài". A post Facebook never received ends here; any other goes through the worker, which
     decides whether it ends as cancelled or deleted by whether it really went live."""
     article, post = _post(db, post_id)
+    ensure_owner(post.created_by_id, me.user_id, "bài đăng này")
     if post.status not in OPEN_POSTS:
         raise ApiError(409, "post_closed", "Bài này đã hủy hoặc đã gỡ")
     job = articles.active_job(db, article.id)

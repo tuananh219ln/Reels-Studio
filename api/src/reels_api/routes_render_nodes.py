@@ -20,6 +20,7 @@ from . import motion, render_nodes
 from .db import get_db
 from .errors import ApiError
 from .models import AppSetting, Job, RenderNode, Session, Video
+from .ownership import ensure_owner
 from .security import hash_session_token, new_session_token
 from .sessions import current_member, now
 from .storage import DirectoryStorage, get_storage
@@ -55,6 +56,7 @@ def node_payload(node: RenderNode) -> dict:
         "id": node.id,
         "name": node.name,
         "created_by": node.created_by.name,
+        "created_by_id": node.created_by_id,
         "created_at": node.created_at.isoformat(),
         "last_seen_at": seen.isoformat() if seen else None,
         "online": bool(seen and now() - seen < render_nodes.ONLINE),
@@ -90,6 +92,7 @@ def delete_node(node_id: int, me: Session = Depends(current_member), db: DbSessi
     node = db.get(RenderNode, node_id)
     if node is None:
         raise ApiError(404, "node_not_found", "Không tìm thấy máy render")
+    ensure_owner(node.created_by_id, me.user_id, "máy render này")
     # Its job, if any, goes back to the queue for another machine.
     for job in db.scalars(select(Job).where(Job.node_id == node.id, Job.node_stage == "taken")):
         job.node_stage, job.node_id, job.node_seen_at = "ready", None, None

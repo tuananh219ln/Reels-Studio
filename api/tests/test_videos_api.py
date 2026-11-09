@@ -225,10 +225,11 @@ def test_choosing_a_title_changes_only_the_title_scene_text(an, db, me, storage)
     assert saved["title_options"] == ["5 MÓN GIÚP\n*XƯƠNG CHẮC KHỎE*", "TIÊU ĐỀ 2"]
 
 
-def test_saving_into_a_deleted_scene_is_refused(an, binh, db, me, storage):
+def test_saving_into_a_deleted_scene_is_refused(an, db, me, storage):
     video = make_video(db, storage, me)
     target = scene_ids(db, video)[2]
-    assert binh.delete(f"/api/scenes/{target}").status_code == 200
+    # Only the video's maker deletes a scene (ownership.py), so here they do it themselves, as from another tab.
+    assert an.delete(f"/api/scenes/{target}").status_code == 200
     response = an.patch(f"/api/scenes/{target}", json={"text": "muộn"})
     assert (response.status_code, response.json()["message"]) == (404, "Cảnh này đã bị xóa")
     assert len(an.get(f"/api/videos/{video.id}").json()["scenes"]) == 4

@@ -10,10 +10,13 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from reels_render.effects import SCENE_TRANSITIONS
+
 from . import autoedit
 from .db import get_db
 from .errors import ApiError
 from .models import EditTemplate, KnowledgeTopic, Session, User
+from .ownership import ensure_owner
 from .sessions import current_member
 from .videos import ensure_unlocked, lock_video, split_scenes, video_payload
 
@@ -53,10 +56,14 @@ def _name(raw: str) -> str:
     return name
 
 
-def _item(key: object, name: str, template: autoedit.Template, topics: list[dict]) -> dict:
+def _item(
+    key: object, name: str, template: autoedit.Template, topics: list[dict], created_by_id: int | None = None
+) -> dict:
     return {
         "id": key,
         "name": name,
+        # Who saved it (None for the app's own): only they delete it.
+        "created_by_id": created_by_id,
         "builtin": key == autoedit.APP,
         "data": autoedit.asdict(template),
         "summary": autoedit.summary(template),
@@ -77,8 +84,50 @@ def listing(db: DbSession, user_id: int) -> dict:
     rows = db.scalars(select(EditTemplate).order_by(EditTemplate.name)).all()
     held = topics_by_template(db)
     templates = [_item(autoedit.APP, autoedit.APP_NAME, autoedit.APP_TEMPLATE, [])]
-    templates += [_item(row.id, row.name, autoedit.parse(row.data), held.get(row.id, [])) for row in rows]
+    templates += [
+        _item(row.id, row.name, autoedit.parse(row.data), held.get(row.id, []), row.created_by_id) for row in rows
+    ]
     return {"templates": templates, "default": autoedit.member_default(db, user_id)}
+
+
+def mcp_listing(db: DbSession, user_id: int) -> list[dict]:
+    """The templates the member works with through MCP (part 5): the app's own, their own, and those a topic group
+    holds, each with its scope and the parts an assistant picks by."""
+    groups: dict[int, list[dict]] = {}
+    for topic in db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.name)):
+        for template in topic.edit_templates:
+            entry = {"id": topic.id, "name": topic.name, "default": topic.edit_template_default == template.id}
+            groups.setdefault(template.id, []).append(entry)
+    rows = db.scalars(
+        select(EditTemplate)
+        .where((EditTemplate.created_by_id == user_id) | EditTemplate.id.in_(list(groups) or [0]))
+        .order_by(EditTemplate.name)
+    ).all()
+    app_groups = [
+        {"id": topic.id, "name": topic.name, "default": True}
+        for topic in db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.name))
+        if topic.edit_template_default == autoedit.APP
+    ]
+    items = [_mcp_item(autoedit.APP, autoedit.APP_NAME, autoedit.APP_TEMPLATE, "app", app_groups)]
+    for row in rows:
+        scope = "personal" if row.created_by_id == user_id else "group"
+        items.append(_mcp_item(row.id, row.name, autoedit.parse(row.data), scope, groups.get(row.id, [])))
+    return items
+
+
+def _mcp_item(key: object, name: str, template: autoedit.Template, scope: str, groups: list[dict]) -> dict:
+    return {
+        "id": key,
+        "name": name,
+        "scope": scope,  # app, personal (the member's own) or group (held by a topic group)
+        "groups": groups,
+        "transitions": [SCENE_TRANSITIONS[item].label for item in template.transitions],
+        "scene_sounds": bool(template.scene_sounds),
+        "end_layer": bool(template.end_layers),
+        # A template holds no kind of video: it fits slides and "Video xuyên suốt" alike.
+        "video_mode": None,
+        "summary": autoedit.summary(template),
+    }
 
 
 def _commit_name(db: DbSession) -> None:
@@ -124,6 +173,7 @@ def delete_template(template_id: int, me: Session = Depends(current_member), db:
     row = db.get(EditTemplate, template_id)
     if row is None:
         raise ApiError(404, "template_not_found", "Mẫu này đã bị xoá")
+    ensure_owner(row.created_by_id, me.user_id, "mẫu này")
     # Members and groups who put it on their new videos then put none, and the groups no longer hold it.
     chose_it = type_coerce(template_id, JSONB)
     for user in db.scalars(select(User).where(User.edit_template_default == chose_it)):

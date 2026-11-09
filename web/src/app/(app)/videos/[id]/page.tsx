@@ -30,6 +30,7 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useMe } from "@/components/MeContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
@@ -88,6 +89,7 @@ export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { message, modal } = App.useApp();
+  const { me } = useMe();
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -448,9 +450,12 @@ export default function VideoPage() {
               Tạo bản TikTok
             </Button>
           )}
-          <Button danger icon={<DeleteOutlined />} disabled={video.locked || busy} onClick={remove}>
-            Xóa
-          </Button>
+          {/* Only its maker deletes a video (or its scenes); the api refuses anyone else. */}
+          {video.created_by_id === me.id && (
+            <Button danger icon={<DeleteOutlined />} disabled={video.locked || busy} onClick={remove}>
+              Xóa
+            </Button>
+          )}
         </Space>
       </Flex>
 
@@ -686,7 +691,11 @@ export default function VideoPage() {
                   expanded={expanded[scene.id] ?? true}
                   onToggle={() => setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? true) }))}
                   onMove={(step) => move(index, step)}
-                  onDelete={() => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))}
+                  onDelete={
+                    video.created_by_id === me.id
+                      ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))
+                      : undefined
+                  }
                 />
               ))}
               <Button

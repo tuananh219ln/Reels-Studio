@@ -18,6 +18,7 @@ from . import reference, remote_media, video_options
 from .db import get_db
 from .errors import ApiError
 from .models import ACTIVE_JOB_STATUSES, Job, KnowledgeTopic, Session, Video, VideoReference
+from .ownership import ensure_owner
 from .routes_videos import MAX_TOPIC_LENGTH, _enqueue, _inline, _saved, apply_default_music, invalid
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
@@ -56,6 +57,7 @@ def _summary(db: DbSession, sample: VideoReference) -> dict:
         "cover_url": first[0]["url"] if first else None,
         "video_count": used,
         "created_by": sample.created_by.name,
+        "created_by_id": sample.created_by_id,
         "created_at": sample.created_at.isoformat(),
     }
 
@@ -211,6 +213,7 @@ def delete_sample(
     sample = db.get(VideoReference, reference_id, with_for_update=True)
     if sample is None:
         raise _not_found()
+    ensure_owner(sample.created_by_id, me.user_id, "video mẫu này")
     if _busy(db, sample.id):
         raise ApiError(409, "reference_busy", "Video mẫu đang được dùng trong một job, hãy đợi job xong")
     db.delete(sample)
