@@ -97,6 +97,18 @@ export default function EditTemplatesPage() {
   );
 }
 
+/** Said before a template is deleted: who and which groups put it on their new videos, and stop doing so. */
+function usage(template: EditTemplate): string {
+  const parts = [];
+  if (template.members_using > 0) parts.push(`${template.members_using} người đang chọn làm mẫu cho video mới`);
+  if (template.topics.length > 0) {
+    parts.push(`${template.topics.length} nhóm đang giữ (${template.topics.map((topic) => topic.name).join(", ")})`);
+  }
+  return parts.length === 0
+    ? "Chưa ai dùng mẫu này cho video mới."
+    : `${parts.join(" và ")}. Xoá thì video mới của họ không còn tự áp mẫu này; video đã có giữ nguyên.`;
+}
+
 function TemplateCard({
   template,
   isDefault,
@@ -144,7 +156,9 @@ function TemplateCard({
         )
       }
       extra={
-        !template.builtin && (
+        // Only whoever saved it renames or deletes it.
+        !template.builtin &&
+        template.created_by_id === me.id && (
           <Flex gap={4}>
             <Button
               size="small"
@@ -154,28 +168,25 @@ function TemplateCard({
               disabled={busy}
               onClick={() => setRenaming(template.name)}
             />
-            {/* Only whoever saved it deletes it. */}
-            {template.created_by_id === me.id && (
-              <Popconfirm
-                title={`Xoá mẫu “${template.name}”?`}
-                description={isDefault ? "Video mới sẽ không còn tự áp mẫu nào." : undefined}
-                okText="Xoá"
-                cancelText="Huỷ"
-                okButtonProps={{ danger: true }}
-                onConfirm={() =>
-                  void run(() => api<EditTemplates>(`/edit-templates/${template.id}`, "DELETE"), "Đã xoá mẫu")
-                }
-              >
-                <Button
-                  size="small"
-                  type="text"
-                  danger
-                  aria-label={`Xoá ${template.name}`}
-                  icon={<DeleteOutlined />}
-                  disabled={busy}
-                />
-              </Popconfirm>
-            )}
+            <Popconfirm
+              title={`Xoá mẫu “${template.name}”?`}
+              description={<span data-testid="template-delete-usage">{usage(template)}</span>}
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              onConfirm={() =>
+                void run(() => api<EditTemplates>(`/edit-templates/${template.id}`, "DELETE"), "Đã xoá mẫu")
+              }
+            >
+              <Button
+                size="small"
+                type="text"
+                danger
+                aria-label={`Xoá ${template.name}`}
+                icon={<DeleteOutlined />}
+                disabled={busy}
+              />
+            </Popconfirm>
           </Flex>
         )
       }

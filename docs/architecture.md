@@ -340,7 +340,7 @@ A scene may hold an uploaded video clip instead of a photo
   `users.edit_template_default` ("app", a template id, or null; migration 0065, which dropped the team's app setting
   of the same name). [routes_templates.py](../api/src/reels_api/routes_templates.py)
   under `/api/edit-templates` lists them (the app's own first, each with Vietnamese summary lines) with the signed-in
-  member's `default`, saves one from a video, renames, removes (also clearing it as any member's default), sets the
+  member's `default`, saves one from a video, renames (its maker only, 403 otherwise), removes (its maker only, also clearing it as any member's default; each template carries `members_using`, how many members chose it, and its groups for the warning), sets the
   member's own default, and `POST /apply` puts one on a video under its lock. `autoedit.apply_default` runs after the
   script or clone job writes the scenes and after "Tự viết", with the template `autoedit.chosen_template` picks:
   the one chosen on the video itself › its topic group's › its maker's own (none when the maker is unknown) › none.
