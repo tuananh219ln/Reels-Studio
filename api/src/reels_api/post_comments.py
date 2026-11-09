@@ -6,7 +6,8 @@ cannot pin a comment.
 Like reading a post's numbers (metrics.py) it is not a job: the worker writes a few due comments between jobs, and a
 request never calls Facebook. A post is due when
 - it was made with "Tự bình luận" (`auto_comment`), is live for `DELAY`, and has had no attempt yet; or
-- a member asked ("Bình luận ngay" / "Cập nhật bình luận") since the last attempt.
+- a member asked ("Bình luận ngay" / "Cập nhật bình luận") since the last attempt;
+and never under a video marked "Đã dán link tay" (`videos.manual_comment`), whose links a member pasted by hand.
 
 Never two comments: the comment's id is kept and a later request edits that comment. The attempt is stamped before
 Facebook is asked, so an answer lost on the way is not retried by itself; a member's retry first looks for a comment
@@ -22,7 +23,7 @@ from sqlalchemy.orm import sessionmaker
 
 from . import affiliate, facebook, fanpages
 from .facebook import FacebookError
-from .models import Publication
+from .models import Publication, Video
 from .sessions import now
 from .shopee import ShopeeError
 
@@ -62,6 +63,10 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
                 and_(Publication.status == "scheduled", Publication.scheduled_at <= at),
             ),
             or_(asked, automatic),
+            or_(
+                Publication.video_id.is_(None),
+                Publication.video_id.not_in(select(Video.id).where(Video.manual_comment.is_(True))),
+            ),
         )
         .order_by(asked.desc(), Publication.id)
         .limit(limit)

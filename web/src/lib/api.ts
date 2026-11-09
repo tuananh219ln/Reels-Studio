@@ -1118,6 +1118,9 @@ export type AffiliateVideo = {
   pinned_comment: string;
   /** The member posted it, or it is live on a Page or TikTok account of theirs. */
   mine: boolean;
+  thumbnail_url: string | null;
+  /** "Đã dán link tay": the app writes and edits none of its comments; its products are only a record. */
+  manual_comment: boolean;
   /** Its live posts, newest first: where each went and whose it is. */
   posts: AffiliateVideoPost[];
   products: (Pick<
@@ -1136,6 +1139,9 @@ export type AffiliateVideoPost = {
   owner_name: string | null;
   /** The Page has a Shopee account its comments make links with (App ID and Secret, its owner's). */
   has_shopee_account: boolean;
+  /** The app's comment under this post; "off" for TikTok and for a video pasted by hand. */
+  comment: "off" | "waiting" | "pending" | "done" | "failed";
+  comment_error: string | null;
 };
 
 /** Whose commission a product's link in one Page's comment earns: the Page's own account, the product's saved link

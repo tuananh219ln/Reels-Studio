@@ -622,7 +622,9 @@ Planned:
     the Page or TikTok account, its owner, and `has_shopee_account`, `affiliate.page_account` as the comment
     uses it), `mine` (posted by the member or live on a Page or account of theirs) and, per attached Shopee
     product, `commission`: for each Page, `affiliate.commission_to` (`page_account`, `saved_link` or `no_link`,
-    the same choice `link_for` makes) and whose it is. Every post payload has `comment` (`state`: off, waiting, pending, done or failed;
+    the same choice `link_for` makes) and whose it is. A video marked "Đã dán link tay" (`videos.manual_comment`, migration 0071,
+    `PUT /api/affiliate-products/videos/{id}/manual`) is skipped by the comment worker, its product changes ask
+    for no edit, and "Bình luận ngay" on its posts answers 409: a member pasted its links on Facebook. Every post payload has `comment` (`state`: off, waiting, pending, done or failed;
     `auto`, `error`, `text`, `at`). Members still pin the comment on Facebook.
   - **Shopee** ([affiliate_rounds.py](../api/src/reels_api/affiliate_rounds.py), [shopee.py](../api/src/reels_api/shopee.py))
     is the worker's too, between jobs: the suggestions of one asked video per round (a new script asks by itself

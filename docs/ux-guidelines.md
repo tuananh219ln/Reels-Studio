@@ -597,26 +597,29 @@ Built:
   used the track keep their copy). The topics to choose and filter by are the groups of Kho kiến thức, in its order,
   then "chung" (a hint under the field says so).
 - **Affiliate** (`/affiliate`), a line saying what the page is for, then three tabs:
-  - "Video đã đăng": a first row with "Của tôi / Cả đội" (a video is mine when I posted it or it is live
-    on a Page or TikTok account of mine; it starts on "Của tôi" once I have one, else on "Cả đội"), the
-    title search, platform and product filters; a second row of tabs with counts over the videos shown ("Tất cả", "Chưa gắn sản
-    phẩm", "Đã gắn", "Cần xem lại" for a video with a product that lost its approval or no longer
-    meets the rules), "Tìm theo tiêu đề video" and "Mọi nền tảng" (Facebook or TikTok); the counts
-    follow the search and platform, and "Không có video nào khớp" when nothing matches. Then
-    Facebook reels and TikTok posts made by hand, newest first, each tagged with its
-    platform, time and "Xem Reel" on one line, then one chip per Page or TikTok account it is live on
-    (a teammate's in gold with its owner's name; the tooltip says whose commission it is),
-    with the script's suggestions, a picker of approved products of the video's platform
-    (labelled with the expected commission per order, and "Người thêm: <tên>" when a teammate added it).
-    Under the picker, one short line per attached Shopee product and Page whose commission is not the
-    member's own ("<sản phẩm> → hoa hồng về <tên> (link lưu sẵn)", the Page named only when the video is on
-    several; the tooltip gives the whole reason): in yellow whose it is (the Page's own Shopee account, its owner's; or, on a Page without a
-    Shopee account with App ID, the product's saved link, the member who added it), in red when the Page
-    has no such account and the product has no saved link, so it is left out of that Page's comment.
-    Nothing is refused for it. Then for a reel a copy button for the pinned
-    comment with one link per product ("Gắn giỏ trong app TikTok" for TikTok). A product that lost its
-    approval or no longer meets the rules stays attached with a yellow tag, and its link is left out of
-    the copied text;
+  - "Video đã đăng": one row of filters ("Của tôi / Cả đội", where a video is mine when I posted it or it
+    is live on a Page or TikTok account of mine, starting on "Của tôi" once I have one, else on "Cả đội";
+    "Tìm theo tiêu đề video", "Mọi Page", "Mọi nền tảng", "Mọi sản phẩm") and, at its end, "Kiểu hiển thị":
+    a table (the default), cards with the cover, or a list beside the open video, remembered in the
+    browser. Under it, tabs with counts over the videos the filters leave ("Tất cả", "Chưa gắn", "Đã
+    gắn", "Dán tay", "Cần xem lại" for a product that lost its approval or no longer meets the rules);
+    "Không có video nào khớp" when nothing matches. Each video shows its cover, title, platform, time and
+    "Xem Reel" on one line, then one chip per Page or TikTok account it is live on (a teammate's in gold
+    with its owner's name; the tooltip says whose commission it is). Its products are tags ("×" takes one
+    off) with "+ Gắn sản phẩm", a picker of approved products of the video's platform (labelled with the
+    expected commission per order, and "Người thêm: <tên>" when a teammate added it); the script's ideas
+    show under it while nothing is attached. Under the tags, one short line per attached Shopee product
+    and Page whose commission is not the member's own ("<sản phẩm> → hoa hồng về <tên> (link lưu sẵn)",
+    the Page named only when the video is on several; the tooltip gives the whole reason): in yellow whose
+    it is (the Page's own Shopee account, its owner's; or, on a Page without a Shopee account with App ID,
+    the product's saved link, the member who added it), in red when the Page has no such account and the
+    product has no saved link, so it is left out of that Page's comment. Nothing is refused for it. A
+    product that lost its approval or no longer meets the rules stays attached in yellow, and its link is
+    left out of the copied text. The comment column tells how the app's comment stands ("Chờ gắn sản
+    phẩm", "Chưa bình luận", "Chờ app bình luận", "Đang bình luận", "App đã bình luận", "Lỗi bình luận"
+    with the error on hover, "Dán tay", "Gắn giỏ trong app TikTok"), with "Sao chép" for the pinned comment
+    and "Đã dán link tay" / "Bỏ dán tay": a video marked so is never commented by the app (nor edited),
+    and its products are only a record;
   - "Sản phẩm": products ranked by expected commission per order, with their platform tag ("Tìm qua
     API" for those Shopee's search found), shop, type, "Người thêm: <tên>" ("bạn" for the member's own;
     its tooltip says that saved link goes in the comment of a Page without its own Shopee account), rating,

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, shopee
+from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, post_comments, shopee
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -35,7 +35,7 @@ from .ownership import ensure_owner
 from .routes_music import like_pattern
 from .routes_videos import invalid, my_topic_ids
 from .sessions import current_member, now
-from .videos import is_published, split_scenes, title_of
+from .videos import is_published, split_scenes, thumbnail_url, title_of
 
 router = APIRouter(prefix="/api/affiliate-products")
 
@@ -338,6 +338,9 @@ def _post_payload(db: DbSession, post: Publication) -> dict:
         "owner_id": owner_id,
         "owner_name": _name(db, owner_id),
         "has_shopee_account": affiliate.page_account(db, page) is not None,
+        # How the post's comment stands (post_comments.payload): off, waiting, pending, done or failed.
+        "comment": post_comments.payload(post)["state"] if post.platform == "facebook" else "off",
+        "comment_error": post.comment_error if post.platform == "facebook" else None,
     }
 
 
@@ -384,10 +387,17 @@ def _video_payload(db: DbSession, video: Video, posts: list[Publication], user_i
         .order_by(AffiliateProduct.id)
     )
     where = [_post_payload(db, one) for one in posts]
+    if video.manual_comment:
+        # Nothing waits for the worker under a video pasted by hand; a comment it already wrote still shows.
+        for one in where:
+            one["comment"] = "off" if one["comment"] in ("waiting", "pending") else one["comment"]
     return {
         "id": video.id,
         "title": title_of(video, title) or video.topic,
+        "thumbnail_url": thumbnail_url(video),
         "platform": video.platform,
+        # "Đã dán link tay": the app writes and edits none of its comments; its products are only a record.
+        "manual_comment": video.manual_comment,
         "reel_url": post.post_url if post.platform == "tiktok" else facebook.reel_url(post.remote_id),
         "published_at": _live_at(post).isoformat(),
         # Mine when I posted it or it is live on a Page or account of mine (decisions 2026-11-08, "Của tôi").
@@ -466,7 +476,7 @@ def set_video_products(
         )
     )
     db.add_all(VideoAffiliateProduct(video_id=video_id, product_id=product_id) for product_id in chosen - attached)
-    if chosen != attached:
+    if chosen != attached and not video.manual_comment:
         for post in db.scalars(
             select(Publication).where(Publication.video_id == video_id, Publication.comment_id.is_not(None))
         ):
@@ -475,6 +485,23 @@ def set_video_products(
     db.commit()
     posts = _live_posts(db, video_id)
     return _video_payload(db, video, posts, me.user_id) if posts else {"id": video.id, "product_ids": sorted(chosen)}
+
+
+class ManualBody(BaseModel):
+    manual: bool
+
+
+@router.put("/videos/{video_id}/manual")
+def set_manual_comment(
+    video_id: int, body: ManualBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Đã dán link tay": a member pasted the video's affiliate links on Facebook, so the worker keeps out of its
+    posts' comments; unmarked, it writes them again as usual (a post never commented is due as before)."""
+    video = _video(db, video_id)
+    video.manual_comment = body.manual
+    db.commit()
+    posts = _live_posts(db, video_id)
+    return _video_payload(db, video, posts, me.user_id) if posts else {"id": video.id, "manual_comment": body.manual}
 
 
 def _video(db: DbSession, video_id: int) -> Video:

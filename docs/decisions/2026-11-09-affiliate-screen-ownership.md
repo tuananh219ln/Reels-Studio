@@ -22,3 +22,9 @@ stand and are what this follows.
 - **No banner for a team without a Shopee App ID**: the "Thêm sản phẩm" drawer already says so. The row's quick fill
   of stars and sales is offered for every Shopee draft under the rule, not only for one nobody has read. The
   approval rule (4.7 stars, 100 sales) is unchanged.
+- **"Đã dán link tay"** (owner's request, 2026-11-09): without a Shopee App ID members paste their links on Facebook
+  themselves. A video marked so (one switch per video, for all its posts) is never commented or edited by the app;
+  its attached products are only a record, so the list still shows what it carries. Such links carry no sub ids, so
+  their orders never reach a video in "Doanh thu".
+- **"Video đã đăng" has three views** (owner's choice of all three): a table to scan, cards with the cover, and a list
+  beside the open video, remembered per browser; the table is the default.

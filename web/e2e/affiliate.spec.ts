@@ -272,6 +272,8 @@ test("Video đã đăng starts on the member's own and says whose commission eac
     owner_id: ownerId,
     owner_name: owner,
     has_shopee_account: false,
+    comment: "off",
+    comment_error: null,
   });
   const video = (id: number, title: string, mine: boolean, posts: object[], products: object[]) => ({
     id,
@@ -282,63 +284,67 @@ test("Video đã đăng starts on the member's own and says whose commission eac
     suggestions: [],
     pinned_comment: "",
     mine,
+    thumbnail_url: null,
+    manual_comment: false,
     posts,
     products,
   });
   // A posted reel needs a render and Facebook's whole flow; the api's side is covered by test_affiliate_ownership.py.
-  await page.route("**/api/affiliate-products/videos", (route) =>
-    route.fulfill({
-      json: [
-        video(
-          1,
-          "Trà gừng cho người trên 50",
-          true,
-          [post("Trang Dưỡng Sinh", me.id, "Nguyễn Văn An")],
-          [
+  const rows = () => [
+    video(
+      1,
+      "Trà gừng cho người trên 50",
+      true,
+      [post("Trang Dưỡng Sinh", me.id, "Nguyễn Văn An")],
+      [
+        {
+          id: 7,
+          name: "Gối cao su",
+          url: "https://s.shopee.vn/cua-binh",
+          status: "approved",
+          problems: [],
+          created_by_id: me.id + 1,
+          created_by: "Trần Bình",
+          has_saved_link: true,
+          commission: [
             {
-              id: 7,
-              name: "Gối cao su",
-              url: "https://s.shopee.vn/cua-binh",
-              status: "approved",
-              problems: [],
-              created_by_id: me.id + 1,
-              created_by: "Trần Bình",
-              has_saved_link: true,
-              commission: [
-                {
-                  fanpage_id: me.id,
-                  fanpage_name: "Trang Dưỡng Sinh",
-                  kind: "saved_link",
-                  user_id: me.id + 1,
-                  user_name: "Trần Bình",
-                },
-              ],
-            },
-            {
-              id: 8,
-              name: "Nồi hầm",
-              url: null,
-              status: "approved",
-              problems: [],
-              created_by_id: me.id,
-              created_by: "Nguyễn Văn An",
-              has_saved_link: false,
-              commission: [
-                {
-                  fanpage_id: me.id,
-                  fanpage_name: "Trang Dưỡng Sinh",
-                  kind: "no_link",
-                  user_id: null,
-                  user_name: null,
-                },
-              ],
+              fanpage_id: me.id,
+              fanpage_name: "Trang Dưỡng Sinh",
+              kind: "saved_link",
+              user_id: me.id + 1,
+              user_name: "Trần Bình",
             },
           ],
-        ),
-        video(2, "Bài của đồng đội", false, [post("Trang Bình", me.id + 1, "Trần Bình")], []),
+        },
+        {
+          id: 8,
+          name: "Nồi hầm",
+          url: null,
+          status: "approved",
+          problems: [],
+          created_by_id: me.id,
+          created_by: "Nguyễn Văn An",
+          has_saved_link: false,
+          commission: [
+            {
+              fanpage_id: me.id,
+              fanpage_name: "Trang Dưỡng Sinh",
+              kind: "no_link",
+              user_id: null,
+              user_name: null,
+            },
+          ],
+        },
       ],
-    }),
-  );
+    ),
+    video(2, "Bài của đồng đội", false, [post("Trang Bình", me.id + 1, "Trần Bình")], []),
+  ];
+  await page.route("**/api/affiliate-products/videos", (route) => route.fulfill({ json: rows() }));
+  // "Đã dán link tay" answers with the video marked, as the api does.
+  await page.route("**/api/affiliate-products/videos/1/manual", async (route) => {
+    const { manual } = route.request().postDataJSON() as { manual: boolean };
+    await route.fulfill({ json: { ...rows()[0], manual_comment: manual } });
+  });
   await page.goto("/affiliate");
   const mine = page.getByRole("row", { name: /Trà gừng cho người trên 50/ });
   await expect(mine.getByTestId("video-post")).toHaveText("Trang Dưỡng Sinh");
@@ -348,6 +354,24 @@ test("Video đã đăng starts on the member's own and says whose commission eac
     "Nồi hầm → không có trong bình luận (chưa có link)",
   ]);
   await expect(page.getByRole("row", { name: /Bài của đồng đội/ })).toHaveCount(0);
+
+  // Pasted by hand: the comment is the member's, and the video moves to its own tab.
+  await expect(mine.getByTestId("comment-status")).toHaveText("Chưa bình luận");
+  await mine.getByRole("button", { name: "Đã dán link tay" }).click();
+  await expect(mine.getByTestId("comment-status")).toHaveText("Dán tay");
+  const linked = page.getByLabel("Lọc theo sản phẩm đã gắn");
+  await linked.getByText("Dán tay (1)").click();
+  await expect(mine).toBeVisible();
+  await linked.getByText("Tất cả (1)").click();
+
+  // The same videos as cards, then as a list beside the open one.
+  const views = page.getByLabel("Kiểu hiển thị");
+  await views.getByTitle("Dạng thẻ").click();
+  await expect(page.getByTestId("video-card")).toHaveCount(1);
+  await expect(page.getByTestId("video-card").getByTestId("commission-note")).toHaveCount(2);
+  await views.getByTitle("Danh sách và chi tiết").click();
+  await expect(page.getByTestId("video-detail")).toContainText("Trà gừng cho người trên 50");
+  await views.getByTitle("Dạng bảng").click();
 
   await page.getByLabel("Của ai").getByText("Cả đội (2)").click();
   const theirs = page.getByRole("row", { name: /Bài của đồng đội/ });

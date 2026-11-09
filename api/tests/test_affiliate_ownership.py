@@ -144,6 +144,8 @@ def test_a_tiktok_post_belongs_to_the_owner_of_its_tiktok_account(an, binh, db, 
         "owner_id": other.id,
         "owner_name": "Trần Bình",
         "has_shopee_account": False,
+        "comment": "off",
+        "comment_error": None,
     }
     assert videos(binh)[video.id]["mine"] is True
 
@@ -286,3 +288,62 @@ def test_my_topic_groups_are_those_of_the_pages_i_own_and_use(an, db, me, other)
     mine_page.active = False
     db.commit()
     assert not any(topic["mine"] for topic in an.get(f"{URL}/options").json()["topics"])
+
+
+# "Đã dán link tay": the member pasted the links on Facebook, so the app keeps out of the video's comments
+
+
+def mark_manual(client, video, on=True):
+    response = client.put(f"{URL}/videos/{video.id}/manual", json={"manual": on})
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def test_a_video_marked_as_pasted_by_hand_is_never_commented_by_the_worker(an, db, me, storage, fakes):
+    fanpage = page(db, me, "1234567", "Trang Dưỡng Sinh")
+    video = make_video(db, storage, me, scene_count=1)
+    live = post(db, video, me, fanpage)
+    live.auto_comment = True
+    db.commit()
+    assert post_comments.due_posts(db) == [live]
+
+    row = mark_manual(an, video)
+    assert row["manual_comment"] is True and row["posts"][0]["comment"] == "off"
+    assert post_comments.due_posts(db) == []
+    assert mark_manual(an, video, on=False)["manual_comment"] is False
+    assert post_comments.due_posts(db) == [live]
+
+
+def test_products_attached_to_a_video_pasted_by_hand_do_not_touch_its_comment(an, db, me, storage):
+    fanpage = page(db, me, "1234567", "Trang Dưỡng Sinh")
+    video = make_video(db, storage, me, scene_count=1)
+    live = post(db, video, me, fanpage)
+    live.comment_id, live.comment_sent_at = "c-1", datetime.now(UTC)
+    db.commit()
+    mark_manual(an, video)
+    row = product(db, me, url="https://s.shopee.vn/a")
+
+    saved = an.put(f"{URL}/videos/{video.id}", json={"product_ids": [row.id]}).json()
+    db.refresh(live)
+    assert [one["id"] for one in saved["products"]] == [row.id]
+    assert live.comment_requested_at is None, "the app's comment is left as it is"
+
+
+def test_commenting_now_is_refused_on_a_video_pasted_by_hand(an, db, me, storage):
+    fanpage = page(db, me, "1234567", "Trang Dưỡng Sinh")
+    video = make_video(db, storage, me, scene_count=1)
+    live = post(db, video, me, fanpage)
+    mark_manual(an, video)
+    refused = an.post(f"/api/posts/{live.id}/comment")
+    assert refused.status_code == 409 and "dán link tay" in refused.json()["message"]
+
+
+def test_each_post_says_how_its_comment_stands_and_the_video_has_its_cover(an, db, me, storage):
+    fanpage = page(db, me, "1234567", "Trang Dưỡng Sinh")
+    video = make_video(db, storage, me, scene_count=1)
+    live = post(db, video, me, fanpage)
+    live.comment_id, live.comment_sent_at = "c-1", datetime.now(UTC)
+    db.commit()
+    row = videos(an)[video.id]
+    assert row["manual_comment"] is False and row["posts"][0]["comment"] == "done"
+    assert "thumbnail_url" in row
