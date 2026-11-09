@@ -14,6 +14,7 @@ from . import (
     image_style,
     llm,
     routes_videos,
+    settings_log,
     source_keys,
     tts,
     video_options,
@@ -126,6 +127,7 @@ def update_provider(
 ) -> dict:
     preset = _preset(provider_id)
     row = db.scalar(select(LlmProvider).where(LlmProvider.id == preset.id).with_for_update())
+    before = settings_log.snapshot(db)
     if row is None:
         row = LlmProvider(id=preset.id, base_url="", model="")
         db.add(row)
@@ -150,6 +152,7 @@ def update_provider(
         # The provider in use must stay usable: a script job would fail with this reason.
         db.rollback()
         raise invalid(f"{preset.name} đang được dùng để viết kịch bản. {reason}")
+    settings_log.record(db, before, me.user_id)
     db.commit()
     return _payload(db)
 
@@ -160,11 +163,13 @@ def set_active(body: ActiveBody, me: Session = Depends(current_member), db: DbSe
     reason = llm.problem(llm.target(db, preset.id))
     if reason:
         raise invalid(reason)
+    before = settings_log.snapshot(db)
     setting = db.get(AppSetting, llm.ACTIVE_KEY)
     if setting is None:
         db.add(AppSetting(key=llm.ACTIVE_KEY, value=preset.id, updated_by_id=me.user_id))
     else:
         setting.value, setting.updated_by_id = preset.id, me.user_id
+    settings_log.record(db, before, me.user_id)
     db.commit()
     return _payload(db)
 
@@ -362,14 +367,18 @@ def set_image_provider(
     """The team's default AI image provider ("Nguồn ảnh AI mặc định" on Cài đặt › Nguồn tư liệu)."""
     if body.provider not in image_providers.PROVIDERS:
         raise invalid("Nguồn ảnh AI không hợp lệ")
+    before = settings_log.snapshot(db)
     image_providers.save(db, body.provider, me.user_id)
+    settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)
 
 
 @router.put("/auto-photos")
 def set_auto_photos(body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    before = settings_log.snapshot(db)
     auto_photos.save(db, body.enabled, me.user_id)
+    settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)
 
@@ -379,10 +388,12 @@ def set_image_style(
     body: ImageStyleBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     """ "Phong cách ảnh AI": None goes back to the default, an empty text adds nothing to the prompts."""
+    before = settings_log.snapshot(db)
     try:
         image_style.save(db, body.style, me.user_id)
     except image_style.ImageStyleError as err:
         raise invalid(str(err)) from None
+    settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)
 
@@ -398,12 +409,14 @@ def set_source(
 ) -> dict:
     if source not in routes_videos.STOCK_SOURCES:
         raise ApiError(404, "source_not_found", "Không có nguồn này")
+    before = settings_log.snapshot(db)
     off = routes_videos.stock_turned_off(db) - {source} | (set() if body.enabled else {source})
     setting = db.get(AppSetting, routes_videos.STOCK_OFF_KEY)
     if setting is None:
         db.add(AppSetting(key=routes_videos.STOCK_OFF_KEY, value=sorted(off), updated_by_id=me.user_id))
     else:
         setting.value, setting.updated_by_id = sorted(off), me.user_id
+    settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)
 
@@ -415,9 +428,11 @@ def set_source_key(
     """Save a pasted key for Pixabay, Pexels, Gemini or Cloudflare (AI images); an empty key removes the saved one."""
     if name not in source_keys.ENV_NAMES:
         raise ApiError(404, "source_not_found", "Nguồn này không cần key")
+    before = settings_log.snapshot(db)
     try:
         source_keys.save(db, name, body.api_key, me.user_id)
     except source_keys.SourceKeyError as err:
         raise invalid(str(err)) from None
+    settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)

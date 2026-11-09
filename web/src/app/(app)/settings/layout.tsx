@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ApiOutlined,
   ControlOutlined,
   DesktopOutlined,
   PictureOutlined,
@@ -8,53 +9,88 @@ import {
   ShoppingOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { Flex, Grid, Tabs, Typography } from "antd";
+import { Flex, Grid, Tabs, Tag, Typography } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 
-/** The "Cấu hình" tabs; each tab is its own page, so a link or a reload opens the same tab. */
-const CONFIG_TABS = [
+type Tab = { key: string; label: string; hint: string; icon: React.ReactNode };
+
+/** The "Cấu hình" tabs, the member's own first, then the team's; each tab is its own page, so a link or a reload
+ * opens the same tab. */
+const GROUPS: { key: string; label: string; color: string; tabs: Tab[] }[] = [
   {
-    key: "/settings/defaults",
-    label: "Thiết lập mặc định",
-    hint: "Video mới bắt đầu thế nào",
-    icon: <ControlOutlined />,
+    key: "group:mine",
+    label: "Của tôi",
+    color: "blue",
+    tabs: [
+      {
+        key: "/settings/defaults",
+        label: "Thiết lập mặc định",
+        hint: "Video mới của tôi",
+        icon: <ControlOutlined />,
+      },
+      {
+        key: "/settings/affiliate-accounts",
+        label: "Tài khoản affiliate",
+        hint: "Shopee, TikTok của tôi",
+        icon: <ShoppingOutlined />,
+      },
+      { key: "/settings/chatgpt", label: "Kết nối ChatGPT / Claude", hint: "Trợ lý của tôi", icon: <ApiOutlined /> },
+    ],
   },
-  { key: "/settings/templates", label: "Mẫu dựng", hint: "Hiệu ứng áp sẵn cho video", icon: <ThunderboltOutlined /> },
-  { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, giọng VieNeu", icon: <RobotOutlined /> },
-  { key: "/settings/sources", label: "Nguồn tư liệu", hint: "Kho ảnh, ảnh AI, giọng đọc", icon: <PictureOutlined /> },
   {
-    key: "/settings/affiliate-accounts",
-    label: "Tài khoản affiliate",
-    hint: "Shopee và TikTok của bạn",
-    icon: <ShoppingOutlined />,
+    key: "group:team",
+    label: "Chung cả nhóm",
+    color: "cyan",
+    tabs: [
+      { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, VieNeu", icon: <RobotOutlined /> },
+      {
+        key: "/settings/sources",
+        label: "Nguồn tư liệu",
+        hint: "Kho ảnh, ảnh AI, giọng đọc",
+        icon: <PictureOutlined />,
+      },
+      { key: "/settings/templates", label: "Mẫu dựng", hint: "Thư viện mẫu của đội", icon: <ThunderboltOutlined /> },
+      { key: "/settings/render-nodes", label: "Máy render", hint: "Chế độ render, các máy", icon: <DesktopOutlined /> },
+    ],
   },
-  { key: "/settings/render-nodes", label: "Máy render", hint: "Render trên máy của bạn", icon: <DesktopOutlined /> },
 ];
+const TABS = GROUPS.flatMap((group) => group.tabs);
 
 /** On a wide screen the tabs are a list down the left, each with a line on what it holds, beside the tab's page; on
- * a narrower one they are a row above it. */
+ * a narrower one they are a row above it. A group's name heads its tabs, as a tab that cannot be chosen. */
 export default function SettingsLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const wide = Grid.useBreakpoint().xl ?? false;
-  const active = CONFIG_TABS.find((tab) => pathname.startsWith(tab.key))?.key ?? CONFIG_TABS[0].key;
-  const items = CONFIG_TABS.map((tab) => ({
-    key: tab.key,
-    label: wide ? (
-      <Flex gap={10} align="flex-start" style={{ textAlign: "left", padding: "2px 0" }}>
-        <span style={{ fontSize: 16, lineHeight: "22px" }}>{tab.icon}</span>
-        <Flex vertical gap={0}>
-          <span>{tab.label}</span>
-          <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
-            {tab.hint}
-          </Typography.Text>
+  const active = TABS.find((tab) => pathname.startsWith(tab.key))?.key ?? TABS[0].key;
+  const items = GROUPS.flatMap((group) => [
+    {
+      key: group.key,
+      disabled: true,
+      label: (
+        <Tag color={group.color} style={{ marginInlineEnd: 0, cursor: "default" }}>
+          {group.label}
+        </Tag>
+      ),
+    },
+    ...group.tabs.map((tab) => ({
+      key: tab.key,
+      label: wide ? (
+        <Flex gap={10} align="flex-start" style={{ textAlign: "left", padding: "2px 0" }}>
+          <span style={{ fontSize: 16, lineHeight: "22px" }}>{tab.icon}</span>
+          <Flex vertical gap={0}>
+            <span>{tab.label}</span>
+            <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+              {tab.hint}
+            </Typography.Text>
+          </Flex>
         </Flex>
-      </Flex>
-    ) : (
-      tab.label
-    ),
-  }));
+      ) : (
+        tab.label
+      ),
+    })),
+  ]);
 
   return (
     <>

@@ -2,7 +2,7 @@
 
 import { Alert, App, Button, Card, Empty, Flex, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import PageHeader from "@/components/PageHeader";
+import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
 
 type Connection = { id: number; app: string; scopes: string; expires_at: string };
@@ -62,7 +62,7 @@ export default function ChatGptPage() {
 
   return (
     <>
-      <PageHeader
+      <SettingsHeader
         title="Kết nối ChatGPT / Claude"
         description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code và Muse của bạn."
       />
