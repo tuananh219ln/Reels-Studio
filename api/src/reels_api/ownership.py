@@ -5,10 +5,10 @@ nobody."""
 from .errors import ApiError
 
 
-def ensure_owner(owner_id: int | None, user_id: int, what: str) -> None:
-    """Refuses the deletion unless `user_id` made the thing; `what` names it ("video này", "mẫu này"...)."""
+def ensure_owner(owner_id: int | None, user_id: int, what: str, can: str = "xoá được") -> None:
+    """Refuses the deletion (or what `can` says) unless `user_id` made the thing; `what` names it ("video này")."""
     if owner_id is None or owner_id != user_id:
-        raise ApiError(403, "not_owner", f"Chỉ người tạo {what} mới xoá được")
+        raise ApiError(403, "not_owner", f"Chỉ người tạo {what} mới {can}")
 
 
 def ensure_none_of_others(counts: dict[str, int], what: str) -> None:

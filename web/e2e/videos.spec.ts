@@ -1097,6 +1097,12 @@ test("auto edit: the app's template on a video, undone, saved as a template and 
   await expect(page.getByTestId("template-card")).toHaveCount(2);
   await chooseOption(page, page.getByLabel("Mẫu cho video mới"), "Vườn nhà");
   await expect(page.getByTestId("template-card").nth(1)).toContainText("Video mới của tôi tự áp");
+  // Its maker renames and deletes it; before deleting, they are told who puts it on their new videos.
+  await page.getByRole("button", { name: "Xoá Vườn nhà" }).click();
+  await expect(page.getByTestId("template-delete-usage")).toHaveText(
+    "1 người đang chọn làm mẫu cho video mới. Xoá thì video mới của họ không còn tự áp mẫu này; video đã có giữ nguyên.",
+  );
+  await page.getByRole("tooltip").getByRole("button", { name: "Huỷ" }).click();
   await newVideoWithScript(page, "cải mầm cho người mới");
   await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
   await expect(

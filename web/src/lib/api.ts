@@ -210,6 +210,8 @@ export type EditTemplate = {
   summary: string[];
   /** The topic groups that hold it. */
   topics: { id: number; name: string }[];
+  /** How many members put it on their new videos. */
+  members_using: number;
 };
 
 export type EditTemplates = {

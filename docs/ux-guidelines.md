@@ -960,7 +960,9 @@ relied on (samples in the PR that added them).
   text or narration: that is the script's own call to action, so it is kept as written and only the template's
   other parts apply. A member's template is saved from a video in the
   studio (its scenes' transitions, most used colour, the first content scene's sounds that has any, the title's
-  sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename, remove) and picks, under
+  sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename and remove, both shown to the
+  template's maker only; "Xoá" first says how many members put it on their new videos and which groups hold it) and
+  picks, under
   "Của tôi (theo người dùng)", the one put on the signed-in member's own new videos as soon as their scenes are
   written (AI script, clone or "Tự viết"); none by default, and a teammate's choice never reaches them.
   "Tạo video" with "AI viết kịch bản" has the box **"AI gợi ý hiệu ứng"** (off by default): the AI then picks each
