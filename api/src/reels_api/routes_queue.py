@@ -14,6 +14,7 @@ from . import page_queue, plans
 from .db import get_db
 from .errors import ApiError
 from .models import Fanpage, KnowledgeTopic, PageQueueItem, Session, Video
+from .ownership import ensure_page_owner
 from .routes_videos import invalid
 from .sessions import current_member, now
 from .videos import lock_video, split_scenes, thumbnail_url, title_of
@@ -107,6 +108,7 @@ def _page_for(db: DbSession, video: Video, body: AddBody, me: Session) -> Fanpag
         page = db.get(Fanpage, body.fanpage_id)
         if page is None or not page.active:
             raise invalid("Hãy chọn một Fanpage đang dùng")
+        ensure_page_owner(page, me.user_id)
         return page
     topic = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
     if topic is None:

@@ -1,5 +1,6 @@
 "use client";
 
+import { NO_PAGE_OF_MINE } from "@/lib/myPages";
 import { useMe } from "@/components/MeContext";
 import { SendOutlined, VideoCameraAddOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Flex, Input, Popconfirm, Radio, Select, Typography } from "antd";
@@ -171,13 +172,12 @@ export function PublishButton({
         okButtonProps={{ disabled: !fanpage || (mode === "later" && !when) || blocking.length > 0 }}
       >
         {pages.length === 0 ? (
-          <Typography.Text>
-            Chưa có Fanpage nào đang dùng. Vào{" "}
+          <Flex vertical gap={4} align="flex-start">
+            <Typography.Text data-testid="no-page-of-mine">{NO_PAGE_OF_MINE}</Typography.Text>
             <Link prefetch={false} href="/fanpages">
-              Quản lý Page
-            </Link>{" "}
-            để thêm.
-          </Typography.Text>
+              Mở Quản lý Page
+            </Link>
+          </Flex>
         ) : (
           <Flex vertical gap={8}>
             {blocking.map((issue) => (
@@ -192,10 +192,7 @@ export function PublishButton({
               placeholder="Chọn Fanpage"
               onChange={setPicked}
               style={{ maxWidth: 320 }}
-              options={pages.map((page) => ({
-                value: page.id,
-                label: page.owner ? `${page.name}, ${page.owner}` : page.name,
-              }))}
+              options={pages.map((page) => ({ value: page.id, label: page.name }))}
             />
             <Radio.Group
               value={mode}
