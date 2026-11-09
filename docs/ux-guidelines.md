@@ -513,7 +513,11 @@ Built:
   is opened). On the right, the chosen group: its name as a heading with a pencil ("Đổi tên", renamed in
   place with "Lưu tên" / "Huỷ", Esc cancels), a line "N video · K prompt đã sửa" (and that it cannot
   make videos without a script prompt), and "⋯" holding "Xoá nhóm" (disabled while the group has
-  videos, then a confirmation). Groups opened once stay loaded, so unsaved text in one survives opening
+  videos, then a confirmation). Beside "⋯", the group's maker has the switch "Cho cả đội sửa" (on by default);
+  a group with no known maker shows "Nhận nhóm" instead. With the switch off, another member reads "· Chỉ <người
+  tạo> sửa được nhóm này" in the line under the name, has no "Đổi tên", and finds Prompt, Từ cấm/ảnh/giọng and
+  Mẫu dựng read-only ("Lịch sử" still opens, without "Khôi phục"); the Video tab and "Tạo video" stay as they are,
+  and a change tried on the plan tab is refused with the same reason. Groups opened once stay loaded, so unsaved text in one survives opening
   another. A new group starts empty, and "Tạo video" cannot pick a group without a script prompt. The
   group is chosen in "Tạo video"; a clone keeps its source's group. Tabs, the group opening on "Video":
   - "Video (N)": the group's videos newest first, as "Bảng | Danh sách" (remembered in the browser,

@@ -1,7 +1,7 @@
 "use client";
 
 import { HistoryOutlined } from "@ant-design/icons";
-import { App, Button, Drawer, Empty, Flex, Modal, Spin, Tag, theme, Typography } from "antd";
+import { App, Button, ConfigProvider, Drawer, Empty, Flex, Modal, Spin, Tag, theme, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, formatDateTime, type EditLogEntry } from "@/lib/api";
 import { diffCounts, lineDiff } from "@/lib/lineDiff";
@@ -99,9 +99,12 @@ export default function EditHistory(props: Props) {
       {trigger ? (
         trigger(show)
       ) : (
-        <Button size="small" icon={<HistoryOutlined />} onClick={show}>
-          Lịch sử
-        </Button>
+        // Reading the history stays open where the cards around it are read-only; putting a version back does not.
+        <ConfigProvider componentDisabled={false}>
+          <Button size="small" icon={<HistoryOutlined />} onClick={show}>
+            Lịch sử
+          </Button>
+        </ConfigProvider>
       )}
       <Drawer title={`Lịch sử · ${title}`} open={open} onClose={() => setOpen(false)} width={480} destroyOnHidden>
         {entries === null ? (

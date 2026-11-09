@@ -3022,7 +3022,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(dayPanel).toHaveCount(0);
   await plan.getByRole("button", { name: "Chọn ngày 7" }).click();
   await expect(dayTitle).toHaveText(`Ngày 7 — ${vietnamDay(0).long}`);
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await expect(dayPanel).toBeHidden();
   await expect(plan.getByTestId("plan-week-2")).toContainText(
     `Tuần 2 · ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
@@ -3040,11 +3040,11 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng · 0 đã làm · 0 đã lên lịch");
 
   // Another day opens in the drawer in its place.
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(dayTitle).toContainText("Ngày 13");
   await expect(dayPanel).toContainText("Chưa có ý tưởng");
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
 
   // Dragging a chip onto another day moves the idea there.
   await plan.getByTestId("plan-day-12").getByTestId("plan-chip").dragTo(plan.getByTestId("plan-day-13"));
@@ -3069,7 +3069,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng").fill("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
   await expect(plan.getByTestId("plan-day-13").getByTestId("plan-chip")).toHaveCount(1);
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
@@ -3086,4 +3086,48 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await page.getByTestId("plan-filters").getByLabel("Lọc trạng thái").click();
   await page.locator(".ant-select-dropdown").getByText("Ý tưởng", { exact: true }).click();
   await expect(dayPanel).toBeVisible();
+});
+
+test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a teammate only reads and uses it", async ({
+  page,
+  browser,
+}) => {
+  await loginAsSeed(page);
+  await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
+  await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  // Nobody is known to have made "Sức khỏe": it is claimed first, as a Page is.
+  await health.getByRole("button", { name: "Nhận nhóm" }).click();
+  const teamEdit = health.getByRole("switch", { name: "Cho cả đội sửa" });
+  await expect(teamEdit).toBeChecked();
+  await teamEdit.click();
+  await expect(teamEdit).not.toBeChecked();
+
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  await binh.goto("/knowledge");
+  await binh.getByRole("button", { name: /Sức khỏe/ }).click();
+  const theirs = binh.locator('[data-topic="Sức khỏe"]');
+  await expect(theirs.getByTestId("group-locked")).toContainText(`Chỉ ${SEED.name} sửa được nhóm này`);
+  await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
+  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
+  // Its videos are still made by anyone; its prompts are read, not edited.
+  await expect(theirs.getByRole("button", { name: "Tạo video" })).toBeEnabled();
+  await theirs.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await expect(theirs.getByLabel("Prompt viết kịch bản", { exact: true })).toBeDisabled();
+  await theirs.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await expect(theirs.getByLabel("Từ cấm", { exact: true })).toBeDisabled();
+
+  // Turned back on, the teammate edits again.
+  await teamEdit.click();
+  await expect(teamEdit).toBeChecked();
+  await binh.reload();
+  await binh.getByRole("button", { name: /Sức khỏe/ }).click();
+  await expect(theirs.getByTestId("group-locked")).toHaveCount(0);
+  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toBeVisible();
 });

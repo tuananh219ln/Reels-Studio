@@ -179,6 +179,9 @@ class KnowledgeTopic(Base):
     # How many videos the group's trial counts towards ("Tiến độ verdict" on its plan); None: no banner. Only a count:
     # the verdict itself is decided by the team in a meeting.
     video_target: Mapped[int | None] = mapped_column(Integer)
+    # "Cho cả đội sửa" (migration 0071): off, only the group's maker (`created_by_id`) edits the group and its plan;
+    # everyone still uses it (ownership.ensure_group_editor).
+    team_edit: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).
     edit_templates: Mapped[list["EditTemplate"]] = relationship(
