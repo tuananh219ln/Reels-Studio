@@ -201,6 +201,80 @@ def test_token_is_one_use_refresh_rotates_and_revoke_disconnects(mcp_client, db)
     assert rpc(mcp_client, new_token, "tools/list").status_code == 401
 
 
+def refresh_with(client, cid, refresh_token):
+    return client.post(
+        "/api/mcp/oauth/token",
+        data={"grant_type": "refresh_token", "client_id": cid, "refresh_token": refresh_token, "resource": PUBLIC},
+    )
+
+
+def test_a_new_connection_lasts_30_days_from_the_grant(mcp_client, db):
+    from datetime import timedelta
+
+    from reels_api.models import McpConnection
+    from reels_api.sessions import now
+
+    grant(mcp_client, db)
+    row = db.scalar(select(McpConnection))
+    assert abs(row.expires_at - (now() + timedelta(days=30))) < timedelta(minutes=1)
+
+
+def test_a_refresh_pushes_the_connections_end_30_days_out_and_the_new_token_works(mcp_client, db):
+    from datetime import timedelta
+
+    from reels_api.models import McpConnection
+    from reels_api.sessions import now
+
+    _, cid, tokens, _ = grant(mcp_client, db)
+    row = db.scalar(select(McpConnection))
+    row.expires_at = now() + timedelta(days=1)
+    db.commit()
+    renewed = refresh_with(mcp_client, cid, tokens["refresh_token"])
+    assert renewed.status_code == 200, renewed.text
+    db.refresh(row)
+    assert abs(row.expires_at - (now() + timedelta(days=30))) < timedelta(minutes=1)
+    assert renewed.json()["expires_in"] > 3500
+    assert rpc(mcp_client, renewed.json()["access_token"], "tools/list").status_code == 200
+
+
+def test_an_expired_connection_is_not_revived_by_a_refresh(mcp_client, db):
+    from datetime import timedelta
+
+    from reels_api.models import McpConnection
+    from reels_api.sessions import now
+
+    _, cid, tokens, _ = grant(mcp_client, db)
+    row = db.scalar(select(McpConnection))
+    ended = now() - timedelta(seconds=1)
+    row.expires_at = ended
+    db.commit()
+    assert refresh_with(mcp_client, cid, tokens["refresh_token"]).status_code == 400
+    db.refresh(row)
+    assert row.expires_at == ended
+
+
+def test_a_connection_granted_before_sliding_expiry_is_extended_on_its_first_refresh(mcp_client, db):
+    """Before 2026-11-09 a connection's end was fixed at grant + 30 days and a refresh never moved it: one granted
+    almost 30 days ago, with minutes left, now gets 30 more days and a full hour's token instead of the minutes."""
+    from datetime import timedelta
+
+    from reels_api.models import McpConnection
+    from reels_api.sessions import now
+
+    _, cid, tokens, _ = grant(mcp_client, db)
+    row = db.scalar(select(McpConnection))
+    row.created_at = now() - timedelta(days=30) + timedelta(minutes=10)
+    row.expires_at = row.created_at + timedelta(days=30)
+    db.commit()
+    renewed = refresh_with(mcp_client, cid, tokens["refresh_token"])
+    assert renewed.status_code == 200, renewed.text
+    assert renewed.json()["expires_in"] > 3500
+    db.refresh(row)
+    assert row.expires_at > now() + timedelta(days=29)
+    again = refresh_with(mcp_client, cid, renewed.json()["refresh_token"])
+    assert again.status_code == 200, again.text
+
+
 def test_tools_reuse_validation_locks_and_queue_and_never_expose_secrets(mcp_client, db, storage):
     user, _, tokens, _ = grant(mcp_client, db)
     token = tokens["access_token"]

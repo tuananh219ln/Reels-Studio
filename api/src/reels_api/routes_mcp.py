@@ -371,6 +371,8 @@ def token(
             or member_session(db, connection.session_id) is None
         ):
             raise oauth_error()
+        # Sliding expiry: a connection in use lives on; one left unused for CONNECTION_LIFETIME has ended above.
+        connection.expires_at = now() + CONNECTION_LIFETIME
     else:
         raise oauth_error("unsupported_grant_type", "Kiểu cấp quyền không được hỗ trợ")
     tokens = rotate_tokens(connection)
