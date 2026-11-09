@@ -165,7 +165,16 @@ Built:
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
   for the member's own groups.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
-  Under the status line, "Loại nội dung": a small field typed freely or picked from the types the team's
+  The status line ends "tạo bởi <member> lúc dd/mm/yyyy hh:mm". Under it, the **progress line** (2026-11-10):
+  where the video stands, one step after another, each with a green tick (done), an orange mark (needs a look), a grey
+  clock (not yet) or a spinner (a job on it), and its time: **Kịch bản** (when written), **Ảnh** ("5/7 cảnh" with a
+  photo or clip), **Render** (when rendered; "MP4 cũ hơn bản sửa, render lại" in orange once the scenes changed
+  since), **Đăng** (how many places it is out, the latest, the next scheduled; before that the 30-day plan's
+  suggested time), **Affiliate** ("N sản phẩm", or "Chưa gắn sản phẩm" in orange) and, once a Facebook post is out,
+  **48 giờ** (when its 48-hour numbers are read, then their views). A time within a day reads "12 phút trước" or
+  "sau 3 giờ", otherwise dd/mm/yyyy hh:mm, all in Vietnam time, the full time on hover. Render, Đăng and 48 giờ open
+  the "Xuất bản" tab, Affiliate opens "Nội dung đăng".
+  Under the progress line, "Loại nội dung": a small field typed freely or picked from the types the team's
   videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
   characters, then the kind tags and the "Đã đăng" icons.
   A video made "Từ video mẫu" has a "Video mẫu" card above the scenes: the sample's link (opens in a

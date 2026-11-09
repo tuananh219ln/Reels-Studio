@@ -228,6 +228,27 @@ async function handWrittenVideo(page: Page, topic: string) {
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 }
 
+test("the video page shows where the video stands, step by step, with its times", async ({ page }) => {
+  await loginAsSeed(page);
+  await handWrittenVideo(page, "rau dền");
+  await expect(page.getByTestId("video-created-at")).toHaveText(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}$/);
+  const progress = page.getByTestId("video-progress");
+  // Written by hand a moment ago; no photo, no MP4, nothing posted, no product yet.
+  await expect(progress.getByTestId("progress-script")).toHaveAttribute("data-state", "done");
+  await expect(progress.getByTestId("progress-script")).toContainText(/phút trước/);
+  await expect(progress.getByTestId("progress-media")).toHaveAttribute("data-state", "warn");
+  await expect(progress.getByTestId("progress-media")).toContainText("0/2 cảnh");
+  await expect(progress.getByTestId("progress-render")).toContainText("Chưa có MP4");
+  await expect(progress.getByTestId("progress-post")).toContainText("Chưa đăng");
+  await expect(progress.getByTestId("progress-affiliate")).toHaveAttribute("data-state", "warn");
+  await expect(progress.getByTestId("progress-48h")).toHaveCount(0);
+  // A step opens the side panel's tab where it is done.
+  await progress.getByTestId("progress-affiliate").click();
+  await expect(page.getByRole("tab", { name: "Nội dung đăng" })).toHaveAttribute("aria-selected", "true");
+  await progress.getByTestId("progress-render").click();
+  await expect(page.getByRole("tab", { name: "Xuất bản" })).toHaveAttribute("aria-selected", "true");
+});
+
 test("only a thing's maker is offered to delete it: a teammate sees no Xóa on the video, scene or group", async ({
   page,
   browser,
