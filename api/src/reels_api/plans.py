@@ -609,13 +609,16 @@ def plan_payload(db: DbSession, topic: KnowledgeTopic) -> dict:
     }
 
 
-def today_payload(db: DbSession) -> list[dict]:
-    """Every topic group whose plan has a today: its ideas of today, for "Tạo video" and the progress banner, and the
-    last day that has a video for every idea from today on ("đã chuẩn bị trước đến ngày ..."). All its topics come
-    too, so the dialog can tell a topic outside the plan."""
+def today_payload(db: DbSession, topic_ids: set[int]) -> list[dict]:
+    """Each of these topic groups (the member's own) whose plan has a today: its ideas of today, for "Tạo video" and
+    the progress banner, and the last day that has a video for every idea from today on ("đã chuẩn bị trước đến ngày
+    ..."). All its topics come too, so the dialog can tell a topic outside the plan."""
     on = today()
     groups = []
-    for topic in db.scalars(select(KnowledgeTopic).where(KnowledgeTopic.plan_start_date.is_not(None))):
+    running = select(KnowledgeTopic).where(
+        KnowledgeTopic.plan_start_date.is_not(None), KnowledgeTopic.id.in_(topic_ids)
+    )
+    for topic in db.scalars(running.order_by(KnowledgeTopic.id)):
         day = day_of(topic.plan_start_date, on)
         if not 1 <= day <= PLAN_DAYS:
             continue
