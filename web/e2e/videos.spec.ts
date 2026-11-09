@@ -1542,7 +1542,7 @@ test("a posted reel takes an approved product and its link goes in the pinned co
   // The filters: the reel now has a product to look at again, and none without a product.
   const linked = page.getByLabel("Lọc theo sản phẩm đã gắn");
   await expect(linked.getByText("Cần xem lại (1)")).toBeVisible();
-  await linked.getByText("Chưa gắn sản phẩm (0)").click();
+  await linked.getByText("Chưa gắn (0)").click();
   await expect(page.getByText("Không có video nào khớp")).toBeVisible();
   await linked.getByText("Cần xem lại (1)").click();
   await expect(page.getByText("Đã bỏ duyệt: Trà sen")).toBeVisible();

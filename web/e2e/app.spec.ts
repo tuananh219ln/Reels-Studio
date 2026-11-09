@@ -516,12 +516,17 @@ test("Affiliate Shopee: add a product, see why it cannot be approved, fix it and
   await product.getByRole("button", { name: "Duyệt" }).click();
   await expect(product).toContainText("Đã duyệt");
 
-  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Nháp");
-  await expect(page.getByText("Chưa có sản phẩm nào")).toBeVisible();
+  const stages = page.getByLabel("Lọc theo trạng thái");
+  await stages.getByText("Chờ duyệt (0)").click();
+  await expect(page.getByText("Không có sản phẩm nào khớp")).toBeVisible();
   await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /status=draft/);
-  await chooseOption(page, page.getByLabel("Lọc theo nhóm chủ đề"), "Sức khỏe");
+  await page
+    .getByRole("navigation", { name: "Nhóm chủ đề" })
+    .getByRole("button", { name: /Sức khỏe/ })
+    .click();
+  await expect(page.getByTestId("product-group")).toHaveText("Sức khỏe");
   await expect(page.getByRole("link", { name: "Xuất CSV" })).toHaveAttribute("href", /topic_id=\d+/);
-  await page.getByLabel("Lọc theo trạng thái").press("Escape");
+  await stages.getByText("Tất cả (1)").click();
   await page.getByRole("tab", { name: "Video đã đăng" }).click();
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
   await expect(product).toBeVisible();
@@ -548,7 +553,9 @@ test("Affiliate Shopee: import the file of Shopee Affiliate's Lấy link hàng l
     buffer: Buffer.from(csv),
   });
   await expect(dialog.getByText("lay-link-hang-loat.csv")).toBeVisible();
-  await dialog.getByRole("button", { name: "Nhập", exact: true }).click();
+  // The preview comes first and names the count on the button.
+  await expect(dialog.getByTestId("import-preview")).toContainText("Mới 1");
+  await dialog.getByRole("button", { name: "Nhập 1 sản phẩm" }).click();
   // Without a Shopee App ID the drawer stays open to say what is still to fill in.
   await expect(dialog.getByText("File không có số sao, lượt bán và loại shop")).toBeVisible();
   const product = row(page, "Combo hạt giống rau mùa hè");
@@ -587,7 +594,8 @@ async function importRows(page: Page, ...rows: string[]) {
     mimeType: "text/csv",
     buffer: Buffer.from(header + rows.join("")),
   });
-  await dialog.getByRole("button", { name: "Nhập", exact: true }).click();
+  await expect(dialog.getByTestId("import-preview")).toContainText(`Mới ${rows.length}`);
+  await dialog.getByRole("button", { name: `Nhập ${rows.length} sản phẩm` }).click();
   await expect(dialog.getByText("File không có số sao, lượt bán và loại shop")).toBeVisible();
   await dialog.getByRole("button", { name: "Huỷ" }).click();
   await expect(dialog).toBeHidden();

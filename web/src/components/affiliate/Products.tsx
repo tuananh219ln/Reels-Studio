@@ -12,19 +12,37 @@ import {
   SearchOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import ProductModal from "./ProductModal";
+import PlacesChip from "./PlacesChip";
 import QuickFill, { needsQuickFill } from "./QuickFill";
 import StatusText from "@/components/StatusText";
 import FilterSelect from "@/components/FilterSelect";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 
-type Filters = { topicId?: number; status?: string; platform?: string; q: string };
+type Filters = { topicId?: number; platform?: string; q: string };
 
-/** The product list, best expected commission first. */
+/** The tabs over the list: everything, drafts short on stars or sales, drafts ready to approve, approved. */
+type Stage = "all" | "fill" | "waiting" | "approved";
+
+function stageOf(product: AffiliateProduct): Exclude<Stage, "all"> {
+  if (product.status === "approved") return "approved";
+  return product.short_on_counts ? "fill" : "waiting";
+}
+
+const STAGES: { value: Stage; label: string }[] = [
+  { value: "all", label: "Tất cả" },
+  { value: "fill", label: "Cần điền sao, lượt bán" },
+  { value: "waiting", label: "Chờ duyệt" },
+  { value: "approved", label: "Đã duyệt" },
+];
+
+/** The product list by topic group (the groups on the left, mine first, each with the Pages that post it), best
+ * expected commission first. */
 export default function Products() {
   const { message } = App.useApp();
   const { me } = useMe();
@@ -33,21 +51,24 @@ export default function Products() {
     platforms: [],
     shop_types: { shopee: [], tiktok_shop: [] },
     topics: [],
+    pages: [],
     shopee_lookup: false,
   });
   const [products, setProducts] = useState<AffiliateProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState<AffiliateProduct | "new" | null>(null);
   const [adding, setAdding] = useState<AddMode | null>(null);
+  // "Tôi thêm" or "Cả đội"; null until chosen (the default follows whether the member has added a product).
+  const [whosePick, setWhose] = useState<Whose | null>(null);
+  const [stage, setStage] = useState<Stage>("all");
   // The rows ticked for "Xoá đã chọn"; only the ones still listed count, so a filter never deletes hidden rows.
   const [ticked, setTicked] = useState<number[]>([]);
-  const { topicId, status, platform, q } = filters;
+  const { topicId, platform, q } = filters;
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
     const values: [string, string | undefined][] = [
       ["topic_id", topicId?.toString()],
-      ["status", status],
       ["platform", platform],
       ["q", q.trim()],
     ];
@@ -57,7 +78,7 @@ export default function Products() {
       }
     }
     return params.toString();
-  }, [topicId, status, platform, q]);
+  }, [topicId, platform, q]);
 
   const reload = useCallback(
     async (quiet = false) => {
@@ -78,15 +99,15 @@ export default function Products() {
     return () => clearTimeout(timer);
   }, [reload]);
 
-  const waiting = products.some((product) => product.lookup === "pending");
+  const pending = products.some((product) => product.lookup === "pending");
   useEffect(() => {
     // The worker reads a pasted link within seconds; the list follows it without a reload.
-    if (!waiting) {
+    if (!pending) {
       return;
     }
     const timer = setInterval(() => void reload(true), 3000);
     return () => clearInterval(timer);
-  }, [waiting, reload]);
+  }, [pending, reload]);
 
   const loadOptions = useCallback(() => {
     // Without the lists the selects stay empty and the api still refuses unknown values.
@@ -105,7 +126,24 @@ export default function Products() {
     await reload();
   }
 
-  const listed = new Set(products.map((product) => product.id));
+  const mineCount = products.filter((product) => product.created_by_id === me.id).length;
+  const whose = whosePick ?? (mineCount > 0 ? "mine" : "all");
+  const whoseRows = products.filter((product) => whose === "all" || product.created_by_id === me.id);
+  const stageCounts = Object.fromEntries(
+    STAGES.map(({ value }) => [
+      value,
+      value === "all" ? whoseRows.length : whoseRows.filter((product) => stageOf(product) === value).length,
+    ]),
+  ) as Record<Stage, number>;
+  const shown = stage === "all" ? whoseRows : whoseRows.filter((product) => stageOf(product) === stage);
+  // "Xuất CSV" follows the group, platform and search, and the stage as far as the api knows it (draft or approved).
+  const exportQuery = [query, stage === "approved" ? "status=approved" : stage === "all" ? "" : "status=draft"]
+    .filter(Boolean)
+    .join("&");
+  const open = options.topics.find((topic) => topic.id === topicId);
+  const pagesOf = (id: number) => options.pages.filter((page) => page.knowledge_topic_id === id);
+
+  const listed = new Set(shown.map((product) => product.id));
   const selected = ticked.filter((id) => listed.has(id));
 
   async function approveSelected() {
@@ -157,8 +195,14 @@ export default function Products() {
             <Space size={4} wrap>
               <Tag>{product.platform_label}</Tag>
               {product.from_shopee_api && <Tag>Tìm qua API</Tag>}
-              <Typography.Text type="secondary">{product.topic}</Typography.Text>
+              {topicId === undefined && <Typography.Text type="secondary">{product.topic}</Typography.Text>}
             </Space>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              <Tooltip title="Link lưu sẵn của sản phẩm được dùng trong bình luận khi Page đăng bài chưa có tài khoản Shopee dùng được.">
+                <span>Người thêm: {product.created_by_id === me.id ? "bạn" : product.created_by}</span>
+              </Tooltip>
+              {product.video_count > 0 && ` · ${product.video_count} video`}
+            </Typography.Text>
             {product.url ? (
               <Typography.Text
                 copyable={{ text: product.url, tooltips: ["Sao chép link", "Đã sao chép"] }}
@@ -194,19 +238,15 @@ export default function Products() {
         product.lookup === "pending" ? "—" : `${product.rating} / ${product.sold.toLocaleString("vi-VN")}`,
     },
     {
-      title: "Giá",
-      key: "price",
-      width: 120,
-      render: (_, product) => (product.price > 0 ? `${product.price.toLocaleString("vi-VN")}đ` : "—"),
-    },
-    {
       title: "Hoa hồng ước tính",
       key: "commission",
       width: 150,
       render: (_, product) => (
         <Flex vertical gap={2}>
           <Typography.Text strong>{product.expected_commission.toLocaleString("vi-VN")}đ/đơn</Typography.Text>
-          <Typography.Text type="secondary">{product.commission_rate}%</Typography.Text>
+          <Typography.Text type="secondary">
+            {product.commission_rate}%{product.price > 0 ? ` của ${product.price.toLocaleString("vi-VN")}đ` : ""}
+          </Typography.Text>
         </Flex>
       ),
     },
@@ -296,10 +336,108 @@ export default function Products() {
     },
   ];
 
+  /** One group on the left: its name, how many products it holds, and the Pages that post it. */
+  function group(id: number | undefined, name: string, count: number) {
+    const chosen = topicId === id;
+    const pages = id === undefined ? [] : pagesOf(id);
+    return (
+      <button
+        key={id ?? "all"}
+        type="button"
+        aria-pressed={chosen}
+        onClick={() => {
+          setFilters({ ...filters, topicId: id });
+          setTicked([]);
+        }}
+        style={{
+          display: "block",
+          width: "100%",
+          padding: "8px 10px",
+          border: 0,
+          borderRadius: 8,
+          textAlign: "left",
+          cursor: "pointer",
+          background: chosen ? "var(--ant-color-primary-bg)" : "transparent",
+        }}
+      >
+        <Flex justify="space-between" gap={8}>
+          <Typography.Text strong={chosen} style={{ color: chosen ? "var(--ant-color-primary)" : undefined }}>
+            {name}
+          </Typography.Text>
+          <Typography.Text type="secondary">{count}</Typography.Text>
+        </Flex>
+        {id !== undefined && (
+          <div style={{ marginTop: 2 }}>
+            {pages.length === 0 ? (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Chưa Page nào đăng
+              </Typography.Text>
+            ) : (
+              <PlacesChip
+                places={pages.map((page) => ({
+                  platform: "facebook",
+                  name: page.name,
+                  owner: page.mine ? null : (page.owner_name ?? "chưa có chủ"),
+                }))}
+              />
+            )}
+          </div>
+        )}
+      </button>
+    );
+  }
+
+  const myTopics = options.topics.filter((topic) => topic.mine);
+  const otherTopics = options.topics.filter((topic) => !topic.mine);
+  const total = options.topics.reduce((sum, topic) => sum + topic.product_count, 0);
+
   return (
-    <>
-      <Flex wrap gap={12} justify="space-between" style={{ marginBottom: 16 }}>
-        <Flex wrap gap={12}>
+    <Flex gap={16} align="flex-start" wrap>
+      <Card size="small" style={{ flex: "0 0 260px", maxWidth: "100%" }} styles={{ body: { padding: 6 } }}>
+        <nav aria-label="Nhóm chủ đề">
+          {group(undefined, "Tất cả nhóm", total)}
+          {myTopics.length > 0 && (
+            <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, padding: "8px 10px 2px" }}>
+              Nhóm của tôi
+            </Typography.Text>
+          )}
+          {myTopics.map((topic) => group(topic.id, topic.name, topic.product_count))}
+          {myTopics.length > 0 && otherTopics.length > 0 && (
+            <Typography.Text type="secondary" style={{ display: "block", fontSize: 12, padding: "8px 10px 2px" }}>
+              Nhóm khác
+            </Typography.Text>
+          )}
+          {otherTopics.map((topic) => group(topic.id, topic.name, topic.product_count))}
+        </nav>
+      </Card>
+      <div style={{ flex: "1 1 520px", minWidth: 0 }}>
+        <Flex wrap gap={12} justify="space-between" align="center" style={{ marginBottom: 12 }}>
+          <Flex vertical gap={0}>
+            <Typography.Text strong style={{ fontSize: 16 }} data-testid="product-group">
+              {open ? open.name : "Tất cả nhóm"}
+            </Typography.Text>
+            {open && (
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                {pagesOf(open.id).length > 0
+                  ? `Dùng cho video của ${pagesOf(open.id).length} Page`
+                  : "Chưa Page nào đăng nhóm này"}
+              </Typography.Text>
+            )}
+          </Flex>
+          <Space wrap>
+            <Button icon={<DownloadOutlined />} href={`/api/affiliate-products/export.csv?${exportQuery}`}>
+              Xuất CSV
+            </Button>
+            <Button icon={<UploadOutlined />} onClick={() => setAdding("file")}>
+              Nhập file
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
+              Thêm sản phẩm
+            </Button>
+          </Space>
+        </Flex>
+        <Flex wrap gap={12} align="center">
+          <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={products.length} mineLabel="Tôi thêm" />
           <Input
             aria-label="Tìm theo sản phẩm hoặc shop"
             prefix={<SearchOutlined />}
@@ -307,15 +445,7 @@ export default function Products() {
             allowClear
             value={q}
             onChange={(event) => setFilters({ ...filters, q: event.target.value })}
-            style={{ maxWidth: 280 }}
-          />
-          <FilterSelect
-            aria-label="Lọc theo nhóm chủ đề"
-            placeholder="Mọi nhóm chủ đề"
-            value={topicId}
-            onChange={(value) => setFilters({ ...filters, topicId: value })}
-            options={options.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
-            style={{ width: 180 }}
+            style={{ flex: "1 1 200px", maxWidth: 320 }}
           />
           <FilterSelect
             aria-label="Lọc theo nền tảng"
@@ -325,72 +455,67 @@ export default function Products() {
             options={options.platforms}
             style={{ width: 160 }}
           />
-          <FilterSelect
-            aria-label="Lọc theo trạng thái"
-            placeholder="Mọi trạng thái"
-            value={status}
-            onChange={(value) => setFilters({ ...filters, status: value })}
-            options={[
-              { value: "draft", label: "Nháp" },
-              { value: "approved", label: "Đã duyệt" },
-            ]}
-            style={{ width: 160 }}
+        </Flex>
+        <div aria-label="Lọc theo trạng thái" role="group">
+          <Tabs
+            activeKey={stage}
+            onChange={(key) => setStage(key as Stage)}
+            items={STAGES.map(({ value, label }) => ({ key: value, label: `${label} (${stageCounts[value]})` }))}
           />
-        </Flex>
-        <Space wrap>
-          <Button icon={<DownloadOutlined />} href={`/api/affiliate-products/export.csv?${query}`}>
-            Xuất CSV
-          </Button>
-          <Button icon={<UploadOutlined />} onClick={() => setAdding("file")}>
-            Nhập file
-          </Button>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
-            Thêm sản phẩm
-          </Button>
-        </Space>
-      </Flex>
-      {selected.length > 0 && (
-        <Flex gap={12} align="center" wrap style={{ marginBottom: 12 }} data-testid="product-selection">
-          <Typography.Text>Đã chọn {selected.length} sản phẩm</Typography.Text>
-          <Button icon={<CheckOutlined />} onClick={() => void approveSelected()}>
-            Duyệt đã chọn
-          </Button>
-          <Popconfirm
-            title={`Xoá ${selected.length} sản phẩm đã chọn?`}
-            description="Các sản phẩm này cũng được gỡ khỏi các video đang gắn."
-            okText="Xoá"
-            cancelText="Huỷ"
-            okButtonProps={{ danger: true }}
-            onConfirm={deleteSelected}
-          >
-            <Button danger icon={<DeleteOutlined />}>
-              Xoá đã chọn
+        </div>
+        {selected.length > 0 && (
+          <Flex gap={12} align="center" wrap style={{ marginBottom: 12 }} data-testid="product-selection">
+            <Typography.Text>Đã chọn {selected.length} sản phẩm</Typography.Text>
+            <Button icon={<CheckOutlined />} onClick={() => void approveSelected()}>
+              Duyệt đã chọn
             </Button>
-          </Popconfirm>
-          <Button type="link" onClick={() => setTicked([])}>
-            Bỏ chọn
-          </Button>
-        </Flex>
-      )}
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<AffiliateProduct>
-          rowKey="id"
-          rowSelection={{
-            selectedRowKeys: selected,
-            onChange: (keys) => setTicked(keys as number[]),
-            getCheckboxProps: (product) => ({ "aria-label": `Chọn ${product.name}` }),
-          }}
-          columns={columns}
-          dataSource={products}
-          loading={loading}
-          pagination={{ pageSize: 50, hideOnSinglePage: true }}
-          scroll={{ x: 1330 }}
-          locale={{ emptyText: "Chưa có sản phẩm nào" }}
-        />
-      </Card>
+            <Popconfirm
+              title={`Xoá ${selected.length} sản phẩm đã chọn?`}
+              description="Các sản phẩm này cũng được gỡ khỏi các video đang gắn."
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              onConfirm={deleteSelected}
+            >
+              <Button danger icon={<DeleteOutlined />}>
+                Xoá đã chọn
+              </Button>
+            </Popconfirm>
+            <Button type="link" onClick={() => setTicked([])}>
+              Bỏ chọn
+            </Button>
+          </Flex>
+        )}
+        <Card styles={{ body: { padding: 0 } }}>
+          <Table<AffiliateProduct>
+            rowKey="id"
+            rowSelection={{
+              selectedRowKeys: selected,
+              onChange: (keys) => setTicked(keys as number[]),
+              getCheckboxProps: (product) => ({ "aria-label": `Chọn ${product.name}` }),
+            }}
+            columns={columns}
+            dataSource={shown}
+            loading={loading}
+            pagination={{ pageSize: 50, hideOnSinglePage: true }}
+            scroll={{ x: 1100 }}
+            locale={{
+              emptyText:
+                products.length === 0
+                  ? open
+                    ? `Nhóm “${open.name}” chưa có sản phẩm nào: bấm Nhập file hoặc Thêm sản phẩm`
+                    : "Chưa có sản phẩm nào"
+                  : whose === "mine" && mineCount === 0
+                    ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
+                    : "Không có sản phẩm nào khớp",
+            }}
+          />
+        </Card>
+      </div>
       <AddProductDrawer
         mode={adding}
         options={options}
+        startTopicId={topicId}
         onClose={() => setAdding(null)}
         onManual={() => {
           setAdding(null);
@@ -409,8 +534,9 @@ export default function Products() {
           message.success("Đã lưu");
           setTarget(null);
           await reload();
+          loadOptions();
         }}
       />
-    </>
+    </Flex>
   );
 }

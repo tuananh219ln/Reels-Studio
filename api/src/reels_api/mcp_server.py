@@ -42,7 +42,7 @@ from .claude import ScriptOutputError, parse_output
 from .db import get_db
 from .errors import ApiError
 from .mcp_auth import app_of, connection_for, public_url, registered
-from .models import KnowledgeTopic, Scene, SceneLayer, SceneSound, TopicPlanItem, Video
+from .models import AffiliateProduct, KnowledgeTopic, Scene, SceneLayer, SceneSound, TopicPlanItem, Video
 from .ownership import ensure_owner
 from .storage import get_storage
 from .videos import marks_of
@@ -154,7 +154,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "muốn dùng API (tính phí). "
             "Video sản phẩm: tìm sản phẩm affiliate, tự viết kịch bản (hook, lợi ích, giá, kêu gọi mua) và tạo video "
             "từ kịch bản tự viết (không tốn phí AI của nhóm), gắn clip TikTok hoặc ảnh từ link người dùng đưa cho "
-            "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. "
+            "từng cảnh, chọn đoạn clip, gắn sản phẩm, rồi render khi người dùng đồng ý. Ưu tiên sản phẩm chính người "
+            "dùng đã thêm (mặc định của công cụ tìm sản phẩm); dùng sản phẩm của đồng đội thì báo hoa hồng về ai "
+            "(commission_warnings khi gắn). "
             "Cảnh cần chuyển động đẹp hơn (giá, giảm giá, sản phẩm bay vào) thì làm cảnh động bằng HTML + GSAP. "
             'Tìm ảnh cho từng cảnh: trước hết dùng "Tìm ảnh kho miễn phí" (không watermark; không truyền source thì '
             "tìm nguồn đầu tiên theo thứ tự nguồn ảnh của nhóm chủ đề) với từ khóa tiếng Anh cụ thể cho Pexels, "
@@ -527,20 +529,33 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         knowledge_topic_id: int | None = None,
         platform: Literal["shopee", "tiktok_shop"] | None = None,
         approved_only: bool = True,
+        whose: Literal["mine", "all"] = "mine",
+        video_id: int | None = None,
         offset: Annotated[int, Field(ge=0)] = 0,
         limit: Annotated[int, Field(ge=1, le=50)] = 20,
     ) -> dict:
         """Tìm trong danh sách sản phẩm Shopee/TikTok Shop của nhóm, xếp theo hoa hồng dự kiến. Dùng tên, giá,
-        ảnh và link để viết kịch bản video sản phẩm. Chỉ sản phẩm đã duyệt mới gắn được vào video."""
+        ảnh và link để viết kịch bản video sản phẩm. Chỉ sản phẩm đã duyệt mới gắn được vào video. Mặc định chỉ
+        sản phẩm người dùng tự thêm (link đã lưu là của họ, hoa hồng về họ); whose="all" để xem cả của đồng đội
+        (created_by cho biết ai thêm). video_id: xếp sản phẩm cùng nhóm chủ đề với video lên trước."""
 
         def operation(db, me):
             rows = affiliate_routes.list_products(
                 knowledge_topic_id, "approved" if approved_only else None, query, platform, me, db
             )
+            if whose == "mine":
+                rows = [row for row in rows if row["created_by_id"] == me.user_id]
+            video = db.get(Video, video_id) if video_id is not None else None
+            if video is not None and video.knowledge_topic_id is not None:
+                # Stable: the commission order stays within each half.
+                rows.sort(key=lambda row: row["knowledge_topic_id"] != video.knowledge_topic_id)
             keep = ("id", "topic", "platform_label", "name", "url", "page_url", "image_url", "shop_name", "rating")
-            keep += ("sold", "price", "commission_rate", "expected_commission", "status", "problems")
+            keep += ("sold", "price", "commission_rate", "expected_commission", "status", "problems", "created_by")
             return {
-                "products": [{key: row[key] for key in keep} for row in rows[offset : offset + limit]],
+                "products": [
+                    {**{key: row[key] for key in keep}, "mine": row["created_by_id"] == me.user_id}
+                    for row in rows[offset : offset + limit]
+                ],
                 "total": len(rows),
             }
 
@@ -549,11 +564,16 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     @tool("Gắn sản phẩm vào video", read=False)
     async def set_video_products(video_id: int, product_ids: Annotated[list[int], Field(max_length=20)]) -> dict:
         """Đặt danh sách sản phẩm affiliate có link trong bình luận của video (thay danh sách cũ; danh sách rỗng
-        bỏ hết). Video Facebook nhận sản phẩm Shopee, bản TikTok nhận TikTok Shop. Không đăng bài."""
+        bỏ hết). Video Facebook nhận sản phẩm Shopee, bản TikTok nhận TikTok Shop. Không đăng bài. Kết quả có, theo
+        từng sản phẩm, ai thêm và (video đã đăng) hoa hồng trên từng Page về ai; commission_warnings liệt kê chỗ
+        hoa hồng không về người dùng: báo lại cho họ."""
         body = affiliate_routes.VideoProductsBody(product_ids=product_ids)
-        return await run_in_threadpool(
-            invoke, lambda db, me: video_link(affiliate_routes.set_video_products(video_id, body, me, db)), write=True
-        )
+
+        def operation(db, me):
+            saved = affiliate_routes.set_video_products(video_id, body, me, db)
+            return video_link({**saved, **_commission_report(db, saved, me.user_id)})
+
+        return await run_in_threadpool(invoke, operation, write=True)
 
     # --- Editing, like the studio on the video page: the same handlers, presets and locks ---
 
@@ -1123,3 +1143,51 @@ def _own_part(db, model, part_id: int, me) -> int:
     if part is not None:
         ensure_owner(part.scene.video.created_by_id, me.user_id, "video này")
     return part_id
+
+
+def _commission_report(db: DbSession, saved: dict, user_id: int) -> dict:
+    """Per attached product, who added it and, on each live Page, whose commission its link earns; and a line for
+    every place the commission is not the member's, so the assistant can tell them (decisions 2026-11-09)."""
+    posted = "products" in saved
+    if posted:
+        rows = saved["products"]
+    else:
+        # Only a Shopee product's link goes in a Facebook comment; a TikTok Shop one is never commented.
+        found = db.scalars(select(AffiliateProduct).where(AffiliateProduct.id.in_(saved["product_ids"])))
+        rows = [
+            {
+                "id": row.id,
+                "name": row.name,
+                "created_by_id": row.created_by_id,
+                "created_by": row.created_by.name,
+                "shopee": row.platform == "shopee",
+            }
+            for row in sorted(found, key=lambda row: row.id)
+        ]
+    products, warnings = [], []
+    for row in rows:
+        commission = [
+            {**{key: one[key] for key in ("fanpage_name", "kind", "user_name")}, "mine": one["user_id"] == user_id}
+            for one in row.get("commission", [])
+        ]
+        mine = row["created_by_id"] == user_id
+        products.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "created_by": row["created_by"],
+                "mine": mine,
+                "commission": commission,
+            }
+        )
+        for one in commission:
+            if one["kind"] == "no_link":
+                warnings.append(f"{row['name']} trên {one['fanpage_name']}: chưa có link, không vào bình luận")
+            elif not one["mine"]:
+                warnings.append(f"{row['name']} trên {one['fanpage_name']}: hoa hồng về {one['user_name']}")
+        if not posted and not mine and row["shopee"]:
+            warnings.append(
+                f"{row['name']} do {row['created_by']} thêm: Page không có tài khoản Shopee riêng sẽ dùng link của "
+                f"{row['created_by']}, hoa hồng về {row['created_by']}"
+            )
+    return {"products": products, "commission_warnings": warnings}

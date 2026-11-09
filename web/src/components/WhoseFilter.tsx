@@ -15,11 +15,14 @@ export default function WhoseFilter({
   onChange,
   mine,
   all,
+  mineLabel = "Của tôi",
 }: {
   value: Whose;
   onChange: (next: Whose) => void;
   mine?: number;
   all?: number;
+  /** "Của tôi" by default; "Tôi thêm" where a row is mine by who added it. */
+  mineLabel?: string;
 }) {
   const count = (n: number | undefined) => (n === undefined ? "" : ` (${n})`);
   return (
@@ -28,7 +31,7 @@ export default function WhoseFilter({
       value={value}
       onChange={onChange}
       options={[
-        { value: "mine", label: `Của tôi${count(mine)}` },
+        { value: "mine", label: `${mineLabel}${count(mine)}` },
         { value: "all", label: `Cả đội${count(all)}` },
       ]}
     />

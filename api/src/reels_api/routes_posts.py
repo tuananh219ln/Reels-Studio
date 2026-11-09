@@ -78,6 +78,12 @@ def request_comment(post_id: int, me: Session = Depends(current_member), db: DbS
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     if post.platform != "facebook" or post.remote_id is None or not is_published(post):
         raise ApiError(409, "post_not_live", "Chỉ bình luận được dưới bài đã lên Facebook")
+    if db.get(Video, post.video_id).manual_comment:
+        raise ApiError(
+            409,
+            "manual_comment",
+            "Video đã đánh dấu dán link tay nên app không bình luận; bỏ đánh dấu ở Affiliate trước",
+        )
     post.comment_requested_at = now()
     db.commit()
     return _payload(db, db.get(Video, post.video_id), post, analytics.medians(db))

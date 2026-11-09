@@ -51,7 +51,9 @@ The tools give the assistant what it needs to make an affiliate product video wi
 service:
 
 1. `list_affiliate_products` finds the team's Shopee/TikTok Shop products (name, price, commission,
-   photo and links), approved ones by default.
+   photo and links), approved ones by default and only those the member added (`whose="all"` adds
+   teammates', each row saying `created_by` and `mine`); `video_id` puts the products of the video's topic
+   group first.
 2. `create_video_from_script` makes a "Tự viết" video from a script the assistant writes: one scene per
    paragraph, `Đọc:` lines as the voice text. No script job, so no cost to the team's AI service.
 3. `set_scene_media_from_link` gives a scene a TikTok clip, a video file's link or a photo's link, like
@@ -60,7 +62,10 @@ service:
    clip's own sound in the MP4); `add_scene` adds a scene.
    A member's own footage is uploaded on the video page: MCP does not carry files.
 4. `set_video_products` attaches approved products (Shopee on a Facebook video, TikTok Shop on its
-   TikTok version), whose links go in the pinned comment.
+   TikTok version), whose links go in the pinned comment. Its answer says, per product, who added it and,
+   once the video is live, whose commission its link earns on each Page; `commission_warnings` lists every
+   place it is not the member's own, so the assistant tells them. The server's instructions ask it to prefer
+   the member's own products.
 5. `set_scene_motion` turns a scene into a "Cảnh động": the assistant writes HTML + GSAP (a price that pops,
    the product photo flying in) and the worker renders it with HyperFrames into the scene's clip
    ([architecture.md](architecture.md#motion-scenes-hyperframes)). The scene's photo at that moment is available as

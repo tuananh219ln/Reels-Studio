@@ -111,16 +111,26 @@ def article_sub_ids(article_id: int, fanpage_id: int) -> list[str]:
     return [f"bv{article_id}", f"p{fanpage_id}"]
 
 
+def commission_to(account: AffiliateAccount | None, product: AffiliateProduct) -> str:
+    """Whose link `link_for` puts in a Page's comment, so whose the commission is: "page_account" (the Page's own
+    account, its owner's), "saved_link" (the link saved on the product, the member who added it), or "no_link" (none:
+    the product is left out of the comment)."""
+    if account is not None:
+        return "page_account" if product.page_url or product.url else "no_link"
+    return "saved_link" if product.url else "no_link"
+
+
 def link_for(
     db: DbSession, product: AffiliateProduct, post: Publication, account: AffiliateAccount | None
 ) -> str | None:
     """The product's link under this post (a video's or an article's): the Page's account makes its own (once, then
     kept); without one, the link a member pasted. Raises ShopeeError when Shopee cannot make it."""
-    if account is None:
+    kind = commission_to(account, product)
+    if kind == "no_link":
+        return None
+    if kind == "saved_link":
         return product.url
     origin = product.page_url or product.url
-    if not origin:
-        return None
     target = {"article_id": post.article_id} if post.article_id else {"video_id": post.video_id}
     key = {"product_id": product.id, "account_id": account.id, **target, "fanpage_id": post.fanpage_id}
     kept = db.scalar(select(AffiliateLink).filter_by(**key))

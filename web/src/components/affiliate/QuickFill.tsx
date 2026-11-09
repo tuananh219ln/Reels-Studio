@@ -4,16 +4,19 @@ import { App, Button, Flex, InputNumber, Select, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 
-/** A Shopee product whose stars, sales and shop type nobody has read yet: a pasted link or a row of Shopee
- * Affiliate's file, with no Shopee App ID in the team to fill them in. */
+/** A Shopee product nobody has read yet: a pasted link or a row of Shopee Affiliate's file, with no Shopee App ID in
+ * the team to fill in its stars, sales and shop type. */
+function unread(product: AffiliateProduct): boolean {
+  return product.shop_type === "other" && product.rating === 0 && product.sold === 0;
+}
+
+/** A Shopee draft whose stars or sales are under the approval rule: unread, or read or typed short. */
 export function needsQuickFill(product: AffiliateProduct): boolean {
   return (
     product.platform === "shopee" &&
     product.status === "draft" &&
     product.lookup !== "pending" &&
-    product.shop_type === "other" &&
-    product.rating === 0 &&
-    product.sold === 0
+    product.short_on_counts
   );
 }
 
@@ -29,9 +32,11 @@ export default function QuickFill({
   onSaved: () => void | Promise<void>;
 }) {
   const { message } = App.useApp();
-  const [shopType, setShopType] = useState<string>();
-  const [rating, setRating] = useState<number | null>(null);
-  const [sold, setSold] = useState<number | null>(null);
+  const fresh = unread(product);
+  // An unread product starts empty, so each value is read off its page; otherwise from what it holds.
+  const [shopType, setShopType] = useState<string | undefined>(fresh ? undefined : product.shop_type);
+  const [rating, setRating] = useState<number | null>(fresh ? null : product.rating);
+  const [sold, setSold] = useState<number | null>(fresh ? null : product.sold);
   const [busy, setBusy] = useState(false);
   const page = product.page_url ?? product.url ?? undefined;
   const ready = shopType !== undefined && rating !== null && sold !== null;
@@ -66,7 +71,7 @@ export default function QuickFill({
   return (
     <Flex vertical gap={6} align="flex-start" data-testid="quick-fill" style={{ marginTop: 4 }}>
       <Typography.Text type="secondary">
-        Chưa có App ID Shopee nên cần điền tay, xem trên{" "}
+        {fresh ? "Chưa có App ID Shopee nên cần điền tay" : "Sửa nhanh số sao, lượt bán"}, xem trên{" "}
         <a href={page} target="_blank" rel="noreferrer">
           trang sản phẩm
         </a>

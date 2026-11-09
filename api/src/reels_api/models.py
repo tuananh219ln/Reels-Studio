@@ -270,6 +270,9 @@ class Video(Base):
     self_review: Mapped[list] = mapped_column(JSONB, default=list)
     music_suggestions: Mapped[list] = mapped_column(JSONB, default=list)
     thumbnail_key: Mapped[str | None] = mapped_column(String(200))
+    # "Đã dán link tay" (migration 0071): a member pasted its affiliate links on Facebook, so the worker never writes or
+    # edits a comment under its posts; products attached to it are only a record.
+    manual_comment: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     mp4_key: Mapped[str | None] = mapped_column(String(200))
     mp4_seconds: Mapped[float | None] = mapped_column(Float)
     # The MP4's automatic QC (qc.py), measured by the render job that made it: {"status", "checks": [...]}.
