@@ -553,10 +553,9 @@ Built:
     A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
     their status colour (never filtered); an empty one has a dashed "+ Thêm ý", which also opens the day. Clicking
     a cell outlines it and opens that day in a drawer on the right ("Ngày N — Thứ …, dd/mm" from the start date,
-    "Hôm nay" on today's, "+ Thêm ý" greyed out at 10), with no mask, so the calendar stays usable beside it;
-    it closes with its × or a press anywhere else on the page (another day switches it instead, and the Backlog,
-    the drawer's own pop-ups and the "Sửa ý tưởng" form leave it open), and closing it keeps the page's scroll, the
-    filters and the chosen day. Dragging a chip or a card onto a cell moves the idea there;
+    "Hôm nay" on today's, "+ Thêm ý" greyed out at 10), over a mask: it closes with its × or a press on the mask,
+    and closing it keeps the page's scroll, the filters and the chosen day. While it is open the calendar and the
+    Backlog wait under the mask. Dragging a chip or a card onto a cell moves the idea there;
     a full day (10) refuses it. "Mở Backlog" sits above the calendar and opens the Backlog beside it, to drag ideas
     between them;
   - in the drawer, the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook

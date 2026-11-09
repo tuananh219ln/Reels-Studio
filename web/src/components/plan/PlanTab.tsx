@@ -126,40 +126,6 @@ function matches(item: PlanItem, filters: Filters): boolean {
   );
 }
 
-const DAY_DRAWER = "plan-day-drawer-root";
-
-/** Where a press does not close the day drawer: the drawer, another day (which switches it), the Backlog (dragged
- * from while it is open), and anything that pops up from them (menus, confirmations, the "Sửa ý tưởng" form). */
-const KEEPS_DRAWER = [
-  `.${DAY_DRAWER}`,
-  "[data-plan-cell]",
-  "[data-plan-backlog]",
-  ".ant-drawer",
-  ".ant-modal-root",
-  ".ant-select-dropdown",
-  ".ant-dropdown",
-  ".ant-popover",
-  ".ant-picker-dropdown",
-  ".ant-tooltip",
-  ".ant-message",
-  ".ant-notification",
-].join(",");
-
-/** A press anywhere else on the page closes the day drawer, as a mask would (2026-11-09, part 6 of
- * docs/specs/per-user-settings-ownership), while the drawer keeps no mask: the page keeps its scroll and the Backlog
- * can still be dragged from (2026-11-08). The filters, the chosen day and the scroll stay as they were. */
-function useClickOutsideToClose(open: boolean, close: () => void) {
-  useEffect(() => {
-    if (!open) return;
-    const onPress = (event: MouseEvent) => {
-      const target = event.target as Element | null;
-      if (target?.isConnected && !target.closest(KEEPS_DRAWER)) close();
-    };
-    document.addEventListener("mousedown", onPress);
-    return () => document.removeEventListener("mousedown", onPress);
-  }, [open, close]);
-}
-
 const COMPACT_KEY = "plan-compact";
 
 /** "Đầy đủ | Gọn", remembered in this browser ("plan-compact"); full until chosen. */
@@ -425,14 +391,13 @@ function PlanView({
   // The day shown under the calendar: today while the plan runs, else day 1; a new start date moves it to today.
   const runningDay = (today: number | null) => (today !== null && today >= 1 && today <= PLAN_DAYS ? today : 1);
   const [selected, setSelected] = useState(() => runningDay(plan.today_day));
-  // The day open in the drawer; the calendar stays usable beside it, and closing it keeps the filters and the scroll.
+  // The day open in the drawer (over a mask); closing it keeps the filters, the chosen day and the scroll.
   const [openDay, setOpenDay] = useState<number | null>(null);
   const openOn = (day: number) => {
     setSelected(day);
     setOpenDay(day);
   };
   const closeDay = useCallback(() => setOpenDay(null), []);
-  useClickOutsideToClose(openDay !== null, closeDay);
   const [todaySeen, setTodaySeen] = useState(plan.today_day);
   if (todaySeen !== plan.today_day) {
     setTodaySeen(plan.today_day);
@@ -531,8 +496,10 @@ function PlanView({
           <Drawer
             open={openDay !== null}
             onClose={closeDay}
-            mask={false}
-            rootClassName={DAY_DRAWER}
+            // A press on the mask closes it, like the × (owner's choice, 2026-11-09); the filters, the chosen day and
+            // the page's scroll stay. While it is open the Backlog cannot be dragged from.
+            mask
+            maskClosable
             size="min(520px, 100vw)"
             data-testid="plan-day-drawer"
             title={dayTitle(plan, selected)}
@@ -620,7 +587,7 @@ function PlanView({
           </Drawer>
         </Col>
         {showBacklog && (
-          <Col flex="300px" data-plan-backlog>
+          <Col flex="300px">
             <BacklogPanel plan={plan} backlog={backlog} change={change} move={move} compact={compact} />
           </Col>
         )}
@@ -773,7 +740,6 @@ function DayCell({
   return (
     <div
       data-testid={`plan-day-${day}`}
-      data-plan-cell
       data-selected={selected}
       onClick={onSelect}
       style={{
