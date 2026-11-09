@@ -989,10 +989,19 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             list[int] | None, Field(description="Tâm hộp chữ các cảnh [x, y] trong khung 1080×1920")
         ] = None,
         reset_text_position: bool = False,
+        title_text_position: Annotated[
+            list[int] | None,
+            Field(
+                description="Tâm hộp chữ cảnh tiêu đề [x, y] trong khung 1080×1920; tiêu đề luôn căn giữa ngang nên "
+                "chỉ y có tác dụng (bị giữ trong vùng an toàn). Vị trí kéo riêng trên cảnh tiêu đề vẫn được ưu tiên"
+            ),
+        ] = None,
+        reset_title_text_position: bool = False,
     ) -> dict:
         """Đổi tuỳ chọn dựng của một video như tab "Thiết lập" trên web: chỉ các trường được truyền, trường khác
         giữ nguyên; một giá trị sai thì không lưu gì. Giá trị hợp lệ có trong "Đọc lựa chọn dựng video", mục
-        video_options. reset_text_position đưa hộp chữ về chỗ mặc định của mẫu. Không tạo giọng, không render:
+        video_options. reset_text_position đưa hộp chữ các cảnh, reset_title_text_position đưa hộp chữ tiêu đề
+        về chỗ mặc định của mẫu. Không tạo giọng, không render:
         giọng mới được tạo khi render hoặc bấm tạo giọng trên web. Trả về bộ tuỳ chọn đầy đủ sau khi lưu."""
         changes = given(
             voice_id=voice_id,
@@ -1020,9 +1029,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             text_case=text_case,
             title_text_case=title_text_case,
             text_position=text_position,
+            title_text_position=title_text_position,
         )
         if reset_text_position:
             changes["text_position"] = None
+        if reset_title_text_position:
+            changes["title_text_position"] = None
 
         def operation(db, me):
             saved = videos.patch_video(video_id, videos.VideoPatchBody(options=changes), me, db, get_storage())

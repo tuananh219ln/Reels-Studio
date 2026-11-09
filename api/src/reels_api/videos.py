@@ -322,12 +322,14 @@ def _voice(video: Video) -> tuple[str, str]:
 
 
 def text_position(video: Video, scene: Scene) -> list[int] | None:
-    """Where the scene's text box goes (its centre): its own place, else for a content scene the video's place,
-    else None (where the template puts it)."""
+    """Where the scene's text box goes (its centre): its own place, else the video's place for its kind (the title's
+    `title_text_position`, the content scenes' `text_position`), else None (where the template puts it). The title's
+    video-wide place keeps it centred across, as a place dragged on it does."""
     if scene.text_x is not None and scene.text_y is not None:
         return [scene.text_x, scene.text_y]
     if scene.is_title:
-        return None
+        position = effective(video)["title_text_position"]
+        return [FRAME_WIDTH // 2, position[1]] if position else None
     return effective(video)["text_position"]
 
 

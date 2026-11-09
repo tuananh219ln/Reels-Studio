@@ -129,3 +129,92 @@ def test_the_render_job_hands_each_scene_its_place(committed, tmp_path, monkeypa
     assert job.status == "failed" and job.error == "dừng trước FFmpeg"
     # The title keeps the template's place; the first scene its own; the second the video's.
     assert handed == [None, (300, 900), (540, 600)]
+
+
+def test_the_title_takes_a_place_of_its_own_and_the_scenes_keep_theirs(an, db, me, storage):
+    """title_text_position moves only the title, only up and down; the scenes' place never moves it."""
+    video = make_video(db, storage, me, scene_count=1)
+    title, (scene,) = split_scenes(db, video)
+    an.patch(f"/api/videos/{video.id}", json={"options": {"text_position": [540, 1200]}})
+    db.refresh(video)
+    signature = render_signature(video, *split_scenes(db, video))
+    before = an.get(f"/api/videos/{video.id}").json()
+    assert before["options"]["title_text_position"] is None
+    assert videos.text_position(video, title) is None
+
+    payload = an.patch(f"/api/videos/{video.id}", json={"options": {"title_text_position": [100, 290]}}).json()
+    assert payload["options"]["title_text_position"] == [100, 290]
+    # The title stays centred across; only its height follows the setting.
+    assert payload["title_scene"]["placed_at"] == [540, 290]
+    assert payload["title_scene"]["preview_url"] != before["title_scene"]["preview_url"]
+    assert scene_json(payload, scene.id)["preview_url"] == scene_json(before, scene.id)["preview_url"]
+    db.refresh(video)
+    assert videos.text_position(video, title) == [540, 290]
+    assert videos.text_position(video, scene) == [540, 1200]
+    assert render_signature(video, *split_scenes(db, video)) != signature
+
+    # A place dragged on the title itself still wins.
+    an.patch(f"/api/scenes/{title.id}", json={"text_position": [540, 800]})
+    db.refresh(video)
+    db.refresh(title)
+    assert videos.text_position(video, title) == [540, 800]
+    an.patch(f"/api/scenes/{title.id}", json={"text_position": None})
+
+    for bad in ([1, 2, 3], [-5, 10], [10, 5000], ["a", 1], "540,290", [True, 290]):
+        refused = an.patch(f"/api/videos/{video.id}", json={"options": {"title_text_position": bad}})
+        assert refused.status_code == 422 and "Vị trí chữ" in refused.json()["message"], bad
+    db.refresh(video)
+    assert video.options["title_text_position"] == [100, 290]
+
+    back = an.patch(f"/api/videos/{video.id}", json={"options": {"title_text_position": None}}).json()
+    assert back["title_scene"]["placed_at"] is None
+    assert back["title_scene"]["preview_url"] == before["title_scene"]["preview_url"]
+    db.refresh(video)
+    # Back where the template puts it, the MP4 made before still counts as current.
+    assert render_signature(video, *split_scenes(db, video)) == signature
+
+
+def test_a_video_from_before_the_title_place_keeps_its_fingerprint(db, me, storage):
+    from reels_api import video_options
+
+    video = make_video(db, storage, me)
+    video.options = {"text_position": [540, 600]}
+    assert video_options.effective(video)["title_text_position"] is None
+    assert "title_text_position" not in video_options.look_signature(video)
+    video.options = {}
+    assert video_options.look_signature(video) is None
+
+
+def test_moving_the_title_from_the_settings_redraws_the_thumbnail(an, db, me, storage):
+    video = make_video(db, storage, me)
+    title, _ = split_scenes(db, video)
+    an.patch(f"/api/scenes/{title.id}", json={"text": "TIÊU ĐỀ MỚI"})
+    db.refresh(video)
+    thumbnail = video.thumbnail_key
+    an.patch(f"/api/videos/{video.id}", json={"options": {"title_text_position": [540, 290]}})
+    db.refresh(video)
+    assert video.thumbnail_key not in (None, thumbnail)
+
+
+def test_the_render_job_hands_the_title_its_place(committed, tmp_path, monkeypatch):  # noqa: F811
+    from reels_api import jobs
+    from reels_render import RenderError
+
+    user = add_user(committed)
+    storage = DirectoryStorage(tmp_path / "storage")
+    with committed() as db:
+        video = make_video(db, storage, user, scene_count=1, seconds=2)
+        video.options = {"text_position": [540, 1200], "title_text_position": [300, 290]}
+        video.voice_enabled = False
+        db.commit()
+        video_id = video.id
+    handed = []
+
+    def fake_render(script, output, **_):
+        handed.extend(scene.text_position for scene in script.all_scenes)
+        raise RenderError("dừng trước FFmpeg")
+
+    monkeypatch.setattr(jobs, "render_video", fake_render)
+    job = render(committed, storage, video_id, user.id)
+    assert job.status == "failed" and job.error == "dừng trước FFmpeg"
+    assert handed == [(540, 290), (540, 1200)]

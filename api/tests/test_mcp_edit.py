@@ -287,6 +287,31 @@ def test_every_setting_of_the_tab_can_be_set_and_cleared(mcp_client, db, storage
     assert video_options_of(mcp_client, token, video) == stored | {"text_position": None, "voice_id": ""}
 
 
+def test_the_assistant_moves_the_title_box_and_puts_it_back(mcp_client, db, storage):  # noqa: F811
+    user, _, tokens, _ = grant(mcp_client, db)
+    token = tokens["access_token"]
+    video = make_video(db, storage, user, scene_count=1)
+    before = video_options_of(mcp_client, token, video)
+    assert before["title_text_position"] is None
+    done = call(mcp_client, token, "set_video_options", video_id=video.id, title_text_position=[540, 290])
+    assert not done.get("isError"), done
+    moved = video_options_of(mcp_client, token, video)
+    assert moved == before | {"title_text_position": [540, 290]}
+    # Outside the frame: refused, nothing saved.
+    wrong = call(
+        mcp_client, token, "set_video_options", video_id=video.id, voice_id=CHI, title_text_position=[540, 5000]
+    )
+    assert wrong["isError"] and "Vị trí chữ" in wrong["content"][0]["text"]
+    assert video_options_of(mcp_client, token, video) == moved
+    # Each reset clears only its own place.
+    call(mcp_client, token, "set_video_options", video_id=video.id, text_position=[540, 1200])
+    cleared = call(mcp_client, token, "set_video_options", video_id=video.id, reset_title_text_position=True)
+    assert not cleared.get("isError"), cleared
+    assert video_options_of(mcp_client, token, video) == before | {"text_position": [540, 1200]}
+    listed = payload(call(mcp_client, token, "list_edit_options"))["video_options"]
+    assert listed["title_text_position"] == {"width": 1080, "height": 1920}
+
+
 def test_a_wrong_value_is_refused_and_nothing_is_saved(mcp_client, db, storage):  # noqa: F811
     user, _, tokens, _ = grant(mcp_client, db)
     token = tokens["access_token"]
