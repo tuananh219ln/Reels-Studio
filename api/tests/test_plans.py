@@ -297,7 +297,8 @@ def test_an_idea_makes_videos_only_in_its_own_group(an, topic_id):
     assert an.post("/api/videos", json={"topic": "Ngoài kế hoạch", "knowledge_topic_id": topic_id}).status_code == 201
 
 
-def test_today_lists_the_ideas_of_today_for_groups_with_a_running_plan(an, topic_id):
+def test_today_lists_the_ideas_of_today_for_groups_with_a_running_plan(an, db, me, topic_id):
+    my_page(db, me, topic_id)
     add(an, topic_id, 1, "Hôm qua")
     add(an, topic_id, 2, "Hôm nay 1")
     add(an, topic_id, 2, "Hôm nay 2")
@@ -313,6 +314,7 @@ def test_today_lists_the_ideas_of_today_for_groups_with_a_running_plan(an, topic
 
 
 def test_today_tells_up_to_which_day_videos_are_made_ahead(an, db, me, storage, topic_id):
+    my_page(db, me, topic_id)
     start = plans.today()
     an.patch(f"/api/plans/{topic_id}", json={"start_date": start.isoformat()})
     for day in (1, 2, 3):
@@ -325,6 +327,36 @@ def test_today_tells_up_to_which_day_videos_are_made_ahead(an, db, me, storage, 
     db.flush()
     [group] = an.get("/api/plans/today").json()
     assert group["prepared_through"] == 2
+
+
+def my_page(db, owner, topic_id, name="Vườn nhà", active=True) -> Fanpage:
+    row = page(db, name)
+    row.owner_id, row.knowledge_topic_id, row.active = owner.id, topic_id, active
+    db.flush()
+    return row
+
+
+def test_today_lists_only_the_groups_of_my_pages(client, db, topic_id):
+    """A teammate's group with a running plan is not mine: no banner, no idea suggested for it."""
+    an_ = make_user(db)
+    binh = make_user(db, email="binh@doi.vn", name="Trần Thị Bình")
+    other = KnowledgeTopic(name="Gan")
+    db.add(other)
+    db.flush()
+    for group in (topic_id, other.id):
+        db.add(TopicPlanItem(knowledge_topic_id=group, day=1, position=1, topic=f"Ý tưởng {group}"))
+        db.get(KnowledgeTopic, group).plan_start_date = plans.today()
+    my_page(db, an_, topic_id, "Trang An")
+    my_page(db, binh, other.id, "Trang Bình")
+    my_page(db, an_, other.id, "Trang cũ của An", active=False)  # a Page no longer used makes no group mine
+    db.flush()
+    login(client)
+    assert [group["topic_id"] for group in client.get("/api/plans/today").json()] == [topic_id]
+    login(client, "binh@doi.vn")
+    assert [group["topic_id"] for group in client.get("/api/plans/today").json()] == [other.id]
+    make_user(db, email="chi@doi.vn", name="Lê Chi")
+    login(client, "chi@doi.vn")
+    assert client.get("/api/plans/today").json() == []  # no Page, no banner
 
 
 # --- The Backlog ---

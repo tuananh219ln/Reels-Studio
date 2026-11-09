@@ -733,8 +733,9 @@ Planned:
   until that time is past) and `post_at` from its post; `GET /api/plans/{group}` also gives each
   idea's Facebook posts that went live with their 48-hour numbers only (never `latest`), compared
   with `analytics.medians`, read once for the whole plan, and `analytics.SHARE_GOAL`.
-  `GET /api/plans/today` gives every group whose plan has a today its ideas of today, the last day
-  from today on that has a video for every idea, and all its topics. A video's `plan_idea` carries
+  `GET /api/plans/today` gives each of the member's own groups (`routes_videos.my_topic_ids`: those of
+  the Pages they own and use) whose plan has a today its ideas of today, the last day from today on
+  that has a video for every idea, and all its topics; a member with no Page gets none. A video's `plan_idea` carries
   `suggested_post_at`, which "Đăng" starts with. `POST /api/videos`
   takes an optional `plan_item_id`, refused when the idea already has a video or belongs to another
   group; the script job then passes the idea's pain and hook to the prompt

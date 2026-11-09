@@ -15,7 +15,7 @@ from .errors import ApiError
 from .models import KnowledgeTopic, Session, TopicPlanItem
 from .ownership import ensure_owner
 from .plans import MAX_PER_DAY, PLAN_DAYS, Idea, PlanError
-from .routes_videos import invalid
+from .routes_videos import invalid, my_topic_ids
 from .sessions import current_member
 from .uploads import read_limited
 
@@ -119,7 +119,8 @@ def _saved(db: DbSession, topic: KnowledgeTopic) -> dict:
 
 @router.get("/today")
 def get_today(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
-    return plans.today_payload(db)
+    """Only the member's own groups (of the Pages they own and use): a teammate's plan is not theirs to make."""
+    return plans.today_payload(db, my_topic_ids(db, me.user_id))
 
 
 @router.get("/items/{item_id}")
