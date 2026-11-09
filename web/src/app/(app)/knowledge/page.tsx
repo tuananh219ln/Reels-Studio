@@ -1,7 +1,14 @@
 "use client";
 
 import { useMe } from "@/components/MeContext";
-import { CheckOutlined, DeleteOutlined, EditOutlined, MoreOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  CheckOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  HistoryOutlined,
+  MoreOutlined,
+  PlusOutlined,
+} from "@ant-design/icons";
 import {
   App,
   Button,
@@ -22,6 +29,7 @@ import {
 } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
+import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import { usePlanTabs } from "@/components/plan/PlanTab";
@@ -89,7 +97,28 @@ export default function KnowledgePage() {
           <Card
             size="small"
             title="Nhóm chủ đề"
-            extra={<Typography.Text type="secondary">{data.topics.length}</Typography.Text>}
+            extra={
+              <Flex gap={8} align="center">
+                <Typography.Text type="secondary">{data.topics.length}</Typography.Text>
+                <EditHistory
+                  entityType="knowledge_topic"
+                  field="name"
+                  title="Nhóm chủ đề"
+                  kind="value"
+                  trigger={(open) => (
+                    <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
+                      <Button
+                        size="small"
+                        type="text"
+                        aria-label="Lịch sử nhóm chủ đề"
+                        icon={<HistoryOutlined />}
+                        onClick={open}
+                      />
+                    </Tooltip>
+                  )}
+                />
+              </Flex>
+            }
             styles={{ body: { padding: 8 } }}
           >
             <Flex vertical gap={2} data-testid="topic-list">
@@ -237,6 +266,27 @@ const PROMPTS: {
   },
 ];
 
+/** The parts of a group, as its history names them. */
+const TOPIC_FIELDS: Record<string, string> = {
+  name: "Tên nhóm",
+  script_prompt: "Prompt viết kịch bản",
+  clone_prompt: "Prompt nhân bản",
+  learn_prompt: "Prompt học từ video mẫu",
+  analyze_prompt: "Prompt phân tích video mẫu",
+  revise_prompt: "Prompt sửa theo góp ý",
+  article_prompt: "Prompt viết bài",
+  plan_prompt: "Prompt kế hoạch",
+  banned_words: "Từ cấm",
+  photo_hint: "Gợi ý tìm ảnh",
+  voice_id: "Giọng mặc định",
+  templates: "Mẫu dựng của nhóm",
+  edit_template_default: "Mẫu cho video mới",
+  plan_start_date: "Ngày bắt đầu kế hoạch",
+  plan_per_day: "Số ý tưởng mỗi ngày",
+  plan_post_times: "Giờ đăng gợi ý",
+  video_target: "Số video mục tiêu",
+};
+
 type PromptState = "edited" | "default" | "empty";
 
 function promptState(topic: KnowledgeTopic, defaults: Knowledge, prompt: (typeof PROMPTS)[number]): PromptState {
@@ -323,6 +373,8 @@ function TopicBody({
     onSaved(saved);
     return saved.topics.find((item) => item.id === topic.id) ?? topic;
   };
+  // After a version is put back from "Lịch sử": the cards follow the group's new values.
+  const reload = async () => onSaved(await api<Knowledge>("/knowledge"));
   const edited = PROMPTS.filter((prompt) => promptState(topic, defaults, prompt) === "edited").length;
 
   // Not a Card itself: the cards inside are found by their own title.
@@ -349,6 +401,23 @@ function TopicBody({
             {!topic.script_prompt && (
               <Typography.Text type="warning"> · Chưa có prompt viết kịch bản nên chưa tạo video được</Typography.Text>
             )}
+            {topic.last_edit && (
+              <>
+                {" · "}
+                <EditHistory
+                  entityType="knowledge_topic"
+                  entityId={topic.id}
+                  title={topic.name}
+                  kind="fields"
+                  fieldLabels={TOPIC_FIELDS}
+                  trigger={(open) => (
+                    <Typography.Link onClick={open} style={{ fontSize: "inherit" }}>
+                      <HistoryOutlined /> {lastEditText(topic.last_edit!, TOPIC_FIELDS)}
+                    </Typography.Link>
+                  )}
+                />
+              </>
+            )}
           </>
         }
       />
@@ -363,7 +432,7 @@ function TopicBody({
           {
             key: "prompts",
             label: "Prompt",
-            children: <PromptsPanel topic={topic} defaults={defaults} update={update} />,
+            children: <PromptsPanel topic={topic} defaults={defaults} update={update} reload={reload} />,
           },
           {
             key: "words",
@@ -371,12 +440,12 @@ function TopicBody({
             children: (
               <Row gutter={[16, 16]}>
                 <Col xs={24} xl={12}>
-                  <BannedWordsCard initial={topic.banned_words} update={update} />
+                  <BannedWordsCard topicId={topic.id} initial={topic.banned_words} update={update} reload={reload} />
                 </Col>
                 <Col xs={24} xl={12}>
                   <Flex vertical gap={16}>
-                    <PhotoHintCard initial={topic.photo_hint} update={update} />
-                    <GroupVoiceCard initial={topic.voice_id} update={update} />
+                    <PhotoHintCard topicId={topic.id} initial={topic.photo_hint} update={update} reload={reload} />
+                    <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
                   </Flex>
                 </Col>
               </Row>
@@ -531,7 +600,17 @@ function TopicHeader({
 
 /** "Prompt": the group's prompts listed on the left, the chosen one edited on the right. Every editor stays
  * mounted, so text typed in one and not saved survives choosing another. */
-function PromptsPanel({ topic, defaults, update }: { topic: KnowledgeTopic; defaults: Knowledge; update: Update }) {
+function PromptsPanel({
+  topic,
+  defaults,
+  update,
+  reload,
+}: {
+  topic: KnowledgeTopic;
+  defaults: Knowledge;
+  update: Update;
+  reload: Reload;
+}) {
   const { token } = theme.useToken();
   const [chosen, setChosen] = useState<PromptField>("script_prompt");
   return (
@@ -578,14 +657,17 @@ function PromptsPanel({ topic, defaults, update }: { topic: KnowledgeTopic; defa
         {PROMPTS.map((prompt) => (
           <div key={prompt.field} hidden={prompt.field !== chosen}>
             <PromptCard
+              topicId={topic.id}
               title={prompt.title}
               field={prompt.field}
+              emptyIsDefault={prompt.emptyIsDefault}
               // Empty in the database means the default is used, so the default is what is shown.
               initial={
                 prompt.emptyIsDefault ? topic[prompt.field] || String(defaults[prompt.defaultKey]) : topic[prompt.field]
               }
               fallback={String(defaults[prompt.defaultKey])}
               update={update}
+              reload={reload}
               help={PROMPT_HELP[prompt.field]}
             />
           </div>
@@ -596,24 +678,42 @@ function PromptsPanel({ topic, defaults, update }: { topic: KnowledgeTopic; defa
 }
 
 type Update = (body: Partial<KnowledgeTopic>) => Promise<KnowledgeTopic>;
+type Reload = () => Promise<void>;
+
+/** A card's text as last saved: a new saved value (put back from "Lịch sử") replaces what the box shows. */
+function useSaved<T>(saved: T, key: (value: T) => string = String) {
+  const [value, setValue] = useState(saved);
+  const [seen, setSeen] = useState(key(saved));
+  if (seen !== key(saved)) {
+    setSeen(key(saved));
+    setValue(saved);
+  }
+  return [value, setValue] as const;
+}
 
 function PromptCard({
+  topicId,
   title,
   field,
+  emptyIsDefault,
   initial,
   fallback,
   update,
+  reload,
   help,
 }: {
+  topicId: number;
   title: string;
   field: PromptField;
+  emptyIsDefault: boolean;
   initial: string;
   fallback: string;
   update: Update;
+  reload: Reload;
   help: React.ReactNode;
 }) {
-  const { message, modal } = App.useApp();
-  const [value, setValue] = useState(initial);
+  const { message } = App.useApp();
+  const [value, setValue] = useSaved(initial);
   const [busy, setBusy] = useState(false);
 
   async function save(text: string) {
@@ -629,7 +729,25 @@ function PromptCard({
   }
 
   return (
-    <Card title={title} size="small">
+    <Card
+      title={title}
+      size="small"
+      extra={
+        <EditHistory
+          entityType="knowledge_topic"
+          entityId={topicId}
+          field={field}
+          title={title}
+          kind="text"
+          // Empty in the database means the default is used (for the prompts that have one).
+          show={(saved) => (emptyIsDefault && !saved ? fallback : String(saved))}
+          current={initial}
+          defaultText={fallback}
+          restorable
+          onRestored={reload}
+        />
+      }
+    >
       <Typography.Paragraph type="secondary">
         {help} Phần định dạng JSON đầu ra cố định trong app và không cần viết ở đây.
       </Typography.Paragraph>
@@ -643,29 +761,25 @@ function PromptCard({
         <Button type="primary" loading={busy} disabled={!value.trim()} onClick={() => save(value)}>
           Lưu
         </Button>
-        <Button
-          disabled={busy}
-          onClick={() =>
-            modal.confirm({
-              title: `Khôi phục ${title.toLowerCase()} mặc định?`,
-              content: "Prompt đang dùng sẽ được thay bằng bản mặc định.",
-              okText: "Khôi phục",
-              cancelText: "Huỷ",
-              onOk: () => save(fallback),
-            })
-          }
-        >
-          Khôi phục mặc định
-        </Button>
       </Flex>
     </Card>
   );
 }
 
 /** "Gợi ý tìm ảnh": what this group's photos show, read by the AI when it writes the scenes' search keywords. */
-function PhotoHintCard({ initial, update }: { initial: string; update: Update }) {
+function PhotoHintCard({
+  topicId,
+  initial,
+  update,
+  reload,
+}: {
+  topicId: number;
+  initial: string;
+  update: Update;
+  reload: Reload;
+}) {
   const { message } = App.useApp();
-  const [text, setText] = useState(initial);
+  const [text, setText] = useSaved(initial);
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -681,7 +795,22 @@ function PhotoHintCard({ initial, update }: { initial: string; update: Update })
   }
 
   return (
-    <Card title="Gợi ý tìm ảnh" size="small">
+    <Card
+      title="Gợi ý tìm ảnh"
+      size="small"
+      extra={
+        <EditHistory
+          entityType="knowledge_topic"
+          entityId={topicId}
+          field="photo_hint"
+          title="Gợi ý tìm ảnh"
+          kind="text"
+          current={initial}
+          restorable
+          onRestored={reload}
+        />
+      }
+    >
       <Typography.Paragraph type="secondary">
         Ảnh của nhóm này nên cho thấy gì. AI đọc gợi ý này khi viết từ khóa tìm ảnh và prompt ảnh AI cho từng cảnh, áp
         dụng cho kịch bản viết sau khi lưu. Để trống nếu không cần.
@@ -702,9 +831,19 @@ function PhotoHintCard({ initial, update }: { initial: string; update: Update })
 }
 
 /** "Giọng mặc định của nhóm": the voice new videos of this group start with, over their maker's defaults. */
-function GroupVoiceCard({ initial, update }: { initial: string; update: Update }) {
+function GroupVoiceCard({
+  topicId,
+  initial,
+  update,
+  reload,
+}: {
+  topicId: number;
+  initial: string;
+  update: Update;
+  reload: Reload;
+}) {
   const { message } = App.useApp();
-  const [voice, setVoice] = useState(initial);
+  const [voice, setVoice] = useSaved(initial);
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -720,7 +859,23 @@ function GroupVoiceCard({ initial, update }: { initial: string; update: Update }
   }
 
   return (
-    <Card title="Giọng mặc định của nhóm" size="small">
+    <Card
+      title="Giọng mặc định của nhóm"
+      size="small"
+      extra={
+        <EditHistory
+          entityType="knowledge_topic"
+          entityId={topicId}
+          field="voice_id"
+          title="Giọng mặc định của nhóm"
+          kind="value"
+          show={(saved) => String(saved) || "Theo Thiết lập mặc định của người tạo"}
+          current={initial || "Theo Thiết lập mặc định của người tạo"}
+          restorable
+          onRestored={reload}
+        />
+      }
+    >
       <Typography.Paragraph type="secondary">
         Video tạo mới trong nhóm này đọc bằng giọng này, thay cho giọng trong Thiết lập mặc định của người tạo. Video đã
         có không đổi; đổi giọng riêng trên từng video vẫn được. Để trống thì theo Thiết lập mặc định như cũ.
@@ -811,9 +966,19 @@ function GroupTemplatesCard({ topic, update }: { topic: KnowledgeTopic; update: 
   );
 }
 
-function BannedWordsCard({ initial, update }: { initial: string[]; update: Update }) {
+function BannedWordsCard({
+  topicId,
+  initial,
+  update,
+  reload,
+}: {
+  topicId: number;
+  initial: string[];
+  update: Update;
+  reload: Reload;
+}) {
   const { message } = App.useApp();
-  const [text, setText] = useState(initial.join("\n"));
+  const [text, setText] = useSaved(initial.join("\n"));
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -833,7 +998,23 @@ function BannedWordsCard({ initial, update }: { initial: string[]; update: Updat
   }
 
   return (
-    <Card title="Từ cấm" size="small">
+    <Card
+      title="Từ cấm"
+      size="small"
+      extra={
+        <EditHistory
+          entityType="knowledge_topic"
+          entityId={topicId}
+          field="banned_words"
+          title="Từ cấm"
+          kind="words"
+          show={(saved) => ((saved as string[] | null) ?? []).join("\n")}
+          current={initial.join("\n")}
+          restorable
+          onRestored={reload}
+        />
+      }
+    >
       <Typography.Paragraph type="secondary">
         Mỗi dòng một từ. Tiêu đề, chữ cảnh, caption và bình luận ghim có từ cấm sẽ hiện cảnh báo vàng (không chặn
         render). AI viết kịch bản cũng được dặn tránh các từ này.

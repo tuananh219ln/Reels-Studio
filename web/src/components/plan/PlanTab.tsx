@@ -13,6 +13,7 @@ import {
   SettingOutlined,
   UpOutlined,
   VideoCameraAddOutlined,
+  HistoryOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -61,6 +62,7 @@ import {
   type PlanPreview,
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
+import EditHistory from "@/components/EditHistory";
 import FormDrawer from "@/components/FormDrawer";
 import AutoRuns from "@/components/plan/AutoRuns";
 import { COLORS } from "@/app/theme";
@@ -470,6 +472,9 @@ function PlanView({
       <PlanPromptCard
         plan={plan}
         onSave={(prompt) => change(() => api<Plan>(path, "PATCH", { prompt }), "Đã lưu prompt kế hoạch")}
+        onRestored={async () => {
+          await change(() => api<Plan>(path));
+        }}
       />
 
       <Row gutter={[12, 12]} wrap={false}>
@@ -965,9 +970,22 @@ function TodayStrip({ plan, change }: { plan: Plan; change: Change }) {
   );
 }
 
-function PlanPromptCard({ plan, onSave }: { plan: Plan; onSave: (prompt: string) => Promise<boolean> }) {
-  const { modal } = App.useApp();
+function PlanPromptCard({
+  plan,
+  onSave,
+  onRestored,
+}: {
+  plan: Plan;
+  onSave: (prompt: string) => Promise<boolean>;
+  onRestored: () => Promise<void>;
+}) {
   const [value, setValue] = useState(plan.prompt);
+  // A version put back from "Lịch sử" replaces what the box shows.
+  const [seen, setSeen] = useState(plan.prompt);
+  if (seen !== plan.prompt) {
+    setSeen(plan.prompt);
+    setValue(plan.prompt);
+  }
   const [busy, setBusy] = useState(false);
 
   async function save(text: string) {
@@ -1003,20 +1021,24 @@ function PlanPromptCard({ plan, onSave }: { plan: Plan; onSave: (prompt: string)
                 <Button type="primary" loading={busy} disabled={!value.trim()} onClick={() => save(value)}>
                   Lưu
                 </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    modal.confirm({
-                      title: "Khôi phục prompt kế hoạch mặc định?",
-                      content: "Prompt đang dùng sẽ được thay bằng bản mặc định.",
-                      okText: "Khôi phục",
-                      cancelText: "Huỷ",
-                      onOk: () => save(plan.default_prompt),
-                    })
-                  }
-                >
-                  Khôi phục mặc định
-                </Button>
+                <EditHistory
+                  entityType="knowledge_topic"
+                  entityId={plan.topic_id}
+                  field="plan_prompt"
+                  title="Prompt kế hoạch"
+                  kind="text"
+                  // Empty in the database means the default prompt is used.
+                  show={(saved) => String(saved) || plan.default_prompt}
+                  current={plan.prompt}
+                  defaultText={plan.default_prompt}
+                  restorable
+                  onRestored={onRestored}
+                  trigger={(open) => (
+                    <Button icon={<HistoryOutlined />} onClick={open}>
+                      Lịch sử
+                    </Button>
+                  )}
+                />
               </Flex>
             </>
           ),
