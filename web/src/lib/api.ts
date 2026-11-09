@@ -691,6 +691,9 @@ export type VideoOptions = {
   title_text_case: "upper" | "keep";
   /** The content scenes' text box centre [x, y]; null: where the template puts it. A scene's own wins. */
   text_position: [number, number] | null;
+  /** The title scene's text box centre [x, y]; null: the middle of the frame. Only y counts (the title stays centred
+   * across); a place dragged on the title wins. Set through the api and the assistant, not on the page yet. */
+  title_text_position: [number, number] | null;
   /** "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it. */
   voice_pause: 0.4 | 0.7 | 1;
 };

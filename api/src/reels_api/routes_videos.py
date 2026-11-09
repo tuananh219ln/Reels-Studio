@@ -496,7 +496,7 @@ def patch_video(
         if len(kind) > MAX_CONTENT_TYPE_LENGTH:
             raise invalid(f"Loại nội dung tối đa {MAX_CONTENT_TYPE_LENGTH} ký tự")
         video.content_type = kind
-    look = video_options.text_look(video)
+    look = video_options.text_look(video), video_options.effective(video)["title_text_position"]
     pause = video_options.voice_pause(video)
     if body.options:
         try:
@@ -507,8 +507,8 @@ def patch_video(
     if video_options.voice_pause(video) != pause:
         title, scenes = split_scenes(db, video)
         follow_narration(video, [scene for scene in (title, *scenes) if scene is not None])
-    if video_options.text_look(video) != look:
-        # The thumbnail is the title scene's first frame, drawn in the text box style.
+    if (video_options.text_look(video), video_options.effective(video)["title_text_position"]) != look:
+        # The thumbnail is the title scene's first frame, drawn in the text box style at the title's place.
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
     return _saved(db, video)

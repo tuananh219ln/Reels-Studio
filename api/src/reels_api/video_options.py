@@ -61,6 +61,9 @@ DEFAULTS: dict = {
     "title_text_case": "upper",
     # The content scenes' text box centre in the frame, [x, y]; None: the template's place. A scene's own wins.
     "text_position": None,
+    # The title scene's text box centre, [x, y]; None: the template's place (the middle of the frame). The title stays
+    # centred across, so only y counts; a place dragged on the title itself wins.
+    "title_text_position": None,
     # "Nghỉ sau lời đọc": the pause after each scene's narration when its seconds follow it ("Tự khớp lời đọc").
     "voice_pause": VOICE_TAIL,
 }
@@ -188,7 +191,7 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
         elif name in ("ducking", "voice_enabled"):
             if not isinstance(value, bool):
                 raise OptionError(f"“{LABELS[name]}” chỉ nhận bật hoặc tắt")
-        elif name == "text_position":
+        elif name in ("text_position", "title_text_position"):
             value = clean_position(value)
         elif name == "voice_speed":
             value = clean_speed(value)
@@ -226,6 +229,7 @@ def choices() -> dict:
             "voice_pause": list(VOICE_PAUSES),
             "ducking": [True, False],
             "text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
+            "title_text_position": {"width": FRAME_WIDTH, "height": FRAME_HEIGHT},
         }
     )
 
@@ -313,7 +317,7 @@ def look_signature(video: Video) -> dict | None:
     changed = {name: values[name] for name in DEFAULTS if name not in ("voice_id", "voice_speed", "voice_pause")}
     if changed == {name: DEFAULTS[name] for name in changed}:
         return None
-    for name in (*LATER_LOOK_FIELDS, "text_position"):
+    for name in (*LATER_LOOK_FIELDS, "text_position", "title_text_position"):
         if changed[name] == DEFAULTS[name]:
             del changed[name]
     return changed
