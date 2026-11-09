@@ -218,8 +218,10 @@ need a normal browser login. Listing has a maximum page size of 50; use `offset`
   `frame-ancestors 'none'`), lets its form go only to this site and the callback's origin (`form-action`), and
   uses `Referrer-Policy: same-origin` so the browser sends the Origin the guard checks. A denied/used ticket cannot be reused. Authorization
   codes expire after two minutes and are consumed under a database lock after S256 verification.
-- Access tokens last at most one hour. Refresh rotates both tokens and lasts at most 30 days from
-  the original grant. Refreshing does not extend the connection or its underlying login session.
+- Access tokens last at most one hour. Refresh rotates both tokens. A connection ends 30 days after
+  its last successful refresh (sliding, since 2026-11-09): one in use lives on, one left unused for 30
+  days ends and its refresh is refused; an ended connection is never revived. Refreshing does not
+  extend the underlying login session, and the connection still ends with it.
 - All tickets/codes/access/refresh tokens are stored only as SHA-256 hashes. The resource URL is
   bound to the authorization and connection; changing the configured URL requires reconnecting.
 - **Cài đặt → Kết nối ChatGPT / Claude → Thu hồi kết nối** revokes one of your connections. Other members

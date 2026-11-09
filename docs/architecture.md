@@ -843,7 +843,8 @@ server protocol POST paths bypass Origin checks; browser consent and revocation 
 `mcp_clients` stores registered clients with their allowed callbacks (ChatGPT's, Claude's hosted
 one, or Claude Code's loopback one, space-separated); `mcp_authorizations` holds short-lived
 session-bound consent tickets and single-use PKCE codes, each with the exact callback it returns to; `mcp_connections` holds scopes,
-resource binding, hashed rotating credentials and expiration. Session foreign keys cascade when
+resource binding, hashed rotating credentials and expiration (30 days after the grant or the last
+successful refresh, sliding). Session foreign keys cascade when
 the underlying browser login is revoked. Token validation also checks the user's active and
 password-change state on every request and tool call.
 
