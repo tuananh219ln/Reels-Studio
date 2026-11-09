@@ -492,6 +492,10 @@ export type KnowledgeTopic = {
   name: string;
   /** Who made the group: only they delete it; null when unknown (nobody deletes it). */
   created_by_id: number | null;
+  /** The maker's name; null: "Nhận nhóm" is offered. */
+  owner: string | null;
+  /** "Cho cả đội sửa": off, only the maker edits the group and its plan (everyone still uses it). */
+  team_edit: boolean;
   script_prompt: string;
   clone_prompt: string;
   /** "Prompt sửa theo góp ý"; "" uses the default. */

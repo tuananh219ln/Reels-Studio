@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   Col,
+  ConfigProvider,
   Dropdown,
   Empty,
   Flex,
@@ -21,6 +22,7 @@ import {
   Row,
   Select,
   Spin,
+  Switch,
   Tabs,
   Tag,
   theme,
@@ -368,7 +370,13 @@ function TopicBody({
   onSaved: (data: Knowledge) => void;
 }) {
   const { token } = theme.useToken();
+  const { me } = useMe();
   const path = `/knowledge/topics/${topic.id}`;
+  // "Cho cả đội sửa" off and the group not mine: its prompts, words and templates are only read here.
+  const locked = !topic.team_edit && topic.created_by_id !== me.id;
+  const readOnly = (children: React.ReactNode) => (
+    <ConfigProvider componentDisabled={locked}>{children}</ConfigProvider>
+  );
   const { tabs: planTabs, dialogs: planDialogs } = usePlanTabs(topic.id);
   const update = async (body: Partial<KnowledgeTopic>) => {
     const saved = await api<Knowledge>(path, "PATCH", body);
@@ -403,6 +411,11 @@ function TopicBody({
             {!topic.script_prompt && (
               <Typography.Text type="warning"> · Chưa có prompt viết kịch bản nên chưa tạo video được</Typography.Text>
             )}
+            {locked && (
+              <Typography.Text data-testid="group-locked">
+                {" · "}Chỉ {topic.owner ?? "người tạo nhóm"} sửa được nhóm này
+              </Typography.Text>
+            )}
             {topic.last_edit && (
               <>
                 {" · "}
@@ -434,12 +447,12 @@ function TopicBody({
           {
             key: "prompts",
             label: "Prompt",
-            children: <PromptsPanel topic={topic} defaults={defaults} update={update} reload={reload} />,
+            children: readOnly(<PromptsPanel topic={topic} defaults={defaults} update={update} reload={reload} />),
           },
           {
             key: "words",
             label: "Từ cấm, ảnh & giọng",
-            children: (
+            children: readOnly(
               <Row gutter={[16, 16]}>
                 <Col xs={24} xl={12}>
                   <BannedWordsCard topicId={topic.id} initial={topic.banned_words} update={update} reload={reload} />
@@ -456,13 +469,13 @@ function TopicBody({
                     <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
                   </Flex>
                 </Col>
-              </Row>
+              </Row>,
             ),
           },
           {
             key: "templates",
             label: "Mẫu dựng",
-            children: <GroupTemplatesCard topic={topic} update={update} />,
+            children: readOnly(<GroupTemplatesCard topic={topic} update={update} />),
           },
           ...planTabs,
         ]}
@@ -491,6 +504,7 @@ function TopicHeader({
   const { me } = useMe();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(topic.name);
+  const locked = !topic.team_edit && topic.created_by_id !== me.id;
   const [busy, setBusy] = useState(false);
 
   async function rename() {
@@ -566,19 +580,22 @@ function TopicHeader({
             <Typography.Title level={4} ellipsis style={{ margin: 0 }}>
               {topic.name}
             </Typography.Title>
-            <Tooltip title="Đổi tên">
-              <Button
-                type="text"
-                size="small"
-                aria-label="Đổi tên"
-                icon={<EditOutlined />}
-                onClick={() => setEditing(true)}
-              />
-            </Tooltip>
+            {!locked && (
+              <Tooltip title="Đổi tên">
+                <Button
+                  type="text"
+                  size="small"
+                  aria-label="Đổi tên"
+                  icon={<EditOutlined />}
+                  onClick={() => setEditing(true)}
+                />
+              </Tooltip>
+            )}
           </Flex>
         )}
         <Typography.Text type="secondary">{summary}</Typography.Text>
       </Flex>
+      <TeamEdit topic={topic} update={update} onSaved={onSaved} />
       <Dropdown
         trigger={["click"]}
         menu={{
@@ -603,6 +620,65 @@ function TopicHeader({
         <Button aria-label="Thao tác khác với nhóm" icon={<MoreOutlined />} />
       </Dropdown>
     </Flex>
+  );
+}
+
+/** "Cho cả đội sửa", the maker's switch (on: every member edits the group and its plan; off: only the maker); a
+ * group nobody is known to have made offers "Nhận nhóm" instead, as a Page offers "Nhận Page". */
+function TeamEdit({
+  topic,
+  update,
+  onSaved,
+}: {
+  topic: KnowledgeTopic;
+  update: Update;
+  onSaved: (data: Knowledge) => void;
+}) {
+  const { message } = App.useApp();
+  const { me } = useMe();
+  const [busy, setBusy] = useState(false);
+
+  async function run(call: () => Promise<unknown>, done: string) {
+    setBusy(true);
+    try {
+      await call();
+      message.success(done);
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (topic.created_by_id === null) {
+    return (
+      <Button
+        loading={busy}
+        onClick={() =>
+          run(async () => onSaved(await api<Knowledge>(`/knowledge/topics/${topic.id}/owner`, "POST")), "Đã nhận nhóm")
+        }
+      >
+        Nhận nhóm
+      </Button>
+    );
+  }
+  if (topic.created_by_id !== me.id) {
+    return null;
+  }
+  return (
+    <Tooltip title="Tắt: chỉ bạn sửa được prompt, từ cấm, mẫu dựng và kế hoạch của nhóm; cả đội vẫn tạo video từ nhóm.">
+      <Flex gap={8} align="center">
+        <Switch
+          aria-label="Cho cả đội sửa"
+          checked={topic.team_edit}
+          loading={busy}
+          onChange={(on) =>
+            run(() => update({ team_edit: on }), on ? "Cả đội sửa được nhóm này" : "Chỉ bạn sửa được nhóm này")
+          }
+        />
+        <Typography.Text>Cho cả đội sửa</Typography.Text>
+      </Flex>
+    </Tooltip>
   );
 }
 

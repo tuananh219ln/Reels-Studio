@@ -13,7 +13,7 @@ from . import edit_log, plans
 from .db import get_db
 from .errors import ApiError
 from .models import KnowledgeTopic, Session, TopicPlanItem
-from .ownership import ensure_owner
+from .ownership import ensure_group_editor, ensure_owner
 from .plans import MAX_PER_DAY, PLAN_DAYS, Idea, PlanError
 from .routes_videos import invalid
 from .sessions import current_member
@@ -62,6 +62,13 @@ def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
     topic = db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == topic_id).with_for_update())
     if topic is None:
         raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    return topic
+
+
+def _editable(db: DbSession, topic_id: int, me: Session) -> KnowledgeTopic:
+    """The group locked as `_topic`, refused unless the member may edit it ("Cho cả đội sửa", 2026-11-09)."""
+    topic = _topic(db, topic_id)
+    ensure_group_editor(db, topic, me.user_id)
     return topic
 
 
@@ -135,6 +142,7 @@ def patch_item(
     item_id: int, body: IdeaPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     topic, item = _item(db, item_id)
+    ensure_group_editor(db, topic, me.user_id)
     # Everything is checked before anything changes: a refused edit leaves the idea as it was.
     limits = {
         "topic": (plans.MAX_TOPIC_LENGTH, "Chủ đề"),
@@ -182,6 +190,7 @@ def delete_item(item_id: int, me: Session = Depends(current_member), db: DbSessi
     """The idea only: a video made from it stays."""
     topic, item = _item(db, item_id)
     ensure_owner(item.created_by_id, me.user_id, "ý tưởng này")
+    ensure_group_editor(db, topic, me.user_id)
     db.delete(item)
     plans.renumber(db, topic.id, item.day)
     return _saved(db, topic)
@@ -199,7 +208,7 @@ def get_plan(topic_id: int, me: Session = Depends(current_member), db: DbSession
 def patch_plan(
     topic_id: int, body: PlanPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    topic = _topic(db, topic_id)
+    topic = _editable(db, topic_id, me)
     before = edit_log.topic_snapshot(topic)
     if "start_date" in body.model_fields_set:
         topic.plan_start_date = body.start_date
@@ -234,7 +243,7 @@ def patch_plan(
 def add_item(
     topic_id: int, body: IdeaBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    topic = _topic(db, topic_id)
+    topic = _editable(db, topic_id, me)
     idea = _idea(body)
     _room(db, topic.id, idea.day)
     _unique(db, topic.id, idea.topic)
@@ -260,7 +269,7 @@ def add_backlog(
     topic_id: int, body: BacklogBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     """Ideas of a previewed file into the Backlog, whatever their day; topics already in the plan are skipped."""
-    topic = _topic(db, topic_id)
+    topic = _editable(db, topic_id, me)
     ideas = [_idea(IdeaBody(**{**idea.model_dump(), "day": None})) for idea in body.ideas]
     if not ideas:
         raise invalid("Không có ý tưởng nào")
@@ -275,7 +284,7 @@ def replace_items(
     topic_id: int, body: ReplaceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     """Save an imported file or the AI's draft as the 30 days, after a member looked at it; the Backlog stays."""
-    topic = _topic(db, topic_id)
+    topic = _editable(db, topic_id, me)
     if len(body.ideas) > plans.MAX_IDEAS:
         raise invalid(f"Tối đa {plans.MAX_IDEAS} ý tưởng")
     ideas = [_idea(idea) for idea in body.ideas]
@@ -294,8 +303,10 @@ def preview_import(
     db: DbSession = Depends(get_db),
 ) -> dict:
     """What the file holds, without saving anything: the plan is replaced only by "Lưu kế hoạch" (PUT .../items)."""
-    if db.get(KnowledgeTopic, topic_id) is None:
+    topic = db.get(KnowledgeTopic, topic_id)
+    if topic is None:
         raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    ensure_group_editor(db, topic, me.user_id)
     data = read_limited(file, plans.MAX_FILE_BYTES, "File lớn quá 1 MB")
     try:
         ideas, row_errors = plans.parse_file(file.filename or "", data)
@@ -314,7 +325,7 @@ def preview_import(
 @router.post("/{topic_id}/generate")
 def generate(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """ "Tạo bằng AI": a plan job; what it writes waits as a draft and never replaces the plan by itself."""
-    topic = _topic(db, topic_id)
+    topic = _editable(db, topic_id, me)
     if not plans.enqueue(db, topic.id, me.user_id):
         raise ApiError(409, "plan_busy", "Nhóm chủ đề đang có kế hoạch chờ hoặc đang tạo")
     db.commit()
@@ -323,6 +334,6 @@ def generate(topic_id: int, me: Session = Depends(current_member), db: DbSession
 
 @router.delete("/{topic_id}/draft")
 def drop_draft(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    topic = _topic(db, topic_id)
+    topic = _editable(db, topic_id, me)
     topic.plan_draft = None
     return _saved(db, topic)

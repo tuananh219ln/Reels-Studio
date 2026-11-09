@@ -11,6 +11,7 @@ from . import edit_log, knowledge
 from .db import get_db
 from .errors import ApiError
 from .models import EditLog, KnowledgeTopic, Session
+from .ownership import ensure_group_editor
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -60,6 +61,7 @@ def restore(body: RestoreBody, me: Session = Depends(current_member), db: DbSess
     topic = db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == body.entity_id).with_for_update())
     if topic is None:
         raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    ensure_group_editor(db, topic, me.user_id)
     if body.log_id is None:
         if body.field not in edit_log.TOPIC_PROMPTS:
             raise invalid("Mục này không có bản mặc định")
