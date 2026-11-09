@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type QueueItem, type VideoDetail } from "@/lib/api";
 import { useMe } from "@/components/MeContext";
-import { pageOptions } from "@/lib/myPages";
+import { myPages, pageOptions } from "@/lib/myPages";
 import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
 import FormDrawer from "@/components/FormDrawer";
 
@@ -37,7 +37,9 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
     setOpen(true);
     if (myPageOfGroup(video, me.id) === null) {
       loadLastChoices().then((last) => {
-        if (video.fanpages.some((row) => row.id === last.fanpage_id)) setPage(last.fanpage_id as number);
+        if (myPages(video.fanpages, me.id).some((row) => row.id === last.fanpage_id)) {
+          setPage(last.fanpage_id as number);
+        }
       });
     }
   }
