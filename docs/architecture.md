@@ -363,7 +363,10 @@ A scene may hold an uploaded video clip instead of a photo
 - **Text box place:** a scene may carry `text_position` ([x, y], the box centre); `textbox.place_box`
   centres the box there inside `SAFE_ZONE` (the title only moves up and down), and without it the box
   sits where the template puts it. The api writes each scene's effective place (its own, else the
-  video's for content scenes) into the script and into the MP4 signature only when there is one.
+  video's for its kind: `text_position` in the options for content scenes, `title_text_position` for the
+  title, whose x is always the frame's centre) into the script and into the MP4 signature only when
+  there is one. Neither video-wide place affects the other, and the title's is set through the api and
+  the assistant's `set_video_options`, not on the page yet.
 - **Script input:** a scene has `video` (path relative to the JSON), `video_start` and optionally
   `video_speed` (0.5–2, default 1) instead of `image`. A scene with both is a validation error, and
   stock search never runs for a clip scene.

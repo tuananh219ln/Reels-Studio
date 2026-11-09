@@ -83,7 +83,8 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   `video_options`: what each setting of the video's "Thiết lập" tab accepts (`video_options.choices()`, built
   from the same lists the tab's save checks).
 - `set_video_options` changes a video's "Thiết lập" settings (voice, reading speed and volume, pause after the
-  narration, ducking, transition, motion, zoom, text box and title looks, captions, text sizes, text position).
+  narration, ducking, transition, motion, zoom, text box and title looks, captions, text sizes, the scenes' text position and the title's, `title_text_position`, which moves only the title box up or
+  down; `reset_text_position` and `reset_title_text_position` put each back where the template has it).
   Only the arguments sent change; it goes through the same `PATCH /videos/{id}` handler and `video_options.clean`
   as the tab, so one wrong value saves nothing. A voice id is checked for its form only (a bare ElevenLabs id or
   `vieneu:<id>`), as on the web; a voice that does not exist fails when the narration is made. It makes no
