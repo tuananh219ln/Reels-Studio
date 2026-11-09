@@ -106,23 +106,38 @@ test("search box filters by email or name", async ({ page }) => {
   await expect(row(page, SEED.email)).toBeVisible();
 });
 
+/** "Vô hiệu hoá" on a row: the member's name is typed to confirm. */
+async function disableUser(page: Page, email: string, name: string) {
+  await row(page, email).getByRole("button", { name: "Vô hiệu hoá" }).click();
+  const dialog = page.getByRole("dialog", { name: "Vô hiệu hoá người dùng?" });
+  const ok = dialog.getByRole("button", { name: "Vô hiệu hoá" });
+  await expect(ok).toBeDisabled();
+  await dialog.getByLabel("Nhập tên để xác nhận").fill(name.slice(0, 3));
+  await expect(ok).toBeDisabled();
+  await dialog.getByLabel("Nhập tên để xác nhận").fill(name);
+  await ok.click();
+}
+
 test("a refused row action shows the API message and refreshes the stale row", async ({ page, browser }) => {
   await loginAsSeed(page);
   await addUser(page, "binh@doi.vn", "Trần Thị Bình", "tam-thoi-123");
+  await disableUser(page, "binh@doi.vn", "Trần Thị Bình");
+  await expect(row(page, "binh@doi.vn")).toContainText("Kích hoạt lại");
   const teammate = await newPage(browser);
   await loginAsSeed(teammate);
   await teammate.goto("/users");
-  await row(teammate, "binh@doi.vn").getByRole("button", { name: "Vô hiệu hoá" }).click();
-  await teammate.getByRole("dialog").getByRole("button", { name: "Vô hiệu hoá" }).click();
   await expect(row(teammate, "binh@doi.vn")).toContainText("Kích hoạt lại");
+  await row(page, "binh@doi.vn").getByRole("button", { name: "Kích hoạt lại" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Kích hoạt lại" }).click();
+  await expect(row(page, "binh@doi.vn")).toContainText("Hoạt động");
 
-  // This tab still shows Bình as active.
-  await row(page, "binh@doi.vn").getByRole("button", { name: "Đặt mật khẩu tạm" }).click();
-  const dialog = page.getByRole("dialog", { name: "Đặt mật khẩu tạm" });
+  // The other tab still shows Bình as disabled, where a temporary password may be set.
+  await row(teammate, "binh@doi.vn").getByRole("button", { name: "Đặt mật khẩu tạm" }).click();
+  const dialog = teammate.getByRole("dialog", { name: "Đặt mật khẩu tạm" });
   await dialog.getByLabel("Mật khẩu tạm").fill("tam-moi-5678");
   await dialog.getByRole("button", { name: "Lưu" }).click();
-  await expect(page.getByText("Hãy kích hoạt lại người dùng trước")).toBeVisible();
-  await expect(row(page, "binh@doi.vn").getByRole("button")).toHaveText(["Kích hoạt lại"]);
+  await expect(teammate.getByText("Chỉ đặt mật khẩu tạm cho tài khoản đã vô hiệu hoá")).toBeVisible();
+  await expect(row(teammate, "binh@doi.vn").getByRole("button", { name: "Đặt mật khẩu tạm" })).toBeDisabled();
 });
 
 test("login, empty video list, header and logout", async ({ page }) => {
@@ -648,24 +663,29 @@ test("disable, re-enable, temporary password and sign out of all devices", async
   await page.reload();
   await expect(row(page, "binh@doi.vn").getByRole("cell").nth(5)).toHaveText("1");
 
-  await row(page, "binh@doi.vn").getByRole("button", { name: "Vô hiệu hoá" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Vô hiệu hoá" }).click();
+  // An active member's password is not reset: the button waits for the account to be disabled.
+  await expect(row(page, "binh@doi.vn").getByRole("button", { name: "Đặt mật khẩu tạm" })).toBeDisabled();
+  await disableUser(page, "binh@doi.vn", "Trần Thị Bình");
   await expect(row(page, "binh@doi.vn")).toContainText("Vô hiệu hoá");
-  await expect(row(page, "binh@doi.vn").getByRole("button")).toHaveText(["Kích hoạt lại"]);
+  await expect(row(page, "binh@doi.vn").getByRole("button")).toHaveText(["Kích hoạt lại", "Đặt mật khẩu tạm"]);
+  await expect(row(page, "binh@doi.vn").getByTestId("user-last-action")).toContainText(`Vô hiệu hoá bởi ${SEED.name}`);
   await binh.reload();
   await expect(binh).toHaveURL(/\/login$/);
   await login(binh, "binh@doi.vn", "tam-thoi-123");
   await expect(binh.locator(".ant-alert")).toHaveText("Tài khoản đã bị vô hiệu hoá");
 
-  await row(page, "binh@doi.vn").getByRole("button", { name: "Kích hoạt lại" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Kích hoạt lại" }).click();
-  await expect(row(page, "binh@doi.vn")).toContainText("Hoạt động");
-
+  // Recovering the account: a temporary password while disabled, then enabled again.
   await row(page, "binh@doi.vn").getByRole("button", { name: "Đặt mật khẩu tạm" }).click();
   const dialog = page.getByRole("dialog", { name: "Đặt mật khẩu tạm" });
   await dialog.getByLabel("Mật khẩu tạm").fill("tam-moi-5678");
   await dialog.getByRole("button", { name: "Lưu" }).click();
   await expect(page.getByText("Đã đặt mật khẩu tạm")).toBeVisible();
+  await row(page, "binh@doi.vn").getByRole("button", { name: "Kích hoạt lại" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Kích hoạt lại" }).click();
+  await expect(row(page, "binh@doi.vn")).toContainText("Hoạt động");
+  await expect(row(page, "binh@doi.vn").getByTestId("user-last-action")).toContainText(
+    `Kích hoạt lại bởi ${SEED.name}`,
+  );
   await login(binh, "binh@doi.vn", "tam-moi-5678");
   await expect(binh).toHaveURL(/\/change-password$/);
 

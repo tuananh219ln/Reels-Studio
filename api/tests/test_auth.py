@@ -156,6 +156,8 @@ def test_passwords_never_reach_responses_or_logs(client, db, caplog):
     responses = [login(client)]
     created = client.post("/api/users", json={"email": "binh@doi.vn", "name": "Bình", "password": secrets[1]})
     responses.append(created)
+    # A temporary password goes to a disabled account only (2026-11-09).
+    client.post(f"/api/users/{created.json()['id']}/disable")
     responses.append(client.post(f"/api/users/{created.json()['id']}/temp-password", json={"password": secrets[2]}))
     responses.append(client.post("/api/me/password", json={"current_password": PASSWORD, "new_password": secrets[3]}))
     responses.append(client.post("/api/auth/login", json={"email": "an@doi.vn", "password": "sai-hoan-toan"}))
