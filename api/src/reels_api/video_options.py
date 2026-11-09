@@ -25,10 +25,10 @@ from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 from reels_render.timeline import VOICE_TAIL
 
 from . import config
-from .models import AppSetting, KnowledgeTopic, UserVideoDefaults, Video
+from .models import KnowledgeTopic, UserVideoDefaults, Video
 from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_vieneu
 
-DEFAULTS_KEY = "video_defaults"
+DEFAULTS_KEY = "video_defaults"  # the team's defaults before 2026-11-09 (migration 0067): kept, never read
 
 DEFAULTS: dict = {
     # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default); "vieneu:<id>": a VieNeu voice (tts.py)
@@ -319,37 +319,23 @@ def look_signature(video: Video) -> dict | None:
     return changed
 
 
-def team_defaults(db: DbSession) -> dict:
-    setting = db.get(AppSetting, DEFAULTS_KEY)
-    stored = setting.value if setting and isinstance(setting.value, dict) else {}
-    try:
-        stored = clean(stored, allow_video_fields=True)
-    except OptionError:
-        stored = {}
-    return VIDEO_FIELDS | DEFAULTS | stored
-
-
-def save_team_defaults(db: DbSession, values: dict, user_id: int) -> dict:
-    merged = team_defaults(db) | clean(values, allow_video_fields=True)
-    setting = db.get(AppSetting, DEFAULTS_KEY)
-    if setting is None:
-        db.add(AppSetting(key=DEFAULTS_KEY, value=merged, updated_by_id=user_id))
-    else:
-        setting.value, setting.updated_by_id = merged, user_id
-    return merged
+def built_in_defaults() -> dict:
+    """What a member who never saved their own defaults starts new videos with: the app's own."""
+    return VIDEO_FIELDS | DEFAULTS
 
 
 def member_defaults(db: DbSession, user_id: int) -> dict:
-    """What a member's new videos start with: their own defaults, or the team's while they have none. A value their
-    copy lacks (a setting added since they saved) is the team's."""
+    """What a member's new videos start with: their own defaults, or the app's built-in ones while they have none. A
+    value their copy lacks (a setting added since they saved) is the built-in one. There is no team level (part 3 of
+    docs/specs/per-user-settings-ownership): the team's old row (DEFAULTS_KEY) is never read."""
     own = db.get(UserVideoDefaults, user_id)
     if own is None or not isinstance(own.value, dict):
-        return team_defaults(db)
+        return built_in_defaults()
     try:
         stored = clean(own.value, allow_video_fields=True)
     except OptionError:
-        return team_defaults(db)
-    return team_defaults(db) | stored
+        return built_in_defaults()
+    return built_in_defaults() | stored
 
 
 def has_own_defaults(db: DbSession, user_id: int) -> bool:
@@ -357,7 +343,8 @@ def has_own_defaults(db: DbSession, user_id: int) -> bool:
 
 
 def save_member_defaults(db: DbSession, user_id: int, values: dict) -> dict:
-    """A member's own defaults, started from what they use now (the team's the first time) with `values` changed."""
+    """A member's own defaults, started from what they use now (the built-in ones the first time) with `values`
+    changed."""
     merged = member_defaults(db, user_id) | clean(values, allow_video_fields=True)
     own = db.get(UserVideoDefaults, user_id)
     if own is None:
@@ -368,7 +355,7 @@ def save_member_defaults(db: DbSession, user_id: int, values: dict) -> dict:
 
 
 def forget_member_defaults(db: DbSession, user_id: int) -> None:
-    """Back to the team's defaults ("Dùng mặc định nhóm")."""
+    """Back to the app's built-in defaults ("Về mặc định gốc")."""
     own = db.get(UserVideoDefaults, user_id)
     if own is not None:
         db.delete(own)
@@ -376,7 +363,7 @@ def forget_member_defaults(db: DbSession, user_id: int) -> None:
 
 def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
     """A new video takes its maker's defaults (member_defaults), and the voice of its topic group when the group has
-    one: video's own › group's › maker's own › team's. Set `video.knowledge_topic_id` first."""
+    one: video's own › group's › maker's own › built-in. Set `video.knowledge_topic_id` first."""
     defaults = member_defaults(db, user_id)
     video.voice_enabled, video.music_volume = defaults["voice_enabled"], defaults["music_volume"]
     video.options = {name: defaults[name] for name in DEFAULTS}

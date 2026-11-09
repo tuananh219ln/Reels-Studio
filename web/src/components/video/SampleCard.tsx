@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { App, Button, Card, Collapse, Flex, Input, Typography, theme } from "antd";
 import { useRouter } from "next/navigation";
@@ -30,6 +31,7 @@ export default function SampleCard({
   onChanged: () => void;
 }) {
   const { message, modal } = App.useApp();
+  const { me } = useMe();
   const { token } = theme.useToken();
   const router = useRouter();
   const [draft, setDraft] = useState<string | null>(null);
@@ -209,15 +211,17 @@ export default function SampleCard({
                 Tạo thêm video từ mẫu này
               </Button>
             )}
-            <Button
-              size="small"
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={working}
-              onClick={remove}
-              aria-label="Xoá video mẫu"
-            />
+            {sample.created_by_id === me.id && (
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<DeleteOutlined />}
+                disabled={working}
+                onClick={remove}
+                aria-label="Xoá video mẫu"
+              />
+            )}
           </Flex>
         )
       }

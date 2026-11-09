@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { CloseCircleOutlined, DeleteOutlined, ExportOutlined, RedoOutlined, SyncOutlined } from "@ant-design/icons";
 import { App, Button, Popconfirm, Space, Tooltip } from "antd";
 import { useState } from "react";
@@ -27,6 +28,8 @@ export default function PostActions({
   retryJobId?: number | null;
 }) {
   const { message } = App.useApp();
+  // Only whoever posted it cancels or deletes it (the api refuses anyone else).
+  const mine = post.created_by_id === useMe().me.id;
   const [busy, setBusy] = useState<Action | null>(null);
   const closed = post.status === "cancelled" || post.status === "deleted";
   if (closed && !compact) return null;
@@ -60,11 +63,21 @@ export default function PostActions({
       okButtonProps={{ danger: true }}
       cancelText="Không"
       onConfirm={() => run("take-down")}
-      disabled={disabled || closed}
+      disabled={disabled || closed || !mine}
     >
       {compact ? (
         <Tooltip
-          title={closed ? "Bài đã hủy hoặc đã xóa" : disabled ? waiting : published ? "Xóa khỏi Facebook" : "Hủy đăng"}
+          title={
+            closed
+              ? "Bài đã hủy hoặc đã xóa"
+              : !mine
+                ? "Chỉ người đăng bài này mới hủy hoặc xóa được"
+                : disabled
+                  ? waiting
+                  : published
+                    ? "Xóa khỏi Facebook"
+                    : "Hủy đăng"
+          }
         >
           <Button
             size="small"
@@ -73,11 +86,11 @@ export default function PostActions({
             aria-label={published ? "Xóa" : "Hủy đăng"}
             icon={published ? <DeleteOutlined /> : <CloseCircleOutlined />}
             loading={busy === "take-down"}
-            disabled={disabled || closed}
+            disabled={disabled || closed || !mine}
           />
         </Tooltip>
       ) : (
-        <Button size="small" danger={published} loading={busy === "take-down"} disabled={disabled}>
+        <Button size="small" danger={published} loading={busy === "take-down"} disabled={disabled || !mine}>
           {published ? "Xóa" : "Hủy đăng"}
         </Button>
       )}

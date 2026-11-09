@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Select, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
@@ -7,8 +8,8 @@ import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { api, errorMessage, type EditTemplate, type EditTemplates } from "@/lib/api";
 
 /**
- * "Mẫu dựng": the app's own template and the team's (saved from a video in the studio's "Tự dựng"), the one put on
- * every new video once its scenes are written, and renaming or removing the team's.
+ * "Mẫu dựng": the app's own template and the members' (saved from a video in the studio's "Tự dựng"), the signed-in
+ * member's own one put on their new videos once its scenes are written, and renaming or removing templates.
  */
 export default function EditTemplatesPage() {
   const { message } = App.useApp();
@@ -45,8 +46,16 @@ export default function EditTemplatesPage() {
         <Spin />
       ) : (
         <Flex vertical gap={16}>
-          <Card size="small" title="Video mới tự áp mẫu">
+          <Card
+            size="small"
+            title="Video mới của tôi tự áp mẫu"
+            extra={<Tag color="blue">Của tôi (theo người dùng)</Tag>}
+          >
             <Flex vertical gap={8}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Thiết lập riêng của tài khoản (theo người dùng): chỉ áp cho video mới do bạn tạo, không phải thiết lập
+                chung của team.
+              </Typography.Text>
               <Select
                 aria-label="Mẫu cho video mới"
                 style={{ maxWidth: 360 }}
@@ -67,7 +76,8 @@ export default function EditTemplatesPage() {
                 }
               />
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                Áp ngay khi kịch bản được viết xong (AI viết, nhân bản hoặc tự viết). Video đã có giữ nguyên.
+                Áp ngay khi kịch bản được viết xong (AI viết, nhân bản hoặc tự viết). Video đã có giữ nguyên. Cảnh kết
+                kêu gọi của kịch bản được giữ: lớp chữ cuối của mẫu không chèn vào cảnh đó.
               </Typography.Text>
             </Flex>
           </Card>
@@ -92,6 +102,7 @@ function TemplateCard({
   run: (call: () => Promise<EditTemplates>, done?: string) => Promise<void>;
 }) {
   const [renaming, setRenaming] = useState<string | null>(null);
+  const { me } = useMe();
   return (
     <Card
       size="small"
@@ -101,7 +112,12 @@ function TemplateCard({
           <Flex align="center" gap={8}>
             <span>{template.name}</span>
             {template.builtin && <Tag>Có sẵn</Tag>}
-            {isDefault && <Tag color="orange">Video mới tự áp</Tag>}
+            {isDefault && <Tag color="orange">Video mới của tôi tự áp</Tag>}
+            {template.topics.map((topic) => (
+              <Tag key={topic.id} color="geekblue">
+                Nhóm {topic.name}
+              </Tag>
+            ))}
           </Flex>
         ) : (
           <Input
@@ -131,25 +147,28 @@ function TemplateCard({
               disabled={busy}
               onClick={() => setRenaming(template.name)}
             />
-            <Popconfirm
-              title={`Xoá mẫu “${template.name}”?`}
-              description={isDefault ? "Video mới sẽ không còn tự áp mẫu nào." : undefined}
-              okText="Xoá"
-              cancelText="Huỷ"
-              okButtonProps={{ danger: true }}
-              onConfirm={() =>
-                void run(() => api<EditTemplates>(`/edit-templates/${template.id}`, "DELETE"), "Đã xoá mẫu")
-              }
-            >
-              <Button
-                size="small"
-                type="text"
-                danger
-                aria-label={`Xoá ${template.name}`}
-                icon={<DeleteOutlined />}
-                disabled={busy}
-              />
-            </Popconfirm>
+            {/* Only whoever saved it deletes it. */}
+            {template.created_by_id === me.id && (
+              <Popconfirm
+                title={`Xoá mẫu “${template.name}”?`}
+                description={isDefault ? "Video mới sẽ không còn tự áp mẫu nào." : undefined}
+                okText="Xoá"
+                cancelText="Huỷ"
+                okButtonProps={{ danger: true }}
+                onConfirm={() =>
+                  void run(() => api<EditTemplates>(`/edit-templates/${template.id}`, "DELETE"), "Đã xoá mẫu")
+                }
+              >
+                <Button
+                  size="small"
+                  type="text"
+                  danger
+                  aria-label={`Xoá ${template.name}`}
+                  icon={<DeleteOutlined />}
+                  disabled={busy}
+                />
+              </Popconfirm>
+            )}
           </Flex>
         )
       }

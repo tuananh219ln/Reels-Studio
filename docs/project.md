@@ -35,7 +35,8 @@ app replaces CapCut, so the output is a finished MP4.
 ## Key Features (MVP)
 
 1. **Team login (built):** email and password; accounts are created by members (the first one by
-   a CLI command). There is no self-signup and no roles: every member can manage users. Google
+   a CLI command). There is no self-signup and no roles: every member can manage users. What a member made, only they
+   delete (2026-11-09, see [architecture.md](architecture.md#web-app-and-auth)). Google
    login is planned ([#54](https://github.com/tuananh219ln/Reels-Studio/issues/54)).
 2. **Knowledge Base (partly built):** today `/knowledge` holds the editable script and clone
    prompts, the banned words and each group's 30-day topic plan (1–10 video ideas a day, each with

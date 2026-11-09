@@ -77,13 +77,21 @@ def test_topic_names_are_required_and_unique(an):
 
 
 def test_a_topic_with_videos_cannot_be_deleted(an, db, me, storage):
-    make_video(db, storage, me)
+    # The member's own group with their own video (a teammate's video, or a group made by someone else, is refused
+    # before this: test_delete_ownership.py).
+    mine = next(
+        t for t in an.post("/api/knowledge/topics", json={"name": "Xương"}).json()["topics"] if t["name"] == "Xương"
+    )
+    make_video(db, storage, me).knowledge_topic_id = mine["id"]
+    db.commit()
     data = an.get("/api/knowledge").json()
-    assert data["topics"][0]["video_count"] == 1
-    refused = an.delete(f"/api/knowledge/topics/{data['topics'][0]['id']}")
+    assert next(t for t in data["topics"] if t["id"] == mine["id"])["video_count"] == 1
+    refused = an.delete(f"/api/knowledge/topics/{mine['id']}")
     assert (refused.status_code, refused.json()["message"]) == (409, "Nhóm chủ đề còn 1 video nên chưa xoá được")
-    empty = an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"][1]
-    assert len(an.delete(f"/api/knowledge/topics/{empty['id']}").json()["topics"]) == 1
+    empty = next(
+        t for t in an.post("/api/knowledge/topics", json={"name": "Gan"}).json()["topics"] if t["name"] == "Gan"
+    )
+    assert len(an.delete(f"/api/knowledge/topics/{empty['id']}").json()["topics"]) == 2
 
 
 def test_a_topic_without_a_prompt_cannot_write_or_clone(an, db, me, storage):

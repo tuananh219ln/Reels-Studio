@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import {
   DeleteOutlined,
   FacebookOutlined,
@@ -282,6 +283,7 @@ function PageCard({
   const router = useRouter();
   const dashboard = `/fanpages/${row.id}`;
   const { message, modal } = App.useApp();
+  const { me } = useMe();
   const { check, insights } = row;
   const week = insights.last_7_days;
 
@@ -345,7 +347,10 @@ function PageCard({
                 icon: <FacebookOutlined />,
               },
               { key: "token", label: "Dán token mới", onClick: () => onToken(row) },
-              { key: "stop", label: "Ngừng dùng", icon: <StopOutlined />, danger: true, onClick: stop },
+              // Stopping or removing a Page is its owner's call ("Nhận Page này" first for one nobody owns).
+              ...(row.owner?.id === me.id
+                ? [{ key: "stop", label: "Ngừng dùng", icon: <StopOutlined />, danger: true, onClick: stop }]
+                : []),
             ],
           }}
         >
@@ -410,6 +415,7 @@ function PageCard({
 /** Pages no longer used, folded away: "Dùng lại", or "Xóa" for one that never had a post. */
 function StoppedPages({ rows, onRows }: { rows: Fanpage[]; onRows: (rows: Fanpage[]) => void }) {
   const { message } = App.useApp();
+  const { me } = useMe();
   if (rows.length === 0) return null;
 
   async function call(path: string, method: "PATCH" | "DELETE", body?: object) {
@@ -446,31 +452,33 @@ function StoppedPages({ rows, onRows }: { rows: Fanpage[]; onRows: (rows: Fanpag
                       {row.updated_by ? ` bởi ${row.updated_by}` : ""}
                     </Typography.Text>
                   </Flex>
-                  <Space size={4}>
-                    <Button size="small" onClick={() => call(`/fanpages/${row.id}`, "PATCH", { active: true })}>
-                      Dùng lại
-                    </Button>
-                    {row.posts ? (
-                      <Tooltip title="Page đã có bài đăng nên được giữ lại để xem lịch sử">
-                        <Button size="small" icon={<DeleteOutlined />} disabled>
-                          Xóa
-                        </Button>
-                      </Tooltip>
-                    ) : (
-                      <Popconfirm
-                        title={`Xóa ${row.name}?`}
-                        description="Xóa cả token và số liệu đã lưu. Muốn dùng lại phải thêm Page lại từ đầu."
-                        okText="Xóa"
-                        okButtonProps={{ danger: true }}
-                        cancelText="Huỷ"
-                        onConfirm={() => call(`/fanpages/${row.id}`, "DELETE")}
-                      >
-                        <Button size="small" danger icon={<DeleteOutlined />}>
-                          Xóa
-                        </Button>
-                      </Popconfirm>
-                    )}
-                  </Space>
+                  {row.owner?.id === me.id && (
+                    <Space size={4}>
+                      <Button size="small" onClick={() => call(`/fanpages/${row.id}`, "PATCH", { active: true })}>
+                        Dùng lại
+                      </Button>
+                      {row.posts ? (
+                        <Tooltip title="Page đã có bài đăng nên được giữ lại để xem lịch sử">
+                          <Button size="small" icon={<DeleteOutlined />} disabled>
+                            Xóa
+                          </Button>
+                        </Tooltip>
+                      ) : (
+                        <Popconfirm
+                          title={`Xóa ${row.name}?`}
+                          description="Xóa cả token và số liệu đã lưu. Muốn dùng lại phải thêm Page lại từ đầu."
+                          okText="Xóa"
+                          okButtonProps={{ danger: true }}
+                          cancelText="Huỷ"
+                          onConfirm={() => call(`/fanpages/${row.id}`, "DELETE")}
+                        >
+                          <Button size="small" danger icon={<DeleteOutlined />}>
+                            Xóa
+                          </Button>
+                        </Popconfirm>
+                      )}
+                    </Space>
+                  )}
                 </Flex>
               ))}
             </Flex>

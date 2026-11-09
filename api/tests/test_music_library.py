@@ -16,7 +16,7 @@ GROUPS = ["tim mạch", "xương khớp", "giấc ngủ", "gan"]
 def me(db):
     user = make_user(db)
     for name in GROUPS:
-        db.add(KnowledgeTopic(name=name, updated_by_id=user.id))
+        db.add(KnowledgeTopic(name=name, created_by_id=user.id, updated_by_id=user.id))
     db.commit()
     return user
 
@@ -212,7 +212,7 @@ def test_a_locked_video_cannot_take_a_track(an, db, me, storage):
     assert db.get(Video, video.id).music_key is None
 
 
-DEFAULTS_URL = "/api/settings/video-defaults"
+DEFAULTS_URL = "/api/settings/my-video-defaults"  # the member's own: there are no team defaults any more
 
 
 def new_video(an, db) -> dict:

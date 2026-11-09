@@ -1004,7 +1004,34 @@ test("studio notes: a comment at the playhead, sent to the AI, which fixes the s
   await expect(page.getByTestId("scene").nth(1).getByLabel("Chữ trên màn hình")).toHaveValue("Đã sửa\n*theo góp ý*");
 });
 
-test("auto edit: the app's template on a video, undone, saved as the team's and put on every new video", async ({
+test("knowledge topics: a group's own template dresses its new videos, over its maker's", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/knowledge");
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Mẫu riêng");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  const group = page.locator('[data-topic="Mẫu riêng"]');
+  await group.getByRole("tab", { name: "Mẫu dựng" }).click();
+  const card = group.locator(".ant-card").filter({ hasText: "Mẫu dựng của nhóm" });
+  await expect(card.getByRole("button", { name: "Lưu mẫu dựng" })).toBeDisabled();
+  await chooseOption(page, card.getByLabel("Mẫu cho video mới của nhóm"), "Gợi ý của app");
+  await card.getByRole("button", { name: "Lưu mẫu dựng" }).click();
+  await expect(page.getByText("Đã lưu mẫu dựng của nhóm")).toBeVisible();
+
+  const knowledge = await (await page.request.get("/api/knowledge")).json();
+  const topic = knowledge.topics.find((item: { name: string }) => item.name === "Mẫu riêng");
+  expect(topic.edit_template_default).toBe("app");
+  // The api's CSRF guard wants the web's Origin, which the browser sends on its own.
+  const made = await page.request.post("/api/videos", {
+    data: { topic: "rau mầm", knowledge_topic_id: topic.id, mode: "manual", script: "Một\n\nHai" },
+    headers: { Origin: new URL(page.url()).origin },
+  });
+  expect(made.ok()).toBe(true);
+  const video = await made.json();
+  expect(video.scenes.map((scene: { transition: string | null }) => scene.transition)).toEqual(["zoom", "slide"]);
+  expect(video.edit_template).toEqual({ id: "app", name: "Gợi ý của app", source: "group" });
+});
+
+test("auto edit: the app's template on a video, undone, saved as a template and put on my new videos", async ({
   page,
 }) => {
   test.setTimeout(240_000);
@@ -1015,12 +1042,13 @@ test("auto edit: the app's template on a video, undone, saved as the team's and 
   await studio.getByRole("button", { name: "Tạm dừng" }).click();
   const timeline = studio.getByTestId("preview-timeline");
 
-  // "Gợi ý của app": a sound on every scene, a closing line on the last one; Ctrl+Z takes it all back.
+  // "Gợi ý của app": a sound on every scene; its closing line stays off, as the script's last scene is its own call
+  // to action. Ctrl+Z takes it all back.
   await studio.getByRole("tab", { name: "Tự dựng" }).click();
   const panel = studio.getByTestId("auto-edit");
   await panel.getByRole("button", { name: "Áp mẫu Gợi ý của app" }).click();
   await expect(timeline.getByTestId("lane-sounds")).toHaveCount(6);
-  await expect(timeline.getByTestId("lane-layers")).toHaveCount(1);
+  await expect(timeline.getByTestId("lane-layers")).toHaveCount(0);
 
   // Its look, saved as the team's own template.
   await panel.getByLabel("Tên mẫu mới").fill("Vườn nhà");
@@ -1039,7 +1067,7 @@ test("auto edit: the app's template on a video, undone, saved as the team's and 
   await page.goto("/settings/templates");
   await expect(page.getByTestId("template-card")).toHaveCount(2);
   await chooseOption(page, page.getByLabel("Mẫu cho video mới"), "Vườn nhà");
-  await expect(page.getByTestId("template-card").nth(1)).toContainText("Video mới tự áp");
+  await expect(page.getByTestId("template-card").nth(1)).toContainText("Video mới của tôi tự áp");
   await newVideoWithScript(page, "cải mầm cho người mới");
   await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
   await expect(
@@ -2265,7 +2293,7 @@ test("video settings: a member's defaults reach their new video, which then chan
   await expect(volume).toHaveAttribute("aria-valuenow", "50");
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu mặc định của bạn")).toBeVisible();
-  await expect(page.getByTestId("defaults-whose")).toContainText(`mặc định riêng của tài khoản ${SEED.name}`);
+  await expect(page.getByTestId("defaults-whose")).toContainText(`Thiết lập riêng của tài khoản ${SEED.name}`);
 
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
@@ -2402,37 +2430,29 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
 });
 
-test("video defaults: a member's own are kept apart from the team's, and the team's come back", async ({ page }) => {
+test("video defaults: only the member's own, saved and set back to the app's built-in ones", async ({ page }) => {
   await loginAsSeed(page);
   await page.goto("/settings/defaults");
   const whose = page.getByTestId("defaults-whose");
-  await expect(whose).toContainText("chưa có mặc định riêng");
-  await expect(page.getByRole("button", { name: "Dùng mặc định nhóm" })).toHaveCount(0);
+  await expect(page.getByText("Của tôi (theo người dùng)")).toBeVisible();
+  await expect(page.getByText("Của nhóm")).toHaveCount(0);
+  await expect(whose).toContainText("chưa có mặc định riêng nên video mới đang dùng mặc định gốc của app");
+  await expect(page.getByRole("button", { name: "Về mặc định gốc" })).toHaveCount(0);
   await page.getByRole("button", { name: "Chỉnh sửa" }).click();
   await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
-  await expect(whose).toContainText("mặc định riêng của tài khoản");
-
-  // The team's are not touched by a member's own.
-  await page.getByLabel("Mặc định của").getByText("Của nhóm").click();
-  await expect(whose).toContainText("Đang sửa mặc định của cả nhóm");
-  await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).not.toBeChecked();
-
-  // Back on "Của tôi", the member goes back to the team's.
-  await page
-    .getByLabel("Mặc định của")
-    .getByText(/^Của tôi/)
-    .click();
+  await expect(whose).toContainText("Thiết lập riêng của tài khoản");
   await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).toBeChecked();
-  await page.getByRole("button", { name: "Dùng mặc định nhóm" }).click();
-  await page.getByRole("tooltip").getByRole("button", { name: "Dùng mặc định nhóm" }).click();
+
+  await page.getByRole("button", { name: "Về mặc định gốc" }).click();
+  await page.getByRole("tooltip").getByRole("button", { name: "Về mặc định gốc" }).click();
   await expect(whose).toContainText("chưa có mặc định riêng");
   await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).not.toBeChecked();
 });
 
 test("text settings from an api without the colour options still open, on Theo kiểu", async ({ page }) => {
   // An api older than the page (e.g. not restarted after an update) leaves the new colours out.
-  await page.route(/\/api\/settings\/(my-)?video-defaults$/, async (route) => {
+  await page.route(/\/api\/settings\/my-video-defaults$/, async (route) => {
     const response = await route.fetch();
     const older = await response.json();
     delete older.box_color;
@@ -2933,4 +2953,17 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
+
+  // A press on the mask outside the drawer closes it too, and keeps the scroll, the filters and the chosen day.
+  const scrolled = await page.evaluate(() => window.scrollY);
+  await page.locator(".ant-drawer-mask").click({ position: { x: 20, y: 300 } });
+  await expect(dayPanel).toBeHidden();
+  expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
+  await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
+  await expect(dayTitle).toContainText("Ngày 13");
+  await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
+  // A press inside it, or on one of its pop-ups, leaves it open.
+  await page.getByTestId("plan-filters").getByLabel("Lọc trạng thái").click();
+  await page.locator(".ant-select-dropdown").getByText("Ý tưởng", { exact: true }).click();
+  await expect(dayPanel).toBeVisible();
 });

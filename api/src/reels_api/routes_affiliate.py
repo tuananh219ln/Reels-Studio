@@ -29,6 +29,7 @@ from .models import (
     Video,
     VideoAffiliateProduct,
 )
+from .ownership import ensure_owner
 from .routes_music import like_pattern
 from .routes_videos import invalid
 from .sessions import current_member, now
@@ -236,6 +237,7 @@ def _expected_commission(product: AffiliateProduct) -> int:
 def _payload(product: AffiliateProduct) -> dict:
     return {
         "id": product.id,
+        "created_by_id": product.created_by_id,  # only they delete it
         "knowledge_topic_id": product.knowledge_topic_id,
         "topic": product.topic.name,
         "platform": product.platform,
@@ -954,6 +956,8 @@ def delete_products(
 
 @router.delete("/{product_id}")
 def delete_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    db.delete(_get(db, product_id))
+    product = _get(db, product_id)
+    ensure_owner(product.created_by_id, me.user_id, "sản phẩm này")
+    db.delete(product)
     db.commit()
     return {"ok": True}

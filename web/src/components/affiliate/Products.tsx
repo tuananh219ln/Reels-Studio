@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import {
   CheckOutlined,
   DeleteOutlined,
@@ -26,6 +27,7 @@ type Filters = { topicId?: number; status?: string; platform?: string; q: string
 /** The product list, best expected commission first. */
 export default function Products() {
   const { message } = App.useApp();
+  const { me } = useMe();
   const [filters, setFilters] = useState<Filters>({ q: "" });
   const [options, setOptions] = useState<AffiliateOptions>({
     platforms: [],
@@ -278,15 +280,17 @@ export default function Products() {
             </Tooltip>
           )}
           <Button aria-label={`Sửa ${product.name}`} icon={<EditOutlined />} onClick={() => setTarget(product)} />
-          <Popconfirm
-            title="Xoá sản phẩm này?"
-            description="Sản phẩm cũng được gỡ khỏi các video đang gắn."
-            okText="Xoá"
-            cancelText="Huỷ"
-            onConfirm={() => act(() => api(`/affiliate-products/${product.id}`, "DELETE"), "Đã xoá sản phẩm")}
-          >
-            <Button aria-label={`Xoá ${product.name}`} danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {product.created_by_id === me.id && (
+            <Popconfirm
+              title="Xoá sản phẩm này?"
+              description="Sản phẩm cũng được gỡ khỏi các video đang gắn."
+              okText="Xoá"
+              cancelText="Huỷ"
+              onConfirm={() => act(() => api(`/affiliate-products/${product.id}`, "DELETE"), "Đã xoá sản phẩm")}
+            >
+              <Button aria-label={`Xoá ${product.name}`} danger icon={<DeleteOutlined />} />
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

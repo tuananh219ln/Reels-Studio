@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import {
   DeleteOutlined,
   DownOutlined,
@@ -390,12 +391,13 @@ function PlanView({
   // The day shown under the calendar: today while the plan runs, else day 1; a new start date moves it to today.
   const runningDay = (today: number | null) => (today !== null && today >= 1 && today <= PLAN_DAYS ? today : 1);
   const [selected, setSelected] = useState(() => runningDay(plan.today_day));
-  // The day open in the drawer; the calendar stays usable beside it, and closing it keeps the filters and the scroll.
+  // The day open in the drawer (over a mask); closing it keeps the filters, the chosen day and the scroll.
   const [openDay, setOpenDay] = useState<number | null>(null);
   const openOn = (day: number) => {
     setSelected(day);
     setOpenDay(day);
   };
+  const closeDay = useCallback(() => setOpenDay(null), []);
   const [todaySeen, setTodaySeen] = useState(plan.today_day);
   if (todaySeen !== plan.today_day) {
     setTodaySeen(plan.today_day);
@@ -493,8 +495,11 @@ function PlanView({
 
           <Drawer
             open={openDay !== null}
-            onClose={() => setOpenDay(null)}
-            mask={false}
+            onClose={closeDay}
+            // A press on the mask closes it, like the × (owner's choice, 2026-11-09); the filters, the chosen day and
+            // the page's scroll stay. While it is open the Backlog cannot be dragged from.
+            mask
+            maskClosable
             size="min(520px, 100vw)"
             data-testid="plan-day-drawer"
             title={dayTitle(plan, selected)}
@@ -1278,6 +1283,8 @@ function IdeaCard({
   const [open, setOpen] = useState(false);
   const full = !compact || open;
   const path = `/plans/items/${item.id}`;
+  // Only whoever added the idea deletes it.
+  const { me } = useMe();
   return (
     <div
       draggable
@@ -1358,16 +1365,18 @@ function IdeaCard({
               />
             </Tooltip>
           )}
-          <Popconfirm
-            title="Xoá ý tưởng này?"
-            description={item.video_id ? "Video đã tạo từ ý tưởng vẫn được giữ." : undefined}
-            okText="Xoá"
-            cancelText="Huỷ"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => onChange(() => api<Plan>(path, "DELETE"))}
-          >
-            <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label="Xoá ý tưởng" />
-          </Popconfirm>
+          {item.created_by_id === me.id && (
+            <Popconfirm
+              title="Xoá ý tưởng này?"
+              description={item.video_id ? "Video đã tạo từ ý tưởng vẫn được giữ." : undefined}
+              okText="Xoá"
+              cancelText="Huỷ"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => onChange(() => api<Plan>(path, "DELETE"))}
+            >
+              <Button size="small" type="text" danger icon={<DeleteOutlined />} aria-label="Xoá ý tưởng" />
+            </Popconfirm>
+          )}
         </Flex>
       </Flex>
       <PostNumbers posts={item.posts ?? []} shareGoal={shareGoal} />

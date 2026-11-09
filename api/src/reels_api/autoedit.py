@@ -1,15 +1,19 @@
 """Edit templates ("Mẫu dựng"): a video's look in rules that fit any video, so it can be put on another one.
 
-"Gợi ý của app" (the studio's "Tự dựng") is the app's own template, here in code; the team saves its own from a video
-it likes (table edit_templates). One template may be put on every new video (app setting DEFAULT_KEY), right after
-its scenes are written. Every value is one of the render core's named presets.
+"Gợi ý của app" (the studio's "Tự dựng") is the app's own template, here in code; members save their own from a video
+they like (table edit_templates). Right after a new video's scenes are written it takes, in this order
+(chosen_template): the template chosen on the video itself, its topic group's (`knowledge_topics.edit_template_default`),
+its maker's own (`users.edit_template_default`), or none. A video wears one template at a time (`videos.edit_template`):
+putting another on takes the last one's sounds and layers off first (put). Every value is one of the render core's
+named presets.
 
 A template holds:
 - `transitions`: the transitions into the content scenes, in turn (the first scene takes the first, …, and they start
   over); empty leaves the scenes' own.
 - `color`: every content scene's colour preset, or None to leave them.
 - `scene_sounds` / `title_sounds`: sound effects added to every content scene / to the title scene, at their second.
-- `end_layers`: text or sticker layers added to the last content scene (its call to action).
+- `end_layers`: text or sticker layers added to the last content scene, unless that scene is the script's own call to
+  action (it has text or narration): a template never adds a line over or after it.
 - `title_music`: the title scene's music level, or None to leave it.
 """
 
@@ -23,10 +27,9 @@ from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES, Layer,
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
-from .models import AppSetting, EditTemplate, Scene, SceneLayer, SceneSound, Video
+from .models import EditTemplate, KnowledgeTopic, Scene, SceneLayer, SceneSound, User, Video
 from .videos import split_scenes
 
-DEFAULT_KEY = "edit_template_default"
 APP = "app"
 APP_NAME = "Gợi ý của app"
 MAX_ITEMS = 6
@@ -199,7 +202,7 @@ def apply(db: DbSession, title: Scene | None, scenes: list[Scene], template: Tem
         _add_sounds(db, title, template.title_sounds)
         if template.title_music:
             title.music_level = template.title_music
-    if scenes and template.end_layers:
+    if scenes and template.end_layers and not is_call_to_action(scenes[-1]):
         last = scenes[-1]
         have = {(layer.kind, layer.text, layer.sticker) for layer in last.layers}
         position = max((layer.position for layer in last.layers), default=0)
@@ -209,6 +212,11 @@ def apply(db: DbSession, title: Scene | None, scenes: list[Scene], template: Tem
             position += 1
             start = min(item["start"], max(0.0, last.seconds - 0.3))
             db.add(SceneLayer(scene_id=last.id, position=position, **(item | {"start": start})))
+
+
+def is_call_to_action(scene: Scene) -> bool:
+    """A last scene with words of its own (on screen or spoken) is the script's call to action, written for this video."""
+    return bool((scene.text or "").strip() or (scene.voice_text or "").strip())
 
 
 def find(db: DbSession, key: object) -> tuple[str, Template] | None:
@@ -222,19 +230,77 @@ def find(db: DbSession, key: object) -> tuple[str, Template] | None:
     return None
 
 
-def default_key(db: DbSession) -> object:
-    setting = db.get(AppSetting, DEFAULT_KEY)
-    return setting.value if setting is not None else None
+def member_default(db: DbSession, user_id: int | None) -> object:
+    """The member's own template for new videos ("app" or an id), None for none or for no known member."""
+    user = db.get(User, user_id) if user_id is not None else None
+    return user.edit_template_default if user is not None else None
+
+
+def chosen_template(db: DbSession, video: Video) -> tuple[dict, Template] | None:
+    """The template a video's newly written scenes take, with what it is ({id, name, source}): the one chosen on the
+    video itself ("video") › its topic group's ("group") › its maker's own ("member") › none. A video with no known
+    maker falls to none after its group's."""
+    own = video.edit_template
+    if isinstance(own, dict) and own.get("source") == "video":
+        try:
+            return _reference(own["id"], own["name"], "video"), parse(own["data"])
+        except (KeyError, ValueError):
+            pass
+    group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+    for source, key in (
+        ("group", group.edit_template_default if group is not None else None),
+        ("member", member_default(db, video.created_by_id)),
+    ):
+        found = find(db, key)
+        if found is not None:
+            return _reference(key, found[0], source), found[1]
+    return None
+
+
+def _reference(key: object, name: str, source: str) -> dict:
+    return {"id": key, "name": name, "source": source}
+
+
+def _take_off(title: Scene | None, scenes: list[Scene], template: Template) -> None:
+    """Removes the sounds and end layers `template` added (as apply placed them); transitions and colour stay until
+    the next template replaces them."""
+
+    def drop_sounds(scene: Scene, sounds: list[dict]) -> None:
+        added = {(item["sound"], min(item["start"], max(0.0, scene.seconds - 0.1))) for item in sounds}
+        for sound in [sound for sound in scene.sounds if (sound.sound, sound.start) in added]:
+            scene.sounds.remove(sound)
+
+    for scene in scenes:
+        drop_sounds(scene, template.scene_sounds)
+    if title is not None:
+        drop_sounds(title, template.title_sounds)
+    if scenes and template.end_layers:
+        added = {(item["kind"], item["text"], item["sticker"]) for item in template.end_layers}
+        last = scenes[-1]
+        for layer in [layer for layer in last.layers if (layer.kind, layer.text, layer.sticker) in added]:
+            last.layers.remove(layer)
+
+
+def put(db: DbSession, video: Video, reference: dict, template: Template) -> None:
+    """Puts `template` on the video in place of the one it wore, and remembers it."""
+    db.flush()
+    title, scenes = split_scenes(db, video)
+    previous = video.edit_template
+    if isinstance(previous, dict):
+        try:
+            _take_off(title, scenes, parse(previous.get("data")))
+        except ValueError:
+            pass
+        db.flush()
+    apply(db, title, scenes, template)
+    video.edit_template = reference | {"data": asdict(template)}
 
 
 def apply_default(db: DbSession, video: Video) -> None:
-    """The team's template for new videos, if one is chosen, once the video's scenes exist."""
-    found = find(db, default_key(db))
-    if found is None:
-        return
-    db.flush()
-    title, scenes = split_scenes(db, video)
-    apply(db, title, scenes, found[1])
+    """The template chosen for a video whose scenes were just written (chosen_template), if any."""
+    found = chosen_template(db, video)
+    if found is not None:
+        put(db, video, *found)
 
 
 def summary(template: Template) -> list[str]:

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { SendOutlined, VideoCameraAddOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Flex, Input, Popconfirm, Radio, Select, Typography } from "antd";
 import Link from "next/link";
@@ -242,6 +243,7 @@ export function PostsCard({
   onSaved: (article: Article) => void;
 }) {
   const { message } = App.useApp();
+  const { me } = useMe();
   const [busy, setBusy] = useState<string | null>(null);
   if (article.posts.length === 0) return null;
 
@@ -297,7 +299,7 @@ export function PostsCard({
                     Kiểm tra
                   </Button>
                 )}
-                {post.can_take_down && (
+                {post.can_take_down && post.created_by_id === me.id && (
                   <Popconfirm
                     title={post.status === "published" ? "Gỡ bài này khỏi Facebook?" : "Hủy bài này?"}
                     okText={post.status === "published" ? "Gỡ bài" : "Hủy đăng"}

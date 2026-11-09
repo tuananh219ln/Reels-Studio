@@ -49,17 +49,21 @@ from .models import (
     AffiliateProduct,
     AppSetting,
     Article,
+    EditTemplate,
     Fanpage,
     Job,
     KnowledgeTopic,
     MusicTrack,
+    PageQueueItem,
     Publication,
     Scene,
     Session,
     TopicPlanItem,
     Video,
+    VideoNote,
 )
 from .openverse import Openverse, OpenverseError
+from .ownership import ensure_none_of_others, ensure_owner
 from .pexels import Pexels, PexelsError
 from .pixabay import ORIENTATIONS, Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, plain_title, text_problem
@@ -518,12 +522,27 @@ def delete_video(
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
     video = lock_video(db, video_id)
+    ensure_owner(video.created_by_id, me.user_id, "video này")
+    ensure_none_of_others(_others_work_in_video(db, video, me.user_id), "Video")
     ensure_unlocked(db, video)
     db.execute(delete(Video).where(Video.id == video_id))
     db.commit()
     # Files only go after the rows: a failed commit must not leave a video whose photos are gone.
     storage.delete_prefix(f"videos/{video_id}")
     return {"ok": True}
+
+
+def _others_work_in_video(db: DbSession, video: Video, user_id: int) -> dict[str, int]:
+    """What teammates made in the video that deleting it would take with it: posts, notes, queue places."""
+
+    def count(model, owner) -> int:
+        return db.scalar(select(func.count()).select_from(model).where(model.video_id == video.id, owner != user_id))
+
+    return {
+        "bài đăng": count(Publication, Publication.created_by_id),
+        "góp ý": count(VideoNote, VideoNote.created_by_id),
+        "lượt trong hàng chờ": count(PageQueueItem, PageQueueItem.added_by_id),
+    }
 
 
 @router.post("/videos/{video_id}/script")
@@ -755,6 +774,7 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     video = lock_video(db, video_id)
     post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
+    ensure_owner(post.created_by_id, me.user_id, "bài đăng này")
     if post.status not in OPEN_POST_STATUSES:
         raise ApiError(409, "post_closed", "Bài này đã hủy hoặc đã xóa")
     job = active_job(db, video.id)
@@ -1151,6 +1171,8 @@ def delete_scene(
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
     video, scene = lock_scene(db, scene_id)
+    # A scene goes with its video's maker's rights (the web and MCP alike).
+    ensure_owner(video.created_by_id, me.user_id, "video này")
     ensure_unlocked(db, video)
     if scene.is_title:
         raise ApiError(409, "title_scene", "Không xóa được cảnh tiêu đề")
@@ -2102,6 +2124,8 @@ class TopicPatchBody(BaseModel):
     analyze_prompt: str | None = None
     article_prompt: str | None = None  # "Bài viết": empty brings back the default prompt.
     voice_id: str | None = None  # the group's own voice; "" leaves it to each maker's defaults
+    templates: list[int] | None = None  # the group's own "Mẫu dựng" (saved ones' ids)
+    edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -2135,6 +2159,9 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
                 "voice_id": topic.voice_id,
+                "created_by_id": topic.created_by_id,
+                "templates": [template.id for template in topic.edit_templates],
+                "edit_template_default": topic.edit_template_default,
                 "video_count": counts.get(topic.id, 0),
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
@@ -2192,7 +2219,7 @@ def get_knowledge(me: Session = Depends(current_member), db: DbSession = Depends
 
 @router.post("/knowledge/topics", status_code=201)
 def create_topic(body: NewTopicBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    db.add(KnowledgeTopic(name=_topic_name(db, body.name), updated_by_id=me.user_id))
+    db.add(KnowledgeTopic(name=_topic_name(db, body.name), created_by_id=me.user_id, updated_by_id=me.user_id))
     db.commit()
     return _knowledge_payload(db, me.user_id)
 
@@ -2233,14 +2260,62 @@ def patch_topic(
             topic.voice_id = video_options.clean({"voice_id": body.voice_id})["voice_id"]
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+    _set_group_templates(db, topic, body)
     topic.updated_by_id = me.user_id
     db.commit()
     return _knowledge_payload(db, me.user_id)
 
 
+def _set_group_templates(db: DbSession, topic: KnowledgeTopic, body: TopicPatchBody) -> None:
+    """The group's own templates and the one its new videos take ("app" or one of its own; null for none)."""
+    if body.templates is not None:
+        ids = list(dict.fromkeys(body.templates))
+        rows = db.scalars(select(EditTemplate).where(EditTemplate.id.in_(ids))).all() if ids else []
+        if len(rows) != len(ids):
+            raise invalid("Có mẫu dựng không còn trong thư viện")
+        topic.edit_templates = sorted(rows, key=lambda row: row.name)
+    held = {template.id for template in topic.edit_templates}
+    if "edit_template_default" in body.model_fields_set:
+        chosen = body.edit_template_default
+        if (
+            chosen is not None
+            and chosen != autoedit.APP
+            and not (isinstance(chosen, int) and not isinstance(chosen, bool) and chosen in held)
+        ):
+            raise invalid("Mẫu cho video mới của nhóm phải là một mẫu của nhóm")
+        topic.edit_template_default = chosen
+    elif isinstance(topic.edit_template_default, int) and topic.edit_template_default not in held:
+        # A template taken off the group no longer dresses its new videos.
+        topic.edit_template_default = None
+
+
 @router.delete("/knowledge/topics/{topic_id}")
 def delete_topic(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     topic = _topic(db, topic_id)
+    ensure_owner(topic.created_by_id, me.user_id, "nhóm chủ đề này")
+    ensure_none_of_others(
+        {
+            "video": db.scalar(
+                select(func.count())
+                .select_from(Video)
+                .where(Video.knowledge_topic_id == topic.id, Video.created_by_id != me.user_id)
+            ),
+            "ý tưởng kế hoạch": db.scalar(
+                select(func.count())
+                .select_from(TopicPlanItem)
+                .where(
+                    TopicPlanItem.knowledge_topic_id == topic.id,
+                    TopicPlanItem.created_by_id.is_distinct_from(me.user_id),
+                )
+            ),
+            "sản phẩm affiliate": db.scalar(
+                select(func.count())
+                .select_from(AffiliateProduct)
+                .where(AffiliateProduct.knowledge_topic_id == topic.id, AffiliateProduct.created_by_id != me.user_id)
+            ),
+        },
+        f"Nhóm chủ đề “{topic.name}”",
+    )
     videos = db.scalar(select(func.count()).select_from(Video).where(Video.knowledge_topic_id == topic.id))
     if videos:
         raise ApiError(409, "topic_in_use", f"Nhóm chủ đề còn {videos} video nên chưa xoá được")

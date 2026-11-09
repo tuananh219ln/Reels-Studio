@@ -87,9 +87,22 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   Only the arguments sent change; it goes through the same `PATCH /videos/{id}` handler and `video_options.clean`
   as the tab, so one wrong value saves nothing. A voice id is checked for its form only (a bare ElevenLabs id or
   `vieneu:<id>`), as on the web; a voice that does not exist fails when the narration is made. It makes no
-  narration and never touches the team's defaults or another video. It returns the video's whole `options`.
+  narration and never touches the member's defaults or another video. It returns the video's whole `options`.
 - `set_scene_effects` (transition, colour, music level, "Tự khớp lời đọc"; `default` goes back to the video's),
   `reorder_scenes`, `split_scene`, `delete_scene` (content scenes only).
+- **"Mẫu dựng"** (part 5 of [docs/specs/per-user-settings-ownership](specs/per-user-settings-ownership/brief.md)):
+  `list_templates` (read) lists the app's own template, the member's own and those a topic group holds, each with
+  its scope (`app`, `personal`, `group`), its groups (and whether it is a group's default), its transitions, whether
+  it adds a sound to every scene and an end line, and `video_mode` (always null: a template fits either kind);
+  `apply_template_to_video` (write) puts one on a video through the same `POST /api/edit-templates/apply` as "Tự
+  dựng": it is the template chosen on the video, it replaces the one the video wore (its sounds and end layers are
+  taken off first), and its end line never goes on the script's call-to-action scene; `save_video_as_template`
+  (write) saves a video's look as a new template of the member's own, under a name that must not be taken (a taken
+  one is refused and the old template stays). No tool deletes or edits a template. Which template to pick or save
+  is the assistant's call, by the rules in the tools' descriptions (the video's group's first, then the member's own;
+  save only from a rendered video that passed the frame checks; name every template used or made in its report).
+- Deleting through MCP (`delete_scene`, `delete_layer`, `delete_sound`) works only on the connected member's own
+  videos (part 4, [architecture.md](architecture.md#web-app-and-auth)).
 - `add_layer`, `update_layer`, `delete_layer` for text and sticker layers and half-frame photos on a "Video xuyên suốt" (`kind` "photo": the scene's own photo at 1080×960; only `y`, `start`, `seconds` change); `add_sound`, `delete_sound`;
   `set_audio` for the music from the library, its volume and the narration on or off.
 - **Looking at its work**, like AIEV's "every frame verified": `view_scene` returns the scene's preview frame (the

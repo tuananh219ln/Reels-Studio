@@ -23,6 +23,7 @@ from . import clips, remote_media
 from .db import get_db
 from .errors import ApiError
 from .models import MediaItem, Session
+from .ownership import ensure_owner
 from .routes_music import like_pattern
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
@@ -77,6 +78,7 @@ def payload(item: MediaItem) -> dict:
         "file_url": f"/api/media/{item.id}/file",
         "thumb_url": f"/api/media/{item.id}/thumb.jpg",
         "created_by": item.created_by.name,
+        "created_by_id": item.created_by_id,
         "created_at": item.created_at.isoformat(),
     }
 
@@ -240,6 +242,7 @@ def delete_media(
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
     item = _item(db, media_id)
+    ensure_owner(item.created_by_id, me.user_id, "tư liệu này")
     key = item.storage_key
     db.delete(item)
     db.commit()

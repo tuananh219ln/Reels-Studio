@@ -13,6 +13,7 @@ from . import music_topics
 from .db import get_db
 from .errors import ApiError
 from .models import MusicTrack, Session
+from .ownership import ensure_owner
 from .routes_videos import MAX_TEXT_LENGTH, _inline, invalid
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
@@ -91,6 +92,7 @@ def track_payload(track: MusicTrack) -> dict:
         "license_note": track.license_note,
         "url": f"/api/music/{track.id}/audio.mp3",
         "created_by": track.created_by.name,
+        "created_by_id": track.created_by_id,
         "created_at": track.created_at.isoformat(),
     }
 
@@ -176,6 +178,7 @@ def delete_track(
 ) -> dict:
     # Videos that used the track keep their own copy of the file.
     track = get_track(db, track_id)
+    ensure_owner(track.created_by_id, me.user_id, "bài nhạc này")
     key = track.storage_key
     db.delete(track)
     db.commit()

@@ -1,5 +1,6 @@
 "use client";
 
+import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, FolderAddOutlined, InboxOutlined, LinkOutlined, UploadOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Progress, Segmented, Select, Typography, theme } from "antd";
 import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
@@ -41,6 +42,7 @@ async function droppedFiles(event: DragEvent): Promise<Pending[]> {
 
 export default function MediaPage() {
   const { message } = App.useApp();
+  const { me } = useMe();
   const { token } = theme.useToken();
   const folderInput = useRef<HTMLInputElement>(null);
   const filesInput = useRef<HTMLInputElement>(null);
@@ -243,18 +245,29 @@ export default function MediaPage() {
             </Flex>
             <MediaGrid
               items={data.items}
-              actions={(item) => [
-                <Popconfirm
-                  key="delete"
-                  title="Xoá khỏi kho?"
-                  description="Cảnh đã dùng tư liệu này vẫn giữ bản sao của nó."
-                  okText="Xoá"
-                  cancelText="Huỷ"
-                  onConfirm={() => remove(item)}
-                >
-                  <Button type="text" danger size="small" icon={<DeleteOutlined />} aria-label={`Xoá ${item.name}`} />
-                </Popconfirm>,
-              ]}
+              actions={(item) =>
+                // Only whoever added it deletes it.
+                item.created_by_id !== me.id
+                  ? []
+                  : [
+                      <Popconfirm
+                        key="delete"
+                        title="Xoá khỏi kho?"
+                        description="Cảnh đã dùng tư liệu này vẫn giữ bản sao của nó."
+                        okText="Xoá"
+                        cancelText="Huỷ"
+                        onConfirm={() => remove(item)}
+                      >
+                        <Button
+                          type="text"
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          aria-label={`Xoá ${item.name}`}
+                        />
+                      </Popconfirm>,
+                    ]
+              }
             />
           </Flex>
         </Card>

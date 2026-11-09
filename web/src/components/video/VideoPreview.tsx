@@ -30,6 +30,7 @@ import {
   Switch,
   Typography,
 } from "antd";
+import { useMe } from "@/components/MeContext";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ListenVolume, { useListen } from "@/components/ListenVolume";
 import { COLORS } from "@/app/theme";
@@ -226,6 +227,8 @@ export default function VideoPreview({
   // Editing from the preview: what the editor allows, the text box being dragged, and where a drop applies.
   const editor = useEditor();
   const { message, modal } = App.useApp();
+  // Only the video's maker deletes its scenes (the api refuses anyone else).
+  const mine = video.created_by_id === useMe().me.id;
   const editable = !editor.locked && !editor.readOnly;
   // A locked track keeps its own changes out of reach: the scenes' (seconds, order, clip, split, delete) or the text's.
   const [locks, setLocks] = useState(() => savedLocks(video.id));
@@ -893,7 +896,7 @@ export default function VideoPreview({
   }
 
   function confirmRemove() {
-    if (!scene || scene.is_title) return;
+    if (!scene || scene.is_title || !mine) return;
     modal.confirm({
       title: `Xoá ${label(phase.index).toLowerCase()}?`,
       content: "Không hoàn tác được.",
@@ -1259,7 +1262,7 @@ export default function VideoPreview({
                 onMedia={replaceMedia}
                 onTransition={changeTransition}
                 onAddAfter={() => void addAfter()}
-                onDelete={() => void removeScene()}
+                onDelete={mine ? () => void removeScene() : undefined}
               />
             )}
             <Flex vertical gap={10} align="center" style={{ width }}>

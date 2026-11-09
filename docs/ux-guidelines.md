@@ -50,6 +50,10 @@ thumbnail is a grey tile with an icon.
 Every list's toolbar reads the same way: its search box first, then its filters, then its sort. A filter
 is a [FilterSelect](../web/src/components/FilterSelect.tsx): typing searches its options (accents do not
 matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội").
+"Xóa" (and "Hủy đăng"/"Xóa" of a post, "Ngừng dùng" of a Page) is shown only to whoever made the thing (a Page:
+its owner); a teammate sees none, or, where a row keeps its buttons in fixed places, a greyed one saying why
+("Chỉ người đăng bài này mới hủy hoặc xóa được"). A topic group's "Xoá nhóm" reads "(chỉ người tạo nhóm)" for others.
+
 Every list of the team's work starts on the member's own: Video (its creator filter), Bài viết, Bài đăng (list and
 calendar), Bình luận and Jobs have "Của tôi / Cả đội" ([WhoseFilter](../web/src/components/WhoseFilter.tsx), with
 counts where the whole list is loaded), and Quản lý Page has "Trang của tôi / Tất cả". "Của tôi" is what the
@@ -221,7 +225,7 @@ Built:
     the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
     playhead's second for 2 s, never to the title scene; "Âm thanh": every sound effect with "Nghe" and "Thêm"
     (added to the scene shown at the playhead), and "Bài nhạc bắt đầu từ giây" when the video has music; "Tự dựng":
-    each "Mẫu dựng" (the app's "Gợi ý của app" first, then the team's) with what it does and "Áp cho cả video"
+    each "Mẫu dựng" (the app's "Gợi ý của app" first, then the members') with what it does and "Áp cho cả video"
     (undone with Ctrl+Z), and "Lưu video này thành mẫu"; "Góp ý":
     the notes in the order of the video (second, who, Chưa gửi / Chờ AI sửa / Đã sửa, the AI's answer, "Xoá") and
     "Nhờ AI sửa (N góp ý)", asked first since it costs one AI call; "Khung":
@@ -452,7 +456,7 @@ Built:
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and a line linking
     to the member's defaults ("Video mới lấy mặc định của người tạo…"). There is no button to take the
     defaults back (removed 2026-11-08). A new video starts with its maker's defaults (their own, or the
-    team's while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
+    app's built-in ones while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
     Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and
@@ -519,6 +523,11 @@ Built:
   - "Từ cấm, ảnh & giọng": the banned words with "Lưu từ cấm" beside "Gợi ý tìm ảnh" with "Lưu gợi ý"
     and "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing "Theo Thiết lập
     mặc định của người tạo", cleared with ×) with "Lưu giọng";
+  - "Mẫu dựng": "Mẫu dựng của nhóm", a multiple choice of the saved templates the group holds ("Mẫu của nhóm") and
+    the one its new videos take ("Mẫu cho video mới của nhóm": "Không áp mẫu của nhóm", "Gợi ý của app" or one of
+    the group's), with "Lưu mẫu dựng". The order a new video's template is picked in is spelled out above them:
+    chosen on the video › the group's › the maker's own (Cấu hình › Mẫu dựng) › none. Cấu hình › Mẫu dựng tags each
+    template with the groups that hold it;
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
   - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
@@ -544,8 +553,9 @@ Built:
     A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
     their status colour (never filtered); an empty one has a dashed "+ Thêm ý", which also opens the day. Clicking
     a cell outlines it and opens that day in a drawer on the right ("Ngày N — Thứ …, dd/mm" from the start date,
-    "Hôm nay" on today's, "+ Thêm ý" greyed out at 10), with no mask, so the calendar stays usable beside it;
-    closing it keeps the page's scroll and the filters. Dragging a chip or a card onto a cell moves the idea there;
+    "Hôm nay" on today's, "+ Thêm ý" greyed out at 10), over a mask: it closes with its × or a press on the mask,
+    and closing it keeps the page's scroll, the filters and the chosen day. While it is open the calendar and the
+    Backlog wait under the mask. Dragging a chip or a card onto a cell moves the idea there;
     a full day (10) refuses it. "Mở Backlog" sits above the calendar and opens the Backlog beside it, to drag ideas
     between them;
   - in the drawer, the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
@@ -730,12 +740,12 @@ Built:
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
   The content takes the whole width beside the list:
-  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): "Mặc định của" chooses "Của tôi (<tên>)"
-    (the default) or "Của nhóm", locked while editing, with a line saying whose are being edited: the
-    member's own ("Đang sửa mặc định riêng của tài khoản <tên>"), the team's shown because they have none
-    yet ("… chưa có mặc định riêng nên đang dùng mặc định của nhóm"; saving creates their own from them),
-    or the team's ("Đang sửa mặc định của cả nhóm", used by members without their own). With their own,
-    "Dùng mặc định nhóm" (with a confirmation) drops them. Then the same three cards as
+  - **Thiết lập mặc định** (`/settings/defaults`, the first tab): only the signed-in member's own, tagged "Của tôi
+    (theo người dùng)" with their name, and a line saying so: "Thiết lập riêng của tài khoản <tên> (theo người
+    dùng): chỉ áp cho video mới do bạn tạo, không phải thiết lập chung của team", or, before they save any, "… chưa
+    có mặc định riêng nên video mới đang dùng mặc định gốc của app" (saving creates their own from them). There is
+    no team level (removed 2026-11-09). With their own, "Về mặc định gốc" (with a confirmation) drops them, back
+    to the app's built-in defaults. Then the same three cards as
     a video's "Thiết lập" tab plus the music level, and "Nhạc nền mặc định" under "Âm thanh" (the chosen
     library track with its player, "Chọn từ thư viện" / "Đổi bài" opening the library picker, "Bỏ nhạc mặc định";
     a track deleted from the library since says so in yellow), from 1600 px "Âm thanh" and "Hình ảnh" down the
@@ -945,10 +955,13 @@ relied on (samples in the PR that added them).
   title's music level, and layers on the last scene. "Gợi ý của app": Phóng vào, Trượt sang trái, Mờ dần, Quét
   ngang in turn, a soft "Vút" at the start of every content scene, a soft "Dâng lên" on the title, and "Lưu video lại
   *để xem sau nhé!*" sliding up near the top of the last scene. Applying a template replaces the transitions and
-  colour and adds its sounds and layers (never the same one twice). A team template is saved from a video in the
+  colour and adds its sounds and layers (never the same one twice). Its layers never go on a last scene that has
+  text or narration: that is the script's own call to action, so it is kept as written and only the template's
+  other parts apply. A member's template is saved from a video in the
   studio (its scenes' transitions, most used colour, the first content scene's sounds that has any, the title's
-  sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename, remove) and picks the
-  one put on every new video as soon as its scenes are written (AI script, clone or "Tự viết"); none by default.
+  sounds and music level, the last scene's layers). Cấu hình › Mẫu dựng lists them (rename, remove) and picks, under
+  "Của tôi (theo người dùng)", the one put on the signed-in member's own new videos as soon as their scenes are
+  written (AI script, clone or "Tự viết"); none by default, and a teammate's choice never reaches them.
   "Tạo video" with "AI viết kịch bản" has the box **"AI gợi ý hiệu ứng"** (off by default): the AI then picks each
   scene's transition, colour, a sound and a few lines of text in the same call (see
   [content.md](content.md#script-generation-contract)), changeable in the studio like any effect.

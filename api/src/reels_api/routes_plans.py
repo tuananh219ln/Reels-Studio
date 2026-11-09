@@ -13,6 +13,7 @@ from . import plans
 from .db import get_db
 from .errors import ApiError
 from .models import KnowledgeTopic, Session, TopicPlanItem
+from .ownership import ensure_owner
 from .plans import MAX_PER_DAY, PLAN_DAYS, Idea, PlanError
 from .routes_videos import invalid
 from .sessions import current_member
@@ -180,6 +181,7 @@ def _move(db: DbSession, topic: KnowledgeTopic, item: TopicPlanItem, day: int | 
 def delete_item(item_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """The idea only: a video made from it stays."""
     topic, item = _item(db, item_id)
+    ensure_owner(item.created_by_id, me.user_id, "ý tưởng này")
     db.delete(item)
     plans.renumber(db, topic.id, item.day)
     return _saved(db, topic)
@@ -238,6 +240,7 @@ def add_item(
         TopicPlanItem(
             knowledge_topic_id=topic.id,
             position=position,
+            created_by_id=me.user_id,
             updated_by_id=me.user_id,
             day=idea.day,
             topic=idea.topic,

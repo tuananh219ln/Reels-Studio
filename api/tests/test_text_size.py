@@ -55,5 +55,5 @@ def test_a_long_title_too_big_at_large_fits_once_the_title_is_small(an, db, me, 
 
 
 def test_the_team_default_size_reaches_a_new_video(an):
-    saved = an.put("/api/settings/video-defaults", json={"values": {"title_text_size": "medium"}}).json()
+    saved = an.put("/api/settings/my-video-defaults", json={"values": {"title_text_size": "medium"}}).json()
     assert saved["title_text_size"] == "medium"

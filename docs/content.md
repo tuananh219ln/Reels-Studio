@@ -160,7 +160,7 @@ How the prompt is built (built, compact version):
   `effects`, a transition, a colour or null, at most one sound with its second, and a line of text (at most 6 words,
   at most 2 in the video) or null, each named from the render's presets with their Vietnamese labels. Nothing is
   asked when the option is off. The same call writes both, so it costs no extra call. Any value outside the presets
-  is left out without failing the job; the team's "Mẫu dựng" for new videos goes on first and the AI's picks after.
+  is left out without failing the job; the "Mẫu dựng" a new video takes (its group's, else its maker's own) goes on first and the AI's picks after.
   A clone does not ask for effects.
 - **Revise ("Nhờ AI sửa", the studio's notes):** the group's "Prompt sửa theo góp ý" on `/knowledge` (empty:
   [revise_default.txt](../api/src/reels_api/prompts/revise_default.txt)) fills `[kịch bản hiện tại]` with every

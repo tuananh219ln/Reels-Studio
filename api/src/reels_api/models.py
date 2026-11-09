@@ -4,6 +4,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
+    Column,
     Date,
     DateTime,
     Float,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     Integer,
     MetaData,
     String,
+    Table,
     Text,
     UniqueConstraint,
     false,
@@ -47,6 +49,8 @@ class User(Base):
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The member's own "Mẫu cho video mới" (autoedit.chosen_template): "app" or an edit_templates id; None for none.
+    edit_template_default: Mapped[object | None] = mapped_column(JSONB(none_as_null=True))
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
@@ -130,6 +134,14 @@ DEFAULT_POST_TIMES = ("07:00", "11:30", "17:00", "20:00", "21:30")
 DEFAULT_POST_TIMES_SQL = '\'["07:00", "11:30", "17:00", "20:00", "21:30"]\'::jsonb'
 
 
+knowledge_topic_templates = Table(
+    "knowledge_topic_templates",
+    Base.metadata,
+    Column("knowledge_topic_id", ForeignKey("knowledge_topics.id", ondelete="CASCADE"), primary_key=True),
+    Column("edit_template_id", ForeignKey("edit_templates.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
 class KnowledgeTopic(Base):
     """One line of /knowledge: the prompts and banned words of the videos in this topic. Empty until written."""
 
@@ -167,6 +179,14 @@ class KnowledgeTopic(Base):
     # How many videos the group's trial counts towards ("Tiến độ verdict" on its plan); None: no banner. Only a count:
     # the verdict itself is decided by the team in a meeting.
     video_target: Mapped[int | None] = mapped_column(Integer)
+    # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
+    # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).
+    edit_templates: Mapped[list["EditTemplate"]] = relationship(
+        secondary=knowledge_topic_templates, order_by="EditTemplate.name"
+    )
+    edit_template_default: Mapped[object | None] = mapped_column(JSONB(none_as_null=True))
+    # Who made the group: only they delete it (ownership.py); None (made before 2026-11-09, maker unknown): nobody.
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -191,6 +211,8 @@ class TopicPlanItem(Base):
     pain: Mapped[str] = mapped_column(Text, default="", server_default="")
     hook: Mapped[str] = mapped_column(Text, default="", server_default="")
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), unique=True)
+    # Who added the idea (by hand, or by saving a plan or a Backlog list): only they delete it.
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
@@ -263,6 +285,10 @@ class Video(Base):
     # Snapshot taken when "Nhân bản" was pressed: the source's title, topic, edited script and the change
     # request. A clone draft keeps it, so cancelling and writing again reruns the same clone.
     clone_source: Mapped[dict | None] = mapped_column(JSONB)
+    # The "Mẫu dựng" last put on the video ({id, name, source: video|group|member, data}): another one put on later
+    # takes its sounds and layers off first (autoedit.put), and "video" (chosen on it) wins when its scenes are
+    # written again.
+    edit_template: Mapped[dict | None] = mapped_column(JSONB)
     # "Từ video mẫu": the sample video the script is learned from and the way it was asked for (reference.MODES:
     # quick, twostep, review, reuse). Deleting the sample keeps the video and its clips.
     reference_id: Mapped[int | None] = mapped_column(ForeignKey("video_references.id", ondelete="SET NULL"), index=True)

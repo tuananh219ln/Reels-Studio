@@ -198,12 +198,6 @@ def _defaults_payload(db: DbSession, values: dict) -> dict:
     return values | {"music_track": music}
 
 
-@router.get("/video-defaults")
-def get_video_defaults(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """What a new video starts with; existing videos keep their own copy."""
-    return _defaults_payload(db, video_options.team_defaults(db))
-
-
 def _check_track_in(db: DbSession, values: dict) -> None:
     """A well-formed default track id must name a track in the library (a malformed one is refused by
     video_options.clean)."""
@@ -213,20 +207,7 @@ def _check_track_in(db: DbSession, values: dict) -> None:
         raise ApiError(404, "track_not_found", "Không tìm thấy bài nhạc (có thể đã bị xóa)")
 
 
-@router.put("/video-defaults")
-def put_video_defaults(
-    body: DefaultsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
-) -> dict:
-    _check_track_in(db, body.values)
-    try:
-        saved = video_options.save_team_defaults(db, body.values, me.user_id)
-    except video_options.OptionError as err:
-        raise invalid(str(err)) from None
-    db.commit()
-    return _defaults_payload(db, saved)
-
-
-# --- The signed-in member's own defaults: theirs once saved, the team's until then ---
+# --- The signed-in member's own defaults: theirs once saved, the app's built-in ones until then (no team level) ---
 
 
 def _mine_payload(db: DbSession, me: Session) -> dict:
@@ -248,7 +229,8 @@ def get_my_video_defaults(me: Session = Depends(current_member), db: DbSession =
 def put_my_video_defaults(
     body: DefaultsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
-    """Saves the member's own defaults: what they use now (the team's, the first time) with these values changed."""
+    """Saves the member's own defaults: what they use now (the built-in ones, the first time) with these values
+    changed."""
     _check_track_in(db, body.values)
     try:
         video_options.save_member_defaults(db, me.user_id, body.values)
@@ -260,7 +242,8 @@ def put_my_video_defaults(
 
 @router.delete("/my-video-defaults")
 def delete_my_video_defaults(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Dùng mặc định nhóm": the member's new videos start with the team's defaults again."""
+    """ "Về mặc định gốc": the member's new videos start with the app's built-in defaults again. Only their own: no
+    member resets another's."""
     video_options.forget_member_defaults(db, me.user_id)
     db.commit()
     return _mine_payload(db, me)
