@@ -3,20 +3,17 @@ import type { VideoDetail } from "./api";
 
 type Page = VideoDetail["fanpages"][number];
 
-/** A Page picker's options with the signed-in member's own Pages first, under "Trang của tôi", and the team's
- * others under "Trang khác" (brief part B2); flat when only one of the two kinds is there. */
-export function pageOptions(pages: Page[], meId: number | undefined): NonNullable<SelectProps["options"]> {
-  const option = (page: Page) => ({
-    value: page.id,
-    label: page.owner && page.owner_id !== meId ? `${page.name}, ${page.owner}` : page.name,
-  });
-  const mine = pages.filter((page) => meId !== undefined && page.owner_id === meId).map(option);
-  const others = pages.filter((page) => meId === undefined || page.owner_id !== meId).map(option);
-  if (mine.length === 0 || others.length === 0) {
-    return [...mine, ...others];
-  }
-  return [
-    { label: "Trang của tôi", title: "Trang của tôi", options: mine },
-    { label: "Trang khác", title: "Trang khác", options: others },
-  ];
+/** The Pages the signed-in member may post to: only their own, as a post's commission is its Page's owner's
+ * (docs/decisions/2026-11-09-page-owner-posts.md). A teammate's Page is not offered. */
+export function myPages(pages: Page[], meId: number | undefined): Page[] {
+  return pages.filter((page) => meId !== undefined && page.owner_id === meId);
 }
+
+/** A Page picker's options: the member's own Pages. */
+export function pageOptions(pages: Page[], meId: number | undefined): NonNullable<SelectProps["options"]> {
+  return myPages(pages, meId).map((page) => ({ value: page.id, label: page.name }));
+}
+
+/** Said where a member has no Page of their own to post to. */
+export const NO_PAGE_OF_MINE =
+  "Bạn chưa có Fanpage nào. Chỉ chủ Page mới đăng lên Page đó: vào Quản lý Page để thêm Page của bạn, hoặc bấm “Nhận Page” với Page chưa có chủ.";

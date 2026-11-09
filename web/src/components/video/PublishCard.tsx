@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
-import { pageOptions } from "@/lib/myPages";
+import { myPages, NO_PAGE_OF_MINE, pageOptions } from "@/lib/myPages";
 import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
 import {
   api,
@@ -53,8 +53,10 @@ export function PublishButton({ video }: { video: VideoDetail }) {
   const planned = video.plan_idea?.suggested_post_at ?? null;
   const [mode, setMode] = useState<"now" | "later">(planned ? "later" : "now");
   const [when, setWhen] = useState(planned ? vietnamInputValue(planned) : "");
+  // Only the member's own Pages can be posted to.
+  const mine = myPages(video.fanpages, me.id);
   const [picked, setPicked] = useState<number | null>(() =>
-    video.fanpages.some((page) => page.id === Number(asked)) ? Number(asked) : null,
+    mine.some((page) => page.id === Number(asked)) ? Number(asked) : null,
   );
   const router = useRouter();
   const pathname = usePathname();
@@ -71,8 +73,8 @@ export function PublishButton({ video }: { video: VideoDetail }) {
   }, [open]);
   const startPage =
     myPageOfGroup(video, me.id) ??
-    (video.fanpages.some((page) => page.id === lastPage) ? lastPage : null) ??
-    (video.fanpages.length === 1 ? video.fanpages[0].id : null);
+    (mine.some((page) => page.id === lastPage) ? lastPage : null) ??
+    (mine.length === 1 ? mine[0].id : null);
   const fanpage = picked ?? startPage;
   const chosen = video.fanpages.find((page) => page.id === fanpage);
   const name = chosen?.name;
@@ -108,14 +110,13 @@ export function PublishButton({ video }: { video: VideoDetail }) {
 
   const waiting = !fanpage || (mode === "later" && !when) || sameMp4 || video.mp4_outdated || video.locked;
   const facebook =
-    video.fanpages.length === 0 ? (
-      <Typography.Text>
-        Chưa có Fanpage nào đang dùng. Vào{" "}
+    mine.length === 0 ? (
+      <Flex vertical gap={4} align="flex-start">
+        <Typography.Text data-testid="no-page-of-mine">{NO_PAGE_OF_MINE}</Typography.Text>
         <Link prefetch={false} href="/fanpages">
-          Quản lý Page
-        </Link>{" "}
-        để thêm.
-      </Typography.Text>
+          Mở Quản lý Page
+        </Link>
+      </Flex>
     ) : (
       <Flex vertical gap={8}>
         {video.mp4_outdated && <Alert type="warning" showIcon title="Hãy render lại trước khi đăng" />}
