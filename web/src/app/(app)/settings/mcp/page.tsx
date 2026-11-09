@@ -63,7 +63,7 @@ export default function ChatGptPage() {
   return (
     <>
       <SettingsHeader
-        title="Kết nối ChatGPT / Claude"
+        title="Kết nối MCP"
         description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code và Muse của bạn."
       />
       <Flex vertical gap={16} style={{ maxWidth: 820 }}>

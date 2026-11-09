@@ -35,7 +35,7 @@ const GROUPS: { key: string; label: string; color: string; tabs: Tab[] }[] = [
         hint: "Shopee, TikTok của tôi",
         icon: <ShoppingOutlined />,
       },
-      { key: "/settings/chatgpt", label: "Kết nối ChatGPT / Claude", hint: "Trợ lý của tôi", icon: <ApiOutlined /> },
+      { key: "/settings/mcp", label: "Kết nối MCP", hint: "ChatGPT, Claude của tôi", icon: <ApiOutlined /> },
     ],
   },
   {

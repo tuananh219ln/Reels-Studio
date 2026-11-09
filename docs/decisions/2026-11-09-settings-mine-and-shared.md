@@ -5,13 +5,13 @@ review of who may edit what: "phần mô hình AI, nguồn tư liệu là dùng 
 log vào". The settings stay shared and editable by every member, as before ("there are no roles", 2026-10-31); no
 member has keys or a model of their own.
 
-- **Two groups of tabs** on Cấu hình: **Của tôi** (Thiết lập mặc định, Tài khoản affiliate, Kết nối ChatGPT / Claude)
+- **Two groups of tabs** on Cấu hình: **Của tôi** (Thiết lập mặc định, Tài khoản affiliate, Kết nối MCP)
   and **Chung cả nhóm** (Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab per job, placed where most of it
   belongs: Mẫu dựng is the team's library, with the member's own "Video mới của tôi tự áp mẫu" as its one card tagged
   "Của tôi"; Máy render is shared, since a free machine takes the oldest waiting job whoever's it is
   (`render_nodes.claim`), and only its adder removes a machine (2026-11-09, delete by maker).
-- **Kết nối ChatGPT / Claude moves into Cấu hình** (`/settings/chatgpt`); the menu's own item goes, and `/chatgpt` and
-  `/api/mcp/manage` lead there.
+- **Kết nối ChatGPT / Claude moves into Cấu hình, renamed "Kết nối MCP"** (`/settings/mcp`), as it also connects
+  Claude Code and Muse; the menu's own item goes, and `/chatgpt` and `/api/mcp/manage` lead there.
 - **No tag beside a tab's title and no banner saying whose it is**: the group in the list says it. This drops the
   "Của tôi (theo người dùng)" tag and line of Thiết lập mặc định (2026-11-09, member defaults).
 - **Who changed a shared setting is shown and kept**: each card of a shared tab ends with "Sửa lần cuối bởi <tên>,

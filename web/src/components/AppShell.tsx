@@ -58,7 +58,7 @@ const NAV = [
     icon: <SettingOutlined />,
     label: "Cài đặt",
     children: [
-      // One page with tabs, the member's own then the team's (settings/layout.tsx), "Kết nối ChatGPT / Claude" too.
+      // One page with tabs, the member's own then the team's (settings/layout.tsx), "Kết nối MCP" too.
       { key: "/settings", icon: <ControlOutlined />, label: "Cấu hình" },
     ],
   },

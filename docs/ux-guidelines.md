@@ -16,7 +16,7 @@ field, the scene, or the job banner); technical detail sits in a collapsed "Chi 
 
 ## ChatGPT and Claude connection
 
-Cấu hình › Kết nối ChatGPT / Claude (`/settings/chatgpt`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
+Cấu hình › Kết nối MCP (`/settings/mcp`, a tab of "Của tôi"; `/chatgpt` sends there) shows the copyable server URL, how to add it in
 ChatGPT, Claude and Claude Code (with the copyable `claude mcp add` command), and the current
 member's connections, each named by its app, with scope, expiration in Vietnam time, and “Thu hồi kết nối”. An OAuth request
 opens the same page with a consent card titled “Cho phép <app> kết nối?”, naming the member and the
@@ -735,12 +735,12 @@ Built:
   **Quản lý Page**, its own menu item under "Video", since a Page's queue is daily work).
   Cấu hình (`/settings`, opening its first tab) is one page titled "Cấu hình" whose tabs come in two groups, each
   headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
-  Kết nối ChatGPT / Claude) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab
+  Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab
   per job; no tab is split between the groups. Each tab has its own address so a link or a reload keeps the tab; the
   menu keeps "Cấu hình" selected on all of them. No tab carries a tag beside its title or a banner saying whose it
   is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
-  line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "Trợ lý của tôi", "AI viết kịch bản,
+  line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
   VieNeu", "Kho ảnh, ảnh AI, giọng đọc", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
   narrower, a row above it. Every tab starts the
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on

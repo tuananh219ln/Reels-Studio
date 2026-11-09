@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       // The consent screen and the connections: never embeddable under another site's UI.
-      ...["/chatgpt", "/settings/chatgpt"].map((source) => ({
+      ...["/chatgpt", "/settings/mcp"].map((source) => ({
         source,
         headers: [
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
@@ -48,8 +48,8 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    // "Kết nối ChatGPT / Claude" moved into Cấu hình; old links (and the browser's #ticket) still arrive there.
-    return [{ source: "/chatgpt", destination: "/settings/chatgpt", permanent: false }];
+    // "Kết nối ChatGPT / Claude" moved into Cấu hình as "Kết nối MCP"; old links (and the browser's #ticket) still arrive there.
+    return [{ source: "/chatgpt", destination: "/settings/mcp", permanent: false }];
   },
   async rewrites() {
     return [
