@@ -1097,6 +1097,12 @@ test("auto edit: the app's template on a video, undone, saved as a template and 
   await expect(page.getByTestId("template-card")).toHaveCount(2);
   await chooseOption(page, page.getByLabel("Mẫu cho video mới"), "Vườn nhà");
   await expect(page.getByTestId("template-card").nth(1)).toContainText("Video mới của tôi tự áp");
+  // Its maker renames and deletes it; before deleting, they are told who puts it on their new videos.
+  await page.getByRole("button", { name: "Xoá Vườn nhà" }).click();
+  await expect(page.getByTestId("template-delete-usage")).toHaveText(
+    "1 người đang chọn làm mẫu cho video mới. Xoá thì video mới của họ không còn tự áp mẫu này; video đã có giữ nguyên.",
+  );
+  await page.getByRole("tooltip").getByRole("button", { name: "Huỷ" }).click();
   await newVideoWithScript(page, "cải mầm cho người mới");
   await page.getByTestId("render-bar").getByRole("button", { name: "Xem trước" }).click();
   await expect(
@@ -2327,8 +2333,8 @@ test("video settings: a member's defaults reach their new video, which then chan
   await page.getByRole("menuitem", { name: "Cấu hình" }).click();
   await page.getByRole("tab", { name: "Thiết lập mặc định" }).click();
   await expect(page).toHaveURL(/\/settings\/defaults$/);
-  // The page opens on the signed-in member's own defaults, and says whose they are.
-  await expect(page.getByTestId("defaults-whose")).toContainText(`Tài khoản ${SEED.name} chưa có mặc định riêng`);
+  // The page opens on the signed-in member's own defaults: none saved yet, so nothing to set back.
+  await expect(page.getByRole("button", { name: "Về mặc định gốc" })).toHaveCount(0);
   // Read-only until "Chỉnh sửa"; "Huỷ" drops what was changed.
   await expect(page.getByRole("slider", { name: "Tốc độ đọc" })).toHaveAttribute("aria-disabled", "true");
   await page.getByRole("button", { name: "Chỉnh sửa" }).click();
@@ -2362,7 +2368,7 @@ test("video settings: a member's defaults reach their new video, which then chan
   await expect(volume).toHaveAttribute("aria-valuenow", "50");
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu mặc định của bạn")).toBeVisible();
-  await expect(page.getByTestId("defaults-whose")).toContainText(`Thiết lập riêng của tài khoản ${SEED.name}`);
+  await expect(page.getByRole("button", { name: "Về mặc định gốc" })).toBeVisible();
 
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
@@ -2487,6 +2493,16 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await pixabayKey.getByLabel("API key Pixabay").fill("fake-pixabay-key");
   await pixabayKey.getByRole("button", { name: "Lưu key" }).click();
   await expect(pixabayKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
+  // The team's settings say who changed them last, and their history never shows a key, only its last characters.
+  const stockSection = page.locator("section").filter({ hasText: "Kho ảnh và video miễn phí" });
+  await expect(stockSection.getByTestId("last-edit")).toContainText(`Sửa lần cuối bởi ${SEED.name}`);
+  await page.getByRole("button", { name: "Lịch sử" }).click();
+  const history = page.getByRole("dialog", { name: "Lịch sử · Nguồn tư liệu" });
+  await expect(history.getByTestId("edit-history-entry")).toHaveCount(2);
+  await expect(history).toContainText("Pixabay · Khoá: đã thêm khoá …-key");
+  await expect(history).toContainText("Pexels · Hiện trong hộp chọn: Bật → Tắt");
+  await expect(history).not.toContainText("fake-pixabay-key");
+  await page.keyboard.press("Escape");
   // The ElevenLabs key for narration is pasted on the same page.
   const voiceKey = page.getByTestId("key-elevenlabs");
   await voiceKey.getByRole("button", { name: "Dán key mới" }).click();
@@ -2502,20 +2518,19 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
 test("video defaults: only the member's own, saved and set back to the app's built-in ones", async ({ page }) => {
   await loginAsSeed(page);
   await page.goto("/settings/defaults");
-  const whose = page.getByTestId("defaults-whose");
-  await expect(page.getByText("Của tôi (theo người dùng)")).toBeVisible();
+  // A tab of the member's own: the menu says so, the page has no team level ("Của nhóm").
+  await expect(page.getByRole("tab", { name: "Của tôi", exact: true })).toBeVisible();
   await expect(page.getByText("Của nhóm")).toHaveCount(0);
-  await expect(whose).toContainText("chưa có mặc định riêng nên video mới đang dùng mặc định gốc của app");
   await expect(page.getByRole("button", { name: "Về mặc định gốc" })).toHaveCount(0);
   await page.getByRole("button", { name: "Chỉnh sửa" }).click();
   await page.getByLabel("Chuyển cảnh").getByText("Cắt thẳng").click();
   await page.getByRole("button", { name: "Lưu", exact: true }).click();
-  await expect(whose).toContainText("Thiết lập riêng của tài khoản");
+  await expect(page.getByRole("button", { name: "Về mặc định gốc" })).toBeVisible();
   await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).toBeChecked();
 
   await page.getByRole("button", { name: "Về mặc định gốc" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Về mặc định gốc" }).click();
-  await expect(whose).toContainText("chưa có mặc định riêng");
+  await expect(page.getByRole("button", { name: "Về mặc định gốc" })).toHaveCount(0);
   await expect(page.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).not.toBeChecked();
 });
 
@@ -3007,7 +3022,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(dayPanel).toHaveCount(0);
   await plan.getByRole("button", { name: "Chọn ngày 7" }).click();
   await expect(dayTitle).toHaveText(`Ngày 7 — ${vietnamDay(0).long}`);
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await expect(dayPanel).toBeHidden();
   await expect(plan.getByTestId("plan-week-2")).toContainText(
     `Tuần 2 · ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
@@ -3025,11 +3040,11 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng · 0 đã làm · 0 đã lên lịch");
 
   // Another day opens in the drawer in its place.
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(dayTitle).toContainText("Ngày 13");
   await expect(dayPanel).toContainText("Chưa có ý tưởng");
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
 
   // Dragging a chip onto another day moves the idea there.
   await plan.getByTestId("plan-day-12").getByTestId("plan-chip").dragTo(plan.getByTestId("plan-day-13"));
@@ -3054,7 +3069,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng").fill("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
   await expect(plan.getByTestId("plan-day-13").getByTestId("plan-chip")).toHaveCount(1);
-  await page.locator(".ant-drawer-close").click();
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await plan.getByRole("button", { name: "Chọn ngày 13" }).click();
   await expect(page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng")).toHaveValue("không có ý nào như thế");
   await expect(dayPanel).toContainText("Không có ý tưởng khớp");
@@ -3071,4 +3086,48 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await page.getByTestId("plan-filters").getByLabel("Lọc trạng thái").click();
   await page.locator(".ant-select-dropdown").getByText("Ý tưởng", { exact: true }).click();
   await expect(dayPanel).toBeVisible();
+});
+
+test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a teammate only reads and uses it", async ({
+  page,
+  browser,
+}) => {
+  await loginAsSeed(page);
+  await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
+  await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  // Nobody is known to have made "Sức khỏe": it is claimed first, as a Page is.
+  await health.getByRole("button", { name: "Nhận nhóm" }).click();
+  const teamEdit = health.getByRole("switch", { name: "Cho cả đội sửa" });
+  await expect(teamEdit).toBeChecked();
+  await teamEdit.click();
+  await expect(teamEdit).not.toBeChecked();
+
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  await binh.goto("/knowledge");
+  await binh.getByRole("button", { name: /Sức khỏe/ }).click();
+  const theirs = binh.locator('[data-topic="Sức khỏe"]');
+  await expect(theirs.getByTestId("group-locked")).toContainText(`Chỉ ${SEED.name} sửa được nhóm này`);
+  await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
+  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
+  // Its videos are still made by anyone; its prompts are read, not edited.
+  await expect(theirs.getByRole("button", { name: "Tạo video" })).toBeEnabled();
+  await theirs.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await expect(theirs.getByLabel("Prompt viết kịch bản", { exact: true })).toBeDisabled();
+  await theirs.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await expect(theirs.getByLabel("Từ cấm", { exact: true })).toBeDisabled();
+
+  // Turned back on, the teammate edits again.
+  await teamEdit.click();
+  await expect(teamEdit).toBeChecked();
+  await binh.reload();
+  await binh.getByRole("button", { name: /Sức khỏe/ }).click();
+  await expect(theirs.getByTestId("group-locked")).toHaveCount(0);
+  await expect(theirs.getByRole("button", { name: "Đổi tên" })).toBeVisible();
 });

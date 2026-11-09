@@ -11,6 +11,7 @@ from . import edit_log, knowledge
 from .db import get_db
 from .errors import ApiError
 from .models import EditLog, KnowledgeTopic, Session
+from .ownership import ensure_group_editor
 from .routes_videos import invalid
 from .sessions import current_member
 
@@ -30,6 +31,16 @@ def list_entries(
         raise invalid("Không có lịch sử cho loại này")
     return {
         "entries": [edit_log.payload(entry) for entry in edit_log.entries(db, entity_type, entity_id, field, limit)]
+    }
+
+
+@router.get("/latest")
+def latest(entity_type: str, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Each thing's (or settings card's) latest entry, by id: the "Sửa lần cuối" line of the settings pages."""
+    if entity_type not in edit_log.ENTITY_TYPES:
+        raise invalid("Không có lịch sử cho loại này")
+    return {
+        "latest": {str(key): edit_log.payload(entry) for key, entry in edit_log.last_edits(db, entity_type).items()}
     }
 
 
@@ -60,6 +71,7 @@ def restore(body: RestoreBody, me: Session = Depends(current_member), db: DbSess
     topic = db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == body.entity_id).with_for_update())
     if topic is None:
         raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    ensure_group_editor(db, topic, me.user_id)
     if body.log_id is None:
         if body.field not in edit_log.TOPIC_PROMPTS:
             raise invalid("Mục này không có bản mặc định")

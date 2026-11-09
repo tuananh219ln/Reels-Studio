@@ -27,6 +27,8 @@ export type UserRow = {
   last_login_at: string | null;
   active_sessions: number;
   is_me: boolean;
+  /** What was last done to the member on this page, by whom and when (api routes_users `_action`). */
+  last_action: { action: "disable" | "enable" | "temp_password"; by: string | null; at: string } | null;
 };
 
 export type VideoStatus =
@@ -210,6 +212,8 @@ export type EditTemplate = {
   summary: string[];
   /** The topic groups that hold it. */
   topics: { id: number; name: string }[];
+  /** How many members put it on their new videos. */
+  members_using: number;
 };
 
 export type EditTemplates = {
@@ -492,6 +496,10 @@ export type KnowledgeTopic = {
   name: string;
   /** Who made the group: only they delete it; null when unknown (nobody deletes it). */
   created_by_id: number | null;
+  /** The maker's name; null: "Nhận nhóm" is offered. */
+  owner: string | null;
+  /** "Cho cả đội sửa": off, only the maker edits the group and its plan (everyone still uses it). */
+  team_edit: boolean;
   script_prompt: string;
   clone_prompt: string;
   /** "Prompt sửa theo góp ý"; "" uses the default. */

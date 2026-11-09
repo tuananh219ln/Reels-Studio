@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.effects import SCENE_TRANSITIONS
 
-from . import autoedit
+from . import autoedit, edit_log
 from .db import get_db
 from .errors import ApiError
 from .models import EditTemplate, KnowledgeTopic, Session, User
@@ -57,7 +57,12 @@ def _name(raw: str) -> str:
 
 
 def _item(
-    key: object, name: str, template: autoedit.Template, topics: list[dict], created_by_id: int | None = None
+    key: object,
+    name: str,
+    template: autoedit.Template,
+    topics: list[dict],
+    created_by_id: int | None = None,
+    members_using: int = 0,
 ) -> dict:
     return {
         "id": key,
@@ -69,6 +74,8 @@ def _item(
         "summary": autoedit.summary(template),
         # The topic groups that hold it (part 2): their new videos may take it.
         "topics": topics,
+        # How many members put it on their new videos: its maker is told before deleting it (2026-11-09).
+        "members_using": members_using,
     }
 
 
@@ -83,9 +90,11 @@ def topics_by_template(db: DbSession) -> dict[int, list[dict]]:
 def listing(db: DbSession, user_id: int) -> dict:
     rows = db.scalars(select(EditTemplate).order_by(EditTemplate.name)).all()
     held = topics_by_template(db)
+    chosen = [value for value in db.scalars(select(User.edit_template_default)) if isinstance(value, int)]
     templates = [_item(autoedit.APP, autoedit.APP_NAME, autoedit.APP_TEMPLATE, [])]
     templates += [
-        _item(row.id, row.name, autoedit.parse(row.data), held.get(row.id, []), row.created_by_id) for row in rows
+        _item(row.id, row.name, autoedit.parse(row.data), held.get(row.id, []), row.created_by_id, chosen.count(row.id))
+        for row in rows
     ]
     return {"templates": templates, "default": autoedit.member_default(db, user_id)}
 
@@ -130,12 +139,18 @@ def _mcp_item(key: object, name: str, template: autoedit.Template, scope: str, g
     }
 
 
-def _commit_name(db: DbSession) -> None:
+def _flush_name(db: DbSession) -> None:
     try:
-        db.commit()
+        db.flush()
     except IntegrityError:
         db.rollback()
         raise invalid("Đã có mẫu trùng tên") from None
+
+
+def _log(db: DbSession, me: Session, row: EditTemplate, action: str, old: str | None, new: str | None) -> None:
+    """ "Lịch sử" of Mẫu dựng: a saved template made, renamed or deleted."""
+    changes = {"name": {"old": old, "new": new}} if old != new else {}
+    edit_log.record(db, edit_log.TEMPLATE, row.id, action, me.user_id, label=new or old or "", changes=changes)
 
 
 @router.get("")
@@ -151,8 +166,11 @@ def save_template(body: NewTemplateBody, me: Session = Depends(current_member), 
     template = autoedit.derive(*split_scenes(db, video))
     if template.is_empty():
         raise invalid("Video này chưa có hiệu ứng nào để lưu thành mẫu")
-    db.add(EditTemplate(name=name, data=autoedit.asdict(template), created_by_id=me.user_id))
-    _commit_name(db)
+    row = EditTemplate(name=name, data=autoedit.asdict(template), created_by_id=me.user_id)
+    db.add(row)
+    _flush_name(db)
+    _log(db, me, row, "create", None, name)
+    db.commit()
     return listing(db, me.user_id)
 
 
@@ -163,8 +181,12 @@ def rename_template(
     row = db.get(EditTemplate, template_id)
     if row is None:
         raise ApiError(404, "template_not_found", "Mẫu này đã bị xoá")
-    row.name = _name(body.name)
-    _commit_name(db)
+    # Only whoever saved it renames it (2026-11-09), as only they delete it.
+    ensure_owner(row.created_by_id, me.user_id, "mẫu này", "đổi tên được")
+    old, row.name = row.name, _name(body.name)
+    _flush_name(db)
+    _log(db, me, row, "update", old, row.name)
+    db.commit()
     return listing(db, me.user_id)
 
 
@@ -182,6 +204,7 @@ def delete_template(template_id: int, me: Session = Depends(current_member), db:
         topic.edit_templates.remove(row)
         if topic.edit_template_default == template_id:
             topic.edit_template_default = None
+    _log(db, me, row, "delete", row.name, None)
     db.delete(row)
     db.commit()
     return listing(db, me.user_id)

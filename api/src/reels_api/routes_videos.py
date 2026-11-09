@@ -60,11 +60,12 @@ from .models import (
     Scene,
     Session,
     TopicPlanItem,
+    User,
     Video,
     VideoNote,
 )
 from .openverse import Openverse, OpenverseError
-from .ownership import ensure_can_take_down, ensure_none_of_others, ensure_owner, ensure_page_owner
+from .ownership import ensure_can_take_down, ensure_group_editor, ensure_none_of_others, ensure_owner, ensure_page_owner
 from .pexels import Pexels, PexelsError
 from .pixabay import ORIENTATIONS, Pixabay, PixabayError
 from .script_rules import CROSSFADE_SIDE_SECONDS, MAX_SECONDS, MIN_SECONDS, plain_title, text_problem
@@ -2186,6 +2187,7 @@ class TopicPatchBody(BaseModel):
     templates: list[int] | None = None  # the group's own "Mẫu dựng" (saved ones' ids)
     stock_order: list[str] | None = None  # "Thứ tự nguồn ảnh"; [] goes back to the app's order
     edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
+    team_edit: bool | None = None  # "Cho cả đội sửa": only the group's maker turns it off or on
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -2206,6 +2208,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
     counts = dict(db.execute(select(Video.knowledge_topic_id, func.count()).group_by(Video.knowledge_topic_id)).all())
     mine = my_topic_ids(db, user_id)
     last = edit_log.last_edits(db, edit_log.TOPIC)
+    makers = dict(db.execute(select(User.id, User.name)).all())
     return {
         "topics": [
             {
@@ -2221,6 +2224,9 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "article_prompt": topic.article_prompt,
                 "voice_id": topic.voice_id,
                 "created_by_id": topic.created_by_id,
+                # The group's maker, who alone may turn "Cho cả đội sửa" off; None: "Nhận nhóm" is offered.
+                "owner": makers.get(topic.created_by_id),
+                "team_edit": topic.team_edit,
                 "templates": [template.id for template in topic.edit_templates],
                 "edit_template_default": topic.edit_template_default,
                 # "Thứ tự nguồn ảnh": always whole; `stock_order_custom` false while the group takes the app's order.
@@ -2306,6 +2312,11 @@ def patch_topic(
     topic_id: int, body: TopicPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     topic = _topic(db, topic_id)
+    if body.team_edit is not None:
+        ensure_owner(topic.created_by_id, me.user_id, "nhóm chủ đề này", "đổi được “Cho cả đội sửa”")
+        topic.team_edit = body.team_edit
+    if body.model_fields_set - {"team_edit"}:
+        ensure_group_editor(db, topic, me.user_id)
     before = edit_log.topic_snapshot(topic)
     if body.name is not None:
         old_name, topic.name = topic.name, _topic_name(db, body.name, topic.id)
@@ -2374,6 +2385,19 @@ def _set_group_templates(db: DbSession, topic: KnowledgeTopic, body: TopicPatchB
     elif isinstance(topic.edit_template_default, int) and topic.edit_template_default not in held:
         # A template taken off the group no longer dresses its new videos.
         topic.edit_template_default = None
+
+
+@router.post("/knowledge/topics/{topic_id}/owner")
+def claim_topic(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Nhận nhóm": a group nobody is known to have made becomes the member's, as "Nhận Page" does for a Page."""
+    topic = db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.id == topic_id).with_for_update())
+    if topic is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    if topic.created_by_id is not None and topic.created_by_id != me.user_id:
+        raise ApiError(409, "topic_has_owner", f"Nhóm “{topic.name}” đã có người tạo")
+    topic.created_by_id = me.user_id
+    db.commit()
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.delete("/knowledge/topics/{topic_id}")
