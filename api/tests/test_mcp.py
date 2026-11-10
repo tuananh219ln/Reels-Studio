@@ -1121,3 +1121,22 @@ def test_the_assistant_reads_todays_semi_automatic_runs_and_cannot_approve_them(
     [run] = payload(call(mcp_client, token, "list_auto_runs"))["runs"]
     assert (run["status"], run["idea_topic"], run["video"]["id"]) == ("ready", "Ngâm chân nước ấm", video.id)
     assert run["banned"] == ["Có từ cấm: “thần dược”"] and run["can_decide"] is True
+
+
+def test_a_script_sent_over_mcp_is_offered_the_types_and_keeps_the_one_picked(mcp_client, db, storage):
+    _, _, tokens, _ = grant(mcp_client, db)
+    make_video(db, storage, make_user(db, "binh@doi.vn", "Bình"), scene_count=1).content_type = "Mẹo"
+    db.commit()
+    token, group = tokens["access_token"], first_topic(db)
+    prompt = payload(call(mcp_client, token, "get_script_prompt", topic="Rau", knowledge_topic_id=group.id))["prompt"]
+    assert 'Loại nội dung đội đang dùng: "Mẹo"' in prompt
+    made = call(
+        mcp_client,
+        token,
+        "create_video_from_group_prompt",
+        topic="Rau xanh cho tim",
+        knowledge_topic_id=group.id,
+        script_json=json.dumps(GROUP_SCRIPT | {"content_type": "Mẹo"}, ensure_ascii=False),
+    )
+    assert not made.get("isError"), made
+    assert payload(made)["content_type"] == "Mẹo"

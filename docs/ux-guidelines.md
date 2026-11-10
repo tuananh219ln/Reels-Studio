@@ -174,8 +174,9 @@ Built:
   **48 giờ** (when its 48-hour numbers are read, then their views). A time within a day reads "12 phút trước" or
   "sau 3 giờ", otherwise dd/mm/yyyy hh:mm, all in Vietnam time, the full time on hover. Render, Đăng and 48 giờ open
   the "Xuất bản" tab, Affiliate opens "Nội dung đăng".
-  Under the progress line, "Loại nội dung": a small field typed freely or picked from the types the team's
-  videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
+  Under the progress line, "Loại nội dung": filled by the AI that writes the script (one of the team's types when
+  one fits, 2026-11-10), empty for a script written by hand; a small field typed freely or picked from the types the
+  team's videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
   characters, then the kind tags and the "Đã đăng" icons.
   A video made "Từ video mẫu" has a "Video mẫu" card above the scenes: the sample's link (opens in a
   new tab) or file name, its length and the way chosen; the AI's analysis, the stills (a strip of
