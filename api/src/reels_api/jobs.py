@@ -43,6 +43,7 @@ from . import (
     render_nodes,
     revise,
     source_keys,
+    text_looks,
     tiktok_publish,
 )
 from .claude import (
@@ -144,6 +145,8 @@ def run_job(
                 run_learn_job(db, job, storage, call)
             elif job.kind == "plan":
                 run_plan_job(db, job, call)
+            elif job.kind == text_looks.JOB_KIND:
+                run_text_look_job(db, job, call)
             elif job.kind == "article_caption":
                 run_article_caption_job(db, job, call)
             elif job.kind == "render":
@@ -301,6 +304,8 @@ def script_prompt(
     )
     if ai_effects:
         prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
+    if group.text_ai:
+        prompt = f"{prompt}\n\n{text_looks.SCRIPT_FORMAT}"
     if backdrop:
         prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
     return prompt
@@ -465,6 +470,22 @@ def run_plan_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None
     db.commit()
 
 
+def run_text_look_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
+    """ "AI gợi ý" on a group's "Chữ & phụ đề": a few looks for it, kept for a member to pick one; the group's own
+    look changes only when a member saves one."""
+    topic = db.get(KnowledgeTopic, job.knowledge_topic_id)
+    if topic is None:
+        raise JobFailure("Nhóm chủ đề đã bị xoá")
+    call, count_call = _llm(db, job, call)
+    try:
+        options = text_looks.generate(topic, f"job {job.id}", count_call, call)
+    except ClaudeError as err:
+        raise JobFailure(err.message, err.detail) from None
+    topic = db.get(KnowledgeTopic, job.knowledge_topic_id, with_for_update=True, populate_existing=True)
+    topic.text_suggestions = text_looks.suggestions_payload(job.id, options)
+    db.commit()
+
+
 def run_article_caption_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
     """ "AI viết" on an article: its caption and hashtags, replacing what was there (the member asked for it, and the
     article cannot be edited while the job is queued or running)."""
@@ -539,6 +560,12 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     # The team's "Mẫu dựng" for new videos, if one is chosen, then the AI's own picks when it was asked for them.
     autoedit.apply_default(db, video)
     autoedit.apply_ai_effects(db, video, [scene.effects for scene in script.scenes])
+    # "AI chọn kiểu chữ cho từng video": the AI's look for this video, over its group's and its maker's.
+    group = knowledge.topic_of(db, video)
+    if group is not None and group.text_ai:
+        look = text_looks.loose_look(script.text_look)
+        if look:
+            video.options = {**(video.options or {}), **look}
 
 
 # --- Render ---

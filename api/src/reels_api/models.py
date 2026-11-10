@@ -186,6 +186,12 @@ class KnowledgeTopic(Base):
     # suốt") or "alternate" (odd Vietnam calendar days "single", even days "slides"). A mode asked for the one video
     # wins (videos.resolve_video_mode).
     video_mode: Mapped[str] = mapped_column(String(20), default="slides", server_default="slides")
+    # "Chữ & phụ đề" of its new videos (migration 0074, text_looks.FIELDS), over their maker's defaults; None: the
+    # maker's. `text_ai`: the script call also picks each video's own look over it. `text_suggestions`: the AI's
+    # last looks for the group ("AI gợi ý"), kept for a member to pick one.
+    text_look: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    text_ai: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    text_suggestions: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).
     edit_templates: Mapped[list["EditTemplate"]] = relationship(
@@ -489,10 +495,17 @@ class Job(Base):
             unique=True,
             postgresql_where=text("status IN ('queued', 'running') AND kind = 'plan'"),
         ),
+        Index(
+            "uq_jobs_active_text_look",
+            "knowledge_topic_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'running') AND kind = 'text_look'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge), which belongs to a topic group,
+    # Every job belongs to a video, except a plan job ("Tạo bằng AI" on /knowledge) and a text_look job ("AI gợi ý"
+    # of a group's "Chữ & phụ đề"), which belong to a topic group,
     # and an article_caption job, which belongs to an article.
     video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))

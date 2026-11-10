@@ -39,6 +39,7 @@ import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
+import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
 
@@ -299,6 +300,8 @@ const TOPIC_FIELDS: Record<string, string> = {
   photo_hint: "Gợi ý tìm ảnh",
   voice_id: "Giọng mặc định",
   video_mode: "Kiểu video",
+  text_look: "Chữ & phụ đề",
+  text_ai: "AI chọn kiểu chữ cho từng video",
   stock_order: "Thứ tự nguồn ảnh",
   templates: "Mẫu dựng của nhóm",
   edit_template_default: "Mẫu cho video mới",
@@ -389,7 +392,9 @@ function TopicBody({
   /** The group shown: its tab is the address's; a group opened earlier and hidden keeps its own. */
   visible: boolean;
 }) {
-  const [tab, setTab] = useUrlChoiceIf<string>(visible, "tab", "videos");
+  const [chosenTab, setTab] = useUrlChoiceIf<string>(visible, "tab", "videos");
+  // "Mẫu dựng" moved into "Cài đặt nhóm" (2026-11-10): an old link to it opens that tab.
+  const tab = chosenTab === "templates" ? "words" : chosenTab;
   const { token } = theme.useToken();
   const { me } = useMe();
   const path = `/knowledge/topics/${topic.id}`;
@@ -477,38 +482,84 @@ function TopicBody({
           },
           {
             key: "words",
-            label: "Từ cấm, ảnh & giọng",
+            label: "Cài đặt nhóm",
             children: readOnly(
-              <Row gutter={[16, 16]}>
-                <Col xs={24} xl={12}>
-                  <BannedWordsCard topicId={topic.id} initial={topic.banned_words} update={update} reload={reload} />
-                </Col>
-                <Col xs={24} xl={12}>
-                  <Flex vertical gap={16}>
-                    <PhotoHintCard topicId={topic.id} initial={topic.photo_hint} update={update} reload={reload} />
-                    <StockOrderCard
-                      key={topic.stock_order.join()}
-                      initial={topic.stock_order}
-                      custom={topic.stock_order_custom}
-                      update={update}
-                    />
-                    <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
-                    <GroupVideoModeCard topic={topic} update={update} />
-                  </Flex>
-                </Col>
-              </Row>,
+              <Flex vertical gap={24}>
+                <section aria-labelledby={`script-${topic.id}`}>
+                  <SectionHead
+                    id={`script-${topic.id}`}
+                    title="Viết kịch bản & tìm ảnh"
+                    hint="AI đọc phần này mỗi lần viết kịch bản cho nhóm và tìm ảnh cho từng cảnh."
+                  />
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} xl={12}>
+                      <BannedWordsCard
+                        topicId={topic.id}
+                        initial={topic.banned_words}
+                        update={update}
+                        reload={reload}
+                      />
+                    </Col>
+                    <Col xs={24} xl={12}>
+                      <Flex vertical gap={16}>
+                        <PhotoHintCard topicId={topic.id} initial={topic.photo_hint} update={update} reload={reload} />
+                        <StockOrderCard
+                          key={topic.stock_order.join()}
+                          initial={topic.stock_order}
+                          custom={topic.stock_order_custom}
+                          update={update}
+                        />
+                      </Flex>
+                    </Col>
+                  </Row>
+                </section>
+                <section aria-labelledby={`new-${topic.id}`}>
+                  <SectionHead
+                    id={`new-${topic.id}`}
+                    title="Video mới của nhóm"
+                    hint={
+                      "Mọi video tạo mới trong nhóm (trên web, bán tự động, trợ lý qua MCP) bắt đầu theo phần này, " +
+                      "thay cho Thiết lập mặc định của người tạo. Chỉnh riêng trên từng video vẫn được; video đã có không đổi."
+                    }
+                  />
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} xl={12}>
+                      <Flex vertical gap={16}>
+                        <GroupVideoModeCard topic={topic} update={update} />
+                        <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
+                        <GroupTemplatesCard topic={topic} update={update} />
+                      </Flex>
+                    </Col>
+                    <Col xs={24} xl={12}>
+                      <GroupTextLookCard
+                        topic={topic}
+                        start={defaults.default_text_look}
+                        update={update}
+                        reload={async (data) => onSaved(data ?? (await api<Knowledge>("/knowledge")))}
+                      />
+                    </Col>
+                  </Row>
+                </section>
+              </Flex>,
             ),
-          },
-          {
-            key: "templates",
-            label: "Mẫu dựng",
-            children: readOnly(<GroupTemplatesCard topic={topic} update={update} />),
           },
           ...planTabs,
         ]}
       />
       {planDialogs}
     </Flex>
+  );
+}
+
+/** A part of "Cài đặt nhóm": a heading and one line on what it is for. */
+function SectionHead({ id, title, hint }: { id: string; title: string; hint: string }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <Typography.Title level={5} id={id} style={{ margin: 0 }}>
+        {title}
+      </Typography.Title>
+      <Typography.Text type="secondary">{hint}</Typography.Text>
+    </div>
   );
 }
 

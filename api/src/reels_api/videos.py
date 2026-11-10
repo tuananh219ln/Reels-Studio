@@ -135,6 +135,7 @@ JOB_KINDS = {
     "photos": "Tự tìm ảnh",
     "voice": "Tạo giọng thật",
     "plan": "Tạo kế hoạch 30 ngày",
+    "text_look": "AI gợi ý kiểu chữ",
     "learn": "Học từ video mẫu",
     "revise": "AI sửa theo góp ý",
     "article_caption": "Viết bài viết",

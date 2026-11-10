@@ -366,11 +366,14 @@ def forget_member_defaults(db: DbSession, user_id: int) -> None:
 
 
 def apply_defaults(db: DbSession, video: Video, user_id: int) -> None:
-    """A new video takes its maker's defaults (member_defaults), and the voice of its topic group when the group has
-    one: video's own › group's › maker's own › built-in. Set `video.knowledge_topic_id` first."""
+    """A new video takes its maker's defaults (member_defaults), and the voice and "Chữ & phụ đề" of its topic group
+    when the group has them: video's own › group's › maker's own › built-in. Set `video.knowledge_topic_id` first."""
+    from .text_looks import group_look  # imported here: text_looks reads this module
+
     defaults = member_defaults(db, user_id)
     video.voice_enabled, video.music_volume = defaults["voice_enabled"], defaults["music_volume"]
     video.options = {name: defaults[name] for name in DEFAULTS}
     group = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
     if group is not None and group.voice_id:
         video.options["voice_id"] = group.voice_id
+    video.options.update(group_look(group))

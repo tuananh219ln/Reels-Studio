@@ -674,16 +674,25 @@ Built:
     one edited on the right with "Lưu", and "Lịch sử" on the card's title (see "Edit history" below; there is
     no "Khôi phục mặc định": the app's default is a version in the history); text typed in one and not saved
     survives choosing another;
-  - "Từ cấm, ảnh & giọng": each card with "Lịch sử" on its title; the banned words with "Lưu từ cấm" beside "Gợi ý tìm ảnh" with "Lưu gợi ý"
-    and "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing "Theo Thiết lập
-    mặc định của người tạo", cleared with ×) with "Lưu giọng", then "Kiểu video của nhóm" (three radios: "Slide ảnh",
-    "Video xuyên suốt", "Xen kẽ theo ngày (ngày lẻ: xuyên suốt, ngày chẵn: slide)", "Slide ảnh" for a new group; on
-    "Xen kẽ" a grey line "Hôm nay (giờ Việt Nam): …") with "Lưu kiểu video";
-  - "Mẫu dựng": "Mẫu dựng của nhóm", a multiple choice of the saved templates the group holds ("Mẫu của nhóm") and
-    the one its new videos take ("Mẫu cho video mới của nhóm": "Không áp mẫu của nhóm", "Gợi ý của app" or one of
-    the group's), with "Lưu mẫu dựng". The order a new video's template is picked in is spelled out above them:
-    chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none. Cài đặt › Mẫu dựng tags each
-    template with the groups that hold it;
+  - "Cài đặt nhóm" (the old "Từ cấm, ảnh & giọng" and "Mẫu dựng" tabs together; an old `?tab=templates` link opens
+    it), each card with "Lịch sử" on its title, in two headed parts with a grey line under each heading:
+    - "Viết kịch bản & tìm ảnh" (what the AI reads when it writes the group's scripts and finds photos): the banned
+      words with "Lưu từ cấm" beside "Gợi ý tìm ảnh" with "Lưu gợi ý" and "Thứ tự nguồn ảnh";
+    - "Video mới của nhóm" (what every new video of the group starts with, over its maker's Thiết lập mặc định): on
+      the left "Kiểu video của nhóm" (three radios: "Slide ảnh", "Video xuyên suốt", "Xen kẽ theo ngày (ngày lẻ:
+      xuyên suốt, ngày chẵn: slide)", "Slide ảnh" for a new group; on "Xen kẽ" a grey line "Hôm nay (giờ Việt Nam):
+      …") with "Lưu kiểu video", "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing
+      "Theo Thiết lập mặc định của người tạo", cleared with ×) with "Lưu giọng", and "Mẫu dựng của nhóm" (a multiple
+      choice of the saved templates the group holds and the one its new videos take: "Không áp mẫu của nhóm", "Gợi ý
+      của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled
+      out above them: chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none; Cài đặt › Mẫu
+      dựng tags each template with the groups that hold it); on the right "Chữ & phụ đề của nhóm": the switches
+      "Nhóm có kiểu chữ riêng" (off: "Theo Thiết lập mặc định của người tạo video") and "AI chọn kiểu chữ cho từng
+      video" (on: a grey line on what it does), "Gợi ý từ AI" with "AI gợi ý" ("Gợi ý lại" once there are some; while
+      the job runs a spinner and "AI đang nghĩ kiểu chữ cho nhóm…", the card re-reading the group every 3 seconds; a
+      failed job an error with its reason), each suggestion a card with a sample line drawn in its colours, its name,
+      reason and tags and "Dùng kiểu này" (puts it in the editor below, not saved), then the "Chữ & phụ đề" editor of
+      Thiết lập mặc định while the group has its own, and "Lưu chữ & phụ đề" for all of it;
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
   - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
@@ -1333,7 +1342,8 @@ Where something is edited, its history is shown there, not on a page of its own
 
 - **Under the group's name**, after "N video, N prompt đã sửa": "<member> sửa <part> lúc dd/mm/yyyy hh:mm" (Vietnam
   time), a link that opens the group's whole history, each entry naming the parts it changed.
-- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Kiểu video của nhóm, Prompt kế hoạch) opens a
+- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Kiểu video của nhóm, Chữ & phụ đề của nhóm, Prompt
+  kế hoạch) opens a
   drawer on the right, newest first. Each entry: its action as a tag (Tạo green, Sửa blue, Xoá red, Khôi phục gold),
   the member, the time, "qua Claude" or "tự động" when it did not come from the web, and "Đang dùng" on the latest.
   - A prompt or a text: "+N −M dòng" and "Xem khác biệt", a dialog with the lines removed (red, "−") and added
