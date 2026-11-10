@@ -66,6 +66,13 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   it deploys in order, each waiting for Coolify to report `finished`: the api (it runs the
   migrations), then the worker, then `npm run deploy` in `web/`. Coolify auto-deploy must stay off,
   or a push deploys before the tests pass.
+- **CI broken by GitHub:** during a GitHub Actions incident a run can end as failure without creating
+  some of its jobs, and the required checks it never created stay "Waiting for status".
+  [.github/workflows/ci-rerun.yml](../.github/workflows/ci-rerun.yml) runs every 20 minutes and reruns,
+  once, the newest CI/CD run of `main` or an open PR that failed with no job failing (script:
+  [.github/scripts/rerun-stalled-ci.sh](../.github/scripts/rerun-stalled-ci.sh), `DRY_RUN=1` to try it
+  locally). A run with a failing test is never rerun; one already rerun is rerun by hand ("Re-run all
+  jobs", not "Re-run failed jobs").
 - **Database URL:** the api's `DATABASE_URL` is the Postgres internal URL Coolify shows
   (`postgres://…`); `config.database_url()` rewrites a driverless `postgres://`/`postgresql://`
   scheme to `postgresql+psycopg://`.
