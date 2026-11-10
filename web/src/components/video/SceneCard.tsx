@@ -371,10 +371,10 @@ function SceneHeader({
       }}
     >
       <RightOutlined
+        className="scene-card-arrow"
         style={{
           fontSize: 12,
           color: "#8c8c8c",
-          transition: "transform 0.2s",
           transform: `rotate(${expanded ? 90 : 0}deg)`,
         }}
       />

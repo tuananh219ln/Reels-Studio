@@ -822,3 +822,30 @@ test.describe("connection problems", () => {
     await expect(page.getByText("Không kết nối được cơ sở dữ liệu, thử lại sau")).toBeVisible();
   });
 });
+
+test("the app's own motion stops when the system asks for less motion", async ({ browser }) => {
+  const durations = async (reducedMotion: "reduce" | "no-preference") => {
+    const context = await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN", reducedMotion });
+    const page = await context.newPage();
+    await page.goto("/login");
+    const button = page.getByRole("button", { name: "Đăng nhập" });
+    await expect(button).toBeVisible();
+    const antd = await button.evaluate((element) => getComputedStyle(element).transitionDuration);
+    // The app's own: the arrow that turns when a scene card opens.
+    await loginAsSeed(page);
+    await page.getByRole("button", { name: "Tạo video" }).click();
+    const dialog = page.getByRole("dialog", { name: "Tạo video" });
+    await dialog.getByText("Tự viết", { exact: true }).click();
+    await dialog.getByLabel("Chủ đề", { exact: true }).fill("Món ăn sáng");
+    await dialog.getByLabel("Kịch bản", { exact: true }).fill("Phở bò\nĐọc: Phở bò nóng hổi.");
+    await dialog.getByRole("button", { name: "Tạo video" }).click();
+    const arrow = page.getByTestId("scene").first().locator(".anticon-right");
+    await expect(arrow).toBeVisible();
+    const own = await arrow.evaluate((element) => getComputedStyle(element).transitionDuration);
+    await context.close();
+    return [antd, own];
+  };
+  const still = /^0s(, 0s)*$/;
+  for (const duration of await durations("no-preference")) expect(duration).not.toMatch(still);
+  for (const duration of await durations("reduce")) expect(duration).toMatch(still);
+});

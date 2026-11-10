@@ -155,8 +155,10 @@ row, a centred dialog that names the thing for anything larger), and the confirm
 - `autoFocus` only on the single main field of a drawer or dialog, and not on a phone.
 
 **Motion.** Movement is short (under 300 ms), animates `transform` and `opacity` only, never
-`transition: all`, and stops or shrinks to a fade under `prefers-reduced-motion`. This covers the
-app's own UI; the video's motion follows Video Template.
+`transition: all`, and stops or shrinks to a fade under `prefers-reduced-motion`. Ant Design's own
+motion already does; the app's own movement is written in `globals.css` inside
+`@media (prefers-reduced-motion: no-preference)` (the scene card's arrow). This covers the app's
+own UI; the video's motion follows Video Template.
 
 **Images.** An `<img>` has `width` and `height` (or a box with a fixed aspect ratio) so the page
 does not jump while it loads, `alt` naming what it shows, or `alt=""` when the text beside it
@@ -176,9 +178,6 @@ issue of its own; remove a line once it is true):
 - List filters, search and sort live in component state, not the URL; only "Bài đăng" keeps its
   "Danh sách | Lịch" view there.
 - No form asks before closing with unsaved changes.
-- Nothing honours `prefers-reduced-motion`.
-- The timeline playhead in "Xem trước" works from the keyboard but hides its focus ring
-  (`outline: none` in `PreviewTimeline.tsx`).
 
 ## Screens
 

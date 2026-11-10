@@ -674,6 +674,8 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   const playhead = timeline.getByRole("slider", { name: "Đầu phát" });
   await playhead.focus();
   await page.keyboard.press("Home");
+  // Reached and moved from the keyboard, it shows where the focus is.
+  await expect(playhead).toHaveCSS("outline-style", "solid");
   await expect(now).toContainText("Cảnh tiêu đề");
   await expect(timeline.getByTestId("preview-time")).toHaveText("00:00,0");
   await expect(preview.getByRole("button", { name: "Tiếp tục" })).toBeVisible();
