@@ -3,11 +3,12 @@
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, FolderAddOutlined, InboxOutlined, LinkOutlined, UploadOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Progress, Segmented, Select, Typography, theme } from "antd";
-import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaLinkSearch from "@/components/media/MediaLinkSearch";
 import PageHeader from "@/components/PageHeader";
 import { api, errorMessage, upload, type AffiliateProduct, type MediaItem, type MediaList } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 const MAX_CLIP_BYTES = 50 * 1024 * 1024;
@@ -41,6 +42,15 @@ async function droppedFiles(event: DragEvent): Promise<Pending[]> {
 }
 
 export default function MediaPage() {
+  // The folder, kind and search are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Media />
+    </Suspense>
+  );
+}
+
+function Media() {
   const { message } = App.useApp();
   const { me } = useMe();
   const { token } = theme.useToken();
@@ -50,9 +60,9 @@ export default function MediaPage() {
   const [products, setProducts] = useState<AffiliateProduct[]>([]);
   const [productId, setProductId] = useState<number | null>(null);
   const [target, setTarget] = useState("");
-  const [shown, setShown] = useState<string | null>(null);
-  const [kind, setKind] = useState<"all" | "photo" | "clip">("all");
-  const [query, setQuery] = useState("");
+  const [shown, setShown] = useUrlChoice<string | null>("folder", null);
+  const [kind, setKind] = useUrlChoice<"all" | "photo" | "clip">("kind", "all", ["photo", "clip"]);
+  const [query, setQuery] = useUrlChoice<string>("q", "");
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 

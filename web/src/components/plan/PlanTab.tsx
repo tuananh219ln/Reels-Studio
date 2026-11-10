@@ -62,6 +62,7 @@ import {
   type PlanPreview,
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
+import { useLeaveGuard } from "@/lib/unsaved";
 import EditHistory from "@/components/EditHistory";
 import FormDrawer from "@/components/FormDrawer";
 import AutoRuns from "@/components/plan/AutoRuns";
@@ -980,11 +981,15 @@ function PlanPromptCard({
   onRestored: () => Promise<void>;
 }) {
   const [value, setValue] = useState(plan.prompt);
+  // What was last saved: leaving the page with other text in the box asks first.
+  const [base, setBase] = useState(plan.prompt);
+  useLeaveGuard(() => value !== base);
   // A version put back from "Lịch sử" replaces what the box shows.
   const [seen, setSeen] = useState(plan.prompt);
   if (seen !== plan.prompt) {
     setSeen(plan.prompt);
     setValue(plan.prompt);
+    setBase(plan.prompt);
   }
   const [busy, setBusy] = useState(false);
 
@@ -992,6 +997,7 @@ function PlanPromptCard({
     setBusy(true);
     if (await onSave(text)) {
       setValue(text.trim());
+      setBase(text.trim());
     }
     setBusy(false);
   }
@@ -1464,6 +1470,7 @@ function EditIdeaDrawer({
       title="Sửa ý tưởng"
       open={open}
       onClose={close}
+      guard={form}
       onOk={() => form.submit()}
       okText="Lưu"
       cancelText="Huỷ"
@@ -1639,6 +1646,7 @@ function AddIdeaModal({
       title={day === null ? "Thêm ý tưởng vào Backlog" : `Thêm ý tưởng ngày ${day}`}
       open={target !== null}
       onClose={onClose}
+      guard={form}
       onOk={() => form.submit()}
       okText="Thêm"
       cancelText="Huỷ"

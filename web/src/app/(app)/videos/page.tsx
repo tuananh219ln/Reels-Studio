@@ -33,7 +33,7 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
@@ -63,7 +63,9 @@ import FilterSelect from "@/components/FilterSelect";
 import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
 import { useRememberedView, type View } from "@/lib/view";
+import { useUrlChoice, useUrlParam } from "@/lib/urlState";
 import { loadLastChoices, saveLastChoice } from "@/lib/lastChoices";
+import { useGuardedClose } from "@/lib/unsaved";
 import FormDrawer from "@/components/FormDrawer";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
 
@@ -114,9 +116,18 @@ const STATUS_FILTERS: { value: StatusFilter; label: string; match: (row: VideoRo
 ];
 
 export default function VideosPage() {
+  // The list's search and filters are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Videos />
+    </Suspense>
+  );
+}
+
+function Videos() {
   const { message } = App.useApp();
   const [rows, setRows] = useState<VideoRow[] | null>(null);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useUrlChoice<string>("q", "");
   const [creating, setCreating] = useState(false);
   // The 30-day plan idea "Tạo video" starts from: "Làm tiếp" here, or "Tạo video" on an idea in Kho kiến thức.
   const [startItem, setStartItem] = useState<PlanItem | null>(null);
@@ -129,22 +140,35 @@ export default function VideosPage() {
   const [today, setToday] = useState<PlanToday[]>([]);
   const router = useRouter();
   const { me } = useMe();
-  const [status, setStatus] = useState<StatusFilter>("all");
+  const [status, setStatus] = useUrlChoice<StatusFilter>(
+    "status",
+    "all",
+    STATUS_FILTERS.map(({ value }) => value),
+  );
   // Null is everyone; a name is that member's videos ("Của tôi" is the signed-in member). Undefined until chosen:
   // "Của tôi" once the member has made a video, "Cả đội" before.
-  const [creatorPick, setCreator] = useState<string | null | undefined>(undefined);
-  const [platform, setPlatform] = useState<"all" | "facebook" | "tiktok">("all");
-  const [fanpage, setFanpage] = useState<string | null>(null);
-  // The topic group shown, remembered in this browser: a member usually works on one group at a time.
-  const [group, setGroup] = useState<string | null>(() => {
+  // In the address as `by`, empty for everyone.
+  const [by, setBy] = useUrlParam("by");
+  const creatorPick = by === null ? undefined : by || null;
+  const setCreator = (next: string | null) => setBy(next ?? "");
+  const [platform, setPlatform] = useUrlChoice<"all" | "facebook" | "tiktok">("platform", "all", [
+    "facebook",
+    "tiktok",
+  ]);
+  const [fanpage, setFanpage] = useUrlChoice<string | null>("fanpage", null);
+  // The topic group shown: the address's, else the one remembered in this browser, as a member usually works on one
+  // group at a time. (`group` in the address is the group "Tạo video" opens with, below.)
+  const [urlGroup, setUrlGroup] = useUrlParam("topic");
+  const [storedGroup, setStoredGroup] = useState<string | null>(() => {
     try {
       return window.localStorage.getItem(GROUP_KEY);
     } catch {
       return null;
     }
   });
+  const group = urlGroup ?? storedGroup;
   const [view, chooseView] = useRememberedView(VIEW_KEY);
-  const [sort, setSort] = useState<Sort>("new");
+  const [sort, setSort] = useUrlChoice<Sort>("sort", "new", ["new", "views"]);
 
   function startFrom(item: PlanItem | null, sample: number | null = null, group: number | null = null) {
     setStartItem(item);
@@ -223,7 +247,8 @@ export default function VideosPage() {
   }, [router, message]);
 
   function chooseGroup(next: string | null) {
-    setGroup(next);
+    setUrlGroup(next);
+    setStoredGroup(next);
     try {
       if (next) {
         window.localStorage.setItem(GROUP_KEY, next);
@@ -959,6 +984,8 @@ function NewVideoModal({
   const narrow = !(Grid.useBreakpoint().sm ?? true);
   const router = useRouter();
   const [form] = Form.useForm<NewVideo>();
+  // A typed topic or pasted script is not thrown away without asking.
+  const close = useGuardedClose(form, open, onClose);
   const [busy, setBusy] = useState(false);
   const [topics, setTopics] = useState<KnowledgeTopic[] | null>(null);
   const [lastGroup, setLastGroup] = useState<number | null>(null);
@@ -1112,7 +1139,7 @@ function NewVideoModal({
         )}
       </div>
       <Flex gap={8}>
-        <Button onClick={onClose}>Huỷ</Button>
+        <Button onClick={close}>Huỷ</Button>
         <Button
           type="primary"
           icon={manual ? <PlusOutlined /> : <EditOutlined />}
@@ -1136,7 +1163,7 @@ function NewVideoModal({
     <FormDrawer
       title="Tạo video"
       open={open}
-      onClose={onClose}
+      onClose={close}
       footer={footer}
       width={ideas.length > 0 ? 920 : 640}
       destroyOnHidden

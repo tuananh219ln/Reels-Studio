@@ -1,10 +1,12 @@
 "use client";
 
-import { Button, Drawer, Flex, type ButtonProps } from "antd";
+import { Button, Drawer, Flex, type ButtonProps, type FormInstance } from "antd";
+import { useGuardedClose } from "@/lib/unsaved";
 
 /** A form opens in a drawer from the right, with "Huỷ" and its main button at the bottom, so the page stays in view
  * beside it and a long form scrolls inside. Takes the props a form Modal took, so the two read alike; dialogs that
- * need the full width (photo editor, stock picker, previews) and yes/no confirmations stay Modals. */
+ * need the full width (photo editor, stock picker, previews) and yes/no confirmations stay Modals. With `guard`, closing
+ * it after typing in that form ("Huỷ", ×, a click outside, leaving the page) asks first. */
 export default function FormDrawer({
   title,
   open,
@@ -19,6 +21,7 @@ export default function FormDrawer({
   destroyOnHidden,
   forceRender,
   afterClose,
+  guard,
   children,
 }: {
   title: React.ReactNode;
@@ -36,13 +39,16 @@ export default function FormDrawer({
   forceRender?: boolean;
   /** Runs once the drawer has finished closing, like Modal's afterClose. */
   afterClose?: () => void;
+  /** The drawer's form, when losing its typing would cost the member: closing asks first. */
+  guard?: FormInstance;
   children: React.ReactNode;
 }) {
+  const close = useGuardedClose(guard, open, onClose);
   return (
     <Drawer
       title={title}
       open={open}
-      onClose={onClose}
+      onClose={close}
       // Never wider than the screen: on a phone the drawer takes the whole width.
       size={`min(${width}px, 100vw)`}
       destroyOnHidden={destroyOnHidden}
@@ -53,7 +59,7 @@ export default function FormDrawer({
       footer={
         footer === undefined ? (
           <Flex justify="flex-end" gap={8}>
-            <Button onClick={onClose}>{cancelText}</Button>
+            <Button onClick={close}>{cancelText}</Button>
             <Button type="primary" loading={confirmLoading} onClick={() => void onOk?.()} {...okButtonProps}>
               {okText}
             </Button>

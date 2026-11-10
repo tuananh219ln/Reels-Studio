@@ -135,8 +135,13 @@ two attributes per row.
 - Validation runs on submit and on blur, the message under the field; on submit the first field
   with an error gets the focus.
 - A form that holds more than a minute of typing (a script, a prompt, a long caption) asks before
-  it is closed with changes ("Bỏ các thay đổi chưa lưu?"), whether by "Huỷ", the drawer's ×, a
-  click outside or leaving the page.
+  it is closed with changes ("Bỏ các thay đổi chưa lưu?", "Bỏ thay đổi" or "Tiếp tục sửa"),
+  whether by "Huỷ", the drawer's ×, a click outside or leaving the page (a link in the app, or
+  closing or reloading the tab, where the browser asks). A drawer does it with FormDrawer's `guard`
+  (its form, asked once a field was typed in); a box on a page with
+  [useLeaveGuard](../web/src/lib/unsaved.ts). Today: "Tạo video", "Tạo bài viết", adding and
+  editing a plan idea, and in Kho kiến thức the prompts, "Gợi ý tìm ảnh", "Từ cấm" and the plan
+  prompt. A field that saves itself when left (a scene's texts, an article's caption) needs none.
 
 **Destructive actions.** Deleting or taking something down asks first (a `Popconfirm` for one
 row, a centred dialog that names the thing for anything larger), and the confirm button is
@@ -169,15 +174,17 @@ paginated or virtualised past about 50 items.
 wrap, tables scroll inside their card, drawers take the full width (App Look) and touch targets
 are at least 36 px.
 
-**State in the URL.** A list's search, filters, sort, tab and page are in the query string, so a
-link to a filtered list or a reload shows the same thing.
-
-**Where the app does not follow these yet** (fixed when the screen is next changed, or by an
-issue of its own; remove a line once it is true):
-
-- List filters, search and sort live in component state, not the URL; only "Bài đăng" keeps its
-  "Danh sách | Lịch" view there.
-- No form asks before closing with unsaved changes.
+**State in the URL.** A list page's search, filters, sort and tab are in the query string
+(`?q=…&status=…`), so a link to a filtered list or a reload shows the same thing: Video, Bài viết,
+Bài đăng (with "Danh sách | Lịch"), Jobs, Thành viên, Kho tư liệu, Thư viện nhạc, Quản lý Page and
+Affiliate (its tab too; changing tab clears the last tab's filters). A default is left out of the
+address, and "Của tôi / Cả đội" is written only once picked, so the list still starts on the
+member's own work. They are read with [useUrlChoice](../web/src/lib/urlState.ts), which replaces
+the address in place (no new history entry, no request); a page using it renders inside a
+`Suspense` boundary. Not in the address: the page number of a table, a list inside a drawer,
+dialog or picker, and the lists inside a topic group of Kho kiến thức, whose open group is not in
+the address either. Video's topic-group filter is also remembered in the browser, and the address
+wins when both are there.
 
 ## Screens
 

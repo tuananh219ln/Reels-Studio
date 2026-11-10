@@ -3,9 +3,10 @@
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import UserAvatar from "@/components/UserAvatar";
 import { ApiError, api, formatDateTime, formatLastLogin, type UserRow } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 import PageHeader from "@/components/PageHeader";
 import FormDrawer from "@/components/FormDrawer";
 
@@ -24,10 +25,19 @@ const passwordRules = [
 ];
 
 export default function UsersPage() {
+  // The search is in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Users />
+    </Suspense>
+  );
+}
+
+function Users() {
   const { message, modal } = App.useApp();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useUrlChoice<string>("q", "");
   const [adding, setAdding] = useState(false);
   const [tempFor, setTempFor] = useState<UserRow | null>(null);
   const [disabling, setDisabling] = useState<UserRow | null>(null);

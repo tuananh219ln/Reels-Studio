@@ -16,6 +16,7 @@ import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tabs, Tag, To
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
+import { useUrlChoice, useUrlId } from "@/lib/urlState";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import ProductModal from "./ProductModal";
 import PlacesChip from "./PlacesChip";
@@ -46,7 +47,19 @@ const STAGES: { value: Stage; label: string }[] = [
 export default function Products() {
   const { message } = App.useApp();
   const { me } = useMe();
-  const [filters, setFilters] = useState<Filters>({ q: "" });
+  // The search and filters are in the address (the Affiliate page clears them when its tab changes).
+  const [search, setSearch] = useUrlChoice<string>("q", "");
+  const [topicParam, setTopicParam] = useUrlId("group");
+  const [platformParam, setPlatformParam] = useUrlChoice<string | null>("platform", null);
+  const q = search;
+  const topicId = topicParam ?? undefined;
+  const platform = platformParam ?? undefined;
+  const filters: Filters = { q, topicId, platform };
+  const setFilters = (next: Filters) => {
+    setSearch(next.q);
+    setTopicParam(next.topicId ?? null);
+    setPlatformParam(next.platform ?? null);
+  };
   const [options, setOptions] = useState<AffiliateOptions>({
     platforms: [],
     shop_types: { shopee: [], tiktok_shop: [] },
@@ -59,11 +72,10 @@ export default function Products() {
   const [target, setTarget] = useState<AffiliateProduct | "new" | null>(null);
   const [adding, setAdding] = useState<AddMode | null>(null);
   // "Tôi thêm" or "Cả đội"; null until chosen (the default follows whether the member has added a product).
-  const [whosePick, setWhose] = useState<Whose | null>(null);
-  const [stage, setStage] = useState<Stage>("all");
+  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
+  const [stage, setStage] = useUrlChoice<Stage>("stage", "all", ["fill", "waiting", "approved"]);
   // The rows ticked for "Xoá đã chọn"; only the ones still listed count, so a filter never deletes hidden rows.
   const [ticked, setTicked] = useState<number[]>([]);
-  const { topicId, platform, q } = filters;
 
   const query = useMemo(() => {
     const params = new URLSearchParams();

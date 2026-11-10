@@ -28,7 +28,7 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import {
   api,
   errorMessage,
@@ -39,6 +39,7 @@ import {
   type QueueOverview,
   type QueuePage,
 } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePolling } from "@/lib/polling";
@@ -629,10 +630,19 @@ function TokenModal({
 }
 
 export default function FanpagesPage() {
+  // "Trang của tôi / Tất cả" is in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Fanpages />
+    </Suspense>
+  );
+}
+
+function Fanpages() {
   const { message } = App.useApp();
   const [rows, setRows] = useState<Fanpage[] | null>(null);
   // "Trang của tôi" or "Tất cả"; null until chosen (the default follows whether the member owns a Page).
-  const [whose, setWhose] = useState<"mine" | "all" | null>(null);
+  const [whose, setWhose] = useUrlChoice<"mine" | "all" | null>("whose", null, ["mine", "all"]);
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);

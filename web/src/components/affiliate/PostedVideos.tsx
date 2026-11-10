@@ -13,6 +13,7 @@ import {
   type AffiliateProduct,
   type AffiliateVideo,
 } from "@/lib/api";
+import { useUrlChoice, useUrlId } from "@/lib/urlState";
 import FilterSelect from "@/components/FilterSelect";
 import { useMe } from "@/components/MeContext";
 import VideoThumbnail from "@/components/VideoThumbnail";
@@ -136,16 +137,17 @@ export default function PostedVideos() {
   const { me } = useMe();
   const [videos, setVideos] = useState<AffiliateVideo[]>([]);
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has a posted video).
-  const [whosePick, setWhose] = useState<Whose | null>(null);
+  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
   const [approved, setApproved] = useState<AffiliateProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
-  const [query, setQuery] = useState("");
-  const [platform, setPlatform] = useState<AffiliateVideo["platform"] | null>(null);
-  const [fanpageId, setFanpageId] = useState<number | null>(null);
-  const [linked, setLinked] = useState<Linked>("all");
+  // The search and filters are in the address (the Affiliate page clears them when its tab changes).
+  const [query, setQuery] = useUrlChoice<string>("q", "");
+  const [platform, setPlatform] = useUrlChoice<AffiliateVideo["platform"] | null>("platform", null);
+  const [fanpageId, setFanpageId] = useUrlId("fanpage");
+  const [linked, setLinked] = useUrlChoice<Linked>("linked", "all", ["none", "linked", "manual", "review"]);
   // "Lọc theo sản phẩm": only the videos a product is attached to, so each product shows where its link goes.
-  const [productId, setProductId] = useState<number | null>(null);
+  const [productId, setProductId] = useUrlId("product");
   const [view, chooseView] = useView();
   const [openId, setOpenId] = useState<number | null>(null);
 

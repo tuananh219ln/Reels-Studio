@@ -3,9 +3,9 @@
 import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tabs, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 import { SHOWN_STATUS, shownStatus, type ShownStatus } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
 import PostCalendar from "@/components/PostCalendar";
@@ -56,8 +56,8 @@ function folded(text: string): string {
  * viewed first, with their numbers on Facebook; or, as "Lịch" (`?view=calendar`), the scheduled and posted ones in a
  * month. */
 export default function PostsPage() {
-  // The view comes from the address, which a static page only knows in the browser: Suspense keeps the rest of the
-  // app shell prerendered, and useSearchParams (unlike the page's `searchParams` prop) follows "Danh sách"/"Lịch".
+  // The view, search and filters come from the address, which a static page only knows in the browser: Suspense keeps
+  // the rest of the app shell prerendered.
   return (
     <Suspense fallback={null}>
       <Posts />
@@ -67,16 +67,21 @@ export default function PostsPage() {
 
 function Posts() {
   const { message } = App.useApp();
-  const router = useRouter();
-  const view: View = useSearchParams().get("view") === "calendar" ? "calendar" : "list";
+  const [view, setView] = useUrlChoice<View>("view", "list", ["calendar"]);
   const [posts, setPosts] = useState<PostRow[] | null>(null);
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("active");
-  const [fanpage, setFanpage] = useState<string | null>(null);
-  const [sort, setSort] = useState<Sort>("latest");
+  const [query, setQuery] = useUrlChoice<string>("q", "");
+  const [status, setStatus] = useUrlChoice<StatusFilter>("status", "active", [
+    "published",
+    "scheduled",
+    "failed",
+    "closed",
+    "all",
+  ]);
+  const [fanpage, setFanpage] = useUrlChoice<string | null>("fanpage", null);
+  const [sort, setSort] = useUrlChoice<Sort>("sort", "latest", ["views"]);
   const { me } = useMe();
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has a post).
-  const [whosePick, setWhose] = useState<Whose | null>(null);
+  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
 
   const load = useCallback(
     () =>
@@ -121,7 +126,7 @@ function Posts() {
     <Segmented<View>
       aria-label="Kiểu hiển thị"
       value={view}
-      onChange={(next) => router.replace(next === "calendar" ? "/posts?view=calendar" : "/posts")}
+      onChange={setView}
       options={[
         { value: "list", icon: <UnorderedListOutlined />, label: "Danh sách" },
         { value: "calendar", icon: <CalendarOutlined />, label: "Lịch" },

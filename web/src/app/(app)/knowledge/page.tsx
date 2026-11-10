@@ -29,8 +29,9 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
+import { useLeaveGuard } from "@/lib/unsaved";
 import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
@@ -764,15 +765,22 @@ function PromptsPanel({
 type Update = (body: Partial<KnowledgeTopic>) => Promise<KnowledgeTopic>;
 type Reload = () => Promise<void>;
 
-/** A card's text as last saved: a new saved value (put back from "Lịch sử") replaces what the box shows. */
+/** A card's text as last saved: a new saved value (put back from "Lịch sử") replaces what the box shows. Also says
+ * whether the box holds typing not saved yet, and takes what a save returned (`setSaved`). */
 function useSaved<T>(saved: T, key: (value: T) => string = String) {
   const [value, setValue] = useState(saved);
+  const [base, setBase] = useState(saved);
   const [seen, setSeen] = useState(key(saved));
   if (seen !== key(saved)) {
     setSeen(key(saved));
     setValue(saved);
+    setBase(saved);
   }
-  return [value, setValue] as const;
+  const setSaved = useCallback((next: T) => {
+    setValue(next);
+    setBase(next);
+  }, []);
+  return [value, setValue, key(value) !== key(base), setSaved] as const;
 }
 
 function PromptCard({
@@ -797,13 +805,14 @@ function PromptCard({
   help: React.ReactNode;
 }) {
   const { message } = App.useApp();
-  const [value, setValue] = useSaved(initial);
+  const [value, setValue, dirty, setSaved] = useSaved(initial);
+  useLeaveGuard(() => dirty);
   const [busy, setBusy] = useState(false);
 
   async function save(text: string) {
     setBusy(true);
     try {
-      setValue((await update({ [field]: text }))[field]);
+      setSaved((await update({ [field]: text }))[field]);
       message.success(`Đã lưu ${title.toLowerCase()}`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -863,13 +872,14 @@ function PhotoHintCard({
   reload: Reload;
 }) {
   const { message } = App.useApp();
-  const [text, setText] = useSaved(initial);
+  const [text, setText, dirty, setSaved] = useSaved(initial);
+  useLeaveGuard(() => dirty);
   const [busy, setBusy] = useState(false);
 
   async function save() {
     setBusy(true);
     try {
-      setText((await update({ photo_hint: text })).photo_hint);
+      setSaved((await update({ photo_hint: text })).photo_hint);
       message.success("Đã lưu gợi ý tìm ảnh");
     } catch (err) {
       message.error(errorMessage(err));
@@ -1062,7 +1072,8 @@ function BannedWordsCard({
   reload: Reload;
 }) {
   const { message } = App.useApp();
-  const [text, setText] = useSaved(initial.join("\n"));
+  const [text, setText, dirty, setSaved] = useSaved(initial.join("\n"));
+  useLeaveGuard(() => dirty);
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -1072,7 +1083,7 @@ function BannedWordsCard({
         .split("\n")
         .map((word) => word.trim())
         .filter(Boolean);
-      setText((await update({ banned_words })).banned_words.join("\n"));
+      setSaved((await update({ banned_words })).banned_words.join("\n"));
       message.success("Đã lưu danh sách từ cấm");
     } catch (err) {
       message.error(errorMessage(err));

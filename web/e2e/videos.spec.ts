@@ -1272,9 +1272,9 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await page.getByLabel("Tìm theo tiêu đề").fill("");
   await expect(groups).toHaveCount(1);
 
-  // "Lịch" is a view of the same page.
+  // "Lịch" is a view of the same page; the sort chosen above stays in the address beside it.
   await page.getByLabel("Kiểu hiển thị").getByText("Lịch", { exact: true }).click();
-  await expect(page).toHaveURL(/\/posts\?view=calendar$/);
+  await expect(page).toHaveURL(/\/posts\?sort=views&view=calendar$/);
   await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
   // Choosing a day opens its posts in a drawer, each with a link to its video.
   // The week view is the default on a wide screen: a reel's cover sits in its hour.
@@ -2925,6 +2925,12 @@ test("30-day plan: 2 ideas a day, and each idea is edited from its Sửa button"
   await expect(edit.getByLabel("Chủ đề")).toHaveValue("Đi bộ sau bữa tối");
   await edit.getByLabel("Chủ đề").fill("Không lưu");
   await edit.getByRole("button", { name: "Huỷ" }).click();
+  // Typing is not dropped without asking.
+  await page
+    .locator(".ant-modal-confirm")
+    .filter({ hasText: "Bỏ các thay đổi chưa lưu?" })
+    .getByRole("button", { name: "Bỏ thay đổi" })
+    .click();
   await expect(edit).toBeHidden();
   await expect(second).toContainText("Đi bộ sau bữa tối");
   expect(patches).toBe(0);

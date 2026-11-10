@@ -849,3 +849,97 @@ test("the app's own motion stops when the system asks for less motion", async ({
   for (const duration of await durations("no-preference")) expect(duration).not.toMatch(still);
   for (const duration of await durations("reduce")) expect(duration).toMatch(still);
 });
+
+test("typing is not lost: closing a form or leaving a page with unsaved text asks first", async ({ page }) => {
+  await loginAsSeed(page);
+  const ask = page.locator(".ant-modal-confirm").filter({ hasText: "Bỏ các thay đổi chưa lưu?" });
+
+  // A drawer with typing in it: "Huỷ" asks; "Tiếp tục sửa" keeps the text, "Bỏ thay đổi" closes it.
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await dialog.getByText("Tự viết", { exact: true }).click();
+  const script = dialog.getByLabel("Kịch bản", { exact: true });
+  await script.fill("Phở bò\nĐọc: Phở bò nóng hổi.");
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  await ask.getByRole("button", { name: "Tiếp tục sửa" }).click();
+  await expect(ask).toBeHidden();
+  await expect(script).toHaveValue(/Phở bò/);
+  // The drawer's × asks too.
+  await dialog.getByRole("button", { name: "Đóng", exact: true }).click();
+  await ask.getByRole("button", { name: "Bỏ thay đổi" }).click();
+  await expect(dialog).toBeHidden();
+  // Opened and closed without typing, it closes at once.
+  await page.getByRole("button", { name: "Tạo video" }).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(ask).toHaveCount(0);
+
+  // A page: a prompt typed but not saved asks before a menu link leaves it.
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await health.getByLabel("Prompt viết kịch bản", { exact: true }).fill("Viết thật ngắn về [Chủ đề]");
+  const videos = page.getByRole("link", { name: "Video", exact: true });
+  await videos.click();
+  await ask.getByRole("button", { name: "Tiếp tục sửa" }).click();
+  await expect(page).toHaveURL(/\/knowledge/);
+  await expect(health.getByLabel("Prompt viết kịch bản", { exact: true })).toHaveValue("Viết thật ngắn về [Chủ đề]");
+  await videos.click();
+  await ask.getByRole("button", { name: "Bỏ thay đổi" }).click();
+  await expect(page).toHaveURL(/\/videos$/);
+});
+
+test("a list's search, filters and tab are in the address, so a reload shows the same list", async ({ page }) => {
+  await loginAsSeed(page);
+  const searches = [
+    ["/videos", "Tìm theo tiêu đề hoặc chủ đề"],
+    ["/posts", "Tìm theo tiêu đề"],
+    ["/jobs", "Tìm theo video"],
+    ["/users", "Tìm theo email hoặc tên"],
+    ["/music", "Tìm theo tên bài"],
+    ["/affiliate", "Tìm theo tiêu đề video"],
+  ] as const;
+  for (const [url, label] of searches) {
+    await page.goto(url);
+    await page.getByLabel(label, { exact: true }).fill("phở bò");
+    await expect(page).toHaveURL(/[?&]q=ph/);
+    await page.reload();
+    await expect(page.getByLabel(label, { exact: true })).toHaveValue("phở bò");
+  }
+
+  // A filter: the chosen status stays chosen; clearing it takes it out of the address.
+  await page.goto("/videos");
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Lỗi");
+  await expect(page).toHaveURL(/[?&]status=failed/);
+  await page.reload();
+  await expect(page.getByRole("combobox", { name: "Lọc theo trạng thái" }).locator("..").locator("..")).toContainText(
+    "Lỗi",
+  );
+  // "Của tôi / Cả đội" too: with no post of the member's it starts on "Cả đội", and a pick of "Của tôi" stays.
+  await page.goto("/posts");
+  const whose = page.getByRole("radiogroup", { name: "Của ai" });
+  await expect(whose.getByRole("radio", { name: /^Cả đội/ })).toBeChecked();
+  await whose.getByText(/^Của tôi/).click();
+  await expect(page).toHaveURL(/[?&]whose=mine/);
+  await page.reload();
+  await expect(whose.getByRole("radio", { name: /^Của tôi/ })).toBeChecked();
+  // Quản lý Page's "Trang của tôi / Tất cả" the same way: it starts on the member's own Page, and "Tất cả" stays.
+  await connectFacebook(page);
+  await page.goto("/fanpages");
+  const pages = page.getByRole("radiogroup", { name: "Trang nào" });
+  await expect(pages.getByRole("radio", { name: /^Trang của tôi/ })).toBeChecked();
+  await pages.getByText(/^Tất cả/).click();
+  await expect(page).toHaveURL(/[?&]whose=all/);
+  await page.reload();
+  await expect(pages.getByRole("radio", { name: /^Tất cả/ })).toBeChecked();
+  // A tab: Affiliate opens on the one in its address, with that tab's own search.
+  await page.goto("/affiliate");
+  await page.getByRole("tab", { name: "Sản phẩm" }).click();
+  await expect(page).toHaveURL(/[?&]tab=products/);
+  await page.getByLabel("Tìm theo sản phẩm hoặc shop", { exact: true }).fill("hạt giống");
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Sản phẩm" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Tìm theo sản phẩm hoặc shop", { exact: true })).toHaveValue("hạt giống");
+});

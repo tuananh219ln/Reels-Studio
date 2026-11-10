@@ -5,7 +5,7 @@ import { App, Button, Card, Empty, Flex, Form, Input, Select, Spin, Table, Typog
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import {
   api,
   errorMessage,
@@ -16,6 +16,7 @@ import {
   type Knowledge,
   type PageComments,
 } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 import ArticleThumb from "@/components/ArticleThumb";
 import PageHeader from "@/components/PageHeader";
 import FilterSelect from "@/components/FilterSelect";
@@ -84,6 +85,7 @@ function NewArticleDrawer({
       title="Tạo bài viết"
       open={open}
       onClose={onClose}
+      guard={form}
       onOk={submit}
       okText="Tạo bài"
       confirmLoading={busy}
@@ -127,14 +129,23 @@ function NewArticleDrawer({
 }
 
 export default function ArticlesPage() {
+  // The list's search and filters are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Articles />
+    </Suspense>
+  );
+}
+
+function Articles() {
   const { message } = App.useApp();
   const [data, setData] = useState<ArticleList | null>(null);
-  const [group, setGroup] = useState<string | null>(null);
-  const [kind, setKind] = useState<ArticleKind | null>(null);
+  const [group, setGroup] = useUrlChoice<string | null>("group", null);
+  const [kind, setKind] = useUrlChoice<ArticleKind | null>("kind", null);
   const [creating, setCreating] = useState(false);
   const { me } = useMe();
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has made an article).
-  const [whosePick, setWhose] = useState<Whose | null>(null);
+  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
 
   const load = useCallback(async () => {
     try {
