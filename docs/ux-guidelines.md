@@ -590,7 +590,10 @@ Built:
     captions are shown under Các cảnh only, with a note that the title is the thumbnail. For each, the
     Kiểu hộp chữ chosen from small 9:16 previews, every card the same width with its preview on top
     and a one-line name under it (a long name is cut with "…" and shown whole in a tooltip): Không
-    hộp, then the team's own box styles, then a "Thêm kiểu" card with a dashed "+" preview, opening "Thêm kiểu hộp chữ" (Tên kiểu, Màu nền
+    hộp, then, when the box in use matches no team style (an AI suggestion, an app style such as the yellow box, or
+    colours changed since), a chosen "Đang dùng" card drawn in its colours with "Màu riêng, chưa có trong kiểu chung
+    của đội." (or "Kiểu có sẵn của app, …") and "Lưu thành kiểu của đội" under the cards, opening "Thêm kiểu hộp chữ"
+    on those colours, then the team's own box styles, then a "Thêm kiểu" card with a dashed "+" preview, opening "Thêm kiểu hộp chữ" (Tên kiểu, Màu nền
     hộp, Độ trong của hộp: Đặc, Hơi trong, Trong, Không nền; Màu chữ; Màu chữ đánh dấu, with a live sample and the
     readability warnings); a new style is picked at once; under the cards the picked style's name with
     "Sửa kiểu" and "Xoá kiểu" (confirmed: "Video đã dùng kiểu này vẫn giữ màu của nó."); the styles are

@@ -74,15 +74,18 @@ function CardName({ children }: { children: string }) {
 /** Create or edit one team style, with a live sample and the readability warnings. */
 function StyleEditor({
   editing,
+  start = NEW_STYLE,
   onClose,
   onSaved,
 }: {
   editing: TextBoxStyle | "new";
+  /** A new style's colours to start from: the app's yellow box, or the box in use ("Lưu thành kiểu của đội"). */
+  start?: Draft;
   onClose: () => void;
   onSaved: (style: TextBoxStyle) => void;
 }) {
   // Mounted afresh for each style opened (see the key below), so the draft starts from it.
-  const [draft, setDraft] = useState<Draft>(editing === "new" ? NEW_STYLE : editing);
+  const [draft, setDraft] = useState<Draft>(editing === "new" ? start : editing);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = (changes: Partial<Draft>) => setDraft((current) => ({ ...current, ...changes }));
@@ -180,6 +183,25 @@ function StyleEditor({
 }
 
 /** "Không hộp", the team's box styles and "+ Thêm kiểu"; picking a style copies its colours into the video. */
+/** The box in use as a new team style's colours: what the render draws, an "auto" opacity as the style's own. */
+function draftOf(values: Look): Draft {
+  const drawn = palette(
+    values.text_style,
+    values.text_color,
+    values.box_color,
+    values.accent_color,
+    values.box_opacity,
+  );
+  const opacity = values.box_opacity === "auto" ? "solid" : values.box_opacity;
+  return {
+    name: "",
+    box_color: drawn.ground,
+    box_opacity: values.text_style === "dark" && values.box_opacity === "auto" ? "soft" : opacity,
+    text_color: drawn.text,
+    accent_color: values.accent_color,
+  };
+}
+
 export function TextStyleCards({
   values,
   onChange,
@@ -191,9 +213,12 @@ export function TextStyleCards({
 }) {
   const { message } = App.useApp();
   const { styles, error, reload } = useTextStyles();
-  const [editing, setEditing] = useState<TextBoxStyle | "new" | null>(null);
+  const [editing, setEditing] = useState<TextBoxStyle | "new" | "current" | null>(null);
   const noBox = values.text_style === "none";
   const chosen = styles?.find((style) => isChosen(style, values));
+  // A box of its own colours (an AI suggestion, an older named style, a team style edited since): shown as the box in
+  // use, so it is never left with no tile chosen.
+  const ownBox = !noBox && styles !== null && !chosen;
 
   async function remove(style: TextBoxStyle) {
     try {
@@ -221,6 +246,27 @@ export function TextStyleCards({
           <Sample drawn={palette("none", values.text_color, "auto", values.accent_color)} />
           <CardName>Không hộp</CardName>
         </button>
+        {ownBox && (
+          <button
+            type="button"
+            role="radio"
+            aria-checked
+            aria-label="Kiểu đang dùng"
+            disabled={disabled}
+            style={cardStyle(true, disabled)}
+          >
+            <Sample
+              drawn={palette(
+                values.text_style,
+                values.text_color,
+                values.box_color,
+                values.accent_color,
+                values.box_opacity,
+              )}
+            />
+            <CardName>Đang dùng</CardName>
+          </button>
+        )}
         {styles?.map((style) => {
           const checked = style === chosen;
           return (
@@ -266,6 +312,24 @@ export function TextStyleCards({
         </button>
       </Flex>
       {error && <Typography.Text type="danger">{error}</Typography.Text>}
+      {ownBox && (
+        <Flex gap={4} align="center" wrap>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {values.text_style === "box"
+              ? "Màu riêng, chưa có trong kiểu chung của đội."
+              : "Kiểu có sẵn của app, chưa có trong kiểu chung của đội."}
+          </Typography.Text>
+          <Button
+            size="small"
+            type="link"
+            icon={<PlusOutlined />}
+            disabled={disabled}
+            onClick={() => setEditing("current")}
+          >
+            Lưu thành kiểu của đội
+          </Button>
+        </Flex>
+      )}
       {chosen && (
         <Flex gap={4} align="center" wrap>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -289,11 +353,12 @@ export function TextStyleCards({
       )}
       {editing && (
         <StyleEditor
-          key={editing === "new" ? "new" : editing.id}
-          editing={editing}
+          key={typeof editing === "string" ? editing : editing.id}
+          editing={editing === "current" ? "new" : editing}
+          start={editing === "current" ? draftOf(values) : undefined}
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
-            const added = editing === "new";
+            const added = editing === "new" || editing === "current";
             setEditing(null);
             reload();
             message.success(added ? `Đã thêm kiểu “${saved.name}”` : `Đã lưu kiểu “${saved.name}”`);
