@@ -1,0 +1,40 @@
+name: Update auto-merge PRs
+
+# main requires a PR to be up to date before it merges, so when one PR merges the others with
+# auto-merge on stay blocked until someone presses "Update branch". After every push to main this
+# updates them, which starts their CI again; auto-merge then merges each once every check passes.
+# It uses the AUTO_UPDATE_TOKEN secret (a fine-grained token of a person with write access, for this
+# repository only, Contents and Pull requests read and write): a commit made with the workflow's own
+# GITHUB_TOKEN starts no workflow, so the updated PR would never get its checks. Without the secret it
+# does nothing and says so.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-auto-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - name: Update PRs that have auto-merge on
+        env:
+          GH_TOKEN: ${{ secrets.AUTO_UPDATE_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::AUTO_UPDATE_TOKEN is not set, so no PR is updated (see docs/deployment.md)"
+            exit 0
+          fi
+          bash .github/scripts/update-auto-merge-prs.sh

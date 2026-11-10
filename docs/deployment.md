@@ -82,6 +82,16 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   fails and needs "Thử lại".
 - **GitHub environment `production`:** secrets `COOLIFY_WEBHOOK` (api), `COOLIFY_WORKER_WEBHOOK`,
   `COOLIFY_TOKEN`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`; variable `API_URL`.
+- **PRs with auto-merge on stay up to date:** `main` requires a PR to be up to date before it merges,
+  so after each push to `main`
+  [.github/workflows/pr-auto-update.yml](../.github/workflows/pr-auto-update.yml) updates every open
+  PR that has auto-merge on and is behind (script:
+  [.github/scripts/update-auto-merge-prs.sh](../.github/scripts/update-auto-merge-prs.sh), `DRY_RUN=1`
+  to try it locally); its CI runs again and auto-merge merges it once every check passes. A PR without
+  auto-merge, or one that conflicts with `main`, is left to its author. It needs the repository secret
+  `AUTO_UPDATE_TOKEN`: a fine-grained token of a person with write access, for this repository only,
+  with Contents and Pull requests read and write (a commit made with the workflow's own `GITHUB_TOKEN`
+  starts no CI). Without it the workflow only warns. When the token expires, its owner makes a new one.
 - **Rollback:** api or worker — redeploy an earlier deployment in Coolify; web — `npx wrangler
   rollback` in `web/` or the Workers dashboard. A rollback does not revert migrations.
 - **Checked by hand after infrastructure changes** (only real infrastructure shows them): MP4
