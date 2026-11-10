@@ -166,6 +166,16 @@ How the prompt is built (built, compact version):
   asked when the option is off. The same call writes both, so it costs no extra call. Any value outside the presets
   is left out without failing the job; the "Mẫu dựng" a new video takes (its group's, else its maker's own) goes on first and the AI's picks after.
   A clone does not ask for effects.
+- **"AI chọn kiểu chữ cho từng video" (a switch on the group's "Chữ & phụ đề", `knowledge_topics.text_ai`):** the
+  script prompt gets one more part (code, `text_looks.SCRIPT_FORMAT`): the answer also returns `text_look`, the
+  video's text box style, colours, sizes, letter case and captions, chosen for that video's content. The same call
+  writes it, so it costs no extra call; it goes over the group's look, values outside the presets left out. A named
+  box style (yellow, white, dark, red) becomes a box of its colours, as the studio now picks a box by its colours. A
+  clone and a hand-written video take the group's look.
+- **"AI gợi ý" of a group's "Chữ & phụ đề" (`text_look` job, `text_looks.suggest_prompt`):** the group's name, the
+  first 1,500 characters of its script prompt, its photo hint and its current look go to the team's LLM, which
+  answers three looks, each a name, a reason and the look, read like the per-video one. Nothing is saved on the
+  group until a member picks one and presses "Lưu chữ & phụ đề".
 - **Revise ("Nhờ AI sửa", the studio's notes):** the group's "Prompt sửa theo góp ý" on `/knowledge` (empty:
   [revise_default.txt](../api/src/reels_api/prompts/revise_default.txt)) fills `[kịch bản hiện tại]` with every
   scene (its seconds in the video, on-screen text, voice text, layers) and `[góp ý]` with the open notes, each

@@ -40,6 +40,7 @@ from . import (
     remote_media,
     source_keys,
     stock_clips,
+    text_looks,
     tts,
     video_options,
 )
@@ -1883,14 +1884,17 @@ def list_jobs(
     rows = []
     for job in jobs:
         # A plan job has no video: it is named after its topic group; an article's job after the article.
-        owner = job.video_id or (f"article-{job.article_id}" if job.article_id else f"topic-{job.knowledge_topic_id}")
+        owner = job.video_id or (
+            f"article-{job.article_id}" if job.article_id else f"topic-{job.knowledge_topic_id}-{job.kind}"
+        )
         if owner not in titles:
             if job.article_id is not None:
                 article = db.get(Article, job.article_id)
                 titles[owner] = f"Bài viết · {article.topic or articles.KIND_LABELS[article.kind]}"
             elif job.video_id is None:
                 group = db.get(KnowledgeTopic, job.knowledge_topic_id)
-                titles[owner] = f"Kế hoạch 30 ngày · {group.name}"
+                what = "Chữ & phụ đề" if job.kind == text_looks.JOB_KIND else "Kế hoạch 30 ngày"
+                titles[owner] = f"{what} · {group.name}"
             else:
                 video = db.get(Video, job.video_id)
                 title, _ = split_scenes(db, video)
@@ -1950,6 +1954,8 @@ def cancel_job(job_id: int, me: Session = Depends(current_member), db: DbSession
         render_nodes.clean(get_storage(), job.id)
     if job.article_id is not None:
         return article_posts.payload(db, db.get(Article, job.article_id))
+    if job.video_id is None and job.kind == text_looks.JOB_KIND:
+        return _knowledge_payload(db, me.user_id)
     if job.video_id is None:
         return plans.plan_payload(db, db.get(KnowledgeTopic, job.knowledge_topic_id))
     return video_payload(db, db.get(Video, job.video_id))
@@ -1988,8 +1994,14 @@ def retry_job(job_id: int, me: Session = Depends(current_member), db: DbSession 
 
 
 def _retry_plan(db: DbSession, job_id: int, topic_id: int, me: Session) -> dict:
-    if db.get(Job, job_id).status != "failed":
+    job = db.get(Job, job_id)
+    if job.status != "failed":
         raise ApiError(409, "job_not_failed", "Chỉ thử lại được job bị lỗi")
+    if job.kind == text_looks.JOB_KIND:
+        if not text_looks.enqueue(db, topic_id, me.user_id, retry_of_id=job_id):
+            raise ApiError(409, "text_look_busy", "Nhóm đang có gợi ý kiểu chữ chờ hoặc đang tạo")
+        db.commit()
+        return _knowledge_payload(db, me.user_id)
     if not plans.enqueue(db, topic_id, me.user_id, retry_of_id=job_id):
         raise ApiError(409, "plan_busy", "Nhóm chủ đề đang có kế hoạch chờ hoặc đang tạo")
     db.commit()
@@ -2193,6 +2205,8 @@ class TopicPatchBody(BaseModel):
     edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
     team_edit: bool | None = None  # "Cho cả đội sửa": only the group's maker turns it off or on
     video_mode: Literal["slides", "single", "alternate"] | None = None  # "Kiểu video" (videos.GROUP_VIDEO_MODES)
+    text_look: dict | None = None  # "Chữ & phụ đề" (text_looks.FIELDS); null or {} (when sent): the maker's
+    text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -2231,6 +2245,12 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # "Kiểu video" and the mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today).
                 "video_mode": topic.video_mode,
                 "video_mode_today": group_video_mode(topic),
+                # "Chữ & phụ đề": the group's own look (None: each maker's), the AI's pick per video, the AI's last
+                # suggested looks and its job (queued, running, or failed) while there is one to show.
+                "text_look": text_looks.group_look(topic) or None,
+                "text_ai": topic.text_ai,
+                "text_suggestions": topic.text_suggestions,
+                "text_job": text_looks.job_payload(text_looks.job_of(db, topic.id)),
                 "created_by_id": topic.created_by_id,
                 # The group's maker, who alone may turn "Cho cả đội sửa" off; None: "Nhận nhóm" is offered.
                 "owner": makers.get(topic.created_by_id),
@@ -2254,6 +2274,12 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
         "default_analyze_prompt": knowledge.default_analyze_prompt(),
         "default_revise_prompt": knowledge.default_revise_prompt(),
         "default_article_prompt": knowledge.default_article_prompt(),
+        # Where a group's own "Chữ & phụ đề" starts from: the member's own defaults.
+        "default_text_look": {
+            name: value
+            for name, value in video_options.member_defaults(db, user_id).items()
+            if name in text_looks.FIELDS
+        },
     }
 
 
@@ -2359,6 +2385,13 @@ def patch_topic(
             raise invalid(str(err)) from None
     if body.video_mode is not None:
         topic.video_mode = body.video_mode
+    if "text_look" in body.model_fields_set:
+        try:
+            topic.text_look = text_looks.clean_look(body.text_look) if body.text_look else None
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
+    if body.text_ai is not None:
+        topic.text_ai = body.text_ai
     if body.stock_order is not None:
         unknown = [source for source in body.stock_order if source not in STOCK_SOURCES]
         if unknown:
@@ -2395,6 +2428,18 @@ def _set_group_templates(db: DbSession, topic: KnowledgeTopic, body: TopicPatchB
     elif isinstance(topic.edit_template_default, int) and topic.edit_template_default not in held:
         # A template taken off the group no longer dresses its new videos.
         topic.edit_template_default = None
+
+
+@router.post("/knowledge/topics/{topic_id}/text-suggestions")
+def suggest_text_looks(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "AI gợi ý" on the group's "Chữ & phụ đề": a job (the team's LLM, one call); its looks wait on the group for a
+    member to pick one and save it."""
+    topic = _topic(db, topic_id)
+    ensure_group_editor(db, topic, me.user_id)
+    if not text_looks.enqueue(db, topic.id, me.user_id):
+        raise ApiError(409, "text_look_busy", "Nhóm đang có gợi ý kiểu chữ chờ hoặc đang tạo")
+    db.commit()
+    return _knowledge_payload(db, me.user_id)
 
 
 @router.post("/knowledge/topics/{topic_id}/owner")

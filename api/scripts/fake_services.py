@@ -176,6 +176,25 @@ def article_json(topic: str) -> dict:
     }
 
 
+def text_looks_json() -> dict:
+    """ "AI gợi ý" of a group's "Chữ & phụ đề": three looks, one of them with a value the app refuses."""
+    return {
+        "options": [
+            {
+                "name": "Ấm áp dễ đọc",
+                "reason": "Hộp trắng chữ to, hợp người lớn tuổi.",
+                "look": {"text_style": "white", "text_size": "large", "text_case": "keep", "captions": "phrase"},
+            },
+            {
+                "name": "Nổi bật",
+                "reason": "Hộp đỏ, tô vàng từng từ.",
+                "look": {"text_style": "red", "accent_color": "#FFD400", "captions": "word"},
+            },
+            {"name": "Tối giản", "reason": "Chữ viền không hộp.", "look": {"text_style": "none", "text_size": "huge"}},
+        ]
+    }
+
+
 def plan_json(first: int, last: int, per_day: int = 4) -> dict:
     """A 30-day plan answer for days `first` to `last`, every topic different."""
     return {
@@ -455,6 +474,8 @@ class FakeServices:
             reply = learned_json(topic, self.default_seconds, with_analysis='"phan_tich"' in prompt)
         elif reply is None and "<gop-y>" in prompt:
             reply = revise_json(prompt)
+        elif reply is None and "phong cách chữ và phụ đề KHÁC HẲN" in prompt:
+            reply = text_looks_json()
         elif reply is None:
             topic = prompt.split("Chủ đề: ", 1)[-1].split("\n", 1)[0].strip() or "sức khỏe"
             reply = script_json(topic, self.default_seconds)
@@ -464,6 +485,9 @@ class FakeServices:
                     scene["effects"] = {"transition": ["circle", "zoom", "slide"][index % 3], "color": None}
                 reply["scenes"][0]["effects"]["sounds"] = [{"sound": "ding", "start": 0.2}]
                 reply["scenes"][1]["effects"]["layer"] = {"text": "Dễ *trồng*", "start": 0, "seconds": 1}
+            if "KIỂU CHỮ CHO VIDEO NÀY" in prompt:
+                # "AI chọn kiểu chữ cho từng video": a dark box, kept as typed, captions word by word.
+                reply["text_look"] = {"text_style": "dark", "text_case": "keep", "captions": "word"}
         text = reply if isinstance(reply, str) else json.dumps(reply, ensure_ascii=False)
         return 200, {
             "id": "msg_fake",

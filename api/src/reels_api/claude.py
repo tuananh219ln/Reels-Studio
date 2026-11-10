@@ -173,6 +173,8 @@ class GeneratedScript:
     music_suggestions: list[str] = field(default_factory=list)
     title_keywords_en: list[str] = field(default_factory=list)
     title_image_prompt: str = ""
+    # "AI chọn kiểu chữ cho từng video": the look the AI wrote; checked field by field when it is put on.
+    text_look: object = None
     # "Loại nội dung", one of the team's when one fits (videos.content_type); "" when the answer has none.
     content_type: str = ""
 
@@ -380,6 +382,7 @@ def parse_output(raw: str) -> GeneratedScript:
         title_keywords_en=_keywords(data.get("title_keywords_en")),
         title_image_prompt=_text(data.get("title_image_prompt")),
         content_type=_content_type(data.get("content_type")),
+        text_look=data.get("text_look"),
     )
 
 

@@ -520,6 +520,14 @@ export type KnowledgeTopic = {
   video_mode: GroupVideoMode;
   /** The mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today in Vietnam). */
   video_mode_today: VideoMode;
+  /** "Chữ & phụ đề" of the group's new videos, over their maker's defaults; null: each maker's own. */
+  text_look: Partial<VideoOptions> | null;
+  /** "AI chọn kiểu chữ cho từng video": the script call also picks each video's look, over the group's. */
+  text_ai: boolean;
+  /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
+  text_suggestions: TextSuggestions | null;
+  /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */
+  text_job: { id: number; status: "queued" | "running" | "failed"; error: string | null } | null;
   /** The group's own "Mẫu dựng" (saved templates' ids). */
   templates: number[];
   /** The template the group's new videos take ("app" or one of `templates`), over their maker's own; null for none. */
@@ -820,6 +828,14 @@ export type Knowledge = {
   default_analyze_prompt: string;
   default_revise_prompt: string;
   default_article_prompt: string;
+  /** Where a group's own "Chữ & phụ đề" starts from: the member's own defaults. */
+  default_text_look: Partial<VideoOptions>;
+};
+
+export type TextSuggestions = {
+  job_id: number;
+  created_at: string;
+  options: { name: string; reason: string; look: Partial<VideoOptions> }[];
 };
 
 /** What a 30-day plan idea says; `topic` becomes the video's Chủ đề. A null day is the Backlog. */
@@ -1356,7 +1372,7 @@ export type JobRow = {
   video_title: string;
   /** "plan": "Tạo bằng AI" of a 30-day plan, which belongs to a topic group; "article_caption": "AI viết" of an
    * article ("Bài viết"). */
-  kind: JobInfo["kind"] | "plan" | "article_caption";
+  kind: JobInfo["kind"] | "plan" | "text_look" | "article_caption";
   kind_label: string;
   status: JobInfo["status"];
   created_by: string;

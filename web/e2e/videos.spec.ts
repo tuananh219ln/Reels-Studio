@@ -201,7 +201,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
   await cloneCard.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(page.getByText("Đã lưu prompt nhân bản")).toBeVisible();
-  await health.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await health.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await health.getByLabel("Từ cấm", { exact: true }).fill("thần dược\nđặc trị");
   await health.getByRole("button", { name: "Lưu từ cấm" }).click();
   await expect(page.getByText("Đã lưu danh sách từ cấm")).toBeVisible();
@@ -216,7 +216,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await beauty.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(beauty.getByLabel("Prompt viết kịch bản", { exact: true })).toHaveValue("");
   await expect(beauty.getByRole("tab", { name: /^Viết kịch bản/ })).toContainText("Trống");
-  await beauty.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await beauty.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await expect(beauty.getByLabel("Từ cấm", { exact: true })).toHaveValue("");
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
 
@@ -234,7 +234,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(prompt).toHaveValue("Prompt mới cho [Chủ đề]");
   await cloneItem.click();
   await expect(clonePrompt).toHaveValue("Biến thể của [tiêu đề] chưa lưu");
-  await health.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await health.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await expect(health.getByLabel("Từ cấm", { exact: true })).toHaveValue("thần dược\nđặc trị");
   await health.getByRole("tab", { name: "Prompt", exact: true }).click();
   await scriptItem.click();
@@ -363,7 +363,7 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   await group.getByRole("button", { name: "Lưu", exact: true }).first().click();
   await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
 
-  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   const card = group.locator(".ant-card").filter({ hasText: "Giọng mặc định của nhóm" });
   await expect(card).toContainText("Theo Thiết lập mặc định của người tạo");
   await expect(card.getByRole("button", { name: "Lưu giọng" })).toBeDisabled();
@@ -374,7 +374,7 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   await expect(page.getByText("Đã lưu giọng của nhóm")).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: /Già Mà Khỏe/ }).click();
-  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await expect(card.locator(".ant-select")).toContainText("Mai");
 
   // A new video of the group reads with the group's voice, with nothing set on it by hand.
@@ -389,6 +389,51 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   expect(video.options.voice_id).toBe("fake-voice-mai");
 });
 
+test("knowledge topics: a group's text look from an AI suggestion is what its new videos start with", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await page.goto("/knowledge");
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Chữ Riêng");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  const group = page.locator('[data-topic="Chữ Riêng"]');
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
+  await expect(group.getByRole("heading", { name: "Viết kịch bản & tìm ảnh" })).toBeVisible();
+  await expect(group.getByRole("heading", { name: "Video mới của nhóm" })).toBeVisible();
+  const card = group.getByTestId("group-text-look");
+  await expect(card).toContainText("Theo Thiết lập mặc định của người tạo video");
+  await expect(card.getByRole("button", { name: "Lưu chữ & phụ đề" })).toBeDisabled();
+
+  // "AI gợi ý" is a job on the team's (fake) LLM: its looks show up once the worker has made them.
+  await card.getByRole("button", { name: "AI gợi ý" }).click();
+  const suggestions = card.getByTestId("text-suggestion");
+  await expect(suggestions).toHaveCount(3, { timeout: 60_000 });
+  await suggestions.filter({ hasText: "Nổi bật" }).getByRole("button", { name: "Dùng kiểu này" }).click();
+  await expect(card.getByRole("switch", { name: "Nhóm có kiểu chữ riêng" })).toBeChecked();
+  await card.getByRole("switch", { name: "AI chọn kiểu chữ cho từng video" }).click();
+  await card.getByRole("button", { name: "Lưu chữ & phụ đề" }).click();
+  await expect(page.getByText("Đã lưu chữ & phụ đề của nhóm")).toBeVisible();
+  await expect(card.getByRole("button", { name: "Lưu chữ & phụ đề" })).toBeDisabled();
+
+  const knowledge = await (await page.request.get("/api/knowledge")).json();
+  const topic = knowledge.topics.find((item: { name: string }) => item.name === "Chữ Riêng");
+  expect(topic.text_ai).toBe(true);
+  expect(topic.text_look).toMatchObject({
+    text_style: "box",
+    box_color: "#E10600",
+    accent_color: "#FFD400",
+    captions: "word",
+  });
+  const made = await page.request.post("/api/videos", {
+    data: { topic: "rau mầm", knowledge_topic_id: topic.id, mode: "manual", script: "Một" },
+    headers: { Origin: new URL(page.url()).origin },
+  });
+  expect(made.ok()).toBe(true);
+  const video = await made.json();
+  expect(video.options).toMatchObject({ text_style: "box", box_color: "#E10600", captions: "word" });
+});
+
 test("knowledge topics: a group's video mode is what its new videos take unless one is picked", async ({ page }) => {
   test.setTimeout(120_000);
   await loginAsSeed(page);
@@ -400,7 +445,7 @@ test("knowledge topics: a group's video mode is what its new videos take unless 
   await group.getByLabel("Prompt viết kịch bản", { exact: true }).fill("Viết kịch bản món quê về [Chủ đề]");
   await group.getByRole("button", { name: "Lưu", exact: true }).first().click();
   await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
-  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   const card = group.locator(".ant-card").filter({ hasText: "Kiểu video của nhóm" });
   await expect(card.getByRole("radio", { name: "Slide ảnh" })).toBeChecked();
   await expect(card.getByRole("button", { name: "Lưu kiểu video" })).toBeDisabled();
@@ -413,7 +458,7 @@ test("knowledge topics: a group's video mode is what its new videos take unless 
   await expect(card.getByRole("button", { name: "Lưu kiểu video" })).toBeDisabled();
   await page.reload();
   await page.getByRole("button", { name: /Món Quê/ }).click();
-  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await expect(card.getByRole("radio", { name: "Video xuyên suốt" })).toBeChecked();
 
   // The dialog starts on the group's mode and says so; a video made with nothing picked takes it.
@@ -1087,7 +1132,7 @@ test("knowledge topics: a group's own template dresses its new videos, over its 
   await page.getByLabel("Tên nhóm chủ đề mới").fill("Mẫu riêng");
   await page.getByRole("button", { name: "Thêm nhóm" }).click();
   const group = page.locator('[data-topic="Mẫu riêng"]');
-  await group.getByRole("tab", { name: "Mẫu dựng" }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   const card = group.locator(".ant-card").filter({ hasText: "Mẫu dựng của nhóm" });
   await expect(card.getByRole("button", { name: "Lưu mẫu dựng" })).toBeDisabled();
   await chooseOption(page, card.getByLabel("Mẫu cho video mới của nhóm"), "Gợi ý của app");
@@ -1931,7 +1976,7 @@ test("a topic group puts Wikimedia first: the picker and “Tìm ảnh” follow
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   const group = page.locator('[data-topic="Sức khỏe"]');
-  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   const card = group.getByTestId("stock-order-card");
   await expect(card).toContainText("Nhóm đang dùng thứ tự chung của app.");
   await expect(card.getByTestId("stock-order-item").first()).toContainText("Pexels");
@@ -1960,7 +2005,7 @@ test("a topic group puts Wikimedia first: the picker and “Tìm ảnh” follow
   // Back to the app's order.
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
-  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await group.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await card.getByRole("button", { name: "Dùng thứ tự chung" }).click();
   await expect(card).toContainText("Nhóm đang dùng thứ tự chung của app.");
   await expect(card.getByTestId("stock-order-item").first()).toContainText("Pexels");
@@ -3191,7 +3236,7 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await expect(theirs.getByRole("button", { name: "Tạo video" })).toBeEnabled();
   await theirs.getByRole("tab", { name: "Prompt", exact: true }).click();
   await expect(theirs.getByLabel("Prompt viết kịch bản", { exact: true })).toBeDisabled();
-  await theirs.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await theirs.getByRole("tab", { name: "Cài đặt nhóm" }).click();
   await expect(theirs.getByLabel("Từ cấm", { exact: true })).toBeDisabled();
 
   // Turned back on, the teammate edits again.
