@@ -65,8 +65,10 @@ import { usePresence } from "@/lib/presence";
 import { COLORS } from "@/app/theme";
 import FormDrawer from "@/components/FormDrawer";
 
-// Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket.
+// Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket while a job runs,
+// someone edits or a teammate has it open. A video only looked at, alone and with nothing running, is read less often.
 const REFRESH_MS = 2500;
+const IDLE_REFRESH_MS = 10_000;
 const JOB_NAMES = {
   script: "Viết kịch bản",
   clone: "Nhân bản",
@@ -104,6 +106,8 @@ export default function VideoPage() {
   const { me } = useMe();
   const [video, setVideo] = useState<VideoDetail | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Why the video could not be read (the api down, a 500), shown with "Thử lại" while there is nothing to show yet.
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // /videos/<id>?clone=tiktok|page: a suggestion on "Bài đăng" or a card on the list opens the clone drawer with its
   // request filled in. Read from useSearchParams, not window.location when the state starts: after a link inside the
@@ -159,9 +163,12 @@ export default function VideoPage() {
     try {
       receive(await api<VideoDetail>(`/videos/${id}`));
       setLoadError(null);
+      setFetchError(null);
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setLoadError(err.message);
+      } else {
+        setFetchError(errorMessage(err));
       }
     }
   }, [id, receive]);
@@ -170,7 +177,7 @@ export default function VideoPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount; state is set only after the request answers
     void load();
   }, [load]);
-  usePolling(load, REFRESH_MS);
+  usePolling(load, video?.active_job || editing || others.length > 0 ? REFRESH_MS : IDLE_REFRESH_MS);
 
   // A render seen running on this page says when it is done, wherever the member has scrolled to.
   // Only a new MP4 counts: a cancelled or failed render leaves the old one's time as it was.
@@ -315,6 +322,20 @@ export default function VideoPage() {
           <Link prefetch={false} href="/videos">
             Về danh sách video
           </Link>
+        }
+      />
+    );
+  }
+  if (!video && fetchError) {
+    return (
+      <Result
+        status="warning"
+        title="Không tải được video"
+        subTitle={fetchError}
+        extra={
+          <Button type="primary" onClick={() => void load()}>
+            Thử lại
+          </Button>
         }
       />
     );

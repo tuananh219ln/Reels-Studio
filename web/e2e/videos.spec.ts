@@ -2333,7 +2333,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   await page.getByRole("menuitem", { name: "Video" }).click();
   await page.getByRole("button", { name: "Tạo video" }).click();
   const dialog = page.getByRole("dialog", { name: "Tạo video" });
-  await expect(dialog.getByTestId("llm-line")).toContainText("Viết bằng: Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini");
+  await expect(dialog.getByTestId("llm-line")).toContainText("Viết bằng: Tùy chỉnh (chuẩn OpenAI), fake-gpt-mini");
   await dialog.getByLabel("Chủ đề", { exact: true }).fill("xương khớp sau 50 tuổi");
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await jobFinished(page);

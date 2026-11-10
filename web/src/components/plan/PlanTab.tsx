@@ -416,7 +416,9 @@ function PlanView({
   const path = `/plans/${plan.topic_id}`;
   const byDay = (day: number) => plan.items.filter((item) => item.day === day);
   const planned = plan.items.filter((item) => item.day !== null);
-  const shown = planned.filter((item) => matches(item, filters));
+  // The filters apply to the day open in the drawer, so they count that day's ideas.
+  const dayItems = byDay(selected);
+  const dayShown = dayItems.filter((item) => matches(item, filters));
   const scheduled = planned.filter((item) => item.status === "scheduled").length;
   const empty = Array.from({ length: PLAN_DAYS }, (_, index) => index + 1).filter((day) => !byDay(day).length).length;
 
@@ -492,7 +494,7 @@ function PlanView({
               // A plan with nothing in it starts from one place, not from thirty empty days.
               <Card size="small" data-testid="plan-empty">
                 <EmptyState
-                  description="Kế hoạch chưa có ý tưởng nào. Để AI lập 30 ngày theo prompt kế hoạch, bấm “Nhập file JSON/CSV” ở trên, hoặc thêm tay từng ngày bên dưới."
+                  description="Kế hoạch chưa có ý tưởng nào. Bấm “Lập kế hoạch bằng AI” để AI lập 30 ngày theo prompt kế hoạch, hoặc “Nhập file JSON/CSV” ở trên, hoặc thêm tay từng ngày bên dưới."
                   action={
                     <Flex gap={8} justify="center" wrap>
                       <Button
@@ -582,7 +584,7 @@ function PlanView({
                   style={{ width: 340, maxWidth: "100%" }}
                 />
                 <Typography.Text type="secondary" data-testid="plan-matches">
-                  {shown.length}/{planned.length} ý tưởng khớp
+                  {dayShown.length}/{dayItems.length} ý tưởng của ngày khớp
                 </Typography.Text>
                 <Button
                   onClick={() => setFilters(NO_FILTERS)}
@@ -605,8 +607,8 @@ function PlanView({
                 bare
                 day={selected}
                 plan={plan}
-                items={byDay(selected).filter((item) => matches(item, filters))}
-                total={byDay(selected).length}
+                items={dayShown}
+                total={dayItems.length}
                 compact={compact}
                 onAdd={() => onAdd(selected)}
                 onDrop={(id) => {

@@ -12,7 +12,8 @@
 - **Pages stay light on the web worker.** Every page render and every `/api` call passes through the
   OpenNext worker, which costs about a second or more per request in production. So pages poll with
   `usePolling` ([polling.ts](../web/src/lib/polling.ts)): the next poll waits for the previous
-  answer, and a hidden tab does not poll. Links are written `prefetch={false}`, since a prefetch is
+  answer, and a hidden tab does not poll. A page polls every few seconds only while something on it
+  is being made or edited, and about once a minute otherwise (UI Rules, "Refresh"). Links are written `prefetch={false}`, since a prefetch is
   a full server render. Hashed build files are cached for good through
   [web/public/_headers](../web/public/_headers).
 - **A page's view in the address is read with `useSearchParams`.** For example `/posts?view=calendar`.

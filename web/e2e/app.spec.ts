@@ -376,9 +376,10 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
   await fanpages.click();
   await expect(page.getByRole("heading", { name: "Quản lý Page" })).toBeVisible();
   await expect(page).toHaveURL(/\/fanpages$/);
-  // Once the list has loaded with no Page yet, "Thêm Fanpage" is both in the header and in the empty state.
+  // Once the list has loaded with no Page yet, the empty state offers its own, differently named button.
   await expect(page.getByText("Chưa kết nối Fanpage nào")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Thêm Fanpage" })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Kết nối Page đầu tiên" })).toBeVisible();
 });
 
 test("the worker checks a connected Page's token and shows its followers", async ({ page }) => {

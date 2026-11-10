@@ -403,19 +403,23 @@ function FanpageDashboard() {
     setTabInAddress(next);
   };
 
-  const load = useCallback(async () => {
-    try {
-      setData(await api<PageDashboard>(`/fanpages/${id}/dashboard?days=${days}`));
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) setMissing(true);
-      else message.error(errorMessage(err));
-    }
-  }, [id, days, message]);
+  // `quiet` for the refreshes: an api that is down is said once, on opening, not every minute.
+  const load = useCallback(
+    async (quiet = false) => {
+      try {
+        setData(await api<PageDashboard>(`/fanpages/${id}/dashboard?days=${days}`));
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) setMissing(true);
+        else if (!quiet) message.error(errorMessage(err));
+      }
+    },
+    [id, days, message],
+  );
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount and on a new period; state is set only after the request answers
     void load();
   }, [load]);
-  usePolling(load, REFRESH_MS);
+  usePolling(() => load(true), REFRESH_MS);
   useFreshenOnOpen("/fanpages/freshen", load);
 
   const loadQueue = useCallback(() => api<QueueOverview>("/queue").then(setQueue, () => undefined), []);

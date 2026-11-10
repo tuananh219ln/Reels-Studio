@@ -71,7 +71,10 @@ import { useGuardedClose } from "@/lib/unsaved";
 import FormDrawer from "@/components/FormDrawer";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
 
+/** While a video is being made the list follows its stages closely; otherwise only teammates' new videos and the
+ * numbers change, which a minute's wait shows soon enough. */
 const REFRESH_MS = 5000;
+const IDLE_REFRESH_MS = 60_000;
 /** From this many times its Page's median at 48 hours a post is drawn as a standout (docs/content.md). */
 const STANDOUT_TIMES = 10;
 
@@ -200,8 +203,9 @@ function Videos() {
     const timer = setTimeout(() => reload(query), 250);
     return () => clearTimeout(timer);
   }, [query, reload]);
-  // Statuses change in the worker: keep the list current without a reload.
-  usePolling(() => reload(query, true), REFRESH_MS);
+  // Statuses change in the worker: keep the list current without a reload, often only while a job runs.
+  const making = (rows ?? []).some((row) => !["draft", "done", "failed"].includes(row.status));
+  usePolling(() => reload(query, true), making ? REFRESH_MS : IDLE_REFRESH_MS);
 
   useEffect(() => {
     api<PlanToday[]>("/plans/today")
@@ -349,7 +353,8 @@ function Videos() {
       />
     </>
   );
-  const activeFilters = [status !== "all", platform !== "all", fanpage !== null, group !== null, by !== null].filter(
+  // "Cả đội" (an empty `by`) is everyone's videos, no filter.
+  const activeFilters = [status !== "all", platform !== "all", fanpage !== null, group !== null, Boolean(by)].filter(
     Boolean,
   ).length;
 
@@ -1177,7 +1182,7 @@ function NewVideoModal({
               </>
             ) : (
               <>
-                Viết bằng: {llm.name} · {llm.model}.{" "}
+                Viết bằng: {llm.name}, {llm.model}.{" "}
                 <Link prefetch={false} href="/settings/ai">
                   Đổi trong Cài đặt
                 </Link>
