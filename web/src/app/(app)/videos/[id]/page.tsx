@@ -34,6 +34,7 @@ import { useMe } from "@/components/MeContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
+import VideoProgress from "@/components/video/VideoProgress";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import { EditorContext } from "@/components/video/AutoSaveField";
@@ -46,7 +47,15 @@ import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
 import VideoPreview from "@/components/video/VideoPreview";
-import { ApiError, api, errorMessage, type SceneData, type VideoDetail, type VideoMode } from "@/lib/api";
+import {
+  ApiError,
+  api,
+  errorMessage,
+  formatDateTime,
+  type SceneData,
+  type VideoDetail,
+  type VideoMode,
+} from "@/lib/api";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import { usePolling } from "@/lib/polling";
 import { usePresence } from "@/lib/presence";
@@ -353,10 +362,12 @@ export default function VideoPage() {
             </Flex>
             <Typography.Text type="secondary" style={{ fontSize: 13 }}>
               Chủ đề {video.topic}
-              {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by}
+              {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by} lúc{" "}
+              <span data-testid="video-created-at">{formatDateTime(video.created_at)}</span>
             </Typography.Text>
             <PresenceAvatars others={others} />
           </Flex>
+          <VideoProgress video={video} onOpenTab={setSideTab} />
           <Flex wrap align="center" gap={8} style={{ marginTop: 6 }} data-testid="video-kind-line">
             <ContentTypeField
               key={video.content_type}

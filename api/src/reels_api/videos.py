@@ -884,18 +884,32 @@ def content_types(db: DbSession) -> list[str]:
     return sorted(seen.values(), key=lambda kind: unicodedata.normalize("NFD", kind).casefold())
 
 
-def script_writer(db: DbSession, video: Video) -> str | None:
-    """Who wrote the video's script, so reviewers know what they read: a member's own Claude through MCP, or the
-    provider and model of the job that wrote it."""
-    if video.written_via == "assistant":
-        return assistant_writer(video.assistant_app)
-    job = db.scalar(
+def _script_job(db: DbSession, video: Video) -> Job | None:
+    """The last finished job that wrote the video's script; None for one written by hand or by an assistant."""
+    return db.scalar(
         select(Job)
         .where(Job.video_id == video.id, Job.kind.in_(("script", "clone", "learn")), Job.status == "done")
         .order_by(Job.id.desc())
         .limit(1)
     )
+
+
+def script_writer(db: DbSession, video: Video) -> str | None:
+    """Who wrote the video's script, so reviewers know what they read: a member's own Claude through MCP, or the
+    provider and model of the job that wrote it."""
+    if video.written_via == "assistant":
+        return assistant_writer(video.assistant_app)
+    job = _script_job(db, video)
     return llm.label(job.llm_provider, job.llm_model) if job else None
+
+
+def script_at(db: DbSession, video: Video) -> str | None:
+    """When the script was written, for the progress line: its last job's end, or the video's making when no job
+    wrote it (by hand, or sent by an assistant over MCP)."""
+    if not video.has_script:
+        return None
+    job = _script_job(db, video) if video.written_via != "assistant" else None
+    return (job.finished_at if job and job.finished_at else video.created_at).isoformat()
 
 
 def title_of(video: Video, title: Scene | None) -> str:
@@ -1039,6 +1053,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "knowledge_topic_id": video.knowledge_topic_id,
         "plan_idea": _plan_idea(db, video),
         "script_by": script_writer(db, video) if video.has_script else None,
+        # When the script was written, for the progress line under the title.
+        "script_at": script_at(db, video),
         "clone_of": {
             "title": video.clone_source["title"],
             "request": video.clone_source["request"],

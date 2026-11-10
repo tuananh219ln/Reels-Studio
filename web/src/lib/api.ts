@@ -377,6 +377,8 @@ export type VideoDetail = VideoRow & {
   knowledge_topic_id: number | null;
   /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
   script_by: string | null;
+  /** When the script was written: its last job's end, or the video's making; null without a script. */
+  script_at: string | null;
   clone_of: { title: string; request: string } | null;
   /** "Từ video mẫu": the sample video the script is learned from; null for other videos. */
   reference: VideoSample | null;
