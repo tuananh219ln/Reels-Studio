@@ -375,7 +375,7 @@ test("Video đã đăng starts on the member's own and says whose commission eac
 
   await page.getByLabel("Của ai").getByText("Cả đội (2)").click();
   const theirs = page.getByRole("row", { name: /Bài của đồng đội/ });
-  await expect(theirs.getByTestId("video-post")).toHaveText("Trang Bình · Trần Bình");
+  await expect(theirs.getByTestId("video-post")).toHaveText("Trang Bình (Trần Bình)");
 });
 
 test("Sản phẩm: my groups first, who added each product, and stars or sales fixed on the row", async ({ page }) => {

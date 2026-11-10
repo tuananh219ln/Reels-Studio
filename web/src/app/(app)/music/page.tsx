@@ -10,7 +10,7 @@ import TrackModal, { MAX_MUSIC_BYTES, type TrackTarget } from "@/components/musi
 import TrackTags from "@/components/music/TrackTags";
 import { useTracks, type TrackFilters as Filters } from "@/components/music/useTracks";
 import { api, errorMessage, formatDateTime, type MusicTrack } from "@/lib/api";
-import { useUrlChoice } from "@/lib/urlState";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import PageHeader from "@/components/PageHeader";
 
 export default function MusicPage() {
@@ -23,6 +23,8 @@ export default function MusicPage() {
 }
 
 function Music() {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const { message } = App.useApp();
   const { me } = useMe();
   const input = useRef<HTMLInputElement>(null);
@@ -135,7 +137,7 @@ function Music() {
           columns={columns}
           dataSource={tracks}
           loading={loading}
-          pagination={{ pageSize: 50, hideOnSinglePage: true }}
+          pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
           scroll={{ x: 1150 }}
           locale={{ emptyText: "Chưa có bài nhạc nào" }}
         />

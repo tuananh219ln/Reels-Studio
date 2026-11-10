@@ -155,7 +155,7 @@ export default function MediaLinkSearch({
           aria-label="Tên sản phẩm để tìm"
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
-          placeholder="Tên sản phẩm"
+          placeholder="Tên sản phẩm…"
           style={{ flex: "1 1 220px" }}
         />
         <Button type="primary" icon={<SnippetsOutlined />} loading={adding} onClick={fromClipboard}>

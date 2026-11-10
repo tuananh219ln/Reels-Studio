@@ -943,3 +943,79 @@ test("a list's search, filters and tab are in the address, so a reload shows the
   await expect(page.getByRole("tab", { name: "Sản phẩm" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByLabel("Tìm theo sản phẩm hoặc shop", { exact: true })).toHaveValue("hạt giống");
 });
+
+test("a long table's page is in the address too, and a new filter goes back to page 1", async ({ page }) => {
+  await loginAsSeed(page);
+  await page.goto("/affiliate?tab=products");
+  await page.getByRole("button", { name: "Nhập file" }).click();
+  const dialog = page.getByRole("dialog", { name: "Thêm sản phẩm" });
+  await chooseOption(page, dialog.getByLabel("Nhóm chủ đề"), "Sức khỏe");
+  // 51 products: one more than a page of the table.
+  const rows = Array.from({ length: 51 }, (_, index) => {
+    const id = 45113237100 + index;
+    return `${id},"Sản phẩm số ${index + 1}","45,0k",0,Shop thử,"2,5%",₫900,https://shopee.vn/product/1346703635/${id},https://s.shopee.vn/x${index}\n`;
+  });
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: "lay-link-hang-loat.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "Mã sản phẩm,Tên sản phẩm,Giá,Doanh thu,Tên cửa hàng,Tỉ lệ hoa hồng,Hoa hồng,Link sản phẩm,Link ưu đãi\n" +
+        rows.join(""),
+    ),
+  });
+  await dialog.getByRole("button", { name: "Nhập 51 sản phẩm" }).click();
+  await expect(dialog.getByText("File không có số sao, lượt bán và loại shop")).toBeVisible();
+  await dialog.getByRole("button", { name: "Huỷ" }).click();
+  await expect(dialog).toBeHidden();
+
+  const pager = page.locator(".ant-table-pagination");
+  await pager.getByTitle("2", { exact: true }).click();
+  await expect(page).toHaveURL(/[?&]page=2/);
+  await page.reload();
+  await expect(pager.locator(".ant-pagination-item-active")).toHaveText("2");
+  await expect(page.getByRole("row")).toHaveCount(2); // the header and the 51st product
+  // A search starts the table on page 1 again.
+  await page.getByLabel("Tìm theo sản phẩm hoặc shop", { exact: true }).fill("Sản phẩm");
+  await expect(page).not.toHaveURL(/[?&]page=/);
+  await expect(pager.locator(".ant-pagination-item-active")).toHaveText("1");
+});
+
+test("Kho kiến thức and a Page's dashboard keep the group, tab, period and filters in the address", async ({
+  page,
+}) => {
+  await loginAsSeed(page);
+  // Kho kiến thức: the group shown and its tab come back after a reload.
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]group=\d+/);
+  await expect(page).toHaveURL(/[?&]tab=prompts/);
+  await page.reload();
+  await expect(health.getByRole("tab", { name: "Prompt", exact: true })).toHaveAttribute("aria-selected", "true");
+  // The Video tab's search too; a new tab starts without it.
+  await health.getByRole("tab", { name: /^Video/ }).click();
+  await health.getByLabel("Tìm video của nhóm", { exact: true }).fill("canxi");
+  await expect(page).toHaveURL(/[?&]q=canxi/);
+  await page.reload();
+  await expect(health.getByLabel("Tìm video của nhóm", { exact: true })).toHaveValue("canxi");
+  await health.getByRole("tab", { name: /^Backlog/ }).click();
+  await expect(page).not.toHaveURL(/[?&]q=/);
+  await health.getByLabel("Tìm trong Backlog", { exact: true }).fill("ngủ");
+  await page.reload();
+  await expect(health.getByLabel("Tìm trong Backlog", { exact: true })).toHaveValue("ngủ");
+
+  // A Page's dashboard: its period and tab.
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
+  await card.getByText("Số liệu 7 ngày", { exact: false }).click();
+  await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
+  await page.getByText("7 ngày", { exact: true }).click();
+  await page.getByRole("tab", { name: "Nội dung" }).click();
+  await expect(page).toHaveURL(/[?&]days=7/);
+  await expect(page).toHaveURL(/[?&]tab=content/);
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Nội dung" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("so với 7 ngày trước", { exact: false }).first()).toBeAttached();
+});

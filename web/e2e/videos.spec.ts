@@ -69,7 +69,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   // A script's scenes follow their narration ("Tự khớp lời đọc"): each lasts its fake narration of 0.3 s per word plus
   // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
   // the five scenes' 4 words 1.9 s each.
-  await expect(page.getByTestId("render-time")).toContainText("Dài 12.0 giây");
+  await expect(page.getByTestId("render-time")).toContainText("Dài 12,0 giây");
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
@@ -210,7 +210,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("button", { name: "Thêm nhóm" }).click();
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
   const beauty = page.locator('[data-topic="Làm đẹp"]');
-  await expect(beauty).toContainText("Chưa có prompt viết kịch bản");
+  await expect(beauty).toContainText("chưa có prompt viết kịch bản");
   await expect(beauty.getByText("Nhóm này chưa có video nào")).toBeVisible();
   await expect(beauty.getByRole("button", { name: "Tạo video" })).toHaveCount(0);
   await beauty.getByRole("tab", { name: "Prompt", exact: true }).click();
@@ -241,7 +241,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   // "Lịch sử" of the prompt: who saved what, the difference, and any version (the app's default too) put back.
   await expect(health).toContainText("Nguyễn Văn An sửa Từ cấm lúc");
   await scriptCard.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử · Prompt viết kịch bản" });
+  const history = page.getByRole("dialog", { name: "Lịch sử: Prompt viết kịch bản" });
   const latest = history.getByTestId("edit-history-entry").first();
   await expect(latest).toContainText("Nguyễn Văn An");
   await expect(latest).toContainText("Đang dùng");
@@ -282,7 +282,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(page.getByRole("button", { name: /Làm đẹp/ })).toHaveCount(0);
   // A deleted group stays in the list's history.
   await page.getByRole("button", { name: "Lịch sử nhóm chủ đề" }).click();
-  const groups = page.getByRole("dialog", { name: "Lịch sử · Nhóm chủ đề" });
+  const groups = page.getByRole("dialog", { name: "Lịch sử: Nhóm chủ đề" });
   await expect(groups.getByTestId("edit-history-entry").first()).toContainText("Xoá");
   await expect(groups.getByTestId("edit-history-entry").first()).toContainText("“Làm đẹp da”");
   await expect(groups).toContainText("Làm đẹp → Làm đẹp da");
@@ -510,12 +510,13 @@ test("video list: Cần làm, the group's week, and a TikTok nudge on a card doi
   // Out and doing well: no longer to do, and the card offers a TikTok version, which opens the clone drawer.
   as = "posted";
   await page.reload();
+  // The filter stays in the address over the reload: still on "Cần làm", where the video no longer is.
+  await expect(page).toHaveURL(/[?&]status=todo/);
+  await expect(cards).toHaveCount(0);
   await expect(page.getByTestId("group-week")).toContainText("1 đã đăng, 0 còn nháp");
+  await page.goto("/videos");
   const nudge = page.getByTestId("card-make-tiktok");
   await expect(nudge).toHaveText("Tạo bản TikTok");
-  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Cần làm");
-  await expect(cards).toHaveCount(0);
-  await page.reload();
   await nudge.click();
   await expect(page.getByRole("dialog", { name: "Tạo bản TikTok" })).toBeVisible();
 });
@@ -1220,6 +1221,8 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await groups.getByRole("cell").last().click(); // the row, not the title's link
   const posts = page.getByTestId("post-rows");
   await expect(posts.getByRole("link", { name: "Xem Reel" })).toBeVisible();
+  // On a phone the table scrolls inside its card instead of being cut off.
+  await expect(posts.locator(".ant-table-content").first()).toHaveCSS("overflow-x", "auto");
   // Every post has the same action buttons; those that do not apply are greyed out.
   await expect(posts.getByRole("button", { name: "Thử lại" })).toBeDisabled();
   await expect(posts.getByRole("button", { name: "Kiểm tra" })).toBeEnabled();
@@ -1241,6 +1244,7 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await expect(insights.getByTestId("insight-avg-watch")).toContainText("8,4 giây");
   await expect(insights.getByTestId("retention-chart")).toBeVisible();
   await expect(insights.getByTestId("scene-drop-off").getByRole("row")).toHaveCount(7); // header, title, 5 scenes
+  await expect(insights.getByTestId("scene-drop-off").locator(".ant-table-content")).toHaveCSS("overflow-x", "auto");
   await expect(insights.getByText("mất nhiều nhất")).toHaveCount(1);
   await page.getByRole("dialog", { name: "Phân tích bài đăng" }).getByRole("button", { name: "Đóng" }).click(); // antd's vi_VN label for the X
   await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
@@ -2499,10 +2503,10 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   const stockSection = page.locator("section").filter({ hasText: "Kho ảnh và video miễn phí" });
   await expect(stockSection.getByTestId("last-edit")).toContainText(`Sửa lần cuối bởi ${SEED.name}`);
   await page.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử · Nguồn tư liệu" });
+  const history = page.getByRole("dialog", { name: "Lịch sử: Nguồn tư liệu" });
   await expect(history.getByTestId("edit-history-entry")).toHaveCount(2);
-  await expect(history).toContainText("Pixabay · Khoá: đã thêm khoá …-key");
-  await expect(history).toContainText("Pexels · Hiện trong hộp chọn: Bật → Tắt");
+  await expect(history).toContainText("Khoá (Pixabay): đã thêm khoá …-key");
+  await expect(history).toContainText("Hiện trong hộp chọn (Pexels): Bật → Tắt");
   await expect(history).not.toContainText("fake-pixabay-key");
   await page.keyboard.press("Escape");
   // The ElevenLabs key for narration is pasted on the same page.
@@ -2798,7 +2802,7 @@ test("30-day plan: the plan prompt's history puts back the app's default", async
   await expect(plan.getByRole("button", { name: "Khôi phục mặc định" })).toHaveCount(0);
 
   await plan.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử · Prompt kế hoạch" });
+  const history = page.getByRole("dialog", { name: "Lịch sử: Prompt kế hoạch" });
   await expect(history.getByTestId("edit-history-entry")).toHaveCount(1);
   await history
     .getByTestId("edit-history-version")
@@ -3034,7 +3038,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await expect(dayPanel).toBeHidden();
   await expect(plan.getByTestId("plan-week-2")).toContainText(
-    `Tuần 2 · ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
+    `Tuần 2, ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
   );
 
   // An empty day offers "+ Thêm ý"; the idea lands on that day, which is then shown.
@@ -3046,7 +3050,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(plan.getByTestId("plan-day-12").getByTestId("plan-chip")).toHaveText(/Ngủ trưa 20 phút/);
   await expect(dayTitle).toHaveText(`Ngày 12 — ${vietnamDay(5).long}`);
   await expect(dayPanel.getByTestId("plan-idea")).toHaveCount(1);
-  await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng · 0 đã làm · 0 đã lên lịch");
+  await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng, 0 đã làm, 0 đã lên lịch");
 
   // Another day opens in the drawer in its place.
   await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
@@ -3072,7 +3076,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(todayIdea).toContainText("Ý tưởng");
   await expect(todayIdea.getByRole("button", { name: "Tạo video" })).toBeVisible();
   await expect(todayIdea.getByRole("button", { name: "Sửa" })).toBeVisible();
-  await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+ · Đã lên lịch \d+ · Ngày còn trống \d+$/);
+  await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+, đã lên lịch \d+, ngày còn trống \d+$/);
 
   // The filters apply to the day in the drawer, not to the calendar, and stay when it is closed.
   await page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng").fill("không có ý nào như thế");
@@ -3122,7 +3126,7 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await binh.goto("/knowledge");
   await binh.getByRole("button", { name: /Sức khỏe/ }).click();
   const theirs = binh.locator('[data-topic="Sức khỏe"]');
-  await expect(theirs.getByTestId("group-locked")).toContainText(`Chỉ ${SEED.name} sửa được nhóm này`);
+  await expect(theirs.getByTestId("group-locked")).toContainText(`chỉ ${SEED.name} sửa được nhóm này`);
   await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
   await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
   // Its videos are still made by anyone; its prompts are read, not edited.

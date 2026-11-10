@@ -5,7 +5,7 @@ import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tabs, To
 import type { ColumnsType } from "antd/es/table";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
-import { useUrlChoice } from "@/lib/urlState";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import { SHOWN_STATUS, shownStatus, type ShownStatus } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
 import PostCalendar from "@/components/PostCalendar";
@@ -168,7 +168,7 @@ function Posts() {
         <Input
           aria-label="Tìm theo tiêu đề"
           prefix={<SearchOutlined />}
-          placeholder="Tìm theo tiêu đề"
+          placeholder="Tìm theo tiêu đề…"
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -295,6 +295,8 @@ function totalViews(posts: PostRow[]): string {
 /** "Bài đăng": a row per video with what its posts add up to; opening it lists each post with its own Page, time,
  * numbers and actions. */
 function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void }) {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const columns: ColumnsType<Group> = [
     {
       title: "Video",
@@ -326,7 +328,7 @@ function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void })
       rowKey="videoId"
       columns={columns}
       dataSource={groups}
-      pagination={{ pageSize: 50, hideOnSinglePage: true }}
+      pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
       scroll={{ x: 900 }}
       onRow={() => ({ "data-testid": "post-group", style: { cursor: "pointer" } }) as React.HTMLAttributes<HTMLElement>}
       expandable={{
@@ -397,7 +399,15 @@ function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) 
   ];
   return (
     <div data-testid="post-rows">
-      <Table<PostRow> rowKey="id" size="small" columns={columns} dataSource={posts} pagination={false} />
+      <Table<PostRow>
+        rowKey="id"
+        size="small"
+        columns={columns}
+        dataSource={posts}
+        pagination={false}
+        // On a phone the columns scroll inside the card instead of being cut off.
+        scroll={{ x: "max-content" }}
+      />
     </div>
   );
 }

@@ -1453,6 +1453,11 @@ export function fromVietnamInput(value: string): string {
   return new Date(`${value}:00+07:00`).toISOString();
 }
 
+/** A number the Vietnamese way, with a decimal comma and `digits` decimals: "3,5" (giây), "1,25" (×). */
+export function formatDecimal(value: number, digits = 1): string {
+  return value.toLocaleString("vi-VN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
 export function formatLastLogin(iso: string | null): string {
   return iso ? formatDateTime(iso) : "Chưa đăng nhập";
 }

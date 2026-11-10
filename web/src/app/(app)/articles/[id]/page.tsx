@@ -447,7 +447,7 @@ export default function ArticlePage() {
                     <Input
                       aria-label="Link ảnh"
                       prefix={<LinkOutlined />}
-                      placeholder="Dán link ảnh"
+                      placeholder="Dán link ảnh…"
                       value={link}
                       onChange={(event) => setLink(event.target.value)}
                     />

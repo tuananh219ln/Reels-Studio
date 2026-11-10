@@ -14,7 +14,7 @@ export default function TrackFilters({ value, onChange }: { value: Filters; onCh
       <Input
         aria-label="Tìm theo tên bài"
         prefix={<SearchOutlined />}
-        placeholder="Tìm theo tên bài"
+        placeholder="Tìm theo tên bài…"
         allowClear
         value={value.q}
         onChange={(event) => onChange({ ...value, q: event.target.value })}

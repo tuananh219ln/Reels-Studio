@@ -290,7 +290,7 @@ export default function StockPicker({
           )}
           <Input.Search
             aria-label="Từ khóa tìm ảnh"
-            placeholder="Nhập từ khóa rồi bấm Enter, ví dụ: cá cơm chiên"
+            placeholder="Nhập từ khóa rồi bấm Enter, ví dụ: cá cơm chiên…"
             value={query}
             enterButton={<SearchOutlined aria-label="Tìm" />}
             onChange={(event) => {
@@ -540,7 +540,7 @@ function ClipPicker({
       )}
       <Input.Search
         aria-label="Từ khóa tìm video"
-        placeholder="Nhập từ khóa tiếng Anh rồi bấm Enter, ví dụ: fried fish"
+        placeholder="Nhập từ khóa tiếng Anh rồi bấm Enter, ví dụ: fried fish…"
         value={query}
         enterButton={<SearchOutlined aria-label="Tìm" />}
         onChange={(event) => setQuery(event.target.value)}

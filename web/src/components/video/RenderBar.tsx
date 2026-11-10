@@ -7,6 +7,7 @@ import type { VideoDetail } from "@/lib/api";
 import GooglePhotosButton from "./GooglePhotosButton";
 import ImageProviderMenu from "./ImageProviderMenu";
 import { COLORS } from "@/app/theme";
+import { formatDecimal } from "@/lib/api";
 
 /** Scrolls to the first red reason on the page: a whole-video one, else a scene's. */
 export function showFirstBlocking() {
@@ -133,9 +134,9 @@ export default function RenderBar({
         <Flex vertical gap={2} style={{ minWidth: 0 }}>
           {status}
           <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="render-bar-summary">
-            {video.scenes.length} cảnh · dài khoảng {Math.round(seconds)} giây ·{" "}
+            {video.scenes.length} cảnh, dài khoảng {Math.round(seconds)} giây,{" "}
             {video.voice_enabled ? "có giọng đọc" : "không giọng đọc"}
-            {video.mp4 ? ` · MP4 hiện tại ${video.mp4.seconds.toFixed(1)} giây` : " · chưa có MP4"}
+            {video.mp4 ? `, MP4 hiện tại ${formatDecimal(video.mp4.seconds)} giây` : ", chưa có MP4"}
           </Typography.Text>
         </Flex>
         <Flex wrap gap={8}>

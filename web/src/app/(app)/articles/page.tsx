@@ -106,7 +106,7 @@ function NewArticleDrawer({
           <Input.TextArea
             autoSize={{ minRows: 2, maxRows: 4 }}
             maxLength={300}
-            placeholder="Ví dụ: Uống nước ấm buổi sáng"
+            placeholder="Ví dụ: Uống nước ấm buổi sáng…"
           />
         </Form.Item>
         {kind === "tra_loi_binh_luan" && (

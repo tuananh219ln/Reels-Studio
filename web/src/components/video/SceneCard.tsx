@@ -828,7 +828,7 @@ export function ScenePicture({
       {scene.motion && (
         // A "Cảnh động" an assistant wrote through the MCP connection; changed there, replaced like any clip here.
         <StatusText tone={scene.motion.pending ? "active" : "done"}>
-          {scene.motion.pending ? "Đang dựng cảnh động" : `Cảnh động · ${scene.motion.seconds} giây`}
+          {scene.motion.pending ? "Đang dựng cảnh động" : `Cảnh động, ${scene.motion.seconds} giây`}
         </StatusText>
       )}
       {(scene.video?.blur.length ?? 0) > 0 && (

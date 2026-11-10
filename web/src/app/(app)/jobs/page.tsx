@@ -6,7 +6,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
-import { useUrlChoice } from "@/lib/urlState";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import PageHeader from "@/components/PageHeader";
 import UserAvatar from "@/components/UserAvatar";
 import { usePolling } from "@/lib/polling";
@@ -66,6 +66,8 @@ export default function JobsPage() {
 }
 
 function Jobs() {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const { message } = App.useApp();
   const router = useRouter();
   const [shown, setShown] = useState<JobRow[]>([]);
@@ -246,7 +248,7 @@ function Jobs() {
         <Input
           allowClear
           aria-label="Tìm theo video"
-          placeholder="Tìm theo tên video"
+          placeholder="Tìm theo tên video…"
           prefix={<SearchOutlined />}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -284,7 +286,12 @@ function Jobs() {
           columns={columns}
           dataSource={filtered}
           loading={loading}
-          pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false }}
+          pagination={{
+            pageSize: 50,
+            hideOnSinglePage: true,
+            showSizeChanger: false,
+            ...tablePage,
+          }}
           scroll={{ x: 1200 }}
           locale={{ emptyText: filtering ? "Không có job nào khớp" : "Chưa có job nào" }}
           onRow={(row) => ({

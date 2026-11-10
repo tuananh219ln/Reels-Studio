@@ -138,7 +138,7 @@ function KeyField({
             aria-label={`API key ${label}`}
             value={key}
             autoComplete="new-password"
-            placeholder="Dán API key vào đây"
+            placeholder="Dán API key vào đây…"
             onChange={(event) => setKey(event.target.value)}
             onPressEnter={() => key.trim() && save(key)}
           />

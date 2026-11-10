@@ -127,7 +127,7 @@ function StyleEditor({
             <Typography.Text strong>Tên kiểu</Typography.Text>
             <Input
               aria-label="Tên kiểu"
-              placeholder="VD: Xanh navy"
+              placeholder="VD: Xanh navy…"
               maxLength={40}
               value={draft.name}
               onChange={(event) => set({ name: event.target.value })}

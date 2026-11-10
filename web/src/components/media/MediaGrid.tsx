@@ -4,6 +4,7 @@ import { VideoCameraOutlined } from "@ant-design/icons";
 import { Card, Empty, Flex, Tag, Typography, theme } from "antd";
 import type { ReactNode } from "react";
 import type { MediaItem } from "@/lib/api";
+import { formatDecimal } from "@/lib/api";
 
 /** The library's photos and clips as tall cards, each with the actions its page gives it. */
 export default function MediaGrid({
@@ -45,7 +46,7 @@ export default function MediaGrid({
               />
               {item.kind === "clip" && (
                 <Tag icon={<VideoCameraOutlined />} style={{ position: "absolute", left: 6, bottom: 6, margin: 0 }}>
-                  {item.seconds?.toFixed(1)} giây
+                  {item.seconds === null || item.seconds === undefined ? "" : formatDecimal(item.seconds)} giây
                 </Tag>
               )}
             </div>

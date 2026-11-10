@@ -167,7 +167,7 @@ function Media() {
               <Input
                 aria-label="Thư mục"
                 prefix={<FolderAddOutlined />}
-                placeholder="Thư mục (không bắt buộc)"
+                placeholder="Thư mục (không bắt buộc)…"
                 value={target}
                 onChange={(event) => setTarget(event.target.value)}
                 style={{ flex: "1 1 220px" }}
@@ -247,7 +247,7 @@ function Media() {
               />
               <Input.Search
                 allowClear
-                placeholder="Tìm theo tên"
+                placeholder="Tìm theo tên…"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 style={{ flex: "1 1 200px" }}

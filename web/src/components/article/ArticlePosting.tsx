@@ -45,7 +45,7 @@ function count(value: number | null): string {
   return value === null ? "–" : value.toLocaleString("vi-VN");
 }
 
-/** "{reactions} cảm xúc · {comments} bình luận · {shares} chia sẻ · reach {reach}", the share/reach rate when known. */
+/** "{reactions} cảm xúc, {comments} bình luận, {shares} chia sẻ, reach {reach}", the share/reach rate when known. */
 export function numbersLine(numbers: ArticleNumbers, rate: number | null): string {
   const parts = [
     `${count(numbers.reactions)} cảm xúc`,
@@ -54,7 +54,7 @@ export function numbersLine(numbers: ArticleNumbers, rate: number | null): strin
     `reach ${count(numbers.reach)}`,
   ];
   if (rate !== null) parts.push(`share/reach ${(rate * 100).toLocaleString("vi-VN", { maximumFractionDigits: 2 })}%`);
-  return parts.join(" · ");
+  return parts.join(", ");
 }
 
 /** The 48-hour numbers against the Page's median of articles, or why they cannot be read yet. */
@@ -440,7 +440,7 @@ export function CommentCard({
             value={shownIdeas}
             autoSize={{ minRows: 1, maxRows: 4 }}
             disabled={disabled}
-            placeholder="Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
+            placeholder="Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm…"
             onFocus={() => {
               setIdeas(article.affiliates.join("\n"));
               setEditing("ideas");

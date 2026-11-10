@@ -201,6 +201,7 @@ export default function PostInsights({ post, compact = false }: { post: Post; co
                   rowKey="label"
                   dataSource={rows}
                   data-testid="scene-drop-off"
+                  scroll={{ x: "max-content" }}
                   columns={[
                     {
                       title: "Cảnh",

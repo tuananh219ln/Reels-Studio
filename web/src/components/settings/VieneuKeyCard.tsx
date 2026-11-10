@@ -112,7 +112,7 @@ export default function VieneuKeyCard({ footer, onSaved }: { footer?: React.Reac
               aria-label="API key VieNeu"
               value={key}
               autoComplete="new-password"
-              placeholder="Dán API key (vn_sk_…) vào đây"
+              placeholder="Dán API key (vn_sk_…) vào đây…"
               onChange={(event) => setKey(event.target.value)}
               onPressEnter={() => key.trim() && void save(key)}
             />

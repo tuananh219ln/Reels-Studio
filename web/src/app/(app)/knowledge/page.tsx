@@ -29,9 +29,10 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
 import { useLeaveGuard } from "@/lib/unsaved";
+import { keepOnlyInAddress, useUrlChoiceIf, useUrlId } from "@/lib/urlState";
 import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
@@ -40,12 +41,22 @@ import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
 
 export default function KnowledgePage() {
+  // The group shown, its tab and its lists' filters are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Knowledge />
+    </Suspense>
+  );
+}
+
+function Knowledge() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const [data, setData] = useState<Knowledge | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [chosen, setChosen] = useState<number | null>(null);
+  // The group shown is in the address, with its tab and its lists' filters.
+  const [chosen] = useUrlId("group");
   // Topics opened so far stay mounted (hidden when another is chosen): each box keeps its own unsaved text.
   const [opened, setOpened] = useState<number[]>([]);
 
@@ -68,7 +79,8 @@ export default function KnowledgePage() {
   const mounted = data.topics.filter((topic) => topic.id === current?.id || opened.includes(topic.id));
 
   function choose(id: number) {
-    setChosen(id);
+    // Another group opens on its Video tab, as before, with none of the last group's filters.
+    keepOnlyInAddress({ group: String(id) });
     setOpened((ids) => (ids.includes(id) ? ids : [...ids, id]));
   }
 
@@ -153,14 +165,13 @@ export default function KnowledgePage() {
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                         {topic.mine && (
                           <Typography.Text style={{ fontSize: 12, color: token.colorPrimaryText }}>
-                            Của tôi ·{" "}
+                            Của tôi,{" "}
                           </Typography.Text>
                         )}
                         {topic.video_count} video
                         {!topic.script_prompt && (
                           <Typography.Text type="warning" style={{ fontSize: 12 }}>
-                            {" "}
-                            · Chưa có prompt
+                            , chưa có prompt
                           </Typography.Text>
                         )}
                       </Typography.Text>
@@ -176,7 +187,7 @@ export default function KnowledgePage() {
               <Input
                 size="small"
                 aria-label="Tên nhóm chủ đề mới"
-                placeholder="Tên nhóm mới"
+                placeholder="Tên nhóm mới…"
                 maxLength={100}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -203,7 +214,7 @@ export default function KnowledgePage() {
           ) : (
             mounted.map((topic) => (
               <div key={topic.id} hidden={topic.id !== current.id}>
-                <TopicBody topic={topic} defaults={data} onSaved={setData} />
+                <TopicBody topic={topic} defaults={data} onSaved={setData} visible={topic.id === current.id} />
               </div>
             ))
           )}
@@ -365,11 +376,15 @@ function TopicBody({
   topic,
   defaults,
   onSaved,
+  visible,
 }: {
   topic: KnowledgeTopic;
   defaults: Knowledge;
   onSaved: (data: Knowledge) => void;
+  /** The group shown: its tab is the address's; a group opened earlier and hidden keeps its own. */
+  visible: boolean;
 }) {
+  const [tab, setTab] = useUrlChoiceIf<string>(visible, "tab", "videos");
   const { token } = theme.useToken();
   const { me } = useMe();
   const path = `/knowledge/topics/${topic.id}`;
@@ -378,7 +393,7 @@ function TopicBody({
   const readOnly = (children: React.ReactNode) => (
     <ConfigProvider componentDisabled={locked}>{children}</ConfigProvider>
   );
-  const { tabs: planTabs, dialogs: planDialogs } = usePlanTabs(topic.id);
+  const { tabs: planTabs, dialogs: planDialogs } = usePlanTabs(topic.id, visible);
   const update = async (body: Partial<KnowledgeTopic>) => {
     const saved = await api<Knowledge>(path, "PATCH", body);
     onSaved(saved);
@@ -408,18 +423,18 @@ function TopicBody({
         onSaved={onSaved}
         summary={
           <>
-            {topic.video_count} video · {edited} prompt đã sửa
+            {topic.video_count} video, {edited} prompt đã sửa
             {!topic.script_prompt && (
-              <Typography.Text type="warning"> · Chưa có prompt viết kịch bản nên chưa tạo video được</Typography.Text>
+              <Typography.Text type="warning">, chưa có prompt viết kịch bản nên chưa tạo video được</Typography.Text>
             )}
             {locked && (
               <Typography.Text data-testid="group-locked">
-                {" · "}Chỉ {topic.owner ?? "người tạo nhóm"} sửa được nhóm này
+                , chỉ {topic.owner ?? "người tạo nhóm"} sửa được nhóm này
               </Typography.Text>
             )}
             {topic.last_edit && (
               <>
-                {" · "}
+                {", "}
                 <EditHistory
                   entityType="knowledge_topic"
                   entityId={topic.id}
@@ -438,12 +453,17 @@ function TopicBody({
         }
       />
       <Tabs
-        defaultActiveKey="videos"
+        activeKey={tab}
+        onChange={(next) => {
+          // A tab's list starts without the last tab's filters.
+          if (visible) keepOnlyInAddress({ group: String(topic.id) });
+          setTab(next);
+        }}
         items={[
           {
             key: "videos",
             label: `Video (${topic.video_count})`,
-            children: <TopicVideos topicId={topic.id} canCreate={Boolean(topic.script_prompt)} />,
+            children: <TopicVideos topicId={topic.id} canCreate={Boolean(topic.script_prompt)} visible={visible} />,
           },
           {
             key: "prompts",
@@ -912,7 +932,7 @@ function PhotoHintCard({
       <Input.TextArea
         aria-label="Gợi ý tìm ảnh"
         value={text}
-        placeholder="VD: cây rau đang mọc trong chậu, luống đất hoặc tay người đang chăm cây; không phải món rau đã nấu"
+        placeholder="VD: cây rau đang mọc trong chậu, luống đất hoặc tay người đang chăm cây; không phải món rau đã nấu…"
         autoSize={{ minRows: 3, maxRows: 8 }}
         maxLength={1000}
         onChange={(event) => setText(event.target.value)}

@@ -60,8 +60,15 @@ test("ChatGPT connects through consent, then the member revokes it", async ({ pa
     });
   expect((await rpc()).status()).toBe(200);
   await page.goto("/chatgpt");
-  await expect(page.getByText(/Kết nối #/)).toBeVisible();
+  await expect(page.getByText(/kết nối #/)).toBeVisible();
+  // Revoking asks first: "Huỷ" keeps the connection working.
   await page.getByRole("button", { name: "Thu hồi kết nối" }).click();
+  const confirm = page.getByRole("tooltip").filter({ hasText: "Thu hồi kết nối này?" });
+  await confirm.getByRole("button", { name: "Huỷ" }).click();
+  await expect(confirm).toBeHidden();
+  expect((await rpc()).status()).toBe(200);
+  await page.getByRole("button", { name: "Thu hồi kết nối" }).click();
+  await confirm.getByRole("button", { name: "Thu hồi", exact: true }).click();
   await expect(page.getByText("Bạn chưa có kết nối nào.")).toBeVisible();
   expect((await rpc()).status()).toBe(401);
 });

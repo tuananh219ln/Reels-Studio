@@ -63,7 +63,7 @@ import FilterSelect from "@/components/FilterSelect";
 import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
 import { useRememberedView, type View } from "@/lib/view";
-import { useUrlChoice, useUrlParam } from "@/lib/urlState";
+import { useUrlChoice, useUrlParam, useUrlPage } from "@/lib/urlState";
 import { loadLastChoices, saveLastChoice } from "@/lib/lastChoices";
 import { useGuardedClose } from "@/lib/unsaved";
 import FormDrawer from "@/components/FormDrawer";
@@ -309,7 +309,7 @@ function Videos() {
         <Input
           aria-label="Tìm theo tiêu đề hoặc chủ đề"
           prefix={<SearchOutlined />}
-          placeholder="Tìm theo tiêu đề hoặc chủ đề"
+          placeholder="Tìm theo tiêu đề hoặc chủ đề…"
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -508,7 +508,7 @@ function CardChip({
   );
 }
 
-/** "TikTok · Nháp", "TikTok · Đã đăng": the versions on a card or row, each opening its own page. */
+/** "TikTok" with its status ("Nháp", "Đã đăng"): the versions on a card or row, each opening its own page. */
 function VersionLinks({ versions }: { versions: VideoRow[] }) {
   const { token } = theme.useToken();
   return versions.map((version) => (
@@ -747,13 +747,15 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
 
 /** "Dạng danh sách": one row per video, to scan many at once. */
 function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number, VideoRow[]> }) {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const router = useRouter();
   return (
     <Card styles={{ body: { padding: 0 } }}>
       <Table<VideoRow>
         rowKey="id"
         dataSource={rows}
-        pagination={{ pageSize: 50, hideOnSinglePage: true }}
+        pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
         scroll={{ x: 1520 }}
         onRow={(row) => ({
           onClick: () => router.push(`/videos/${row.id}`),

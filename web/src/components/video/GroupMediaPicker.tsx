@@ -76,7 +76,7 @@ export default function GroupMediaPicker({
         <Input
           aria-label="Tìm ảnh đã dùng"
           prefix={<SearchOutlined />}
-          placeholder="Tìm theo từ khóa hoặc chữ của cảnh (không cần dấu)"
+          placeholder="Tìm theo từ khóa hoặc chữ của cảnh (không cần dấu)…"
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}

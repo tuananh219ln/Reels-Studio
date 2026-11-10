@@ -496,7 +496,7 @@ function TokenInput({ value, onChange }: { value: string; onChange: (value: stri
       aria-label="Token"
       value={value}
       autoComplete="new-password"
-      placeholder="Dán token vào đây"
+      placeholder="Dán token vào đây…"
       onChange={(event) => onChange(event.target.value)}
     />
   );

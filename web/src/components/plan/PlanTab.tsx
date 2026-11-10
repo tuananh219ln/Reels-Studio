@@ -63,6 +63,7 @@ import {
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 import { useLeaveGuard } from "@/lib/unsaved";
+import { useUrlChoiceIf } from "@/lib/urlState";
 import EditHistory from "@/components/EditHistory";
 import FormDrawer from "@/components/FormDrawer";
 import AutoRuns from "@/components/plan/AutoRuns";
@@ -162,7 +163,11 @@ type Preview = PlanPreview & { fromAi: boolean };
  * "Kế hoạch 30 ngày" and "Backlog" of one topic group, as two tabs sharing one plan: 1-10 video ideas a day, imported,
  * written by AI or typed in, and the ideas kept for later. An idea is dragged between days and the Backlog.
  */
-export function usePlanTabs(topicId: number): {
+/** `visible`: whether the group is the one shown, so its Backlog filters are the address's. */
+export function usePlanTabs(
+  topicId: number,
+  visible = true,
+): {
   tabs: { key: string; label: ReactNode; children: ReactNode }[];
   /** The dialogs both tabs open, rendered once beside the tabs. */
   dialogs: ReactNode;
@@ -328,6 +333,7 @@ export function usePlanTabs(topicId: number): {
             move={move}
             onAdd={() => setAdding({ day: null })}
             onPreview={setPreview}
+            visible={visible}
           />
         </>
       )),
@@ -418,7 +424,7 @@ function PlanView({
       <Card size="small">
         <TodayStrip plan={plan} change={change} />
         <Typography.Text type="secondary" style={{ display: "block", marginTop: 12 }} data-testid="plan-summary">
-          Đã làm {plan.made}/{planned.length} · Đã lên lịch {scheduled} · Ngày còn trống {empty}
+          Đã làm {plan.made}/{planned.length}, đã lên lịch {scheduled}, ngày còn trống {empty}
         </Typography.Text>
         <VerdictTarget plan={plan} change={change} />
         <Flex wrap gap={8} style={{ marginTop: 12 }}>
@@ -548,7 +554,7 @@ function PlanView({
                 />
                 <Input
                   allowClear
-                  placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook"
+                  placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook…"
                   aria-label="Tìm ý tưởng"
                   value={filters.query}
                   onChange={(event) => setFilters({ ...filters, query: event.target.value })}
@@ -683,13 +689,13 @@ function MonthCalendar({
           <div key={index} data-testid={`plan-week-${index + 1}`}>
             <Flex wrap gap={8} align="baseline" style={{ marginBottom: 6 }}>
               <Typography.Text strong>
-                Tuần {index + 1} ·{" "}
+                Tuần {index + 1},{" "}
                 {first && last
                   ? `${first.format("DD/MM")} – ${last.format("DD/MM")}`
                   : `ngày ${days[0]}–${days[days.length - 1]}`}
               </Typography.Text>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {items.length} ý tưởng · {items.filter((item) => item.status !== "idea").length} đã làm ·{" "}
+                {items.length} ý tưởng, {items.filter((item) => item.status !== "idea").length} đã làm,{" "}
                 {items.filter((item) => item.status === "scheduled").length} đã lên lịch
               </Typography.Text>
             </Flex>
@@ -785,7 +791,7 @@ function DayCell({
       </Flex>
       <Flex vertical gap={3} style={{ marginTop: 4 }}>
         {items.map((item) => (
-          <Tooltip key={item.id} title={`${item.topic} · ${item.status_label}`}>
+          <Tooltip key={item.id} title={`${item.topic}, ${item.status_label}`}>
             <div
               draggable
               onDragStart={(event) => event.dataTransfer.setData(DRAG_TYPE, String(item.id))}
@@ -1259,7 +1265,7 @@ function PostNumbers({ posts, shareGoal }: { posts: PlanPost[]; shareGoal: numbe
             </>
           )}
           {post.latest_views !== null && (
-            <span data-testid="plan-idea-latest-views"> · hiện {post.latest_views.toLocaleString("vi-VN")} view</span>
+            <span data-testid="plan-idea-latest-views">, hiện {post.latest_views.toLocaleString("vi-VN")} view</span>
           )}
         </Typography.Text>
       ))}
@@ -1566,6 +1572,7 @@ function BacklogView({
   move,
   onAdd,
   onPreview,
+  visible,
 }: {
   plan: Plan;
   backlog: PlanItem[];
@@ -1573,9 +1580,11 @@ function BacklogView({
   move: Move;
   onAdd: () => void;
   onPreview: (preview: Preview) => void;
+  visible: boolean;
 }) {
-  const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<string | null>(null);
+  // In the address while its group is shown, as "bq" and "pain" beside the tab.
+  const [query, setQuery] = useUrlChoiceIf<string>(visible, "bq", "");
+  const [group, setGroup] = useUrlChoiceIf<string | null>(visible, "pain", null);
   const groups = [...new Set(backlog.map((item) => item.pain_group).filter(Boolean))].sort();
   const shown = backlog.filter((item) => matches(item, { status: null, group, query }));
   return (
@@ -1588,7 +1597,7 @@ function BacklogView({
           <ImportButton topicId={plan.topic_id} onPreview={onPreview} />
           <Input.Search
             allowClear
-            placeholder="Tìm trong Backlog"
+            placeholder="Tìm trong Backlog…"
             aria-label="Tìm trong Backlog"
             value={query}
             onChange={(event) => setQuery(event.target.value)}

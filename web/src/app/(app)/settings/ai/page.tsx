@@ -149,7 +149,7 @@ function ProviderForm({ provider, onSaved }: { provider: LlmProvider; onSaved: (
                 aria-label={`API key ${provider.name}`}
                 value={key}
                 autoComplete="new-password"
-                placeholder="Dán API key vào đây"
+                placeholder="Dán API key vào đây…"
                 onChange={(event) => setKey(event.target.value)}
                 onPressEnter={() => key.trim() && saveKey()}
               />
@@ -188,7 +188,7 @@ function ProviderForm({ provider, onSaved }: { provider: LlmProvider; onSaved: (
           style={{ width: "100%", marginTop: 4 }}
           value={model}
           options={modelOptions}
-          placeholder={provider.effective_model || "Gõ tên model, hoặc bấm “Kiểm tra kết nối” để xem danh sách"}
+          placeholder={provider.effective_model || "Gõ tên model, hoặc bấm “Kiểm tra kết nối” để xem danh sách…"}
           onChange={setModel}
           filterOption={(input, option) => (option?.value ?? "").toLowerCase().includes(input.toLowerCase())}
         />

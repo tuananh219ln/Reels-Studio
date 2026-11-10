@@ -16,7 +16,7 @@ import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tabs, Tag, To
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
-import { useUrlChoice, useUrlId } from "@/lib/urlState";
+import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import ProductModal from "./ProductModal";
 import PlacesChip from "./PlacesChip";
@@ -45,6 +45,8 @@ const STAGES: { value: Stage; label: string }[] = [
 /** The product list by topic group (the groups on the left, mine first, each with the Pages that post it), best
  * expected commission first. */
 export default function Products() {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const { message } = App.useApp();
   const { me } = useMe();
   // The search and filters are in the address (the Affiliate page clears them when its tab changes).
@@ -213,7 +215,7 @@ export default function Products() {
               <Tooltip title="Link lưu sẵn của sản phẩm được dùng trong bình luận khi Page đăng bài chưa có tài khoản Shopee dùng được.">
                 <span>Người thêm: {product.created_by_id === me.id ? "bạn" : product.created_by}</span>
               </Tooltip>
-              {product.video_count > 0 && ` · ${product.video_count} video`}
+              {product.video_count > 0 && `, ${product.video_count} video`}
             </Typography.Text>
             {product.url ? (
               <Typography.Text
@@ -453,7 +455,7 @@ export default function Products() {
           <Input
             aria-label="Tìm theo sản phẩm hoặc shop"
             prefix={<SearchOutlined />}
-            placeholder="Tìm theo sản phẩm hoặc shop"
+            placeholder="Tìm theo sản phẩm hoặc shop…"
             allowClear
             value={q}
             onChange={(event) => setFilters({ ...filters, q: event.target.value })}
@@ -509,7 +511,7 @@ export default function Products() {
             columns={columns}
             dataSource={shown}
             loading={loading}
-            pagination={{ pageSize: 50, hideOnSinglePage: true }}
+            pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
             scroll={{ x: 1100 }}
             locale={{
               emptyText:

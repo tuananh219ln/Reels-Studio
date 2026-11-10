@@ -5,7 +5,15 @@ import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Toolti
 import type { SelectProps, SliderSingleProps } from "antd";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { api, errorMessage, type VideoDefaults, type VideoOptions, type Voice, type VoiceList } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  type VideoDefaults,
+  type VideoOptions,
+  type Voice,
+  type VoiceList,
+  formatDecimal,
+} from "@/lib/api";
 import { ColorChoice } from "./textControls";
 import { OPACITIES, palette, warnings } from "./textPalette";
 import { TextStyleCards } from "./TextStyleCards";
@@ -30,7 +38,7 @@ const SPEED_MARKS = {
   1: "Vừa",
   [SPEED_MAX]: { label: "Nhanh", style: { transform: "translateX(-100%)" } },
 };
-const speedText = (speed: number) => `${speed.toFixed(2).replace(".", ",")}×`;
+const speedText = (speed: number) => `${formatDecimal(speed, 2)}×`;
 const TRANSITIONS = [
   { value: "fade", label: "Mờ dần" },
   { value: "cut", label: "Cắt thẳng" },

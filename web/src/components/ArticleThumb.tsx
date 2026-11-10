@@ -23,6 +23,7 @@ export default function ArticleThumb({ article, size = 56 }: { article: Article;
     <img
       src={`/api/articles/${article.id}/image?v=${article.image_version}`}
       alt=""
+      loading="lazy"
       width={size}
       height={size}
       style={{ objectFit: "cover", borderRadius: 6, display: "block" }}

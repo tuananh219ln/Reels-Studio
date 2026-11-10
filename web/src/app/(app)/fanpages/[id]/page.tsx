@@ -4,7 +4,7 @@ import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import { App, Button, Card, Empty, Flex, Result, Segmented, Spin, Switch, Tabs, Typography } from "antd";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import PageQueueSection from "@/components/PageQueueSection";
 import StatusText from "@/components/StatusText";
@@ -15,6 +15,7 @@ import { FigureTile, TileRow, formatNumber, formatSeconds } from "@/components/p
 import { ApiError, api, errorMessage, formatDateTime, type PageDashboard, type QueueOverview } from "@/lib/api";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
+import { keepOnlyInAddress, useUrlChoice } from "@/lib/urlState";
 
 const PERIODS = [7, 28, 90] as const;
 type Days = (typeof PERIODS)[number];
@@ -370,13 +371,30 @@ function Schedule({
 }
 
 export default function FanpageDashboardPage() {
+  // The period, tab and the content list's sort are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <FanpageDashboard />
+    </Suspense>
+  );
+}
+
+function FanpageDashboard() {
   const { id } = useParams<{ id: string }>();
   const { message } = App.useApp();
-  const [days, setDays] = useState<Days>(28);
+  // The period and tab are in the address, so a reload or a shared link opens the same view.
+  const [period, setPeriod] = useUrlChoice<"7" | "28" | "90">("days", "28", ["7", "90"]);
+  const days = Number(period) as Days;
+  const setDays = (next: Days) => setPeriod(String(next) as "7" | "28" | "90");
   const [data, setData] = useState<PageDashboard | null>(null);
   const [missing, setMissing] = useState(false);
   const [queue, setQueue] = useState<QueueOverview | null>(null);
-  const [tab, setTab] = useState("overview");
+  const [tab, setTabInAddress] = useUrlChoice<string>("tab", "overview");
+  // A tab starts without the last tab's sort and page; the period stays.
+  const setTab = (next: string) => {
+    keepOnlyInAddress(period === "28" ? {} : { days: period });
+    setTabInAddress(next);
+  };
 
   const load = useCallback(async () => {
     try {

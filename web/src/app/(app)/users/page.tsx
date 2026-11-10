@@ -170,7 +170,7 @@ function Users() {
         <Input
           aria-label="Tìm theo email hoặc tên"
           prefix={<SearchOutlined />}
-          placeholder="Tìm theo email hoặc tên"
+          placeholder="Tìm theo email hoặc tên…"
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}

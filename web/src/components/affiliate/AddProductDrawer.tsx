@@ -196,7 +196,7 @@ export default function AddProductDrawer({
                         disabled: page.knowledge_topic_id === null,
                         label:
                           page.name +
-                          (page.mine ? "" : ` · ${page.owner_name ?? "chưa có chủ"}`) +
+                          (page.mine ? "" : ` (${page.owner_name ?? "chưa có chủ"})`) +
                           (page.knowledge_topic_id === null ? " (chưa gắn nhóm chủ đề)" : ""),
                       }))}
                     notFoundContent="Chưa có Page nào"
@@ -248,7 +248,7 @@ export default function AddProductDrawer({
                   aria-label="Link sản phẩm"
                   value={links}
                   onChange={(event) => setLinks(event.target.value)}
-                  placeholder={"https://s.shopee.vn/...\nhttps://shopee.vn/..."}
+                  placeholder={"https://s.shopee.vn/…\nhttps://shopee.vn/…"}
                   autoSize={{ minRows: 4, maxRows: 12 }}
                   disabled={!options.shopee_lookup}
                 />

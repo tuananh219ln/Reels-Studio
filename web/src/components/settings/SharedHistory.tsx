@@ -39,12 +39,13 @@ export function describeChange(
   owners: Record<string, string> = {},
 ): string {
   const [owner, part] = field.includes(".") ? field.split(".", 2) : ["", field];
-  const who = owner ? `${owners[owner] ?? owner} · ` : "";
+  // A source's own setting is named with the source after it: "Khoá (Pixabay)".
+  const who = owner ? ` (${owners[owner] ?? owner})` : "";
   if (part === "key") {
     const what = change.new === null ? "đã xoá khoá" : change.old === null ? "đã thêm khoá" : "đã đổi khoá";
-    return `${who}Khoá: ${what}${change.new === null ? "" : ` ${String(change.new)}`}`;
+    return `Khoá${who}: ${what}${change.new === null ? "" : ` ${String(change.new)}`}`;
   }
-  const name = `${who}${FIELD_NAMES[owner && part === "enabled" ? "source:enabled" : part] ?? part}`;
+  const name = `${FIELD_NAMES[owner && part === "enabled" ? "source:enabled" : part] ?? part}${who}`;
   if (change.old === null && change.new !== null && (part === "machine" || part === "name")) {
     return `${name}: thêm “${shown(change.new)}”`;
   }
