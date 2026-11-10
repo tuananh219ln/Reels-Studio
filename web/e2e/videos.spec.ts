@@ -411,6 +411,14 @@ test("knowledge topics: a group's text look from an AI suggestion is what its ne
   await expect(suggestions).toHaveCount(3, { timeout: 60_000 });
   await suggestions.filter({ hasText: "Nổi bật" }).getByRole("button", { name: "Dùng kiểu này" }).click();
   await expect(card.getByRole("switch", { name: "Nhóm có kiểu chữ riêng" })).toBeChecked();
+  // The suggestion's box is no team style: it shows as the box in use, and can become one of the team's.
+  await expect(card.getByRole("radio", { name: "Kiểu đang dùng" })).toBeChecked();
+  await card.getByRole("button", { name: "Lưu thành kiểu của đội" }).click();
+  const drawer = page.getByRole("dialog", { name: "Thêm kiểu hộp chữ" });
+  await drawer.getByLabel("Tên kiểu").fill("Đỏ nổi bật");
+  await drawer.getByRole("button", { name: "Thêm kiểu" }).click();
+  await expect(card.getByRole("radio", { name: "Kiểu Đỏ nổi bật" })).toBeChecked();
+  await expect(card.getByRole("radio", { name: "Kiểu đang dùng" })).toHaveCount(0);
   await card.getByRole("switch", { name: "AI chọn kiểu chữ cho từng video" }).click();
   await card.getByRole("button", { name: "Lưu chữ & phụ đề" }).click();
   await expect(page.getByText("Đã lưu chữ & phụ đề của nhóm")).toBeVisible();
