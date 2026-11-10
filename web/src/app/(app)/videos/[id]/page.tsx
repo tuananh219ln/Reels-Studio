@@ -7,15 +7,17 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
+  MoreOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
 import {
-  App,
   Alert,
+  App,
   Button,
   Card,
   Col,
   Collapse,
+  Dropdown,
   Flex,
   Grid,
   Input,
@@ -452,21 +454,38 @@ export default function VideoPage() {
               Viết kịch bản
             </Button>
           )}
-          {video.has_script && (
-            <Button icon={<CopyOutlined />} disabled={busy} onClick={() => setCloning("same")}>
-              Nhân bản
-            </Button>
-          )}
-          {video.has_script && video.platform === "facebook" && (
-            <Button disabled={busy} onClick={() => setCloning("tiktok")}>
-              Tạo bản TikTok
-            </Button>
-          )}
-          {/* Only its maker deletes a video (or its scenes); the api refuses anyone else. */}
-          {video.created_by_id === me.id && (
-            <Button danger icon={<DeleteOutlined />} disabled={video.locked || busy} onClick={remove}>
-              Xóa
-            </Button>
+          {/* The main action stays a button; the rarer ones sit under "⋯", "Xóa" last and apart. */}
+          {(video.has_script || video.created_by_id === me.id) && (
+            <Dropdown
+              trigger={["click"]}
+              disabled={busy}
+              menu={{
+                items: [
+                  ...(video.has_script
+                    ? [{ key: "clone", icon: <CopyOutlined />, label: "Nhân bản", onClick: () => setCloning("same") }]
+                    : []),
+                  ...(video.has_script && video.platform === "facebook"
+                    ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setCloning("tiktok") }]
+                    : []),
+                  // Only its maker deletes a video (or its scenes); the api refuses anyone else.
+                  ...(video.created_by_id === me.id
+                    ? [
+                        ...(video.has_script ? [{ type: "divider" as const }] : []),
+                        {
+                          key: "delete",
+                          icon: <DeleteOutlined />,
+                          label: "Xóa video",
+                          danger: true,
+                          disabled: video.locked,
+                          onClick: remove,
+                        },
+                      ]
+                    : []),
+                ],
+              }}
+            >
+              <Button icon={<MoreOutlined />} aria-label="Thao tác khác với video" />
+            </Dropdown>
           )}
         </Space>
       </Flex>

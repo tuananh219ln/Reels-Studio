@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Form, Input, Modal, Select, Space, Table, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -192,7 +193,11 @@ function Users() {
           pagination={false}
           // Fits a desktop content area; narrower screens scroll the table sideways.
           scroll={{ x: 1150 }}
-          locale={{ emptyText: "Chưa có dữ liệu" }}
+          locale={{
+            emptyText: (
+              <EmptyState description={query.trim() ? "Không có thành viên nào khớp" : "Chưa có thành viên nào"} />
+            ),
+          }}
         />
       </Card>
       <AddUserModal

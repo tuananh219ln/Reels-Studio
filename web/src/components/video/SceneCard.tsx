@@ -960,7 +960,8 @@ export function ScenePicture({
                 }
               }}
               style={{
-                flex: 1,
+                // Room for "Tải lên" in full; the small buttons wrap below on a narrow column.
+                flex: "1 0 96px",
                 minWidth: 0,
                 height: 36,
                 padding: "0 14px",
@@ -1001,42 +1002,46 @@ export function ScenePicture({
               onSearch={(keyword) => void search(tiktokSearchUrl, keyword)}
             />
           </Flex>
-          <Switching
-            show={scene.video !== null}
-            title="Ảnh hoặc video chọn được sẽ thay video của cảnh này?"
+          {/* The three places a picture is picked from, under one button so the column stays short. */}
+          <Dropdown
+            trigger={["click"]}
             disabled={off}
-            onConfirm={async () => {
-              // The grid starts from the keywords on screen, so their save goes first.
-              await editor.flush();
-              setPicking(true);
+            menu={{
+              items: [
+                { key: "stock", icon: <PictureOutlined />, label: "Kho ảnh/video miễn phí" },
+                { key: "group", icon: <HistoryOutlined />, label: "Đã dùng trong nhóm" },
+                { key: "library", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
+              ],
+              onClick: ({ key }) => {
+                if (key === "stock") {
+                  const openPicker = async () => {
+                    // The grid starts from the keywords on screen, so their save goes first.
+                    await editor.flush();
+                    setPicking(true);
+                  };
+                  if (scene.video !== null) {
+                    modal.confirm({
+                      title: "Ảnh hoặc video chọn được sẽ thay video của cảnh này?",
+                      okText: "Chọn",
+                      cancelText: "Huỷ",
+                      onOk: () => void openPicker(),
+                    });
+                  } else {
+                    void openPicker();
+                  }
+                } else if (key === "group") {
+                  // The list is ranked by the keywords on screen, so their save goes first.
+                  void editor.flush().then(() => setReusing(true));
+                } else {
+                  setFromLibrary(true);
+                }
+              },
             }}
           >
             <Button className="scene-action" icon={<PictureOutlined />} disabled={off} block>
-              Chọn từ kho ảnh/video
+              Chọn từ kho <DownOutlined style={{ fontSize: 10, marginInlineStart: "auto" }} />
             </Button>
-          </Switching>
-          <Button
-            className="scene-action"
-            icon={<HistoryOutlined />}
-            disabled={off}
-            block
-            onClick={async () => {
-              // The list is ranked by the keywords on screen, so their save goes first.
-              await editor.flush();
-              setReusing(true);
-            }}
-          >
-            Đã dùng trong nhóm
-          </Button>
-          <Button
-            className="scene-action"
-            icon={<FolderOpenOutlined />}
-            disabled={off}
-            block
-            onClick={() => setFromLibrary(true)}
-          >
-            Kho tư liệu
-          </Button>
+          </Dropdown>
           <Space.Compact block>
             <Switching
               show={scene.video !== null}

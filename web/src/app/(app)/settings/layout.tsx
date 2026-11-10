@@ -9,7 +9,7 @@ import {
   ShoppingOutlined,
   ThunderboltOutlined,
 } from "@ant-design/icons";
-import { Flex, Grid, Tabs, Tag, Typography } from "antd";
+import { Flex, Grid, Tabs, Typography } from "antd";
 import { usePathname, useRouter } from "next/navigation";
 import PageHeader from "@/components/PageHeader";
 
@@ -17,11 +17,10 @@ type Tab = { key: string; label: string; hint: string; icon: React.ReactNode };
 
 /** The "Cài đặt" tabs, the member's own first, then the team's; each tab is its own page, so a link or a reload
  * opens the same tab. */
-const GROUPS: { key: string; label: string; color: string; tabs: Tab[] }[] = [
+const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
   {
     key: "group:mine",
     label: "Của tôi",
-    color: "blue",
     tabs: [
       {
         key: "/settings/defaults",
@@ -41,7 +40,6 @@ const GROUPS: { key: string; label: string; color: string; tabs: Tab[] }[] = [
   {
     key: "group:team",
     label: "Chung cả nhóm",
-    color: "cyan",
     tabs: [
       { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, VieNeu", icon: <RobotOutlined /> },
       {
@@ -69,9 +67,10 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
       key: group.key,
       disabled: true,
       label: (
-        <Tag color={group.color} style={{ marginInlineEnd: 0, cursor: "default" }}>
+        // A heading over its tabs, in plain grey: a coloured tag here read as a status.
+        <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 600, cursor: "default" }}>
           {group.label}
-        </Tag>
+        </Typography.Text>
       ),
     },
     ...group.tabs.map((tab) => ({

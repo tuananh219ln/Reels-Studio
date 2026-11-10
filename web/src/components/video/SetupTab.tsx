@@ -69,8 +69,12 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
         data-testid="setup-sections"
         style={{ position: "sticky", top: 0, zIndex: 2, padding: "4px 0 8px", background: COLORS.layout }}
       >
+        {/* Links that scroll to a group below, not tabs: every group stays on the page. */}
+        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+          Đi tới:
+        </Typography.Text>
         {SECTIONS.map((section) => (
-          <Button key={section.key} size="small" onClick={() => jump(section.key)}>
+          <Button key={section.key} type="link" size="small" style={{ padding: 0 }} onClick={() => jump(section.key)}>
             {section.label}
           </Button>
         ))}

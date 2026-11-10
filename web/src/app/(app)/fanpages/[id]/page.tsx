@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
-import { App, Button, Card, Empty, Flex, Result, Segmented, Spin, Switch, Tabs, Typography } from "antd";
+import { App, Button, Card, Flex, Result, Segmented, Spin, Switch, Tabs, Typography } from "antd";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
@@ -209,7 +209,14 @@ function Overview({ data }: { data: PageDashboard }) {
         />
       </TileRow>
       <Card size="small" title="Lượt xem theo ngày">
-        <DailyChart label="Lượt xem" {...series(data, "views")} format={formatNumber} testId="overview-chart" />
+        <DailyChart
+          label="Lượt xem"
+          {...series(data, "views")}
+          format={formatNumber}
+          testId="overview-chart"
+          // The one place that says why a new Page has no numbers yet; the tiles above only show "—".
+          emptyText={`Chưa có số liệu trong ${days} ngày: tool đọc Page Insights và người theo dõi ở mỗi lần kiểm tra token`}
+        />
       </Card>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 360px), 1fr))", gap: 12 }}>
         <LatestPost data={data} />
@@ -491,14 +498,6 @@ function FanpageDashboard() {
         <Card loading />
       ) : (
         <Flex vertical gap={12}>
-          {data.series.every((row) => row.views === null && row.followers === null) && (
-            <Card size="small">
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={`Chưa có số liệu trong ${data.days} ngày: tool đọc Page Insights và người theo dõi ở mỗi lần kiểm tra token`}
-              />
-            </Card>
-          )}
           <Tabs
             activeKey={tab}
             onChange={setTab}

@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   CheckOutlined,
@@ -16,7 +17,6 @@ import {
   Col,
   ConfigProvider,
   Dropdown,
-  Empty,
   Flex,
   Input,
   Row,
@@ -209,7 +209,7 @@ function Knowledge() {
         <Col xs={24} lg={18} xxl={19}>
           {current === null ? (
             <Card>
-              <Empty description="Chưa có nhóm chủ đề nào. Thêm một nhóm ở bên trái." />
+              <EmptyState description="Chưa có nhóm chủ đề nào. Thêm một nhóm ở bên trái." />
             </Card>
           ) : (
             mounted.map((topic) => (

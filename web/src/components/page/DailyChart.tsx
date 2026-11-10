@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Empty, Flex, Table, Typography } from "antd";
+import EmptyState from "@/components/EmptyState";
+import { Button, Flex, Table, Typography } from "antd";
 import { useEffect, useState, type MouseEvent } from "react";
 import { COLORS } from "@/app/theme";
 
@@ -68,7 +69,7 @@ export default function DailyChart({
   if (known.length === 0) {
     return (
       <div data-testid={testId}>
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} />
+        <EmptyState description={emptyText} />
       </div>
     );
   }

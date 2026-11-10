@@ -153,14 +153,20 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await variant.getByRole("button", { name: "Huỷ" }).click();
   await expect(variant).toBeHidden();
 
-  await page.getByRole("button", { name: "Tạo bản TikTok" }).click();
+  // The rarer actions sit under "⋯".
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await page.getByRole("menuitem", { name: "Tạo bản TikTok" }).click();
   const clone = page.getByRole("dialog", { name: "Tạo bản TikTok" });
   await expect(clone.getByLabel("Yêu cầu đổi")).toHaveValue(/Viết lại cho TikTok/);
   await clone.getByRole("button", { name: "Tạo bản TikTok" }).click();
   await expect(page).not.toHaveURL(source);
   await expect(page.getByTestId("video-platform")).toHaveText("Bản TikTok");
   await expect(page.getByTestId("variants")).toContainText("Bản Facebook gốc:");
-  await expect(page.getByRole("button", { name: "Tạo bản TikTok" })).toHaveCount(0);
+  // The TikTok version cannot make another TikTok version: "⋯" no longer offers it.
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await expect(page.getByRole("menuitem", { name: "Nhân bản" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Tạo bản TikTok" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
 
   // On the list the version sits on its source's card, not on a card of its own, and opens from there.
   await page.getByRole("link", { name: "Danh sách video" }).click();

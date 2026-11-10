@@ -1,7 +1,7 @@
 "use client";
 
 import { GoogleOutlined, LinkOutlined, SnippetsOutlined, TikTokOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Input, Typography } from "antd";
+import { App, Button, Flex, Input, Tooltip, Typography } from "antd";
 import { useState, type ClipboardEvent, type DragEvent } from "react";
 import { api, errorMessage, upload, type MediaItem, type MediaLinksResult } from "@/lib/api";
 import {
@@ -158,18 +158,25 @@ export default function MediaLinkSearch({
           placeholder="Tên sản phẩm…"
           style={{ flex: "1 1 220px" }}
         />
-        <Button type="primary" icon={<SnippetsOutlined />} loading={adding} onClick={fromClipboard}>
+        <Button icon={<SnippetsOutlined />} loading={adding} onClick={fromClipboard}>
           Dán ảnh / link
         </Button>
-        <Button icon={<GoogleOutlined />} disabled={!term} onClick={() => open(googleTransparentUrl(term))}>
-          Ảnh không nền
-        </Button>
-        <Button icon={<GoogleOutlined />} disabled={!term} onClick={() => open(googleImagesUrl(term))}>
-          Ảnh Google
-        </Button>
-        <Button icon={<TikTokOutlined />} disabled={!term} onClick={() => open(tiktokSearchUrl(term))}>
-          Clip TikTok
-        </Button>
+        {/* Disabled until there is a name to search for; the tooltip says so. */}
+        <Tooltip title={term ? undefined : "Gõ tên sản phẩm trước để tìm"}>
+          <Button icon={<GoogleOutlined />} disabled={!term} onClick={() => open(googleTransparentUrl(term))}>
+            Ảnh không nền
+          </Button>
+        </Tooltip>
+        <Tooltip title={term ? undefined : "Gõ tên sản phẩm trước để tìm"}>
+          <Button icon={<GoogleOutlined />} disabled={!term} onClick={() => open(googleImagesUrl(term))}>
+            Ảnh Google
+          </Button>
+        </Tooltip>
+        <Tooltip title={term ? undefined : "Gõ tên sản phẩm trước để tìm"}>
+          <Button icon={<TikTokOutlined />} disabled={!term} onClick={() => open(tiktokSearchUrl(term))}>
+            Clip TikTok
+          </Button>
+        </Tooltip>
       </Flex>
       <Input.TextArea
         aria-label="Dán ảnh, link ảnh hoặc video"

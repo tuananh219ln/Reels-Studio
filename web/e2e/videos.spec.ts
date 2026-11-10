@@ -405,7 +405,8 @@ test("a scene reuses a photo another video of its group already uses", async ({ 
   await newVideoWithScript(page, "canxi cho người lớn tuổi");
   await newVideoWithScript(page, "rau xanh cho người lớn tuổi");
 
-  await page.getByTestId("scene").first().getByRole("button", { name: "Đã dùng trong nhóm" }).click();
+  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Đã dùng trong nhóm" }).click();
   const picker = page.getByRole("dialog", { name: "Ảnh/video đã dùng trong nhóm" });
   const items = picker.getByTestId("group-media-item");
   await expect(items.first()).toBeVisible();
@@ -818,7 +819,7 @@ test("studio: tracks under the scenes, a locked track, and a scene split at the 
     "Rau mầm *tươi* mỗi ngày",
   );
   // Its photo's actions are here too, and the search terms fold away until opened.
-  await expect(inspector.getByRole("button", { name: "Chọn từ kho ảnh/video" })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Chọn từ kho" })).toBeVisible();
   await inspector.getByText("Tìm ảnh: từ khoá và prompt AI").click();
   await expect(inspector.getByLabel("Từ khóa tìm ảnh")).toBeVisible();
   // The keys and how to edit sit behind "Phím tắt".
@@ -2129,7 +2130,8 @@ test("clone a video with a change request, then see every job in the job log", a
   await expect(page.getByTestId("music-name")).toBeVisible();
   const sourceUrl = page.url();
 
-  await page.getByRole("button", { name: "Nhân bản" }).click();
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await page.getByRole("menuitem", { name: "Nhân bản" }).click();
   const dialog = page.getByRole("dialog", { name: "Nhân bản video" });
   await expect(dialog.getByRole("button", { name: "Tạo bản nhân bản" })).toBeDisabled();
   await dialog.getByLabel("Yêu cầu đổi").fill("đổi sang mốc 45 tuổi, tim mạch");
@@ -2474,7 +2476,8 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await jobFinished(page);
 
   const scene = page.getByTestId("scene").first();
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh/video" });
   await picker.getByText("Video", { exact: true }).click();
   // Pixabay offers clips too, Openverse does not.
@@ -2517,7 +2520,8 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await expect(voiceKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
   await expect(page.getByTestId("source-elevenlabs")).toContainText("Sẵn sàng");
   await page.goto(videoUrl);
-  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
 });
 

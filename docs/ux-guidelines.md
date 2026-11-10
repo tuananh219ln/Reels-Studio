@@ -48,7 +48,8 @@ there are no all-caps labels and no decorative shadows (cards are told apart by 
 alerts are for errors and warnings that block something, plain grey text for the rest. An empty
 thumbnail is a grey tile with an icon.
 
-Every list's toolbar reads the same way: its search box first, then its filters, then its sort. A filter
+Every list's toolbar reads the same way: its search box first, then "Của tôi / Cả đội", then its filters, then its sort.
+On a phone the Video list's filters sit behind one "Bộ lọc (N)" button (a drawer from the bottom); search and sort stay. A filter
 is a [FilterSelect](../web/src/components/FilterSelect.tsx): typing searches its options (accents do not
 matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội").
 "Xóa" (and "Hủy đăng"/"Xóa" of a post, "Ngừng dùng" of a Page) is shown only to whoever made the thing (a Page:
@@ -120,8 +121,10 @@ two attributes per row.
 - **Loading:** a skeleton or a spinner in the place the content will be, never a blank area or a
   page that jumps when the data lands. A button that starts a request shows `loading` on itself
   and stays enabled until the request starts.
-- **Empty:** antd's `Empty` with one line saying why it is empty and, when there is one, the action
-  that fills it ("Chưa có video nào. Tạo video"). A filtered list that is empty says the filter is
+- **Empty:** [EmptyState](../web/src/components/EmptyState.tsx) (antd's small drawing) with one line
+  saying why it is empty and, when there is one, the action that fills it, named apart from the
+  page's own button ("Làm video đầu tiên", "Viết bài đầu tiên", "Tải bài nhạc đầu tiên", "Nhập sản
+  phẩm đầu tiên"); the name never contains the page button's, which a search by name would also match. A filtered list that is empty says the filter is
   why.
 - **Error:** the plain Vietnamese reason where it happened, technical detail in a collapsed "Chi
   tiết lỗi" (see Interface Language), and "Thử lại" when retrying can help.
@@ -374,7 +377,7 @@ Built:
     tools, panel, "Chỉnh cảnh N"). "Chỉnh cảnh N" holds everything about the scene shown, in folding
     sections: "Nội dung" (the scene card's own "Chữ trên màn hình" and "Lời đọc" fields), "Thời lượng và
     vị trí chữ" (below), "Ảnh của cảnh" / "Video của cảnh" (the card's upload, paste, Google, TikTok, "Chọn
-    từ kho ảnh/video", "Đã dùng trong nhóm", "Tìm ảnh" and "Tạo ảnh AI", with "Chỉnh khung" for a photo and
+    từ kho ▾" (Kho ảnh/video miễn phí, Đã dùng trong nhóm, Kho tư liệu), "Tìm ảnh" and "Tạo ảnh AI", with "Chỉnh khung" for a photo and
     "Xoá video" for a clip; the phone shows the picture) and, folded, "Tìm ảnh: từ khoá và prompt AI". These
     are the same fields as on the scene card and save the same way, so the card and the studio always agree.
     "Chữ & sticker (N)" lists the scene's layers; the one picked (on the phone or in the list) opens for its words,
@@ -474,7 +477,8 @@ Built:
     searches Google Ảnh for every scene without a photo or clip (its first two keywords) and puts the first usable
     result on each, marked "Tự chọn, kiểm tra lại", then says how many it filled; a CAPTCHA stops it with a dialog
     saying to solve it in the Google tab and press again. Without the extension neither shows. Then
-    "Chọn từ kho ảnh/video", "Đã dùng trong nhóm" (a dialog of the photos and clips the group's other
+    one "Chọn từ kho ▾" button holding the three libraries, so the column stays short: "Kho ảnh/video miễn phí"
+    (the stock picker), "Đã dùng trong nhóm" (a dialog of the photos and clips the group's other
     videos use, best match for the scene's keywords first, a search box that ignores accents, and
     "Dùng" on each, which copies it into the scene, asking first when the scene has a picture), "Tìm ảnh" with its source arrow,
     then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the photo is already an AI one): an image job for this
@@ -683,10 +687,10 @@ Built:
     cho video này" (or why no draft would go), "Duyệt" and "Không duyệt" (confirmed); others read "Chờ chủ Page
     duyệt". Once approved: "Facebook: hẹn đăng <time>, TikTok: …". Under it "Đã làm X/Y, đã lên lịch N, ngày còn
     trống N";
-  - "Tiến độ verdict: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
-    target to set; it only counts, the line under it says the verdict is still decided in a meeting;
+  - "Tiến độ trước khi đánh giá nhóm: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
+    target to set; it only counts, the line under it says the team still judges the group in a meeting;
   - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
-    start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Mục tiêu video cho verdict", changed in
+    start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Số video cần làm trước khi đánh giá nhóm", changed in
     place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
     with errors (which block saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as
     a draft ("Xem trước" / "Bỏ") until then; a failed one shows its error;
@@ -965,7 +969,7 @@ Built:
     "Dán token mới", which must reach that Page, and "Ngừng dùng" (confirmed). Stopped Pages are
     folded into "Đã ngừng dùng (N)" at the bottom, each with its post count, "Dùng lại", and "Xóa"
     for one that never had a post (confirmed; it removes the token and the numbers); for one with
-    posts "Xóa" is greyed out with why. "Thêm Fanpage" takes a token, "Kiểm tra token" lists the
+    posts "Xóa" is greyed out with why. "Thêm Fanpage" says which permissions the token needs (only there, not on the page) and takes it, "Kiểm tra token" lists the
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the

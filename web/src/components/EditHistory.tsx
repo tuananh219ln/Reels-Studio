@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { HistoryOutlined } from "@ant-design/icons";
-import { App, Button, ConfigProvider, Drawer, Empty, Flex, Modal, Spin, Tag, theme, Typography } from "antd";
+import { App, Button, ConfigProvider, Drawer, Flex, Modal, Spin, Tag, theme, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, formatDateTime, type EditLogEntry } from "@/lib/api";
 import { diffCounts, lineDiff } from "@/lib/lineDiff";
@@ -129,7 +130,7 @@ function EntryList({
   // The version from before the history began, from its first entry (the text the first save replaced).
   const before = field && oldest && oldest.action !== "create" ? oldest.changes[field]?.old : undefined;
   if (entries.length === 0 && defaultText === undefined) {
-    return <Empty description="Chưa có thay đổi nào được ghi lại" />;
+    return <EmptyState description="Chưa có thay đổi nào được ghi lại" />;
   }
   return (
     <Flex vertical gap={0} data-testid="edit-history">

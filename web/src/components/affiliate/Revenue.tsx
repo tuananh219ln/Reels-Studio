@@ -1,6 +1,7 @@
 "use client";
 
-import { Alert, App, Card, Empty, Flex, Segmented, Statistic, Table, Typography } from "antd";
+import EmptyState from "@/components/EmptyState";
+import { Alert, App, Card, Flex, Segmented, Statistic, Table, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateRevenue } from "@/lib/api";
@@ -26,7 +27,7 @@ export default function Revenue() {
 
   if (data && data.accounts.length === 0) {
     return (
-      <Empty
+      <EmptyState
         description={
           <span>
             Chưa có tài khoản Shopee nào của bạn. Thêm ở{" "}
@@ -76,7 +77,7 @@ export default function Revenue() {
           dataSource={data?.lines ?? []}
           pagination={false}
           scroll={{ x: 600 }}
-          locale={{ emptyText: "Chưa có đơn nào trong khoảng này" }}
+          locale={{ emptyText: <EmptyState description={"Chưa có đơn nào trong khoảng này"} /> }}
           columns={[
             {
               title: "Video",

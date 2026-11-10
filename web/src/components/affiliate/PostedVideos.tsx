@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { AppstoreOutlined, CloseOutlined, ProfileOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Empty, Flex, Input, Segmented, Select, Table, Tabs, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -480,18 +481,20 @@ export default function PostedVideos() {
           value={view}
           onChange={chooseView}
           style={{ marginLeft: "auto" }}
+          // Named, not icons alone: three views (the owner's choice, 2026-11-09) need words to tell apart.
           options={[
-            { value: "table", icon: <TableOutlined />, title: "Dạng bảng" },
-            { value: "cards", icon: <AppstoreOutlined />, title: "Dạng thẻ" },
-            { value: "detail", icon: <ProfileOutlined />, title: "Danh sách và chi tiết" },
+            { value: "table", icon: <TableOutlined />, label: "Bảng", title: "Dạng bảng" },
+            { value: "cards", icon: <AppstoreOutlined />, label: "Thẻ", title: "Dạng thẻ" },
+            { value: "detail", icon: <ProfileOutlined />, label: "Chi tiết", title: "Danh sách và chi tiết" },
           ]}
         />
       </Flex>
+      {/* A filter, so it looks like one, not like a second row of the page's tabs. */}
       <div aria-label="Lọc theo sản phẩm đã gắn" role="group">
-        <Tabs
-          activeKey={linked}
-          onChange={(key) => setLinked(key as Linked)}
-          items={LINKED.map(({ value, label }) => ({ key: value, label: `${label} (${counts[value]})` }))}
+        <Segmented<Linked>
+          value={linked}
+          onChange={setLinked}
+          options={LINKED.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
         />
       </div>
 
@@ -504,14 +507,14 @@ export default function PostedVideos() {
             loading={loading}
             pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
             scroll={{ x: 900 }}
-            locale={{ emptyText }}
+            locale={{ emptyText: <EmptyState description={emptyText} /> }}
           />
         </Card>
       )}
 
       {view === "cards" &&
         (shown.length === 0 ? (
-          <Empty description={loading ? "Đang tải…" : emptyText} />
+          <EmptyState description={loading ? "Đang tải…" : emptyText} />
         ) : (
           <div
             style={{
@@ -538,7 +541,7 @@ export default function PostedVideos() {
 
       {view === "detail" &&
         (shown.length === 0 || !open ? (
-          <Empty description={loading ? "Đang tải…" : emptyText} />
+          <EmptyState description={loading ? "Đang tải…" : emptyText} />
         ) : (
           <div
             style={{

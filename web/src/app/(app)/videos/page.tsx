@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import type { SelectProps } from "antd";
 
 import {
@@ -7,18 +8,19 @@ import {
   ClockCircleOutlined,
   EditOutlined,
   EyeOutlined,
+  FilterOutlined,
   PlusOutlined,
   SearchOutlined,
   UnorderedListOutlined,
 } from "@ant-design/icons";
 import {
+  Drawer,
   Alert,
   App,
   Button,
   Card,
   Checkbox,
   Col,
-  Empty,
   Flex,
   Form,
   Grid,
@@ -168,6 +170,9 @@ function Videos() {
   });
   const group = urlGroup ?? storedGroup;
   const [view, chooseView] = useRememberedView(VIEW_KEY);
+  // A phone gets "Bộ lọc" instead of five filters stacked above the list.
+  const phone = !(Grid.useBreakpoint().md ?? true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useUrlChoice<Sort>("sort", "new", ["new", "views"]);
 
   function startFrom(item: PlanItem | null, sample: number | null = null, group: number | null = null) {
@@ -296,6 +301,58 @@ function Videos() {
     Boolean(fanpage) ||
     Boolean(group);
 
+  // The five filters: in the toolbar on a wide screen, in a drawer behind "Bộ lọc" on a phone.
+  const filterControls = (full: boolean) => (
+    <>
+      <FilterSelect<StatusFilter>
+        aria-label="Lọc theo trạng thái"
+        placeholder="Mọi trạng thái"
+        value={status === "all" ? null : status}
+        onChange={(value) => setStatus(value ?? "all")}
+        options={STATUS_FILTERS.filter(({ value }) => value !== "all").map(({ value, label }) => ({ value, label }))}
+        style={{ width: full ? "100%" : 160 }}
+      />
+      <FilterSelect<"facebook" | "tiktok">
+        aria-label="Lọc theo nền tảng"
+        placeholder="Mọi nền tảng"
+        value={platform === "all" ? null : platform}
+        onChange={(value) => setPlatform(value ?? "all")}
+        options={[
+          { value: "facebook", label: "Facebook" },
+          { value: "tiktok", label: "TikTok" },
+        ]}
+        style={{ width: full ? "100%" : 140 }}
+      />
+      <FilterSelect<string>
+        aria-label="Lọc theo Fanpage"
+        placeholder="Mọi Fanpage"
+        value={fanpage}
+        onChange={(value) => setFanpage(value ?? null)}
+        options={pages.map((name) => ({ value: name, label: name }))}
+        style={{ width: full ? "100%" : 160 }}
+      />
+      <FilterSelect<string>
+        aria-label="Lọc theo nhóm chủ đề"
+        placeholder="Mọi nhóm chủ đề"
+        value={group}
+        onChange={(value) => chooseGroup(value ?? null)}
+        options={groups.map((name) => ({ value: name, label: `${name} (${groupCounts.get(name)})` }))}
+        style={{ width: full ? "100%" : 170 }}
+      />
+      <FilterSelect<string>
+        aria-label="Người tạo"
+        placeholder="Cả đội"
+        value={creator}
+        onChange={(value) => setCreator(value ?? null)}
+        options={[{ value: me.name, label: "Của tôi" }, ...creators.map((name) => ({ value: name, label: name }))]}
+        style={{ width: full ? "100%" : 140 }}
+      />
+    </>
+  );
+  const activeFilters = [status !== "all", platform !== "all", fanpage !== null, group !== null, by !== null].filter(
+    Boolean,
+  ).length;
+
   return (
     <>
       <PageHeader
@@ -315,49 +372,13 @@ function Videos() {
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 230, maxWidth: "100%" }}
         />
-        <FilterSelect<StatusFilter>
-          aria-label="Lọc theo trạng thái"
-          placeholder="Mọi trạng thái"
-          value={status === "all" ? null : status}
-          onChange={(value) => setStatus(value ?? "all")}
-          options={STATUS_FILTERS.filter(({ value }) => value !== "all").map(({ value, label }) => ({ value, label }))}
-          style={{ width: 160 }}
-        />
-        <FilterSelect<"facebook" | "tiktok">
-          aria-label="Lọc theo nền tảng"
-          placeholder="Mọi nền tảng"
-          value={platform === "all" ? null : platform}
-          onChange={(value) => setPlatform(value ?? "all")}
-          options={[
-            { value: "facebook", label: "Facebook" },
-            { value: "tiktok", label: "TikTok" },
-          ]}
-          style={{ width: 140 }}
-        />
-        <FilterSelect<string>
-          aria-label="Lọc theo Fanpage"
-          placeholder="Mọi Fanpage"
-          value={fanpage}
-          onChange={(value) => setFanpage(value ?? null)}
-          options={pages.map((name) => ({ value: name, label: name }))}
-          style={{ width: 160 }}
-        />
-        <FilterSelect<string>
-          aria-label="Lọc theo nhóm chủ đề"
-          placeholder="Mọi nhóm chủ đề"
-          value={group}
-          onChange={(value) => chooseGroup(value ?? null)}
-          options={groups.map((name) => ({ value: name, label: `${name} (${groupCounts.get(name)})` }))}
-          style={{ width: 170 }}
-        />
-        <FilterSelect<string>
-          aria-label="Người tạo"
-          placeholder="Cả đội"
-          value={creator}
-          onChange={(value) => setCreator(value ?? null)}
-          options={[{ value: me.name, label: "Của tôi" }, ...creators.map((name) => ({ value: name, label: name }))]}
-          style={{ width: 140 }}
-        />
+        {phone ? (
+          <Button icon={<FilterOutlined />} onClick={() => setFiltersOpen(true)}>
+            {activeFilters ? `Bộ lọc (${activeFilters})` : "Bộ lọc"}
+          </Button>
+        ) : (
+          filterControls(false)
+        )}
         <Select<Sort>
           aria-label="Sắp xếp"
           value={sort}
@@ -379,6 +400,22 @@ function Videos() {
           ]}
         />
       </PageHeader>
+      <Drawer
+        title="Bộ lọc"
+        placement="bottom"
+        open={phone && filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        size="auto"
+        footer={
+          <Button type="primary" block onClick={() => setFiltersOpen(false)}>
+            Xem {shown.length} video
+          </Button>
+        }
+      >
+        <Flex vertical gap={12}>
+          {filterControls(true)}
+        </Flex>
+      </Drawer>
       {week && (
         <Typography.Paragraph type="secondary" data-testid="group-week" style={{ marginTop: -4 }}>
           {group}, tuần này (từ thứ Hai): {week.made} video mới, {week.out} đã đăng, {week.drafts} còn nháp
@@ -391,7 +428,16 @@ function Videos() {
         </Flex>
       ) : shown.length === 0 ? (
         <Card>
-          <Empty description={filtered ? "Không có video nào khớp" : "Chưa có video nào"} />
+          <EmptyState
+            description={filtered ? "Không có video nào khớp" : "Chưa có video nào"}
+            action={
+              !filtered && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => startFrom(null)}>
+                  Làm video đầu tiên
+                </Button>
+              )
+            }
+          />
         </Card>
       ) : view === "grid" ? (
         <Row gutter={[16, 16]}>
@@ -1117,10 +1163,11 @@ function NewVideoModal({
   // "Từ video mẫu" writes from the sample, not from a plan idea, so the ideas are not listed there.
   const ideas = !sample ? sections.flatMap((section) => section.ideas) : [];
   const footer = (
-    <Flex justify="space-between" align="center" gap={12} wrap>
-      <div style={{ flex: 1, minWidth: 200, textAlign: "start" }}>
+    // The writer's line sits above the buttons, on one line of its own, so it never wraps around them.
+    <Flex vertical gap={8}>
+      <div style={{ textAlign: "start", fontSize: 13 }}>
         {llm && !manual && (
-          <Typography.Text type={llm.problem ? "danger" : "secondary"} data-testid="llm-line">
+          <Typography.Text type={llm.problem ? "danger" : "secondary"} data-testid="llm-line" style={{ fontSize: 13 }}>
             {llm.problem ? (
               <>
                 {llm.problem}.{" "}
@@ -1130,17 +1177,16 @@ function NewVideoModal({
               </>
             ) : (
               <>
-                Viết bằng: {llm.name} · {llm.model} (
+                Viết bằng: {llm.name} · {llm.model}.{" "}
                 <Link prefetch={false} href="/settings/ai">
-                  đổi trong Cài đặt
+                  Đổi trong Cài đặt
                 </Link>
-                )
               </>
             )}
           </Typography.Text>
         )}
       </div>
-      <Flex gap={8}>
+      <Flex gap={8} justify="flex-end">
         <Button onClick={close}>Huỷ</Button>
         <Button
           type="primary"
@@ -1257,7 +1303,9 @@ function NewVideoModal({
                 style={{ justifySelf: "start" }}
               />
               <Form.Item
-                label="Nhóm chủ đề"
+                // Bold and without a colon, like "Kiểu video" and "Cách viết" above it.
+                label={<Typography.Text strong>Nhóm chủ đề</Typography.Text>}
+                colon={false}
                 name="knowledge_topic_id"
                 layout="horizontal"
                 rules={[{ required: true, message: "Hãy chọn nhóm chủ đề" }]}

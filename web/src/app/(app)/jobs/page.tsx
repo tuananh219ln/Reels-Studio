@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Segmented, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
@@ -293,7 +294,7 @@ function Jobs() {
             ...tablePage,
           }}
           scroll={{ x: 1200 }}
-          locale={{ emptyText: filtering ? "Không có job nào khớp" : "Chưa có job nào" }}
+          locale={{ emptyText: <EmptyState description={filtering ? "Không có job nào khớp" : "Chưa có job nào"} /> }}
           onRow={(row) => ({
             // A plan job has no video: it opens Kho kiến thức, where the plan is; an article's job opens the article.
             onClick: () =>

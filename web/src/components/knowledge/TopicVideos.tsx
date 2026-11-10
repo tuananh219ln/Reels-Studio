@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Empty, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
@@ -141,13 +142,11 @@ export default function TopicVideos({
           loading={rows === null}
           dataSource={shown}
           pagination={shown.length > 20 ? { pageSize: 20, showSizeChanger: false, ...tablePage } : false}
-          scroll={{ x: 760 }}
+          // As wide as its columns need, scrolling inside the card: no column is cut at its edge.
+          scroll={{ x: "max-content" }}
           locale={{
             emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
-              />
+              <EmptyState description={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"} />
             ),
           }}
           columns={[
@@ -179,6 +178,7 @@ export default function TopicVideos({
             {
               key: "title",
               title: "Video",
+              minWidth: 260,
               render: (_, row) => (
                 <Flex vertical style={{ minWidth: 0 }}>
                   <Link prefetch={false} href={`/videos/${row.id}`}>
@@ -196,7 +196,7 @@ export default function TopicVideos({
             {
               key: "kind",
               title: "Loại",
-              width: 170,
+              width: 120,
               render: (_, row) => <VideoKindTags video={row} />,
             },
             {
@@ -263,12 +263,7 @@ export default function TopicVideos({
 function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[] }) {
   const { token } = theme.useToken();
   if (rows !== null && shown.length === 0) {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={rows.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
-      />
-    );
+    return <EmptyState description={rows.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"} />;
   }
   return (
     <Flex vertical gap={8} data-testid="topic-video-cards">

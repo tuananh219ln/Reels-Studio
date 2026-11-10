@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { SearchOutlined } from "@ant-design/icons";
-import { App, Button, Empty, Flex, Input, Modal, Spin, Tag, Typography } from "antd";
+import { App, Button, Flex, Input, Modal, Spin, Tag, Typography } from "antd";
 import { useEffect, useState } from "react";
 import { api, errorMessage, type GroupMedia, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
@@ -90,7 +91,7 @@ export default function GroupMediaPicker({
             <Spin />
           </Flex>
         ) : data.items.length === 0 ? (
-          <Empty
+          <EmptyState
             description={data.total === 0 ? "Chưa video nào khác trong nhóm có ảnh hay video" : "Không có ảnh nào khớp"}
           />
         ) : (

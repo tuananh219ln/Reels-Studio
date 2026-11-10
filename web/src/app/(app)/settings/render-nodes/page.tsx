@@ -1,8 +1,9 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, DesktopOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Spin, Switch, Typography } from "antd";
+import { Alert, App, Button, Card, Flex, Input, Popconfirm, Spin, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
@@ -146,7 +147,7 @@ export default function RenderNodesPage() {
             ))}
           </Flex>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có máy render nào" />
+          <EmptyState description="Chưa có máy render nào" />
         )}
       </Card>
 

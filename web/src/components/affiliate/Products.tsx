@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   CheckOutlined,
@@ -12,7 +13,7 @@ import {
   SearchOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
@@ -471,10 +472,11 @@ export default function Products() {
           />
         </Flex>
         <div aria-label="Lọc theo trạng thái" role="group">
-          <Tabs
-            activeKey={stage}
-            onChange={(key) => setStage(key as Stage)}
-            items={STAGES.map(({ value, label }) => ({ key: value, label: `${label} (${stageCounts[value]})` }))}
+          {/* A filter, so it looks like one, not like a second row of the page's tabs. */}
+          <Segmented<Stage>
+            value={stage}
+            onChange={setStage}
+            options={STAGES.map(({ value, label }) => ({ value, label: `${label} (${stageCounts[value]})` }))}
           />
         </div>
         {selected.length > 0 && (
@@ -514,14 +516,26 @@ export default function Products() {
             pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
             scroll={{ x: 1100 }}
             locale={{
-              emptyText:
-                products.length === 0
-                  ? open
-                    ? `Nhóm “${open.name}” chưa có sản phẩm nào: bấm Nhập file hoặc Thêm sản phẩm`
-                    : "Chưa có sản phẩm nào"
-                  : whose === "mine" && mineCount === 0
-                    ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
-                    : "Không có sản phẩm nào khớp",
+              emptyText: (
+                <EmptyState
+                  description={
+                    products.length === 0
+                      ? open
+                        ? `Nhóm “${open.name}” chưa có sản phẩm nào`
+                        : "Chưa có sản phẩm nào"
+                      : whose === "mine" && mineCount === 0
+                        ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
+                        : "Không có sản phẩm nào khớp"
+                  }
+                  action={
+                    products.length === 0 && (
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
+                        Nhập sản phẩm đầu tiên
+                      </Button>
+                    )
+                  }
+                />
+              ),
             }}
           />
         </Card>

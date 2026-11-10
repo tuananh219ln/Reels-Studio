@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -374,7 +375,9 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
           onChange={onChange}
           pagination={rows.length > 50 ? { pageSize: 50, showSizeChanger: false, ...tablePage } : false}
           scroll={{ x: "max-content" }}
-          locale={{ emptyText: `Chưa có bài nào app đăng lên Page này trong ${days} ngày.` }}
+          locale={{
+            emptyText: <EmptyState description={`Chưa có bài nào app đăng lên Page này trong ${days} ngày.`} />,
+          }}
         />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Số ở lần đo mới nhất của mỗi bài (bấm “Cập nhật view” ở ⋯ để đo lại); bài đăng ngoài app không có ở đây.{" "}

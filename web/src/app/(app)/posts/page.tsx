@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
-import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tabs, Tooltip, Typography } from "antd";
+import { App, Card, Flex, Input, Segmented, Select, Spin, Table, Tabs, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
@@ -211,8 +212,7 @@ function Posts() {
             <Spin />
           </Flex>
         ) : groups.length === 0 ? (
-          <Empty
-            style={{ padding: "32px 0" }}
+          <EmptyState
             description={
               filtered
                 ? "Không có bài đăng nào khớp"

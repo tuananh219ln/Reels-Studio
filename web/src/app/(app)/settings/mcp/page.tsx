@@ -1,6 +1,7 @@
 "use client";
 
-import { Alert, App, Button, Card, Empty, Flex, Popconfirm, Spin, Tag, Typography } from "antd";
+import EmptyState from "@/components/EmptyState";
+import { Alert, App, Button, Card, Flex, Popconfirm, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
@@ -158,7 +159,7 @@ export default function ChatGptPage() {
         {!loading && !error && (
           <Card title="Các kết nối của bạn">
             {!connections.length ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Bạn chưa có kết nối nào." />
+              <EmptyState description="Bạn chưa có kết nối nào." />
             ) : (
               <Flex vertical gap={16}>
                 {connections.map((row) => (

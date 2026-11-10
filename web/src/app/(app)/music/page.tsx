@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Popconfirm, Space, Table, Typography } from "antd";
@@ -139,7 +140,22 @@ function Music() {
           loading={loading}
           pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
           scroll={{ x: 1150 }}
-          locale={{ emptyText: "Chưa có bài nhạc nào" }}
+          locale={{
+            emptyText: (
+              <EmptyState
+                description={
+                  filters.q || filters.topic || filters.mood ? "Không có bài nhạc nào khớp" : "Chưa có bài nhạc nào"
+                }
+                action={
+                  !(filters.q || filters.topic || filters.mood) && (
+                    <Button type="primary" icon={<UploadOutlined />} onClick={() => input.current?.click()}>
+                      Tải bài nhạc đầu tiên
+                    </Button>
+                  )
+                }
+              />
+            ),
+          }}
         />
       </Card>
       <TrackModal

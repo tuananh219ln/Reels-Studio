@@ -142,7 +142,7 @@ export function ContentTypeField({
       placeholder="+ Loại nội dung"
       size="small"
       allowClear
-      variant="filled"
+      // Outlined like any field: a filled grey box read as switched off.
       maxLength={40}
       disabled={disabled}
       style={{ width: 200 }}

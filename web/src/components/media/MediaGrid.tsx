@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { VideoCameraOutlined } from "@ant-design/icons";
-import { Card, Empty, Flex, Tag, Typography, theme } from "antd";
+import { Card, Flex, Tag, Typography, theme } from "antd";
 import type { ReactNode } from "react";
 import type { MediaItem } from "@/lib/api";
 import { formatDecimal } from "@/lib/api";
@@ -18,7 +19,7 @@ export default function MediaGrid({
 }) {
   const { token } = theme.useToken();
   if (!items.length) {
-    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={empty} />;
+    return <EmptyState description={empty} />;
   }
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>

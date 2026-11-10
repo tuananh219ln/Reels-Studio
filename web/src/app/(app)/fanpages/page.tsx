@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   DeleteOutlined,
@@ -17,7 +18,6 @@ import {
   Checkbox,
   Collapse,
   Dropdown,
-  Empty,
   Flex,
   Input,
   Popconfirm,
@@ -329,11 +329,16 @@ function PageCard({
               {row.name}
             </Link>
           </Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-            ID {row.page_id}, token …{row.token_tail}
-          </Typography.Text>
+          {/* The status on its own line, so neither it nor the ID is cut off on a narrow card. */}
+          <Flex gap={8} align="center" style={{ minWidth: 0 }}>
+            <span style={{ flex: "none", whiteSpace: "nowrap" }}>
+              <StatusTag row={row} />
+            </span>
+            <Typography.Text type="secondary" style={{ fontSize: 12, minWidth: 0 }} ellipsis>
+              ID {row.page_id}, token …{row.token_tail}
+            </Typography.Text>
+          </Flex>
         </Flex>
-        <StatusTag row={row} />
         <Dropdown
           trigger={["click"]}
           menu={{
@@ -562,6 +567,13 @@ function AddModal({
       onOk={pages ? save : lookup}
     >
       <Flex vertical gap={12}>
+        {/* What the token needs is only read here, while adding a Page. */}
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          Dán token của một System User trong Business Manager đã được gán Page, có quyền <code>pages_show_list</code>,{" "}
+          <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>pages_manage_engagement</code>,{" "}
+          <code>pages_read_user_content</code> và <code>read_insights</code>. Token được lưu mã hoá, không bao giờ hiện
+          lại.
+        </Typography.Paragraph>
         <TokenInput
           value={token}
           onChange={(value) => {
@@ -700,14 +712,7 @@ function Fanpages() {
             Thêm Fanpage
           </Button>
         }
-        description={
-          <>
-            Dán token của một System User trong Business Manager đã được gán Page, có quyền <code>pages_show_list</code>
-            , <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>pages_manage_engagement</code>,{" "}
-            <code>pages_read_user_content</code> và <code>read_insights</code>. Token được lưu mã hoá, không bao giờ
-            hiện lại; tool tự kiểm tra lại mỗi 12 giờ.
-          </>
-        }
+        description="Các Fanpage đội dùng để đăng: số liệu 7 ngày, chủ Page, tài khoản Shopee và lịch đăng của từng Page. Tool tự kiểm tra token mỗi 12 giờ."
       />
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
@@ -730,7 +735,7 @@ function Fanpages() {
           <Card loading />
         ) : inUse.length === 0 ? (
           <Card>
-            <Empty
+            <EmptyState
               description={
                 showing === "mine"
                   ? "Bạn chưa có Fanpage nào đang dùng. Xem mục “Tất cả” để nhận Page."
@@ -742,7 +747,7 @@ function Fanpages() {
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
                 Thêm Fanpage
               </Button>
-            </Empty>
+            </EmptyState>
           </Card>
         ) : (
           <div

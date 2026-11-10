@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { SearchOutlined } from "@ant-design/icons";
-import { Alert, Checkbox, Empty, Flex, Input, Modal, Segmented, Spin, Tag, Typography } from "antd";
+import { Alert, Checkbox, Flex, Input, Modal, Segmented, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage, type ClipHit, type PixabayHit, type StockSource, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
@@ -355,7 +356,7 @@ export default function StockPicker({
               )
             )
           ) : hits.length === 0 ? (
-            <Empty description="Không có ảnh nào cho từ khóa này" />
+            <EmptyState description="Không có ảnh nào cho từ khóa này" />
           ) : (
             <>
               <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
@@ -559,7 +560,7 @@ function ClipPicker({
           !error && <Typography.Text type="secondary">Nhập từ khóa ở ô trên để tìm video.</Typography.Text>
         )
       ) : hits.length === 0 ? (
-        <Empty description="Không có video nào cho từ khóa này" />
+        <EmptyState description="Không có video nào cho từ khóa này" />
       ) : (
         <>
           <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>

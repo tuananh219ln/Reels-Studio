@@ -1,7 +1,7 @@
 "use client";
 
 import { EditOutlined, UndoOutlined } from "@ant-design/icons";
-import { App, Button, Col, Flex, Popconfirm, Row, Spin, Tag } from "antd";
+import { App, Button, Col, Flex, Popconfirm, Row, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import DefaultMusicCard from "@/components/settings/DefaultMusicCard";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
@@ -119,6 +119,12 @@ export default function VideoDefaultsPage() {
           ))
         }
       />
+      {/* Read-only fields are greyed by antd; this line says why, so they do not read as broken. */}
+      {!editing && values !== null && (
+        <Typography.Paragraph type="secondary" style={{ marginTop: -4 }} data-testid="defaults-read-only">
+          Đang xem. Bấm “Chỉnh sửa” để đổi, rồi “Lưu” một lần cho tất cả.
+        </Typography.Paragraph>
+      )}
       {values === null ? (
         <Spin />
       ) : (

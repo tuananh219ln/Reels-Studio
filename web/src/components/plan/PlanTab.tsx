@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   DeleteOutlined,
@@ -25,7 +26,6 @@ import {
   Collapse,
   DatePicker,
   Drawer,
-  Empty,
   Flex,
   Form,
   Grid,
@@ -79,8 +79,9 @@ const DRAG_TYPE = "text/plan-item";
 export const PLAN_STATUS_COLORS: Record<PlanItemStatus, string> = {
   idea: "default",
   started: "processing",
-  scripted: "blue",
-  done: "success",
+  // Six statuses, six colours told apart at a glance: "Xong" and "Đã đăng" are not both green.
+  scripted: "geekblue",
+  done: "cyan",
   scheduled: "purple",
   posted: "green",
 };
@@ -100,8 +101,8 @@ function statusColor(status: PlanItemStatus, token: ReturnType<typeof theme.useT
   const byTag: Record<string, string> = {
     default: token.colorBorder,
     processing: token.colorInfo,
-    blue: token.blue,
-    success: token.colorSuccess,
+    geekblue: token.geekblue,
+    cyan: token.cyan,
     purple: token.purple,
     green: token.green,
   };
@@ -487,6 +488,26 @@ function PlanView({
       <Row gutter={[12, 12]} wrap={false}>
         <Col flex="auto" style={{ minWidth: 0 }}>
           <Flex vertical gap={12}>
+            {planned.length === 0 && !plan.draft ? (
+              // A plan with nothing in it starts from one place, not from thirty empty days.
+              <Card size="small" data-testid="plan-empty">
+                <EmptyState
+                  description="Kế hoạch chưa có ý tưởng nào. Để AI lập 30 ngày theo prompt kế hoạch, bấm “Nhập file JSON/CSV” ở trên, hoặc thêm tay từng ngày bên dưới."
+                  action={
+                    <Flex gap={8} justify="center" wrap>
+                      <Button
+                        type="primary"
+                        icon={<RobotOutlined />}
+                        loading={working}
+                        onClick={() => change(() => api<Plan>(`${path}/generate`, "POST"))}
+                      >
+                        Lập kế hoạch bằng AI
+                      </Button>
+                    </Flex>
+                  }
+                />
+              </Card>
+            ) : null}
             <StatusLegend />
             <MonthCalendar
               plan={plan}
@@ -815,10 +836,12 @@ function DayCell({
           </Tooltip>
         ))}
         {items.length === 0 && (
+          // Quiet in an empty cell: thirty bordered buttons read as noise before the plan has anything.
           <Button
             size="small"
-            type="dashed"
+            type="text"
             block
+            style={{ color: COLORS.textSecondary }}
             aria-label={`Thêm ý ngày ${day}`}
             onClick={(event) => {
               event.stopPropagation();
@@ -884,7 +907,7 @@ function PlanSettings({ plan, change, onClose }: { plan: Plan; change: Change; o
         </Flex>
         <PostTimes value={times} onChange={setTimes} />
         <Flex align="center" gap={8}>
-          <Typography.Text>Mục tiêu video cho verdict</Typography.Text>
+          <Typography.Text>Số video cần làm trước khi đánh giá nhóm</Typography.Text>
           <InputNumber
             aria-label="Mục tiêu video"
             min={1}
@@ -1208,7 +1231,7 @@ function VerdictTarget({ plan, change }: { plan: Plan; change: Change }) {
     return (
       <Flex align="center" gap={8} style={{ marginTop: 12 }}>
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-          Mục tiêu video cho verdict
+          Số video cần làm trước khi đánh giá nhóm
         </Typography.Text>
         {input}
       </Flex>
@@ -1219,8 +1242,8 @@ function VerdictTarget({ plan, change }: { plan: Plan; change: Change }) {
       type="info"
       style={{ marginTop: 12 }}
       data-testid="plan-verdict"
-      title={`Tiến độ verdict: đã làm ${plan.video_count}/${plan.video_target} video`}
-      description="Banner chỉ đếm số lượng. Kết luận verdict vẫn họp tay sau khi đủ video đã đăng và đo 48h."
+      title={`Tiến độ trước khi đánh giá nhóm: đã làm ${plan.video_count}/${plan.video_target} video`}
+      description="Dòng này chỉ đếm số video. Việc đánh giá nhóm có đáng làm tiếp hay không vẫn do đội họp, khi đủ video đã đăng và đã đo 48 giờ."
       action={
         <Flex align="center" gap={8}>
           {input}
@@ -1619,7 +1642,7 @@ function BacklogView({
         </Typography.Paragraph>
       </Card>
       {shown.length === 0 ? (
-        <Empty description={backlog.length ? "Không có ý tưởng khớp bộ lọc" : "Backlog đang trống"} />
+        <EmptyState description={backlog.length ? "Không có ý tưởng khớp bộ lọc" : "Backlog đang trống"} />
       ) : (
         <Row gutter={[12, 12]}>
           {shown.map((item) => (

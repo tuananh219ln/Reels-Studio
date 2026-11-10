@@ -147,6 +147,10 @@ test("login, empty video list, header and logout", async ({ page }) => {
   await login(page, "  AN@Doi.VN ", SEED.password);
   await expect(page).toHaveURL(/\/videos$/);
   await expect(page.getByText("Chưa có video nào")).toBeVisible();
+  // The empty list offers its action in place.
+  await page.getByRole("button", { name: "Làm video đầu tiên" }).click();
+  await expect(page.getByRole("dialog", { name: "Tạo video" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Tạo video" }).getByRole("button", { name: "Huỷ" }).click();
   await expect(page.getByTestId("header-name")).toHaveText(SEED.name);
   await expect(page.getByTestId("account").locator(".ant-avatar")).toHaveText("A");
 
@@ -1018,4 +1022,19 @@ test("Kho kiến thức and a Page's dashboard keep the group, tab, period and f
   await page.reload();
   await expect(page.getByRole("tab", { name: "Nội dung" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("so với 7 ngày trước", { exact: false }).first()).toBeAttached();
+});
+
+test("phone width: the video list's filters sit behind Bộ lọc", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await loginAsSeed(page);
+  await page.goto("/videos");
+  // Not five selects stacked above the list: one button, with the search and sort beside it.
+  await expect(page.getByLabel("Lọc theo trạng thái")).toHaveCount(0);
+  await page.getByRole("button", { name: "Bộ lọc" }).click();
+  const filters = page.getByRole("dialog", { name: "Bộ lọc" });
+  await chooseOption(page, filters.getByLabel("Lọc theo trạng thái"), "Lỗi");
+  await filters.getByRole("button", { name: /^Xem \d+ video$/ }).click();
+  await expect(filters).toBeHidden();
+  await expect(page.getByRole("button", { name: "Bộ lọc (1)" })).toBeVisible();
+  await expect(page).toHaveURL(/[?&]status=failed/);
 });
