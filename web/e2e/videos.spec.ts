@@ -2951,7 +2951,8 @@ test("30-day plan: 2 ideas a day, and each idea is edited from its Sửa button"
 
   // Closing the drawer keeps the page where it was; the day's chips show the edit.
   const scrolled = await page.evaluate(() => window.scrollY);
-  await page.locator(".ant-drawer-close").click();
+  // Scoped to the day's drawer: the plan's other drawers ("Thêm ý tưởng vào Backlog") have a "Đóng" too.
+  await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await expect(day).toBeHidden();
   expect(await page.evaluate(() => window.scrollY)).toBe(scrolled);
   await expect(
