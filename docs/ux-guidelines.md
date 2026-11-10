@@ -978,7 +978,8 @@ Built:
     "Trang của tôi" without one, the empty card has "Xem tất cả Page", to take one. With no Page at all, it says
     "Chưa kết nối Fanpage nào" with "Kết nối Page đầu tiên", named apart from the header's "Thêm Fanpage". Then a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng) of what is shown, then a small card per Page in use, broken ones first, in a grid
-    that fits as many cards of at least 320 px as the width allows. A card shows the Page's initial,
+    that fits as many cards of at least 320 px as the width allows. A card shows the Page's Facebook profile picture (its initial while it has none
+    or the link has expired),
     its name linking to the Page's dashboard, its id and the token's last four characters, and a tag:
     "Hoạt động", "Lỗi kết nối", "Đang kiểm tra…" or "Chưa kiểm tra". A broken Page has a one-line
     pale band with the reason, the scheduled posts it puts at risk and "Dán token mới". Four numbers

@@ -338,7 +338,13 @@ function PageCard({
       }}
     >
       <Flex gap={10} align="center">
-        <Avatar size={32} style={{ background: COLORS.primaryBg, color: COLORS.primary, flex: "none" }}>
+        {/* The Page's Facebook picture; its initial while there is none or the link has expired (antd falls back). */}
+        <Avatar
+          size={32}
+          src={row.picture ?? undefined}
+          alt={`Ảnh đại diện ${row.name}`}
+          style={{ background: COLORS.primaryBg, color: COLORS.primary, flex: "none" }}
+        >
           {row.name.trim().charAt(0).toUpperCase() || <FacebookOutlined />}
         </Avatar>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>

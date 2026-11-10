@@ -91,6 +91,43 @@ def test_a_working_token_records_the_followers_and_the_pages_name(db, me, fakes)
     assert [(row.day, row.followers) for row in db.scalars(select(FanpageFollowers))] == [(today, 1520)]
 
 
+def test_a_check_keeps_the_pages_profile_picture_and_the_list_shows_it(an, db, me, fakes):
+    fakes.facebook_picture = "https://scontent.example/page-avatar.jpg?oe=1"
+    page = add_page(db, me)
+    (row,) = an.get(URL).json()
+    assert row["picture"] is None, "none before the first check"
+
+    fanpages.check(db, page)
+    (row,) = an.get(URL).json()
+    assert row["picture"] == "https://scontent.example/page-avatar.jpg?oe=1"
+
+    # Facebook's links expire: the next check brings the new one.
+    fakes.facebook_picture = "https://scontent.example/page-avatar.jpg?oe=2"
+    fanpages.check(db, page)
+    assert an.get(URL).json()[0]["picture"].endswith("oe=2")
+
+
+@pytest.mark.parametrize("picture", [None, "javascript:alert(1)", "http://insecure.example/a.jpg"])
+def test_a_missing_or_unsafe_picture_keeps_the_last_good_one(db, me, fakes, picture):
+    fakes.facebook_picture = "https://scontent.example/good.jpg"
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    fakes.facebook_picture = picture
+    fanpages.check(db, page)
+    db.refresh(page)
+    assert page.picture_url == "https://scontent.example/good.jpg"
+
+
+def test_a_failed_check_keeps_the_picture(db, me, fakes):
+    fakes.facebook_picture = "https://scontent.example/good.jpg"
+    page = add_page(db, me)
+    fanpages.check(db, page)
+    fakes.facebook_page_info_refused = True
+    fanpages.check(db, page)
+    db.refresh(page)
+    assert page.check_error and page.picture_url == "https://scontent.example/good.jpg"
+
+
 def test_a_second_check_on_the_same_day_keeps_one_count_for_the_day(db, me, fakes):
     page = add_page(db, me)
     fakes.facebook_followers = 10
