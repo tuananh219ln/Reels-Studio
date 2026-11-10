@@ -139,7 +139,6 @@ def run_suggestions(factory, tmp_path, user, replies) -> Job:
 
     with factory() as db:
         group = first_topic(db)
-        group.photo_hint = "Ảnh người cao tuổi Việt Nam"
         group.text_suggestions = {"job_id": 0, "created_at": "", "options": [{"name": "Cũ", "look": {}}]}
         job = Job(knowledge_topic_id=group.id, kind="text_look", status="running", created_by_id=user.id)
         db.add(job)
@@ -154,7 +153,7 @@ def test_the_suggestion_job_keeps_the_valid_looks_for_the_group_and_leaves_its_l
         committed, tmp_path, user, ["Đây là gợi ý:\n" + json.dumps(text_looks_json(), ensure_ascii=False)]
     )
     assert (job.status, job.claude_calls) == ("done", 1)
-    assert "Sức khỏe" in prompts[0] and "Ảnh người cao tuổi Việt Nam" in prompts[0]
+    assert "Sức khỏe" in prompts[0] and "Ảnh của nhóm" in prompts[0]
     with committed() as db:
         group = first_topic(db)
         options = group.text_suggestions["options"]
@@ -181,6 +180,15 @@ def test_an_unusable_answer_is_asked_again_once_then_the_job_fails(committed, tm
     with committed() as db:
         # The last suggestions stay until a job brings new ones.
         assert first_topic(db).text_suggestions["options"][0]["name"] == "Cũ"
+
+
+def test_the_suggestion_prompt_reads_the_groups_name_prompt_photo_hint_and_look():
+    group = KnowledgeTopic(
+        name="Già Mà Khỏe", script_prompt="Viết cho người trên 50 tuổi", photo_hint="Ảnh người cao tuổi"
+    )
+    prompt = text_looks.suggest_prompt(group, {"text_style": "box"})
+    assert "Già Mà Khỏe" in prompt and "người trên 50 tuổi" in prompt and "Ảnh người cao tuổi" in prompt
+    assert "'text_style': 'box'" in prompt and text_looks.LOOK_RULES in prompt
 
 
 # --- "AI chọn kiểu chữ cho từng video" ---
