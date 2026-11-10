@@ -569,6 +569,8 @@ class Fanpage(Base):
     check_error: Mapped[str | None] = mapped_column(Text)
     check_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     followers_count: Mapped[int | None] = mapped_column(Integer)
+    # The Page's profile picture as Facebook links it (migration 0075), refreshed by every check; None until one.
+    picture_url: Mapped[str | None] = mapped_column(Text)
     # What went wrong reading the Page's daily numbers at the last check (fanpages.read_insights), None when it worked.
     insights_error: Mapped[str | None] = mapped_column(Text)
     # The member whose Page it is: only they set its Shopee account, whose links its comments carry.

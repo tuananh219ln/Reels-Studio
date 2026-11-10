@@ -118,9 +118,12 @@ def managed_pages(token: str) -> list[dict]:
 
 
 def page_info(page: Page) -> dict:
-    """The Page's `name` and `followers` (None when Facebook leaves it out), read with the Page's own token: the
-    worker's check that the token still works (fanpages.check). Reading the Page needs `pages_read_engagement`."""
-    query = urllib.parse.urlencode({"fields": "name,followers_count", "access_token": page.token})
+    """The Page's `name`, `followers` and profile `picture` link (None when Facebook leaves them out), read with the
+    Page's own token: the worker's check that the token still works (fanpages.check). Reading the Page needs
+    `pages_read_engagement`."""
+    query = urllib.parse.urlencode(
+        {"fields": "name,followers_count,picture.type(large){url}", "access_token": page.token}
+    )
     url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}?{query}"
     try:
         reply = _send(urllib.request.Request(url), INSIGHTS_TIMEOUT)
@@ -135,7 +138,20 @@ def page_info(page: Page) -> dict:
         if err.message == REFUSED:
             raise FacebookError("Facebook không cho đọc Page này", err.detail, err.status, err.code) from None
         raise
-    return {"name": str(reply.get("name") or ""), "followers": _count(reply.get("followers_count"))}
+    return {
+        "name": str(reply.get("name") or ""),
+        "followers": _count(reply.get("followers_count")),
+        "picture": _picture(reply.get("picture")),
+    }
+
+
+def _picture(value: object) -> str | None:
+    """The picture's link from `picture{data{url}}`, only an https one (the page shows it as an image)."""
+    data = value.get("data") if isinstance(value, dict) else None
+    url = data.get("url") if isinstance(data, dict) else None
+    if isinstance(url, str) and url.startswith("https://") and len(url) <= 2000:
+        return url
+    return None
 
 
 # Page Insights metrics by the name the app keeps them under; daily values. Meta replaced `page_impressions` with

@@ -563,6 +563,8 @@ export type Fanpage = {
   id: number;
   page_id: string;
   name: string;
+  /** Facebook's link to the Page's profile picture from its last check; null until one (the card shows its initial). */
+  picture: string | null;
   token_tail: string;
   active: boolean;
   updated_at: string;

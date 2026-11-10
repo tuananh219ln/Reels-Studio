@@ -342,6 +342,8 @@ class FakeServices:
         # Video Insights metrics Meta has retired: a call asking for any of them fails whole, (#100) like Meta's.
         self.facebook_retired_metrics: set[str] = set()
         self.facebook_followers: int | None = 1200  # a Page's followers_count; None leaves it out of the answer
+        # A Page's profile picture link (picture{url}); None leaves it out of the answer.
+        self.facebook_picture: str | None = None
         self.facebook_page_info_refused = False  # the token cannot read the Page: 403, code 200
         # Comments by id: {"object": reel id, "message", "from": {"id", "name"}, "edits"}
         self.facebook_comments: dict[str, dict] = {}
@@ -1142,7 +1144,7 @@ class FakeServices:
         return 200, {"data": [page | {"access_token": FACEBOOK_TOKEN} for page in self.facebook_pages]}
 
     def _page_info(self, page_id: str, query: dict) -> tuple[int, dict]:
-        """GET /{page-id}?fields=name,followers_count with the Page's own token."""
+        """GET /{page-id}?fields=name,followers_count,picture with the Page's own token."""
         if query.get("access_token") != FACEBOOK_TOKEN:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
         if self.facebook_page_info_refused:
@@ -1151,6 +1153,8 @@ class FakeServices:
         reply = {"id": page_id, "name": page["name"]}
         if self.facebook_followers is not None:
             reply["followers_count"] = self.facebook_followers
+        if self.facebook_picture is not None:
+            reply["picture"] = {"data": {"url": self.facebook_picture, "is_silhouette": False}}
         return 200, reply
 
     def add_visitor_comment(self, object_id: str, message: str, author: str = "Cô Lan", **fields) -> str:

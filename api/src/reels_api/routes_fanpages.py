@@ -108,6 +108,8 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "id": row.id,
             "page_id": row.page_id,
             "name": row.name,
+            # Facebook's link to the Page's profile picture from its last check; None: the card shows its initial.
+            "picture": row.picture_url,
             "token_tail": row.token_tail,
             "active": row.active,
             "updated_at": row.updated_at.isoformat(),

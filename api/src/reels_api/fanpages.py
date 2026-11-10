@@ -130,6 +130,10 @@ def check(db: DbSession, row: Fanpage) -> None:
     else:
         if info["name"]:
             values["name"] = info["name"][:200]
+        # Facebook's picture links expire after some days: each check brings a fresh one, and a check without one
+        # keeps the last.
+        if info.get("picture"):
+            values["picture_url"] = info["picture"]
         if info["followers"] is not None:
             values["followers_count"] = info["followers"]
             day = at.astimezone(analytics.VIETNAM).date()
