@@ -51,7 +51,14 @@ def committed(engine):
         db.execute(delete(KnowledgeTopic).where(KnowledgeTopic.name != "Sức khỏe"))
         db.execute(
             update(KnowledgeTopic).values(
-                plan_prompt="", plan_start_date=None, plan_per_day=4, plan_draft=None, article_prompt=""
+                plan_prompt="",
+                plan_start_date=None,
+                plan_per_day=4,
+                plan_draft=None,
+                article_prompt="",
+                text_look=None,
+                text_ai=False,
+                text_suggestions=None,
             )
         )
         db.commit()
