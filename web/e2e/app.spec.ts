@@ -261,7 +261,10 @@ test("only a thing's maker is offered to delete it: a teammate sees no Xóa on t
   await loginAsSeed(page);
   await handWrittenVideo(page, "cải mầm");
   const videoUrl = page.url();
-  await expect(page.getByRole("button", { name: /Xóa$/ }).first()).toBeVisible();
+  // The maker finds "Xóa video" under "⋯", and a scene's own delete button.
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await expect(page.getByRole("menuitem", { name: "Xóa video" })).toBeVisible();
+  await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Xóa cảnh" }).first()).toBeVisible();
   await page.goto("/knowledge");
   await page.getByLabel("Tên nhóm chủ đề mới").fill("Nhóm của An");
@@ -279,6 +282,10 @@ test("only a thing's maker is offered to delete it: a teammate sees no Xóa on t
   await binh.goto(videoUrl);
   await expect(binh.getByTestId("scene").first()).toBeVisible();
   await expect(binh.getByRole("button", { name: /^(delete )?Xóa$/ })).toHaveCount(0);
+  await binh.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await expect(binh.getByRole("menuitem", { name: "Nhân bản" })).toBeVisible();
+  await expect(binh.getByRole("menuitem", { name: "Xóa video" })).toHaveCount(0);
+  await binh.keyboard.press("Escape");
   await expect(binh.getByRole("button", { name: "Xóa cảnh" })).toHaveCount(0);
   // And the api refuses it if asked directly.
   const id = videoUrl.split("/").pop();

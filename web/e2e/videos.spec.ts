@@ -1629,7 +1629,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // The title scene: the grid opens on its first keyword and shows every result as a large-enough thumbnail.
   const title = page.getByTestId("title-scene");
-  await title.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await title.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("calcium rich food");
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
@@ -1652,7 +1653,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
   const first = scenes.nth(0);
-  await first.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await first.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("small fried fish");
   const firstResult = picker.getByTestId("stock-hit").first().locator("img");
@@ -1686,7 +1688,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await expect(third.getByTestId("image-error")).toHaveText("Hãy nhập từ khóa tìm ảnh trước");
   await expect(third.getByTestId("keywords-hint")).toBeVisible();
   // The grid then waits for a keyword to be typed instead of searching nothing.
-  await third.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await third.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByTestId("picker-hint")).toBeVisible();
   await expect(picker.getByTestId("stock-hit")).toHaveCount(0);
@@ -1708,7 +1711,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // On a phone the grid fits the screen: no sideways scroll, thumbnails still large enough to tell apart.
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   // The photo this scene already shows is hidden ("Ẩn ảnh đã dùng trong video này" is on by default).
   await expect(picker.getByTestId("stock-hit")).toHaveCount(2);
@@ -1797,14 +1801,17 @@ test("picker filters: keyword chips, photo shape, and photos already in the vide
   const scenes = page.getByTestId("scene");
 
   // The first scene takes the first result; the second scene's picker, on the same keyword, no longer offers it.
-  await scenes.nth(0).getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scenes.nth(0).getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
   const taken = await picker.getByTestId("stock-hit").first().locator("img").getAttribute("src");
   await picker.getByTestId("stock-hit").first().click();
   await expect(picker).toBeHidden();
 
-  await scenes.nth(1).getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scenes.nth(1).getByRole("button", { name: "Chọn từ kho" }).click();
+
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   // The scene's own keywords are one tap away; the first scene's keyword finds the photo already taken.
   await expect(picker.getByTestId("keyword-chips")).toContainText("yogurt");
@@ -1830,7 +1837,8 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await loginAsSeed(page);
   await newVideoWithScript(page, "món ăn tốt cho xương");
   const scene = page.getByTestId("scene").first();
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   // Pexels is the default source: its three fake photos show first.
   await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
@@ -1850,7 +1858,8 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 
   // Reopen and take a photo from Openverse instead; the picker starts on Pexels again.
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   await picker.getByText("Openverse", { exact: true }).click();
   await expect(picker.getByText(/ảnh từ Openverse cho/)).toBeVisible();
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
@@ -1893,7 +1902,8 @@ test("a topic group puts Wikimedia first: the picker and “Tìm ảnh” follow
   await newVideoWithScript(page, "canh chua cá");
   const scene = page.getByTestId("scene").first();
   await expect(scene.getByRole("button", { name: "Tìm ảnh (Wikimedia Commons)" })).toBeVisible();
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByRole("radio", { name: "Wikimedia Commons" })).toBeChecked();
   await expect(picker.getByText(/ảnh từ Wikimedia Commons cho/)).toBeVisible();
