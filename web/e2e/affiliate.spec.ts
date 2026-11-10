@@ -162,9 +162,13 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await expect(page).not.toHaveURL(source);
   await expect(page.getByTestId("video-platform")).toHaveText("Bản TikTok");
   await expect(page.getByTestId("variants")).toContainText("Bản Facebook gốc:");
-  // The TikTok version cannot make another TikTok version: "⋯" no longer offers it.
-  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
-  await expect(page.getByRole("menuitem", { name: "Nhân bản" })).toBeVisible();
+  // The TikTok version cannot make another TikTok version: "⋯" no longer offers it. Its script is still being
+  // written for a moment (the menu then holds only what a script-less video has), so the look is retried as one step.
+  await expect(async () => {
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+    await expect(page.getByRole("menuitem", { name: "Nhân bản" })).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 60_000 });
   await expect(page.getByRole("menuitem", { name: "Tạo bản TikTok" })).toHaveCount(0);
   await page.keyboard.press("Escape");
 
