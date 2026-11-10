@@ -53,6 +53,8 @@ const QUEUE_REFRESH_MS = 30_000;
 const number = (value: number) => value.toLocaleString("vi-VN");
 const count = (value: number | null) => (value === null ? "—" : number(value));
 const pageUrl = (row: Fanpage) => `https://www.facebook.com/${row.page_id}`;
+/** "08:00": the preparing time as the api keeps it (plans.check_post_times). */
+const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** Broken Pages first, so the one that needs a member is at the top. */
 function byNeed(a: Fanpage, b: Fanpage): number {
@@ -184,9 +186,25 @@ function AutoLine({
   async function save(body: object) {
     try {
       onRows(await api<Fanpage[]>(`/fanpages/${row.id}/auto`, "PUT", body));
+      return true;
     } catch (err) {
       message.error(errorMessage(err));
+      return false;
     }
+  }
+
+  /** A time that is not "HH:MM", or that the api refuses, gives way to the saved one, so the field never shows a time
+   * that is not in use. */
+  async function saveTime() {
+    const saved = auto!.prepare_time;
+    const typed = time.trim();
+    if (typed === saved) return;
+    if (!TIME.test(typed)) {
+      message.error("Giờ chuẩn bị phải có dạng HH:MM, ví dụ 08:00");
+      setTime(saved);
+      return;
+    }
+    if (!(await save({ prepare_time: typed }))) setTime(saved);
   }
 
   const tiktok = accounts.filter((account) => account.platform === "tiktok" && account.active);
@@ -206,8 +224,8 @@ function AutoLine({
           value={time}
           style={{ width: 70 }}
           onChange={(event) => setTime(event.target.value)}
-          onBlur={() => time !== auto.prepare_time && save({ prepare_time: time })}
-          onPressEnter={() => time !== auto.prepare_time && save({ prepare_time: time })}
+          onBlur={() => void saveTime()}
+          onPressEnter={() => void saveTime()}
         />
       </Flex>
       {auto.auto_prepare && (
@@ -733,21 +751,24 @@ function Fanpages() {
         )}
         {rows === null ? (
           <Card loading />
+        ) : rows.length === 0 ? (
+          // Named apart from the header's "Thêm Fanpage", so no two buttons share a name.
+          <Card>
+            <EmptyState
+              description="Chưa kết nối Fanpage nào"
+              action={
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
+                  Kết nối Page đầu tiên
+                </Button>
+              }
+            />
+          </Card>
         ) : inUse.length === 0 ? (
           <Card>
             <EmptyState
-              description={
-                showing === "mine"
-                  ? "Bạn chưa có Fanpage nào đang dùng. Xem mục “Tất cả” để nhận Page."
-                  : stopped.length
-                    ? "Không có Fanpage nào đang dùng"
-                    : "Chưa kết nối Fanpage nào"
-              }
-            >
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
-                Thêm Fanpage
-              </Button>
-            </EmptyState>
+              description={showing === "mine" ? "Bạn chưa có Fanpage nào đang dùng" : "Không có Fanpage nào đang dùng"}
+              action={showing === "mine" && <Button onClick={() => setWhose("all")}>Xem tất cả Page</Button>}
+            />
           </Card>
         ) : (
           <div

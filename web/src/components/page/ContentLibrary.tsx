@@ -246,18 +246,22 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
   };
   const tablePage = useUrlPage();
 
-  const load = useCallback(async () => {
-    try {
-      setData(await api<PageContent>(`/fanpages/${pageId}/content?days=${days}`));
-    } catch (err) {
-      message.error(errorMessage(err));
-    }
-  }, [pageId, days, message]);
+  // `quiet` for the refreshes: an api that is down is said once, on opening, not every minute.
+  const load = useCallback(
+    async (quiet = false) => {
+      try {
+        setData(await api<PageContent>(`/fanpages/${pageId}/content?days=${days}`));
+      } catch (err) {
+        if (!quiet) message.error(errorMessage(err));
+      }
+    },
+    [pageId, days, message],
+  );
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- loads on mount and on a new period; state is set only after the request answers
     void load();
   }, [load]);
-  usePolling(load, REFRESH_MS);
+  usePolling(() => load(true), REFRESH_MS);
 
   // While a reading waits for the worker, ask again every few seconds until it has run.
   const pending = data?.posts.some((post) => post.pending) ?? false;

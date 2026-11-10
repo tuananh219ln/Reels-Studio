@@ -28,7 +28,9 @@ import StatusText from "@/components/StatusText";
 import { ARTICLE_STATUS_TONES, numbersLine } from "@/components/article/ArticlePosting";
 import { usePolling } from "@/lib/polling";
 
+/** Often while an article is being written or posted, else now and then for teammates' new ones. */
 const REFRESH_MS = 10_000;
+const IDLE_REFRESH_MS = 60_000;
 
 type NewArticle = { knowledge_topic_id: number; kind: ArticleKind; topic: string; source_comment_id?: number };
 
@@ -148,19 +150,26 @@ function Articles() {
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has made an article).
   const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
 
-  const load = useCallback(async () => {
-    try {
-      setData(await api<ArticleList>("/articles"));
-    } catch (err) {
-      message.error(errorMessage(err));
-    }
-  }, [message]);
+  // `quiet` for the refreshes: an api that is down is said once, on opening, not on every refresh.
+  const load = useCallback(
+    async (quiet = false) => {
+      try {
+        setData(await api<ArticleList>("/articles"));
+      } catch (err) {
+        if (!quiet) message.error(errorMessage(err));
+      }
+    },
+    [message],
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the first load; state is set only after the request answers
     void load();
   }, [load]);
-  usePolling(load, REFRESH_MS);
+  const working = (data?.articles ?? []).some(
+    (row) => row.suggest.state === "pending" || ["publishing", "pending", "unpublishing"].includes(row.status),
+  );
+  usePolling(() => load(true), working ? REFRESH_MS : IDLE_REFRESH_MS);
 
   const all = data?.articles ?? [];
   const mineCount = all.filter((row) => row.created_by_id === me.id).length;

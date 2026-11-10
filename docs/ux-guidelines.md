@@ -127,7 +127,13 @@ two attributes per row.
   phẩm đầu tiên"); the name never contains the page button's, which a search by name would also match. A filtered list that is empty says the filter is
   why.
 - **Error:** the plain Vietnamese reason where it happened, technical detail in a collapsed "Chi
-  tiết lỗi" (see Interface Language), and "Thử lại" when retrying can help.
+  tiết lỗi" (see Interface Language), and "Thử lại" when retrying can help. A page that cannot be read at
+  all says so in its place with "Thử lại" ("Không tải được video"), never an endless spinner. A list's
+  background refresh that fails says nothing: only the load on opening (or a member's own action) shows an
+  error, so an api that is down is said once, not on every refresh.
+- **Refresh:** a list or page that follows the worker re-reads often (every few seconds) only while
+  something on it is being made, written or posted, or while someone edits it; otherwise about once a
+  minute (a video's page every 10 seconds), enough for teammates' new items and fresh numbers.
 - **Long content:** titles, names and links truncate with an ellipsis (and a tooltip with the full
   text) or wrap; they never push a layout wider than the screen. Plan for one word and for 300
   characters.
@@ -220,8 +226,8 @@ Built:
   Fanpage nào. Chỉ chủ Page mới đăng lên Page đó…", with "Mở Quản lý Page"). "Đăng bài" starts on the member's own
   Page of the video's group, else on the Page of theirs they last posted to. The last group and Page are kept on the server by account, so they follow the member to
   any device and never come from a teammate. The footer has a
-  line naming the provider and model that will write the script ("Viết bằng: … (đổi trong Cài
-  đặt)"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
+  line naming the provider and model that will write the script ("Viết bằng: <nhà cung cấp>, <model>.
+  Đổi trong Cài đặt"), in red with a link when that provider is not set up, on the left and "Huỷ" and the main
   button on the right. When the group's 30-day plan has ideas not made yet, the dialog widens: they
   are a list on the left (day or "Backlog" and pain group under each), in groups with their count: "Hôm nay, ngày N",
   "Ngày tới" (the next 3 days with ideas, "Xem thêm" for the rest), "Ngày đã qua chưa làm" and
@@ -641,7 +647,8 @@ Built:
     and a public post's numbers as on "Bài đăng" (without "Cập nhật view");
   - "Nhân bản", "Hủy" for a queued job, "Thử lại" for a failed one, "Xóa".
 - **Kho kiến thức** (`/knowledge`): two columns (stacked on a phone). On the left, a narrow card "Nhóm
-  chủ đề" that stays in view while the page scrolls: one line per topic group with its video count and
+  chủ đề" that stays in view while the page scrolls when the columns sit side by side (stacked on a phone it
+  scrolls away with the page, so it never covers the group): one line per topic group with its video count and
   "Chưa có prompt" when it has none, "Của tôi" before the count on the groups of the member's own Pages (the chosen line highlighted with an orange left edge, the first
   group chosen on arrival), and under them a small field with a "+" button ("Thêm nhóm"; the new group
   is opened). On the right, the chosen group: its name as a heading with a pencil ("Đổi tên", renamed in
@@ -695,6 +702,8 @@ Built:
     with errors (which block saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as
     a draft ("Xem trước" / "Bỏ") until then; a failed one shows its error;
   - "Prompt kế hoạch", folded, with "Lưu" and "Lịch sử";
+  - a plan with no idea yet starts from one empty block saying "Bấm “Lập kế hoạch bằng AI”…, hoặc “Nhập file
+    JSON/CSV” ở trên, hoặc thêm tay từng ngày bên dưới", with "Lập kế hoạch bằng AI";
   - the status colours, then the calendar: five weeks ("Tuần N, dd/mm – dd/mm", or the day numbers before a start
     date, with "N ý tưởng, N đã làm, N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
     A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
@@ -706,7 +715,7 @@ Built:
     a full day (10) refuses it. "Mở Backlog" sits above the calendar and opens the Backlog beside it, to drag ideas
     between them;
   - in the drawer, the filters for the session only: status, pain group (A–Z) and a search over topic, pain group, pain and hook
-    that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng khớp", "Xóa lọc", "Đầy đủ | Gọn" (kept in the
+    that ignores accents ("sau benh" finds "Sâu bệnh"), "X/Y ý tưởng của ngày khớp" (counted on the open day, which the filters apply to), "Xóa lọc", "Đầy đủ | Gọn" (kept in the
     browser as `plan-compact`; a compact card shows its title, status, numbers and buttons, and opens on its title
     or arrow), then the day in full: a line counting its shown ideas by status
     ("Không có ý tưởng khớp" when the filters hide them all), and each idea with a 3 px left border in its status
@@ -808,7 +817,8 @@ Built:
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
   group and posting times and reorders its queue; others read them as a line. Under the owner line, the owner's
-  "Bán tự động" switch with its preparing time ("08:00" by default, saved on Enter or leaving the field) and, once on,
+  "Bán tự động" switch with its preparing time ("08:00" by default, saved on Enter or leaving the field; a time
+  not written "HH:MM", or one the api refuses, says so and the saved time comes back) and, once on,
   the TikTok account its drafts go to (one of their own; "Không gửi nháp TikTok" when none, a warning when its
   connection is missing or expired), "Bản TikTok riêng" (off by default) and where the videos wait for approval.
 - **Bài đăng** and posting. Nothing is posted or approved here: a member reviews and posts a
@@ -954,7 +964,8 @@ Built:
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
   - **Quản lý Page** (`/fanpages`, under "Đăng và kiếm tiền" in the menu): "Trang nào" chooses
     "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on
-    "Trang của tôi" without one, the empty card points to "Tất cả" to take a Page. Then a line of counts (đang
+    "Trang của tôi" without one, the empty card has "Xem tất cả Page", to take one. With no Page at all, it says
+    "Chưa kết nối Fanpage nào" with "Kết nối Page đầu tiên", named apart from the header's "Thêm Fanpage". Then a line of counts (đang
     dùng, lỗi kết nối, ngừng dùng) of what is shown, then a small card per Page in use, broken ones first, in a grid
     that fits as many cards of at least 320 px as the width allows. A card shows the Page's initial,
     its name linking to the Page's dashboard, its id and the token's last four characters, and a tag:

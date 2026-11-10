@@ -18,6 +18,7 @@ import {
   ConfigProvider,
   Dropdown,
   Flex,
+  Grid,
   Input,
   Row,
   Select,
@@ -59,6 +60,8 @@ function Knowledge() {
   const [chosen] = useUrlId("group");
   // Topics opened so far stay mounted (hidden when another is chosen): each box keeps its own unsaved text.
   const [opened, setOpened] = useState<number[]>([]);
+  // The group list stays in view beside the group only when they sit side by side; stacked on a phone it scrolls away.
+  const sideBySide = Grid.useBreakpoint().lg ?? false;
 
   useEffect(() => {
     api<Knowledge>("/knowledge")
@@ -109,7 +112,7 @@ function Knowledge() {
         description="Mỗi nhóm chủ đề có video, prompt, từ cấm và kế hoạch 30 ngày riêng. Nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
       />
       <Row gutter={[16, 16]} align="top">
-        <Col xs={24} lg={6} xxl={5} style={{ position: "sticky", top: 16, zIndex: 1 }}>
+        <Col xs={24} lg={6} xxl={5} style={sideBySide ? { position: "sticky", top: 16, zIndex: 1 } : undefined}>
           <Card
             size="small"
             title="Nhóm chủ đề"
