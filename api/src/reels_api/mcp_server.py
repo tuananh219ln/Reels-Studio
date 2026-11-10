@@ -45,6 +45,7 @@ from .mcp_auth import app_of, connection_for, public_url, registered
 from .models import AffiliateProduct, KnowledgeTopic, Scene, SceneLayer, SceneSound, TopicPlanItem, Video
 from .ownership import ensure_owner
 from .storage import get_storage
+from .videos import content_types as team_content_types
 from .videos import marks_of
 
 log = logging.getLogger(__name__)
@@ -418,7 +419,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         def operation(db, me):
             group, idea, subject = script_group(db, knowledge_topic_id, plan_item_id, topic)
-            prompt = jobs.script_prompt(group, subject, idea, ai_effects, video_mode == "single")
+            prompt = jobs.script_prompt(
+                group, subject, idea, ai_effects, video_mode == "single", team_content_types(db)
+            )
             return {
                 "group": group.name,
                 "topic": subject,

@@ -113,6 +113,9 @@ from .videos import (
     video_not_found,
     video_payload,
 )
+from .videos import (
+    content_types as videos_content_types,
+)
 from .wikimedia import Wikimedia, WikimediaError
 
 router = APIRouter(prefix="/api")
@@ -300,12 +303,8 @@ def list_videos(
 
 @router.get("/video-content-types")
 def content_types(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[str]:
-    """The "Loại nội dung" the team's videos use, to pick from: one per type whatever its case, in Vietnamese order
-    (the first spelling met wins)."""
-    seen: dict[str, str] = {}
-    for kind in db.scalars(select(Video.content_type).where(Video.content_type != "").order_by(Video.id)):
-        seen.setdefault(kind.casefold(), kind)
-    return sorted(seen.values(), key=lambda kind: unicodedata.normalize("NFD", kind).casefold())
+    """The "Loại nội dung" the team's videos use, to pick from (videos.content_types)."""
+    return videos_content_types(db)
 
 
 @router.post("/videos", status_code=201)

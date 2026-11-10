@@ -100,6 +100,7 @@ from .videos import (
     spoken,
     text_position,
 )
+from .videos import content_types as team_content_types
 
 log = logging.getLogger(__name__)
 
@@ -257,9 +258,16 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
             raise JobFailure("Video chưa thuộc nhóm chủ đề nào trong Kho kiến thức")
         if job.kind == "clone":
             # The snapshot from the moment "Nhân bản" was pressed: later edits of the source do not count.
-            prompt = build_clone_prompt(topic.clone_prompt, video.clone_source, topic.banned_words, topic.photo_hint)
+            prompt = build_clone_prompt(
+                topic.clone_prompt,
+                video.clone_source,
+                topic.banned_words,
+                topic.photo_hint,
+                content_types=team_content_types(db),
+            )
         else:
-            prompt = script_prompt(topic, video.topic, plans.idea_of_video(db, video.id), video.ai_effects, False)
+            idea = plans.idea_of_video(db, video.id)
+            prompt = script_prompt(topic, video.topic, idea, video.ai_effects, False, team_content_types(db))
         if is_backdrop(video):
             prompt = f"{prompt}\n\n{BACKDROP_FORMAT}"
 
@@ -274,7 +282,12 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
 
 
 def script_prompt(
-    group: KnowledgeTopic, topic: str, idea: TopicPlanItem | None, ai_effects: bool, backdrop: bool
+    group: KnowledgeTopic,
+    topic: str,
+    idea: TopicPlanItem | None,
+    ai_effects: bool,
+    backdrop: bool,
+    content_types: list[str] | None = None,
 ) -> str:
     """The whole prompt that writes a video's script: the script job sends it, and the MCP server hands the same one
     to a member's own Claude. A video made from a 30-day plan idea writes to that idea's pain and hook."""
@@ -284,6 +297,7 @@ def script_prompt(
         group.banned_words,
         (idea.pain_group, idea.pain, idea.hook) if idea else None,
         photo_hint=group.photo_hint,
+        content_types=content_types,
     )
     if ai_effects:
         prompt = f"{prompt}\n\n{autoedit.EFFECTS_FORMAT}"
@@ -354,6 +368,7 @@ def run_learn_job(db: DbSession, job: Job, storage: DirectoryStorage, call: Call
             label,
             with_images=mode != "twostep",
             with_analysis=mode == "quick" and not analyzed_before,
+            content_types=team_content_types(db),
         )
     except reference.ReferenceError as err:
         db.rollback()
@@ -485,6 +500,9 @@ def save_script(db: DbSession, video: Video, script: GeneratedScript) -> None:
     video.pinned_comment = script.pinned_comment
     video.self_review = script.self_review
     video.music_suggestions = script.music_suggestions
+    # The AI's "Loại nội dung", unless a member already gave the video one.
+    if script.content_type and not video.content_type:
+        video.content_type = script.content_type
     db.add(
         Scene(
             video_id=video.id,

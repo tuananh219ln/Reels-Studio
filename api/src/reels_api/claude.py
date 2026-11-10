@@ -7,6 +7,7 @@ an edited prompt can never break the JSON every job depends on.
 import json
 import logging
 import math
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -21,6 +22,7 @@ IDEA_PLACEHOLDERS = (
     ("[Góc hook]", "Góc hook"),
 )
 MAX_KEYWORD_LENGTH = 100
+MAX_CONTENT_TYPE_LENGTH = 40  # videos.content_type
 FALLBACK_SECONDS = 4
 
 OUTPUT_FORMAT = """\
@@ -65,6 +67,8 @@ Các trường:
 - "pinned_comment": câu bình luận ghim.
 - "self_review": danh sách các câu đã sửa khi tự rà soát an toàn (mỗi mục ghi câu cũ → câu mới); để [] nếu không sửa gì.
 - "music_suggestions": 2–3 tên bản nhạc không lời hợp chủ đề, có thể tìm trong thư viện nhạc TikTok/Facebook.
+- "content_type": loại nội dung của video, 1–4 từ (vd "Danh sách món", "Mẹo", "Cảnh báo", "Hỏi đáp"): chọn đúng một
+  loại trong các loại đội đang dùng nếu có loại hợp; chỉ đặt loại mới khi không loại nào hợp.
 
 Ví dụ đầy đủ:
 {
@@ -111,7 +115,8 @@ Ví dụ đầy đủ:
   "affiliates": ["Sữa hạt bổ sung canxi cho người lớn tuổi", "Vừng đen rang sẵn đóng hũ"],
   "pinned_comment": "Món nào nhà bạn hay ăn nhất? Link sản phẩm trong bình luận ghim nhé!",
   "self_review": ["\\"chữa khỏi loãng xương\\" → \\"tốt cho xương chắc khỏe\\""],
-  "music_suggestions": ["Windy Hill", "Morning Coffee (piano)", "Nhạc không lời thư giãn"]
+  "music_suggestions": ["Windy Hill", "Morning Coffee (piano)", "Nhạc không lời thư giãn"],
+  "content_type": "Danh sách món"
 }"""
 
 
@@ -168,6 +173,8 @@ class GeneratedScript:
     music_suggestions: list[str] = field(default_factory=list)
     title_keywords_en: list[str] = field(default_factory=list)
     title_image_prompt: str = ""
+    # "Loại nội dung", one of the team's when one fits (videos.content_type); "" when the answer has none.
+    content_type: str = ""
 
 
 def build_script_prompt(
@@ -176,9 +183,11 @@ def build_script_prompt(
     banned_words: list[str],
     idea: tuple[str, str, str] | None = None,
     photo_hint: str = "",
+    content_types: list[str] | None = None,
 ) -> str:
     """`idea`: the pain group, viewer's pain and hook angle of the 30-day plan idea the video was made from; each one
-    the plan has fills its placeholder, or is appended when the prompt has none."""
+    the plan has fills its placeholder, or is appended when the prompt has none. `content_types`: the "Loại nội dung"
+    the team's videos use, for the AI to pick from."""
     placeholders = [(TOPIC_PLACEHOLDER, "Chủ đề", topic)]
     if idea:
         placeholders += [
@@ -186,10 +195,16 @@ def build_script_prompt(
             for (placeholder, label), value in zip(IDEA_PLACEHOLDERS, idea, strict=True)
             if value
         ]
-    return _assemble(fill_placeholders(template, placeholders), banned_words, photo_hint)
+    return _assemble(fill_placeholders(template, placeholders), banned_words, photo_hint, content_types=content_types)
 
 
-def build_clone_prompt(template: str, source: dict, banned_words: list[str], photo_hint: str = "") -> str:
+def build_clone_prompt(
+    template: str,
+    source: dict,
+    banned_words: list[str],
+    photo_hint: str = "",
+    content_types: list[str] | None = None,
+) -> str:
     """`source` is the snapshot taken when "Nhân bản" was pressed (see routes_videos.clone_snapshot)."""
     return _assemble(
         fill_placeholders(
@@ -203,6 +218,7 @@ def build_clone_prompt(template: str, source: dict, banned_words: list[str], pho
         ),
         banned_words,
         photo_hint,
+        content_types=content_types,
     )
 
 
@@ -253,6 +269,7 @@ def build_learn_prompt(
     banned_words: list[str],
     photo_hint: str = "",
     with_analysis: bool = False,
+    content_types: list[str] | None = None,
 ) -> str:
     """The prompt that writes a new video's script from a sample video ("Từ video mẫu"); `frames` lists the stills
     sent with it, in order."""
@@ -261,7 +278,11 @@ def build_learn_prompt(
         template,
         [(placeholder, label, value) for (placeholder, label), value in zip(LEARN_PLACEHOLDERS, values, strict=True)],
     )
-    return _assemble(body, banned_words, photo_hint) + "\n\n" + learn_clip_format(seconds, with_analysis)
+    return (
+        _assemble(body, banned_words, photo_hint, content_types=content_types)
+        + "\n\n"
+        + learn_clip_format(seconds, with_analysis)
+    )
 
 
 def build_analyze_prompt(template: str, transcript: str, frames: str, frame_count: int) -> str:
@@ -296,6 +317,7 @@ def _assemble(
     photo_hint: str = "",
     output_format: str = OUTPUT_FORMAT,
     texts: str = VIDEO_TEXTS,
+    content_types: list[str] | None = None,
 ) -> str:
     """Every LLM prompt that writes content: the members' prompt, the group's banned words and photo hint, then the
     fixed output format. `output_format` and `texts` (what the banned words apply to) are a video script's unless an
@@ -309,6 +331,9 @@ def _assemble(
             "Ảnh của nhóm chủ đề này: "
             f"{photo_hint.strip()}\nViết từ khóa tìm ảnh (tiếng Việt và tiếng Anh) và prompt ảnh AI theo đúng gợi ý này."
         )
+    if content_types:
+        quoted = ", ".join(f'"{kind}"' for kind in content_types)
+        parts.append(f"Loại nội dung đội đang dùng: {quoted}.")
     parts.append(output_format)
     return "\n\n".join(parts)
 
@@ -354,7 +379,15 @@ def parse_output(raw: str) -> GeneratedScript:
         music_suggestions=_strings(data.get("music_suggestions")),
         title_keywords_en=_keywords(data.get("title_keywords_en")),
         title_image_prompt=_text(data.get("title_image_prompt")),
+        content_type=_content_type(data.get("content_type")),
     )
+
+
+def _content_type(value: object) -> str:
+    """One line of plain text, spaces tidied, cut to the column's length; anything else is no type."""
+    if not isinstance(value, str):
+        return ""
+    return " ".join(unicodedata.normalize("NFC", value).split())[:MAX_CONTENT_TYPE_LENGTH]
 
 
 def _scene(item: dict) -> GeneratedScene:
