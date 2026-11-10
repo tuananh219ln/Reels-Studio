@@ -4,7 +4,7 @@ import re
 import tempfile
 import time
 import unicodedata
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -92,6 +92,7 @@ from .videos import (
     drop_original,
     ensure_unlocked,
     follow_narration,
+    group_video_mode,
     list_extras,
     list_payload,
     lock_scene,
@@ -104,6 +105,7 @@ from .videos import (
     publications_of,
     refresh_thumbnail,
     render_signature,
+    resolve_video_mode,
     run_checks,
     scene_still,
     split_scenes,
@@ -155,8 +157,9 @@ class NewVideoBody(BaseModel):
     mode: Literal["ai", "manual"] = "ai"
     script: str = ""
     ai_effects: bool = False  # "AI gợi ý hiệu ứng": the script call also picks each scene's effects (AI scripts only)
-    # How the video is built (videos.MODES): "slides", or "single" ("Video xuyên suốt", one backdrop).
-    video_mode: Literal["slides", "single"] = "slides"
+    # How the video is built (videos.MODES): "slides", or "single" ("Video xuyên suốt", one backdrop). None: its
+    # group's "Kiểu video" (videos.resolve_video_mode).
+    video_mode: Literal["slides", "single"] | None = None
 
 
 class VideoPatchBody(BaseModel):
@@ -319,10 +322,12 @@ def start_video(
     written: GeneratedScript | None = None,
     via: str = "",
     app: str = "",
+    on: date | None = None,
 ) -> Video:
     """A new video, its script queued, typed ("Tự viết") or, as `written`, already written from the group's prompt by
     a member's own Claude through MCP (`via` "assistant"): saved as the script job saves an answer, with no LLM call.
-    The caller commits."""
+    Every way of making a video comes here, so its mode is decided here: the one asked, else its group's "Kiểu video"
+    on `on` (the day it is made for; today in Vietnam by default). The caller commits."""
     topic = " ".join(unicodedata.normalize("NFC", body.topic).split())
     if not topic:
         raise invalid("Hãy nhập chủ đề")
@@ -342,7 +347,7 @@ def start_video(
         has_script=manual,
         created_by_id=me.user_id,
         ai_effects=body.ai_effects and not manual,
-        mode=body.video_mode,
+        mode=resolve_video_mode(body.video_mode, group, on),
         written_via=via,
         assistant_app=app,
     )
@@ -2187,6 +2192,7 @@ class TopicPatchBody(BaseModel):
     stock_order: list[str] | None = None  # "Thứ tự nguồn ảnh"; [] goes back to the app's order
     edit_template_default: object = None  # "app", one of `templates`, or null: what its new videos take (if sent)
     team_edit: bool | None = None  # "Cho cả đội sửa": only the group's maker turns it off or on
+    video_mode: Literal["slides", "single", "alternate"] | None = None  # "Kiểu video" (videos.GROUP_VIDEO_MODES)
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -2222,6 +2228,9 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 "analyze_prompt": topic.analyze_prompt,
                 "article_prompt": topic.article_prompt,
                 "voice_id": topic.voice_id,
+                # "Kiểu video" and the mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today).
+                "video_mode": topic.video_mode,
+                "video_mode_today": group_video_mode(topic),
                 "created_by_id": topic.created_by_id,
                 # The group's maker, who alone may turn "Cho cả đội sửa" off; None: "Nhận nhóm" is offered.
                 "owner": makers.get(topic.created_by_id),
@@ -2348,6 +2357,8 @@ def patch_topic(
             topic.voice_id = video_options.clean({"voice_id": body.voice_id})["voice_id"]
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
+    if body.video_mode is not None:
+        topic.video_mode = body.video_mode
     if body.stock_order is not None:
         unknown = [source for source in body.stock_order if source not in STOCK_SOURCES]
         if unknown:

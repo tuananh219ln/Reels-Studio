@@ -1,4 +1,4 @@
-import type { SceneData, SceneLayer, VideoDetail, VideoMode, VideoOptions } from "@/lib/api";
+import type { GroupVideoMode, SceneData, SceneLayer, VideoDetail, VideoMode, VideoOptions } from "@/lib/api";
 import { isHalf } from "./preview/layers";
 
 /** "Kiểu video" (api videos.MODES). */
@@ -16,6 +16,21 @@ export const VIDEO_MODES: { value: VideoMode; label: string; hint: string }[] = 
       "cảnh nêu tên món thì có ảnh chèn nửa khung chồng lên nền, ví dụ “5 món kết hợp với chuối xanh”.",
   },
 ];
+
+/** A topic group's "Kiểu video" (api videos.GROUP_VIDEO_MODES). */
+export const GROUP_VIDEO_MODES: { value: GroupVideoMode; label: string }[] = [
+  { value: "slides", label: "Slide ảnh" },
+  { value: "single", label: "Video xuyên suốt" },
+  { value: "alternate", label: "Xen kẽ theo ngày (ngày lẻ: xuyên suốt, ngày chẵn: slide)" },
+];
+
+export function videoModeLabel(mode: VideoMode): string {
+  return VIDEO_MODES.find((item) => item.value === mode)?.label ?? mode;
+}
+
+export function groupVideoModeLabel(mode: GroupVideoMode): string {
+  return GROUP_VIDEO_MODES.find((item) => item.value === mode)?.label ?? mode;
+}
 
 /** "Nghỉ sau lời đọc" (api video_options.VOICE_PAUSES). */
 export const VOICE_PAUSES: { value: VideoOptions["voice_pause"]; label: string }[] = [

@@ -389,6 +389,50 @@ test("knowledge topics: a group's own voice is what its new videos start with", 
   expect(video.options.voice_id).toBe("fake-voice-mai");
 });
 
+test("knowledge topics: a group's video mode is what its new videos take unless one is picked", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await page.goto("/knowledge");
+  await page.getByLabel("Tên nhóm chủ đề mới").fill("Món Quê");
+  await page.getByRole("button", { name: "Thêm nhóm" }).click();
+  const group = page.locator('[data-topic="Món Quê"]');
+  await group.getByRole("tab", { name: "Prompt", exact: true }).click();
+  await group.getByLabel("Prompt viết kịch bản", { exact: true }).fill("Viết kịch bản món quê về [Chủ đề]");
+  await group.getByRole("button", { name: "Lưu", exact: true }).first().click();
+  await expect(page.getByText("Đã lưu prompt viết kịch bản")).toBeVisible();
+  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  const card = group.locator(".ant-card").filter({ hasText: "Kiểu video của nhóm" });
+  await expect(card.getByRole("radio", { name: "Slide ảnh" })).toBeChecked();
+  await expect(card.getByRole("button", { name: "Lưu kiểu video" })).toBeDisabled();
+  await card.getByText("Xen kẽ theo ngày (ngày lẻ: xuyên suốt, ngày chẵn: slide)").click();
+  await card.getByRole("button", { name: "Lưu kiểu video" }).click();
+  await expect(page.getByText("Đã lưu kiểu video của nhóm")).toBeVisible();
+  await expect(card).toContainText("Hôm nay (giờ Việt Nam):");
+  await card.getByText("Video xuyên suốt", { exact: true }).click();
+  await card.getByRole("button", { name: "Lưu kiểu video" }).click();
+  await expect(card.getByRole("button", { name: "Lưu kiểu video" })).toBeDisabled();
+  await page.reload();
+  await page.getByRole("button", { name: /Món Quê/ }).click();
+  await group.getByRole("tab", { name: "Từ cấm, ảnh & giọng" }).click();
+  await expect(card.getByRole("radio", { name: "Video xuyên suốt" })).toBeChecked();
+
+  // The dialog starts on the group's mode and says so; a video made with nothing picked takes it.
+  await group.getByRole("tab", { name: /^Video/ }).click();
+  await group.getByTestId("topic-videos").getByRole("button", { name: "Tạo video" }).click();
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog).toContainText("Theo kiểu video của nhóm: Video xuyên suốt");
+  await expect(
+    dialog.getByLabel("Kiểu video", { exact: true }).getByRole("radio", { name: "Video xuyên suốt" }),
+  ).toBeChecked();
+  await dialog.getByText("Tự viết", { exact: true }).click();
+  await dialog.getByLabel("Chủ đề", { exact: true }).fill("canh chua cá lóc");
+  await dialog.getByRole("button", { name: "Tạo video" }).click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+  const id = page.url().split("/").pop();
+  const video = await (await page.request.get(`/api/videos/${id}`)).json();
+  expect(video.mode).toBe("single");
+});
+
 async function newVideoWithScript(page: Page, topic: string) {
   await page.goto("/videos");
   await page.getByRole("button", { name: "Tạo video" }).click();

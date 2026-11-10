@@ -58,7 +58,7 @@ import {
   type VideoRow,
   type VideoRowPost,
 } from "@/lib/api";
-import { VIDEO_MODES } from "@/components/video/videoModes";
+import { VIDEO_MODES, groupVideoModeLabel, videoModeLabel } from "@/components/video/videoModes";
 import { COLORS } from "@/app/theme";
 import StatusText, { type StatusTone } from "@/components/StatusText";
 import FilterSelect from "@/components/FilterSelect";
@@ -1072,9 +1072,13 @@ function NewVideoModal({
   }, [wantsSamples, message]);
   // "AI gợi ý hiệu ứng": the same script call also picks each scene's transition, colour, sound and a line of text.
   const [aiEffects, setAiEffects] = useState(false);
-  // "Kiểu video": a slide per scene, or one backdrop under every scene ("Video xuyên suốt").
-  const [videoMode, setVideoMode] = useState<VideoMode>("slides");
+  // "Kiểu video": a slide per scene, or one backdrop under every scene ("Video xuyên suốt"). Starts on the group's
+  // own (its "Kiểu video", "Xen kẽ theo ngày" resolved for today); picking one makes it this video's only.
+  const [pickedMode, setPickedMode] = useState<VideoMode | null>(null);
   const groupId = Form.useWatch("knowledge_topic_id", form);
+  const group = topics?.find((topic) => topic.id === groupId);
+  const groupMode = group?.video_mode_today ?? "slides";
+  const videoMode = pickedMode ?? groupMode;
   const typed = Form.useWatch("topic", form) ?? "";
   const plan = today.find((group) => group.topic_id === groupId);
   const outsidePlan = !picked && plan && typed.trim() && !plan.topics.some((topic) => sameTopic(topic, typed));
@@ -1131,7 +1135,8 @@ function NewVideoModal({
             mode,
             script: manual ? (values.script ?? "") : "",
             ai_effects: mode === "ai" && aiEffects,
-            video_mode: videoMode,
+            // Not picked: the api applies the group's switch itself, for the day the video is made.
+            video_mode: pickedMode,
           });
       await saveLastChoice({ knowledge_topic_id: values.knowledge_topic_id });
       router.push(`/videos/${video.id}`);
@@ -1287,7 +1292,7 @@ function NewVideoModal({
                   <Segmented
                     aria-label="Kiểu video"
                     value={videoMode}
-                    onChange={(value) => setVideoMode(value as VideoMode)}
+                    onChange={(value) => setPickedMode(value === groupMode ? null : (value as VideoMode))}
                     options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
                     style={{ justifySelf: "start" }}
                   />
@@ -1321,6 +1326,12 @@ function NewVideoModal({
             </div>
             {!sample && (
               <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+                {group &&
+                  (pickedMode === null
+                    ? `Theo kiểu video của nhóm: ${groupVideoModeLabel(group.video_mode)}` +
+                      (group.video_mode === "alternate" ? `, hôm nay ${videoModeLabel(groupMode)}` : "") +
+                      ". "
+                    : `Chỉ video này; nhóm đang theo ${groupVideoModeLabel(group.video_mode)}. `)}
                 {VIDEO_MODES.find((item) => item.value === videoMode)?.hint}
               </Typography.Text>
             )}

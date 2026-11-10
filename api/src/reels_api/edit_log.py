@@ -38,6 +38,7 @@ TOPIC_FIELDS = (
     "banned_words",
     "photo_hint",
     "voice_id",
+    "video_mode",
     "stock_order",
     "templates",
     "edit_template_default",
