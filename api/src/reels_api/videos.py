@@ -5,7 +5,7 @@ import json
 import re
 import secrets
 import unicodedata
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -74,6 +74,9 @@ STATUS_LABELS = {
 POST_FIELDS = {"caption": "Caption", "pinned_comment": "Bình luận ghim"}
 # How a video is built (Video.mode): each scene over its own photo or clip, or one backdrop ("Video xuyên suốt").
 MODES = {"slides": "Slide ảnh", "single": "Video xuyên suốt"}
+# A topic group's "Kiểu video" (KnowledgeTopic.video_mode): one of MODES, or by turns on the Vietnam calendar day.
+ALTERNATE = "alternate"
+GROUP_VIDEO_MODES = {**MODES, ALTERNATE: "Xen kẽ theo ngày (ngày lẻ: xuyên suốt, ngày chẵn: slide)"}
 PHOTO_LAYER_MISSING = "Cảnh có ảnh món nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc tắt ảnh món"
 HALF_PHOTO_MISSING = "Cảnh có ảnh chèn nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc xoá ảnh chèn"
 # A new photo layer ("Ảnh món"): medium, for the whole scene (the render stops it at the scene's end), on the left or
@@ -275,6 +278,22 @@ def spoken(video: Video, scene: Scene) -> str:
     if scene.voice_text.strip():
         return pause_after_name(scene.voice_text, scene_name(scene))
     return screen_speech(scene)
+
+
+def group_video_mode(group: KnowledgeTopic, on: date | None = None) -> str:
+    """The mode the group's new videos take on `on` (today in Vietnam by default): its switch, or for "Xen kẽ theo
+    ngày" a backdrop video ("single") on odd calendar days and slides on even ones. A group never set: slides."""
+    mode = group.video_mode or "slides"
+    if mode != ALTERNATE:
+        return mode
+    day = on or plans.today()
+    return "single" if day.day % 2 else "slides"
+
+
+def resolve_video_mode(chosen: str | None, group: KnowledgeTopic, on: date | None = None) -> str:
+    """A new video's mode, decided in one place for every way a video is made (videos.start_video): the one asked for
+    this video, else its group's switch."""
+    return chosen or group_video_mode(group, on)
 
 
 def is_backdrop(video: Video) -> bool:

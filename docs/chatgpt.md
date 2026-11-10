@@ -30,7 +30,9 @@ A topic group's video is written with the group's own prompt either way:
      idea of another group or one that already has a video is refused.
    - `ai_effects` ("AI gợi ý hiệu ứng"): the prompt asks for each scene's effects, and they are put on as after a
      job, values outside the presets left out.
-   - `video_mode` `single` ("Video xuyên suốt") adds its rules.
+   - `video_mode` `single` ("Video xuyên suốt") adds its rules, `slides` does not; left out, it is the group's
+     "Kiểu video" (`alternate`: odd Vietnam days `single`, even days `slides`). The answer's `video_mode` is the
+     mode resolved, which the assistant passes on to the next call.
 
    Groups without a script prompt are refused, as in the app.
 2. The assistant writes the JSON itself, self safety review included.
@@ -55,7 +57,8 @@ service:
    teammates', each row saying `created_by` and `mine`); `video_id` puts the products of the video's topic
    group first.
 2. `create_video_from_script` makes a "Tự viết" video from a script the assistant writes: one scene per
-   paragraph, `Đọc:` lines as the voice text. No script job, so no cost to the team's AI service.
+   paragraph, `Đọc:` lines as the voice text. No script job, so no cost to the team's AI service. `video_mode`
+   (`slides` or `single`) is optional: left out, the group's "Kiểu video" decides, as for every new video.
 3. `set_scene_media_from_link` gives a scene a TikTok clip, a video file's link or a photo's link, like
    pasting a link on the video page (same downloads, limits and refusals of local addresses). A clip's
    part is chosen with `update_scene`'s `video_start` and `video_speed` (and `video_sound`, "Tiếng gốc": the

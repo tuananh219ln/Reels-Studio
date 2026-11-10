@@ -38,6 +38,7 @@ import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
+import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
 
@@ -297,6 +298,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   banned_words: "Từ cấm",
   photo_hint: "Gợi ý tìm ảnh",
   voice_id: "Giọng mặc định",
+  video_mode: "Kiểu video",
   stock_order: "Thứ tự nguồn ảnh",
   templates: "Mẫu dựng của nhóm",
   edit_template_default: "Mẫu cho video mới",
@@ -491,6 +493,7 @@ function TopicBody({
                       update={update}
                     />
                     <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
+                    <GroupVideoModeCard topic={topic} update={update} />
                   </Flex>
                 </Col>
               </Row>,

@@ -131,7 +131,7 @@ def prepare(db: DbSession, page: Fanpage, day: date) -> int:
             db.add(run)
             continue
         if video is None:
-            video = _new_video(db, page, topic, idea)
+            video = _new_video(db, page, topic, idea, day)
             run.job_id = _queued_job(db, video.id)
         run.video_id = video.id
         run.stage = "photos" if video.has_script else "script"
@@ -147,13 +147,14 @@ def _posted(db: DbSession, video: Video) -> bool:
     )
 
 
-def _new_video(db: DbSession, page: Fanpage, topic: KnowledgeTopic, idea: TopicPlanItem) -> Video:
-    """The idea's video, made as "Tạo video" makes it, by the Page's owner, its script queued on the team's LLM."""
+def _new_video(db: DbSession, page: Fanpage, topic: KnowledgeTopic, idea: TopicPlanItem, day: date) -> Video:
+    """The idea's video, made as "Tạo video" makes it, by the Page's owner, its script queued on the team's LLM, in
+    its group's "Kiểu video" of the day prepared ("Xen kẽ theo ngày")."""
     # Imported here: the routes load FastAPI's request machinery, which the worker needs only for this.
     from .routes_videos import NewVideoBody, start_video
 
     body = NewVideoBody(topic=idea.topic, knowledge_topic_id=topic.id, plan_item_id=idea.id)
-    return start_video(body, Actor(page.owner_id), db)
+    return start_video(body, Actor(page.owner_id), db, on=day)
 
 
 def _queued_job(db: DbSession, video_id: int) -> int | None:

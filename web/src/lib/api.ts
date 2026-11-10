@@ -516,6 +516,10 @@ export type KnowledgeTopic = {
   article_prompt: string;
   /** The group's own narration voice, which its new videos start with; "" leaves it to each maker's defaults. */
   voice_id: string;
+  /** "Kiểu video" of the group's new videos, unless one is picked for the video. */
+  video_mode: GroupVideoMode;
+  /** The mode a video made now takes by it ("Xen kẽ theo ngày" resolved for today in Vietnam). */
+  video_mode_today: VideoMode;
   /** The group's own "Mẫu dựng" (saved templates' ids). */
   templates: number[];
   /** The template the group's new videos take ("app" or one of `templates`), over their maker's own; null for none. */
@@ -687,6 +691,10 @@ export type PageContent = {
 
 /** How a video is built (api videos.MODES): "single" is "Video xuyên suốt", one backdrop under every scene. */
 export type VideoMode = "slides" | "single";
+
+/** A topic group's "Kiểu video" (api videos.GROUP_VIDEO_MODES): a mode, or "alternate" (odd Vietnam days "single",
+ * even days "slides"). */
+export type GroupVideoMode = VideoMode | "alternate";
 
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {

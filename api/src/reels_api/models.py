@@ -182,6 +182,10 @@ class KnowledgeTopic(Base):
     # "Cho cả đội sửa" (migration 0071): off, only the group's maker (`created_by_id`) edits the group and its plan;
     # everyone still uses it (ownership.ensure_group_editor).
     team_edit: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # "Kiểu video" of its new videos (migration 0073, videos.GROUP_VIDEO_MODES): "slides", "single" ("Video xuyên
+    # suốt") or "alternate" (odd Vietnam calendar days "single", even days "slides"). A mode asked for the one video
+    # wins (videos.resolve_video_mode).
+    video_mode: Mapped[str] = mapped_column(String(20), default="slides", server_default="slides")
     # The group's "Mẫu dựng" (part 2 of docs/specs/per-user-settings-ownership), picked from the saved ones, and the
     # one its new videos take ("app" or one of them; None for none), over their maker's own (autoedit).
     edit_templates: Mapped[list["EditTemplate"]] = relationship(

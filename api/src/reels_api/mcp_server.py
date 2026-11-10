@@ -266,6 +266,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                         "name": row.name,
                         "can_create": bool(row.script_prompt),
                         "stock_order": videos.clean_stock_order(row.stock_order),
+                        # "Kiểu video" of the group and the mode a video made now takes by it.
+                        "video_mode": row.video_mode,
+                        "video_mode_today": videos.group_video_mode(row),
                     }
                     for row in db.scalars(select(KnowledgeTopic).order_by(KnowledgeTopic.id))
                 ]
@@ -336,7 +339,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     async def create_video(topic: str, knowledge_topic_id: int) -> dict:
         """Tạo video mới và xếp job viết kịch bản bằng dịch vụ AI của nhóm (API key trong Cài đặt › Mô hình AI, TÍNH
         PHÍ). Chỉ dùng khi người dùng nói rõ muốn dùng API của nhóm; mặc định hãy tự viết bằng "Lấy prompt viết kịch
-        bản của nhóm" rồi "Tạo video từ kịch bản viết theo prompt nhóm". Không gọi lại để chờ."""
+        bản của nhóm" rồi "Tạo video từ kịch bản viết theo prompt nhóm". Kiểu video theo công tắc "Kiểu video" của
+        nhóm. Không gọi lại để chờ."""
         body = videos.NewVideoBody(topic=topic, knowledge_topic_id=knowledge_topic_id)
         return await run_in_threadpool(invoke, lambda db, me: video_link(videos.create_video(body, me, db)), write=True)
 
@@ -409,25 +413,26 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         topic: Annotated[str, Field(max_length=videos.MAX_TOPIC_LENGTH)] = "",
         plan_item_id: int | None = None,
         ai_effects: bool = False,
-        video_mode: Literal["slides", "single"] = "slides",
+        video_mode: Literal["slides", "single"] | None = None,
     ) -> dict:
         """Prompt đầy đủ mà dịch vụ AI của nhóm sẽ nhận để viết kịch bản: prompt của nhóm chủ đề, từ cấm, gợi ý tìm
         ảnh và ĐỊNH DẠNG ĐẦU RA (JSON). plan_item_id: viết theo một ý tưởng của kế hoạch 30 ngày (nỗi đau, góc hook;
         bỏ trống topic thì lấy chủ đề của ý tưởng). ai_effects: "AI gợi ý hiệu ứng", mỗi cảnh có thêm "effects".
-        video_mode "single" là "Video xuyên suốt" (một nền chung). Hãy tự viết đúng theo prompt (không tốn phí AI
-        của nhóm) rồi gửi JSON vào "Tạo video từ kịch bản viết theo prompt nhóm" với CÙNG các tham số này."""
+        video_mode "single" là "Video xuyên suốt" (một nền chung), "slides" là "Slide ảnh". Không truyền video_mode = theo công tắc "Kiểu video" của nhóm (Slide ảnh, Video xuyên suốt, hoặc xen kẽ theo ngày: ngày lẻ xuyên suốt, ngày chẵn slide, giờ Việt Nam). Kết quả có
+        video_mode là kiểu thật sẽ dùng: prompt viết theo kiểu đó. Hãy tự viết đúng theo prompt (không tốn phí AI
+        của nhóm) rồi gửi JSON vào "Tạo video từ kịch bản viết theo prompt nhóm" với CÙNG các tham số này, và
+        video_mode đúng bằng video_mode trả về."""
 
         def operation(db, me):
             group, idea, subject = script_group(db, knowledge_topic_id, plan_item_id, topic)
-            prompt = jobs.script_prompt(
-                group, subject, idea, ai_effects, video_mode == "single", team_content_types(db)
-            )
+            mode = videos.resolve_video_mode(video_mode, group)
+            prompt = jobs.script_prompt(group, subject, idea, ai_effects, mode == "single", team_content_types(db))
             return {
                 "group": group.name,
                 "topic": subject,
                 "plan_item_id": plan_item_id,
                 "ai_effects": ai_effects,
-                "video_mode": video_mode,
+                "video_mode": mode,
                 "prompt": prompt,
             }
 
@@ -440,10 +445,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         topic: Annotated[str, Field(max_length=videos.MAX_TOPIC_LENGTH)] = "",
         plan_item_id: int | None = None,
         ai_effects: bool = False,
-        video_mode: Literal["slides", "single"] = "slides",
+        video_mode: Literal["slides", "single"] | None = None,
     ) -> dict:
         """Tạo video từ object JSON bạn viết theo "Lấy prompt viết kịch bản của nhóm" (cùng topic, plan_item_id,
-        ai_effects, video_mode): app lưu nó như khi dịch vụ AI của nhóm viết (5 tiêu đề, cảnh, lời đọc, từ khóa và
+        ai_effects, và video_mode mà nó trả về). Không truyền video_mode = theo công tắc "Kiểu video" của nhóm (Slide ảnh, Video xuyên suốt, hoặc xen kẽ theo ngày: ngày lẻ xuyên suốt, ngày chẵn slide, giờ Việt Nam). App lưu nó như khi dịch vụ AI của nhóm viết (5 tiêu đề, cảnh, lời đọc, từ khóa và
         prompt ảnh, caption, hashtag, bình luận ghim, tự rà soát an toàn, gợi ý nhạc; hiệu ứng từng cảnh khi
         ai_effects), gắn video vào ý tưởng kế hoạch nếu có, rồi tự tìm ảnh nếu nhóm bật. Không gọi API của nhóm,
         không tính phí. JSON sai định dạng thì sửa theo lỗi trả về rồi gửi lại một lần."""
@@ -472,12 +477,16 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         topic: Annotated[str, Field(max_length=videos.MAX_TOPIC_LENGTH)],
         knowledge_topic_id: int,
         script: Annotated[str, Field(max_length=videos.MAX_SCRIPT_LENGTH)],
+        video_mode: Literal["slides", "single"] | None = None,
     ) -> dict:
         """Tạo video từ kịch bản bạn tự viết ("Tự viết"): không gọi dịch vụ AI của nhóm, không tính phí. Mỗi đoạn
         (cách nhau một dòng trống) là một cảnh; dòng bắt đầu bằng "Đọc:" là lời đọc, các dòng khác là chữ trên
         màn hình. Topic là tiêu đề video. Sau đó gắn ảnh/clip cho từng cảnh rồi mới render. Video theo nhóm chủ đề
-        (sức khỏe, mẹo...) nên viết theo prompt nhóm thay vì cách này."""
-        body = videos.NewVideoBody(topic=topic, knowledge_topic_id=knowledge_topic_id, mode="manual", script=script)
+        (sức khỏe, mẹo...) nên viết theo prompt nhóm thay vì cách này. video_mode "single" là "Video xuyên suốt",
+        "slides" là "Slide ảnh". Không truyền video_mode = theo công tắc "Kiểu video" của nhóm (Slide ảnh, Video xuyên suốt, hoặc xen kẽ theo ngày: ngày lẻ xuyên suốt, ngày chẵn slide, giờ Việt Nam)."""
+        body = videos.NewVideoBody(
+            topic=topic, knowledge_topic_id=knowledge_topic_id, mode="manual", script=script, video_mode=video_mode
+        )
         return await run_in_threadpool(
             invoke,
             lambda db, me: video_link(

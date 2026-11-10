@@ -676,7 +676,9 @@ Built:
     survives choosing another;
   - "Từ cấm, ảnh & giọng": each card with "Lịch sử" on its title; the banned words with "Lưu từ cấm" beside "Gợi ý tìm ảnh" with "Lưu gợi ý"
     and "Giọng mặc định của nhóm" (the voice picker of Thiết lập mặc định, empty showing "Theo Thiết lập
-    mặc định của người tạo", cleared with ×) with "Lưu giọng";
+    mặc định của người tạo", cleared with ×) with "Lưu giọng", then "Kiểu video của nhóm" (three radios: "Slide ảnh",
+    "Video xuyên suốt", "Xen kẽ theo ngày (ngày lẻ: xuyên suốt, ngày chẵn: slide)", "Slide ảnh" for a new group; on
+    "Xen kẽ" a grey line "Hôm nay (giờ Việt Nam): …") with "Lưu kiểu video";
   - "Mẫu dựng": "Mẫu dựng của nhóm", a multiple choice of the saved templates the group holds ("Mẫu của nhóm") and
     the one its new videos take ("Mẫu cho video mới của nhóm": "Không áp mẫu của nhóm", "Gợi ý của app" or one of
     the group's), with "Lưu mẫu dựng". The order a new video's template is picked in is spelled out above them:
@@ -1191,7 +1193,10 @@ relied on (samples in the PR that added them).
 
 A video is one of two kinds, chosen in "Tạo video" (except "Từ video mẫu", whose scenes are cut from the sample)
 and changed at any time on the video page's "Kiểu video" card, which asks first and says that every photo, clip
-and "Ảnh món" is kept:
+and "Ảnh món" is kept. "Tạo video" starts on the topic group's "Kiểu video" (Kho kiến thức, "Xen kẽ theo ngày"
+resolved for today in Vietnam) and says so under the strip ("Theo kiểu video của nhóm: …, hôm nay …"); picking the
+other kind makes it that video's only ("Chỉ video này; nhóm đang theo …"). A video made without the dialog (the
+team's AI through MCP, the semi-automatic round, the assistant) takes the group's too:
 
 - **Slide ảnh** (the default, every older video): each scene over its own photo or clip, as below.
 - **Video xuyên suốt:** one photo or clip, the title scene's, runs under the whole video ("5 công dụng của chuối
@@ -1328,7 +1333,7 @@ Where something is edited, its history is shown there, not on a page of its own
 
 - **Under the group's name**, after "N video, N prompt đã sửa": "<member> sửa <part> lúc dd/mm/yyyy hh:mm" (Vietnam
   time), a link that opens the group's whole history, each entry naming the parts it changed.
-- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Prompt kế hoạch) opens a
+- **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Kiểu video của nhóm, Prompt kế hoạch) opens a
   drawer on the right, newest first. Each entry: its action as a tag (Tạo green, Sửa blue, Xoá red, Khôi phục gold),
   the member, the time, "qua Claude" or "tự động" when it did not come from the web, and "Đang dùng" on the latest.
   - A prompt or a text: "+N −M dòng" and "Xem khác biệt", a dialog with the lines removed (red, "−") and added
