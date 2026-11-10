@@ -77,6 +77,109 @@ Dialogs that need the whole screen or are not forms stay centred dialogs: the ph
 editors, "Chọn từ kho ảnh/video", the text position, "Chọn nhạc từ thư viện", a plan's preview,
 "Dán ảnh", the numbers of a Page or a post, and every yes/no confirmation.
 
+## UI Rules
+
+The rules every screen follows, checked in review. App Look above sets the look; these set the
+behaviour. They adapt Vercel's [Web Interface
+Guidelines](https://github.com/vercel-labs/web-interface-guidelines) to an internal Ant Design app
+in Vietnamese. A screen's own section under Screens may make a named exception; nothing else does.
+
+**Not a template.** The app looks made for this team, not generated. No decorative gradients, glows,
+glass blur or illustrations (a phone mock's shade over the video or a colour picker's wheel is
+not decoration); no emoji in labels, titles or messages (an icon from
+`@ant-design/icons` where a mark is needed); no row of identical feature cards where a table or a
+list says it better; no filler copy ("Chào mừng bạn!", "Khám phá ngay", "Mạnh mẽ và dễ dàng").
+Density beats air: a screen shows the work, and a table is the default for anything with more than
+two attributes per row.
+
+**Copy.**
+
+- Buttons say what happens, verb first, and name the thing when it is not obvious: "Lưu sản
+  phẩm", "Tải MP4", never "OK", "Tiếp tục" or "Xác nhận" alone.
+- Sentence case everywhere ("Tạo video mới", not "Tạo Video Mới"); no all-caps.
+- An error says what went wrong and what to do next: "Token Fanpage đã hết hạn. Dán token mới trong
+  Quản lý Page.", not "Có lỗi xảy ra".
+- Counts in numerals ("3 video"), the ellipsis is one character (`…`, never `...`), and a running
+  state ends with it: "Đang tải…", "Đang render…".
+- Placeholders show an example of what to type and end with `…` ("Ví dụ: 5 món ăn sáng ở Huế…");
+  they are never the only label.
+- Talk to the member as "bạn" when a sentence needs a subject; the app never says "tôi".
+
+**Numbers, dates and times.** Every date and time goes through the helpers in
+[web/src/lib/api.ts](../web/src/lib/api.ts) (`formatDateTime` and its siblings), which use
+`Intl` in `Asia/Ho_Chi_Minh`; no hand-built date strings. Money and large numbers use
+`Intl.NumberFormat("vi-VN")`. A column or row of numbers people compare is
+`font-variant-numeric: tabular-nums`. A brand name, a code or an id never breaks across lines.
+
+**States.** Every list, card and panel has all four:
+
+- **Loading:** a skeleton or a spinner in the place the content will be, never a blank area or a
+  page that jumps when the data lands. A button that starts a request shows `loading` on itself
+  and stays enabled until the request starts.
+- **Empty:** antd's `Empty` with one line saying why it is empty and, when there is one, the action
+  that fills it ("Chưa có video nào. Tạo video"). A filtered list that is empty says the filter is
+  why.
+- **Error:** the plain Vietnamese reason where it happened, technical detail in a collapsed "Chi
+  tiết lỗi" (see Interface Language), and "Thử lại" when retrying can help.
+- **Long content:** titles, names and links truncate with an ellipsis (and a tooltip with the full
+  text) or wrap; they never push a layout wider than the screen. Plan for one word and for 300
+  characters.
+
+**Forms.**
+
+- Every control has a visible label (antd `Form.Item label`), or an `aria-label` where the layout
+  truly has no room, like a search box with a search icon.
+- Inputs use the right type: `type="url"` for links, `inputMode="numeric"` for numbers typed as
+  text, `autoComplete` set on login fields and `"off"` on fields a password manager should leave
+  alone (tokens, API keys). Paste is never blocked.
+- Validation runs on submit and on blur, the message under the field; on submit the first field
+  with an error gets the focus.
+- A form that holds more than a minute of typing (a script, a prompt, a long caption) asks before
+  it is closed with changes ("Bỏ các thay đổi chưa lưu?"), whether by "Huỷ", the drawer's ×, a
+  click outside or leaving the page.
+
+**Destructive actions.** Deleting or taking something down asks first (a `Popconfirm` for one
+row, a centred dialog that names the thing for anything larger), and the confirm button is
+`danger` and says the act ("Xóa video"). Who may do it is in App Look.
+
+**Keyboard and focus.**
+
+- Actions are `<Button>` and navigation is a `<Link>` (so Ctrl/Cmd+click opens a new tab); no
+  clickable `<div>` or `<span>`. A row that opens something on click also has a real link or
+  button in it.
+- Every interactive element shows a visible focus ring when reached by keyboard
+  (`:focus-visible`). `outline: none` is allowed only with a replacement ring on the same element.
+- An icon-only button has an `aria-label` and a `Tooltip` with the same words.
+- A drag, a resize or a slider (the timeline playhead, the text position) also works from the
+  keyboard (arrows, Home, End) and has a role and a label.
+- `autoFocus` only on the single main field of a drawer or dialog, and not on a phone.
+
+**Motion.** Movement is short (under 300 ms), animates `transform` and `opacity` only, never
+`transition: all`, and stops or shrinks to a fade under `prefers-reduced-motion`. This covers the
+app's own UI; the video's motion follows Video Template.
+
+**Images.** An `<img>` has `width` and `height` (or a box with a fixed aspect ratio) so the page
+does not jump while it loads, `alt` naming what it shows, or `alt=""` when the text beside it
+already says it, and `loading="lazy"` below the first screen. Long lists of thumbnails are
+paginated or virtualised past about 50 items.
+
+**Phone width.** Every screen works at 375 px wide with no sideways scroll of the page: toolbars
+wrap, tables scroll inside their card, drawers take the full width (App Look) and touch targets
+are at least 36 px.
+
+**State in the URL.** A list's search, filters, sort, tab and page are in the query string, so a
+link to a filtered list or a reload shows the same thing.
+
+**Where the app does not follow these yet** (fixed when the screen is next changed, or by an
+issue of its own; remove a line once it is true):
+
+- List filters, search and sort live in component state, not the URL; only "Bài đăng" keeps its
+  "Danh sách | Lịch" view there.
+- No form asks before closing with unsaved changes.
+- Nothing honours `prefers-reduced-motion`.
+- The timeline playhead in "Xem trước" works from the keyboard but hides its focus ring
+  (`outline: none` in `PreviewTimeline.tsx`).
+
 ## Screens
 
 Built:
