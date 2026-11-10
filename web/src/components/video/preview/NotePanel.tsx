@@ -34,7 +34,7 @@ export function NoteBar({
     <Input
       aria-label="Góp ý tại đầu phát"
       prefix={<CommentOutlined />}
-      placeholder={`Góp ý tại ${clockLabel(at, true)}: gõ rồi Enter, để người khác hoặc AI sửa`}
+      placeholder={`Góp ý tại ${clockLabel(at, true)}: gõ rồi Enter, để người khác hoặc AI sửa…`}
       value={text}
       disabled={disabled}
       maxLength={500}

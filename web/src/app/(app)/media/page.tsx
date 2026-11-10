@@ -1,13 +1,22 @@
 "use client";
 
 import { useMe } from "@/components/MeContext";
-import { DeleteOutlined, FolderAddOutlined, InboxOutlined, LinkOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  FolderAddOutlined,
+  InboxOutlined,
+  LinkOutlined,
+  SearchOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Progress, Segmented, Select, Typography, theme } from "antd";
-import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import FilterSelect from "@/components/FilterSelect";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaLinkSearch from "@/components/media/MediaLinkSearch";
 import PageHeader from "@/components/PageHeader";
 import { api, errorMessage, upload, type AffiliateProduct, type MediaItem, type MediaList } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 const MAX_CLIP_BYTES = 50 * 1024 * 1024;
@@ -41,6 +50,15 @@ async function droppedFiles(event: DragEvent): Promise<Pending[]> {
 }
 
 export default function MediaPage() {
+  // The folder, kind and search are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Media />
+    </Suspense>
+  );
+}
+
+function Media() {
   const { message } = App.useApp();
   const { me } = useMe();
   const { token } = theme.useToken();
@@ -50,9 +68,9 @@ export default function MediaPage() {
   const [products, setProducts] = useState<AffiliateProduct[]>([]);
   const [productId, setProductId] = useState<number | null>(null);
   const [target, setTarget] = useState("");
-  const [shown, setShown] = useState<string | null>(null);
-  const [kind, setKind] = useState<"all" | "photo" | "clip">("all");
-  const [query, setQuery] = useState("");
+  const [shown, setShown] = useUrlChoice<string | null>("folder", null);
+  const [kind, setKind] = useUrlChoice<"all" | "photo" | "clip">("kind", "all", ["photo", "clip"]);
+  const [query, setQuery] = useUrlChoice<string>("q", "");
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -157,7 +175,7 @@ export default function MediaPage() {
               <Input
                 aria-label="Thư mục"
                 prefix={<FolderAddOutlined />}
-                placeholder="Thư mục (không bắt buộc)"
+                placeholder="Thư mục (không bắt buộc)…"
                 value={target}
                 onChange={(event) => setTarget(event.target.value)}
                 style={{ flex: "1 1 220px" }}
@@ -218,13 +236,22 @@ export default function MediaPage() {
         <Card size="small">
           <Flex vertical gap={12}>
             <Flex gap={8} wrap align="center">
-              <Select
+              <Input
+                aria-label="Tìm tư liệu theo tên"
+                prefix={<SearchOutlined />}
                 allowClear
+                placeholder="Tìm theo tên…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                style={{ flex: "1 1 220px", maxWidth: 320 }}
+              />
+              <FilterSelect<string>
+                aria-label="Lọc theo thư mục"
                 placeholder="Mọi thư mục"
-                value={shown ?? undefined}
-                onChange={(value: string | undefined) => setShown(value ?? null)}
+                value={shown}
+                onChange={(value) => setShown(value ?? null)}
                 options={data.folders.map(({ folder, count }) => ({ value: folder, label: `${folder} (${count})` }))}
-                style={{ flex: "1 1 220px" }}
+                style={{ flex: "1 1 220px", maxWidth: 320 }}
               />
               <Segmented
                 value={kind}
@@ -234,13 +261,6 @@ export default function MediaPage() {
                   { value: "photo", label: "Ảnh" },
                   { value: "clip", label: "Clip" },
                 ]}
-              />
-              <Input.Search
-                allowClear
-                placeholder="Tìm theo tên"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                style={{ flex: "1 1 200px" }}
               />
             </Flex>
             <MediaGrid

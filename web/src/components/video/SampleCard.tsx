@@ -97,7 +97,7 @@ export default function SampleCard({
         ) : (
           <>File tải lên: {sample.source_name}</>
         )}
-        {sample.seconds !== null && ` · ${sampleLength(sample.seconds)}`} · Cách làm: {sample.mode_label}
+        {sample.seconds !== null && `, ${sampleLength(sample.seconds)}`}, cách làm: {sample.mode_label}
       </Typography.Text>
     );
 

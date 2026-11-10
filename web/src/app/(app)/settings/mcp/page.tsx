@@ -1,6 +1,7 @@
 "use client";
 
-import { Alert, App, Button, Card, Empty, Flex, Spin, Tag, Typography } from "antd";
+import EmptyState from "@/components/EmptyState";
+import { Alert, App, Button, Card, Flex, Popconfirm, Spin, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { api, errorMessage, formatDateTime } from "@/lib/api";
@@ -158,23 +159,32 @@ export default function ChatGptPage() {
         {!loading && !error && (
           <Card title="Các kết nối của bạn">
             {!connections.length ? (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Bạn chưa có kết nối nào." />
+              <EmptyState description="Bạn chưa có kết nối nào." />
             ) : (
               <Flex vertical gap={16}>
                 {connections.map((row) => (
                   <Flex key={row.id} wrap gap={12} align="center" justify="space-between">
                     <div>
                       <Typography.Text strong>
-                        {row.app} · Kết nối #{row.id}
+                        {row.app}, kết nối #{row.id}
                       </Typography.Text>{" "}
                       <Tag>{row.scopes.includes("reels:write") ? "Đọc và sửa" : "Chỉ đọc"}</Tag>
                       <Typography.Text type="secondary" style={{ display: "block" }}>
                         Hết hạn {formatDateTime(row.expires_at)}
                       </Typography.Text>
                     </div>
-                    <Button danger loading={revoking === row.id} onClick={() => revoke(row)}>
-                      Thu hồi kết nối
-                    </Button>
+                    <Popconfirm
+                      title="Thu hồi kết nối này?"
+                      description={`${row.app} sẽ không đọc hay sửa được Reels Studio nữa, cho tới khi kết nối lại.`}
+                      okText="Thu hồi"
+                      okButtonProps={{ danger: true }}
+                      cancelText="Huỷ"
+                      onConfirm={() => revoke(row)}
+                    >
+                      <Button danger loading={revoking === row.id}>
+                        Thu hồi kết nối
+                      </Button>
+                    </Popconfirm>
                   </Flex>
                 ))}
               </Flex>

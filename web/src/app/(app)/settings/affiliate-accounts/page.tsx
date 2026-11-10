@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { DeleteOutlined, DisconnectOutlined, EditOutlined, LinkOutlined, PlusOutlined } from "@ant-design/icons";
 import {
   Alert,
@@ -158,7 +159,7 @@ export default function AffiliateAccountsPage() {
           dataSource={accounts}
           pagination={false}
           scroll={{ x: 760 }}
-          locale={{ emptyText: "Chưa có tài khoản nào" }}
+          locale={{ emptyText: <EmptyState description={"Chưa có tài khoản nào"} /> }}
           columns={[
             {
               title: "Tài khoản",

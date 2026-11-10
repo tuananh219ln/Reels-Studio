@@ -13,7 +13,7 @@ function Logo({ platform }: { platform: Place["platform"] }) {
 }
 
 function line(place: Place): string {
-  return place.owner ? `${place.name} · ${place.owner}: hoa hồng về ${place.owner}` : `${place.name} · của bạn`;
+  return place.owner ? `${place.name} của ${place.owner}: hoa hồng về ${place.owner}` : `${place.name}, của bạn`;
 }
 
 /** One platform's places: one by name; two or more as the first one's name and "+n", every one named on hover. Gold when a
@@ -33,7 +33,7 @@ function PlatformChip({ platform, places }: { platform: Place["platform"]; place
           data-testid="video-post"
         >
           {place.name}
-          {place.owner ? ` · ${place.owner}` : ""}
+          {place.owner ? ` (${place.owner})` : ""}
         </Tag>
       </Tooltip>
     );

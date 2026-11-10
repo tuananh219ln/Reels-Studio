@@ -1,12 +1,13 @@
 "use client";
 
 import { PlayCircleOutlined, RobotOutlined, VideoCameraOutlined } from "@ant-design/icons";
-import { Button, Flex, Space, Spin, Typography } from "antd";
+import { Button, Flex, Grid, Space, Spin, Typography } from "antd";
 import { useEffect, useState } from "react";
 import type { VideoDetail } from "@/lib/api";
 import GooglePhotosButton from "./GooglePhotosButton";
 import ImageProviderMenu from "./ImageProviderMenu";
 import { COLORS } from "@/app/theme";
+import { formatDecimal } from "@/lib/api";
 
 /** Scrolls to the first red reason on the page: a whole-video one, else a scene's. */
 export function showFirstBlocking() {
@@ -62,6 +63,8 @@ export default function RenderBar({
   /** Cancels the queued job, which has not started yet. */
   onCancelJob?: () => void;
 }) {
+  // Under 576 px: the summary line is left out and the bar is tighter.
+  const phone = !(Grid.useBreakpoint().sm ?? true);
   const scenes = [video.title_scene, ...video.scenes].filter((scene) => scene !== null);
   const blocking = video.video_blocking.length + scenes.reduce((sum, scene) => sum + scene.blocking.length, 0);
   const missingPhotos = scenes.some((scene) => !scene.has_image && !scene.video);
@@ -117,12 +120,13 @@ export default function RenderBar({
   return (
     <div
       data-testid="render-bar"
+      data-compact={phone ? "true" : undefined}
       style={{
         position: "sticky",
         bottom: 0,
         zIndex: 5,
         marginTop: 16,
-        padding: "10px 16px",
+        padding: phone ? "6px 10px" : "10px 16px",
         background: "#fff",
         border: `1px solid ${COLORS.border}`,
         borderRadius: 8,
@@ -132,10 +136,15 @@ export default function RenderBar({
       <Flex wrap gap={8} align="center" justify="space-between">
         <Flex vertical gap={2} style={{ minWidth: 0 }}>
           {status}
-          <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="render-bar-summary">
-            {video.scenes.length} cảnh · dài khoảng {Math.round(seconds)} giây ·{" "}
+          {/* On a phone the bar keeps to its status and buttons, so it covers less of the scenes. */}
+          <Typography.Text
+            type="secondary"
+            style={{ fontSize: 12, display: phone ? "none" : undefined }}
+            data-testid="render-bar-summary"
+          >
+            {video.scenes.length} cảnh, dài khoảng {Math.round(seconds)} giây,{" "}
             {video.voice_enabled ? "có giọng đọc" : "không giọng đọc"}
-            {video.mp4 ? ` · MP4 hiện tại ${video.mp4.seconds.toFixed(1)} giây` : " · chưa có MP4"}
+            {video.mp4 ? `, MP4 hiện tại ${formatDecimal(video.mp4.seconds)} giây` : ", chưa có MP4"}
           </Typography.Text>
         </Flex>
         <Flex wrap gap={8}>

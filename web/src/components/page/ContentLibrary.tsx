@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -16,6 +17,7 @@ import StatusText from "@/components/StatusText";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import { formatNumber, formatSeconds } from "@/components/page/Figures";
 import { api, errorMessage, formatDateTime, type PageContent, type PageContentPost } from "@/lib/api";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import { usePolling } from "@/lib/polling";
 
 const REFRESH_MS = 60_000;
@@ -234,7 +236,15 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
   const { message } = App.useApp();
   const [data, setData] = useState<PageContent | null>(null);
   const [shown, setShown] = useRememberedColumns();
-  const [sort, setSort] = useState<Sort>({ key: "live_at", order: "descend" });
+  // The sort and page are in the address beside the dashboard's tab.
+  const [sortKey, setSortKey] = useUrlChoice<Key>("sort", "live_at", ALL_KEYS);
+  const [sortOrder, setSortOrder] = useUrlChoice<Sort["order"]>("order", "descend", ["ascend"]);
+  const sort: Sort = useMemo(() => ({ key: sortKey, order: sortOrder }), [sortKey, sortOrder]);
+  const setSort = (next: Sort) => {
+    setSortKey(next.key);
+    setSortOrder(next.order);
+  };
+  const tablePage = useUrlPage();
 
   const load = useCallback(async () => {
     try {
@@ -363,9 +373,11 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
           dataSource={rows}
           columns={tableColumns}
           onChange={onChange}
-          pagination={rows.length > 50 ? { pageSize: 50, showSizeChanger: false } : false}
+          pagination={rows.length > 50 ? { pageSize: 50, showSizeChanger: false, ...tablePage } : false}
           scroll={{ x: "max-content" }}
-          locale={{ emptyText: `Chưa có bài nào app đăng lên Page này trong ${days} ngày.` }}
+          locale={{
+            emptyText: <EmptyState description={`Chưa có bài nào app đăng lên Page này trong ${days} ngày.`} />,
+          }}
         />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Số ở lần đo mới nhất của mỗi bài (bấm “Cập nhật view” ở ⋯ để đo lại); bài đăng ngoài app không có ở đây.{" "}

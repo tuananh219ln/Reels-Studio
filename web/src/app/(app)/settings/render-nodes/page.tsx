@@ -1,8 +1,9 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, DesktopOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Empty, Flex, Input, Popconfirm, Spin, Switch, Typography } from "antd";
+import { Alert, App, Button, Card, Flex, Input, Popconfirm, Spin, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
@@ -124,7 +125,7 @@ export default function RenderNodesPage() {
                       {node.online ? "Đang chạy" : "Đang tắt"}
                     </StatusText>
                     <Typography.Text type="secondary" style={{ display: "block", fontSize: 12 }}>
-                      {node.last_seen_at ? `Lần cuối ${formatDateTime(node.last_seen_at)}` : "Chưa kết nối lần nào"} ·
+                      {node.last_seen_at ? `Lần cuối ${formatDateTime(node.last_seen_at)}` : "Chưa kết nối lần nào"},
                       thêm bởi {node.created_by}
                     </Typography.Text>
                   </div>
@@ -146,7 +147,7 @@ export default function RenderNodesPage() {
             ))}
           </Flex>
         ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có máy render nào" />
+          <EmptyState description="Chưa có máy render nào" />
         )}
       </Card>
 
@@ -155,7 +156,7 @@ export default function RenderNodesPage() {
           <Flex gap={8} wrap>
             <Input
               aria-label="Tên máy"
-              placeholder="Tên máy, ví dụ: PC nhà An"
+              placeholder="Tên máy, ví dụ: PC nhà An…"
               value={name}
               maxLength={60}
               onChange={(event) => setName(event.target.value)}

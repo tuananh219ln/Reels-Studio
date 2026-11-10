@@ -42,12 +42,14 @@ The interface reads as a tool, not a template. A status is a small dot and a wor
 ([StatusText](../web/src/components/StatusText.tsx)): grey for nothing yet, blue while a job
 runs, dark grey when done, green once out or working, amber while waiting or needing a look, red
 when failed. Tags are kept for what really is a tag (a track's topics, "Mặc định", a platform).
-Details are joined with commas or set on lines of their own, never strung together with "·";
+Details are joined with commas or set on lines of their own, never strung together with "·" (only text
+the api writes keeps its own, such as the AI model "DeepSeek · deepseek-chat");
 there are no all-caps labels and no decorative shadows (cards are told apart by their border);
 alerts are for errors and warnings that block something, plain grey text for the rest. An empty
 thumbnail is a grey tile with an icon.
 
-Every list's toolbar reads the same way: its search box first, then its filters, then its sort. A filter
+Every list's toolbar reads the same way: its search box first, then "Của tôi / Cả đội", then its filters, then its sort.
+On a phone the Video list's filters sit behind one "Bộ lọc (N)" button (a drawer from the bottom); search and sort stay. A filter
 is a [FilterSelect](../web/src/components/FilterSelect.tsx): typing searches its options (accents do not
 matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội").
 "Xóa" (and "Hủy đăng"/"Xóa" of a post, "Ngừng dùng" of a Page) is shown only to whoever made the thing (a Page:
@@ -76,6 +78,127 @@ plan idea, "Tạo video", "Nhân bản" / "Tạo bản TikTok", "Đăng", "Đổ
 Dialogs that need the whole screen or are not forms stay centred dialogs: the photo and clip
 editors, "Chọn từ kho ảnh/video", the text position, "Chọn nhạc từ thư viện", a plan's preview,
 "Dán ảnh", the numbers of a Page or a post, and every yes/no confirmation.
+
+## UI Rules
+
+The rules every screen follows, checked in review. App Look above sets the look; these set the
+behaviour. They adapt Vercel's [Web Interface
+Guidelines](https://github.com/vercel-labs/web-interface-guidelines) to an internal Ant Design app
+in Vietnamese. A screen's own section under Screens may make a named exception; nothing else does.
+
+**Not a template.** The app looks made for this team, not generated. No decorative gradients, glows,
+glass blur or illustrations (a phone mock's shade over the video or a colour picker's wheel is
+not decoration); no emoji in labels, titles or messages (an icon from
+`@ant-design/icons` where a mark is needed); no row of identical feature cards where a table or a
+list says it better; no filler copy ("Chào mừng bạn!", "Khám phá ngay", "Mạnh mẽ và dễ dàng").
+Density beats air: a screen shows the work, and a table is the default for anything with more than
+two attributes per row.
+
+**Copy.**
+
+- Buttons say what happens, verb first, and name the thing when it is not obvious: "Lưu sản
+  phẩm", "Tải MP4", never "OK", "Tiếp tục" or "Xác nhận" alone.
+- Sentence case everywhere ("Tạo video mới", not "Tạo Video Mới"); no all-caps.
+- An error says what went wrong and what to do next: "Token Fanpage đã hết hạn. Dán token mới trong
+  Quản lý Page.", not "Có lỗi xảy ra".
+- Counts in numerals ("3 video"), the ellipsis is one character (`…`, never `...`), and a running
+  state ends with it: "Đang tải…", "Đang render…".
+- A text box's placeholder is a search hint, a short instruction or an example and ends with `…`
+  ("Tìm theo tiêu đề…", "Ví dụ: 5 món ăn sáng ở Huế…"); a literal value (an email, a link, an
+  account name) or a full sentence keeps its own ending. A select's empty choice ("Mọi trạng thái")
+  is not a placeholder of this kind. A placeholder is never the only label.
+- Talk to the member as "bạn" when a sentence needs a subject; the app never says "tôi".
+
+**Numbers, dates and times.** Every date and time goes through the helpers in
+[web/src/lib/api.ts](../web/src/lib/api.ts) (`formatDateTime` and its siblings), which use
+`Intl` in `Asia/Ho_Chi_Minh`; no hand-built date strings. Money and large numbers use
+`Intl.NumberFormat("vi-VN")`, and a decimal shown to the member has a comma, through
+`formatDecimal` ("3,5 giây", "1,25×"), never `toFixed`. A column or row of numbers people compare is
+`font-variant-numeric: tabular-nums`. A brand name, a code or an id never breaks across lines.
+
+**States.** Every list, card and panel has all four:
+
+- **Loading:** a skeleton or a spinner in the place the content will be, never a blank area or a
+  page that jumps when the data lands. A button that starts a request shows `loading` on itself
+  and stays enabled until the request starts.
+- **Empty:** [EmptyState](../web/src/components/EmptyState.tsx) (antd's small drawing) with one line
+  saying why it is empty and, when there is one, the action that fills it, named apart from the
+  page's own button ("Làm video đầu tiên", "Viết bài đầu tiên", "Tải bài nhạc đầu tiên", "Nhập sản
+  phẩm đầu tiên"); the name never contains the page button's, which a search by name would also match. A filtered list that is empty says the filter is
+  why.
+- **Error:** the plain Vietnamese reason where it happened, technical detail in a collapsed "Chi
+  tiết lỗi" (see Interface Language), and "Thử lại" when retrying can help.
+- **Long content:** titles, names and links truncate with an ellipsis (and a tooltip with the full
+  text) or wrap; they never push a layout wider than the screen. Plan for one word and for 300
+  characters.
+
+**Forms.**
+
+- Every control has a visible label (antd `Form.Item label`), or an `aria-label` where the layout
+  truly has no room, like a search box with a search icon.
+- Inputs use the right type: `type="url"` for links, `inputMode="numeric"` for numbers typed as
+  text, `autoComplete` set on login fields and `"off"` on fields a password manager should leave
+  alone (tokens, API keys). Paste is never blocked.
+- Validation runs on submit and on blur, the message under the field; on submit the first field
+  with an error gets the focus.
+- A form that holds more than a minute of typing (a script, a prompt, a long caption) asks before
+  it is closed with changes ("Bỏ các thay đổi chưa lưu?", "Bỏ thay đổi" or "Tiếp tục sửa"),
+  whether by "Huỷ", the drawer's ×, a click outside or leaving the page (a link in the app, or
+  closing or reloading the tab, where the browser asks). A drawer does it with FormDrawer's `guard`
+  (its form, asked once a field was typed in); a box on a page with
+  [useLeaveGuard](../web/src/lib/unsaved.ts). Today: "Tạo video", "Tạo bài viết", adding and
+  editing a plan idea, and in Kho kiến thức the prompts, "Gợi ý tìm ảnh", "Từ cấm" and the plan
+  prompt. A field that saves itself when left (a scene's texts, an article's caption) needs none.
+
+**Destructive actions.** Deleting, taking down or revoking something asks first (a `Popconfirm`
+for one row, a centred dialog that names the thing for anything larger), and the confirm button is
+`danger` and says the act ("Xóa video", "Thu hồi"). An editor with its own undo ("Hoàn tác" in "Xem
+trước") removes a layer, a sound or a scene at once instead, as the undo puts it back. Who may do it
+is in App Look.
+
+**Keyboard and focus.**
+
+- Actions are `<Button>` and navigation is a `<Link>` (so Ctrl/Cmd+click opens a new tab); no
+  clickable `<div>` or `<span>`. A row that opens something on click also has a real link or
+  button in it.
+- Every interactive element shows a visible focus ring when reached by keyboard
+  (`:focus-visible`). `outline: none` is allowed only with a replacement ring on the same element.
+- An icon-only button has an `aria-label` and a `Tooltip` with the same words.
+- A drag, a resize or a slider (the timeline playhead, the text position) also works from the
+  keyboard (arrows, Home, End) and has a role and a label.
+- `autoFocus` only on the single main field of a drawer or dialog, and not on a phone.
+
+**Motion.** Movement is short (under 300 ms), animates `transform` and `opacity` only, never
+`transition: all`, and stops or shrinks to a fade under `prefers-reduced-motion`. Ant Design's own
+motion already does; the app's own movement is written in `globals.css` inside
+`@media (prefers-reduced-motion: no-preference)` (the scene card's arrow). This covers the app's
+own UI; the video's motion follows Video Template.
+
+**Images.** An `<img>` has `width` and `height` (or a box with a fixed aspect ratio) so the page
+does not jump while it loads, `alt` naming what it shows, or `alt=""` when the text beside it
+already says it, and `loading="lazy"` below the first screen (the thumbnails of the video, article,
+group video and media lists, the stock and group pickers). Long lists of thumbnails are
+paginated or virtualised past about 50 items.
+
+**Phone width.** Every screen works at 375 px wide with no sideways scroll of the page: toolbars
+wrap, tables scroll inside their card, drawers take the full width (App Look) and touch targets
+are at least 36 px.
+
+**State in the URL.** A list page's search, filters, sort and tab are in the query string
+(`?q=…&status=…`), so a link to a filtered list or a reload shows the same thing: Video, Bài viết,
+Bài đăng (with "Danh sách | Lịch"), Jobs, Thành viên, Kho tư liệu, Thư viện nhạc, Quản lý Page and
+Affiliate (its tab too; changing tab clears the last tab's filters). A default is left out of the
+address, and "Của tôi / Cả đội" is written only once picked, so the list still starts on the
+member's own work. They are read with [useUrlChoice](../web/src/lib/urlState.ts), which replaces
+the address in place (no new history entry, no request); a page using it renders inside a
+`Suspense` boundary. A long table's page is there too (`?page=2`, `useUrlPage`), and any other
+change to the address starts it on page 1 again. Kho kiến thức keeps the group shown and its tab
+(`?group=…&tab=…`) with that tab's list filters (the Video tab's search, status and page, the
+Backlog's search and pain group); choosing another group opens it on its Video tab without the last group's filters, and a
+group opened earlier and hidden keeps its own (`useUrlChoiceIf`). A Page's dashboard keeps its
+period, tab and the "Nội dung" table's sort and page. Not in the address: a list inside a drawer,
+dialog or picker (the plan day drawer's filters, the stock picker). Video's topic-group filter is
+also remembered in the browser, and the address wins when both are there.
 
 ## Screens
 
@@ -142,8 +265,8 @@ Built:
   through MCP: "Muse (MCP)", "ChatGPT (MCP)", "Claude (MCP)", "Trợ lý AI (MCP)" when unknown),
   "Xuyên suốt" for a backdrop video and "Sản phẩm" (with a count above one) when products are attached; and
   "Đã đăng" as four icons, Facebook, TikTok, YouTube and Instagram, each in its colour once the video is out
-  there and grey until then (the name on hover). A TikTok version sits on its source's card (or row) as a small "TikTok ·
-  Nháp" / "TikTok · Đã đăng" link that opens it, not on a card of its own; it gets its own card when a platform
+  there and grey until then (the name on hover). A TikTok version sits on its source's card (or row) as a small "TikTok" link
+  with its status ("Nháp", "Đã đăng") that opens it, not on a card of its own; it gets its own card when a platform
   is chosen or its source is filtered out. A Facebook video at 3× its Page's median or more at 48 hours with no
   TikTok version shows "+ Tạo bản TikTok" there instead, opening its "Tạo bản TikTok" drawer. Two views, remembered in the browser; a click opens the video:
   - a grid of cards on their side (1 to 4 a row by width), equal in height. The 92 px thumbnail is
@@ -254,7 +377,7 @@ Built:
     tools, panel, "Chỉnh cảnh N"). "Chỉnh cảnh N" holds everything about the scene shown, in folding
     sections: "Nội dung" (the scene card's own "Chữ trên màn hình" and "Lời đọc" fields), "Thời lượng và
     vị trí chữ" (below), "Ảnh của cảnh" / "Video của cảnh" (the card's upload, paste, Google, TikTok, "Chọn
-    từ kho ảnh/video", "Đã dùng trong nhóm", "Tìm ảnh" and "Tạo ảnh AI", with "Chỉnh khung" for a photo and
+    từ kho ▾" (Kho ảnh/video miễn phí, Đã dùng trong nhóm, Kho tư liệu), "Tìm ảnh" and "Tạo ảnh AI", with "Chỉnh khung" for a photo and
     "Xoá video" for a clip; the phone shows the picture) and, folded, "Tìm ảnh: từ khoá và prompt AI". These
     are the same fields as on the scene card and save the same way, so the card and the studio always agree.
     "Chữ & sticker (N)" lists the scene's layers; the one picked (on the phone or in the list) opens for its words,
@@ -354,7 +477,8 @@ Built:
     searches Google Ảnh for every scene without a photo or clip (its first two keywords) and puts the first usable
     result on each, marked "Tự chọn, kiểm tra lại", then says how many it filled; a CAPTCHA stops it with a dialog
     saying to solve it in the Google tab and press again. Without the extension neither shows. Then
-    "Chọn từ kho ảnh/video", "Đã dùng trong nhóm" (a dialog of the photos and clips the group's other
+    one "Chọn từ kho ▾" button holding the three libraries, so the column stays short: "Kho ảnh/video miễn phí"
+    (the stock picker), "Đã dùng trong nhóm" (a dialog of the photos and clips the group's other
     videos use, best match for the scene's keywords first, a search box that ignores accents, and
     "Dùng" on each, which copies it into the scene, asking first when the scene has a picture), "Tìm ảnh" with its source arrow,
     then "Tạo ảnh AI" ("Tạo lại ảnh AI" when the photo is already an AI one): an image job for this
@@ -420,7 +544,7 @@ Built:
     status dot with its label and measure; the title says "Đạt chuẩn đăng", "Đăng được, nên xem lại" or "Chưa đạt,
     nên sửa rồi render lại". It is advice: posting is never blocked by it;
   - a "Cảnh động" shows its status under the picture: "Đang dựng cảnh động" while its job runs, then
-    "Cảnh động · N giây". It is changed through the assistant; another photo or clip replaces it as usual;
+    "Cảnh động, N giây". It is changed through the assistant; another photo or clip replaces it as usual;
   - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture
     with "Giữ ảnh này"; keeping it, or changing the photo any other way, removes it. It never
     blocks the render;
@@ -521,10 +645,10 @@ Built:
   "Chưa có prompt" when it has none, "Của tôi" before the count on the groups of the member's own Pages (the chosen line highlighted with an orange left edge, the first
   group chosen on arrival), and under them a small field with a "+" button ("Thêm nhóm"; the new group
   is opened). On the right, the chosen group: its name as a heading with a pencil ("Đổi tên", renamed in
-  place with "Lưu tên" / "Huỷ", Esc cancels), a line "N video · K prompt đã sửa" (and that it cannot
+  place with "Lưu tên" / "Huỷ", Esc cancels), a line "N video, K prompt đã sửa" (and that it cannot
   make videos without a script prompt), and "⋯" holding "Xoá nhóm" (disabled while the group has
   videos, then a confirmation). Beside "⋯", the group's maker has the switch "Cho cả đội sửa" (on by default);
-  a group with no known maker shows "Nhận nhóm" instead. With the switch off, another member reads "· Chỉ <người
+  a group with no known maker shows "Nhận nhóm" instead. With the switch off, another member reads ", chỉ <người
   tạo> sửa được nhóm này" in the line under the name, has no "Đổi tên", and finds Prompt, Từ cấm/ảnh/giọng and
   Mẫu dựng read-only ("Lịch sử" still opens, without "Khôi phục"); the Video tab and "Tạo video" stay as they are,
   and a change tried on the plan tab is refused with the same reason. Groups opened once stay loaded, so unsaved text in one survives opening
@@ -561,18 +685,18 @@ Built:
     tưởng trong kế hoạch"), a yellow alert listing banned words, and while it waits the MP4 to play, the voice and
     music, "Mở video" (scene photos and script) and "Bản TikTok riêng" when made; the Page's owner gets "Bỏ qua TikTok
     cho video này" (or why no draft would go), "Duyệt" and "Không duyệt" (confirmed); others read "Chờ chủ Page
-    duyệt". Once approved: "Facebook: hẹn đăng <time> · TikTok: …". Under it "Đã làm X/Y · Đã lên lịch N · Ngày còn
+    duyệt". Once approved: "Facebook: hẹn đăng <time>, TikTok: …". Under it "Đã làm X/Y, đã lên lịch N, ngày còn
     trống N";
-  - "Tiến độ verdict: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
-    target to set; it only counts, the line under it says the verdict is still decided in a meeting;
+  - "Tiến độ trước khi đánh giá nhóm: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
+    target to set; it only counts, the line under it says the team still judges the group in a meeting;
   - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
-    start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Mục tiêu video cho verdict", changed in
+    start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Số video cần làm trước khi đánh giá nhóm", changed in
     place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
     with errors (which block saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as
     a draft ("Xem trước" / "Bỏ") until then; a failed one shows its error;
   - "Prompt kế hoạch", folded, with "Lưu" and "Lịch sử";
-  - the status colours, then the calendar: five weeks ("Tuần N · dd/mm – dd/mm", or the day numbers before a start
-    date, with "N ý tưởng · N đã làm · N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
+  - the status colours, then the calendar: five weeks ("Tuần N, dd/mm – dd/mm", or the day numbers before a start
+    date, with "N ý tưởng, N đã làm, N đã lên lịch"), each a grid of 7 day cells (3 on a tablet, 2 on a phone).
     A cell shows its weekday and date ("CN 08/11", or "Ngày N"), "Hôm nay" on today's, and its ideas as chips in
     their status colour (never filtered); an empty one has a dashed "+ Thêm ý", which also opens the day. Clicking
     a cell outlines it and opens that day in a drawer on the right ("Ngày N — Thứ …, dd/mm" from the start date,
@@ -592,7 +716,7 @@ Built:
     "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in the plan shows in the form, which stays
     open), "Chuyển về Backlog" and "Xoá", and under them one line per Facebook post with its 48-hour numbers
     ("<Page>: N view, N share, share/view x,xx% đạt/không đạt 0,2%, N× trung vị", bold from 10×; "chưa đủ dữ liệu"
-    under 5 measured posts; "chưa đo 48h" before), ending with "· hiện N view", the newest reading, once read;
+    under 5 measured posts; "chưa đo 48h" before), ending with ", hiện N view", the newest reading, once read;
   - the "Backlog" tab: "Thêm ý tưởng", "Nhập file JSON/CSV" (a file needs no day column; the preview's
     "Thêm vào Backlog" adds every idea, skipping topics already in the plan), a search and a pain-group
     filter, and the ideas as cards with "Xếp vào ngày…" (a full day cannot be picked).
@@ -700,7 +824,7 @@ Built:
     "Đã xóa"; the views; then the same four icon buttons on every post, each with a tooltip: "Xem
     Reel" (opens the reel once public), "Thử lại" (sends a failed post's job again), "Kiểm tra", and
     "Hủy đăng" or "Xóa" with a confirmation. A button that does not apply to the post is greyed out,
-    its tooltip saying why ("Video đang chạy một việc khác (xem Job logs)…" while its video has a job),
+    its tooltip saying why ("Video đang chạy một việc khác (xem Nhật ký job)…" while its video has a job),
     so the buttons line up from row to row. There is no grid here: posts are read
     as numbers, and "Video" keeps the grid for working on videos.
     A post's views stay on one line so rows stay short: the views (or "Chưa có view"), a yellow
@@ -769,7 +893,7 @@ Built:
     Vietnam time whatever the browser's time zone: the hour and day a reel sits under, the week and
     month it opens on, and today's mark. On a phone the month is compact, with a dot on each day that
     has a video; tapping a day opens the same drawer.
-- **Job logs** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
+- **Nhật ký job** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
   Each row: the video title with its kind and job number under it, a status tag with an icon, who
@@ -788,7 +912,7 @@ Built:
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
   A tab of **Chung cả nhóm** has "Lịch sử" among its actions (the page's whole history, newest first, each change
-  on a line: "OpenAI · Model: a → b", a key only as "Khoá: đã đổi khoá …k3P1" / "đã xoá khoá", never its value),
+  on a line: "Model (OpenAI): a → b", a key only as "Khoá (OpenAI): đã đổi khoá …k3P1" / "đã xoá khoá", never its value),
   and under each of its cards or groups a small "Sửa lần cuối bởi <tên>, <giờ VN>" that opens that card's history
   ([SharedHistory](../web/src/components/settings/SharedHistory.tsx)); nothing shows before a first logged change.
   The content takes the whole width beside the list:
@@ -845,7 +969,7 @@ Built:
     "Dán token mới", which must reach that Page, and "Ngừng dùng" (confirmed). Stopped Pages are
     folded into "Đã ngừng dùng (N)" at the bottom, each with its post count, "Dùng lại", and "Xóa"
     for one that never had a post (confirmed; it removes the token and the numbers); for one with
-    posts "Xóa" is greyed out with why. "Thêm Fanpage" takes a token, "Kiểm tra token" lists the
+    posts "Xóa" is greyed out with why. "Thêm Fanpage" says which permissions the token needs (only there, not on the page) and takes it, "Kiểm tra token" lists the
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
@@ -894,7 +1018,7 @@ Built:
 
 The menu (built, 2026-11-10) is four groups, each under a small grey heading that cannot be folded, in the order of
 the work: **Tạo nội dung** (Video, Bài viết), **Đăng và kiếm tiền** (Bài đăng, Quản lý Page, Affiliate), **Tài
-nguyên** (Kho kiến thức, Kho tư liệu, Thư viện nhạc) and **Quản trị** (Quản lý người dùng, Job logs, Cài đặt).
+nguyên** (Kho kiến thức, Kho tư liệu, Thư viện nhạc) and **Quản trị** (Quản lý người dùng, Nhật ký job, Cài đặt).
 No menu item opens a sub-menu.
 
 Phones (below 992 px wide; built):
@@ -1191,7 +1315,7 @@ pairing template and for later tuning.
 Where something is edited, its history is shown there, not on a page of its own
 ([decision](decisions/2026-11-09-edit-history.md)). Kho kiến thức is the first place it is shown:
 
-- **Under the group's name**, after "N video · N prompt đã sửa": "<member> sửa <part> lúc dd/mm/yyyy hh:mm" (Vietnam
+- **Under the group's name**, after "N video, N prompt đã sửa": "<member> sửa <part> lúc dd/mm/yyyy hh:mm" (Vietnam
   time), a link that opens the group's whole history, each entry naming the parts it changed.
 - **"Lịch sử" on each card** (every prompt, Từ cấm, Gợi ý tìm ảnh, Giọng mặc định của nhóm, Prompt kế hoạch) opens a
   drawer on the right, newest first. Each entry: its action as a tag (Tạo green, Sửa blue, Xoá red, Khôi phục gold),

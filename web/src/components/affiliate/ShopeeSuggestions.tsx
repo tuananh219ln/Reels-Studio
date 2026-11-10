@@ -236,7 +236,7 @@ export default function ShopeeSuggestions({
       <Flex gap={8} align="flex-start">
         <Input.TextArea
           aria-label="Dán link aff Shopee"
-          placeholder="Dán link aff Shopee (s.shopee.vn/…), mỗi dòng một link"
+          placeholder="Dán link aff Shopee (s.shopee.vn/…), mỗi dòng một link…"
           autoSize={{ minRows: 1, maxRows: 4 }}
           value={pasted}
           onChange={(event) => setPasted(event.target.value)}

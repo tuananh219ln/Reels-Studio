@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import ListenVolume, { useListen } from "@/components/ListenVolume";
-import { api, errorMessage, upload, type SceneData, type VideoDetail } from "@/lib/api";
+import { api, errorMessage, upload, type SceneData, type VideoDetail, formatDecimal } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 
 // The template's frame: a crop smaller than this is stretched by the render and looks soft.
@@ -198,7 +198,7 @@ function PhotoCrop({ scene, which, onClose }: { scene: SceneData; which: string;
         }
       >
         <Typography.Text type="secondary">Kéo ảnh để chọn phần nằm trong khung 9:16.</Typography.Text>
-        <Section label="Phóng to" extra={<Typography.Text type="secondary">{zoom.toFixed(2)}×</Typography.Text>}>
+        <Section label="Phóng to" extra={<Typography.Text type="secondary">{formatDecimal(zoom, 2)}×</Typography.Text>}>
           <Slider
             aria-label="Phóng to"
             min={1}
@@ -206,7 +206,7 @@ function PhotoCrop({ scene, which, onClose }: { scene: SceneData; which: string;
             step={0.05}
             value={zoom}
             onChange={setZoom}
-            tooltip={{ formatter: (value) => `${(value ?? 1).toFixed(2)}×` }}
+            tooltip={{ formatter: (value) => `${formatDecimal(value ?? 1, 2)}×` }}
           />
         </Section>
         <Section label="Xoay và lật">

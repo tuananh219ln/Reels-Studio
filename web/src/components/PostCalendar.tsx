@@ -1,8 +1,9 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import dayjsGenerateConfig from "@rc-component/picker/generate/dayjs";
 import { EyeOutlined, LeftOutlined, RightOutlined } from "@ant-design/icons";
-import { Badge, Button, Calendar, Card, Drawer, Empty, Flex, Grid, Segmented, Typography, theme } from "antd";
+import { Badge, Button, Calendar, Card, Drawer, Flex, Grid, Segmented, Typography, theme } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/vi";
 import Link from "next/link";
@@ -133,7 +134,7 @@ export default function PostCalendar({ posts }: { posts: PostRow[] }) {
       data-testid="calendar-drawer"
     >
       {drawerPosts.length === 0 ? (
-        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Không có bài đăng nào" />
+        <EmptyState description="Không có bài đăng nào" />
       ) : (
         <Flex vertical gap={16}>
           {drawerPosts.map(({ post, clock }) => {

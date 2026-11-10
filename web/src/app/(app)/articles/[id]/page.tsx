@@ -270,7 +270,7 @@ export default function ArticlePage() {
           type="error"
           showIcon
           title={`Đăng chưa được: ${article.publish_error}`}
-          description="Sửa rồi bấm Đăng lại, hoặc Thử lại trong Job logs."
+          description="Sửa rồi bấm Đăng lại, hoặc Thử lại trong Nhật ký job."
         />
       )}
 
@@ -447,7 +447,7 @@ export default function ArticlePage() {
                     <Input
                       aria-label="Link ảnh"
                       prefix={<LinkOutlined />}
-                      placeholder="Dán link ảnh"
+                      placeholder="Dán link ảnh…"
                       value={link}
                       onChange={(event) => setLink(event.target.value)}
                     />

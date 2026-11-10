@@ -69,7 +69,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   // A script's scenes follow their narration ("Tự khớp lời đọc"): each lasts its fake narration of 0.3 s per word plus
   // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
   // the five scenes' 4 words 1.9 s each.
-  await expect(page.getByTestId("render-time")).toContainText("Dài 12.0 giây");
+  await expect(page.getByTestId("render-time")).toContainText("Dài 12,0 giây");
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
@@ -210,7 +210,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await page.getByRole("button", { name: "Thêm nhóm" }).click();
   await page.getByRole("button", { name: /Làm đẹp/ }).click();
   const beauty = page.locator('[data-topic="Làm đẹp"]');
-  await expect(beauty).toContainText("Chưa có prompt viết kịch bản");
+  await expect(beauty).toContainText("chưa có prompt viết kịch bản");
   await expect(beauty.getByText("Nhóm này chưa có video nào")).toBeVisible();
   await expect(beauty.getByRole("button", { name: "Tạo video" })).toHaveCount(0);
   await beauty.getByRole("tab", { name: "Prompt", exact: true }).click();
@@ -241,7 +241,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   // "Lịch sử" of the prompt: who saved what, the difference, and any version (the app's default too) put back.
   await expect(health).toContainText("Nguyễn Văn An sửa Từ cấm lúc");
   await scriptCard.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử · Prompt viết kịch bản" });
+  const history = page.getByRole("dialog", { name: "Lịch sử: Prompt viết kịch bản" });
   const latest = history.getByTestId("edit-history-entry").first();
   await expect(latest).toContainText("Nguyễn Văn An");
   await expect(latest).toContainText("Đang dùng");
@@ -282,7 +282,7 @@ test("knowledge topics: each opens from its line, keeps its own texts, and an em
   await expect(page.getByRole("button", { name: /Làm đẹp/ })).toHaveCount(0);
   // A deleted group stays in the list's history.
   await page.getByRole("button", { name: "Lịch sử nhóm chủ đề" }).click();
-  const groups = page.getByRole("dialog", { name: "Lịch sử · Nhóm chủ đề" });
+  const groups = page.getByRole("dialog", { name: "Lịch sử: Nhóm chủ đề" });
   await expect(groups.getByTestId("edit-history-entry").first()).toContainText("Xoá");
   await expect(groups.getByTestId("edit-history-entry").first()).toContainText("“Làm đẹp da”");
   await expect(groups).toContainText("Làm đẹp → Làm đẹp da");
@@ -405,7 +405,8 @@ test("a scene reuses a photo another video of its group already uses", async ({ 
   await newVideoWithScript(page, "canxi cho người lớn tuổi");
   await newVideoWithScript(page, "rau xanh cho người lớn tuổi");
 
-  await page.getByTestId("scene").first().getByRole("button", { name: "Đã dùng trong nhóm" }).click();
+  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Đã dùng trong nhóm" }).click();
   const picker = page.getByRole("dialog", { name: "Ảnh/video đã dùng trong nhóm" });
   const items = picker.getByTestId("group-media-item");
   await expect(items.first()).toBeVisible();
@@ -510,12 +511,13 @@ test("video list: Cần làm, the group's week, and a TikTok nudge on a card doi
   // Out and doing well: no longer to do, and the card offers a TikTok version, which opens the clone drawer.
   as = "posted";
   await page.reload();
+  // The filter stays in the address over the reload: still on "Cần làm", where the video no longer is.
+  await expect(page).toHaveURL(/[?&]status=todo/);
+  await expect(cards).toHaveCount(0);
   await expect(page.getByTestId("group-week")).toContainText("1 đã đăng, 0 còn nháp");
+  await page.goto("/videos");
   const nudge = page.getByTestId("card-make-tiktok");
   await expect(nudge).toHaveText("Tạo bản TikTok");
-  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Cần làm");
-  await expect(cards).toHaveCount(0);
-  await page.reload();
   await nudge.click();
   await expect(page.getByRole("dialog", { name: "Tạo bản TikTok" })).toBeVisible();
 });
@@ -674,6 +676,8 @@ test("preview before a render: plays scene by scene, starts from a chosen scene,
   const playhead = timeline.getByRole("slider", { name: "Đầu phát" });
   await playhead.focus();
   await page.keyboard.press("Home");
+  // Reached and moved from the keyboard, it shows where the focus is.
+  await expect(playhead).toHaveCSS("outline-style", "solid");
   await expect(now).toContainText("Cảnh tiêu đề");
   await expect(timeline.getByTestId("preview-time")).toHaveText("00:00,0");
   await expect(preview.getByRole("button", { name: "Tiếp tục" })).toBeVisible();
@@ -815,7 +819,7 @@ test("studio: tracks under the scenes, a locked track, and a scene split at the 
     "Rau mầm *tươi* mỗi ngày",
   );
   // Its photo's actions are here too, and the search terms fold away until opened.
-  await expect(inspector.getByRole("button", { name: "Chọn từ kho ảnh/video" })).toBeVisible();
+  await expect(inspector.getByRole("button", { name: "Chọn từ kho" })).toBeVisible();
   await inspector.getByText("Tìm ảnh: từ khoá và prompt AI").click();
   await expect(inspector.getByLabel("Từ khóa tìm ảnh")).toBeVisible();
   // The keys and how to edit sit behind "Phím tắt".
@@ -1218,6 +1222,8 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await groups.getByRole("cell").last().click(); // the row, not the title's link
   const posts = page.getByTestId("post-rows");
   await expect(posts.getByRole("link", { name: "Xem Reel" })).toBeVisible();
+  // On a phone the table scrolls inside its card instead of being cut off.
+  await expect(posts.locator(".ant-table-content").first()).toHaveCSS("overflow-x", "auto");
   // Every post has the same action buttons; those that do not apply are greyed out.
   await expect(posts.getByRole("button", { name: "Thử lại" })).toBeDisabled();
   await expect(posts.getByRole("button", { name: "Kiểm tra" })).toBeEnabled();
@@ -1239,6 +1245,7 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await expect(insights.getByTestId("insight-avg-watch")).toContainText("8,4 giây");
   await expect(insights.getByTestId("retention-chart")).toBeVisible();
   await expect(insights.getByTestId("scene-drop-off").getByRole("row")).toHaveCount(7); // header, title, 5 scenes
+  await expect(insights.getByTestId("scene-drop-off").locator(".ant-table-content")).toHaveCSS("overflow-x", "auto");
   await expect(insights.getByText("mất nhiều nhất")).toHaveCount(1);
   await page.getByRole("dialog", { name: "Phân tích bài đăng" }).getByRole("button", { name: "Đóng" }).click(); // antd's vi_VN label for the X
   await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
@@ -1270,9 +1277,9 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await page.getByLabel("Tìm theo tiêu đề").fill("");
   await expect(groups).toHaveCount(1);
 
-  // "Lịch" is a view of the same page.
+  // "Lịch" is a view of the same page; the sort chosen above stays in the address beside it.
   await page.getByLabel("Kiểu hiển thị").getByText("Lịch", { exact: true }).click();
-  await expect(page).toHaveURL(/\/posts\?view=calendar$/);
+  await expect(page).toHaveURL(/\/posts\?sort=views&view=calendar$/);
   await expect(page.getByRole("columnheader", { name: "T2" })).toBeVisible();
   // Choosing a day opens its posts in a drawer, each with a link to its video.
   // The week view is the default on a wide screen: a reel's cover sits in its hour.
@@ -1622,7 +1629,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // The title scene: the grid opens on its first keyword and shows every result as a large-enough thumbnail.
   const title = page.getByTestId("title-scene");
-  await title.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await title.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("calcium rich food");
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
@@ -1645,7 +1653,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
   const first = scenes.nth(0);
-  await first.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await first.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByLabel("Từ khóa tìm ảnh")).toHaveValue("small fried fish");
   const firstResult = picker.getByTestId("stock-hit").first().locator("img");
@@ -1679,7 +1688,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await expect(third.getByTestId("image-error")).toHaveText("Hãy nhập từ khóa tìm ảnh trước");
   await expect(third.getByTestId("keywords-hint")).toBeVisible();
   // The grid then waits for a keyword to be typed instead of searching nothing.
-  await third.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await third.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByTestId("picker-hint")).toBeVisible();
   await expect(picker.getByTestId("stock-hit")).toHaveCount(0);
@@ -1701,7 +1711,8 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // On a phone the grid fits the screen: no sideways scroll, thumbnails still large enough to tell apart.
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   // The photo this scene already shows is hidden ("Ẩn ảnh đã dùng trong video này" is on by default).
   await expect(picker.getByTestId("stock-hit")).toHaveCount(2);
@@ -1790,14 +1801,17 @@ test("picker filters: keyword chips, photo shape, and photos already in the vide
   const scenes = page.getByTestId("scene");
 
   // The first scene takes the first result; the second scene's picker, on the same keyword, no longer offers it.
-  await scenes.nth(0).getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scenes.nth(0).getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
   const taken = await picker.getByTestId("stock-hit").first().locator("img").getAttribute("src");
   await picker.getByTestId("stock-hit").first().click();
   await expect(picker).toBeHidden();
 
-  await scenes.nth(1).getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scenes.nth(1).getByRole("button", { name: "Chọn từ kho" }).click();
+
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   // The scene's own keywords are one tap away; the first scene's keyword finds the photo already taken.
   await expect(picker.getByTestId("keyword-chips")).toContainText("yogurt");
@@ -1823,7 +1837,8 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await loginAsSeed(page);
   await newVideoWithScript(page, "món ăn tốt cho xương");
   const scene = page.getByTestId("scene").first();
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   // Pexels is the default source: its three fake photos show first.
   await expect(picker.getByText(/ảnh từ Pexels cho/)).toBeVisible();
@@ -1843,7 +1858,8 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await expect(scene.getByTestId("scene-preview")).toBeVisible();
 
   // Reopen and take a photo from Openverse instead; the picker starts on Pexels again.
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   await picker.getByText("Openverse", { exact: true }).click();
   await expect(picker.getByText(/ảnh từ Openverse cho/)).toBeVisible();
   await expect(picker.getByTestId("stock-hit")).toHaveCount(3);
@@ -1886,7 +1902,8 @@ test("a topic group puts Wikimedia first: the picker and “Tìm ảnh” follow
   await newVideoWithScript(page, "canh chua cá");
   const scene = page.getByTestId("scene").first();
   await expect(scene.getByRole("button", { name: "Tìm ảnh (Wikimedia Commons)" })).toBeVisible();
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
   await expect(picker.getByRole("radio", { name: "Wikimedia Commons" })).toBeChecked();
   await expect(picker.getByText(/ảnh từ Wikimedia Commons cho/)).toBeVisible();
@@ -1998,7 +2015,7 @@ test("AI image provider: the team default on Nguồn tư liệu, another one for
   await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0, { timeout: 30_000 });
 
   // The job log names the provider each image job used.
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page.getByRole("row", { name: /Tạo ảnh AI \(1 cảnh\).*Cloudflare/ })).toBeVisible();
   await expect(page.getByRole("row", { name: /Tạo ảnh AI(?! \(1 cảnh\)).*Gemini/ })).toBeVisible();
 });
@@ -2032,7 +2049,7 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Tìm ảnh" }).click();
   await expect(page.getByTestId("image-auto")).toHaveCount(4);
 
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page.getByRole("row", { name: /Tự tìm ảnh/ })).toBeVisible();
 });
 
@@ -2123,7 +2140,8 @@ test("clone a video with a change request, then see every job in the job log", a
   await expect(page.getByTestId("music-name")).toBeVisible();
   const sourceUrl = page.url();
 
-  await page.getByRole("button", { name: "Nhân bản" }).click();
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await page.getByRole("menuitem", { name: "Nhân bản" }).click();
   const dialog = page.getByRole("dialog", { name: "Nhân bản video" });
   await expect(dialog.getByRole("button", { name: "Tạo bản nhân bản" })).toBeDisabled();
   await dialog.getByLabel("Yêu cầu đổi").fill("đổi sang mốc 45 tuổi, tim mạch");
@@ -2134,7 +2152,7 @@ test("clone a video with a change request, then see every job in the job log", a
   await jobFinished(page);
   await expect(page.getByTestId("music-name")).toBeVisible();
 
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page).toHaveURL(/\/jobs$/);
   const rows = page.locator(".ant-table-tbody .ant-table-row");
   await expect(rows.filter({ hasText: "Nhân bản" })).toHaveCount(1);
@@ -2321,7 +2339,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   await jobFinished(page);
   await expect(page.getByTestId("script-by")).toHaveText("Kịch bản viết bởi Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini");
 
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page.locator(".ant-table-tbody .ant-table-row").first()).toContainText(
     "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
   );
@@ -2468,7 +2486,8 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await jobFinished(page);
 
   const scene = page.getByTestId("scene").first();
-  await scene.getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  await scene.getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh/video" });
   await picker.getByText("Video", { exact: true }).click();
   // Pixabay offers clips too, Openverse does not.
@@ -2497,10 +2516,10 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   const stockSection = page.locator("section").filter({ hasText: "Kho ảnh và video miễn phí" });
   await expect(stockSection.getByTestId("last-edit")).toContainText(`Sửa lần cuối bởi ${SEED.name}`);
   await page.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử · Nguồn tư liệu" });
+  const history = page.getByRole("dialog", { name: "Lịch sử: Nguồn tư liệu" });
   await expect(history.getByTestId("edit-history-entry")).toHaveCount(2);
-  await expect(history).toContainText("Pixabay · Khoá: đã thêm khoá …-key");
-  await expect(history).toContainText("Pexels · Hiện trong hộp chọn: Bật → Tắt");
+  await expect(history).toContainText("Khoá (Pixabay): đã thêm khoá …-key");
+  await expect(history).toContainText("Hiện trong hộp chọn (Pexels): Bật → Tắt");
   await expect(history).not.toContainText("fake-pixabay-key");
   await page.keyboard.press("Escape");
   // The ElevenLabs key for narration is pasted on the same page.
@@ -2511,7 +2530,8 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await expect(voiceKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
   await expect(page.getByTestId("source-elevenlabs")).toContainText("Sẵn sàng");
   await page.goto(videoUrl);
-  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho ảnh/video" }).click();
+  await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho" }).click();
+  await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
 });
 
@@ -2796,7 +2816,7 @@ test("30-day plan: the plan prompt's history puts back the app's default", async
   await expect(plan.getByRole("button", { name: "Khôi phục mặc định" })).toHaveCount(0);
 
   await plan.getByRole("button", { name: "Lịch sử" }).click();
-  const history = page.getByRole("dialog", { name: "Lịch sử · Prompt kế hoạch" });
+  const history = page.getByRole("dialog", { name: "Lịch sử: Prompt kế hoạch" });
   await expect(history.getByTestId("edit-history-entry")).toHaveCount(1);
   await history
     .getByTestId("edit-history-version")
@@ -2923,6 +2943,12 @@ test("30-day plan: 2 ideas a day, and each idea is edited from its Sửa button"
   await expect(edit.getByLabel("Chủ đề")).toHaveValue("Đi bộ sau bữa tối");
   await edit.getByLabel("Chủ đề").fill("Không lưu");
   await edit.getByRole("button", { name: "Huỷ" }).click();
+  // Typing is not dropped without asking.
+  await page
+    .locator(".ant-modal-confirm")
+    .filter({ hasText: "Bỏ các thay đổi chưa lưu?" })
+    .getByRole("button", { name: "Bỏ thay đổi" })
+    .click();
   await expect(edit).toBeHidden();
   await expect(second).toContainText("Đi bộ sau bữa tối");
   expect(patches).toBe(0);
@@ -3026,7 +3052,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
   await expect(dayPanel).toBeHidden();
   await expect(plan.getByTestId("plan-week-2")).toContainText(
-    `Tuần 2 · ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
+    `Tuần 2, ${vietnamDay(1).short} – ${vietnamDay(7).short}`,
   );
 
   // An empty day offers "+ Thêm ý"; the idea lands on that day, which is then shown.
@@ -3038,7 +3064,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(plan.getByTestId("plan-day-12").getByTestId("plan-chip")).toHaveText(/Ngủ trưa 20 phút/);
   await expect(dayTitle).toHaveText(`Ngày 12 — ${vietnamDay(5).long}`);
   await expect(dayPanel.getByTestId("plan-idea")).toHaveCount(1);
-  await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng · 0 đã làm · 0 đã lên lịch");
+  await expect(plan.getByTestId("plan-week-2")).toContainText("1 ý tưởng, 0 đã làm, 0 đã lên lịch");
 
   // Another day opens in the drawer in its place.
   await page.getByTestId("plan-day-drawer").getByRole("button", { name: "Đóng" }).click();
@@ -3064,7 +3090,7 @@ test("30-day plan: weeks of days, today's ideas on top, and settings saved toget
   await expect(todayIdea).toContainText("Ý tưởng");
   await expect(todayIdea.getByRole("button", { name: "Tạo video" })).toBeVisible();
   await expect(todayIdea.getByRole("button", { name: "Sửa" })).toBeVisible();
-  await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+ · Đã lên lịch \d+ · Ngày còn trống \d+$/);
+  await expect(plan.getByTestId("plan-summary")).toHaveText(/^Đã làm \d+\/\d+, đã lên lịch \d+, ngày còn trống \d+$/);
 
   // The filters apply to the day in the drawer, not to the calendar, and stay when it is closed.
   await page.getByTestId("plan-filters").getByLabel("Tìm ý tưởng").fill("không có ý nào như thế");
@@ -3114,7 +3140,7 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await binh.goto("/knowledge");
   await binh.getByRole("button", { name: /Sức khỏe/ }).click();
   const theirs = binh.locator('[data-topic="Sức khỏe"]');
-  await expect(theirs.getByTestId("group-locked")).toContainText(`Chỉ ${SEED.name} sửa được nhóm này`);
+  await expect(theirs.getByTestId("group-locked")).toContainText(`chỉ ${SEED.name} sửa được nhóm này`);
   await expect(theirs.getByRole("switch", { name: "Cho cả đội sửa" })).toHaveCount(0);
   await expect(theirs.getByRole("button", { name: "Đổi tên" })).toHaveCount(0);
   // Its videos are still made by anyone; its prompts are read, not edited.

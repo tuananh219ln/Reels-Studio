@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   CheckOutlined,
@@ -16,7 +17,6 @@ import {
   Col,
   ConfigProvider,
   Dropdown,
-  Empty,
   Flex,
   Input,
   Row,
@@ -29,8 +29,10 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
+import { useLeaveGuard } from "@/lib/unsaved";
+import { keepOnlyInAddress, useUrlChoiceIf, useUrlId } from "@/lib/urlState";
 import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
@@ -39,12 +41,22 @@ import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
 
 export default function KnowledgePage() {
+  // The group shown, its tab and its lists' filters are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Knowledge />
+    </Suspense>
+  );
+}
+
+function Knowledge() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const [data, setData] = useState<Knowledge | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [chosen, setChosen] = useState<number | null>(null);
+  // The group shown is in the address, with its tab and its lists' filters.
+  const [chosen] = useUrlId("group");
   // Topics opened so far stay mounted (hidden when another is chosen): each box keeps its own unsaved text.
   const [opened, setOpened] = useState<number[]>([]);
 
@@ -67,7 +79,8 @@ export default function KnowledgePage() {
   const mounted = data.topics.filter((topic) => topic.id === current?.id || opened.includes(topic.id));
 
   function choose(id: number) {
-    setChosen(id);
+    // Another group opens on its Video tab, as before, with none of the last group's filters.
+    keepOnlyInAddress({ group: String(id) });
     setOpened((ids) => (ids.includes(id) ? ids : [...ids, id]));
   }
 
@@ -152,14 +165,13 @@ export default function KnowledgePage() {
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                         {topic.mine && (
                           <Typography.Text style={{ fontSize: 12, color: token.colorPrimaryText }}>
-                            Của tôi ·{" "}
+                            Của tôi,{" "}
                           </Typography.Text>
                         )}
                         {topic.video_count} video
                         {!topic.script_prompt && (
                           <Typography.Text type="warning" style={{ fontSize: 12 }}>
-                            {" "}
-                            · Chưa có prompt
+                            , chưa có prompt
                           </Typography.Text>
                         )}
                       </Typography.Text>
@@ -175,7 +187,7 @@ export default function KnowledgePage() {
               <Input
                 size="small"
                 aria-label="Tên nhóm chủ đề mới"
-                placeholder="Tên nhóm mới"
+                placeholder="Tên nhóm mới…"
                 maxLength={100}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -197,12 +209,12 @@ export default function KnowledgePage() {
         <Col xs={24} lg={18} xxl={19}>
           {current === null ? (
             <Card>
-              <Empty description="Chưa có nhóm chủ đề nào. Thêm một nhóm ở bên trái." />
+              <EmptyState description="Chưa có nhóm chủ đề nào. Thêm một nhóm ở bên trái." />
             </Card>
           ) : (
             mounted.map((topic) => (
               <div key={topic.id} hidden={topic.id !== current.id}>
-                <TopicBody topic={topic} defaults={data} onSaved={setData} />
+                <TopicBody topic={topic} defaults={data} onSaved={setData} visible={topic.id === current.id} />
               </div>
             ))
           )}
@@ -364,11 +376,15 @@ function TopicBody({
   topic,
   defaults,
   onSaved,
+  visible,
 }: {
   topic: KnowledgeTopic;
   defaults: Knowledge;
   onSaved: (data: Knowledge) => void;
+  /** The group shown: its tab is the address's; a group opened earlier and hidden keeps its own. */
+  visible: boolean;
 }) {
+  const [tab, setTab] = useUrlChoiceIf<string>(visible, "tab", "videos");
   const { token } = theme.useToken();
   const { me } = useMe();
   const path = `/knowledge/topics/${topic.id}`;
@@ -377,7 +393,7 @@ function TopicBody({
   const readOnly = (children: React.ReactNode) => (
     <ConfigProvider componentDisabled={locked}>{children}</ConfigProvider>
   );
-  const { tabs: planTabs, dialogs: planDialogs } = usePlanTabs(topic.id);
+  const { tabs: planTabs, dialogs: planDialogs } = usePlanTabs(topic.id, visible);
   const update = async (body: Partial<KnowledgeTopic>) => {
     const saved = await api<Knowledge>(path, "PATCH", body);
     onSaved(saved);
@@ -407,18 +423,18 @@ function TopicBody({
         onSaved={onSaved}
         summary={
           <>
-            {topic.video_count} video · {edited} prompt đã sửa
+            {topic.video_count} video, {edited} prompt đã sửa
             {!topic.script_prompt && (
-              <Typography.Text type="warning"> · Chưa có prompt viết kịch bản nên chưa tạo video được</Typography.Text>
+              <Typography.Text type="warning">, chưa có prompt viết kịch bản nên chưa tạo video được</Typography.Text>
             )}
             {locked && (
               <Typography.Text data-testid="group-locked">
-                {" · "}Chỉ {topic.owner ?? "người tạo nhóm"} sửa được nhóm này
+                , chỉ {topic.owner ?? "người tạo nhóm"} sửa được nhóm này
               </Typography.Text>
             )}
             {topic.last_edit && (
               <>
-                {" · "}
+                {", "}
                 <EditHistory
                   entityType="knowledge_topic"
                   entityId={topic.id}
@@ -437,12 +453,17 @@ function TopicBody({
         }
       />
       <Tabs
-        defaultActiveKey="videos"
+        activeKey={tab}
+        onChange={(next) => {
+          // A tab's list starts without the last tab's filters.
+          if (visible) keepOnlyInAddress({ group: String(topic.id) });
+          setTab(next);
+        }}
         items={[
           {
             key: "videos",
             label: `Video (${topic.video_count})`,
-            children: <TopicVideos topicId={topic.id} canCreate={Boolean(topic.script_prompt)} />,
+            children: <TopicVideos topicId={topic.id} canCreate={Boolean(topic.script_prompt)} visible={visible} />,
           },
           {
             key: "prompts",
@@ -764,15 +785,22 @@ function PromptsPanel({
 type Update = (body: Partial<KnowledgeTopic>) => Promise<KnowledgeTopic>;
 type Reload = () => Promise<void>;
 
-/** A card's text as last saved: a new saved value (put back from "Lịch sử") replaces what the box shows. */
+/** A card's text as last saved: a new saved value (put back from "Lịch sử") replaces what the box shows. Also says
+ * whether the box holds typing not saved yet, and takes what a save returned (`setSaved`). */
 function useSaved<T>(saved: T, key: (value: T) => string = String) {
   const [value, setValue] = useState(saved);
+  const [base, setBase] = useState(saved);
   const [seen, setSeen] = useState(key(saved));
   if (seen !== key(saved)) {
     setSeen(key(saved));
     setValue(saved);
+    setBase(saved);
   }
-  return [value, setValue] as const;
+  const setSaved = useCallback((next: T) => {
+    setValue(next);
+    setBase(next);
+  }, []);
+  return [value, setValue, key(value) !== key(base), setSaved] as const;
 }
 
 function PromptCard({
@@ -797,13 +825,14 @@ function PromptCard({
   help: React.ReactNode;
 }) {
   const { message } = App.useApp();
-  const [value, setValue] = useSaved(initial);
+  const [value, setValue, dirty, setSaved] = useSaved(initial);
+  useLeaveGuard(() => dirty);
   const [busy, setBusy] = useState(false);
 
   async function save(text: string) {
     setBusy(true);
     try {
-      setValue((await update({ [field]: text }))[field]);
+      setSaved((await update({ [field]: text }))[field]);
       message.success(`Đã lưu ${title.toLowerCase()}`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -863,13 +892,14 @@ function PhotoHintCard({
   reload: Reload;
 }) {
   const { message } = App.useApp();
-  const [text, setText] = useSaved(initial);
+  const [text, setText, dirty, setSaved] = useSaved(initial);
+  useLeaveGuard(() => dirty);
   const [busy, setBusy] = useState(false);
 
   async function save() {
     setBusy(true);
     try {
-      setText((await update({ photo_hint: text })).photo_hint);
+      setSaved((await update({ photo_hint: text })).photo_hint);
       message.success("Đã lưu gợi ý tìm ảnh");
     } catch (err) {
       message.error(errorMessage(err));
@@ -902,7 +932,7 @@ function PhotoHintCard({
       <Input.TextArea
         aria-label="Gợi ý tìm ảnh"
         value={text}
-        placeholder="VD: cây rau đang mọc trong chậu, luống đất hoặc tay người đang chăm cây; không phải món rau đã nấu"
+        placeholder="VD: cây rau đang mọc trong chậu, luống đất hoặc tay người đang chăm cây; không phải món rau đã nấu…"
         autoSize={{ minRows: 3, maxRows: 8 }}
         maxLength={1000}
         onChange={(event) => setText(event.target.value)}
@@ -1062,7 +1092,8 @@ function BannedWordsCard({
   reload: Reload;
 }) {
   const { message } = App.useApp();
-  const [text, setText] = useSaved(initial.join("\n"));
+  const [text, setText, dirty, setSaved] = useSaved(initial.join("\n"));
+  useLeaveGuard(() => dirty);
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -1072,7 +1103,7 @@ function BannedWordsCard({
         .split("\n")
         .map((word) => word.trim())
         .filter(Boolean);
-      setText((await update({ banned_words })).banned_words.join("\n"));
+      setSaved((await update({ banned_words })).banned_words.join("\n"));
       message.success("Đã lưu danh sách từ cấm");
     } catch (err) {
       message.error(errorMessage(err));

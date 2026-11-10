@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   DeleteOutlined,
@@ -17,7 +18,6 @@ import {
   Checkbox,
   Collapse,
   Dropdown,
-  Empty,
   Flex,
   Input,
   Popconfirm,
@@ -28,7 +28,7 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import {
   api,
   errorMessage,
@@ -39,6 +39,7 @@ import {
   type QueueOverview,
   type QueuePage,
 } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePolling } from "@/lib/polling";
@@ -328,11 +329,16 @@ function PageCard({
               {row.name}
             </Link>
           </Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }} ellipsis>
-            ID {row.page_id}, token …{row.token_tail}
-          </Typography.Text>
+          {/* The status on its own line, so neither it nor the ID is cut off on a narrow card. */}
+          <Flex gap={8} align="center" style={{ minWidth: 0 }}>
+            <span style={{ flex: "none", whiteSpace: "nowrap" }}>
+              <StatusTag row={row} />
+            </span>
+            <Typography.Text type="secondary" style={{ fontSize: 12, minWidth: 0 }} ellipsis>
+              ID {row.page_id}, token …{row.token_tail}
+            </Typography.Text>
+          </Flex>
         </Flex>
-        <StatusTag row={row} />
         <Dropdown
           trigger={["click"]}
           menu={{
@@ -495,7 +501,7 @@ function TokenInput({ value, onChange }: { value: string; onChange: (value: stri
       aria-label="Token"
       value={value}
       autoComplete="new-password"
-      placeholder="Dán token vào đây"
+      placeholder="Dán token vào đây…"
       onChange={(event) => onChange(event.target.value)}
     />
   );
@@ -561,6 +567,13 @@ function AddModal({
       onOk={pages ? save : lookup}
     >
       <Flex vertical gap={12}>
+        {/* What the token needs is only read here, while adding a Page. */}
+        <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+          Dán token của một System User trong Business Manager đã được gán Page, có quyền <code>pages_show_list</code>,{" "}
+          <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>pages_manage_engagement</code>,{" "}
+          <code>pages_read_user_content</code> và <code>read_insights</code>. Token được lưu mã hoá, không bao giờ hiện
+          lại.
+        </Typography.Paragraph>
         <TokenInput
           value={token}
           onChange={(value) => {
@@ -629,10 +642,19 @@ function TokenModal({
 }
 
 export default function FanpagesPage() {
+  // "Trang của tôi / Tất cả" is in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Fanpages />
+    </Suspense>
+  );
+}
+
+function Fanpages() {
   const { message } = App.useApp();
   const [rows, setRows] = useState<Fanpage[] | null>(null);
   // "Trang của tôi" or "Tất cả"; null until chosen (the default follows whether the member owns a Page).
-  const [whose, setWhose] = useState<"mine" | "all" | null>(null);
+  const [whose, setWhose] = useUrlChoice<"mine" | "all" | null>("whose", null, ["mine", "all"]);
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
@@ -690,14 +712,7 @@ export default function FanpagesPage() {
             Thêm Fanpage
           </Button>
         }
-        description={
-          <>
-            Dán token của một System User trong Business Manager đã được gán Page, có quyền <code>pages_show_list</code>
-            , <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>pages_manage_engagement</code>,{" "}
-            <code>pages_read_user_content</code> và <code>read_insights</code>. Token được lưu mã hoá, không bao giờ
-            hiện lại; tool tự kiểm tra lại mỗi 12 giờ.
-          </>
-        }
+        description="Các Fanpage đội dùng để đăng: số liệu 7 ngày, chủ Page, tài khoản Shopee và lịch đăng của từng Page. Tool tự kiểm tra token mỗi 12 giờ."
       />
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
@@ -720,7 +735,7 @@ export default function FanpagesPage() {
           <Card loading />
         ) : inUse.length === 0 ? (
           <Card>
-            <Empty
+            <EmptyState
               description={
                 showing === "mine"
                   ? "Bạn chưa có Fanpage nào đang dùng. Xem mục “Tất cả” để nhận Page."
@@ -732,7 +747,7 @@ export default function FanpagesPage() {
               <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
                 Thêm Fanpage
               </Button>
-            </Empty>
+            </EmptyState>
           </Card>
         ) : (
           <div

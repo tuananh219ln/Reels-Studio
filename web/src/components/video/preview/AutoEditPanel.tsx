@@ -104,7 +104,7 @@ export default function AutoEditPanel({
         <Flex gap={6}>
           <Input
             aria-label="Tên mẫu mới"
-            placeholder="Tên mẫu, ví dụ Vườn nhà ấm"
+            placeholder="Tên mẫu, ví dụ Vườn nhà ấm…"
             value={name}
             maxLength={80}
             onChange={(event) => setName(event.target.value)}

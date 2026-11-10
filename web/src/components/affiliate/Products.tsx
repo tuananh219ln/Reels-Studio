@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   CheckOutlined,
@@ -12,10 +13,11 @@ import {
   SearchOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Space, Table, Tabs, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
+import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
 import ProductModal from "./ProductModal";
 import PlacesChip from "./PlacesChip";
@@ -44,9 +46,23 @@ const STAGES: { value: Stage; label: string }[] = [
 /** The product list by topic group (the groups on the left, mine first, each with the Pages that post it), best
  * expected commission first. */
 export default function Products() {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const { message } = App.useApp();
   const { me } = useMe();
-  const [filters, setFilters] = useState<Filters>({ q: "" });
+  // The search and filters are in the address (the Affiliate page clears them when its tab changes).
+  const [search, setSearch] = useUrlChoice<string>("q", "");
+  const [topicParam, setTopicParam] = useUrlId("group");
+  const [platformParam, setPlatformParam] = useUrlChoice<string | null>("platform", null);
+  const q = search;
+  const topicId = topicParam ?? undefined;
+  const platform = platformParam ?? undefined;
+  const filters: Filters = { q, topicId, platform };
+  const setFilters = (next: Filters) => {
+    setSearch(next.q);
+    setTopicParam(next.topicId ?? null);
+    setPlatformParam(next.platform ?? null);
+  };
   const [options, setOptions] = useState<AffiliateOptions>({
     platforms: [],
     shop_types: { shopee: [], tiktok_shop: [] },
@@ -59,11 +75,10 @@ export default function Products() {
   const [target, setTarget] = useState<AffiliateProduct | "new" | null>(null);
   const [adding, setAdding] = useState<AddMode | null>(null);
   // "Tôi thêm" or "Cả đội"; null until chosen (the default follows whether the member has added a product).
-  const [whosePick, setWhose] = useState<Whose | null>(null);
-  const [stage, setStage] = useState<Stage>("all");
+  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
+  const [stage, setStage] = useUrlChoice<Stage>("stage", "all", ["fill", "waiting", "approved"]);
   // The rows ticked for "Xoá đã chọn"; only the ones still listed count, so a filter never deletes hidden rows.
   const [ticked, setTicked] = useState<number[]>([]);
-  const { topicId, platform, q } = filters;
 
   const query = useMemo(() => {
     const params = new URLSearchParams();
@@ -201,7 +216,7 @@ export default function Products() {
               <Tooltip title="Link lưu sẵn của sản phẩm được dùng trong bình luận khi Page đăng bài chưa có tài khoản Shopee dùng được.">
                 <span>Người thêm: {product.created_by_id === me.id ? "bạn" : product.created_by}</span>
               </Tooltip>
-              {product.video_count > 0 && ` · ${product.video_count} video`}
+              {product.video_count > 0 && `, ${product.video_count} video`}
             </Typography.Text>
             {product.url ? (
               <Typography.Text
@@ -437,16 +452,16 @@ export default function Products() {
           </Space>
         </Flex>
         <Flex wrap gap={12} align="center">
-          <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={products.length} mineLabel="Tôi thêm" />
           <Input
             aria-label="Tìm theo sản phẩm hoặc shop"
             prefix={<SearchOutlined />}
-            placeholder="Tìm theo sản phẩm hoặc shop"
+            placeholder="Tìm theo sản phẩm hoặc shop…"
             allowClear
             value={q}
             onChange={(event) => setFilters({ ...filters, q: event.target.value })}
             style={{ flex: "1 1 200px", maxWidth: 320 }}
           />
+          <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={products.length} mineLabel="Tôi thêm" />
           <FilterSelect
             aria-label="Lọc theo nền tảng"
             placeholder="Mọi nền tảng"
@@ -457,10 +472,11 @@ export default function Products() {
           />
         </Flex>
         <div aria-label="Lọc theo trạng thái" role="group">
-          <Tabs
-            activeKey={stage}
-            onChange={(key) => setStage(key as Stage)}
-            items={STAGES.map(({ value, label }) => ({ key: value, label: `${label} (${stageCounts[value]})` }))}
+          {/* A filter, so it looks like one, not like a second row of the page's tabs. */}
+          <Segmented<Stage>
+            value={stage}
+            onChange={setStage}
+            options={STAGES.map(({ value, label }) => ({ value, label: `${label} (${stageCounts[value]})` }))}
           />
         </div>
         {selected.length > 0 && (
@@ -497,17 +513,29 @@ export default function Products() {
             columns={columns}
             dataSource={shown}
             loading={loading}
-            pagination={{ pageSize: 50, hideOnSinglePage: true }}
+            pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
             scroll={{ x: 1100 }}
             locale={{
-              emptyText:
-                products.length === 0
-                  ? open
-                    ? `Nhóm “${open.name}” chưa có sản phẩm nào: bấm Nhập file hoặc Thêm sản phẩm`
-                    : "Chưa có sản phẩm nào"
-                  : whose === "mine" && mineCount === 0
-                    ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
-                    : "Không có sản phẩm nào khớp",
+              emptyText: (
+                <EmptyState
+                  description={
+                    products.length === 0
+                      ? open
+                        ? `Nhóm “${open.name}” chưa có sản phẩm nào`
+                        : "Chưa có sản phẩm nào"
+                      : whose === "mine" && mineCount === 0
+                        ? "Bạn chưa thêm sản phẩm nào. Chọn “Cả đội” để xem của mọi người."
+                        : "Không có sản phẩm nào khớp"
+                  }
+                  action={
+                    products.length === 0 && (
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding("links")}>
+                        Nhập sản phẩm đầu tiên
+                      </Button>
+                    )
+                  }
+                />
+              ),
             }}
           />
         </Card>

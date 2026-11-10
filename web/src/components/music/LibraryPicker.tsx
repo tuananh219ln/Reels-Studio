@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { Button, Flex, List, Modal, Typography } from "antd";
 import { useState } from "react";
 import type { MusicTrack } from "@/lib/api";
@@ -29,7 +30,7 @@ export default function LibraryPicker({
         style={{ marginTop: 16 }}
         loading={loading}
         dataSource={tracks}
-        locale={{ emptyText: "Không có bài nào khớp. Thêm bài ở trang Thư viện nhạc." }}
+        locale={{ emptyText: <EmptyState description={"Không có bài nào khớp. Thêm bài ở trang Thư viện nhạc."} /> }}
         renderItem={(track) => (
           <List.Item
             data-testid="library-track"

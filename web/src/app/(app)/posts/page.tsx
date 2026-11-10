@@ -1,11 +1,12 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
-import { App, Card, Empty, Flex, Input, Segmented, Select, Spin, Table, Tabs, Tooltip, Typography } from "antd";
+import { App, Card, Flex, Input, Segmented, Select, Spin, Table, Tabs, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import { SHOWN_STATUS, shownStatus, type ShownStatus } from "@/lib/postStatus";
 import PageHeader from "@/components/PageHeader";
 import PostCalendar from "@/components/PostCalendar";
@@ -56,8 +57,8 @@ function folded(text: string): string {
  * viewed first, with their numbers on Facebook; or, as "Lịch" (`?view=calendar`), the scheduled and posted ones in a
  * month. */
 export default function PostsPage() {
-  // The view comes from the address, which a static page only knows in the browser: Suspense keeps the rest of the
-  // app shell prerendered, and useSearchParams (unlike the page's `searchParams` prop) follows "Danh sách"/"Lịch".
+  // The view, search and filters come from the address, which a static page only knows in the browser: Suspense keeps
+  // the rest of the app shell prerendered.
   return (
     <Suspense fallback={null}>
       <Posts />
@@ -67,16 +68,21 @@ export default function PostsPage() {
 
 function Posts() {
   const { message } = App.useApp();
-  const router = useRouter();
-  const view: View = useSearchParams().get("view") === "calendar" ? "calendar" : "list";
+  const [view, setView] = useUrlChoice<View>("view", "list", ["calendar"]);
   const [posts, setPosts] = useState<PostRow[] | null>(null);
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<StatusFilter>("active");
-  const [fanpage, setFanpage] = useState<string | null>(null);
-  const [sort, setSort] = useState<Sort>("latest");
+  const [query, setQuery] = useUrlChoice<string>("q", "");
+  const [status, setStatus] = useUrlChoice<StatusFilter>("status", "active", [
+    "published",
+    "scheduled",
+    "failed",
+    "closed",
+    "all",
+  ]);
+  const [fanpage, setFanpage] = useUrlChoice<string | null>("fanpage", null);
+  const [sort, setSort] = useUrlChoice<Sort>("sort", "latest", ["views"]);
   const { me } = useMe();
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has a post).
-  const [whosePick, setWhose] = useState<Whose | null>(null);
+  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
 
   const load = useCallback(
     () =>
@@ -121,7 +127,7 @@ function Posts() {
     <Segmented<View>
       aria-label="Kiểu hiển thị"
       value={view}
-      onChange={(next) => router.replace(next === "calendar" ? "/posts?view=calendar" : "/posts")}
+      onChange={setView}
       options={[
         { value: "list", icon: <UnorderedListOutlined />, label: "Danh sách" },
         { value: "calendar", icon: <CalendarOutlined />, label: "Lịch" },
@@ -135,13 +141,10 @@ function Posts() {
         <PageHeader
           title="Bài đăng"
           description="Các bài đã hẹn lịch và đã đăng theo ngày, giờ Việt Nam. Bấm một bài để mở video."
-          actions={
-            <Flex gap={8} wrap>
-              {whoseSwitch}
-              {viewSwitch}
-            </Flex>
-          }
+          actions={viewSwitch}
         />
+        {/* "Của tôi / Cả đội" sits above the calendar, as it sits above the list. */}
+        <Flex style={{ marginBottom: 12 }}>{whoseSwitch}</Flex>
         <PostCalendar posts={all} />
       </>
     );
@@ -159,16 +162,16 @@ function Posts() {
         />
       </div>
       <Flex wrap gap={12} align="center" style={{ padding: 16 }}>
-        {whoseSwitch}
         <Input
           aria-label="Tìm theo tiêu đề"
           prefix={<SearchOutlined />}
-          placeholder="Tìm theo tiêu đề"
+          placeholder="Tìm theo tiêu đề…"
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 320, maxWidth: "100%" }}
         />
+        {whoseSwitch}
         {pages.length > 0 && (
           <FilterSelect
             aria-label="Lọc theo Fanpage"
@@ -209,8 +212,7 @@ function Posts() {
             <Spin />
           </Flex>
         ) : groups.length === 0 ? (
-          <Empty
-            style={{ padding: "32px 0" }}
+          <EmptyState
             description={
               filtered
                 ? "Không có bài đăng nào khớp"
@@ -290,6 +292,8 @@ function totalViews(posts: PostRow[]): string {
 /** "Bài đăng": a row per video with what its posts add up to; opening it lists each post with its own Page, time,
  * numbers and actions. */
 function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void }) {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const columns: ColumnsType<Group> = [
     {
       title: "Video",
@@ -321,7 +325,7 @@ function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void })
       rowKey="videoId"
       columns={columns}
       dataSource={groups}
-      pagination={{ pageSize: 50, hideOnSinglePage: true }}
+      pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
       scroll={{ x: 900 }}
       onRow={() => ({ "data-testid": "post-group", style: { cursor: "pointer" } }) as React.HTMLAttributes<HTMLElement>}
       expandable={{
@@ -392,7 +396,15 @@ function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) 
   ];
   return (
     <div data-testid="post-rows">
-      <Table<PostRow> rowKey="id" size="small" columns={columns} dataSource={posts} pagination={false} />
+      <Table<PostRow>
+        rowKey="id"
+        size="small"
+        columns={columns}
+        dataSource={posts}
+        pagination={false}
+        // On a phone the columns scroll inside the card instead of being cut off.
+        scroll={{ x: "max-content" }}
+      />
     </div>
   );
 }

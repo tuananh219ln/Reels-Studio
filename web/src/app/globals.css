@@ -49,6 +49,25 @@ body {
   }
 }
 
+/* Scene card: the arrow turns as the card opens, unless the system asks for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .scene-card-arrow {
+    transition: transform 0.2s;
+  }
+}
+
+/* "Xem trước": the timeline's playhead shows a ring when reached from the keyboard, not when dragged. */
+.timeline-playhead:focus {
+  outline: none;
+}
+
+.timeline-playhead:focus-visible {
+  /* theme.ts COLORS.primary */
+  outline: 2px solid #c2410c;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 /* Video preview ("Xem trước"): the render's motion, crossfade and slide, played in the browser. */
 @keyframes preview-motion {
   from {

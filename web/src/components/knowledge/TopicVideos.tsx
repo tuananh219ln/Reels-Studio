@@ -1,10 +1,12 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Empty, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
+import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 
@@ -56,12 +58,22 @@ function numbers(row: VideoRow) {
 }
 
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
-export default function TopicVideos({ topicId, canCreate }: { topicId: number; canCreate: boolean }) {
+export default function TopicVideos({
+  topicId,
+  canCreate,
+  visible = true,
+}: {
+  topicId: number;
+  canCreate: boolean;
+  /** Whether its group is the one shown: only then are the search, filter and page in the address. */
+  visible?: boolean;
+}) {
   const { message } = App.useApp();
   const { token } = theme.useToken();
   const [rows, setRows] = useState<VideoRow[] | null>(null);
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<string | null>(null);
+  const [search, setSearch] = useUrlChoiceIf<string>(visible, "q", "");
+  const [status, setStatus] = useUrlChoiceIf<string | null>(visible, "status", null);
+  const tablePage = useUrlPageIf(visible);
   const [view, setView] = useView();
 
   useEffect(() => {
@@ -87,7 +99,7 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
         <Flex wrap gap={8}>
           <Input
             aria-label="Tìm video của nhóm"
-            placeholder="Tìm theo tiêu đề hoặc chủ đề"
+            placeholder="Tìm theo tiêu đề hoặc chủ đề…"
             prefix={<SearchOutlined />}
             allowClear
             style={{ width: 260 }}
@@ -129,14 +141,12 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
           rowKey="id"
           loading={rows === null}
           dataSource={shown}
-          pagination={shown.length > 20 ? { pageSize: 20, showSizeChanger: false } : false}
-          scroll={{ x: 760 }}
+          pagination={shown.length > 20 ? { pageSize: 20, showSizeChanger: false, ...tablePage } : false}
+          // As wide as its columns need, scrolling inside the card: no column is cut at its edge.
+          scroll={{ x: "max-content" }}
           locale={{
             emptyText: (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
-              />
+              <EmptyState description={rows?.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"} />
             ),
           }}
           columns={[
@@ -149,6 +159,7 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
                   <img
                     src={row.thumbnail_url}
                     alt=""
+                    loading="lazy"
                     width={36}
                     height={64}
                     style={{ objectFit: "cover", borderRadius: token.borderRadiusSM, display: "block" }}
@@ -167,6 +178,7 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
             {
               key: "title",
               title: "Video",
+              minWidth: 260,
               render: (_, row) => (
                 <Flex vertical style={{ minWidth: 0 }}>
                   <Link prefetch={false} href={`/videos/${row.id}`}>
@@ -184,7 +196,7 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
             {
               key: "kind",
               title: "Loại",
-              width: 170,
+              width: 120,
               render: (_, row) => <VideoKindTags video={row} />,
             },
             {
@@ -251,12 +263,7 @@ export default function TopicVideos({ topicId, canCreate }: { topicId: number; c
 function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[] }) {
   const { token } = theme.useToken();
   if (rows !== null && shown.length === 0) {
-    return (
-      <Empty
-        image={Empty.PRESENTED_IMAGE_SIMPLE}
-        description={rows.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"}
-      />
-    );
+    return <EmptyState description={rows.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"} />;
   }
   return (
     <Flex vertical gap={8} data-testid="topic-video-cards">
@@ -270,6 +277,7 @@ function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[
                 <img
                   src={row.thumbnail_url}
                   alt=""
+                  loading="lazy"
                   width={72}
                   height={128}
                   style={{ objectFit: "cover", borderRadius: token.borderRadius, display: "block", flex: "none" }}
@@ -293,7 +301,7 @@ function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[
                 </Link>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                   {row.topic}
-                  {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""} · {row.created_by},{" "}
+                  {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}, {row.created_by},{" "}
                   {formatDateTime(row.created_at)}
                 </Typography.Text>
                 <Flex wrap gap={8} align="center">
@@ -303,7 +311,7 @@ function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="topic-video-numbers">
                   {figures.views === null && figures.views48 === null
                     ? "Chưa có số liệu đăng"
-                    : `${count(figures.views)} view · 48h: ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
+                    : `${count(figures.views)} view; 48h: ${count(figures.views48)} view, ${count(figures.shares)} share, share/view ${percent(figures.rate)}`}
                 </Typography.Text>
               </Flex>
             </Flex>

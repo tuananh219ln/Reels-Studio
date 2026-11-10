@@ -1,11 +1,13 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Segmented, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import PageHeader from "@/components/PageHeader";
 import UserAvatar from "@/components/UserAvatar";
 import { usePolling } from "@/lib/polling";
@@ -56,6 +58,17 @@ function merge(fresh: JobRow[], rows: JobRow[]): JobRow[] {
 }
 
 export default function JobsPage() {
+  // The list's search and filters are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Jobs />
+    </Suspense>
+  );
+}
+
+function Jobs() {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const { message } = App.useApp();
   const router = useRouter();
   const [shown, setShown] = useState<JobRow[]>([]);
@@ -65,12 +78,12 @@ export default function JobsPage() {
   // Once older pages are loaded, polling merges the newest page into what is shown instead of replacing
   // it, so jobs that slide out of the newest page do not vanish between the two.
   const pagedBack = useRef(false);
-  const [view, setView] = useState<View>("all");
-  const [kind, setKind] = useState<string | null>(null);
-  const [person, setPerson] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
+  const [view, setView] = useUrlChoice<View>("status", "all", ["active", "failed", "done"]);
+  const [kind, setKind] = useUrlChoice<string | null>("kind", null);
+  const [person, setPerson] = useUrlChoice<string | null>("person", null);
+  const [search, setSearch] = useUrlChoice<string>("q", "");
   // The member's own jobs first; the api filters, as the log is read a page at a time.
-  const [whose, setWhose] = useState<Whose>("mine");
+  const [whose, setWhose] = useUrlChoice<Whose>("whose", "mine", ["all"]);
 
   const reload = useCallback(
     async (quiet = false) => {
@@ -236,7 +249,7 @@ export default function JobsPage() {
         <Input
           allowClear
           aria-label="Tìm theo video"
-          placeholder="Tìm theo tên video"
+          placeholder="Tìm theo tên video…"
           prefix={<SearchOutlined />}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -274,9 +287,14 @@ export default function JobsPage() {
           columns={columns}
           dataSource={filtered}
           loading={loading}
-          pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false }}
+          pagination={{
+            pageSize: 50,
+            hideOnSinglePage: true,
+            showSizeChanger: false,
+            ...tablePage,
+          }}
           scroll={{ x: 1200 }}
-          locale={{ emptyText: filtering ? "Không có job nào khớp" : "Chưa có job nào" }}
+          locale={{ emptyText: <EmptyState description={filtering ? "Không có job nào khớp" : "Chưa có job nào"} /> }}
           onRow={(row) => ({
             // A plan job has no video: it opens Kho kiến thức, where the plan is; an article's job opens the article.
             onClick: () =>

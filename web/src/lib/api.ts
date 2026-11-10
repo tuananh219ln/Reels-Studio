@@ -952,7 +952,7 @@ export type Article = {
   source_comment: { id: number; author: string; message: string } | null;
   status: "draft" | "publishing" | "pending" | "failed" | "scheduled" | "published" | "unpublishing";
   status_label: string;
-  /** Why the last "Đăng" failed, while its post still waits ("Thử lại" in Job logs or "Đăng" again). */
+  /** Why the last "Đăng" failed, while its post still waits ("Thử lại" in Nhật ký job or "Đăng" again). */
   publish_error: string | null;
   /** Its posts on Facebook, newest first, cancelled and taken-down ones included. */
   posts: ArticlePost[];
@@ -1451,6 +1451,11 @@ export function vietnamInputValue(iso: string): string {
 /** A `datetime-local` value read as Vietnam time (no daylight saving there), as an ISO time. */
 export function fromVietnamInput(value: string): string {
   return new Date(`${value}:00+07:00`).toISOString();
+}
+
+/** A number the Vietnamese way, with a decimal comma and `digits` decimals: "3,5" (giây), "1,25" (×). */
+export function formatDecimal(value: number, digits = 1): string {
+  return value.toLocaleString("vi-VN", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 export function formatLastLogin(iso: string | null): string {

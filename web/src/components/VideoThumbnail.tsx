@@ -26,7 +26,7 @@ export default function VideoThumbnail({
       // A plain <img>: thumbnails come from the api behind the session cookie, which next/image's optimizer
       // would not send.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={url} alt="" onError={() => setBroken(true)} style={{ ...box, objectFit: "cover" }} />
+      <img src={url} alt="" loading="lazy" onError={() => setBroken(true)} style={{ ...box, objectFit: "cover" }} />
     );
   }
   return (

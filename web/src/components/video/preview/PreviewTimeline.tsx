@@ -595,6 +595,7 @@ export default function PreviewTimeline({
               aria-valuemax={tenth(total)}
               aria-valuenow={0}
               data-testid="timeline-playhead"
+              className="timeline-playhead"
               onPointerDown={startScrub}
               onKeyDown={(event) => {
                 const by = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
@@ -614,7 +615,6 @@ export default function PreviewTimeline({
                 touchAction: "none",
                 zIndex: 2,
                 transform: `translateX(${PAD}px)`,
-                outline: "none",
               }}
             >
               <span

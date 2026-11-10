@@ -60,7 +60,7 @@ export function sampleLength(seconds: number | null): string {
 
 function sampleLabel(sample: SampleSummary): string {
   const parts = [sample.source_name, sampleLength(sample.seconds), `${sample.video_count} video`];
-  return parts.filter(Boolean).join(" · ");
+  return parts.filter(Boolean).join(", ");
 }
 
 /** The fields of "Từ video mẫu" in the "Tạo video" drawer; they live in its Form, so it reads them on submit. */

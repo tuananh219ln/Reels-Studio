@@ -138,17 +138,16 @@ function RunRow({ run, onRun }: { run: AutoRun; onRun: (run: AutoRun) => void })
       )}
       {run.status === "ready" && run.video && (
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Giọng: {run.video.voice_id || "mặc định"} · Nhạc: {run.video.music ?? "không có"}
+          Giọng: {run.video.voice_id || "mặc định"}, nhạc: {run.video.music ?? "không có"}
           {run.tiktok_video_id && (
             <>
-              {" "}
-              ·{" "}
+              ,{" "}
               <Link prefetch={false} href={`/videos/${run.tiktok_video_id}`}>
                 Bản TikTok riêng
               </Link>
             </>
-          )}{" "}
-          · Ảnh từng cảnh và kịch bản xem ở trang video
+          )}
+          . Ảnh từng cảnh và kịch bản xem ở trang video
         </Typography.Text>
       )}
       {run.status === "ready" && run.can_decide && (
@@ -186,7 +185,7 @@ function RunRow({ run, onRun }: { run: AutoRun; onRun: (run: AutoRun) => void })
       {run.status === "approved" && (
         <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="auto-run-approved">
           Facebook: hẹn đăng {run.post_at ? formatDateTime(run.post_at) : ""}
-          {run.tiktok_state && ` · ${TIKTOK[run.tiktok_state]}`}
+          {run.tiktok_state && `, ${TIKTOK[run.tiktok_state]}`}
           {run.tiktok_reason && ` (${run.tiktok_reason})`}
         </Typography.Text>
       )}

@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { LineChartOutlined } from "@ant-design/icons";
-import { Button, Col, Empty, Modal, Row, Statistic, Table, Tooltip, Typography } from "antd";
+import { Button, Col, Modal, Row, Statistic, Table, Tooltip, Typography } from "antd";
 import { useState } from "react";
 import { COLORS } from "@/app/theme";
 import { formatCount, formatRate } from "@/components/PostMetrics";
@@ -201,6 +202,7 @@ export default function PostInsights({ post, compact = false }: { post: Post; co
                   rowKey="label"
                   dataSource={rows}
                   data-testid="scene-drop-off"
+                  scroll={{ x: "max-content" }}
                   columns={[
                     {
                       title: "Cảnh",
@@ -229,10 +231,7 @@ export default function PostInsights({ post, compact = false }: { post: Post; co
               )}
             </>
           ) : (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="Facebook chưa có đường giữ chân cho reel này. Thường có sau vài giờ, khi đủ lượt xem."
-            />
+            <EmptyState description="Facebook chưa có đường giữ chân cho reel này. Thường có sau vài giờ, khi đủ lượt xem." />
           )}
         </div>
       </Modal>

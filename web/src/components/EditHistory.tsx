@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { HistoryOutlined } from "@ant-design/icons";
-import { App, Button, ConfigProvider, Drawer, Empty, Flex, Modal, Spin, Tag, theme, Typography } from "antd";
+import { App, Button, ConfigProvider, Drawer, Flex, Modal, Spin, Tag, theme, Typography } from "antd";
 import { useState } from "react";
 import { api, errorMessage, formatDateTime, type EditLogEntry } from "@/lib/api";
 import { diffCounts, lineDiff } from "@/lib/lineDiff";
@@ -29,7 +30,7 @@ export function lastEditText(entry: EditLogEntry, fieldLabels: Record<string, st
   const who = entry.user?.name ?? "Thành viên đã xoá";
   const parts = entry.action === "create" ? [] : Object.keys(entry.changes).map((name) => fieldLabels[name] ?? name);
   const what = parts.length ? ` ${parts.slice(0, 2).join(", ")}${parts.length > 2 ? "…" : ""}` : "";
-  const source = SOURCES[entry.source] ? ` · ${SOURCES[entry.source]}` : "";
+  const source = SOURCES[entry.source] ? ` (${SOURCES[entry.source]})` : "";
   return `${who} ${VERBS[entry.action]}${what} lúc ${formatDateTime(entry.created_at)}${source}`;
 }
 
@@ -106,7 +107,7 @@ export default function EditHistory(props: Props) {
           </Button>
         </ConfigProvider>
       )}
-      <Drawer title={`Lịch sử · ${title}`} open={open} onClose={() => setOpen(false)} width={480} destroyOnHidden>
+      <Drawer title={`Lịch sử: ${title}`} open={open} onClose={() => setOpen(false)} width={480} destroyOnHidden>
         {entries === null ? (
           <Flex justify="center" style={{ padding: 24 }}>
             <Spin />
@@ -129,7 +130,7 @@ function EntryList({
   // The version from before the history began, from its first entry (the text the first save replaced).
   const before = field && oldest && oldest.action !== "create" ? oldest.changes[field]?.old : undefined;
   if (entries.length === 0 && defaultText === undefined) {
-    return <Empty description="Chưa có thay đổi nào được ghi lại" />;
+    return <EmptyState description="Chưa có thay đổi nào được ghi lại" />;
   }
   return (
     <Flex vertical gap={0} data-testid="edit-history">

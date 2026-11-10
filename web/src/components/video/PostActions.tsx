@@ -49,7 +49,7 @@ export default function PostActions({
   }
 
   // Why a button that applies is greyed out: one job at a time per video.
-  const waiting = "Video đang chạy một việc khác (xem Job logs), đợi xong rồi thao tác";
+  const waiting = "Video đang chạy một việc khác (xem Nhật ký job), đợi xong rồi thao tác";
   const checkTip = "Đọc lại trạng thái bài trên Facebook, khi đã hủy, đổi giờ hoặc xóa trong Meta Business Suite";
   const takeDown = (
     <Popconfirm

@@ -1,5 +1,6 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import {
   DeleteOutlined,
@@ -25,7 +26,6 @@ import {
   Collapse,
   DatePicker,
   Drawer,
-  Empty,
   Flex,
   Form,
   Grid,
@@ -62,6 +62,8 @@ import {
   type PlanPreview,
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
+import { useLeaveGuard } from "@/lib/unsaved";
+import { useUrlChoiceIf } from "@/lib/urlState";
 import EditHistory from "@/components/EditHistory";
 import FormDrawer from "@/components/FormDrawer";
 import AutoRuns from "@/components/plan/AutoRuns";
@@ -77,8 +79,9 @@ const DRAG_TYPE = "text/plan-item";
 export const PLAN_STATUS_COLORS: Record<PlanItemStatus, string> = {
   idea: "default",
   started: "processing",
-  scripted: "blue",
-  done: "success",
+  // Six statuses, six colours told apart at a glance: "Xong" and "Đã đăng" are not both green.
+  scripted: "geekblue",
+  done: "cyan",
   scheduled: "purple",
   posted: "green",
 };
@@ -98,8 +101,8 @@ function statusColor(status: PlanItemStatus, token: ReturnType<typeof theme.useT
   const byTag: Record<string, string> = {
     default: token.colorBorder,
     processing: token.colorInfo,
-    blue: token.blue,
-    success: token.colorSuccess,
+    geekblue: token.geekblue,
+    cyan: token.cyan,
     purple: token.purple,
     green: token.green,
   };
@@ -161,7 +164,11 @@ type Preview = PlanPreview & { fromAi: boolean };
  * "Kế hoạch 30 ngày" and "Backlog" of one topic group, as two tabs sharing one plan: 1-10 video ideas a day, imported,
  * written by AI or typed in, and the ideas kept for later. An idea is dragged between days and the Backlog.
  */
-export function usePlanTabs(topicId: number): {
+/** `visible`: whether the group is the one shown, so its Backlog filters are the address's. */
+export function usePlanTabs(
+  topicId: number,
+  visible = true,
+): {
   tabs: { key: string; label: ReactNode; children: ReactNode }[];
   /** The dialogs both tabs open, rendered once beside the tabs. */
   dialogs: ReactNode;
@@ -327,6 +334,7 @@ export function usePlanTabs(topicId: number): {
             move={move}
             onAdd={() => setAdding({ day: null })}
             onPreview={setPreview}
+            visible={visible}
           />
         </>
       )),
@@ -417,7 +425,7 @@ function PlanView({
       <Card size="small">
         <TodayStrip plan={plan} change={change} />
         <Typography.Text type="secondary" style={{ display: "block", marginTop: 12 }} data-testid="plan-summary">
-          Đã làm {plan.made}/{planned.length} · Đã lên lịch {scheduled} · Ngày còn trống {empty}
+          Đã làm {plan.made}/{planned.length}, đã lên lịch {scheduled}, ngày còn trống {empty}
         </Typography.Text>
         <VerdictTarget plan={plan} change={change} />
         <Flex wrap gap={8} style={{ marginTop: 12 }}>
@@ -480,6 +488,26 @@ function PlanView({
       <Row gutter={[12, 12]} wrap={false}>
         <Col flex="auto" style={{ minWidth: 0 }}>
           <Flex vertical gap={12}>
+            {planned.length === 0 && !plan.draft ? (
+              // A plan with nothing in it starts from one place, not from thirty empty days.
+              <Card size="small" data-testid="plan-empty">
+                <EmptyState
+                  description="Kế hoạch chưa có ý tưởng nào. Để AI lập 30 ngày theo prompt kế hoạch, bấm “Nhập file JSON/CSV” ở trên, hoặc thêm tay từng ngày bên dưới."
+                  action={
+                    <Flex gap={8} justify="center" wrap>
+                      <Button
+                        type="primary"
+                        icon={<RobotOutlined />}
+                        loading={working}
+                        onClick={() => change(() => api<Plan>(`${path}/generate`, "POST"))}
+                      >
+                        Lập kế hoạch bằng AI
+                      </Button>
+                    </Flex>
+                  }
+                />
+              </Card>
+            ) : null}
             <StatusLegend />
             <MonthCalendar
               plan={plan}
@@ -547,7 +575,7 @@ function PlanView({
                 />
                 <Input
                   allowClear
-                  placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook"
+                  placeholder="Tìm trong tiêu đề, nhóm nỗi đau, nỗi đau, hook…"
                   aria-label="Tìm ý tưởng"
                   value={filters.query}
                   onChange={(event) => setFilters({ ...filters, query: event.target.value })}
@@ -682,13 +710,13 @@ function MonthCalendar({
           <div key={index} data-testid={`plan-week-${index + 1}`}>
             <Flex wrap gap={8} align="baseline" style={{ marginBottom: 6 }}>
               <Typography.Text strong>
-                Tuần {index + 1} ·{" "}
+                Tuần {index + 1},{" "}
                 {first && last
                   ? `${first.format("DD/MM")} – ${last.format("DD/MM")}`
                   : `ngày ${days[0]}–${days[days.length - 1]}`}
               </Typography.Text>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {items.length} ý tưởng · {items.filter((item) => item.status !== "idea").length} đã làm ·{" "}
+                {items.length} ý tưởng, {items.filter((item) => item.status !== "idea").length} đã làm,{" "}
                 {items.filter((item) => item.status === "scheduled").length} đã lên lịch
               </Typography.Text>
             </Flex>
@@ -784,7 +812,7 @@ function DayCell({
       </Flex>
       <Flex vertical gap={3} style={{ marginTop: 4 }}>
         {items.map((item) => (
-          <Tooltip key={item.id} title={`${item.topic} · ${item.status_label}`}>
+          <Tooltip key={item.id} title={`${item.topic}, ${item.status_label}`}>
             <div
               draggable
               onDragStart={(event) => event.dataTransfer.setData(DRAG_TYPE, String(item.id))}
@@ -808,10 +836,12 @@ function DayCell({
           </Tooltip>
         ))}
         {items.length === 0 && (
+          // Quiet in an empty cell: thirty bordered buttons read as noise before the plan has anything.
           <Button
             size="small"
-            type="dashed"
+            type="text"
             block
+            style={{ color: COLORS.textSecondary }}
             aria-label={`Thêm ý ngày ${day}`}
             onClick={(event) => {
               event.stopPropagation();
@@ -877,7 +907,7 @@ function PlanSettings({ plan, change, onClose }: { plan: Plan; change: Change; o
         </Flex>
         <PostTimes value={times} onChange={setTimes} />
         <Flex align="center" gap={8}>
-          <Typography.Text>Mục tiêu video cho verdict</Typography.Text>
+          <Typography.Text>Số video cần làm trước khi đánh giá nhóm</Typography.Text>
           <InputNumber
             aria-label="Mục tiêu video"
             min={1}
@@ -980,11 +1010,15 @@ function PlanPromptCard({
   onRestored: () => Promise<void>;
 }) {
   const [value, setValue] = useState(plan.prompt);
+  // What was last saved: leaving the page with other text in the box asks first.
+  const [base, setBase] = useState(plan.prompt);
+  useLeaveGuard(() => value !== base);
   // A version put back from "Lịch sử" replaces what the box shows.
   const [seen, setSeen] = useState(plan.prompt);
   if (seen !== plan.prompt) {
     setSeen(plan.prompt);
     setValue(plan.prompt);
+    setBase(plan.prompt);
   }
   const [busy, setBusy] = useState(false);
 
@@ -992,6 +1026,7 @@ function PlanPromptCard({
     setBusy(true);
     if (await onSave(text)) {
       setValue(text.trim());
+      setBase(text.trim());
     }
     setBusy(false);
   }
@@ -1196,7 +1231,7 @@ function VerdictTarget({ plan, change }: { plan: Plan; change: Change }) {
     return (
       <Flex align="center" gap={8} style={{ marginTop: 12 }}>
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-          Mục tiêu video cho verdict
+          Số video cần làm trước khi đánh giá nhóm
         </Typography.Text>
         {input}
       </Flex>
@@ -1207,8 +1242,8 @@ function VerdictTarget({ plan, change }: { plan: Plan; change: Change }) {
       type="info"
       style={{ marginTop: 12 }}
       data-testid="plan-verdict"
-      title={`Tiến độ verdict: đã làm ${plan.video_count}/${plan.video_target} video`}
-      description="Banner chỉ đếm số lượng. Kết luận verdict vẫn họp tay sau khi đủ video đã đăng và đo 48h."
+      title={`Tiến độ trước khi đánh giá nhóm: đã làm ${plan.video_count}/${plan.video_target} video`}
+      description="Dòng này chỉ đếm số video. Việc đánh giá nhóm có đáng làm tiếp hay không vẫn do đội họp, khi đủ video đã đăng và đã đo 48 giờ."
       action={
         <Flex align="center" gap={8}>
           {input}
@@ -1253,7 +1288,7 @@ function PostNumbers({ posts, shareGoal }: { posts: PlanPost[]; shareGoal: numbe
             </>
           )}
           {post.latest_views !== null && (
-            <span data-testid="plan-idea-latest-views"> · hiện {post.latest_views.toLocaleString("vi-VN")} view</span>
+            <span data-testid="plan-idea-latest-views">, hiện {post.latest_views.toLocaleString("vi-VN")} view</span>
           )}
         </Typography.Text>
       ))}
@@ -1464,6 +1499,7 @@ function EditIdeaDrawer({
       title="Sửa ý tưởng"
       open={open}
       onClose={close}
+      guard={form}
       onOk={() => form.submit()}
       okText="Lưu"
       cancelText="Huỷ"
@@ -1559,6 +1595,7 @@ function BacklogView({
   move,
   onAdd,
   onPreview,
+  visible,
 }: {
   plan: Plan;
   backlog: PlanItem[];
@@ -1566,9 +1603,11 @@ function BacklogView({
   move: Move;
   onAdd: () => void;
   onPreview: (preview: Preview) => void;
+  visible: boolean;
 }) {
-  const [query, setQuery] = useState("");
-  const [group, setGroup] = useState<string | null>(null);
+  // In the address while its group is shown, as "bq" and "pain" beside the tab.
+  const [query, setQuery] = useUrlChoiceIf<string>(visible, "bq", "");
+  const [group, setGroup] = useUrlChoiceIf<string | null>(visible, "pain", null);
   const groups = [...new Set(backlog.map((item) => item.pain_group).filter(Boolean))].sort();
   const shown = backlog.filter((item) => matches(item, { status: null, group, query }));
   return (
@@ -1581,7 +1620,7 @@ function BacklogView({
           <ImportButton topicId={plan.topic_id} onPreview={onPreview} />
           <Input.Search
             allowClear
-            placeholder="Tìm trong Backlog"
+            placeholder="Tìm trong Backlog…"
             aria-label="Tìm trong Backlog"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -1603,7 +1642,7 @@ function BacklogView({
         </Typography.Paragraph>
       </Card>
       {shown.length === 0 ? (
-        <Empty description={backlog.length ? "Không có ý tưởng khớp bộ lọc" : "Backlog đang trống"} />
+        <EmptyState description={backlog.length ? "Không có ý tưởng khớp bộ lọc" : "Backlog đang trống"} />
       ) : (
         <Row gutter={[12, 12]}>
           {shown.map((item) => (
@@ -1639,6 +1678,7 @@ function AddIdeaModal({
       title={day === null ? "Thêm ý tưởng vào Backlog" : `Thêm ý tưởng ngày ${day}`}
       open={target !== null}
       onClose={onClose}
+      guard={form}
       onOk={() => form.submit()}
       okText="Thêm"
       cancelText="Huỷ"

@@ -1,11 +1,14 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Form, Input, Modal, Select, Space, Table, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import UserAvatar from "@/components/UserAvatar";
+import StatusText from "@/components/StatusText";
 import { ApiError, api, formatDateTime, formatLastLogin, type UserRow } from "@/lib/api";
+import { useUrlChoice } from "@/lib/urlState";
 import PageHeader from "@/components/PageHeader";
 import FormDrawer from "@/components/FormDrawer";
 
@@ -24,10 +27,19 @@ const passwordRules = [
 ];
 
 export default function UsersPage() {
+  // The search is in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Users />
+    </Suspense>
+  );
+}
+
+function Users() {
   const { message, modal } = App.useApp();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useUrlChoice<string>("q", "");
   const [adding, setAdding] = useState(false);
   const [tempFor, setTempFor] = useState<UserRow | null>(null);
   const [disabling, setDisabling] = useState<UserRow | null>(null);
@@ -69,11 +81,16 @@ export default function UsersPage() {
   const columns: ColumnsType<UserRow> = [
     { title: "Ảnh", key: "avatar", width: 64, render: (_, row) => <UserAvatar initial={row.initial} /> },
     { title: "Email", dataIndex: "email" },
-    { title: "Tên", dataIndex: "name", width: 170 },
+    { title: "Tên", dataIndex: "name", width: 200 },
     {
       title: "Trạng thái",
       key: "status",
-      render: (_, row) => (row.is_active ? <Tag color="success">Hoạt động</Tag> : <Tag>Vô hiệu hoá</Tag>),
+      render: (_, row) =>
+        row.is_active ? (
+          <StatusText tone="success">Hoạt động</StatusText>
+        ) : (
+          <StatusText tone="idle">Vô hiệu hoá</StatusText>
+        ),
     },
     { title: "Đăng nhập gần nhất", key: "last_login", render: (_, row) => formatLastLogin(row.last_login_at) },
     { title: "Phiên hoạt động", dataIndex: "active_sessions", align: "right" },
@@ -160,7 +177,7 @@ export default function UsersPage() {
         <Input
           aria-label="Tìm theo email hoặc tên"
           prefix={<SearchOutlined />}
-          placeholder="Tìm theo email hoặc tên"
+          placeholder="Tìm theo email hoặc tên…"
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
@@ -176,7 +193,11 @@ export default function UsersPage() {
           pagination={false}
           // Fits a desktop content area; narrower screens scroll the table sideways.
           scroll={{ x: 1150 }}
-          locale={{ emptyText: "Chưa có dữ liệu" }}
+          locale={{
+            emptyText: (
+              <EmptyState description={query.trim() ? "Không có thành viên nào khớp" : "Chưa có thành viên nào"} />
+            ),
+          }}
         />
       </Card>
       <AddUserModal

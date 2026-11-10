@@ -1,7 +1,8 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { AppstoreOutlined, CloseOutlined, ProfileOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Empty, Flex, Input, Segmented, Select, Table, Tabs, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import {
   type AffiliateProduct,
   type AffiliateVideo,
 } from "@/lib/api";
+import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import FilterSelect from "@/components/FilterSelect";
 import { useMe } from "@/components/MeContext";
 import VideoThumbnail from "@/components/VideoThumbnail";
@@ -71,7 +73,7 @@ function useView(): [View, (next: View) => void] {
  * will not be in that Page's comment at all (the Page is named only when the video is on several). Nothing is
  * refused: a teammate's video may carry a member's product. */
 function commissionNote(product: string, line: AffiliateCommission, named: boolean): string {
-  const what = named ? `${product} · ${line.fanpage_name}` : product;
+  const what = named ? `${product} (${line.fanpage_name})` : product;
   if (line.kind === "no_link") {
     return `${what} → không có trong bình luận (chưa có link)`;
   }
@@ -132,20 +134,23 @@ function pinnedText(video: AffiliateVideo): string {
 
 /** The posted videos (Facebook reels, TikTok posts made by hand), each with the products attached to it. */
 export default function PostedVideos() {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const { message } = App.useApp();
   const { me } = useMe();
   const [videos, setVideos] = useState<AffiliateVideo[]>([]);
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has a posted video).
-  const [whosePick, setWhose] = useState<Whose | null>(null);
+  const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
   const [approved, setApproved] = useState<AffiliateProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<number | null>(null);
-  const [query, setQuery] = useState("");
-  const [platform, setPlatform] = useState<AffiliateVideo["platform"] | null>(null);
-  const [fanpageId, setFanpageId] = useState<number | null>(null);
-  const [linked, setLinked] = useState<Linked>("all");
+  // The search and filters are in the address (the Affiliate page clears them when its tab changes).
+  const [query, setQuery] = useUrlChoice<string>("q", "");
+  const [platform, setPlatform] = useUrlChoice<AffiliateVideo["platform"] | null>("platform", null);
+  const [fanpageId, setFanpageId] = useUrlId("fanpage");
+  const [linked, setLinked] = useUrlChoice<Linked>("linked", "all", ["none", "linked", "manual", "review"]);
   // "Lọc theo sản phẩm": only the videos a product is attached to, so each product shows where its link goes.
-  const [productId, setProductId] = useState<number | null>(null);
+  const [productId, setProductId] = useUrlId("product");
   const [view, chooseView] = useView();
   const [openId, setOpenId] = useState<number | null>(null);
 
@@ -193,15 +198,15 @@ export default function PostedVideos() {
     return save(video, () => api<AffiliateVideo>(`/affiliate-products/videos/${video.id}/manual`, "PUT", { manual }));
   }
 
-  /** "Facebook · time · Xem Reel", then where it is live (one Page or account by name; several as a logo and "+n"). */
+  /** "Facebook, time, Xem Reel", then where it is live (one Page or account by name; several as a logo and "+n"). */
   function where(video: AffiliateVideo) {
     return (
       <>
         <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-          {video.platform === "tiktok" ? "TikTok" : "Facebook"} · {formatDateTime(video.published_at)}
+          {video.platform === "tiktok" ? "TikTok" : "Facebook"}, {formatDateTime(video.published_at)}
           {video.reel_url && (
             <>
-              {" · "}
+              {", "}
               <a href={video.reel_url} target="_blank" rel="noreferrer">
                 {video.platform === "tiktok" ? "Xem bài TikTok" : "Xem Reel"}
               </a>
@@ -236,7 +241,7 @@ export default function PostedVideos() {
       value: product.id,
       label:
         `${product.name} (~${product.expected_commission.toLocaleString("vi-VN")}đ)` +
-        (product.created_by_id === me.id ? "" : ` · Người thêm: ${product.created_by}`),
+        (product.created_by_id === me.id ? "" : `, người thêm: ${product.created_by}`),
     });
     const free = approved.filter(
       (product) => !attached.has(product.id) && product.problems.length === 0 && product.platform === wanted,
@@ -387,7 +392,7 @@ export default function PostedVideos() {
       if (post.fanpage_id !== null && !pages.has(post.fanpage_id)) {
         const mine = post.owner_id === me.id;
         pages.set(post.fanpage_id, {
-          label: mine ? (post.name ?? "") : `${post.name} · ${post.owner_name ?? "chưa có chủ"}`,
+          label: mine ? (post.name ?? "") : `${post.name} (${post.owner_name ?? "chưa có chủ"})`,
           mine,
         });
       }
@@ -433,16 +438,16 @@ export default function PostedVideos() {
   return (
     <>
       <Flex wrap gap={12} align="center" style={{ marginBottom: 4 }}>
-        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={videos.length} />
         <Input
           aria-label="Tìm theo tiêu đề video"
           prefix={<SearchOutlined />}
-          placeholder="Tìm theo tiêu đề video"
+          placeholder="Tìm theo tiêu đề video…"
           allowClear
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           style={{ flex: "1 1 200px", maxWidth: 320 }}
         />
+        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={videos.length} />
         <FilterSelect
           aria-label="Lọc theo Page"
           placeholder="Mọi Page"
@@ -476,18 +481,20 @@ export default function PostedVideos() {
           value={view}
           onChange={chooseView}
           style={{ marginLeft: "auto" }}
+          // Named, not icons alone: three views (the owner's choice, 2026-11-09) need words to tell apart.
           options={[
-            { value: "table", icon: <TableOutlined />, title: "Dạng bảng" },
-            { value: "cards", icon: <AppstoreOutlined />, title: "Dạng thẻ" },
-            { value: "detail", icon: <ProfileOutlined />, title: "Danh sách và chi tiết" },
+            { value: "table", icon: <TableOutlined />, label: "Bảng", title: "Dạng bảng" },
+            { value: "cards", icon: <AppstoreOutlined />, label: "Thẻ", title: "Dạng thẻ" },
+            { value: "detail", icon: <ProfileOutlined />, label: "Chi tiết", title: "Danh sách và chi tiết" },
           ]}
         />
       </Flex>
+      {/* A filter, so it looks like one, not like a second row of the page's tabs. */}
       <div aria-label="Lọc theo sản phẩm đã gắn" role="group">
-        <Tabs
-          activeKey={linked}
-          onChange={(key) => setLinked(key as Linked)}
-          items={LINKED.map(({ value, label }) => ({ key: value, label: `${label} (${counts[value]})` }))}
+        <Segmented<Linked>
+          value={linked}
+          onChange={setLinked}
+          options={LINKED.map(({ value, label }) => ({ value, label: `${label} (${counts[value]})` }))}
         />
       </div>
 
@@ -498,16 +505,16 @@ export default function PostedVideos() {
             columns={columns}
             dataSource={shown}
             loading={loading}
-            pagination={{ pageSize: 50, hideOnSinglePage: true }}
+            pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
             scroll={{ x: 900 }}
-            locale={{ emptyText }}
+            locale={{ emptyText: <EmptyState description={emptyText} /> }}
           />
         </Card>
       )}
 
       {view === "cards" &&
         (shown.length === 0 ? (
-          <Empty description={loading ? "Đang tải…" : emptyText} />
+          <EmptyState description={loading ? "Đang tải…" : emptyText} />
         ) : (
           <div
             style={{
@@ -534,7 +541,7 @@ export default function PostedVideos() {
 
       {view === "detail" &&
         (shown.length === 0 || !open ? (
-          <Empty description={loading ? "Đang tải…" : emptyText} />
+          <EmptyState description={loading ? "Đang tải…" : emptyText} />
         ) : (
           <div
             style={{
@@ -571,7 +578,7 @@ export default function PostedVideos() {
                         {video.title}
                       </Typography.Text>
                       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {formatDateTime(video.published_at)} · {video.products.length} sản phẩm
+                        {formatDateTime(video.published_at)}, {video.products.length} sản phẩm
                       </Typography.Text>
                       <span>
                         <Tag color={status.color} style={{ marginInlineEnd: 0 }}>

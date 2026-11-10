@@ -66,7 +66,7 @@ test("Từ video mẫu: an uploaded sample writes a script with its clips, then 
   await scriptWritten(page);
   const card = page.getByTestId("sample-card");
   await expect(card).toContainText(/File tải lên: e2e-sample-\d+\.mp4/);
-  await expect(card).toContainText("Cách làm: Nhanh");
+  await expect(card).toContainText("cách làm: Nhanh");
   // The title scene and the first two scenes got a stretch of the sample as their clip.
   await expect(page.getByTestId("title-scene").getByTestId("scene-video")).toHaveCount(1);
   await card.getByText("Xem phân tích, khung hình và lời thoại").click();
@@ -85,7 +85,7 @@ test("Từ video mẫu: an uploaded sample writes a script with its clips, then 
   await again.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page).toHaveURL(/\/videos\/\d+$/);
   await scriptWritten(page);
-  await expect(page.getByTestId("sample-card")).toContainText("Cách làm: Dùng mẫu đã học");
+  await expect(page.getByTestId("sample-card")).toContainText("cách làm: Dùng mẫu đã học");
 });
 
 test("Edit từ footage: the footage is cut by its words into scenes that keep their own sound", async ({ page }) => {
@@ -102,7 +102,7 @@ test("Edit từ footage: the footage is cut by its words into scenes that keep t
   // The fake ElevenLabs says two sentences 1.5 s apart: the title scene and one scene, each a stretch of the footage.
   await expect(page.getByTestId("scene")).toHaveCount(1, { timeout: 90_000 });
   await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 90_000 });
-  await expect(page.getByTestId("sample-card")).toContainText("Cách làm: Edit từ footage");
+  await expect(page.getByTestId("sample-card")).toContainText("cách làm: Edit từ footage");
   await expect(page.getByTestId("title-scene").getByTestId("scene-video")).toHaveCount(1);
 
   // "Cắt video" shows the clip's sound kept for the MP4, captions following its words.
@@ -136,7 +136,7 @@ test("Từ video mẫu, Duyệt phân tích trước: the edited analysis is sav
 
   await scriptWritten(page);
   const card = page.getByTestId("sample-card");
-  await expect(card).toContainText("Cách làm: Duyệt phân tích trước");
+  await expect(card).toContainText("cách làm: Duyệt phân tích trước");
   await card.getByText("Xem phân tích, khung hình và lời thoại").click();
   await expect(card.getByTestId("sample-analysis")).toContainText("Giữ hook, bỏ đoạn cuối.");
 });

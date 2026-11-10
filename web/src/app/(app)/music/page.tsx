@@ -1,22 +1,43 @@
 "use client";
 
+import EmptyState from "@/components/EmptyState";
 import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, EditOutlined, UploadOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Popconfirm, Space, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
 import TrackFilters from "@/components/music/TrackFilters";
 import TrackModal, { MAX_MUSIC_BYTES, type TrackTarget } from "@/components/music/TrackModal";
 import TrackTags from "@/components/music/TrackTags";
 import { useTracks, type TrackFilters as Filters } from "@/components/music/useTracks";
 import { api, errorMessage, formatDateTime, type MusicTrack } from "@/lib/api";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import PageHeader from "@/components/PageHeader";
 
 export default function MusicPage() {
+  // The list's search and filters are in the address, which a static page only knows in the browser.
+  return (
+    <Suspense fallback={null}>
+      <Music />
+    </Suspense>
+  );
+}
+
+function Music() {
+  // The table's page is in the address too, back to 1 when a filter changes.
+  const tablePage = useUrlPage();
   const { message } = App.useApp();
   const { me } = useMe();
   const input = useRef<HTMLInputElement>(null);
-  const [filters, setFilters] = useState<Filters>({ q: "" });
+  const [q, setQ] = useUrlChoice<string>("q", "");
+  const [topic, setTopic] = useUrlChoice<string | null>("topic", null);
+  const [mood, setMood] = useUrlChoice<string | null>("mood", null);
+  const filters: Filters = { q, topic: topic ?? undefined, mood: mood ?? undefined };
+  const setFilters = (next: Filters) => {
+    setQ(next.q);
+    setTopic(next.topic ?? null);
+    setMood(next.mood ?? null);
+  };
   const [target, setTarget] = useState<TrackTarget | null>(null);
   const { tracks, loading, reload } = useTracks(filters);
 
@@ -117,9 +138,24 @@ export default function MusicPage() {
           columns={columns}
           dataSource={tracks}
           loading={loading}
-          pagination={{ pageSize: 50, hideOnSinglePage: true }}
+          pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
           scroll={{ x: 1150 }}
-          locale={{ emptyText: "Chưa có bài nhạc nào" }}
+          locale={{
+            emptyText: (
+              <EmptyState
+                description={
+                  filters.q || filters.topic || filters.mood ? "Không có bài nhạc nào khớp" : "Chưa có bài nhạc nào"
+                }
+                action={
+                  !(filters.q || filters.topic || filters.mood) && (
+                    <Button type="primary" icon={<UploadOutlined />} onClick={() => input.current?.click()}>
+                      Tải bài nhạc đầu tiên
+                    </Button>
+                  )
+                }
+              />
+            ),
+          }}
         />
       </Card>
       <TrackModal

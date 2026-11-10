@@ -182,7 +182,7 @@ function KpiCard({ item }: { item: Item }) {
           )}
         </Flex>
         {item.note && (
-          <Typography.Text style={{ fontSize: 12, color: COLORS.primary }} data-testid="kpi-note">
+          <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="kpi-note">
             {item.note}
           </Typography.Text>
         )}

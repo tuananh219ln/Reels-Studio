@@ -7,15 +7,17 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
+  MoreOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
 import {
-  App,
   Alert,
+  App,
   Button,
   Card,
   Col,
   Collapse,
+  Dropdown,
   Flex,
   Grid,
   Input,
@@ -55,6 +57,7 @@ import {
   type SceneData,
   type VideoDetail,
   type VideoMode,
+  formatDecimal,
 } from "@/lib/api";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import { usePolling } from "@/lib/polling";
@@ -451,21 +454,38 @@ export default function VideoPage() {
               Viết kịch bản
             </Button>
           )}
-          {video.has_script && (
-            <Button icon={<CopyOutlined />} disabled={busy} onClick={() => setCloning("same")}>
-              Nhân bản
-            </Button>
-          )}
-          {video.has_script && video.platform === "facebook" && (
-            <Button disabled={busy} onClick={() => setCloning("tiktok")}>
-              Tạo bản TikTok
-            </Button>
-          )}
-          {/* Only its maker deletes a video (or its scenes); the api refuses anyone else. */}
-          {video.created_by_id === me.id && (
-            <Button danger icon={<DeleteOutlined />} disabled={video.locked || busy} onClick={remove}>
-              Xóa
-            </Button>
+          {/* The main action stays a button; the rarer ones sit under "⋯", "Xóa" last and apart. */}
+          {(video.has_script || video.created_by_id === me.id) && (
+            <Dropdown
+              trigger={["click"]}
+              disabled={busy}
+              menu={{
+                items: [
+                  ...(video.has_script
+                    ? [{ key: "clone", icon: <CopyOutlined />, label: "Nhân bản", onClick: () => setCloning("same") }]
+                    : []),
+                  ...(video.has_script && video.platform === "facebook"
+                    ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setCloning("tiktok") }]
+                    : []),
+                  // Only its maker deletes a video (or its scenes); the api refuses anyone else.
+                  ...(video.created_by_id === me.id
+                    ? [
+                        ...(video.has_script ? [{ type: "divider" as const }] : []),
+                        {
+                          key: "delete",
+                          icon: <DeleteOutlined />,
+                          label: "Xóa video",
+                          danger: true,
+                          disabled: video.locked,
+                          onClick: remove,
+                        },
+                      ]
+                    : []),
+                ],
+              }}
+            >
+              <Button icon={<MoreOutlined />} aria-label="Thao tác khác với video" />
+            </Dropdown>
           )}
         </Space>
       </Flex>
@@ -738,8 +758,8 @@ export default function VideoPage() {
                                 <Mp4Player key={video.mp4.url} url={video.mp4.url} />
                                 <Flex vertical gap={10} style={{ minWidth: 0 }}>
                                   <Typography.Text type="secondary" data-testid="render-time">
-                                    Dài {video.mp4.seconds.toFixed(1)} giây, render mất{" "}
-                                    {video.mp4.render_seconds.toFixed(1)} giây
+                                    Dài {formatDecimal(video.mp4.seconds)} giây, render mất{" "}
+                                    {formatDecimal(video.mp4.render_seconds)} giây
                                   </Typography.Text>
                                   <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
                                     Tải MP4
@@ -883,7 +903,7 @@ function CloneModal({
       <Input.TextArea
         aria-label="Yêu cầu đổi"
         value={request}
-        placeholder="VD: đổi sang mốc 45 tuổi, tim mạch"
+        placeholder="VD: đổi sang mốc 45 tuổi, tim mạch…"
         autoSize={{ minRows: 2, maxRows: 5 }}
         maxLength={300}
         onChange={(event) => setRequest(event.target.value)}

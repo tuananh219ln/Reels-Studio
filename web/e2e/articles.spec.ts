@@ -83,7 +83,7 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
   await expect(post.getByText("chưa đo 48h")).toBeVisible();
 
   await post.getByRole("button", { name: "Cập nhật số" }).click();
-  await expect(post.getByText(/Mới nhất .*30 cảm xúc · 6 bình luận · 2 chia sẻ · reach 400/)).toBeVisible({
+  await expect(post.getByText(/Mới nhất .*30 cảm xúc, 6 bình luận, 2 chia sẻ, reach 400/)).toBeVisible({
     timeout: 30_000,
   });
 
