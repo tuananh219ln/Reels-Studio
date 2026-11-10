@@ -54,7 +54,7 @@ export default function ImageEditModal({ scene, onClose }: { scene: SceneData; o
         const marks = now?.image_marks ?? null;
         setFinding(false);
         if (marks === null) {
-          setError("Không tìm được chữ trên ảnh này, hãy tự khoanh vùng (xem lý do ở Job logs)");
+          setError("Không tìm được chữ trên ảnh này, hãy tự khoanh vùng (xem lý do ở Nhật ký job)");
         } else if (marks.length === 0) {
           setFound("Không thấy chữ hay logo có chữ nào. Logo không có chữ thì hãy tự khoanh.");
         } else {

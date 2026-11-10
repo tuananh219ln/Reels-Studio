@@ -952,7 +952,7 @@ export type Article = {
   source_comment: { id: number; author: string; message: string } | null;
   status: "draft" | "publishing" | "pending" | "failed" | "scheduled" | "published" | "unpublishing";
   status_label: string;
-  /** Why the last "Đăng" failed, while its post still waits ("Thử lại" in Job logs or "Đăng" again). */
+  /** Why the last "Đăng" failed, while its post still waits ("Thử lại" in Nhật ký job or "Đăng" again). */
   publish_error: string | null;
   /** Its posts on Facebook, newest first, cancelled and taken-down ones included. */
   posts: ArticlePost[];

@@ -437,7 +437,6 @@ export default function PostedVideos() {
   return (
     <>
       <Flex wrap gap={12} align="center" style={{ marginBottom: 4 }}>
-        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={videos.length} />
         <Input
           aria-label="Tìm theo tiêu đề video"
           prefix={<SearchOutlined />}
@@ -447,6 +446,7 @@ export default function PostedVideos() {
           onChange={(event) => setQuery(event.target.value)}
           style={{ flex: "1 1 200px", maxWidth: 320 }}
         />
+        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={videos.length} />
         <FilterSelect
           aria-label="Lọc theo Page"
           placeholder="Mọi Page"

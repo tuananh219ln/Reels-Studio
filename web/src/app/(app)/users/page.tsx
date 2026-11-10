@@ -1,10 +1,11 @@
 "use client";
 
 import { PlusOutlined, SearchOutlined } from "@ant-design/icons";
-import { App, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { App, Button, Card, Form, Input, Modal, Select, Space, Table, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import UserAvatar from "@/components/UserAvatar";
+import StatusText from "@/components/StatusText";
 import { ApiError, api, formatDateTime, formatLastLogin, type UserRow } from "@/lib/api";
 import { useUrlChoice } from "@/lib/urlState";
 import PageHeader from "@/components/PageHeader";
@@ -79,11 +80,16 @@ function Users() {
   const columns: ColumnsType<UserRow> = [
     { title: "Ảnh", key: "avatar", width: 64, render: (_, row) => <UserAvatar initial={row.initial} /> },
     { title: "Email", dataIndex: "email" },
-    { title: "Tên", dataIndex: "name", width: 170 },
+    { title: "Tên", dataIndex: "name", width: 200 },
     {
       title: "Trạng thái",
       key: "status",
-      render: (_, row) => (row.is_active ? <Tag color="success">Hoạt động</Tag> : <Tag>Vô hiệu hoá</Tag>),
+      render: (_, row) =>
+        row.is_active ? (
+          <StatusText tone="success">Hoạt động</StatusText>
+        ) : (
+          <StatusText tone="idle">Vô hiệu hoá</StatusText>
+        ),
     },
     { title: "Đăng nhập gần nhất", key: "last_login", render: (_, row) => formatLastLogin(row.last_login_at) },
     { title: "Phiên hoạt động", dataIndex: "active_sessions", align: "right" },

@@ -358,7 +358,7 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
     "Kho tư liệu",
     "Thư viện nhạc",
     "Quản lý người dùng",
-    "Job logs",
+    "Nhật ký job",
     "Cài đặt",
   ]);
   const fanpages = page.getByRole("menuitem", { name: "Quản lý Page" });

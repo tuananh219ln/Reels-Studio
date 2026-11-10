@@ -1,9 +1,17 @@
 "use client";
 
 import { useMe } from "@/components/MeContext";
-import { DeleteOutlined, FolderAddOutlined, InboxOutlined, LinkOutlined, UploadOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  FolderAddOutlined,
+  InboxOutlined,
+  LinkOutlined,
+  SearchOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Progress, Segmented, Select, Typography, theme } from "antd";
 import { Suspense, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import FilterSelect from "@/components/FilterSelect";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaLinkSearch from "@/components/media/MediaLinkSearch";
 import PageHeader from "@/components/PageHeader";
@@ -228,13 +236,22 @@ function Media() {
         <Card size="small">
           <Flex vertical gap={12}>
             <Flex gap={8} wrap align="center">
-              <Select
+              <Input
+                aria-label="Tìm tư liệu theo tên"
+                prefix={<SearchOutlined />}
                 allowClear
+                placeholder="Tìm theo tên…"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                style={{ flex: "1 1 220px", maxWidth: 320 }}
+              />
+              <FilterSelect<string>
+                aria-label="Lọc theo thư mục"
                 placeholder="Mọi thư mục"
-                value={shown ?? undefined}
-                onChange={(value: string | undefined) => setShown(value ?? null)}
+                value={shown}
+                onChange={(value) => setShown(value ?? null)}
                 options={data.folders.map(({ folder, count }) => ({ value: folder, label: `${folder} (${count})` }))}
-                style={{ flex: "1 1 220px" }}
+                style={{ flex: "1 1 220px", maxWidth: 320 }}
               />
               <Segmented
                 value={kind}
@@ -244,13 +261,6 @@ function Media() {
                   { value: "photo", label: "Ảnh" },
                   { value: "clip", label: "Clip" },
                 ]}
-              />
-              <Input.Search
-                allowClear
-                placeholder="Tìm theo tên…"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                style={{ flex: "1 1 200px" }}
               />
             </Flex>
             <MediaGrid

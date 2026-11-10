@@ -451,7 +451,6 @@ export default function Products() {
           </Space>
         </Flex>
         <Flex wrap gap={12} align="center">
-          <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={products.length} mineLabel="Tôi thêm" />
           <Input
             aria-label="Tìm theo sản phẩm hoặc shop"
             prefix={<SearchOutlined />}
@@ -461,6 +460,7 @@ export default function Products() {
             onChange={(event) => setFilters({ ...filters, q: event.target.value })}
             style={{ flex: "1 1 200px", maxWidth: 320 }}
           />
+          <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={products.length} mineLabel="Tôi thêm" />
           <FilterSelect
             aria-label="Lọc theo nền tảng"
             placeholder="Mọi nền tảng"

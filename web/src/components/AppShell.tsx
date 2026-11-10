@@ -62,7 +62,7 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
     label: "Quản trị",
     children: [
       { key: "/users", icon: <TeamOutlined />, label: "Quản lý người dùng" },
-      { key: "/jobs", icon: <ClockCircleOutlined />, label: "Job logs" },
+      { key: "/jobs", icon: <ClockCircleOutlined />, label: "Nhật ký job" },
       // One page with tabs, the member's own then the team's (settings/layout.tsx), "Kết nối MCP" too.
       { key: "/settings", icon: <SettingOutlined />, label: "Cài đặt" },
     ],

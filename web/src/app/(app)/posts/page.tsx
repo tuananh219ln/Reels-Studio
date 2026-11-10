@@ -140,13 +140,10 @@ function Posts() {
         <PageHeader
           title="Bài đăng"
           description="Các bài đã hẹn lịch và đã đăng theo ngày, giờ Việt Nam. Bấm một bài để mở video."
-          actions={
-            <Flex gap={8} wrap>
-              {whoseSwitch}
-              {viewSwitch}
-            </Flex>
-          }
+          actions={viewSwitch}
         />
+        {/* "Của tôi / Cả đội" sits above the calendar, as it sits above the list. */}
+        <Flex style={{ marginBottom: 12 }}>{whoseSwitch}</Flex>
         <PostCalendar posts={all} />
       </>
     );
@@ -164,7 +161,6 @@ function Posts() {
         />
       </div>
       <Flex wrap gap={12} align="center" style={{ padding: 16 }}>
-        {whoseSwitch}
         <Input
           aria-label="Tìm theo tiêu đề"
           prefix={<SearchOutlined />}
@@ -174,6 +170,7 @@ function Posts() {
           onChange={(event) => setQuery(event.target.value)}
           style={{ width: 320, maxWidth: "100%" }}
         />
+        {whoseSwitch}
         {pages.length > 0 && (
           <FilterSelect
             aria-label="Lọc theo Fanpage"

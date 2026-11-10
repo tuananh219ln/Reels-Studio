@@ -2004,7 +2004,7 @@ test("AI image provider: the team default on Nguồn tư liệu, another one for
   await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0, { timeout: 30_000 });
 
   // The job log names the provider each image job used.
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page.getByRole("row", { name: /Tạo ảnh AI \(1 cảnh\).*Cloudflare/ })).toBeVisible();
   await expect(page.getByRole("row", { name: /Tạo ảnh AI(?! \(1 cảnh\)).*Gemini/ })).toBeVisible();
 });
@@ -2038,7 +2038,7 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Tìm ảnh" }).click();
   await expect(page.getByTestId("image-auto")).toHaveCount(4);
 
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page.getByRole("row", { name: /Tự tìm ảnh/ })).toBeVisible();
 });
 
@@ -2140,7 +2140,7 @@ test("clone a video with a change request, then see every job in the job log", a
   await jobFinished(page);
   await expect(page.getByTestId("music-name")).toBeVisible();
 
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page).toHaveURL(/\/jobs$/);
   const rows = page.locator(".ant-table-tbody .ant-table-row");
   await expect(rows.filter({ hasText: "Nhân bản" })).toHaveCount(1);
@@ -2327,7 +2327,7 @@ test("AI model settings: set up an OpenAI-compatible provider, check it, and wri
   await jobFinished(page);
   await expect(page.getByTestId("script-by")).toHaveText("Kịch bản viết bởi Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini");
 
-  await page.getByRole("menuitem", { name: "Job logs" }).click();
+  await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page.locator(".ant-table-tbody .ant-table-row").first()).toContainText(
     "Tùy chỉnh (chuẩn OpenAI) · fake-gpt-mini",
   );

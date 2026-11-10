@@ -820,7 +820,7 @@ Built:
     "Đã xóa"; the views; then the same four icon buttons on every post, each with a tooltip: "Xem
     Reel" (opens the reel once public), "Thử lại" (sends a failed post's job again), "Kiểm tra", and
     "Hủy đăng" or "Xóa" with a confirmation. A button that does not apply to the post is greyed out,
-    its tooltip saying why ("Video đang chạy một việc khác (xem Job logs)…" while its video has a job),
+    its tooltip saying why ("Video đang chạy một việc khác (xem Nhật ký job)…" while its video has a job),
     so the buttons line up from row to row. There is no grid here: posts are read
     as numbers, and "Video" keeps the grid for working on videos.
     A post's views stay on one line so rows stay short: the views (or "Chưa có view"), a yellow
@@ -889,7 +889,7 @@ Built:
     Vietnam time whatever the browser's time zone: the hour and day a reel sits under, the week and
     month it opens on, and today's mark. On a phone the month is compact, with a dot on each day that
     has a video; tapping a day opens the same drawer.
-- **Job logs** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
+- **Nhật ký job** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
   Each row: the video title with its kind and job number under it, a status tag with an icon, who
@@ -1014,7 +1014,7 @@ Built:
 
 The menu (built, 2026-11-10) is four groups, each under a small grey heading that cannot be folded, in the order of
 the work: **Tạo nội dung** (Video, Bài viết), **Đăng và kiếm tiền** (Bài đăng, Quản lý Page, Affiliate), **Tài
-nguyên** (Kho kiến thức, Kho tư liệu, Thư viện nhạc) and **Quản trị** (Quản lý người dùng, Job logs, Cài đặt).
+nguyên** (Kho kiến thức, Kho tư liệu, Thư viện nhạc) and **Quản trị** (Quản lý người dùng, Nhật ký job, Cài đặt).
 No menu item opens a sub-menu.
 
 Phones (below 992 px wide; built):
