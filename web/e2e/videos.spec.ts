@@ -3258,3 +3258,102 @@ test("knowledge topics: a group's maker turns off Cho cả đội sửa, and a t
   await expect(theirs.getByTestId("group-locked")).toHaveCount(0);
   await expect(theirs.getByRole("button", { name: "Đổi tên" })).toBeVisible();
 });
+
+test("30-day plan: a file is loaded by overwriting, adding to its days, into the next empty days or replacing its days", async ({
+  page,
+}) => {
+  await loginAsSeed(page);
+  await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  const plan = health.getByTestId("plan-tab");
+  const preview = page.getByRole("dialog", { name: "Xem trước file nhập" });
+  const report = page.getByRole("dialog", { name: "Đã nạp kế hoạch" });
+
+  async function load(days: Record<number, string[]>, mode?: string) {
+    const file = {
+      days: Object.entries(days).map(([day, topics]) => ({
+        day: Number(day),
+        ideas: topics.map((topic) => ({ topic })),
+      })),
+    };
+    await plan.locator('input[type="file"]').setInputFiles({
+      name: "ke_hoach.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(file)),
+    });
+    await expect(preview).toBeVisible();
+    if (mode) {
+      await preview.getByRole("radio", { name: mode }).check();
+    }
+  }
+  async function dayIdeas(day: number) {
+    await plan.getByRole("button", { name: `Chọn ngày ${day}`, exact: true }).click();
+    const ideas = page.getByTestId("plan-day-panel").getByTestId("plan-idea");
+    const topics = await ideas.allTextContents();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("plan-day-panel")).toBeHidden();
+    return topics;
+  }
+
+  // Overwriting the whole plan stays the default.
+  await load({ 1: ["Cũ 1"], 2: ["Cũ 2"] });
+  await expect(preview.getByRole("radio", { name: "Ghi đè toàn bộ" })).toBeChecked();
+  await preview.getByRole("button", { name: "Lưu kế hoạch" }).click();
+  await expect(report).toContainText("Điền mới: ngày 1, 2");
+  await report.getByRole("button", { name: "Đã xem" }).click();
+
+  // Adding to the end of the file's days skips a topic the plan already has, and says so.
+  await load({ 1: ["Mới 1", "cũ 2"] }, "Thêm vào cuối ngày");
+  await expect(preview).toContainText("ngày 1");
+  await preview.getByRole("button", { name: "Lưu kế hoạch" }).click();
+  await expect(report).toContainText("Thêm ý tưởng: ngày 1");
+  await expect(report).toContainText("Bỏ qua 1 ý tưởng trùng chủ đề");
+  await expect(report).toContainText("“cũ 2” (đã có ở ngày 2)");
+  await report.getByRole("button", { name: "Đã xem" }).click();
+  const first = await dayIdeas(1);
+  expect(first.map((text) => (text.includes("Mới 1") ? "Mới 1" : text.includes("Cũ 1") ? "Cũ 1" : text))).toEqual([
+    "Cũ 1",
+    "Mới 1",
+  ]);
+
+  // Into the next empty days, in the file's order.
+  await load({ 1: ["Đợt 2 a"], 2: ["Đợt 2 b"] }, "Thêm vào ngày trống tiếp theo");
+  await expect(preview).toContainText("vào ngày 3, 4");
+  await preview.getByRole("button", { name: "Lưu kế hoạch" }).click();
+  await expect(report).toContainText("Điền mới: ngày 3, 4");
+  await expect(report).toContainText("Ngày 1 của file → ngày 3");
+  await report.getByRole("button", { name: "Đã xem" }).click();
+
+  // Too few empty days: warned first, and Huỷ leaves the plan as it was.
+  const many = Object.fromEntries(Array.from({ length: 27 }, (_, index) => [index + 1, [`Đợt 3 ngày ${index + 1}`]]));
+  await load(many, "Thêm vào ngày trống tiếp theo");
+  await expect(preview).toContainText("Còn 26 ngày trống, file có 27 ngày");
+  await expect(preview.getByRole("button", { name: "Nạp phần vừa" })).toBeVisible();
+  await preview.getByRole("button", { name: "Huỷ" }).click();
+  await expect(plan.getByTestId("plan-summary")).toContainText("ngày còn trống 26");
+
+  // Replacing the file's days lists them first and warns of a day that already has a video, which stays.
+  const origin = new URL(page.url()).origin;
+  const topics = await (await page.request.get("/api/knowledge")).json();
+  const healthId = topics.topics.find((topic: { name: string }) => topic.name === "Sức khỏe").id;
+  const items = (await (await page.request.get(`/api/plans/${healthId}`)).json()).items;
+  const two = items.find((item: { topic: string }) => item.topic === "Cũ 2");
+  const made = await page.request.post("/api/videos", {
+    data: { topic: "Cũ 2", knowledge_topic_id: healthId, plan_item_id: two.id, mode: "manual", script: "Một" },
+    headers: { Origin: origin },
+  });
+  expect(made.ok()).toBe(true);
+  await page.reload();
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  await load({ 2: ["Thay 2"], 4: ["Thay 4"] }, "Thay các ngày có trong file");
+  const days = preview.getByTestId("plan-replaced-days");
+  await expect(days).toContainText("Ngày 2");
+  await expect(days).toContainText("Ngày 4");
+  await expect(days).toContainText("Ngày 2 đã có video");
+  await preview.getByRole("button", { name: "Lưu kế hoạch" }).click();
+  await expect(report).toContainText("Thay: ngày 2, 4");
+  await report.getByRole("button", { name: "Đã xem" }).click();
+  expect((await page.request.get(`/api/videos/${(await made.json()).id}`)).ok()).toBe(true);
+});

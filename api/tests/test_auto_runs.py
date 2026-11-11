@@ -408,3 +408,26 @@ def test_a_page_with_its_own_tiktok_version_clones_one_and_drafts_it(db, me, sto
     assert (draft.video_id, draft.platform) == (clone.id, "tiktok")
     # The Facebook post stays the source's own MP4.
     assert db.get(Publication, parent.publication_id).video_id == source.id
+
+
+def test_ideas_past_the_videos_a_day_are_kept_as_backups_and_not_made(db, me):
+    """A day given more ideas than its videos a day (an import in "Thêm vào cuối ngày") makes the first ones only."""
+    plan(db, ideas=("Ý tưởng một", "Ý tưởng hai", "Ý tưởng ba"))
+    first_topic(db).plan_per_day = 1
+    db.commit()
+    auto_page(db, me)
+    auto_runs.step(db, EIGHT)
+    assert [run.idea_topic for run in runs(db)] == ["Ý tưởng một"]
+    assert db.scalar(select(func.count()).select_from(Video)) == 1
+
+
+def test_a_backup_idea_is_not_made_while_the_first_idea_has_its_video(db, me, storage):
+    first, _ = plan(db, ideas=("Ý tưởng một", "Ý tưởng hai"))
+    first_topic(db).plan_per_day = 1
+    db.commit()
+    video = ready_video(db, storage, me, first)
+    auto_page(db, me)
+    auto_runs.step(db, EIGHT)
+    [run] = runs(db)
+    assert (run.idea_topic, run.video_id) == ("Ý tưởng một", video.id)
+    assert db.scalar(select(func.count()).select_from(Video)) == 1

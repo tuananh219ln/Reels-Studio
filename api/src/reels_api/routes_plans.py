@@ -3,6 +3,7 @@
 
 from dataclasses import asdict
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from pydantic import BaseModel
@@ -55,6 +56,12 @@ class ReplaceBody(BaseModel):
 
 class BacklogBody(BaseModel):
     ideas: list[IdeaBody]
+
+
+class ApplyBody(BaseModel):
+    mode: Literal["overwrite", "append", "next_empty", "replace_days"]  # plans.IMPORT_MODES
+    ideas: list[IdeaBody]
+    fit: bool = False  # "next_empty" short of empty days: load what fits instead of refusing
 
 
 def _topic(db: DbSession, topic_id: int) -> KnowledgeTopic:
@@ -286,14 +293,33 @@ def replace_items(
 ) -> dict:
     """Save an imported file or the AI's draft as the 30 days, after a member looked at it; the Backlog stays."""
     topic = _editable(db, topic_id, me)
-    if len(body.ideas) > plans.MAX_IDEAS:
+    plans.replace_plan(db, topic, _checked(body.ideas), me.user_id)
+    return _saved(db, topic)
+
+
+def _checked(bodies: list[IdeaBody]) -> list[Idea]:
+    """Ideas that can be a plan: dated, at most MAX_PER_DAY a day, no topic twice."""
+    if len(bodies) > plans.MAX_IDEAS:
         raise invalid(f"Tối đa {plans.MAX_IDEAS} ý tưởng")
-    ideas = [_idea(idea) for idea in body.ideas]
+    ideas = [_idea(idea) for idea in bodies]
     errors, _ = plans.check_plan(ideas)
     if errors:
         raise invalid(errors[0])
-    plans.replace_plan(db, topic, ideas, me.user_id)
-    return _saved(db, topic)
+    return ideas
+
+
+@router.post("/{topic_id}/apply")
+def apply_import(
+    topic_id: int, body: ApplyBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """Load a previewed file in the mode the member chose, with a report of the days it changed."""
+    topic = _editable(db, topic_id, me)
+    ideas = _checked(body.ideas)
+    try:
+        report = plans.apply_import(db, topic, ideas, body.mode, me.user_id, body.fit)
+    except plans.NotEnoughDays as err:
+        raise ApiError(409, "plan_not_enough_days", str(err)) from None
+    return {**_saved(db, topic), "report": report}
 
 
 @router.post("/{topic_id}/import")
