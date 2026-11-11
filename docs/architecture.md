@@ -319,24 +319,29 @@ A scene may hold an uploaded video clip instead of a photo
   (2026-11-09): the api refuses one on a slide video, and one kept from switching is left out of a slide video's render
   and fingerprint, like "Ảnh món". It shows its scene's photo (`videos.layer_photo_key`), so the scene's picture tools
   find and edit it, unless it has a photo of its own, `scene_layers.image_key` (migration 0063; a copy, deleted with the
-  layer or its scene; `own_image` in the payload), which only the api's other ways in give it. It is always 1080 wide
-  and `scene_layers.height` percent of the frame tall (migration 0078; 38% = 730 px by default, 30–45%): edge to edge,
-  no border, square corners (`layers.render_half`: scaled to cover, cut in the middle, and faded out over 32 px on
-  the edge that is not flush with the frame, so it blends into the picture behind it), so only `y` (its centre: 365
-  flush with the top edge, 960 in the middle, 1555 flush with the bottom edge at 38%, re-anchored to the same edge
-  when `height` changes), `height`, `start` and `seconds` change: the api forces `x` to
+  layer or its scene; `own_image` in the payload), which the web's "Ảnh chèn" block (Tải lên, Kho, Tìm) and the
+  api's other ways in give it (2026-11-12). It is a square `scene_layers.height` percent of the frame's height on each
+  side ("Cỡ ảnh", migration 0078; 30–45%, 32% = 614 px for a new one, so always narrower than the 1080 px frame), with
+  rounded corners and no border (`layers.render_half`: scaled to cover, cut in the middle; 2026-11-12, replacing the
+  edge-to-edge strip with faded edges), centred across, so only `y` (its centre: 307 flush with the top edge, 960 in
+  the middle, 1613 flush with the bottom edge at 32%, re-anchored to the same edge when `height` changes), `height`,
+  `start` and `seconds` change: the api forces `x` to
   540 and clamps `y` on every save, and ignores `size`, `style` and `animation` (stored as `medium`, `half`, `none`).
-  `POST /api/layers/half-photo` with `scene_photo` (the web's and the assistant's way, `link_scene_photo`) adds one
-  showing the scene's photo, turns an "Ảnh món" into one, or lets one's own copy go; `media_id` (the library), `url` (a
-  photo's link) and `POST /api/layers/half-photo/upload` give it a photo of its own. A new one has `y` 365, `start` 0
+  `POST /api/layers/half-photo` with `scene_photo` (turning "Ảnh chèn" on, and the assistant's way,
+  `link_scene_photo`) adds one showing the scene's photo, turns an "Ảnh món" into one, or lets one's own copy go;
+  `media_id` (the library), `url` (a photo's link, also what the block's "Tìm" sends) and
+  `POST /api/layers/half-photo/upload` give it a photo of its own, replacing the one it shows (an older copy of its own
+  is deleted) and keeping its place and size. The block's "AI" lets its own copy go and makes the scene's photo with the
+  scene's AI photo job. A new one is flush with the bottom edge (`y` 1613, `height` 32), `start` 0
   and `seconds` 60, so it shows with the scene's narration until the next scene; never on the title scene, one photo
   layer per scene. A script gives each scene that names a dish one (`videos.half_layer`); without a photo it blocks the
   render. "Ảnh món" is no longer made by the web, but older videos keep and render theirs. It joins the fingerprint
   with its own `image_key` when it has one. The job copies its photo as `inset-NN.ext`; the render lays it in the
   scene's own chain (`graph.InsetInput`, its inputs after the layers'), over the picture after its zoom and colour and
   under the scene's text box, so captions, text and sticker layers stay on top; its seconds are counted in the scene's
-  own picture, which starts `clip_lead` before the scene. The studio and the scene cards draw it inside the scene's
-  picture, under the box, and drag it only up and down, snapping to 480, 960 and 1440 within 40 px. A machine on older
+  own picture, which starts `clip_lead` before the scene; `InsetInput.left` centres it across. The studio and the
+  scene cards draw it inside the scene's picture, under the box; it is dragged only up and down (on the studio's phone,
+  and in the card's "Chỉnh vị trí" window), snapping to its edges and the middle within 40 px while dragged. A machine on older
   code refuses the style rather than drawing it wrong. The assistant adds one with `add_layer` (`kind` "photo").
 - **Sound:** `scene_sounds` (migration 0039; `sound`, `start` into the scene, `volume`, deleted with its scene),
   `scenes.music_level` and `videos.music_start`, all named presets or bounded numbers of

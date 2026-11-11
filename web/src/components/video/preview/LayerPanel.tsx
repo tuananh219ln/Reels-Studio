@@ -11,7 +11,6 @@ import {
   SIZES,
   STICKERS,
   TEXT_STYLES,
-  halfPlaces,
   isHalf,
   layerName,
 } from "./layers";
@@ -92,16 +91,16 @@ export function LayerTools({
         ))}
       </div>
       {backdrop && (
-        // Only a "Video xuyên suốt" has one: the scene's dish photo across half the frame, found and edited with the
-        // scene's picture tools in "Chỉnh cảnh" › "Ảnh chèn", as "Ảnh món" was.
+        // Only a "Video xuyên suốt" has one: a rounded square narrower than the frame, its photo chosen in "Chỉnh cảnh"
+        // › "Ảnh chèn".
         <>
           <Divider style={{ margin: "4px 0" }} />
           <Typography.Text strong>Ảnh chèn</Typography.Text>
           <Flex vertical gap={6} data-testid="half-photo-tools">
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {hasPhoto && !scene?.is_title
-                ? "Cảnh này đã có ảnh chèn: kéo lên xuống trên điện thoại, tìm hay sửa ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."
-                : "Ảnh của cảnh, tràn ngang khung, cao khoảng 1/3, hiện cùng lời đọc đến hết cảnh. Tìm hay sửa ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."}
+                ? "Cảnh này đã có ảnh chèn: kéo lên xuống trên điện thoại, chọn ảnh hay đổi cỡ ở “Chỉnh cảnh” › “Ảnh chèn”."
+                : "Ảnh vuông bo góc, hẹp hơn video, sát mép dưới, hiện cùng lời đọc đến hết cảnh. Chọn ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."}
             </Typography.Text>
             <Button
               icon={<PictureOutlined />}
@@ -259,23 +258,10 @@ function LayerRow({
       {open && half && (
         <Flex vertical gap={8}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Tràn sát hai mép, không viền, mép giáp ảnh nền mờ dần. Kéo lên xuống trên điện thoại (hút vào mép trên,
-            giữa, mép dưới) hoặc chọn nhanh:
+            Ảnh vuông bo góc, hẹp hơn video. Kéo lên xuống trên điện thoại (hút vào mép trên, giữa, mép dưới).
           </Typography.Text>
-          <Segmented
-            size="small"
-            aria-label="Vị trí ảnh chèn"
-            // A place dragged in between matches none of the quick places.
-            value={halfPlaces(layer.height).find((place) => place.y === layer.y)?.value ?? ""}
-            disabled={!editable}
-            options={halfPlaces(layer.height).map((place) => ({ value: place.value, label: place.label }))}
-            onChange={(value) => {
-              const chosen = halfPlaces(layer.height).find((place) => place.value === value);
-              if (chosen) onPatch("đổi vị trí ảnh chèn", { y: chosen.y });
-            }}
-          />
           <Flex align="center" gap={8}>
-            <Typography.Text style={{ fontSize: 12, flex: "none" }}>Cao</Typography.Text>
+            <Typography.Text style={{ fontSize: 12, flex: "none" }}>Cỡ ảnh</Typography.Text>
             <Slider
               style={{ flex: 1, margin: "0 6px" }}
               min={HALF_HEIGHT_MIN}
@@ -283,7 +269,7 @@ function LayerRow({
               value={layer.height}
               disabled={!editable}
               tooltip={{ formatter: (value) => `${value}%` }}
-              onChangeComplete={(value) => onPatch("đổi chiều cao ảnh chèn", { height: value })}
+              onChangeComplete={(value) => onPatch("đổi cỡ ảnh chèn", { height: value })}
             />
             <Typography.Text type="secondary" style={{ fontSize: 12, flex: "none" }}>
               {layer.height}%

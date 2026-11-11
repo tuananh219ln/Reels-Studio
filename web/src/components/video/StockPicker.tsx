@@ -69,19 +69,25 @@ function sourceOptions(sources: StockSource[]) {
  * (English for Pexels/Unsplash/Pixabay, Vietnamese for Wikimedia/Openverse) unless the member typed a keyword. The grid
  * shows each source's small thumbnails (`preview`) straight from the source; choosing sends the
  * full-size `url` with the keyword and the source it was found with, and the server checks it against
- * that search and stores its own copy. A thumbnail is never saved anywhere.
+ * that search and stores its own copy. A thumbnail is never saved anywhere. With `onChoose` (an inset photo's "Tìm")
+ * only photos are offered and the chosen one goes there instead of to the scene.
  */
 export default function StockPicker({
   sceneId,
   videoId,
   keywords: liveKeywords,
   keywordsEn: liveKeywordsEn,
+  onChoose,
+  title = "Chọn từ kho ảnh/video",
   onClose,
 }: {
   sceneId: number;
   videoId: number;
   keywords: string[];
   keywordsEn: string[];
+  /** Where the chosen photo goes instead of the scene's own picture. */
+  onChoose?: (hit: PixabayHit) => Promise<VideoDetail>;
+  title?: string;
   onClose: () => void;
 }) {
   const editor = useEditor();
@@ -213,6 +219,11 @@ export default function StockPicker({
     setChoosing(hit.url);
     setError(null);
     try {
+      if (onChoose) {
+        editor.onSaved(await onChoose(hit));
+        onClose();
+        return;
+      }
       let saved = await api<VideoDetail>(`/scenes/${sceneId}/stock`, "POST", {
         source: searchedSource,
         keyword: searchedFor,
@@ -244,11 +255,11 @@ export default function StockPicker({
   }
 
   const sourceLabel = sources?.find((item) => item.id === searchedSource)?.label ?? "Pexels";
-  const clipSources = (sources ?? []).filter((item) => item.clips);
+  const clipSources = onChoose ? [] : (sources ?? []).filter((item) => item.clips);
 
   return (
     <Modal
-      title="Chọn từ kho ảnh/video"
+      title={title}
       open
       centered
       onCancel={onClose}

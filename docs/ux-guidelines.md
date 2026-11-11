@@ -1248,17 +1248,34 @@ team's AI through MCP, the semi-automatic round, the assistant) takes the group'
   offers "Đổi ảnh món thành ảnh chèn". The preview and each card's frame play the backdrop under every scene, as the
   MP4 does.
 
-**Ảnh chèn nửa khung** (only a "Video xuyên suốt"; a slide video has none, its scene's photo already fills the
-frame): the scene's dish photo, the same photo the scene's usual picture tools find and edit (the "Tự tìm ảnh" pick,
-marked "Tự chọn, kiểm tra lại", or one chosen with stock search, Google, the library, an upload, a link, an AI photo,
-crop or retouch, none of which changed), shown in a box as wide as the frame and half as tall (cut to fill, never
-stretched, with a thin white edge and rounded corners). It lands on the top half and shows with the scene's narration
-until the next scene. Each content scene's card has "Ảnh chèn nửa khung": a 9:16 frame with the backdrop playing, the
-photo over it and the scene's text box on top; the photo is dragged only up and down there (and on the phone in "Xem
-trước"), snapping to "Nửa trên", "Giữa" and "Nửa dưới", also quick choices; its start and length can be typed in
-"Chỉnh cảnh". "Thêm ảnh chèn" adds one; on an older scene with "Ảnh món" it reads "Đổi ảnh món thành ảnh chèn". It
-sits under the scene's text, captions and the other layers; the text gets no shade of its own, so a box style keeps it
-readable over a busy photo. One photo layer per scene.
+**Ảnh chèn** (only a "Video xuyên suốt"; a slide video has none, its scene's photo already fills the frame;
+2026-11-12): a square photo with rounded corners and no border, "Cỡ ảnh" 30–45% of the frame's height on each side
+(32% by default), so always narrower than the video and the backdrop shows on both sides; centred across, cut to fill,
+never stretched. Turned on, it lands flush with the bottom edge at 32% and shows with the scene's narration until the
+next scene; its start and length can be typed in "Chỉnh cảnh". It sits under the scene's text, captions and the other
+layers; the text gets no shade of its own, so a box style keeps it readable over a busy photo. One photo layer per
+scene.
+
+A content scene's card on a "Video xuyên suốt" has two columns. The left one, from the top: the preview (the backdrop
+playing, the inset photo over it, the scene's text box on top, as the render lays them); **"Chỉnh vị trí chữ"** (the
+primary button, always there, with or without an inset); the scene's own picture tools while the inset shows the
+scene's photo (or on an older scene's "Ảnh món"); then the **"Ảnh chèn"** block: its title and a switch on one row.
+Off, one line, "Đang tắt. Bật để chọn vị trí và ảnh.", and no other button. On: "Chỉnh vị trí ảnh chèn (kéo lên
+xuống)", the "Cỡ ảnh" slider (30–45, step 1, "Cỡ ảnh: 32% (hẹp hơn video)" under it, the preview resizing while it is
+dragged and keeping the edge it is flush with), and one row of four buttons for the inset's own photo, kept apart from
+the scene's picture tools: Tải lên, Kho (Kho tư liệu), Tìm (the stock libraries) and AI (the scene's AI photo, from
+its "Prompt ảnh AI", after asking). The right column keeps the text, narration, "Số giây", "Bắt đầu từ giây", "Từ khóa
+tìm ảnh" and "Prompt ảnh AI", and a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part of the
+inset (never blocking). The Trên / Giữa / Dưới buttons are gone.
+
+Both "Chỉnh vị trí" buttons open one window with two tabs, **Chữ** and **Ảnh chèn** (only Chữ without an inset),
+titled "Vị trí chữ" or "Vị trí ảnh chèn", with "Kéo lên hoặc xuống (hoặc dùng phím mũi tên); luôn ở giữa theo chiều
+ngang." Over a 9:16 frame drawn as the render lays it, the open tab's one is dragged up and down (mouse, touch, or the
+up and down arrow keys, 10 px a press): `ns-resize` cursor, dashed outline and ⇅ beside it; the other is dimmed
+(opacity 0.55) and locked. The text stays inside the safe zone (y 220–1440, as on the title scene, darkened outside it
+on the Chữ tab); the inset goes from flush with the top edge to flush with the bottom edge, with no extra margin.
+"Vị trí gốc" puts the open tab's one back (the inset flush with the bottom edge, the text unplaced), "Lưu" saves both
+and closes, ✕ drops what was not saved. The title scene and slide videos keep "Vị trí chữ" on the picture, as before.
 
 "Nghỉ sau lời đọc" (Thiết lập › Âm thanh: Ngắn 0,4 s, Vừa 0,7 s, Dài 1 s) is the pause after each scene's
 narration for scenes whose seconds follow it; changing it changes those scenes' seconds at once.

@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
-from reels_render.layers import HALF, HALF_X, half_height, half_y, is_half
+from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_half
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_TAIL, fit_seconds
 
@@ -87,9 +87,9 @@ PHOTO_LAYER_SECONDS = 60
 
 
 def half_layer() -> SceneLayer:
-    """A half-frame photo ("Ảnh chèn nửa khung") over the top half for the whole scene, showing its scene's photo
-    until it has its own: what a "Video xuyên suốt" script gives a scene that names a dish (owner's choice,
-    2026-11-09: such a video uses only half-frame photos)."""
+    """An inset photo ("Ảnh chèn") at its default size, flush with the bottom edge (2026-11-12), for the whole scene,
+    showing its scene's photo until it has its own: what turning "Ảnh chèn" on gives a scene, and what a "Video xuyên
+    suốt" script gives a scene that names a dish (owner's choice, 2026-11-09: such a video uses only inset photos)."""
     return SceneLayer(
         position=1,
         kind="photo",
@@ -98,7 +98,8 @@ def half_layer() -> SceneLayer:
         start=0,
         seconds=PHOTO_LAYER_SECONDS,
         x=HALF_X,
-        y=half_y(0),
+        y=half_y(FRAME_HEIGHT, HALF_HEIGHT_DEFAULT),
+        height=HALF_HEIGHT_DEFAULT,
         size="medium",
         style=HALF,
         animation="none",
@@ -405,8 +406,8 @@ def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:
     photo = layer_photo_key(layer)
     kept = [case] if layer.kind == "text" and case != "upper" else []
     if is_half_layer(layer):
-        # An inset photo's height and place change its picture: it fades only where it is not flush with the frame.
-        kept += [str(layer.height), str(layer.y)]
+        # An inset photo's size changes its picture; its place does not.
+        kept += [str(layer.height)]
     look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []), *kept)
     # A half-frame photo says whether its photo is its own or its scene's, so the card shows where to choose it.
     own = {"own_image": bool(layer.image_key)} if is_half_layer(layer) else {}

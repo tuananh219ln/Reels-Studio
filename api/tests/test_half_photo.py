@@ -43,7 +43,7 @@ def upload(an, scene_id: int, data: bytes | None = None):
     return an.post("/api/layers/half-photo/upload", data={"scene_id": str(scene_id)}, files=files)
 
 
-def test_an_uploaded_photo_lands_across_the_top_half_for_the_whole_scene(an, db, me, storage):
+def test_an_uploaded_photo_lands_flush_with_the_bottom_edge_for_the_whole_scene(an, db, me, storage):
     video = backdrop_video(db, storage, me)
     scene = first_scene(db, video)
     added = upload(an, scene.id)
@@ -53,13 +53,14 @@ def test_an_uploaded_photo_lands_across_the_top_half_for_the_whole_scene(an, db,
         "kind": "photo",
         "style": "half",
         "x": 540,
-        "y": 365,
+        "y": 1613,
         "start": 0,
         "seconds": 60,
         "animation": "none",
     }
     picture = Image.open(io.BytesIO(an.get(layer["image_url"]).content))
-    assert picture.size == (1080, 730)
+    assert picture.size == (614, 614), "a square 32% of the frame's height, narrower than the frame"
+    assert layer["height"] == 32
     row = db.get(SceneLayer, layer["id"])
     assert row.image_key and storage.exists(row.image_key)
 
@@ -76,8 +77,8 @@ def test_it_moves_only_up_and_down_and_stays_inside_the_frame(an, db, me, storag
 
     middle = patch({"x": 100, "y": 960})
     assert (middle["x"], middle["y"]) == (540, 960), "sent across: still centred"
-    assert patch({"y": 5000})["y"] == 1555, "dragged past the bottom: flush with the bottom edge"
-    assert patch({"y": -50})["y"] == 365, "dragged past the top: flush with the top edge"
+    assert patch({"y": 5000})["y"] == 1613, "dragged past the bottom: flush with the bottom edge"
+    assert patch({"y": -50})["y"] == 307, "dragged past the top: flush with the top edge"
     # Its size, look and entrance are fixed; its seconds are its own.
     kept = patch({"size": "large", "style": "circle", "animation": "slide_up", "start": 2, "seconds": 3})
     assert (kept["size"], kept["style"], kept["animation"]) == ("medium", "half", "none")
@@ -108,12 +109,32 @@ def test_one_photo_layer_per_scene_and_none_on_the_title(an, db, me, storage):
     video = backdrop_video(db, storage, me)
     title, scenes = split_scenes(db, video)
     assert upload(an, scenes[0].id).status_code == 201
-    again = upload(an, scenes[0].id)
-    assert again.status_code == 422 and "đã có ảnh món hoặc ảnh chèn" in again.json()["message"]
+    assert an.post("/api/layers", json={"scene_id": scenes[1].id, "kind": "photo"}).status_code == 201
+    over_ảnh_món = upload(an, scenes[1].id)
+    assert over_ảnh_món.status_code == 422 and "đã có ảnh món hoặc ảnh chèn" in over_ảnh_món.json()["message"]
     on_title = upload(an, title.id)
     assert on_title.status_code == 422 and "Cảnh tiêu đề" in on_title.json()["message"]
-    not_a_photo = upload(an, scenes[1].id if len(scenes) > 1 else scenes[0].id, b"not a photo")
+    not_a_photo = upload(an, scenes[0].id, b"not a photo")
     assert not_a_photo.status_code in (415, 422)
+
+
+def test_a_new_photo_replaces_the_insets_own_in_place(an, db, me, storage):
+    """The inset's "Tải lên", "Kho" and "Tìm" change its photo: the same layer, its place and size kept, the old copy
+    let go."""
+    video = backdrop_video(db, storage, me)
+    scene = first_scene(db, video)
+    layer = scene_json(upload(an, scene.id).json(), scene.id)["layers"][0]
+    an.patch(f"/api/layers/{layer['id']}", json={"y": 960, "height": 40})
+    before = db.get(SceneLayer, layer["id"]).image_key
+    again = upload(an, scene.id, photo_bytes(size=(800, 1200)))
+    assert again.status_code == 201, again.json()
+    (after,) = scene_json(again.json(), scene.id)["layers"]
+    assert (after["id"], after["y"], after["height"], after["own_image"]) == (layer["id"], 960, 40, True)
+    assert after["image_url"] != layer["image_url"]
+    db.expire_all()
+    key = db.get(SceneLayer, layer["id"]).image_key
+    assert key != before and storage.exists(key)
+    assert not storage.exists(before), "the old copy is let go"
 
 
 def test_a_slide_video_takes_none_and_keeps_one_out_of_its_render(an, db, me, storage):
@@ -190,7 +211,7 @@ def test_the_assistant_adds_one_showing_the_scenes_photo_and_cannot_move_it_acro
     added = call(mcp_client, token, "add_layer", scene_id=scene.id, kind="photo")
     assert not added.get("isError"), added
     row = db.scalar(select(SceneLayer).where(SceneLayer.scene_id == scene.id))
-    assert (row.style, row.x, row.y, row.image_key) == ("half", 540, 365, None), "the scene's own photo"
+    assert (row.style, row.x, row.y, row.height, row.image_key) == ("half", 540, 1613, 32, None), "the scene's photo"
     moved = call(mcp_client, token, "update_layer", layer_id=row.id, x=100, y=1555)
     assert not moved.get("isError"), moved
     db.refresh(row)
@@ -204,7 +225,7 @@ def test_the_scenes_own_photo_becomes_its_half_frame_photo_in_place_of_its_ảnh
     moved = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
     assert moved.status_code == 201, moved.json()
     (layer,) = scene_json(moved.json(), scene.id)["layers"]
-    assert (layer["style"], layer["x"], layer["y"]) == ("half", 540, 365), "the Ảnh món is replaced"
+    assert (layer["style"], layer["x"], layer["y"]) == ("half", 540, 1613), "the Ảnh món is replaced"
     # It shows the scene's photo as it changes, so the scene's picture tools find and edit it.
     assert layer["own_image"] is False and db.get(SceneLayer, layer["id"]).image_key is None
 
@@ -244,7 +265,7 @@ def test_a_half_frame_photo_without_its_own_shows_its_scenes_until_one_is_added(
     db.commit()
     (layer,) = scene_json(an.get(f"/api/videos/{video.id}").json(), scene.id)["layers"]
     assert layer["own_image"] is False
-    assert Image.open(io.BytesIO(an.get(layer["image_url"]).content)).size == (1080, 730)
+    assert Image.open(io.BytesIO(an.get(layer["image_url"]).content)).size == (614, 614)
     an.patch(f"/api/layers/{layer['id']}", json={"y": 1555})
     added = upload(an, scene.id)
     assert added.status_code == 201, added.json()
@@ -260,13 +281,14 @@ def test_its_height_is_30_to_45_percent_and_it_keeps_the_edge_it_is_flush_with(a
     video = backdrop_video(db, storage, me)
     scene = first_scene(db, video)
     layer = scene_json(upload(an, scene.id).json(), scene.id)["layers"][0]
-    assert layer["height"] == 38
+    assert layer["height"] == 32
 
     def patch(body: dict) -> dict:
         response = an.patch(f"/api/layers/{layer['id']}", json=body)
         assert response.status_code == 200, response.json()
         return scene_json(response.json(), scene.id)["layers"][0]
 
+    patch({"y": 0})
     taller = patch({"height": 45})
     assert (taller["height"], taller["y"]) == (45, 432), "still flush with the top edge"
     assert patch({"y": 1920})["y"] == 1488, "dragged to the bottom: flush with the bottom edge at 45%"
