@@ -53,24 +53,24 @@ export function layerCorner(width: number, height: number, layer: Pick<SceneLaye
 }
 
 /**
- * "Ảnh chèn" (layers.HALF): a photo layer with a photo of its own, as wide as the frame (no edge, square corners),
- * 38% of the frame tall (30–45%), that moves only up and down, flush with the top edge, the middle or the bottom edge;
- * the server keeps it there too. Its edge towards the picture behind it fades out, drawn by the api.
+ * "Ảnh chèn" (layers.HALF): a photo layer with a photo of its own, a square with rounded corners and no border, each
+ * side "Cỡ ảnh" percent of the frame's height (30–45%, 32% by default: always narrower than the frame), centred across
+ * and moved only up and down, from flush with the top edge to flush with the bottom edge; the server keeps it there.
  */
 export const HALF = "half";
 export const HALF_X = FRAME_WIDTH / 2;
-export const HALF_HEIGHT_DEFAULT = 38;
+export const HALF_HEIGHT_DEFAULT = 32;
 export const HALF_HEIGHT_MIN = 30;
 export const HALF_HEIGHT_MAX = 45;
 /** Where a dragged inset photo snaps to when it comes this close: flush with the top, the middle, flush with the bottom. */
 const HALF_SNAP = 40;
 
-/** Its height in frame pixels (layers.half_height): 38% is 730. */
+/** Its side in frame pixels (layers.half_height): 32% is 614, 45% is 864. */
 export function halfHeight(percent: number = HALF_HEIGHT_DEFAULT): number {
   return Math.round((FRAME_HEIGHT * Math.min(Math.max(percent, HALF_HEIGHT_MIN), HALF_HEIGHT_MAX)) / 100);
 }
 
-/** The three places an inset photo goes, as the centre `y` that puts it flush with an edge (or in the middle). */
+/** The three places a dragged inset photo snaps to, as the centre `y` flush with an edge (or in the middle). */
 export function halfPlaces(percent: number = HALF_HEIGHT_DEFAULT): { value: string; label: string; y: number }[] {
   const tall = halfHeight(percent);
   return [
@@ -84,11 +84,25 @@ export function isHalf(layer: Pick<SceneLayer, "kind" | "style">): boolean {
   return layer.kind === "photo" && layer.style === HALF;
 }
 
-/** An inset photo's centre down the frame: kept inside it, and snapped to a nearby edge or the middle. */
-export function halfY(y: number, percent: number = HALF_HEIGHT_DEFAULT): number {
+/** An inset photo's centre down the frame: kept inside it, and (`snap`, for a drag) snapped to a nearby edge or the
+ * middle; arrow keys move it without snapping, so it can leave an edge in small steps. */
+export function halfY(y: number, percent: number = HALF_HEIGHT_DEFAULT, snap = true): number {
   const places = halfPlaces(percent);
   const kept = Math.round(Math.min(Math.max(y, places[0].y), places[2].y));
-  return places.find((place) => Math.abs(place.y - kept) <= HALF_SNAP)?.y ?? kept;
+  return (snap && places.find((place) => Math.abs(place.y - kept) <= HALF_SNAP)?.y) || kept;
+}
+
+/** Where an inset photo goes when it is turned on or put back ("Vị trí gốc"): flush with the bottom edge. */
+export function halfHomeY(percent: number = HALF_HEIGHT_DEFAULT): number {
+  return halfPlaces(percent)[2].y;
+}
+
+/** An inset photo's centre after its size changes: still flush with the edge it was flush with (as the api keeps it). */
+export function halfYResized(y: number, before: number, after: number): number {
+  const tall = halfHeight(before);
+  if (y - Math.floor(tall / 2) <= 0) return halfPlaces(after)[0].y;
+  if (y + Math.floor(tall / 2) >= FRAME_HEIGHT) return halfPlaces(after)[2].y;
+  return halfY(y, after, false);
 }
 
 /** A layer's name in lists: its text, its sticker's name, "Ảnh chèn" or "Ảnh món". */

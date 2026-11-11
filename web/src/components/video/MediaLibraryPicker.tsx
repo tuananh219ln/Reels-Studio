@@ -11,17 +11,20 @@ import { useEditor } from "./AutoSaveField";
 /**
  * "Kho tư liệu" from a scene: the library's photos and clips, opened on the folder of the product the video sells,
  * with Google Ảnh and TikTok searches for that product whose pasted links land in the same folder. "Dùng" copies the
- * item into the scene.
+ * item into the scene, or into what `onUse` names (an inset photo's "Kho").
  */
 export default function MediaLibraryPicker({
   sceneId,
   videoId,
   hasPicture,
+  onUse,
   onClose,
 }: {
   sceneId: number;
   videoId: number;
   hasPicture: boolean;
+  /** Where the chosen item goes instead of the scene's own picture. */
+  onUse?: (mediaId: number) => Promise<VideoDetail>;
   onClose: () => void;
 }) {
   const { message, modal } = App.useApp();
@@ -78,8 +81,10 @@ export default function MediaLibraryPicker({
     const go = async () => {
       setUsing(mediaId);
       try {
-        editor.onSaved(await api<VideoDetail>(`/media/${mediaId}/use`, "POST", { scene_id: sceneId }));
-        message.success("Đã dùng tư liệu cho cảnh");
+        editor.onSaved(
+          await (onUse ? onUse(mediaId) : api<VideoDetail>(`/media/${mediaId}/use`, "POST", { scene_id: sceneId })),
+        );
+        message.success(onUse ? "Đã dùng tư liệu cho ảnh chèn" : "Đã dùng tư liệu cho cảnh");
         onClose();
       } catch (err) {
         message.error(errorMessage(err));
@@ -89,8 +94,10 @@ export default function MediaLibraryPicker({
     };
     if (!hasPicture) return go();
     modal.confirm({
-      title: "Thay hình của cảnh?",
-      content: "Ảnh hoặc clip đang có của cảnh sẽ được thay bằng tư liệu này.",
+      title: onUse ? "Thay ảnh chèn?" : "Thay hình của cảnh?",
+      content: onUse
+        ? "Ảnh chèn đang có sẽ được thay bằng tư liệu này."
+        : "Ảnh hoặc clip đang có của cảnh sẽ được thay bằng tư liệu này.",
       okText: "Thay",
       cancelText: "Huỷ",
       onOk: go,
@@ -126,7 +133,8 @@ export default function MediaLibraryPicker({
             />
           )}
           <Typography.Text type="secondary">
-            Tư liệu được chép vào cảnh: xoá khỏi kho không làm hỏng video.
+            {onUse ? "Tư liệu được chép vào ảnh chèn" : "Tư liệu được chép vào cảnh"}: xoá khỏi kho không làm hỏng
+            video.
           </Typography.Text>
         </Flex>
       )}

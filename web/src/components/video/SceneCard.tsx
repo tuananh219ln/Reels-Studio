@@ -59,8 +59,7 @@ import ClipBlurModal from "./ClipBlurModal";
 import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
-import HalfPhotoPanel from "./HalfPhotoPanel";
-import PlaceSegmented, { TEXT_PLACES, textPlaceOf, type Place } from "./PlaceSegmented";
+import HalfPhotoPanel, { InsetOverlapWarning } from "./HalfPhotoPanel";
 import { isHalf } from "./preview/layers";
 import { photoLayer } from "./videoModes";
 import SceneViewer from "./SceneViewer";
@@ -281,59 +280,57 @@ export default function SceneCard({
       }
     >
       {backdrop && !scene.is_title ? (
-        // A "Video xuyên suốt" scene in two tiers, about one screen tall: the preview beside the picture choice, then
-        // the on-screen text and the narration side by side, then the controls that are always there.
-        <Flex vertical gap={12} data-testid="scene-two-tier">
-          <HalfPhotoPanel split scene={scene} backdrop={backdropScene}>
-            {ownPicture && (
-              <>
-                <ScenePicture
-                  compact
-                  scene={scene}
-                  voiceEnabled={voiceEnabled}
-                  generating={generating}
-                  editing={editing}
-                />
-                <SceneKeywordsField scene={scene} />
-                <ScenePromptField scene={scene} />
-              </>
-            )}
-          </HalfPhotoPanel>
-          <Row gutter={[16, 8]}>
-            <Col xs={24} md={12}>
+        // A "Video xuyên suốt" scene: on the left the preview, "Chỉnh vị trí chữ", the scene's own picture tools (when
+        // its inset shows the scene's photo) and the "Ảnh chèn" block; on the right the text, narration and fields.
+        <Row gutter={[16, 12]} data-testid="scene-two-column">
+          <Col xs={24} sm={9} md={8}>
+            <div style={{ maxWidth: 220, margin: "0 auto" }}>
+              <HalfPhotoPanel scene={scene} backdrop={backdropScene} generating={generating}>
+                {ownPicture && (
+                  <ScenePicture
+                    compact
+                    scene={scene}
+                    voiceEnabled={voiceEnabled}
+                    generating={generating}
+                    editing={editing}
+                  />
+                )}
+              </HalfPhotoPanel>
+            </div>
+          </Col>
+          <Col xs={24} sm={15} md={16}>
+            <Flex vertical gap={4}>
               <SceneTextField scene={scene} />
-            </Col>
-            <Col xs={24} md={12}>
               <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
-            </Col>
-          </Row>
-          <Flex wrap align="center" gap={24} style={{ rowGap: 8 }}>
-            <PlaceSegmented
-              label="Vị trí chữ"
-              value={textPlaceOf(scene.placed_at)}
-              disabled={frozen}
-              onChange={(place: Place) => void patch({ text_position: TEXT_PLACES[place] })}
-            />
-            <AutoSaveField
-              label="Số giây"
-              value={String(scene.seconds)}
-              inputMode="decimal"
-              width={110}
-              save={async (text) => patch({ seconds: parseSeconds(text) })}
-            />
-            {scene.video && ownPicture && (
-              <AutoSaveField
-                label="Bắt đầu từ giây"
-                value={String(scene.video.start)}
-                help={clipSpeedHelp(scene.video.speed)}
-                inputMode="decimal"
-                width={130}
-                save={async (text) => patch({ video_start: parseSeconds(text) })}
-              />
-            )}
-          </Flex>
-          <SceneIssues scene={scene} />
-        </Flex>
+              <InsetOverlapWarning scene={scene} />
+              <Flex wrap gap={16}>
+                <AutoSaveField
+                  label="Số giây"
+                  value={String(scene.seconds)}
+                  inputMode="decimal"
+                  width={110}
+                  save={async (text) => patch({ seconds: parseSeconds(text) })}
+                />
+                {scene.video && ownPicture && (
+                  <AutoSaveField
+                    label="Bắt đầu từ giây"
+                    value={String(scene.video.start)}
+                    help={clipSpeedHelp(scene.video.speed)}
+                    inputMode="decimal"
+                    width={130}
+                    save={async (text) => patch({ video_start: parseSeconds(text) })}
+                  />
+                )}
+                {/* The inset's "Tìm" and "AI" read these too, so they are always there. */}
+                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                  <SceneKeywordsField scene={scene} />
+                </div>
+              </Flex>
+              <ScenePromptField scene={scene} />
+              <SceneIssues scene={scene} />
+            </Flex>
+          </Col>
+        </Row>
       ) : (
         <Row gutter={[16, 12]}>
           <Col xs={24} sm={9} md={8}>
@@ -344,7 +341,6 @@ export default function SceneCard({
                   Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
                 </Typography.Text>
               )}
-              {backdrop && !scene.is_title && <HalfPhotoPanel scene={scene} backdrop={backdropScene} />}
               {ownPicture && (
                 <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
               )}

@@ -278,7 +278,7 @@ def test_a_backdrop_script_names_a_dish_only_where_it_shows_one(committed, tmp_p
         _, scenes = split_scenes(db, db.get(Video, video_id))
         kinds = [[(layer.kind, layer.style, layer.x, layer.y, layer.image_key) for layer in s.layers] for s in scenes]
     # Such a video uses only half-frame photos (2026-11-09), showing the scene's photo until it has its own.
-    half = ("photo", "half", 540, 365, None)
+    half = ("photo", "half", 540, 1613, None)
     assert kinds == [[half], [], [half]], "a half-frame photo where the scene names a dish"
 
 

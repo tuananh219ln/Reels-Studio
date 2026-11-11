@@ -3,9 +3,10 @@
 
 The picture of a layer is drawn by the render core (reels_render.layers), so the studio's phone shows exactly what
 the MP4 overlays. "Ảnh món" shows its scene's own photo, so every way of choosing a scene's photo chooses it. A
-half-frame photo (style "half") has a photo of its own, from the member's computer, the library or a link; it is
-always as wide as the frame and half as tall, so only its place down the frame, its start and its seconds change: the
-server keeps it centred across and inside the frame whatever it is sent. Only a "Video xuyên suốt" takes one (owner's
+inset photo ("Ảnh chèn", style "half") has a photo of its own, from the member's computer, the library or a link; it
+is a square `height` percent of the frame's height on each side (30-45%, narrower than the frame), so only its place
+down the frame, its size, its start and its seconds change: the server keeps it centred across and inside the frame
+whatever it is sent. Only a "Video xuyên suốt" takes one (owner's
 choice, 2026-11-09): on a slide video the scene's photo already fills the frame.
 """
 
@@ -23,6 +24,7 @@ from sqlalchemy.orm import Session as DbSession
 from reels_render.layers import (
     ANIMATIONS,
     HALF,
+    HALF_HEIGHT_DEFAULT,
     HALF_HEIGHT_MAX,
     HALF_HEIGHT_MIN,
     HALF_X,
@@ -145,7 +147,7 @@ def _apply(row: SceneLayer, body: LayerBody) -> None:
     for field in sorted(body.model_fields_set & set(FIELDS), key=lambda name: name != "kind"):
         value = getattr(body, field)
         if half and field in ("x", "y"):
-            # As wide as the frame and half as tall: centred across, kept between the top and the bottom half.
+            # Centred across, kept between flush with the top edge and flush with the bottom edge.
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
                 raise invalid("Vị trí phải là số")
             row.x = HALF_X
@@ -307,8 +309,8 @@ class HalfPhotoBody(BaseModel):
 def store_half_photo(
     db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str, replace: bool = False
 ) -> dict:
-    """A half-frame photo over the scene, as a copy of its own: across the top half of the frame, for the whole
-    scene (the owner's choice: it shows with the narration and leaves with the scene); the render lays it under the
+    """An inset photo over the scene, as a copy of its own: HALF_HEIGHT_DEFAULT percent, flush with the bottom edge
+    (2026-11-12), for the whole scene (the owner's choice: it shows with the narration and leaves with the scene); the render lays it under the
     scene's text and its other layers. With `replace` it takes the place of the scene's "Ảnh món"."""
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
@@ -318,17 +320,19 @@ def store_half_photo(
         raise invalid(SLIDES_ERROR)
     key = new_key(video.id, f"layer-{scene.id}", extension)
     for layer in [layer for layer in scene.layers if layer.kind == "photo"]:
-        if is_half_layer(layer) and not layer.image_key:
-            # A half-frame photo still showing its scene's photo (a "Video xuyên suốt" script's) takes this one,
-            # keeping its place and seconds.
-            layer.image_key = key
+        if is_half_layer(layer):
+            # The scene's inset takes this photo in place of the one it shows (its scene's, or a copy of its own,
+            # let go once saved), keeping its place, size and seconds: one photo layer per scene.
+            dropped, layer.image_key = layer.image_key, key
             storage.save_bytes(key, data)
             try:
-                return _saved(db, video)
+                payload = _saved(db, video)
             except Exception:
                 storage.delete(key)
                 raise
-        if not replace or is_half_layer(layer):
+            storage.delete(dropped)
+            return payload
+        if not replace:
             raise invalid(ONE_PHOTO_ERROR)
         scene.layers.remove(layer)
         db.delete(layer)
@@ -345,7 +349,8 @@ def store_half_photo(
             start=0,
             seconds=HALF_SECONDS,
             x=HALF_X,
-            y=half_y(0),
+            y=half_y(FRAME_HEIGHT, HALF_HEIGHT_DEFAULT),
+            height=HALF_HEIGHT_DEFAULT,
             size="medium",
             style=HALF,
             animation="none",

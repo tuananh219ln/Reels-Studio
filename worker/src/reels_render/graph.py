@@ -51,13 +51,14 @@ class SceneInput:
 
 @dataclass(frozen=True)
 class InsetInput:
-    """A half-frame photo's picture laid across the frame at `top`, from `start` to `end` seconds of its scene's own
+    """An inset photo's picture laid on the frame at (`left`, `top`), from `start` to `end` seconds of its scene's own
     picture (which starts half a crossfade before the scene when it fades in: graph.clip_lead)."""
 
     image: Path
     top: int
     start: float
     end: float
+    left: int = 0
 
 
 @dataclass(frozen=True)
@@ -268,7 +269,7 @@ def build_filter_graph(
         for number, inset in enumerate(insets[index]):
             shown = f"between(t,{inset.start:.3f},{inset.end:.3f})"
             label = f"bg{index}i{number}"
-            chains.append(f"[{under}][{next_inset}:v]overlay=x=0:y={inset.top}:enable='{shown}'[{label}]")
+            chains.append(f"[{under}][{next_inset}:v]overlay=x={inset.left}:y={inset.top}:enable='{shown}'[{label}]")
             under = label
             next_inset += 1
         text = f"{box}:v"

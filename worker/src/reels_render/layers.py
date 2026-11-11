@@ -1,9 +1,10 @@
 """Text, sticker and photo layers laid over a scene for their own seconds: each a named preset, drawn once as a picture.
 
 A photo layer ("Ảnh món") shows its scene's own photo framed over a video with one backdrop ("Video xuyên suốt");
-the render lays it on only in that mode. A photo layer of style "half" ("Ảnh chèn nửa khung") shows a photo of its
-own on every kind of video, always as wide as the frame and half as tall, cut to fill that box, and moves only up and
-down; the render lays it under the scene's text box and the other layers.
+the render lays it on only in that mode. A photo layer of style "half" ("Ảnh chèn") shows a photo of its own over
+the backdrop: a square with rounded corners, `height` percent of the frame on each side (so always narrower than the
+frame), cut to fill it, centred across, and moved only up and down; the render lays it under the scene's text box and
+the other layers.
 
 The api draws the same picture for the studio's preview (GET /api/layers/{id}/image.png), so the phone shows exactly
 what the render overlays; only the entrance is played by CSS there. Keep the labels in step with
@@ -83,17 +84,17 @@ PHOTO_SHADOW_BLUR = 14
 PHOTO_SHADOW_ALPHA = 0.45
 PHOTO_MAX_HEIGHT = 1100  # a tall photo is cut to this, so it never fills the frame from top to bottom
 
-# "Ảnh chèn nửa khung": a photo layer's style apart from PHOTO_SHAPES, since its photo is its own and its size fixed.
+# "Ảnh chèn": a photo layer's style apart from PHOTO_SHAPES, since its photo is its own and its shape fixed.
 HALF = "half"
 HALF_LABEL = "Ảnh chèn"
-HALF_WIDTH = FRAME_WIDTH  # edge to edge, no white edge, square corners
 HALF_X = FRAME_WIDTH // 2  # its centre across, always
-HALF_HEIGHT_DEFAULT, HALF_HEIGHT_MIN, HALF_HEIGHT_MAX = 38, 30, 45  # its height, in percent of the frame
-HALF_FADE = 32  # the soft edge towards the picture behind it, in frame pixels (24-40 px)
+# Its size ("Cỡ ảnh"): each side in percent of the frame's height; 45% is 864 px, so it never reaches the side edges.
+HALF_HEIGHT_DEFAULT, HALF_HEIGHT_MIN, HALF_HEIGHT_MAX = 32, 30, 45
+HALF_RADIUS = 36  # its rounded corners, in frame pixels; no border (owner's choice, 2026-11-12)
 
 
 def half_height(percent: float = HALF_HEIGHT_DEFAULT) -> int:
-    """A half-frame photo's height in frame pixels from its percent of the frame (38% is 730 px)."""
+    """An inset photo's side in frame pixels from its percent of the frame's height (32% is 614 px, 38% is 730)."""
     return round(FRAME_HEIGHT * min(max(percent, HALF_HEIGHT_MIN), HALF_HEIGHT_MAX) / 100)
 
 
@@ -132,7 +133,7 @@ class Layer:
     style: str = "outline"  # a text layer's TEXT_STYLES, a photo layer's PHOTO_SHAPES
     animation: str = "fade"
     image: Path | None = None  # a photo layer's photo
-    height: int = HALF_HEIGHT_DEFAULT  # a half-frame photo's height, in percent of the frame
+    height: int = HALF_HEIGHT_DEFAULT  # an inset photo's size: its side, in percent of the frame's height
 
     @property
     def half(self) -> bool:
@@ -164,7 +165,7 @@ def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
         if layer.image is None:
             raise ValueError("lớp ảnh chưa có ảnh")
         if layer.half:
-            return render_half(layer.image, layer.height, layer.y)
+            return render_half(layer.image, layer.height)
         return render_photo(layer.image, SIZES[layer.size].photo, layer.style)
     return _sticker(layer.sticker, SIZES[layer.size].sticker)
 
@@ -178,29 +179,14 @@ def _open_photo(path: Path) -> Image.Image:
         raise ValueError(f"ảnh hỏng hoặc không đọc được ({err})") from None
 
 
-def render_half(path: Path, height: int = HALF_HEIGHT_DEFAULT, y: int = 0) -> Image.Image:
-    """ "Ảnh chèn": the photo scaled to cover the full frame width by `height` percent of the frame and cut in the
-    middle, never stretched, with no edge and square corners. Where it meets the picture behind it (the edge not on
-    the frame's own edge) it fades out over HALF_FADE pixels, so it blends in instead of ending hard. Raises
+def render_half(path: Path, height: int = HALF_HEIGHT_DEFAULT) -> Image.Image:
+    """ "Ảnh chèn": the photo scaled to cover a square `height` percent of the frame's height on each side and cut in
+    the middle, never stretched, with rounded corners and no border, transparent only outside those corners. Raises
     ValueError for a file that is not a photo."""
-    tall = half_height(height)
+    side = half_height(height)
     picture = _open_photo(path).convert("RGB")
-    card = ImageOps.fit(picture, (HALF_WIDTH, tall), Image.Resampling.LANCZOS, centering=(0.5, 0.5)).convert("RGBA")
-    top = layer_corner(HALF_WIDTH, tall, (HALF_X, y))[1]
-    fade_top, fade_bottom = top > 0, top + tall < FRAME_HEIGHT
-    if not fade_top and not fade_bottom:
-        # Flush with neither edge cannot happen for 30-45%; a full frame has nothing to blend into.
-        return card
-    ramp = [255] * tall
-    for row in range(min(HALF_FADE, tall)):
-        level = round(255 * row / HALF_FADE)
-        if fade_top:
-            ramp[row] = min(ramp[row], level)
-        if fade_bottom:
-            ramp[tall - 1 - row] = min(ramp[tall - 1 - row], level)
-    mask = Image.new("L", (1, tall))
-    mask.putdata(ramp)
-    card.putalpha(mask.resize((HALF_WIDTH, tall)))
+    card = ImageOps.fit(picture, (side, side), Image.Resampling.LANCZOS, centering=(0.5, 0.5)).convert("RGBA")
+    card.putalpha(_shape_mask((side, side), HALF_RADIUS, False))
     return card
 
 

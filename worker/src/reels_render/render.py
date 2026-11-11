@@ -156,8 +156,8 @@ def render_video(
                     # Under the scene's text box, in the seconds of the scene's own picture.
                     lead = clip_lead(index, cut)
                     end = min(start + layer.seconds, scene_end) - scene_start / FPS
-                    top = layer_corner(picture.width, picture.height, (layer.x, layer.y))[1]
-                    insets.append(InsetInput(path, top, layer.start + lead, end + lead))
+                    left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
+                    insets.append(InsetInput(path, top, layer.start + lead, end + lead, left))
                     continue
                 left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
                 layers.append(

@@ -10,7 +10,7 @@ import {
   SceneTextField,
   SceneVoiceField,
 } from "../SceneCard";
-import HalfPhotoPanel from "../HalfPhotoPanel";
+import HalfPhotoPanel, { InsetOverlapWarning } from "../HalfPhotoPanel";
 import { photoLayer } from "../videoModes";
 import { isHalf } from "./layers";
 
@@ -83,20 +83,22 @@ export default function SceneInspector({
                 key: "media",
                 label: "Ảnh chèn",
                 children: (
-                  // The half-frame photo over the backdrop (the preview's `scene` carries it); an older video's
-                  // "Ảnh món" shows its photo, which "Đổi ảnh món thành ảnh chèn" turns into one.
+                  // The inset photo over the backdrop (the preview's `scene` carries it), with the scene's own picture
+                  // tools while it shows the scene's photo; an older video's "Ảnh món" turns into one when it is on.
                   <Flex vertical gap={8}>
-                    <HalfPhotoPanel scene={saved} backdrop={scene} />
-                    {(photoLayer(saved.layers) ||
-                      saved.layers.some((layer) => isHalf(layer) && layer.own_image === false)) && (
-                      <ScenePicture
-                        scene={saved}
-                        voiceEnabled={voiceEnabled}
-                        generating={generating}
-                        editing={editing}
-                        compact
-                      />
-                    )}
+                    <HalfPhotoPanel scene={saved} backdrop={scene} generating={generating}>
+                      {(photoLayer(saved.layers) ||
+                        saved.layers.some((layer) => isHalf(layer) && layer.own_image === false)) && (
+                        <ScenePicture
+                          scene={saved}
+                          voiceEnabled={voiceEnabled}
+                          generating={generating}
+                          editing={editing}
+                          compact
+                        />
+                      )}
+                    </HalfPhotoPanel>
+                    <InsetOverlapWarning scene={saved} />
                   </Flex>
                 ),
               }
