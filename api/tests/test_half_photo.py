@@ -270,7 +270,7 @@ def test_its_height_is_30_to_45_percent_and_it_keeps_the_edge_it_is_flush_with(a
     taller = patch({"height": 45})
     assert (taller["height"], taller["y"]) == (45, 432), "still flush with the top edge"
     assert patch({"y": 1920})["y"] == 1488, "dragged to the bottom: flush with the bottom edge at 45%"
-    assert patch({"height": 30})["y"] == 1344, "shorter, still flush with the bottom edge"
+    assert patch({"height": 30})["y"] == 1632, "shorter, still flush with the bottom edge"
     assert patch({"y": 960})["y"] == 960
     assert patch({"height": 38})["y"] == 960, "from the middle it stays in the middle"
     for bad in (29, 46, "cao", True):
