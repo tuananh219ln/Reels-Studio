@@ -892,6 +892,29 @@ export type PlanPost = {
 /** An imported file or the AI's draft, shown before it replaces the plan. */
 export type PlanPreview = { ideas: PlanIdeaFields[]; errors: string[]; warnings: string[]; can_backlog?: boolean };
 
+/** How a previewed file is loaded (POST /plans/{id}/apply); "overwrite" is "Lưu kế hoạch" as before. */
+export type PlanImportMode = "overwrite" | "append" | "next_empty" | "replace_days";
+
+/** What loading a file changed, by plan day. */
+export type PlanImportReport = {
+  mode: PlanImportMode;
+  filled: number[];
+  appended: number[];
+  replaced: number[];
+  /** Days a whole-plan overwrite left without ideas. */
+  emptied: number[];
+  /** Ideas skipped because the plan already has their topic; `where`: "ngày N" or "Backlog". */
+  duplicates: { topic: string; day: number | null; where: string }[];
+  /** Ideas skipped because their day already holds the most ideas a day. */
+  full: { topic: string; day: number }[];
+  /** Days of the file that found no empty day ("next_empty" told to load what fits). */
+  not_loaded: number[];
+  /** [day in the file, plan day] for "next_empty". */
+  placed: [number, number][];
+  /** Every plan day that changed. */
+  days: number[];
+};
+
 export type Plan = {
   topic_id: number;
   name: string;

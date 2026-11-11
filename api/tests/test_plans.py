@@ -687,3 +687,184 @@ def test_a_plan_answer_is_repaired_where_it_can_be():
     assert len(ideas) == 100 and "Đã có" not in [idea.topic for idea in ideas]
     assert max(len(idea.hook) for idea in ideas) == plans.MAX_HOOK_LENGTH
     assert all(idea.day <= 10 for idea in ideas)
+
+
+# --- Import modes (brief docs/specs/nap-ke-hoach-tuy-chon) ---
+
+
+def seed_days(an, topic_id, days, per_day=1) -> dict:
+    """A plan whose `days` hold `per_day` ideas each, "Cũ d.n"."""
+    ideas = [{"day": day, "topic": f"Cũ {day}.{n}"} for day in days for n in range(1, per_day + 1)]
+    return an.put(f"/api/plans/{topic_id}/items", json={"ideas": ideas}).json()
+
+
+def apply(an, topic_id, mode, ideas, fit=False):
+    return an.post(f"/api/plans/{topic_id}/apply", json={"mode": mode, "ideas": ideas, "fit": fit})
+
+
+def snapshot(plan, days) -> dict:
+    """Every field of the ideas of `days`, to show they did not change by one character."""
+    keep = ("id", "day", "position", "topic", "pain_group", "pain", "hook", "video_id")
+    return {day: [{key: item[key] for key in keep} for item in plan["items"] if item["day"] == day] for day in days}
+
+
+def test_overwrite_mode_saves_the_plan_exactly_as_lưu_kế_hoạch_does(an, topic_id):
+    seed_days(an, topic_id, range(1, 15))
+    ideas = [{"day": day, "topic": f"Mới {day}"} for day in range(1, 15)]
+    response = apply(an, topic_id, "overwrite", ideas)
+    assert response.status_code == 200, response.text
+    plan = response.json()
+    assert [(item["day"], item["topic"], item["position"]) for item in plan["items"]] == [
+        (day, f"Mới {day}", 1) for day in range(1, 15)
+    ]
+    report = plan["report"]
+    assert (report["mode"], report["replaced"], report["filled"], report["appended"]) == (
+        "overwrite",
+        list(range(1, 15)),
+        [],
+        [],
+    )
+    assert report["days"] == list(range(1, 15)) and report["duplicates"] == [] and report["not_loaded"] == []
+
+
+def test_append_mode_adds_to_the_end_of_the_days_in_the_file_and_fills_empty_ones(an, topic_id):
+    before = seed_days(an, topic_id, [day for day in range(1, 15) if day != 9])
+    ideas = [
+        {"day": 4, "topic": "Mới 4", "pain": "đau", "hook": "móc"},
+        {"day": 7, "topic": "Mới 7a"},
+        {"day": 7, "topic": "Mới 7b"},
+        {"day": 9, "topic": "Mới 9"},
+    ]
+    plan = apply(an, topic_id, "append", ideas).json()
+    assert ideas_of(plan, 4) == ["Cũ 4.1", "Mới 4"]
+    assert ideas_of(plan, 7) == ["Cũ 7.1", "Mới 7a", "Mới 7b"]
+    assert ideas_of(plan, 9) == ["Mới 9"]
+    added = next(item for item in plan["items"] if item["topic"] == "Mới 4")
+    assert (added["position"], added["pain"], added["hook"]) == (2, "đau", "móc")
+    untouched = [day for day in range(1, 15) if day not in (4, 7, 9)]
+    assert snapshot(plan, untouched) == snapshot(before, untouched)
+    # The ideas already on days 4 and 7 keep their row and place.
+    assert snapshot(plan, [4])[4][0] == snapshot(before, [4])[4][0]
+    report = plan["report"]
+    assert (report["filled"], report["appended"], report["days"]) == ([9], [4, 7], [4, 7, 9])
+
+
+def test_append_mode_skips_a_topic_the_plan_already_has_and_reports_it(an, db, me, storage, topic_id):
+    seed_days(an, topic_id, [1, 2, 3])
+    plan = add(an, topic_id, None, "Để dành").json()
+    video = make_video(db, storage, me, scene_count=1)
+    db.get(TopicPlanItem, next(item["id"] for item in plan["items"] if item["day"] is None)).video_id = video.id
+    db.flush()
+    ideas = [
+        {"day": 1, "topic": "  cũ 1.1 "},  # the same day already has it
+        {"day": 1, "topic": "Cũ 2.1"},  # day 2 has it: a topic is never twice in a plan
+        {"day": 1, "topic": "Mới 1"},
+        {"day": 3, "topic": "để dành", "hook": "móc mới"},  # from the Backlog onto day 3, with its video
+    ]
+    plan = apply(an, topic_id, "append", ideas).json()
+    assert ideas_of(plan, 1) == ["Cũ 1.1", "Mới 1"]
+    assert ideas_of(plan, 2) == ["Cũ 2.1"]
+    assert ideas_of(plan, 3) == ["Cũ 3.1", "để dành"] and ideas_of(plan, None) == []
+    moved = next(item for item in plan["items"] if item["day"] == 3 and item["position"] == 2)
+    assert (moved["video_id"], moved["hook"]) == (video.id, "móc mới")
+    assert plan["report"]["duplicates"] == [
+        {"topic": "cũ 1.1", "day": 1, "where": "ngày 1"},
+        {"topic": "Cũ 2.1", "day": 1, "where": "ngày 2"},
+    ]
+    assert plan["report"]["appended"] == [1, 3]
+
+
+def test_append_mode_stops_at_ten_ideas_a_day_and_says_which_were_left_out(an, topic_id):
+    seed_days(an, topic_id, [5], per_day=9)
+    plan = apply(an, topic_id, "append", [{"day": 5, "topic": "Mới a"}, {"day": 5, "topic": "Mới b"}]).json()
+    assert len(ideas_of(plan, 5)) == 10 and ideas_of(plan, 5)[-1] == "Mới a"
+    assert plan["report"]["full"] == [{"topic": "Mới b", "day": 5}]
+
+
+def test_next_empty_mode_fills_the_first_empty_days_in_the_files_order(an, topic_id):
+    before = seed_days(an, topic_id, range(1, 15))
+    ideas = [{"day": day, "topic": f"Đợt 2 ngày {day}"} for day in (3, 1, 2, 5, 4)]
+    plan = apply(an, topic_id, "next_empty", ideas).json()
+    assert {day: ideas_of(plan, day) for day in range(15, 21)} == {
+        15: ["Đợt 2 ngày 1"],
+        16: ["Đợt 2 ngày 2"],
+        17: ["Đợt 2 ngày 3"],
+        18: ["Đợt 2 ngày 4"],
+        19: ["Đợt 2 ngày 5"],
+        20: [],
+    }
+    assert snapshot(plan, range(1, 15)) == snapshot(before, range(1, 15))
+    report = plan["report"]
+    assert report["filled"] == [15, 16, 17, 18, 19]
+    assert report["placed"] == [[1, 15], [2, 16], [3, 17], [4, 18], [5, 19]]
+
+
+def test_next_empty_mode_uses_a_gap_first(an, topic_id):
+    seed_days(an, topic_id, [1, 2, 4])
+    plan = apply(an, topic_id, "next_empty", [{"day": 1, "topic": "A"}, {"day": 2, "topic": "B"}]).json()
+    assert (ideas_of(plan, 3), ideas_of(plan, 5)) == (["A"], ["B"])
+
+
+def test_next_empty_mode_without_room_asks_first_and_fits_only_when_told(an, topic_id):
+    before = seed_days(an, topic_id, range(1, 29))
+    ideas = [{"day": day, "topic": f"Đợt 2 ngày {day}"} for day in range(1, 6)]
+    refused = apply(an, topic_id, "next_empty", ideas)
+    assert (refused.status_code, refused.json()["message"]) == (
+        409,
+        "Còn 2 ngày trống, file có 5 ngày",
+    )
+    assert an.get(f"/api/plans/{topic_id}").json()["items"] == before["items"]
+
+    plan = apply(an, topic_id, "next_empty", ideas, fit=True).json()
+    assert (ideas_of(plan, 29), ideas_of(plan, 30)) == (["Đợt 2 ngày 1"], ["Đợt 2 ngày 2"])
+    assert plan["report"]["not_loaded"] == [3, 4, 5]
+
+
+def test_replace_days_mode_replaces_only_the_days_in_the_file_and_keeps_their_videos(an, db, me, storage, topic_id):
+    before = seed_days(an, topic_id, range(1, 15), per_day=2)
+    four = next(item for item in before["items"] if item["topic"] == "Cũ 4.1")
+    seven = next(item for item in before["items"] if item["topic"] == "Cũ 7.2")
+    made = make_video(db, storage, me, scene_count=1)
+    kept = make_video(db, storage, me, scene_count=1)
+    db.get(TopicPlanItem, four["id"]).video_id = made.id
+    db.get(TopicPlanItem, seven["id"]).video_id = kept.id
+    db.flush()
+    ideas = [
+        {"day": 4, "topic": "Thay 4"},
+        {"day": 7, "topic": "cũ 7.2", "hook": "móc mới"},  # the same topic keeps its video
+        {"day": 7, "topic": "Thay 7"},
+        {"day": 9, "topic": "Thay 9"},
+        {"day": 9, "topic": "Cũ 10.1"},  # day 10 is not replaced and keeps it
+    ]
+    plan = apply(an, topic_id, "replace_days", ideas).json()
+    assert ideas_of(plan, 4) == ["Thay 4"]
+    assert ideas_of(plan, 7) == ["cũ 7.2", "Thay 7"]
+    assert ideas_of(plan, 9) == ["Thay 9"]
+    assert next(item for item in plan["items"] if item["day"] == 7)["video_id"] == kept.id
+    untouched = [day for day in range(1, 15) if day not in (4, 7, 9)]
+    assert snapshot(plan, untouched) == snapshot(before, untouched)
+    # Loading a plan never deletes a video: the one of the replaced idea stays in the library.
+    db.expire_all()
+    assert db.get(Video, made.id) is not None
+    report = plan["report"]
+    assert (report["replaced"], report["days"]) == ([4, 7, 9], [4, 7, 9])
+    assert report["duplicates"] == [{"topic": "Cũ 10.1", "day": 9, "where": "ngày 10"}]
+
+
+def test_replace_days_mode_does_not_delete_a_teammates_ideas(client, db, topic_id):
+    make_user(db)
+    make_user(db, email="binh@doi.vn", name="Bình")
+    login(client)
+    seed_days(client, topic_id, [4])
+    login(client, "binh@doi.vn")
+    refused = apply(client, topic_id, "replace_days", [{"day": 4, "topic": "Thay 4"}])
+    assert refused.status_code == 409
+    assert ideas_of(client.get(f"/api/plans/{topic_id}").json(), 4) == ["Cũ 4.1"]
+
+
+def test_a_mode_checks_the_file_as_saving_a_plan_does(an, topic_id):
+    assert apply(an, topic_id, "sideways", [{"day": 1, "topic": "A"}]).status_code == 422
+    twice = apply(an, topic_id, "append", [{"day": 1, "topic": "A"}, {"day": 2, "topic": "a"}])
+    assert twice.status_code == 422 and twice.json()["message"].startswith("Chủ đề trùng")
+    undated = apply(an, topic_id, "next_empty", [{"topic": "A"}])
+    assert undated.status_code == 422

@@ -33,6 +33,7 @@ import {
   InputNumber,
   Modal,
   Popconfirm,
+  Radio,
   Row,
   Segmented,
   Select,
@@ -59,6 +60,8 @@ import {
   type PlanItem,
   type PlanItemStatus,
   type PlanPost,
+  type PlanImportMode,
+  type PlanImportReport,
   type PlanPreview,
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
@@ -176,6 +179,7 @@ export function usePlanTabs(
   const { message } = App.useApp();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
+  const [report, setReport] = useState<PlanImportReport | null>(null);
   const [adding, setAdding] = useState<{ day: number | null } | null>(null);
   const [overTab, setOverTab] = useState(false);
 
@@ -254,10 +258,25 @@ export function usePlanTabs(
       {preview && plan && (
         <PreviewModal
           preview={preview}
-          current={plan.items.filter((item) => item.day !== null).length}
-          onSave={async () => {
-            if (await change(() => api<Plan>(`${path}/items`, "PUT", { ideas: preview.ideas }), "Đã lưu kế hoạch")) {
+          items={plan.items}
+          onSave={async (mode, fit) => {
+            if (preview.fromAi) {
+              if (await change(() => api<Plan>(`${path}/items`, "PUT", { ideas: preview.ideas }), "Đã lưu kế hoạch")) {
+                setPreview(null);
+              }
+              return;
+            }
+            try {
+              const result = await api<Plan & { report: PlanImportReport }>(`${path}/apply`, "POST", {
+                mode,
+                fit,
+                ideas: preview.ideas,
+              });
+              setPlan(result);
               setPreview(null);
+              setReport(result.report);
+            } catch (err) {
+              message.error(errorMessage(err));
             }
           }}
           onBacklog={async () => {
@@ -279,6 +298,7 @@ export function usePlanTabs(
           onClose={() => setPreview(null)}
         />
       )}
+      {report && <ImportReport report={report} onClose={() => setReport(null)} />}
     </>
   );
 
@@ -1719,26 +1739,61 @@ function AddIdeaModal({
   );
 }
 
+const IMPORT_MODES: { value: PlanImportMode; label: string; help: string }[] = [
+  {
+    value: "overwrite",
+    label: "Ghi đè toàn bộ",
+    help: "Cả 30 ngày thay bằng file, ngày không có trong file thành trống; Backlog vẫn giữ.",
+  },
+  {
+    value: "append",
+    label: "Thêm vào cuối ngày",
+    help: "Ý tưởng của file thêm vào cuối ngày cùng số, ngày trống thì được điền; ngày không có trong file giữ nguyên.",
+  },
+  {
+    value: "next_empty",
+    label: "Thêm vào ngày trống tiếp theo",
+    help: "Các ngày của file lần lượt vào những ngày còn trống, từ ngày trống đầu tiên; ngày đã có ý tưởng giữ nguyên.",
+  },
+  {
+    value: "replace_days",
+    label: "Thay các ngày có trong file",
+    help: "Ý tưởng của các ngày có trong file thay bằng file; ngày khác giữ nguyên. Video đã dựng vẫn giữ trong thư viện.",
+  },
+];
+
+const dayList = (days: number[]) => days.join(", ");
+
 function PreviewModal({
   preview,
-  current,
+  items,
   onSave,
   onBacklog,
   onClose,
 }: {
   preview: Preview;
-  current: number;
-  onSave: () => Promise<void>;
+  /** The plan as it is, to show what each way of loading would change. */
+  items: PlanItem[];
+  onSave: (mode: PlanImportMode, fit: boolean) => Promise<void>;
   onBacklog: () => Promise<void>;
   onClose: () => void;
 }) {
   const [busy, setBusy] = useState<"plan" | "backlog" | null>(null);
+  const [mode, setMode] = useState<PlanImportMode>("overwrite");
   const blocked = preview.errors.length > 0 || preview.ideas.length === 0;
   const run = async (which: "plan" | "backlog", action: () => Promise<void>) => {
     setBusy(which);
     await action();
     setBusy(null);
   };
+  const current = items.filter((item) => item.day !== null).length;
+  const fileDays = [...new Set(preview.ideas.flatMap((idea) => (idea.day === null ? [] : [idea.day])))].sort(
+    (a, b) => a - b,
+  );
+  const ideasOn = (day: number) => items.filter((item) => item.day === day);
+  const emptyDays = Array.from({ length: PLAN_DAYS }, (_, index) => index + 1).filter((day) => !ideasOn(day).length);
+  // "Thêm vào ngày trống tiếp theo" with fewer empty days than the file has: warned, and only loaded when asked.
+  const short = mode === "next_empty" && fileDays.length > emptyDays.length;
   return (
     <Modal
       open
@@ -1758,8 +1813,13 @@ function PreviewModal({
               Thêm vào Backlog
             </Button>
           )}
-          <Button type="primary" disabled={blocked} loading={busy === "plan"} onClick={() => run("plan", onSave)}>
-            Lưu kế hoạch
+          <Button
+            type="primary"
+            disabled={blocked || (short && emptyDays.length === 0)}
+            loading={busy === "plan"}
+            onClick={() => run("plan", () => onSave(mode, short))}
+          >
+            {short ? "Nạp phần vừa" : "Lưu kế hoạch"}
           </Button>
         </Flex>
       }
@@ -1780,13 +1840,67 @@ function PreviewModal({
             }
           />
         )}
-        {preview.warnings.map((warning) => (
-          <Alert key={warning} type="warning" showIcon title={warning} />
-        ))}
+        {!preview.fromAi && (
+          <Flex vertical gap={4}>
+            <Typography.Text strong id="plan-import-mode">
+              Cách nạp
+            </Typography.Text>
+            <Radio.Group
+              aria-labelledby="plan-import-mode"
+              value={mode}
+              onChange={(event) => setMode(event.target.value)}
+              options={IMPORT_MODES.map(({ value, label }) => ({ value, label }))}
+            />
+            <Typography.Text type="secondary">{IMPORT_MODES.find((item) => item.value === mode)?.help}</Typography.Text>
+          </Flex>
+        )}
+        {/* "Chưa có ý tưởng cho ngày …" only matters when the file becomes the whole plan. */}
+        {mode === "overwrite" &&
+          preview.warnings.map((warning) => <Alert key={warning} type="warning" showIcon title={warning} />)}
+        {short && (
+          <Alert
+            type="warning"
+            showIcon
+            title={`Còn ${emptyDays.length} ngày trống, file có ${fileDays.length} ngày`}
+            description={
+              emptyDays.length
+                ? `“Nạp phần vừa” điền ${emptyDays.length} ngày đầu của file vào ngày ${dayList(emptyDays)} rồi dừng; các ngày còn lại của file không được nạp. “Huỷ” để kế hoạch như cũ.`
+                : "Kế hoạch không còn ngày trống nào."
+            }
+          />
+        )}
+        {mode === "replace_days" && (
+          <Flex vertical gap={4} data-testid="plan-replaced-days">
+            <Typography.Text>Sẽ thay ý tưởng của {fileDays.length} ngày:</Typography.Text>
+            <ul style={{ margin: 0, paddingInlineStart: 18 }}>
+              {fileDays.map((day) => {
+                const now = ideasOn(day);
+                const made = now.filter((item) => item.video_id !== null).length;
+                return (
+                  <li key={day}>
+                    Ngày {day}: {now.length ? `${now.length} ý tưởng hiện có sẽ bị thay` : "đang trống"}
+                    {made > 0 && (
+                      <Tag color="warning" style={{ marginInlineStart: 8 }}>
+                        Ngày {day} đã có video ({made}), video vẫn giữ trong thư viện
+                      </Tag>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </Flex>
+        )}
         <Typography.Text>
           {preview.ideas.length} ý tưởng.{" "}
-          {current > 0 &&
-            `“Lưu kế hoạch” thay ${current} ý tưởng của 30 ngày (Backlog vẫn giữ); ý tưởng đã có video giữ liên kết nếu cùng chủ đề.`}{" "}
+          {mode === "overwrite" &&
+            current > 0 &&
+            `“Lưu kế hoạch” thay ${current} ý tưởng của 30 ngày (Backlog vẫn giữ); ý tưởng đã có video giữ liên kết nếu cùng chủ đề.`}
+          {mode === "append" &&
+            `Thêm vào cuối ngày ${dayList(fileDays)}; chủ đề kế hoạch đã có thì bỏ qua, ngày đã đủ ${MAX_PER_DAY} ý tưởng thì không thêm.`}
+          {mode === "next_empty" &&
+            !short &&
+            `File có ${fileDays.length} ngày, lần lượt vào ngày ${dayList(emptyDays.slice(0, fileDays.length))}; chủ đề kế hoạch đã có thì bỏ qua.`}
+          {mode === "replace_days" && "Chủ đề kế hoạch đã có ở ngày khác thì bỏ qua."}{" "}
           {!preview.fromAi && "“Thêm vào Backlog” thêm mọi ý tưởng vào Backlog, bỏ qua ngày và chủ đề đã có."}
         </Typography.Text>
         <Table<PlanIdeaFields>
@@ -1804,6 +1918,50 @@ function PreviewModal({
           ]}
         />
       </Flex>
+    </Modal>
+  );
+}
+
+/** What loading a file changed, shown at once so the member sees which days moved. */
+function ImportReport({ report, onClose }: { report: PlanImportReport; onClose: () => void }) {
+  const lines: string[] = [];
+  if (report.filled.length) lines.push(`Điền mới: ngày ${dayList(report.filled)}`);
+  if (report.appended.length) lines.push(`Thêm ý tưởng: ngày ${dayList(report.appended)}`);
+  if (report.replaced.length) lines.push(`Thay: ngày ${dayList(report.replaced)}`);
+  if (report.emptied.length) lines.push(`Thành trống: ngày ${dayList(report.emptied)}`);
+  if (report.placed.length) {
+    lines.push(report.placed.map(([from, to]) => `Ngày ${from} của file → ngày ${to}`).join("; "));
+  }
+  if (report.duplicates.length) {
+    const listed = report.duplicates.map((item) => `“${item.topic}” (đã có ở ${item.where})`).join(", ");
+    lines.push(`Bỏ qua ${report.duplicates.length} ý tưởng trùng chủ đề: ${listed}`);
+  }
+  if (report.full.length) {
+    const listed = report.full.map((item) => `“${item.topic}” (ngày ${item.day})`).join(", ");
+    lines.push(`Bỏ qua ${report.full.length} ý tưởng vì ngày đã đủ ${MAX_PER_DAY} ý tưởng: ${listed}`);
+  }
+  if (report.not_loaded.length) {
+    lines.push(
+      `${report.not_loaded.length} ngày trong file không nạp được vì hết ngày trống: ngày ${dayList(report.not_loaded)} của file`,
+    );
+  }
+  if (!report.days.length) lines.push("Không ngày nào thay đổi.");
+  return (
+    <Modal
+      open
+      title="Đã nạp kế hoạch"
+      onCancel={onClose}
+      footer={
+        <Button type="primary" onClick={onClose}>
+          Đã xem
+        </Button>
+      }
+    >
+      <ul style={{ margin: 0, paddingInlineStart: 18 }} data-testid="plan-import-report">
+        {lines.map((line) => (
+          <li key={line}>{line}</li>
+        ))}
+      </ul>
     </Modal>
   );
 }

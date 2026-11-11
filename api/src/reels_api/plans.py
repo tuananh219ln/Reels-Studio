@@ -439,6 +439,136 @@ def replace_plan(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user_i
     renumber(db, topic.id, None)
 
 
+# How a previewed file is loaded (brief docs/specs/nap-ke-hoach-tuy-chon): "overwrite" is "Lưu kế hoạch" as before;
+# the others leave the days the file does not name alone.
+IMPORT_MODES = ("overwrite", "append", "next_empty", "replace_days")
+
+
+class NotEnoughDays(PlanError):
+    """ "Thêm vào ngày trống tiếp theo" with fewer empty days than the file has, unless asked to load what fits."""
+
+    def __init__(self, empty: int, days: int):
+        super().__init__(f"Còn {empty} ngày trống, file có {days} ngày")
+
+
+def empty_days(items: list[TopicPlanItem]) -> list[int]:
+    taken = {item.day for item in items}
+    return [day for day in range(1, PLAN_DAYS + 1) if day not in taken]
+
+
+def apply_import(
+    db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], mode: str, user_id: int, fit: bool = False
+) -> dict:
+    """Load checked, dated `ideas` in one of IMPORT_MODES and say what changed: the days newly filled, given more
+    ideas, replaced or emptied, the ideas skipped because the plan already has their topic (a topic is never twice in
+    a plan) or their day is full, and the file's days that found no room. An idea whose topic waits in the Backlog
+    moves onto its day with its video. Nothing changes when it refuses."""
+    by_day: dict[int, list[Idea]] = {}
+    for idea in ideas:
+        by_day.setdefault(idea.day, []).append(idea)
+    current = items_of(db, topic.id)
+    had = {item.day for item in current if item.day is not None}
+    report: dict = {
+        "mode": mode,
+        "filled": [],
+        "appended": [],
+        "replaced": [],
+        "emptied": [],
+        "duplicates": [],
+        "full": [],
+        "not_loaded": [],
+        "placed": [],
+    }
+    if mode == "overwrite":
+        replace_plan(db, topic, ideas, user_id)
+        report["replaced"] = sorted(day for day in by_day if day in had)
+        report["filled"] = sorted(day for day in by_day if day not in had)
+        report["emptied"] = sorted(day for day in had if day not in by_day)
+        report["days"] = sorted(set(by_day) | had)
+        return report
+
+    linked: dict[str, int] = {}
+    if mode == "replace_days":
+        leaving = [item for item in current if item.day in by_day]
+        ensure_none_of_others(
+            {"ý tưởng": sum(1 for item in leaving if item.created_by_id != user_id)}, "Các ngày sẽ thay"
+        )
+        linked = {topic_key(item.topic): item.video_id for item in leaving if item.video_id}
+        for item in leaving:
+            db.delete(item)
+        db.flush()
+        current = [item for item in current if item not in leaving]
+    found = {topic_key(item.topic): item for item in current}
+
+    def planned_elsewhere(idea: Idea) -> TopicPlanItem | None:
+        item = found.get(topic_key(idea.topic))
+        return item if item is not None and item.day is not None else None
+
+    target = {day: day for day in by_day}
+    if mode == "next_empty":
+        # A day of the file whose every topic the plan already has takes no empty day.
+        wanted = [day for day in sorted(by_day) if not all(planned_elsewhere(idea) for idea in by_day[day])]
+        empty = empty_days(current)
+        if len(wanted) > len(empty) and not fit:
+            raise NotEnoughDays(len(empty), len(by_day))
+        target = dict(zip(wanted, empty, strict=False))
+        report["not_loaded"] = wanted[len(empty) :]
+
+    counts: dict[int, int] = {}
+    for item in current:
+        if item.day is not None:
+            counts[item.day] = counts.get(item.day, 0) + 1
+    moved_from_backlog = False
+    for file_day in sorted(by_day):
+        day = target.get(file_day)
+        before = counts.get(day, 0) if day is not None else 0
+        added = 0
+        for idea in by_day[file_day]:
+            held = planned_elsewhere(idea)
+            if held is not None:
+                report["duplicates"].append({"topic": idea.topic, "day": day, "where": day_label(held.day)})
+                continue
+            if day is None:
+                continue
+            if counts.get(day, 0) >= MAX_PER_DAY:
+                report["full"].append({"topic": idea.topic, "day": day})
+                continue
+            counts[day] = counts.get(day, 0) + 1
+            fields = {**asdict(idea), "day": day}
+            item = found.get(topic_key(idea.topic))
+            if item is not None:  # waiting in the Backlog: it moves, keeping its maker and its video
+                for name, value in fields.items():
+                    setattr(item, name, value)
+                item.position, item.updated_by_id = counts[day], user_id
+                moved_from_backlog = True
+            else:
+                item = TopicPlanItem(
+                    knowledge_topic_id=topic.id,
+                    position=counts[day],
+                    video_id=linked.pop(topic_key(idea.topic), None),
+                    created_by_id=user_id,
+                    updated_by_id=user_id,
+                    **fields,
+                )
+                db.add(item)
+            found[topic_key(idea.topic)] = item
+            added += 1
+        if day is None:
+            continue
+        if mode == "replace_days" and day in had:
+            report["replaced"].append(day)
+        elif added and before:
+            report["appended"].append(day)
+        elif added:
+            report["filled"].append(day)
+        if added and mode == "next_empty":
+            report["placed"].append([file_day, day])
+    if moved_from_backlog:
+        renumber(db, topic.id, None)
+    report["days"] = sorted({*report["filled"], *report["appended"], *report["replaced"]})
+    return report
+
+
 def add_to_backlog(db: DbSession, topic: KnowledgeTopic, ideas: list[Idea], user_id: int) -> tuple[int, int]:
     """Ideas into the Backlog, after what it holds; a topic the plan or the Backlog already has is skipped. Returns
     how many were added and skipped."""

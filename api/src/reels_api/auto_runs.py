@@ -110,14 +110,16 @@ def today_ideas(db: DbSession, topic: KnowledgeTopic, day: date) -> list[TopicPl
 
 
 def prepare(db: DbSession, page: Fanpage, day: date) -> int:
-    """Today's runs of the Page, one per idea of the day (never more than the plan holds for it); the caller commits.
-    Returns how many runs were started."""
+    """Today's runs of the Page, one per idea of the day up to the group's videos a day (`plan_per_day`), in the
+    day's order; the caller commits. Ideas past that number (added to the end of a day by an import) are backups and
+    are not made: an idea that already has its video takes its place first, so a day is never made twice. Returns how
+    many runs were started."""
     reason = page_problem(db, page)
     if reason is not None:
         _skip(db, page, day, reason)
         return 0
     topic = db.get(KnowledgeTopic, page.knowledge_topic_id)
-    ideas = today_ideas(db, topic, day)
+    ideas = today_ideas(db, topic, day)[: topic.plan_per_day]
     if not ideas:
         _skip(db, page, day, NO_IDEA)
         return 0
