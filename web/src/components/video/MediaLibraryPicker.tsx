@@ -1,7 +1,8 @@
 "use client";
 
-import { App, Button, Divider, Flex, Modal, Select, Spin, Typography } from "antd";
+import { App, Button, Divider, Flex, Modal, Spin, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { FolderFilter } from "@/components/media/FolderSelect";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaLinkSearch from "@/components/media/MediaLinkSearch";
 import { api, errorMessage, type AffiliateProduct, type MediaList, type VideoDetail } from "@/lib/api";
@@ -104,15 +105,11 @@ export default function MediaLibraryPicker({
         <Flex vertical gap={12}>
           <MediaLinkSearch keyword={keyword} folder={folder} onAdded={() => void load()} />
           <Divider style={{ margin: "4px 0" }} />
-          <Select
-            allowClear
-            placeholder="Mọi thư mục"
-            value={folder || undefined}
-            onChange={(value: string | undefined) => setFolder(value ?? "")}
-            options={(data?.folders ?? []).map(({ folder: name, count }) => ({
-              value: name,
-              label: `${name} (${count})`,
-            }))}
+          <FolderFilter
+            aria-label="Lọc theo thư mục"
+            folders={data?.folders ?? []}
+            value={folder || null}
+            onChange={(value) => setFolder(value ?? "")}
             style={{ maxWidth: 360 }}
           />
           {data === null ? (
