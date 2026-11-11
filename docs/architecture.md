@@ -253,7 +253,7 @@ A scene may hold an uploaded video clip instead of a photo
 [ux-guidelines.md](ux-guidelines.md#video-scenes).
 
 - **Upload:** one file per request to the scene. MP4/MOV and WebM, with H.264, HEVC, or VP9 video,
-  1–60 s long, at least 720 px on the short side and at most 4096 px on the long side, up to
+  1–60 s long, at least 576 px on the short side (576×1024 is the smallest 9:16 clip) and at most 4096 px on the long side, up to
   50 MB. The web worker on Cloudflare holds the whole request in memory (128 MB) and Cloudflare
   refuses requests over 100 MB, so the limit stays well below both. The upload is spooled to a
   temp file, never held in memory, and checked before any row is locked.

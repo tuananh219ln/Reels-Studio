@@ -21,7 +21,7 @@ from .uploads import UploadRejected
 MAX_CLIP_BYTES = 50 * 1024 * 1024
 MIN_CLIP_SECONDS = 1
 MAX_CLIP_SECONDS = 60
-MIN_SHORT_SIDE = 720
+MIN_SHORT_SIDE = 576
 MAX_LONG_SIDE = 4096
 CODECS = {"h264", "hevc", "vp9"}
 # The headers ffprobe reads can lie: H.264 may switch to a huge size mid-stream. The decoder refuses any frame
