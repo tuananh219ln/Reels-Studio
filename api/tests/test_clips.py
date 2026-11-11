@@ -37,6 +37,14 @@ def test_a_phone_clip_is_accepted_with_its_length(tmp_path):
 
 
 @needs_ffmpeg
+def test_a_576x1024_clip_is_accepted(tmp_path):
+    """576×1024 is the smallest size the team uploads (a common 9:16 export)."""
+    path = tmp_path / "upload"
+    path.write_bytes(clip_bytes(tmp_path, seconds=2, size="576x1024", rate=2))
+    assert clips.check_clip(path).extension == "mp4"
+
+
+@needs_ffmpeg
 def test_a_vp9_webm_is_accepted_through_the_matroska_demuxer(tmp_path):
     path = tmp_path / "upload"
     path.write_bytes(clip_bytes(tmp_path, seconds=2, codec="libvpx-vp9", extension="webm", rate=5))
@@ -60,7 +68,7 @@ def test_an_mp4_with_another_codec_is_refused(tmp_path):
     [
         (0.5, "1280x720", "Video phải dài từ 1 đến 60 giây"),
         (61, "1280x720", "Video phải dài từ 1 đến 60 giây"),
-        (2, "640x360", "Video phải có cạnh ngắn từ 720 px"),
+        (2, "1024x560", "Video phải có cạnh ngắn từ 576 px"),
         (1, "4112x720", "cạnh dài tối đa 4096 px"),
     ],
 )
