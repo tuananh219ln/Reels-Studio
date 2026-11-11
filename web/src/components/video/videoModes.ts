@@ -13,7 +13,7 @@ export const VIDEO_MODES: { value: VideoMode; label: string; hint: string }[] = 
     label: "Video xuyên suốt",
     hint:
       "Một ảnh hoặc video nền chạy suốt cả video (chọn ở cảnh tiêu đề), các cảnh chỉ đổi chữ và lời đọc; " +
-      "cảnh nêu tên món thì có ảnh chèn nửa khung chồng lên nền, ví dụ “5 món kết hợp với chuối xanh”.",
+      "cảnh nêu tên món thì có ảnh chèn chồng lên nền, ví dụ “5 món kết hợp với chuối xanh”.",
   },
 ];
 
@@ -53,7 +53,7 @@ export function photoLayer(layers: SceneLayer[]): SceneLayer | undefined {
  * scene's photo, or its clip picked up where the scene before left it, looping over the part from the title scene's
  * start to the clip's end (as the render core's backdrop_start does),
  * joined by hard cuts, so a half-frame photo is placed over the backdrop it will be rendered over; on a slide video
- * the photo layers ("Ảnh món", "Ảnh chèn nửa khung"), kept for switching back, are left out.
+ * the photo layers ("Ảnh món", "Ảnh chèn"), kept for switching back, are left out.
  */
 export function previewScenes(video: VideoDetail): SceneData[] {
   const all = [video.title_scene, ...video.scenes].filter((scene): scene is SceneData => scene !== null);

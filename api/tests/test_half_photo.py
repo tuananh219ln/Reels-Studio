@@ -53,13 +53,13 @@ def test_an_uploaded_photo_lands_across_the_top_half_for_the_whole_scene(an, db,
         "kind": "photo",
         "style": "half",
         "x": 540,
-        "y": 480,
+        "y": 365,
         "start": 0,
         "seconds": 60,
         "animation": "none",
     }
     picture = Image.open(io.BytesIO(an.get(layer["image_url"]).content))
-    assert picture.size == (1080, 960)
+    assert picture.size == (1080, 730)
     row = db.get(SceneLayer, layer["id"])
     assert row.image_key and storage.exists(row.image_key)
 
@@ -76,8 +76,8 @@ def test_it_moves_only_up_and_down_and_stays_inside_the_frame(an, db, me, storag
 
     middle = patch({"x": 100, "y": 960})
     assert (middle["x"], middle["y"]) == (540, 960), "sent across: still centred"
-    assert patch({"y": 5000})["y"] == 1440, "dragged past the bottom: kept at the bottom half"
-    assert patch({"y": -50})["y"] == 480, "dragged past the top: kept at the top half"
+    assert patch({"y": 5000})["y"] == 1555, "dragged past the bottom: flush with the bottom edge"
+    assert patch({"y": -50})["y"] == 365, "dragged past the top: flush with the top edge"
     # Its size, look and entrance are fixed; its seconds are its own.
     kept = patch({"size": "large", "style": "circle", "animation": "slide_up", "start": 2, "seconds": 3})
     assert (kept["size"], kept["style"], kept["animation"]) == ("medium", "half", "none")
@@ -160,7 +160,7 @@ def test_the_render_job_hands_the_half_frame_photo_its_own_photo(committed, tmp_
             kind="photo",
             style="half",
             x=540,
-            y=1440,
+            y=1555,
             seconds=60,
             animation="none",
             image_key="videos/inset.jpg",
@@ -176,7 +176,7 @@ def test_the_render_job_hands_the_half_frame_photo_its_own_photo(committed, tmp_
 
     monkeypatch.setattr(jobs, "render_video", fake_render)
     render(committed, storage, video_id, user.id)
-    assert handed["layers"] == [[("half", 1440, "inset-01.jpg")], []]
+    assert handed["layers"] == [[("half", 1555, "inset-01.jpg")], []]
 
 
 def test_the_assistant_adds_one_showing_the_scenes_photo_and_cannot_move_it_across(mcp_client, db, storage):  # noqa: F811
@@ -190,11 +190,11 @@ def test_the_assistant_adds_one_showing_the_scenes_photo_and_cannot_move_it_acro
     added = call(mcp_client, token, "add_layer", scene_id=scene.id, kind="photo")
     assert not added.get("isError"), added
     row = db.scalar(select(SceneLayer).where(SceneLayer.scene_id == scene.id))
-    assert (row.style, row.x, row.y, row.image_key) == ("half", 540, 480, None), "the scene's own photo"
-    moved = call(mcp_client, token, "update_layer", layer_id=row.id, x=100, y=1440)
+    assert (row.style, row.x, row.y, row.image_key) == ("half", 540, 365, None), "the scene's own photo"
+    moved = call(mcp_client, token, "update_layer", layer_id=row.id, x=100, y=1555)
     assert not moved.get("isError"), moved
     db.refresh(row)
-    assert (row.x, row.y) == (540, 1440)
+    assert (row.x, row.y) == (540, 1555)
 
 
 def test_the_scenes_own_photo_becomes_its_half_frame_photo_in_place_of_its_ảnh_món(an, db, me, storage):
@@ -204,7 +204,7 @@ def test_the_scenes_own_photo_becomes_its_half_frame_photo_in_place_of_its_ảnh
     moved = an.post("/api/layers/half-photo", json={"scene_id": scene.id, "scene_photo": True})
     assert moved.status_code == 201, moved.json()
     (layer,) = scene_json(moved.json(), scene.id)["layers"]
-    assert (layer["style"], layer["x"], layer["y"]) == ("half", 540, 480), "the Ảnh món is replaced"
+    assert (layer["style"], layer["x"], layer["y"]) == ("half", 540, 365), "the Ảnh món is replaced"
     # It shows the scene's photo as it changes, so the scene's picture tools find and edit it.
     assert layer["own_image"] is False and db.get(SceneLayer, layer["id"]).image_key is None
 
@@ -244,13 +244,35 @@ def test_a_half_frame_photo_without_its_own_shows_its_scenes_until_one_is_added(
     db.commit()
     (layer,) = scene_json(an.get(f"/api/videos/{video.id}").json(), scene.id)["layers"]
     assert layer["own_image"] is False
-    assert Image.open(io.BytesIO(an.get(layer["image_url"]).content)).size == (1080, 960)
-    an.patch(f"/api/layers/{layer['id']}", json={"y": 1440})
+    assert Image.open(io.BytesIO(an.get(layer["image_url"]).content)).size == (1080, 730)
+    an.patch(f"/api/layers/{layer['id']}", json={"y": 1555})
     added = upload(an, scene.id)
     assert added.status_code == 201, added.json()
     (filled,) = scene_json(added.json(), scene.id)["layers"]
-    assert (filled["id"], filled["own_image"], filled["y"]) == (layer["id"], True, 1440), "it takes the photo, in place"
+    assert (filled["id"], filled["own_image"], filled["y"]) == (layer["id"], True, 1555), "it takes the photo, in place"
     scene.image_key = None
     db.commit()
     blocking = scene_json(an.get(f"/api/videos/{video.id}").json(), scene.id)["blocking"]
     assert not any("ảnh chèn" in issue for issue in blocking), "its own photo is enough"
+
+
+def test_its_height_is_30_to_45_percent_and_it_keeps_the_edge_it_is_flush_with(an, db, me, storage):
+    video = backdrop_video(db, storage, me)
+    scene = first_scene(db, video)
+    layer = scene_json(upload(an, scene.id).json(), scene.id)["layers"][0]
+    assert layer["height"] == 38
+
+    def patch(body: dict) -> dict:
+        response = an.patch(f"/api/layers/{layer['id']}", json=body)
+        assert response.status_code == 200, response.json()
+        return scene_json(response.json(), scene.id)["layers"][0]
+
+    taller = patch({"height": 45})
+    assert (taller["height"], taller["y"]) == (45, 432), "still flush with the top edge"
+    assert patch({"y": 1920})["y"] == 1488, "dragged to the bottom: flush with the bottom edge at 45%"
+    assert patch({"height": 30})["y"] == 1632, "shorter, still flush with the bottom edge"
+    assert patch({"y": 960})["y"] == 960
+    assert patch({"height": 38})["y"] == 960, "from the middle it stays in the middle"
+    for bad in (29, 46, "cao", True):
+        refused = an.patch(f"/api/layers/{layer['id']}", json={"height": bad})
+        assert refused.status_code == 422, bad

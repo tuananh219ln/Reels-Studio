@@ -45,6 +45,7 @@ def test_a_text_layer_and_a_sticker_are_added_changed_drawn_and_removed(an, db, 
         "size": "medium",
         "style": "outline",
         "animation": "fade",
+        "height": 38,
         "image_url": "",
     }
     sticker = scene_json(

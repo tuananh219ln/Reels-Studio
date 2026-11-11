@@ -9,12 +9,12 @@ from reels_render.graph import InsetInput, LayerInput, build_filter_graph
 from reels_render.layers import (
     ANIMATIONS,
     HALF,
-    HALF_HEIGHT,
     HALF_WIDTH,
     SIZES,
     STICKERS,
     TEXT_STYLES,
     Layer,
+    half_height,
     half_y,
     layer_corner,
     render_layer,
@@ -116,33 +116,55 @@ def test_a_sticker_shows_only_during_its_own_seconds(tmp_path):
 
 
 @pytest.mark.parametrize("size", [(1600, 1200), (900, 1600)], ids=["landscape-4:3", "portrait-9:16"])
-def test_a_half_frame_photo_covers_its_whole_box(tmp_path, size):
+def test_an_inset_photo_is_edge_to_edge_38_percent_tall_with_no_border(tmp_path, size):
     photo = make_image(tmp_path / "photo.jpg", size, (40, 160, 60))
-    picture = render_layer(Layer(kind="photo", style=HALF, image=photo))
-    assert picture.size == (HALF_WIDTH, HALF_HEIGHT) == (1080, 960)
-    # Filled to every edge: the photo inside the white edge, no black or empty band on any side.
-    for point in ((540, 30), (540, 930), (30, 480), (1050, 480), (540, 480)):
+    picture = render_layer(Layer(kind="photo", style=HALF, image=photo, y=365))
+    assert picture.size == (HALF_WIDTH, half_height(38)) == (1080, 730)
+    # No white edge and square corners: the photo reaches every corner and edge not blended into the picture behind.
+    for point in ((0, 0), (1079, 0), (0, 300), (1079, 300), (540, 2), (540, 300)):
         red, green, blue, alpha = picture.getpixel(point)
         assert alpha == 255 and green > 120 and red < 90, point
-    # A white edge all round, and transparent only outside the rounded corners.
-    assert picture.getpixel((540, 2))[:3] == (255, 255, 255) and picture.getpixel((2, 480))[:3] == (255, 255, 255)
-    assert picture.getpixel((0, 0))[3] == 0 and picture.getpixel((1079, 959))[3] == 0
+
+
+def test_an_inset_photos_height_is_30_to_45_percent():
+    assert (half_height(10), half_height(30), half_height(38), half_height(45), half_height(80)) == (
+        576,
+        576,
+        730,
+        864,
+        864,
+    )
+
+
+@pytest.mark.parametrize(
+    ("y", "soft_top", "soft_bottom"),
+    [(365, False, True), (960, True, True), (1555, True, False)],
+    ids=["top", "middle", "bottom"],
+)
+def test_an_inset_photo_fades_where_it_meets_the_picture_behind_it(tmp_path, y, soft_top, soft_bottom):
+    photo = make_image(tmp_path / "photo.jpg", (1600, 1200), (40, 160, 60))
+    picture = render_layer(Layer(kind="photo", style=HALF, image=photo, y=y))
+    assert (picture.getpixel((540, 0))[3] < 40) is soft_top
+    assert (picture.getpixel((540, 729))[3] < 40) is soft_bottom
+    # The fade is gone 40 px in: the photo is solid in the rest.
+    assert picture.getpixel((540, 40))[3] == 255 and picture.getpixel((540, 689))[3] == 255
 
 
 def test_a_half_frame_photo_is_cut_in_the_middle_never_stretched(tmp_path):
     # A wide photo: left third red, middle green, right third blue; the box keeps the middle at its own scale.
-    wide = Image.new("RGB", (3000, 960), (220, 30, 30))
-    wide.paste((30, 200, 30), (1000, 0, 2000, 960))
-    wide.paste((30, 30, 220), (2000, 0, 3000, 960))
+    wide = Image.new("RGB", (3000, 730), (220, 30, 30))
+    wide.paste((30, 200, 30), (1000, 0, 2000, 730))
+    wide.paste((30, 30, 220), (2000, 0, 3000, 730))
     wide.save(tmp_path / "wide.png")
-    picture = render_layer(Layer(kind="photo", style=HALF, image=tmp_path / "wide.png"))
-    # max(1080 / 3000, 960 / 960) = 1: the middle 1080 pixels are kept, so 40 pixels of red and blue on each side.
-    assert picture.getpixel((540, 480))[:3] == (30, 200, 30)
-    assert picture.getpixel((25, 480))[0] > 200 and picture.getpixel((1055, 480))[2] > 200
+    picture = render_layer(Layer(kind="photo", style=HALF, image=tmp_path / "wide.png", y=365))
+    # max(1080 / 3000, 730 / 730) = 1: the middle 1080 pixels are kept, so 40 pixels of red and blue on each side.
+    assert picture.getpixel((540, 300))[:3] == (30, 200, 30)
+    assert picture.getpixel((25, 300))[0] > 200 and picture.getpixel((1055, 300))[2] > 200
 
 
-def test_a_half_frame_photo_moves_only_from_the_top_half_to_the_bottom_half():
-    assert (half_y(0), half_y(480), half_y(960), half_y(1440), half_y(1919)) == (480, 480, 960, 1440, 1440)
+def test_an_inset_photo_is_kept_inside_the_frame_from_the_top_edge_to_the_bottom_edge():
+    assert (half_y(0), half_y(365), half_y(960), half_y(1555), half_y(1919)) == (365, 365, 960, 1555, 1555)
+    assert half_y(0, 45) == 432 and half_y(1919, 30) == 1632
 
 
 def test_a_half_frame_photo_goes_under_its_scenes_text_box():
@@ -169,9 +191,9 @@ def test_a_half_frame_photo_shows_for_its_seconds_over_the_top_half_on_a_slide_v
     photo = {"kind": "photo", "style": "half", "image": "p.jpg", "start": 1, "seconds": 1, "x": 900, "y": 300}
     data = {"title": scene("TIÊU ĐỀ", 1), "scenes": [scene("", 3, layers=[photo])]}
     output = render_video(load_script(write_script(tmp_path, data)), tmp_path / "out.mp4")
-    # The scene starts at 1 s: the photo (red) covers the top half from 2 s to 3 s, kept at y 480 (not 300).
+    # The scene starts at 1 s: the photo (red) covers the top 38% from 2 s to 3 s, flush with the top edge.
     during = extract_frame(output, 2.5, tmp_path / "during.png")
-    top, bottom = during.getpixel((540, 480)), during.getpixel((540, 1400))
+    top, bottom = during.getpixel((540, 400)), during.getpixel((540, 1400))
     assert top[0] > 180 and top[2] < 100 and bottom[2] > 150
     for at in (1.5, 3.6):
         assert extract_frame(output, at, tmp_path / "other.png").getpixel((540, 480))[2] > 150
