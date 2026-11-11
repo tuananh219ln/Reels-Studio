@@ -198,6 +198,8 @@ export type SceneLayer = {
   image_url: string;
   /** A half-frame photo's: whether its photo is its own (false: it shows its scene's photo). */
   own_image?: boolean;
+  /** A half-frame (inset) photo's height in percent of the frame, 30–45. */
+  height: number;
 };
 
 /** A sound effect heard from a second of its scene (reels_render.sounds), made by FFmpeg. */

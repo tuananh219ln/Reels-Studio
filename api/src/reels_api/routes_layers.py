@@ -23,13 +23,15 @@ from sqlalchemy.orm import Session as DbSession
 from reels_render.layers import (
     ANIMATIONS,
     HALF,
+    HALF_HEIGHT_MAX,
+    HALF_HEIGHT_MIN,
     HALF_X,
-    HALF_Y_MIN,
     PHOTO_SHAPES,
     SIZES,
     STICKERS,
     TEXT_STYLES,
     Layer,
+    half_height,
     half_y,
     render_layer,
 )
@@ -59,7 +61,7 @@ router = APIRouter(prefix="/api/layers")
 MAX_TEXT_LENGTH = 200
 MAX_START = 60
 MIN_SECONDS, MAX_SECONDS = 0.3, 60
-FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation")
+FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation", "height")
 KINDS = ("text", "sticker", "photo")
 KIND_ERROR = 'Loại lớp phải là "text", "sticker" hoặc "photo"'
 TITLE_ERROR = "Cảnh tiêu đề không có lớp chữ, sticker hay ảnh: nó là ảnh bìa của video"
@@ -79,6 +81,7 @@ class LayerBody(BaseModel):
     size: object = None
     style: object = None
     animation: object = None
+    height: object = None
 
 
 class NewLayerBody(LayerBody):
@@ -102,6 +105,7 @@ def as_layer(row: SceneLayer, image=None) -> Layer:
         style=row.style,
         animation=row.animation,
         image=image,
+        height=row.height,
     )
 
 
@@ -122,6 +126,21 @@ def _preset(value: object, presets: dict, label: str) -> str:
 def _apply(row: SceneLayer, body: LayerBody) -> None:
     """Checks and sets every field the body names, then that the layer can be drawn."""
     half = is_half_layer(row)
+    if half and "height" in body.model_fields_set:
+        # Taller or shorter, it keeps the edge it is flush with (the top, the bottom, or the middle).
+        value = body.height
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise invalid("Chiều cao ảnh chèn phải là số")
+        if not HALF_HEIGHT_MIN <= value <= HALF_HEIGHT_MAX:
+            raise invalid(f"Chiều cao ảnh chèn phải từ {HALF_HEIGHT_MIN}% đến {HALF_HEIGHT_MAX}% khung")
+        before = half_height(row.height)
+        row.height = round(value)
+        if row.y - before // 2 <= 0:
+            row.y = half_y(0, row.height)
+        elif row.y + before // 2 >= FRAME_HEIGHT:
+            row.y = half_y(FRAME_HEIGHT, row.height)
+        else:
+            row.y = half_y(row.y, row.height)
     # The kind first: what a style means depends on it.
     for field in sorted(body.model_fields_set & set(FIELDS), key=lambda name: name != "kind"):
         value = getattr(body, field)
@@ -131,8 +150,8 @@ def _apply(row: SceneLayer, body: LayerBody) -> None:
                 raise invalid("Vị trí phải là số")
             row.x = HALF_X
             if field == "y":
-                row.y = half_y(value)
-        elif half and field in ("size", "style", "animation"):
+                row.y = half_y(value, row.height)
+        elif half and field in ("size", "style", "animation", "height"):
             # Its size and look are fixed and it just appears: these stay as they are.
             continue
         elif field == "kind":
@@ -326,7 +345,7 @@ def store_half_photo(
             start=0,
             seconds=HALF_SECONDS,
             x=HALF_X,
-            y=HALF_Y_MIN,
+            y=half_y(0),
             size="medium",
             style=HALF,
             animation="none",

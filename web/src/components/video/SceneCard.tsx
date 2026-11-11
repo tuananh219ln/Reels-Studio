@@ -60,6 +60,7 @@ import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
 import MediaEditor from "./MediaEditor";
 import HalfPhotoPanel from "./HalfPhotoPanel";
+import PlaceSegmented, { TEXT_PLACES, textPlaceOf, type Place } from "./PlaceSegmented";
 import { isHalf } from "./preview/layers";
 import { photoLayer } from "./videoModes";
 import SceneViewer from "./SceneViewer";
@@ -103,6 +104,7 @@ function parseKeywords(text: string): string[] {
 
 type ScenePatch = Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">> & {
   video_start?: number;
+  text_position?: [number, number] | null;
 };
 
 const patchScene = (scene: SceneData, body: ScenePatch) => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", body);
@@ -278,55 +280,111 @@ export default function SceneCard({
         </Space>
       }
     >
-      <Row gutter={[16, 12]}>
-        <Col xs={24} sm={9} md={8}>
-          {/* On a phone the column is the full width: keep the 9:16 frame a thumbnail, centred. */}
-          <Flex vertical gap={8} style={{ maxWidth: 220, margin: "0 auto" }}>
-            {backdrop && scene.is_title && (
-              <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="backdrop-note">
-                Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
-              </Typography.Text>
-            )}
-            {backdrop && !scene.is_title && <HalfPhotoPanel scene={scene} backdrop={backdropScene} />}
+      {backdrop && !scene.is_title ? (
+        // A "Video xuyên suốt" scene in two tiers, about one screen tall: the preview beside the picture choice, then
+        // the on-screen text and the narration side by side, then the controls that are always there.
+        <Flex vertical gap={12} data-testid="scene-two-tier">
+          <HalfPhotoPanel split scene={scene} backdrop={backdropScene}>
             {ownPicture && (
-              <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
+              <>
+                <ScenePicture
+                  compact
+                  scene={scene}
+                  voiceEnabled={voiceEnabled}
+                  generating={generating}
+                  editing={editing}
+                />
+                <SceneKeywordsField scene={scene} />
+                <ScenePromptField scene={scene} />
+              </>
+            )}
+          </HalfPhotoPanel>
+          <Row gutter={[16, 8]}>
+            <Col xs={24} md={12}>
+              <SceneTextField scene={scene} />
+            </Col>
+            <Col xs={24} md={12}>
+              <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
+            </Col>
+          </Row>
+          <Flex wrap align="center" gap={24} style={{ rowGap: 8 }}>
+            <PlaceSegmented
+              label="Vị trí chữ"
+              value={textPlaceOf(scene.placed_at)}
+              disabled={frozen}
+              onChange={(place: Place) => void patch({ text_position: TEXT_PLACES[place] })}
+            />
+            <AutoSaveField
+              label="Số giây"
+              value={String(scene.seconds)}
+              inputMode="decimal"
+              width={110}
+              save={async (text) => patch({ seconds: parseSeconds(text) })}
+            />
+            {scene.video && ownPicture && (
+              <AutoSaveField
+                label="Bắt đầu từ giây"
+                value={String(scene.video.start)}
+                help={clipSpeedHelp(scene.video.speed)}
+                inputMode="decimal"
+                width={130}
+                save={async (text) => patch({ video_start: parseSeconds(text) })}
+              />
             )}
           </Flex>
-        </Col>
-        <Col xs={24} sm={15} md={16}>
-          <Flex vertical gap={4}>
-            <SceneTextField scene={scene} />
-            <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
-            {/* Seconds (and a clip's start) beside the keywords: short fields, one row. */}
-            <Flex wrap gap={16}>
-              <AutoSaveField
-                label="Số giây"
-                value={String(scene.seconds)}
-                inputMode="decimal"
-                width={110}
-                save={async (text) => patch({ seconds: parseSeconds(text) })}
-              />
-              {scene.video && ownPicture && (
-                <AutoSaveField
-                  label="Bắt đầu từ giây"
-                  value={String(scene.video.start)}
-                  help={clipSpeedHelp(scene.video.speed)}
-                  inputMode="decimal"
-                  width={130}
-                  save={async (text) => patch({ video_start: parseSeconds(text) })}
-                />
+          <SceneIssues scene={scene} />
+        </Flex>
+      ) : (
+        <Row gutter={[16, 12]}>
+          <Col xs={24} sm={9} md={8}>
+            {/* On a phone the column is the full width: keep the 9:16 frame a thumbnail, centred. */}
+            <Flex vertical gap={8} style={{ maxWidth: 220, margin: "0 auto" }}>
+              {backdrop && scene.is_title && (
+                <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="backdrop-note">
+                  Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
+                </Typography.Text>
               )}
+              {backdrop && !scene.is_title && <HalfPhotoPanel scene={scene} backdrop={backdropScene} />}
               {ownPicture && (
-                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                  <SceneKeywordsField scene={scene} />
-                </div>
+                <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
               )}
             </Flex>
-            {ownPicture && <ScenePromptField scene={scene} />}
-            <SceneIssues scene={scene} />
-          </Flex>
-        </Col>
-      </Row>
+          </Col>
+          <Col xs={24} sm={15} md={16}>
+            <Flex vertical gap={4}>
+              <SceneTextField scene={scene} />
+              <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
+              {/* Seconds (and a clip's start) beside the keywords: short fields, one row. */}
+              <Flex wrap gap={16}>
+                <AutoSaveField
+                  label="Số giây"
+                  value={String(scene.seconds)}
+                  inputMode="decimal"
+                  width={110}
+                  save={async (text) => patch({ seconds: parseSeconds(text) })}
+                />
+                {scene.video && ownPicture && (
+                  <AutoSaveField
+                    label="Bắt đầu từ giây"
+                    value={String(scene.video.start)}
+                    help={clipSpeedHelp(scene.video.speed)}
+                    inputMode="decimal"
+                    width={130}
+                    save={async (text) => patch({ video_start: parseSeconds(text) })}
+                  />
+                )}
+                {ownPicture && (
+                  <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                    <SceneKeywordsField scene={scene} />
+                  </div>
+                )}
+              </Flex>
+              {ownPicture && <ScenePromptField scene={scene} />}
+              <SceneIssues scene={scene} />
+            </Flex>
+          </Col>
+        </Row>
+      )}
     </Card>
   );
 }

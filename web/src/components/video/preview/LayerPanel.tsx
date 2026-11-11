@@ -1,10 +1,20 @@
 "use client";
 
 import { DeleteOutlined, FontSizeOutlined, PictureOutlined } from "@ant-design/icons";
-import { Button, Divider, Flex, Input, InputNumber, Popconfirm, Segmented, Select, Typography } from "antd";
+import { Button, Divider, Flex, Input, InputNumber, Popconfirm, Segmented, Select, Slider, Typography } from "antd";
 import { useState } from "react";
 import { api, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
-import { ANIMATIONS, HALF_PLACES, SIZES, STICKERS, TEXT_STYLES, isHalf, layerName } from "./layers";
+import {
+  ANIMATIONS,
+  HALF_HEIGHT_MAX,
+  HALF_HEIGHT_MIN,
+  SIZES,
+  STICKERS,
+  TEXT_STYLES,
+  halfPlaces,
+  isHalf,
+  layerName,
+} from "./layers";
 
 const seconds = (value: number) => value.toLocaleString("vi-VN", { maximumFractionDigits: 1 });
 /** A layer's longest seconds (routes_layers.MAX_SECONDS): longer than any scene, so "to the end of its scene". */
@@ -86,12 +96,12 @@ export function LayerTools({
         // scene's picture tools in "Chỉnh cảnh" › "Ảnh chèn", as "Ảnh món" was.
         <>
           <Divider style={{ margin: "4px 0" }} />
-          <Typography.Text strong>Ảnh chèn nửa khung</Typography.Text>
+          <Typography.Text strong>Ảnh chèn</Typography.Text>
           <Flex vertical gap={6} data-testid="half-photo-tools">
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {hasPhoto && !scene?.is_title
                 ? "Cảnh này đã có ảnh chèn: kéo lên xuống trên điện thoại, tìm hay sửa ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."
-                : "Ảnh của cảnh, rộng hết khung, cao nửa khung, hiện cùng lời đọc đến hết cảnh. Tìm hay sửa ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."}
+                : "Ảnh của cảnh, tràn ngang khung, cao khoảng 1/3, hiện cùng lời đọc đến hết cảnh. Tìm hay sửa ảnh ở “Chỉnh cảnh” › “Ảnh chèn”."}
             </Typography.Text>
             <Button
               icon={<PictureOutlined />}
@@ -249,21 +259,36 @@ function LayerRow({
       {open && half && (
         <Flex vertical gap={8}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Rộng hết khung, cao nửa khung. Kéo lên xuống trên điện thoại (hút vào nửa trên, giữa, nửa dưới) hoặc chọn
-            nhanh:
+            Tràn sát hai mép, không viền, mép giáp ảnh nền mờ dần. Kéo lên xuống trên điện thoại (hút vào mép trên,
+            giữa, mép dưới) hoặc chọn nhanh:
           </Typography.Text>
           <Segmented
             size="small"
             aria-label="Vị trí ảnh chèn"
             // A place dragged in between matches none of the quick places.
-            value={HALF_PLACES.find((place) => place.y === layer.y)?.label ?? ""}
+            value={halfPlaces(layer.height).find((place) => place.y === layer.y)?.value ?? ""}
             disabled={!editable}
-            options={HALF_PLACES.map((place) => place.label)}
-            onChange={(label) => {
-              const chosen = HALF_PLACES.find((place) => place.label === label);
+            options={halfPlaces(layer.height).map((place) => ({ value: place.value, label: place.label }))}
+            onChange={(value) => {
+              const chosen = halfPlaces(layer.height).find((place) => place.value === value);
               if (chosen) onPatch("đổi vị trí ảnh chèn", { y: chosen.y });
             }}
           />
+          <Flex align="center" gap={8}>
+            <Typography.Text style={{ fontSize: 12, flex: "none" }}>Cao</Typography.Text>
+            <Slider
+              style={{ flex: 1, margin: "0 6px" }}
+              min={HALF_HEIGHT_MIN}
+              max={HALF_HEIGHT_MAX}
+              value={layer.height}
+              disabled={!editable}
+              tooltip={{ formatter: (value) => `${value}%` }}
+              onChangeComplete={(value) => onPatch("đổi chiều cao ảnh chèn", { height: value })}
+            />
+            <Typography.Text type="secondary" style={{ fontSize: 12, flex: "none" }}>
+              {layer.height}%
+            </Typography.Text>
+          </Flex>
           {times}
           <Flex gap={8} wrap>
             <Button

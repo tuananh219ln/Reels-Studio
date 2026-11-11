@@ -85,12 +85,17 @@ PHOTO_MAX_HEIGHT = 1100  # a tall photo is cut to this, so it never fills the fr
 
 # "Ảnh chèn nửa khung": a photo layer's style apart from PHOTO_SHAPES, since its photo is its own and its size fixed.
 HALF = "half"
-HALF_LABEL = "Ảnh chèn nửa khung"
-HALF_WIDTH, HALF_HEIGHT = FRAME_WIDTH, FRAME_HEIGHT // 2
+HALF_LABEL = "Ảnh chèn"
+HALF_WIDTH = FRAME_WIDTH  # edge to edge, no white edge, square corners
 HALF_X = FRAME_WIDTH // 2  # its centre across, always
-HALF_Y_MIN, HALF_Y_MAX = HALF_HEIGHT // 2, FRAME_HEIGHT - HALF_HEIGHT // 2  # its centre down: top half to bottom half
-HALF_EDGE = 8  # the white edge around it, in frame pixels
-HALF_RADIUS = 36  # its rounded corners, in frame pixels
+HALF_HEIGHT_DEFAULT, HALF_HEIGHT_MIN, HALF_HEIGHT_MAX = 38, 30, 45  # its height, in percent of the frame
+HALF_FADE = 32  # the soft edge towards the picture behind it, in frame pixels (24-40 px)
+
+
+def half_height(percent: float = HALF_HEIGHT_DEFAULT) -> int:
+    """A half-frame photo's height in frame pixels from its percent of the frame (38% is 730 px)."""
+    return round(FRAME_HEIGHT * min(max(percent, HALF_HEIGHT_MIN), HALF_HEIGHT_MAX) / 100)
+
 
 STICKERS: dict[str, Named] = {
     "arrow_down": Named("Mũi tên xuống"),
@@ -127,6 +132,7 @@ class Layer:
     style: str = "outline"  # a text layer's TEXT_STYLES, a photo layer's PHOTO_SHAPES
     animation: str = "fade"
     image: Path | None = None  # a photo layer's photo
+    height: int = HALF_HEIGHT_DEFAULT  # a half-frame photo's height, in percent of the frame
 
     @property
     def half(self) -> bool:
@@ -138,9 +144,10 @@ def is_half(kind: str, style: str) -> bool:
     return kind == "photo" and style == HALF
 
 
-def half_y(y: float) -> int:
-    """The centre of a half-frame photo kept inside the frame: from the top half (480) to the bottom half (1440)."""
-    return round(min(max(y, HALF_Y_MIN), HALF_Y_MAX))
+def half_y(y: float, height: int = HALF_HEIGHT_DEFAULT) -> int:
+    """The centre of a half-frame photo kept inside the frame: flush with the top edge to flush with the bottom."""
+    tall = half_height(height)
+    return round(min(max(y, tall // 2), FRAME_HEIGHT - tall // 2))
 
 
 def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
@@ -157,7 +164,7 @@ def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
         if layer.image is None:
             raise ValueError("lớp ảnh chưa có ảnh")
         if layer.half:
-            return render_half(layer.image)
+            return render_half(layer.image, layer.height, layer.y)
         return render_photo(layer.image, SIZES[layer.size].photo, layer.style)
     return _sticker(layer.sticker, SIZES[layer.size].sticker)
 
@@ -171,20 +178,29 @@ def _open_photo(path: Path) -> Image.Image:
         raise ValueError(f"ảnh hỏng hoặc không đọc được ({err})") from None
 
 
-def render_half(path: Path) -> Image.Image:
-    """ "Ảnh chèn nửa khung": the photo scaled to cover HALF_WIDTH × HALF_HEIGHT (by max(1080 / width, 960 / height))
-    and cut in the middle, never stretched, inside a white edge with rounded corners, transparent only outside those
-    corners. Raises ValueError for a file that is not a photo."""
+def render_half(path: Path, height: int = HALF_HEIGHT_DEFAULT, y: int = 0) -> Image.Image:
+    """ "Ảnh chèn": the photo scaled to cover the full frame width by `height` percent of the frame and cut in the
+    middle, never stretched, with no edge and square corners. Where it meets the picture behind it (the edge not on
+    the frame's own edge) it fades out over HALF_FADE pixels, so it blends in instead of ending hard. Raises
+    ValueError for a file that is not a photo."""
+    tall = half_height(height)
     picture = _open_photo(path).convert("RGB")
-    size = (HALF_WIDTH, HALF_HEIGHT)
-    photo = ImageOps.fit(picture, size, Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-    card = Image.new("RGBA", size, (255, 255, 255, 255))
-    card.putalpha(_shape_mask(size, HALF_RADIUS, False))
-    inner_size = (HALF_WIDTH - 2 * HALF_EDGE, HALF_HEIGHT - 2 * HALF_EDGE)
-    inner = _shape_mask(inner_size, HALF_RADIUS - HALF_EDGE, False)
-    card.paste(
-        photo.crop((HALF_EDGE, HALF_EDGE, HALF_WIDTH - HALF_EDGE, HALF_HEIGHT - HALF_EDGE)), (HALF_EDGE,) * 2, inner
-    )
+    card = ImageOps.fit(picture, (HALF_WIDTH, tall), Image.Resampling.LANCZOS, centering=(0.5, 0.5)).convert("RGBA")
+    top = layer_corner(HALF_WIDTH, tall, (HALF_X, y))[1]
+    fade_top, fade_bottom = top > 0, top + tall < FRAME_HEIGHT
+    if not fade_top and not fade_bottom:
+        # Flush with neither edge cannot happen for 30-45%; a full frame has nothing to blend into.
+        return card
+    ramp = [255] * tall
+    for row in range(min(HALF_FADE, tall)):
+        level = round(255 * row / HALF_FADE)
+        if fade_top:
+            ramp[row] = min(ramp[row], level)
+        if fade_bottom:
+            ramp[tall - 1 - row] = min(ramp[tall - 1 - row], level)
+    mask = Image.new("L", (1, tall))
+    mask.putdata(ramp)
+    card.putalpha(mask.resize((HALF_WIDTH, tall)))
     return card
 
 
