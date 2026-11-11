@@ -5,7 +5,16 @@ import { App, Button, Card, Flex, Progress, Select, Tag, Typography, theme } fro
 import { useEffect, useRef, useState, type DragEvent } from "react";
 import FolderSelect from "@/components/media/FolderSelect";
 import MediaLinkSearch from "@/components/media/MediaLinkSearch";
-import { api, errorMessage, upload, type AffiliateProduct, type MediaFolder, type MediaItem } from "@/lib/api";
+import TagSelect from "@/components/media/TagSelect";
+import {
+  api,
+  errorMessage,
+  upload,
+  type AffiliateProduct,
+  type MediaFolder,
+  type MediaItem,
+  type MediaTag,
+} from "@/lib/api";
 
 const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
 const MAX_CLIP_BYTES = 50 * 1024 * 1024;
@@ -45,11 +54,14 @@ async function droppedFiles(event: DragEvent): Promise<Pending[]> {
  */
 export default function MediaUploadCard({
   folders,
+  tags: vocabulary,
   lockedFolder,
   keyword = "",
   onAdded,
 }: {
   folders: MediaFolder[];
+  /** The library's tags, suggested in the optional tag box. */
+  tags: MediaTag[];
   lockedFolder?: string;
   keyword?: string;
   onAdded: () => void;
@@ -63,6 +75,7 @@ export default function MediaUploadCard({
   const [chosen, setChosen] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [tags, setTags] = useState<string[]>([]);
   const target = lockedFolder ?? chosen ?? "";
 
   useEffect(() => {
@@ -93,7 +106,10 @@ export default function MediaUploadCard({
         message.error(`“${file.name}” quá lớn (ảnh tối đa 15 MB, video 50 MB)`);
       } else {
         try {
-          await upload<MediaItem>("/media", file, { folder: [target, dir].filter(Boolean).join("/") });
+          await upload<MediaItem>("/media", file, {
+            folder: [target, dir].filter(Boolean).join("/"),
+            tags: tags.join(","),
+          });
         } catch (err) {
           failed += 1;
           message.error(`“${file.name}”: ${errorMessage(err)}`);
@@ -150,6 +166,14 @@ export default function MediaUploadCard({
             </Tag>
           </Typography.Text>
         )}
+        <TagSelect
+          aria-label="Thẻ cho tư liệu thêm vào"
+          tags={vocabulary}
+          value={tags}
+          onChange={setTags}
+          placeholder="Thẻ (không bắt buộc): chọn thẻ có sẵn hoặc gõ thẻ mới…"
+          style={{ width: "100%" }}
+        />
         <div
           data-testid="media-drop"
           onDragOver={(event) => {
@@ -197,7 +221,7 @@ export default function MediaUploadCard({
         <Typography.Text strong>
           <LinkOutlined /> Tìm trên Google, TikTok rồi dán link
         </Typography.Text>
-        <MediaLinkSearch keyword={product?.name ?? keyword} folder={target} onAdded={onAdded} />
+        <MediaLinkSearch keyword={product?.name ?? keyword} folder={target} tags={tags} onAdded={onAdded} />
       </Flex>
     </Card>
   );

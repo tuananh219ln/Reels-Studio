@@ -9,9 +9,13 @@ Folders are labels on the items (`media_items.folder`), not rows of their own: m
 clearing it changes only labels, never an item's id or file, so what the MCP assistant or a scene points at by id still
 holds. A topic group may link one folder ("Tư liệu" on /knowledge, `knowledge_topics.media_folder`); renaming the
 folder takes the link along, clearing it unlinks (docs/decisions/2026-11-11-media-folders.md).
+
+Tags (media_tags.py) say what an item shows, apart from its folder: set on one item or added to and taken from a
+chosen batch, filtered on (an item must carry every tag asked) and matched by the search, here and over MCP.
 """
 
 import io
+import re
 import secrets
 import tempfile
 import unicodedata
@@ -21,10 +25,10 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
 from fastapi.responses import FileResponse
 from PIL import Image
 from pydantic import BaseModel
-from sqlalchemy import func, or_, select
+from sqlalchemy import Text, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import clips, edit_log, remote_media
+from . import clips, edit_log, media_tags, remote_media
 from .db import get_db
 from .errors import ApiError
 from .models import KnowledgeTopic, MediaItem, Session
@@ -47,11 +51,13 @@ MEDIA_TYPES["webm"] = "video/webm"
 class LinksBody(BaseModel):
     urls: list[str]
     folder: str = ""
+    tags: list[str] = []
 
 
 class MediaPatchBody(BaseModel):
     name: str | None = None
     folder: str | None = None
+    tags: list[str] | None = None  # the item's whole set of tags, cleaned (media_tags.clean_tags)
 
 
 class UseBody(BaseModel):
@@ -72,6 +78,12 @@ class RenameBody(BaseModel):
     to: str
 
 
+class TagsBody(BaseModel):
+    ids: list[int]
+    add: list[str] = []
+    remove: list[str] = []
+
+
 def invalid(message: str) -> ApiError:
     return ApiError(422, "invalid_value", message)
 
@@ -84,6 +96,21 @@ def clean_folder(raw: str) -> str:
     if len(folder) > MAX_FOLDER:
         raise invalid(f"Tên thư mục dài quá {MAX_FOLDER} ký tự")
     return folder
+
+
+def tags_of(raw) -> list[str]:
+    """Tags as typed (a list, or one line with commas), cleaned; a tag empty once cleaned is refused."""
+    try:
+        return media_tags.split_tags(raw) if isinstance(raw, str) or raw is None else media_tags.clean_tags(raw)
+    except media_tags.TagError as err:
+        raise invalid(str(err)) from None
+
+
+def tag_list(db: DbSession) -> list[dict]:
+    """Every tag in the library with how many items carry it, for suggesting a tag that is there over a new one."""
+    tag = func.jsonb_array_elements_text(MediaItem.tags).label("tag")
+    rows = db.execute(select(tag, func.count()).group_by("tag").order_by("tag"))
+    return [{"tag": name, "count": count} for name, count in rows]
 
 
 def in_folder(name: str):
@@ -146,6 +173,7 @@ def payload(item: MediaItem) -> dict:
         "folder": item.folder,
         "source_url": item.source_url,
         "seconds": item.seconds,
+        "tags": list(item.tags or []),
         "file_url": f"/api/media/{item.id}/file",
         "thumb_url": f"/api/media/{item.id}/thumb.jpg",
         "created_by": item.created_by.name,
@@ -160,7 +188,7 @@ def _new_key(extension: str) -> str:
 
 def _add(
     db: DbSession, storage: DirectoryStorage, me: Session, name: str, folder: str, source: str | None, photo=None,
-    clip_path: Path | None = None, workdir: Path | None = None,
+    clip_path: Path | None = None, workdir: Path | None = None, tags: list[str] | None = None,
 ) -> MediaItem:  # fmt: skip
     """Check and store one photo (bytes, extension) or clip (a file), then add its row."""
     if clip_path is not None:
@@ -178,6 +206,7 @@ def _add(
         storage.save_bytes(key, data)
         item = MediaItem(kind="photo", storage_key=key)
     item.name, item.folder, item.source_url, item.created_by_id = name, folder, source, me.user_id
+    item.tags = tags or []
     db.add(item)
     db.flush()
     return item
@@ -190,17 +219,27 @@ def list_media(
     q: str | None = None,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
+    tags: str | None = None,
 ) -> dict:
-    """The library newest first (one folder, with its subfolders, when named), and every folder with its count."""
+    """The library newest first (one folder, with its subfolders, when named; only items carrying every tag in
+    `tags`, "xoay-co,sofa"), with every folder and every tag and their counts. The search matches names, folders and
+    tags ("phòng ngủ" finds `phong-ngu`)."""
     query = select(MediaItem).order_by(MediaItem.id.desc()).limit(MAX_LIST)
+    wanted = tags_of(tags)
+    if wanted:
+        query = query.where(MediaItem.tags.contains(wanted))
     if folder:
         query = query.where(in_folder(clean_folder(folder)))
     if kind in ("photo", "clip"):
         query = query.where(MediaItem.kind == kind)
     if q and q.strip():
         pattern = f"%{like_pattern(q.strip())}%"
-        query = query.where(or_(MediaItem.name.ilike(pattern, escape="\\"), MediaItem.folder.ilike(pattern, "\\")))
-    return {"items": [payload(item) for item in db.scalars(query)], "folders": folder_list(db)}
+        matches = [MediaItem.name.ilike(pattern, escape="\\"), MediaItem.folder.ilike(pattern, "\\")]
+        as_tag = re.sub(r"[^a-z0-9]+", "-", media_tags.plain(q)).strip("-")
+        if as_tag:
+            matches.append(MediaItem.tags.cast(Text).like(f"%{like_pattern(as_tag)}%", "\\"))
+        query = query.where(or_(*matches))
+    return {"items": [payload(item) for item in db.scalars(query)], "folders": folder_list(db), "tags": tag_list(db)}
 
 
 @router.post("/move")
@@ -219,6 +258,32 @@ def move_media(body: MoveBody, me: Session = Depends(current_member), db: DbSess
         item.folder = where
     db.commit()
     return {"moved": len(items), "folders": folder_list(db)}
+
+
+@router.post("/tags")
+def tag_media(body: TagsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Thêm thẻ" and "Gỡ thẻ" on the chosen items; an item already so tagged is left as it is."""
+    ids = list(dict.fromkeys(body.ids))
+    add, remove = tags_of(body.add), tags_of(body.remove)
+    if not ids:
+        raise invalid("Hãy chọn ít nhất một tư liệu")
+    if not add and not remove:
+        raise invalid("Hãy chọn ít nhất một thẻ")
+    if len(ids) > MAX_LIST:
+        raise invalid(f"Mỗi lần sửa thẻ tối đa {MAX_LIST} tư liệu")
+    items = db.scalars(select(MediaItem).where(MediaItem.id.in_(ids)).with_for_update()).all()
+    if len(items) != len(ids):
+        raise ApiError(404, "media_not_found", "Có tư liệu không còn trong kho (có thể đã bị xoá), hãy tải lại trang")
+    changed = 0
+    for item in items:
+        before = list(item.tags or [])
+        after = [tag for tag in dict.fromkeys([*before, *add]) if tag not in remove]
+        if len(after) > media_tags.MAX_TAGS:
+            raise invalid(f"“{item.name}” sẽ có quá {media_tags.MAX_TAGS} thẻ")
+        if after != before:
+            item.tags, changed = after, changed + 1
+    db.commit()
+    return {"changed": changed, "tags": tag_list(db)}
 
 
 @router.post("/folders/rename")
@@ -289,6 +354,7 @@ def clear_folder(body: FolderBody, me: Session = Depends(current_member), db: Db
 def upload_media(
     file: UploadFile = File(...),
     folder: str = Form(default=""),
+    tags: str = Form(default=""),  # "xoay-co, sofa"
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
@@ -298,6 +364,7 @@ def upload_media(
     path = clean_folder(f"{folder}/{file.filename or ''}")
     where, _, filename = path.rpartition("/")
     name = file_label(filename, "Không tên")
+    chosen = tags_of(tags)
     head = file.file.read(16)
     file.file.seek(0)
     if clips.looks_like_clip(head):
@@ -306,7 +373,7 @@ def upload_media(
         with tempfile.TemporaryDirectory(prefix="reels_media_") as raw:
             spooled = Path(raw) / "clip"
             _spool_clip(file, spooled)
-            item = _add(db, storage, me, name, where, None, clip_path=spooled, workdir=Path(raw))
+            item = _add(db, storage, me, name, where, None, clip_path=spooled, workdir=Path(raw), tags=chosen)
     else:
         data = read_limited(file, MAX_IMAGE_BYTES, "Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn")
         try:
@@ -315,12 +382,14 @@ def upload_media(
             raise ApiError(
                 415, "invalid_media", f"“{name}” không phải ảnh (jpg, png, webp) hay video (mp4, mov, webm)"
             ) from None
-        item = _add(db, storage, me, name, where, None, photo=photo)
+        item = _add(db, storage, me, name, where, None, photo=photo, tags=chosen)
     db.commit()
     return payload(item)
 
 
-def add_links(db: DbSession, storage: DirectoryStorage, me: Session, urls: list[str], folder: str) -> dict:
+def add_links(
+    db: DbSession, storage: DirectoryStorage, me: Session, urls: list[str], folder: str, tags: list[str] | None = None
+) -> dict:
     """Download each link into the library; a link that fails is reported and the others still come in."""
     links = [url.strip() for url in urls if url and url.strip()]
     if not links:
@@ -328,6 +397,7 @@ def add_links(db: DbSession, storage: DirectoryStorage, me: Session, urls: list[
     if len(links) > MAX_LINKS:
         raise invalid(f"Mỗi lần thêm tối đa {MAX_LINKS} link")
     where = clean_folder(folder)
+    chosen = tags_of(tags or [])
     added, failed = [], []
     for url in links:
         with tempfile.TemporaryDirectory(prefix="reels_media_") as raw:
@@ -335,9 +405,9 @@ def add_links(db: DbSession, storage: DirectoryStorage, me: Session, urls: list[
                 media = remote_media.download(url, Path(raw))
                 name = file_label(Path(url.split("?")[0]).name, "Từ link")
                 if media.photo is not None:
-                    item = _add(db, storage, me, name, where, url, photo=media.photo)
+                    item = _add(db, storage, me, name, where, url, photo=media.photo, tags=chosen)
                 else:
-                    item = _add(db, storage, me, name, where, url, clip_path=media.clip, workdir=Path(raw))
+                    item = _add(db, storage, me, name, where, url, clip_path=media.clip, workdir=Path(raw), tags=chosen)
                 db.commit()
                 added.append(payload(item))
             except remote_media.RemoteMediaError as err:
@@ -356,7 +426,7 @@ def add_media_links(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    return add_links(db, storage, me, body.urls, body.folder)
+    return add_links(db, storage, me, body.urls, body.folder, body.tags)
 
 
 def _item(db: DbSession, media_id: int) -> MediaItem:
@@ -378,6 +448,8 @@ def patch_media(
         item.name = name
     if body.folder is not None:
         item.folder = clean_folder(body.folder)
+    if body.tags is not None:
+        item.tags = tags_of(body.tags)
     db.commit()
     return payload(item)
 

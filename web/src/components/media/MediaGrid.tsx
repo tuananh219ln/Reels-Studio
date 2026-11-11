@@ -83,6 +83,15 @@ export default function MediaGrid({
                 {item.folder}
               </Typography.Text>
             )}
+            {item.tags.length > 0 && (
+              <Flex wrap gap={4} data-testid="media-tags" style={{ marginTop: 2 }}>
+                {item.tags.map((tag) => (
+                  <Tag key={tag} style={{ margin: 0, fontSize: 11, lineHeight: "18px", paddingInline: 4 }}>
+                    {tag}
+                  </Tag>
+                ))}
+              </Flex>
+            )}
           </Flex>
         </Card>
       ))}

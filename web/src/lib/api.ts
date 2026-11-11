@@ -120,6 +120,8 @@ export type MediaItem = {
   folder: string;
   source_url: string | null;
   seconds: number | null;
+  /** What it shows, lowercase without accents and joined with "-" ("xoay-co"); the api cleans what is typed. */
+  tags: string[];
   file_url: string;
   thumb_url: string;
   created_by: string;
@@ -132,7 +134,10 @@ export type MediaItem = {
  * with nothing in it yet has a count of 0). */
 export type MediaFolder = { folder: string; count: number; topic_id: number | null; topic: string | null };
 
-export type MediaList = { items: MediaItem[]; folders: MediaFolder[] };
+/** A tag of the library with how many items carry it. */
+export type MediaTag = { tag: string; count: number };
+
+export type MediaList = { items: MediaItem[]; folders: MediaFolder[]; tags: MediaTag[] };
 
 /** What pasting links into the library did: the items added, and each link that failed with why. */
 export type MediaLinksResult = { added: MediaItem[]; failed: { url: string; error: string }[] };

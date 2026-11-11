@@ -6,6 +6,7 @@ import {
   FolderOpenOutlined,
   FolderOutlined,
   LinkOutlined,
+  TagsOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import { App, Button, Flex, Form, Modal, Popconfirm, Spin, Tag, Tooltip, Typography } from "antd";
@@ -15,6 +16,7 @@ import FolderSelect from "@/components/media/FolderSelect";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaUploadCard from "@/components/media/MediaUploadCard";
 import MoveFolderModal from "@/components/media/MoveFolderModal";
+import TagEditModal, { type TagEdit } from "@/components/media/TagEditModal";
 import { api, errorMessage, type KnowledgeTopic, type MediaFolder, type MediaList } from "@/lib/api";
 
 type Update = (body: Partial<KnowledgeTopic>) => Promise<KnowledgeTopic>;
@@ -41,12 +43,13 @@ export default function TopicMedia({
   const [uploading, setUploading] = useState(false);
   const [linking, setLinking] = useState(false);
   const [moving, setMoving] = useState<{ ids: number[]; current?: string }>({ ids: [] });
+  const [tagEdit, setTagEdit] = useState<TagEdit | null>(null);
 
   const read = useCallback(
     // Unlinked: only the folders matter, for "Liên kết thư mục".
     async () => {
       const found = await api<MediaList>(folder ? `/media?folder=${encodeURIComponent(folder)}` : "/media");
-      return folder ? found : { items: [], folders: found.folders };
+      return folder ? found : { items: [], folders: found.folders, tags: found.tags };
     },
     [folder],
   );
@@ -165,6 +168,7 @@ export default function TopicMedia({
         <MediaUploadCard
           folders={data.folders}
           lockedFolder={folder}
+          tags={data.tags}
           keyword={topic.name}
           onAdded={() => void load()}
         />
@@ -182,8 +186,18 @@ export default function TopicMedia({
               onClick={() => setMoving({ ids: [item.id], current: item.folder })}
             />
           </Tooltip>,
+          <Tooltip key="tags" title="Sửa thẻ">
+            <Button
+              type="text"
+              size="small"
+              icon={<TagsOutlined />}
+              aria-label={`Sửa thẻ ${item.name}`}
+              onClick={() => setTagEdit({ mode: "set", item })}
+            />
+          </Tooltip>,
         ]}
       />
+      <TagEditModal edit={tagEdit} tags={data.tags} onClose={() => setTagEdit(null)} onSaved={() => void load()} />
       <MoveFolderModal
         ids={moving.ids}
         current={moving.current}

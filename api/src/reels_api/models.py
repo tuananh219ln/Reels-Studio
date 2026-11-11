@@ -903,6 +903,8 @@ class MediaItem(Base):
     folder: Mapped[str] = mapped_column(String(200), default="", server_default="", index=True)
     source_url: Mapped[str | None] = mapped_column(Text)  # the link it came from, kept for a copyright claim
     seconds: Mapped[float | None] = mapped_column(Float)  # a clip's length
+    # What it shows, for looking it up (media_tags.py, migration 0077): lowercase, no accents, "-" between words.
+    tags: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

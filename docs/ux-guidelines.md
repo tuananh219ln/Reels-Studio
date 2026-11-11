@@ -758,15 +758,19 @@ Built:
   with "Hủy", and "Máy render đang dựng: …" while a machine renders it.
 - **Kho tư liệu** (`/media`): "Thêm tư liệu" picks the product being made (approved affiliate products), which names
   the folder and the searches, and the folder from a dropdown of the folders there with their counts, where typing a
-  new name offers "Tạo thư mục “…”" (no free text box, so a folder is not typed again slightly differently); a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
+  new name offers "Tạo thư mục “…”" (no free text box, so a folder is not typed again slightly differently), and an
+  optional tag box (the library's tags with their counts first; Enter makes a new one) whose tags go on everything
+  added; a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
   uploading one by one with a progress bar; under it the name with "Ảnh không nền", "Ảnh Google" and "Clip TikTok",
   which open the search in a new tab, and a box where pasting adds at once: a photo copied with "Sao chép hình
   ảnh", a link, or a "data:" address (Google Ảnh's thumbnails); a photo dragged from another tab can be dropped on
   it too. The primary "Dán ảnh / link", first in that row, adds whatever the clipboard holds in one click (the browser
-  asks once for permission); "Thêm link đã gõ" sends typed links. The library below filters by folder, Ảnh/Clip and name, as tall cards (a clip with its seconds) with "Chuyển
-  thư mục" (a dialog with the same dropdown plus "Không thư mục") and "Xoá" (its maker only; videos that used it keep
+  asks once for permission); "Thêm link đã gõ" sends typed links. The library below filters by name (which matches tags too), folder, tags ("Mọi thẻ"; several chosen show the items
+  carrying all of them, kept in the address as `?tags=a,b`) and Ảnh/Clip, as tall cards (a clip with its seconds,
+  its tags as small chips under the name) with "Chuyển thư mục" (a dialog with the same dropdown plus "Không thư mục"), "Sửa thẻ" (a dialog with the tag
+  box; tags are kept lowercase without accents, "Xoay cổ" becoming `xoay-co`) and "Xoá" (its maker only; videos that used it keep
   their copy). Each card has a box: "Chọn tất cả" and, once some are chosen, "Đã chọn N tư liệu" with "Chuyển thư
-  mục" for all of them. With a folder chosen in the filter, "Đổi tên thư mục" (merging into a folder of that name) and
+  mục", "Thêm thẻ" and "Gỡ thẻ" (only the tags there are) for all of them. With a folder chosen in the filter, "Đổi tên thư mục" (merging into a folder of that name) and
   "Xoá thư mục" (a centred dialog saying how many items go to "Không thư mục", subfolders included, and which group's
   "Tư liệu" is unlinked; no item is deleted) sit beside it. Moving, renaming and deleting a folder keep every item's
   id and file. On a scene card, "Kho tư liệu" opens the same search and library in a

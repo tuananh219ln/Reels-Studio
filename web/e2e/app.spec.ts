@@ -1151,3 +1151,72 @@ test("Kho tư liệu: items move between folders keeping their id, folders are r
   await health.getByRole("tab", { name: "Tư liệu", exact: true }).click();
   await expect(health.getByRole("button", { name: "Liên kết thư mục" })).toBeVisible();
 });
+
+test("Kho tư liệu: tags are edited on one item and on a batch, and the filter asks for every tag chosen", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  const headers = { Origin: new URL(page.url()).origin };
+  for (const [name, folder, tags] of [
+    ["co-sofa.png", "Già/Sofa", "xoay-co, sofa"],
+    ["co-giuong.png", "Già/Ngủ", "xoay-co, phong-ngu"],
+    ["vai-sofa.png", "Già/Sofa", "nhun-vai, sofa"],
+  ]) {
+    const made = await page.request.post("/api/media", {
+      multipart: { file: { name, mimeType: "image/png", buffer: PIXEL }, folder, tags },
+      headers,
+    });
+    expect(made.status()).toBe(201);
+  }
+  const cards = page.getByTestId("media-item");
+  const card = (name: string) => cards.filter({ hasText: name });
+
+  // Two tags: only the item with both; with a folder too, what is in both.
+  await page.goto("/media?tags=xoay-co,sofa");
+  await expect(cards).toHaveCount(1);
+  await expect(card("co-sofa.png").getByTestId("media-tags")).toHaveText(/xoay-co.*sofa/);
+  await page.goto(`/media?tags=xoay-co&folder=${encodeURIComponent("Già/Ngủ")}`);
+  await expect(cards).toHaveCount(1);
+  await expect(card("co-giuong.png")).toBeVisible();
+
+  // One item's tags: typed with accents, kept as the library keeps them, still there after a reload.
+  await page.goto("/media");
+  await expect(cards).toHaveCount(3);
+  await page.getByRole("button", { name: "Sửa thẻ vai-sofa.png" }).click();
+  const edit = page.getByRole("dialog", { name: "Sửa thẻ “vai-sofa.png”" });
+  await edit.getByLabel("Thẻ của tư liệu").fill("Buổi Tối");
+  await edit.getByLabel("Thẻ của tư liệu").press("Enter");
+  // The suggestions close when the dialog's title is clicked, uncovering its buttons.
+  await edit.locator(".ant-modal-title").click();
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
+  await edit.getByRole("button", { name: "Sửa thẻ" }).click();
+  await expect(page.getByText("Đã lưu thẻ của “vai-sofa.png”")).toBeVisible();
+  await page.reload();
+  await expect(card("vai-sofa.png").getByTestId("media-tags")).toContainText("buoi-toi");
+
+  // A batch: "Thêm thẻ" then "Gỡ thẻ" on every item.
+  await page.getByRole("button", { name: "Chọn tất cả" }).click();
+  await page.getByTestId("media-selection").getByRole("button", { name: "Thêm thẻ" }).click();
+  const add = page.getByRole("dialog", { name: "Thêm thẻ cho 3 tư liệu" });
+  await add.getByLabel("Thẻ của tư liệu").fill("Ông");
+  await add.getByLabel("Thẻ của tư liệu").press("Enter");
+  // The suggestions close when the dialog's title is clicked, uncovering its buttons.
+  await add.locator(".ant-modal-title").click();
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
+  await add.getByRole("button", { name: "Thêm thẻ" }).click();
+  await expect(page.getByText("Đã thêm thẻ ở 3 tư liệu")).toBeVisible();
+  await page.goto("/media?tags=ong");
+  await expect(cards).toHaveCount(3);
+  await page.getByRole("button", { name: "Chọn tất cả" }).click();
+  await page.getByTestId("media-selection").getByRole("button", { name: "Gỡ thẻ" }).click();
+  const remove = page.getByRole("dialog", { name: "Gỡ thẻ cho 3 tư liệu" });
+  await chooseOption(page, remove.getByLabel("Thẻ của tư liệu"), "sofa (2)");
+  // The suggestions close when the dialog's title is clicked, uncovering its buttons.
+  await remove.locator(".ant-modal-title").click();
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
+  await remove.getByRole("button", { name: "Gỡ thẻ" }).click();
+  await expect(page.getByText("Đã gỡ thẻ ở 2 tư liệu")).toBeVisible();
+  await page.goto("/media?tags=sofa");
+  await expect(page.getByText("Không có tư liệu nào khớp bộ lọc")).toBeVisible();
+});

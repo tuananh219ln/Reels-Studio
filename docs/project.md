@@ -111,7 +111,7 @@ app replaces CapCut, so the output is a finished MP4.
    at, and attaches affiliate products. **Kho tư liệu** (built, `/media`): folders of the team's own photos and clips,
    and links from Google Ảnh and TikTok pasted back after searching for the product; items move between folders
    and folders are renamed or deleted without changing an item's id, and a topic group shows its own folder on its
-   "Tư liệu" tab. Members authorize and revoke OAuth connections
+   "Tư liệu" tab; tags (movement, joint, room, opening or closing scene) are looked up on the web and by `list_media`. Members authorize and revoke OAuth connections
    on Cài đặt › Kết nối MCP; see [chatgpt.md](chatgpt.md).
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
     comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMe } from "@/components/MeContext";
-import { DeleteOutlined, FolderOutlined, SearchOutlined } from "@ant-design/icons";
+import { DeleteOutlined, FolderOutlined, SearchOutlined, TagsOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Tooltip, Typography } from "antd";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import FilterSelect from "@/components/FilterSelect";
@@ -10,6 +10,8 @@ import { folderLabel } from "@/components/media/FolderSelect";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaUploadCard from "@/components/media/MediaUploadCard";
 import MoveFolderModal from "@/components/media/MoveFolderModal";
+import TagEditModal, { type TagEdit } from "@/components/media/TagEditModal";
+import TagSelect from "@/components/media/TagSelect";
 import PageHeader from "@/components/PageHeader";
 import { api, errorMessage, type MediaItem, type MediaList } from "@/lib/api";
 import { useUrlChoice } from "@/lib/urlState";
@@ -26,10 +28,14 @@ export default function MediaPage() {
 function Media() {
   const { message } = App.useApp();
   const { me } = useMe();
-  const [data, setData] = useState<MediaList>({ items: [], folders: [] });
+  const [data, setData] = useState<MediaList>({ items: [], folders: [], tags: [] });
   const [shown, setShown] = useUrlChoice<string | null>("folder", null);
   const [kind, setKind] = useUrlChoice<"all" | "photo" | "clip">("kind", "all", ["photo", "clip"]);
   const [query, setQuery] = useUrlChoice<string>("q", "");
+  // The tag filter: items carrying every tag chosen, kept in the address as "xoay-co,sofa".
+  const [tagText, setTagText] = useUrlChoice<string>("tags", "");
+  const tags = tagText ? tagText.split(",").filter(Boolean) : [];
+  const [tagEdit, setTagEdit] = useState<TagEdit | null>(null);
   // Items chosen for "Chuyển thư mục" on several at once, and what the dialog moves (one item or the chosen ones).
   const [selected, setSelected] = useState<number[]>([]);
   const [moving, setMoving] = useState<{ ids: number[]; current?: string }>({ ids: [] });
@@ -39,6 +45,7 @@ function Media() {
     if (shown) params.set("folder", shown);
     if (kind !== "all") params.set("kind", kind);
     if (query.trim()) params.set("q", query.trim());
+    if (tagText) params.set("tags", tagText);
     try {
       const found = await api<MediaList>(`/media?${params.toString()}`);
       setData(found);
@@ -47,7 +54,7 @@ function Media() {
     } catch (err) {
       message.error(errorMessage(err));
     }
-  }, [shown, kind, query, message]);
+  }, [shown, kind, query, tagText, message]);
 
   useEffect(() => {
     const timer = setTimeout(load, 250);
@@ -73,7 +80,7 @@ function Media() {
         description="Ảnh và clip của cả nhóm: kéo cả thư mục vào, hoặc tìm trên Google, TikTok rồi dán link. Dùng cho cảnh ở trang video hoặc nhờ Claude chọn."
       />
       <Flex vertical gap={16}>
-        <MediaUploadCard folders={data.folders} onAdded={() => void load()} />
+        <MediaUploadCard folders={data.folders} tags={data.tags} onAdded={() => void load()} />
         <Card size="small">
           <Flex vertical gap={12}>
             <Flex gap={8} wrap align="center">
@@ -93,6 +100,16 @@ function Media() {
                 onChange={(value) => setShown(value ?? null)}
                 options={data.folders.map((row) => ({ value: row.folder, label: folderLabel(row) }))}
                 style={{ flex: "1 1 220px", maxWidth: 320 }}
+              />
+              <TagSelect
+                aria-label="Lọc theo thẻ"
+                placeholder="Mọi thẻ"
+                tags={data.tags}
+                value={tags}
+                onChange={(next) => setTagText(next.join(","))}
+                allowNew={false}
+                maxTagCount="responsive"
+                style={{ flex: "1 1 220px", maxWidth: 360 }}
               />
               <Segmented
                 value={kind}
@@ -129,13 +146,29 @@ function Media() {
                     >
                       Chuyển thư mục
                     </Button>
+                    <Button
+                      size="small"
+                      icon={<TagsOutlined />}
+                      onClick={() => setTagEdit({ mode: "add", ids: selected })}
+                    >
+                      Thêm thẻ
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<TagsOutlined />}
+                      onClick={() => setTagEdit({ mode: "remove", ids: selected })}
+                    >
+                      Gỡ thẻ
+                    </Button>
                   </>
                 )}
               </Flex>
             )}
             <MediaGrid
               items={data.items}
-              empty={shown || query.trim() || kind !== "all" ? "Không có tư liệu nào khớp bộ lọc" : undefined}
+              empty={
+                shown || query.trim() || kind !== "all" || tagText ? "Không có tư liệu nào khớp bộ lọc" : undefined
+              }
               selected={selected}
               onToggle={(id, chosen) =>
                 setSelected((ids) => (chosen ? [...ids, id] : ids.filter((other) => other !== id)))
@@ -148,6 +181,15 @@ function Media() {
                     icon={<FolderOutlined />}
                     aria-label={`Chuyển thư mục ${item.name}`}
                     onClick={() => setMoving({ ids: [item.id], current: item.folder })}
+                  />
+                </Tooltip>,
+                <Tooltip key="tags" title="Sửa thẻ">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<TagsOutlined />}
+                    aria-label={`Sửa thẻ ${item.name}`}
+                    onClick={() => setTagEdit({ mode: "set", item })}
                   />
                 </Tooltip>,
                 // Only whoever added it deletes it.
@@ -176,6 +218,7 @@ function Media() {
           </Flex>
         </Card>
       </Flex>
+      <TagEditModal edit={tagEdit} tags={data.tags} onClose={() => setTagEdit(null)} onSaved={() => void load()} />
       <MoveFolderModal
         ids={moving.ids}
         current={moving.current}
