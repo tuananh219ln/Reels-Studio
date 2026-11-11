@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { api, errorMessage, type SceneData, type VideoDetail } from "@/lib/api";
 import { COLORS } from "@/app/theme";
 import { FRAME_HEIGHT, FRAME_WIDTH, HALF_X, halfHeight, halfHomeY, halfY, isHalf, layerCorner } from "./preview/layers";
+import { silentVideo } from "./silentVideo";
 import { SAFE, placeBox } from "./TextPositionModal";
 
 export type PlaceTab = "text" | "inset";
@@ -15,7 +16,7 @@ type Point = [number, number];
 const SHOWN_WIDTH = 270; // the frame on screen, a quarter of its size
 const SCALE = SHOWN_WIDTH / FRAME_WIDTH;
 const STEP = 10; // frame pixels an arrow key moves the chosen one
-const LOCKED_OPACITY = 0.55;
+const RESTING_OPACITY = 0.55; // the one not being moved
 const scaled = (value: number) => value * SCALE;
 
 /**
@@ -34,12 +35,12 @@ function textHome(scene: SceneData, insetTop: number | null): Point | null {
 }
 
 /**
- * "Chỉnh vị trí": one window for a content scene of a "Video xuyên suốt" with two tabs, "Chữ" and "Ảnh chèn" (the
- * second only while the scene has an inset photo). Over the backdrop, the inset photo and the text box as the render
- * lays them, the open tab's one is dragged up and down (mouse, touch or arrow keys) and always stays centred across;
- * the other is dimmed and locked. The text stays inside the platforms' safe zone (as on the title scene); the inset
- * goes from flush with the top edge to flush with the bottom edge. "Vị trí gốc" puts the open tab's one back, "Lưu"
- * saves both and closes, ✕ drops what was not saved.
+ * "Chỉnh vị trí chữ & ảnh chèn": one window for a content scene of a "Video xuyên suốt" with two tabs, "Chữ" and "Ảnh
+ * chèn" (the second only while the scene has an inset photo). Over the backdrop, the inset photo and the text box as the
+ * render lays them, the open tab's one is dragged up and down (mouse, touch or arrow keys) and always stays centred
+ * across; the other is dimmed, and pressing it picks it (its tab opens) and drags it. The text stays inside the
+ * platforms' safe zone (as on the title scene); the inset goes from flush with the top edge to flush with the bottom
+ * edge. "Vị trí gốc" puts the open tab's one back, "Lưu" saves both and closes, ✕ drops what was not saved.
  */
 export default function PlaceModal({
   scene,
@@ -64,7 +65,7 @@ export default function PlaceModal({
   const [insetY, setInsetY] = useState<number | null>(inset?.y ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const drag = useRef<{ pointer: number; y: number } | null>(null);
+  const drag = useRef<{ which: PlaceTab; pointer: number; y: number } | null>(null);
 
   const side = inset ? halfHeight(inset.height) : 0;
   const insetCorner = inset && insetY !== null ? layerCorner(side, side, { x: HALF_X, y: insetY }) : null;
@@ -72,9 +73,9 @@ export default function PlaceModal({
   const textCorner = size ? placeBox(size, shownCentre, false) : null;
   const textY = size && textCorner ? textCorner[1] + Math.floor(size.height / 2) : null;
 
-  /** Moves the open tab's one to `y` (frame pixels), kept where the render will really put it. */
-  function moveTo(y: number, snap: boolean) {
-    if (tab === "inset" && inset) {
+  /** Moves the text or the inset to `y` (frame pixels), kept where the render will really put it. */
+  function moveTo(which: PlaceTab, y: number, snap: boolean) {
+    if (which === "inset" && inset) {
       setInsetY(halfY(y, inset.height, snap));
     } else if (size) {
       const corner = placeBox(size, [FRAME_WIDTH / 2, y], false);
@@ -83,26 +84,28 @@ export default function PlaceModal({
     }
   }
 
-  const currentY = () => (tab === "inset" ? insetY : textY);
+  const currentY = (which: PlaceTab) => (which === "inset" ? insetY : textY);
 
-  function start(event: React.PointerEvent<HTMLElement>) {
-    const y = currentY();
+  /** Pressing the text or the inset picks it (its tab opens) and starts dragging it. */
+  function start(which: PlaceTab, event: React.PointerEvent<HTMLElement>) {
+    const y = currentY(which);
     if (y === null) return;
+    setTab(which);
     event.currentTarget.setPointerCapture(event.pointerId);
-    drag.current = { pointer: event.clientY, y };
+    drag.current = { which, pointer: event.clientY, y };
   }
 
   function move(event: React.PointerEvent<HTMLElement>) {
     const from = drag.current;
-    if (from) moveTo(Math.round(from.y + (event.clientY - from.pointer) / SCALE), true);
+    if (from) moveTo(from.which, Math.round(from.y + (event.clientY - from.pointer) / SCALE), true);
   }
 
   function key(event: React.KeyboardEvent) {
     const step = { ArrowUp: -1, ArrowDown: 1 }[event.key];
-    const y = currentY();
+    const y = currentY(tab);
     if (step && y !== null) {
       event.preventDefault();
-      moveTo(y + step * STEP, false);
+      moveTo(tab, y + step * STEP, false);
     }
   }
 
@@ -138,7 +141,7 @@ export default function PlaceModal({
   const ground = backdrop ?? scene;
   const picture = ground.frame_url ?? ground.preview_url;
   const shade = "rgba(0, 0, 0, 0.45)";
-  /** The open tab's one: dashed, dragged up and down, with ⇅ beside it; the other dimmed and locked. Its handlers
+  /** The open tab's one: dashed, dragged up and down, with ⇅ beside it; the other dimmed, picked when pressed. Its handlers
    * are set on the element itself. */
   const active = (on: boolean, label: string, y: number | null) =>
     on
@@ -157,7 +160,16 @@ export default function PlaceModal({
             touchAction: "none" as const,
           },
         }
-      : { "aria-hidden": true, style: { opacity: LOCKED_OPACITY, pointerEvents: "none" as const } };
+      : {
+          // Pressed, it is picked and dragged; the tabs and arrow keys reach it from the keyboard.
+          style: {
+            cursor: "ns-resize",
+            opacity: RESTING_OPACITY,
+            outline: "1px dashed rgba(255, 255, 255, 0.9)",
+            outlineOffset: 2,
+            touchAction: "none" as const,
+          },
+        };
 
   const insetProps = active(tab === "inset", "Ảnh chèn", insetY);
   const textProps = active(tab === "text", "Hộp chữ", textY);
@@ -166,7 +178,7 @@ export default function PlaceModal({
   return (
     <Modal
       open
-      title={tab === "inset" ? "Vị trí ảnh chèn" : "Vị trí chữ"}
+      title={inset ? "Vị trí chữ & ảnh chèn" : "Vị trí chữ"}
       onCancel={onClose}
       // A drag let go over the mask must not close the window and drop the place: only ✕ does.
       mask={{ closable: false }}
@@ -191,7 +203,9 @@ export default function PlaceModal({
           />
         )}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Kéo lên hoặc xuống (hoặc dùng phím mũi tên); luôn ở giữa theo chiều ngang.
+          {inset
+            ? "Bấm vào chữ hoặc ảnh chèn rồi kéo lên xuống (hoặc dùng phím mũi tên); luôn ở giữa theo chiều ngang."
+            : "Kéo lên hoặc xuống (hoặc dùng phím mũi tên); luôn ở giữa theo chiều ngang."}
         </Typography.Text>
         <div
           data-testid="place-frame"
@@ -207,6 +221,7 @@ export default function PlaceModal({
         >
           {ground.video ? (
             <video
+              ref={silentVideo}
               src={ground.video.url}
               muted
               loop
@@ -242,8 +257,8 @@ export default function PlaceModal({
               draggable={false}
               data-testid="place-inset"
               {...insetProps}
-              onPointerDown={tab === "inset" ? start : undefined}
-              onPointerMove={tab === "inset" ? move : undefined}
+              onPointerDown={(event) => start("inset", event)}
+              onPointerMove={move}
               onPointerUp={() => (drag.current = null)}
               onKeyDown={tab === "inset" ? key : undefined}
               style={{
@@ -267,8 +282,8 @@ export default function PlaceModal({
                 setSize({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })
               }
               {...textProps}
-              onPointerDown={tab === "text" ? start : undefined}
-              onPointerMove={tab === "text" ? move : undefined}
+              onPointerDown={(event) => start("text", event)}
+              onPointerMove={move}
               onPointerUp={() => (drag.current = null)}
               onKeyDown={tab === "text" ? key : undefined}
               style={{

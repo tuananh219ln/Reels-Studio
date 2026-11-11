@@ -3,6 +3,7 @@
 import { Flex, Modal, Switch, Typography } from "antd";
 import { useState } from "react";
 import type { SceneData } from "@/lib/api";
+import { silentVideo } from "./silentVideo";
 import { FRAME_HEIGHT, FRAME_WIDTH, placeBox } from "./TextPositionModal";
 
 const STAGE_HEIGHT = "min(72vh, 720px)";
@@ -47,6 +48,7 @@ export default function SceneViewer({ scene, onClose }: { scene: SceneData; onCl
         >
           {clip ? (
             <video
+              ref={silentVideo}
               src={clip.url}
               autoPlay
               muted

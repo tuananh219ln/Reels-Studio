@@ -62,6 +62,7 @@ import MediaEditor from "./MediaEditor";
 import HalfPhotoPanel, { InsetOverlapWarning } from "./HalfPhotoPanel";
 import { isHalf } from "./preview/layers";
 import { photoLayer } from "./videoModes";
+import { silentVideo } from "./silentVideo";
 import SceneViewer from "./SceneViewer";
 import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
@@ -280,57 +281,56 @@ export default function SceneCard({
       }
     >
       {backdrop && !scene.is_title ? (
-        // A "Video xuyên suốt" scene: on the left the preview, "Chỉnh vị trí chữ", the scene's own picture tools (when
-        // its inset shows the scene's photo) and the "Ảnh chèn" block; on the right the text, narration and fields.
-        <Row gutter={[16, 12]} data-testid="scene-two-column">
-          <Col xs={24} sm={9} md={8}>
-            <div style={{ maxWidth: 220, margin: "0 auto" }}>
-              <HalfPhotoPanel scene={scene} backdrop={backdropScene} generating={generating}>
-                {ownPicture && (
-                  <ScenePicture
-                    compact
-                    scene={scene}
-                    voiceEnabled={voiceEnabled}
-                    generating={generating}
-                    editing={editing}
-                  />
-                )}
-              </HalfPhotoPanel>
-            </div>
-          </Col>
-          <Col xs={24} sm={15} md={16}>
-            <Flex vertical gap={4}>
-              <SceneTextField scene={scene} />
-              <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
-              <InsetOverlapWarning scene={scene} />
-              <Flex wrap gap={16}>
-                <AutoSaveField
-                  label="Số giây"
-                  value={String(scene.seconds)}
-                  inputMode="decimal"
-                  width={110}
-                  save={async (text) => patch({ seconds: parseSeconds(text) })}
-                />
-                {scene.video && ownPicture && (
+        // A "Video xuyên suốt" scene: the preview beside the text, narration and fields, then "Chỉnh vị trí chữ & ảnh
+        // chèn" and the scene's own picture tools (when its inset shows the scene's photo) beside the "Ảnh chèn" block.
+        <div data-testid="scene-two-column">
+          <HalfPhotoPanel
+            scene={scene}
+            backdrop={backdropScene}
+            fields={
+              <Flex vertical gap={4}>
+                <SceneTextField scene={scene} />
+                <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
+                <InsetOverlapWarning scene={scene} />
+                <Flex wrap gap={16}>
                   <AutoSaveField
-                    label="Bắt đầu từ giây"
-                    value={String(scene.video.start)}
-                    help={clipSpeedHelp(scene.video.speed)}
+                    label="Số giây"
+                    value={String(scene.seconds)}
                     inputMode="decimal"
-                    width={130}
-                    save={async (text) => patch({ video_start: parseSeconds(text) })}
+                    width={110}
+                    save={async (text) => patch({ seconds: parseSeconds(text) })}
                   />
-                )}
-                {/* The inset's "Tìm" and "AI" read these too, so they are always there. */}
-                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                  <SceneKeywordsField scene={scene} />
-                </div>
+                  {scene.video && ownPicture && (
+                    <AutoSaveField
+                      label="Bắt đầu từ giây"
+                      value={String(scene.video.start)}
+                      help={clipSpeedHelp(scene.video.speed)}
+                      inputMode="decimal"
+                      width={130}
+                      save={async (text) => patch({ video_start: parseSeconds(text) })}
+                    />
+                  )}
+                  {/* The scene's "Tìm ảnh" and "Tạo ảnh AI" read these, and turning the inset on shows them. */}
+                  <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                    <SceneKeywordsField scene={scene} />
+                  </div>
+                </Flex>
+                <ScenePromptField scene={scene} />
+                <SceneIssues scene={scene} />
               </Flex>
-              <ScenePromptField scene={scene} />
-              <SceneIssues scene={scene} />
-            </Flex>
-          </Col>
-        </Row>
+            }
+          >
+            {ownPicture && (
+              <ScenePicture
+                compact
+                scene={scene}
+                voiceEnabled={voiceEnabled}
+                generating={generating}
+                editing={editing}
+              />
+            )}
+          </HalfPhotoPanel>
+        </div>
       ) : (
         <Row gutter={[16, 12]}>
           <Col xs={24} sm={9} md={8}>
@@ -951,6 +951,7 @@ export function ScenePicture({
       {scene.video && !compact && (
         // The clip as uploaded, without sound: the render never uses its sound either.
         <video
+          ref={silentVideo}
           src={scene.video.url}
           muted
           loop

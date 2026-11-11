@@ -1,12 +1,11 @@
 "use client";
 
-import { DragOutlined, FolderOpenOutlined, RobotOutlined, SearchOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Slider, Switch, Typography } from "antd";
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { api, errorMessage, upload, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
+import { DragOutlined } from "@ant-design/icons";
+import { Alert, App, Button, Flex, Grid, Slider, Switch, Typography } from "antd";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { api, errorMessage, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
-import MediaLibraryPicker from "./MediaLibraryPicker";
-import PlaceModal, { type PlaceTab } from "./PlaceModal";
+import PlaceModal from "./PlaceModal";
 import {
   FRAME_HEIGHT,
   FRAME_WIDTH,
@@ -18,14 +17,15 @@ import {
   isHalf,
   layerCorner,
 } from "./preview/layers";
-import StockPicker from "./StockPicker";
+import { silentVideo } from "./silentVideo";
 import { placeBox } from "./TextPositionModal";
 
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
-const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
-const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+/** The left column of a scene card on a screen from 576 px: the 9:16 frame stays a thumbnail. */
+const LEFT_WIDTH = 220;
 
 type Size = { width: number; height: number };
+type Place = { y: number; height: number };
 
 /** The size of the scene's text box as the api draws it (null until it has loaded, or without text). */
 function useBoxSize(url: string | null): Size | null {
@@ -67,36 +67,40 @@ export function InsetOverlapWarning({ scene }: { scene: SceneData }) {
 }
 
 /**
- * The left column of a content scene's card on a "Video xuyên suốt" (a slide video has no inset photo): from the top,
- * the preview (the backdrop playing, the inset photo over it and the scene's text box on top, as the render lays them),
- * "Chỉnh vị trí chữ" (always there), `children` (the scene's own picture tools, when they matter), then the "Ảnh chèn"
- * block. Turned off, the block is one line. Turned on: "Chỉnh vị trí ảnh chèn" (both places are dragged up and down in
- * PlaceModal), "Cỡ ảnh" (30–45%, the preview follows the slider at once) and the inset's own photo from four places:
- * upload, the library, a stock search, or an AI photo (the scene's, made from its "Prompt ảnh AI"). These are kept apart
- * from the scene's picture tools so the two kinds of photo are not confused.
+ * A content scene of a "Video xuyên suốt" (a slide video has no inset photo): the preview (the backdrop playing, the
+ * inset photo over it and the scene's text box on top, as the render lays them), "Chỉnh vị trí chữ & ảnh chèn" (always
+ * there; both are dragged up and down in PlaceModal), `children` (the scene's own picture tools, when they matter) and
+ * the "Ảnh chèn" block: a switch and, turned on, "Cỡ ảnh" (30–45%, the preview follows the slider at once). The inset
+ * always shows the scene's photo (2026-11-12, scene card layout); one an older edit gave a photo of its own keeps it,
+ * with "Dùng ảnh của cảnh" to let it go.
+ *
+ * Given `fields` (the scene card), from 576 px it lays out as a grid: the preview beside `fields`, then the button and
+ * the picture tools on the left beside the "Ảnh chèn" block on the right; narrower, everything in one column, the
+ * fields last. Without `fields` (the studio's inspector), one column.
  */
 export default function HalfPhotoPanel({
   scene,
   backdrop,
-  generating = false,
+  fields,
   children,
 }: {
   scene: SceneData;
   /** The title scene of a "Video xuyên suốt": its photo or clip runs under this scene. */
   backdrop: SceneData | null;
-  /** An AI photo is being made for this scene. */
-  generating?: boolean;
+  /** The card's text, narration and other fields: the right column. */
+  fields?: ReactNode;
   children?: ReactNode;
 }) {
   const { modal } = App.useApp();
   const editor = useEditor();
-  const input = useRef<HTMLInputElement>(null);
+  const wide = Grid.useBreakpoint().sm === true;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [placing, setPlacing] = useState<PlaceTab | null>(null);
-  const [picking, setPicking] = useState<"stock" | "library" | null>(null);
+  const [placing, setPlacing] = useState(false);
   // "Cỡ ảnh" while its slider is being dragged: the preview follows it before it is saved.
   const [resizing, setResizing] = useState<number | null>(null);
+  // The size and place an inset had when it was turned off here, given back when it is turned on again.
+  const lastPlace = useRef<Place | null>(null);
   const box = useBoxSize(scene.textbox_url);
   const frozen = editor.locked || editor.readOnly;
   const off = frozen || busy !== null;
@@ -116,54 +120,40 @@ export default function HalfPhotoPanel({
     }
   }
 
-  /** On: an inset showing the scene's photo, flush with the bottom edge at 32% (an "Ảnh món" turns into one). */
+  /** On: an inset showing the scene's photo, flush with the bottom edge at 32% (an "Ảnh món" turns into one), or where
+   * it was when it was turned off here. */
   const turnOn = () =>
-    run("on", () => api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, scene_photo: true }));
+    run("on", async () => {
+      const saved = await api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, scene_photo: true });
+      const back = lastPlace.current;
+      const made = saved.scenes.find((item) => item.id === scene.id)?.layers.find(isHalf);
+      if (!back || !made || (made.y === back.y && made.height === back.height)) return saved;
+      // The height first (the api applies it before `y`), so the place is kept exactly.
+      return api<VideoDetail>(`/layers/${made.id}`, "PATCH", { height: back.height, y: back.y });
+    });
 
-  const turnOff = (target: SceneLayer) =>
+  function turnOff(target: SceneLayer) {
+    const go = () => {
+      lastPlace.current = { y: target.y, height: target.height };
+      return run("off", () => api<VideoDetail>(`/layers/${target.id}`, "DELETE"));
+    };
+    if (!target.own_image) {
+      void go();
+      return;
+    }
     modal.confirm({
       title: "Tắt ảnh chèn?",
-      content: "Ảnh chèn bị xoá hẳn, không hoàn tác được. Muốn dùng lại thì bật và chọn ảnh lần nữa.",
+      content: "Ảnh riêng của ảnh chèn bị xoá hẳn. Bật lại thì ảnh chèn dùng ảnh của cảnh.",
       okText: "Tắt",
       okButtonProps: { danger: true },
       cancelText: "Huỷ",
-      onOk: () => run("off", () => api<VideoDetail>(`/layers/${target.id}`, "DELETE")),
-    });
-
-  function chosen(file: File | undefined) {
-    if (input.current) input.current.value = "";
-    if (!file) return;
-    if (!IMAGE_TYPES.includes(file.type)) {
-      setError("Ảnh chèn chỉ nhận ảnh JPG, PNG hoặc WebP");
-      return;
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError("Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn");
-      return;
-    }
-    void run("upload", () => upload<VideoDetail>("/layers/half-photo/upload", file, { scene_id: String(scene.id) }));
-  }
-
-  /** "AI": the inset shows the scene's photo, made by an AI from the scene's "Prompt ảnh AI". */
-  function generate(target: SceneLayer) {
-    const go = () =>
-      run("ai", async () => {
-        // The job reads the saved prompt: the one being typed is saved first.
-        await editor.flush();
-        if (target.own_image) {
-          await api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, scene_photo: true });
-        }
-        return api<VideoDetail>(`/scenes/${scene.id}/image-ai`, "POST");
-      });
-    modal.confirm({
-      title: "Tạo ảnh AI cho ảnh chèn?",
-      content:
-        "Ảnh AI được tạo theo “Prompt ảnh AI” của cảnh và thay ảnh chèn đang có. Mỗi lần tạo tốn phí dịch vụ ảnh AI.",
-      okText: "Tạo",
-      cancelText: "Huỷ",
-      onOk: () => void go(),
+      onOk: go,
     });
   }
+
+  /** An older edit's own photo let go: the inset shows the scene's photo, in the same place and size. */
+  const toScenePhoto = () =>
+    run("scene", () => api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, scene_photo: true }));
 
   const ground = backdrop ?? scene;
   const picture = ground.frame_url ?? ground.preview_url;
@@ -191,6 +181,7 @@ export default function HalfPhotoPanel({
     >
       {ground.video ? (
         <video
+          ref={silentVideo}
           src={ground.video.url}
           muted
           loop
@@ -247,6 +238,22 @@ export default function HalfPhotoPanel({
     </div>
   );
 
+  const place = (
+    <Button
+      type="primary"
+      block
+      icon={<DragOutlined />}
+      disabled={frozen}
+      onClick={async () => {
+        // The box is drawn from the saved text: the text being typed is saved first.
+        await editor.flush();
+        setPlacing(true);
+      }}
+    >
+      Chỉnh vị trí chữ & ảnh chèn
+    </Button>
+  );
+
   const block = (
     <Flex
       vertical
@@ -267,22 +274,10 @@ export default function HalfPhotoPanel({
       </Flex>
       {!layer ? (
         <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="inset-off">
-          {otherPhoto ? "Cảnh đang dùng ảnh món. Bật để đổi sang ảnh chèn." : "Đang tắt. Bật để chọn vị trí và ảnh."}
+          {otherPhoto ? "Cảnh đang dùng ảnh món. Bật để đổi sang ảnh chèn." : "Đang tắt. Bật để chèn ảnh của cảnh."}
         </Typography.Text>
       ) : (
         <>
-          <Button
-            block
-            icon={<DragOutlined />}
-            disabled={off}
-            onClick={async () => {
-              await editor.flush();
-              setPlacing("inset");
-            }}
-            style={{ whiteSpace: "normal", height: "auto", minHeight: 32 }}
-          >
-            Chỉnh vị trí ảnh chèn (kéo lên xuống)
-          </Button>
           <div>
             <Slider
               ariaLabelForHandle="Cỡ ảnh"
@@ -304,107 +299,72 @@ export default function HalfPhotoPanel({
               Cỡ ảnh: {height}% (hẹp hơn video)
             </Typography.Text>
           </div>
-          <Flex gap={6} wrap data-testid="inset-sources">
-            <Button
-              size="small"
-              icon={<UploadOutlined />}
-              loading={busy === "upload"}
-              disabled={off}
-              onClick={() => input.current?.click()}
-            >
-              Tải lên
-            </Button>
-            <Button size="small" icon={<FolderOpenOutlined />} disabled={off} onClick={() => setPicking("library")}>
-              Kho
-            </Button>
-            <Button
-              size="small"
-              icon={<SearchOutlined />}
-              disabled={off}
-              onClick={async () => {
-                // The search starts from the scene's keywords: the one being typed is saved first.
-                await editor.flush();
-                setPicking("stock");
-              }}
-            >
-              Tìm
-            </Button>
-            <Button
-              size="small"
-              icon={<RobotOutlined />}
-              loading={generating || busy === "ai"}
-              disabled={off || generating}
-              onClick={() => generate(layer)}
-            >
-              AI
-            </Button>
-          </Flex>
-          {!layer.own_image && (
-            <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="half-photo-scene-tools">
-              Đang dùng ảnh của cảnh. Chọn ảnh riêng cho ảnh chèn bằng các nút trên.
-            </Typography.Text>
+          {layer.own_image && (
+            // An inset given a photo of its own before the block lost its own picture buttons: it keeps rendering it.
+            <Flex wrap align="center" gap={6} data-testid="inset-own-image">
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                Đang dùng ảnh riêng chọn từ trước.
+              </Typography.Text>
+              <Button size="small" loading={busy === "scene"} disabled={off} onClick={() => void toScenePhoto()}>
+                Dùng ảnh của cảnh
+              </Button>
+            </Flex>
           )}
-          <input
-            ref={input}
-            type="file"
-            accept={IMAGE_TYPES.join(",")}
-            hidden
-            aria-label="Tải ảnh lên cho ảnh chèn"
-            onChange={(event) => chosen(event.target.files?.[0])}
-          />
         </>
       )}
       {error && <Alert type="error" showIcon title={error} />}
     </Flex>
   );
 
+  const placeWindow = placing && (
+    <PlaceModal
+      scene={scene}
+      backdrop={backdrop}
+      tab="text"
+      onClose={() => setPlacing(false)}
+      onSaved={editor.onSaved}
+    />
+  );
+
+  if (fields === undefined) {
+    return (
+      <Flex vertical gap={8} data-testid="half-photo-panel">
+        {stage}
+        {place}
+        {children}
+        {block}
+        {placeWindow}
+      </Flex>
+    );
+  }
+
+  // From 576 px: the preview beside the fields, the button and picture tools beside the "Ảnh chèn" block, which keeps
+  // its own height. Narrower: one column as before, the left column's parts a thumbnail wide, the fields last.
+  const cell = (area: string, left: boolean): CSSProperties => ({
+    gridArea: area,
+    minWidth: 0,
+    ...(left && !wide ? { width: "100%", maxWidth: LEFT_WIDTH, justifySelf: "center" } : {}),
+  });
   return (
-    <Flex vertical gap={8} data-testid="half-photo-panel">
-      {stage}
-      <Button
-        type="primary"
-        block
-        icon={<DragOutlined />}
-        disabled={frozen}
-        onClick={async () => {
-          // The box is drawn from the saved text: the text being typed is saved first.
-          await editor.flush();
-          setPlacing("text");
-        }}
-      >
-        Chỉnh vị trí chữ
-      </Button>
-      {children}
-      {block}
-      {placing && (
-        <PlaceModal
-          scene={scene}
-          backdrop={backdrop}
-          tab={placing}
-          onClose={() => setPlacing(null)}
-          onSaved={editor.onSaved}
-        />
-      )}
-      {picking === "stock" && layer && (
-        <StockPicker
-          sceneId={scene.id}
-          videoId={scene.video_id}
-          keywords={scene.keywords}
-          keywordsEn={scene.keywords_en}
-          title="Tìm ảnh cho ảnh chèn"
-          onChoose={(hit) => api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, url: hit.url })}
-          onClose={() => setPicking(null)}
-        />
-      )}
-      {picking === "library" && layer && (
-        <MediaLibraryPicker
-          sceneId={scene.id}
-          videoId={scene.video_id}
-          hasPicture={!!layer.own_image}
-          onUse={(mediaId) => api<VideoDetail>("/layers/half-photo", "POST", { scene_id: scene.id, media_id: mediaId })}
-          onClose={() => setPicking(null)}
-        />
-      )}
-    </Flex>
+    <div
+      data-testid="half-photo-panel"
+      style={{
+        display: "grid",
+        columnGap: 16,
+        rowGap: 8,
+        gridTemplateColumns: wide ? `${LEFT_WIDTH}px minmax(0, 1fr)` : "minmax(0, 1fr)",
+        gridTemplateRows: wide ? "auto auto 1fr" : undefined,
+        gridTemplateAreas: wide
+          ? '"stage fields" "place block" "tools block"'
+          : '"stage" "place" "tools" "block" "fields"',
+      }}
+    >
+      <div style={cell("stage", true)}>{stage}</div>
+      <div style={cell("fields", false)}>{fields}</div>
+      <div style={cell("place", true)}>{place}</div>
+      {children && <div style={cell("tools", true)}>{children}</div>}
+      <div style={{ ...cell("block", true), alignSelf: "start" }}>{block}</div>
+      {placeWindow}
+    </div>
   );
 }
