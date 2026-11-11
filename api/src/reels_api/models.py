@@ -201,6 +201,10 @@ class KnowledgeTopic(Base):
     # "Thứ tự nguồn ảnh": the stock sources in the order its videos ask them ("Tự tìm ảnh", the picker, "Tìm ảnh").
     # None: the app's order (routes_videos.STOCK_SOURCES). Sources missing from it follow in the app's order.
     stock_order: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    # "Tư liệu" (migration 0076): the folder of the team's one "Kho tư liệu" the group uses, its view showing that
+    # folder with its subfolders; None: none linked. A folder belongs to at most one group; renaming the folder on
+    # /media follows here, clearing it unlinks (docs/decisions/2026-11-11-media-folders.md).
+    media_folder: Mapped[str | None] = mapped_column(String(200), unique=True)
     # Who made the group: only they delete it (ownership.py); None (made before 2026-11-09, maker unknown): nobody.
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))

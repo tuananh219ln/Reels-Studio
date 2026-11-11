@@ -2207,6 +2207,7 @@ class TopicPatchBody(BaseModel):
     video_mode: Literal["slides", "single", "alternate"] | None = None  # "Kiểu video" (videos.GROUP_VIDEO_MODES)
     text_look: dict | None = None  # "Chữ & phụ đề" (text_looks.FIELDS); null or {} (when sent): the maker's
     text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
+    media_folder: str | None = None  # "Tư liệu": its folder in the "Kho tư liệu"; null or "" (when sent) unlinks
 
 
 MAX_PHOTO_HINT_LENGTH = 1000
@@ -2260,6 +2261,8 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # "Thứ tự nguồn ảnh": always whole; `stock_order_custom` false while the group takes the app's order.
                 "stock_order": clean_stock_order(topic.stock_order),
                 "stock_order_custom": bool(topic.stock_order),
+                # "Tư liệu": the folder of the team's library the group's view shows; None: none linked yet.
+                "media_folder": topic.media_folder,
                 "video_count": counts.get(topic.id, 0),
                 # A group of a Page the member owns: listed first where a group is picked.
                 "mine": topic.id in mine,
@@ -2392,6 +2395,10 @@ def patch_topic(
             raise invalid(str(err)) from None
     if body.text_ai is not None:
         topic.text_ai = body.text_ai
+    if "media_folder" in body.model_fields_set:
+        from .routes_media import link_folder
+
+        topic.media_folder = link_folder(db, topic, body.media_folder)
     if body.stock_order is not None:
         unknown = [source for source in body.stock_order if source not in STOCK_SOURCES]
         if unknown:

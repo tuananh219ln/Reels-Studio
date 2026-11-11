@@ -4,6 +4,11 @@ A member drags a whole folder in (the web uploads one file per request, with its
 address (from Google Ảnh, a shop) or a TikTok video, which the api downloads with the same rules as a link pasted
 on a scene (remote_media.py: public addresses only, the upload limits). A clip longer than a minute keeps its first
 minute. Using an item in a scene copies the file into the video, so deleting it from the library never changes one.
+
+Folders are labels on the items (`media_items.folder`), not rows of their own: moving items, renaming a folder or
+clearing it changes only labels, never an item's id or file, so what the MCP assistant or a scene points at by id still
+holds. A topic group may link one folder ("Tư liệu" on /knowledge, `knowledge_topics.media_folder`); renaming the
+folder takes the link along, clearing it unlinks (docs/decisions/2026-11-11-media-folders.md).
 """
 
 import io
@@ -19,10 +24,10 @@ from pydantic import BaseModel
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import clips, remote_media
+from . import clips, edit_log, remote_media
 from .db import get_db
 from .errors import ApiError
-from .models import MediaItem, Session
+from .models import KnowledgeTopic, MediaItem, Session
 from .ownership import ensure_owner
 from .routes_music import like_pattern
 from .sessions import current_member
@@ -53,6 +58,20 @@ class UseBody(BaseModel):
     scene_id: int
 
 
+class MoveBody(BaseModel):
+    ids: list[int]
+    folder: str = ""  # "" for "Không thư mục"
+
+
+class FolderBody(BaseModel):
+    folder: str
+
+
+class RenameBody(BaseModel):
+    folder: str
+    to: str
+
+
 def invalid(message: str) -> ApiError:
     return ApiError(422, "invalid_value", message)
 
@@ -65,6 +84,58 @@ def clean_folder(raw: str) -> str:
     if len(folder) > MAX_FOLDER:
         raise invalid(f"Tên thư mục dài quá {MAX_FOLDER} ký tự")
     return folder
+
+
+def in_folder(name: str):
+    """The items of a folder with its subfolders, as the library's filter shows them."""
+    return or_(MediaItem.folder == name, MediaItem.folder.like(f"{like_pattern(name)}/%", "\\"))
+
+
+def _relabel(value: str, old: str, new: str) -> str | None:
+    """`value` with folder `old` (or a subfolder of it) renamed `new`; None when it is not in `old`."""
+    if value == old or value.startswith(f"{old}/"):
+        return new + value[len(old) :]
+    return None
+
+
+def linked_topics(db: DbSession) -> list[KnowledgeTopic]:
+    return list(db.scalars(select(KnowledgeTopic).where(KnowledgeTopic.media_folder.is_not(None))))
+
+
+def folder_list(db: DbSession) -> list[dict]:
+    """Every folder with its count of items, and the group linking it; a linked folder with nothing in it yet too."""
+    counts = dict(db.execute(select(MediaItem.folder, func.count()).group_by(MediaItem.folder)).all())
+    links = {topic.media_folder: topic for topic in linked_topics(db)}
+    names = sorted({name for name in counts if name} | set(links), key=lambda name: (name.casefold(), name))
+    return [
+        {
+            "folder": name,
+            "count": counts.get(name, 0),
+            "topic_id": links[name].id if name in links else None,
+            "topic": links[name].name if name in links else None,
+        }
+        for name in names
+    ]
+
+
+def _log_link(db: DbSession, topic: KnowledgeTopic, old: str | None, me: Session) -> None:
+    changes = {"media_folder": {"old": old, "new": topic.media_folder}}
+    edit_log.record(db, edit_log.TOPIC, topic.id, "update", me.user_id, label=topic.name, changes=changes)
+
+
+def link_folder(db: DbSession, topic: KnowledgeTopic, raw: str | None) -> str | None:
+    """The folder a group's "Tư liệu" is to show ("" or None: unlinked); one already another group's is refused."""
+    name = clean_folder(raw or "")
+    if not name:
+        return None
+    holder = db.scalar(select(KnowledgeTopic).where(KnowledgeTopic.media_folder == name, KnowledgeTopic.id != topic.id))
+    if holder is not None:
+        raise ApiError(
+            409,
+            "folder_linked",
+            f"Thư mục “{name}” đã là thư mục tư liệu của nhóm “{holder.name}”, hãy chọn thư mục khác",
+        )
+    return name
 
 
 def payload(item: MediaItem) -> dict:
@@ -123,18 +194,95 @@ def list_media(
     """The library newest first (one folder, with its subfolders, when named), and every folder with its count."""
     query = select(MediaItem).order_by(MediaItem.id.desc()).limit(MAX_LIST)
     if folder:
-        name = clean_folder(folder)
-        query = query.where(or_(MediaItem.folder == name, MediaItem.folder.like(f"{like_pattern(name)}/%", "\\")))
+        query = query.where(in_folder(clean_folder(folder)))
     if kind in ("photo", "clip"):
         query = query.where(MediaItem.kind == kind)
     if q and q.strip():
         pattern = f"%{like_pattern(q.strip())}%"
         query = query.where(or_(MediaItem.name.ilike(pattern, escape="\\"), MediaItem.folder.ilike(pattern, "\\")))
-    folders = db.execute(select(MediaItem.folder, func.count()).group_by(MediaItem.folder).order_by(MediaItem.folder))
-    return {
-        "items": [payload(item) for item in db.scalars(query)],
-        "folders": [{"folder": name, "count": count} for name, count in folders if name],
-    }
+    return {"items": [payload(item) for item in db.scalars(query)], "folders": folder_list(db)}
+
+
+@router.post("/move")
+def move_media(body: MoveBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Chuyển thư mục" for one item or a chosen batch: only the label changes, never the id or the file."""
+    ids = list(dict.fromkeys(body.ids))
+    if not ids:
+        raise invalid("Hãy chọn ít nhất một tư liệu")
+    if len(ids) > MAX_LIST:
+        raise invalid(f"Mỗi lần chuyển tối đa {MAX_LIST} tư liệu")
+    where = clean_folder(body.folder)
+    items = db.scalars(select(MediaItem).where(MediaItem.id.in_(ids)).with_for_update()).all()
+    if len(items) != len(ids):
+        raise ApiError(404, "media_not_found", "Có tư liệu không còn trong kho (có thể đã bị xoá), hãy tải lại trang")
+    for item in items:
+        item.folder = where
+    db.commit()
+    return {"moved": len(items), "folders": folder_list(db)}
+
+
+@router.post("/folders/rename")
+def rename_folder(body: RenameBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Every item of the folder and its subfolders takes the new name (merging into a folder of that name), and the
+    group linking it follows; refused when two groups would end up on one folder."""
+    old, new = clean_folder(body.folder), clean_folder(body.to)
+    if not old:
+        raise invalid("Hãy chọn thư mục cần đổi tên")
+    if not new:
+        raise invalid("Hãy nhập tên mới cho thư mục")
+    items = db.scalars(select(MediaItem).where(in_folder(old)).with_for_update()).all()
+    topics = linked_topics(db)
+    moving = {topic.id: _relabel(topic.media_folder, old, new) for topic in topics}
+    moving = {topic_id: name for topic_id, name in moving.items() if name is not None}
+    if not items and not moving:
+        raise ApiError(404, "folder_not_found", f"Không tìm thấy thư mục “{old}” (có thể vừa được đổi tên)")
+    if old == new:
+        return {"moved": 0, "folders": folder_list(db)}
+    renamed = {item.id: _relabel(item.folder, old, new) for item in items}
+    if any(len(name) > MAX_FOLDER for name in [*renamed.values(), *moving.values()]):
+        raise invalid(f"Tên thư mục dài quá {MAX_FOLDER} ký tự")
+    holders = {topic.media_folder: topic for topic in topics if topic.id not in moving}
+    for topic in topics:
+        held = holders.get(moving.get(topic.id, ""))
+        if held is not None:
+            raise ApiError(
+                409,
+                "folder_linked",
+                f"Thư mục “{held.media_folder}” đã là thư mục tư liệu của nhóm “{held.name}”, còn “{topic.media_folder}”"
+                f" thuộc nhóm “{topic.name}”: hãy bỏ liên kết ở một nhóm trước khi đổi tên",
+            )
+    for item in items:
+        item.folder = renamed[item.id]
+    changed = [(topic, topic.media_folder) for topic in topics if topic.id in moving]
+    # Unlinked first, so a rename into its own subfolder never meets the unique folder on the way.
+    for topic, _ in changed:
+        topic.media_folder = None
+    db.flush()
+    for topic, before in changed:
+        topic.media_folder = moving[topic.id]
+        _log_link(db, topic, before, me)
+    db.commit()
+    return {"moved": len(items), "folders": folder_list(db)}
+
+
+@router.post("/folders/clear")
+def clear_folder(body: FolderBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Xoá thư mục": its items and its subfolders' go to "Không thư mục" (none is deleted), and a group linking it
+    or a subfolder of it is unlinked."""
+    name = clean_folder(body.folder)
+    if not name:
+        raise invalid("Hãy chọn thư mục cần xoá")
+    items = db.scalars(select(MediaItem).where(in_folder(name)).with_for_update()).all()
+    topics = [topic for topic in linked_topics(db) if _relabel(topic.media_folder, name, name) is not None]
+    if not items and not topics:
+        raise ApiError(404, "folder_not_found", f"Không tìm thấy thư mục “{name}” (có thể vừa được xoá)")
+    for item in items:
+        item.folder = ""
+    for topic in topics:
+        before, topic.media_folder = topic.media_folder, None
+        _log_link(db, topic, before, me)
+    db.commit()
+    return {"cleared": len(items), "unlinked": [topic.name for topic in topics], "folders": folder_list(db)}
 
 
 @router.post("", status_code=201)

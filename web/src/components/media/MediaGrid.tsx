@@ -2,20 +2,25 @@
 
 import EmptyState from "@/components/EmptyState";
 import { VideoCameraOutlined } from "@ant-design/icons";
-import { Card, Flex, Tag, Typography, theme } from "antd";
+import { Card, Checkbox, Flex, Tag, Typography, theme } from "antd";
 import type { ReactNode } from "react";
 import type { MediaItem } from "@/lib/api";
 import { formatDecimal } from "@/lib/api";
 
-/** The library's photos and clips as tall cards, each with the actions its page gives it. */
+/** The library's photos and clips as tall cards, each with the actions its page gives it; with `onToggle`, each has a
+ * box to choose it for an action on several at once ("Chuyển thư mục"). */
 export default function MediaGrid({
   items,
   actions,
   empty = "Kho chưa có tư liệu nào",
+  selected,
+  onToggle,
 }: {
   items: MediaItem[];
   actions: (item: MediaItem) => ReactNode[];
-  empty?: string;
+  empty?: ReactNode;
+  selected?: number[];
+  onToggle?: (id: number, chosen: boolean) => void;
 }) {
   const { token } = theme.useToken();
   if (!items.length) {
@@ -45,6 +50,21 @@ export default function MediaGrid({
                 loading="lazy"
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
+              {onToggle && (
+                <Checkbox
+                  aria-label={`Chọn ${item.name}`}
+                  checked={selected?.includes(item.id) ?? false}
+                  onChange={(event) => onToggle(item.id, event.target.checked)}
+                  style={{
+                    position: "absolute",
+                    left: 6,
+                    top: 6,
+                    padding: 6,
+                    borderRadius: token.borderRadiusSM,
+                    background: token.colorBgContainer,
+                  }}
+                />
+              )}
               {item.kind === "clip" && (
                 <Tag icon={<VideoCameraOutlined />} style={{ position: "absolute", left: 6, bottom: 6, margin: 0 }}>
                   {item.seconds === null || item.seconds === undefined ? "" : formatDecimal(item.seconds)} giây

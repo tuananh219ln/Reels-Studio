@@ -3,7 +3,7 @@
 import { Select, type SelectProps } from "antd";
 
 /** Text compared without accents or case, so "vuon nha" finds "Vườn nhà". */
-function plain(text: string): string {
+export function plain(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase();
 }
 

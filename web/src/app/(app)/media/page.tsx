@@ -1,53 +1,18 @@
 "use client";
 
 import { useMe } from "@/components/MeContext";
-import {
-  DeleteOutlined,
-  FolderAddOutlined,
-  InboxOutlined,
-  LinkOutlined,
-  SearchOutlined,
-  UploadOutlined,
-} from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Popconfirm, Progress, Segmented, Select, Typography, theme } from "antd";
-import { Suspense, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { DeleteOutlined, FolderOutlined, SearchOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Tooltip, Typography } from "antd";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import FilterSelect from "@/components/FilterSelect";
+import FolderActions from "@/components/media/FolderActions";
+import { folderLabel } from "@/components/media/FolderSelect";
 import MediaGrid from "@/components/media/MediaGrid";
-import MediaLinkSearch from "@/components/media/MediaLinkSearch";
+import MediaUploadCard from "@/components/media/MediaUploadCard";
+import MoveFolderModal from "@/components/media/MoveFolderModal";
 import PageHeader from "@/components/PageHeader";
-import { api, errorMessage, upload, type AffiliateProduct, type MediaItem, type MediaList } from "@/lib/api";
+import { api, errorMessage, type MediaItem, type MediaList } from "@/lib/api";
 import { useUrlChoice } from "@/lib/urlState";
-
-const MAX_PHOTO_BYTES = 15 * 1024 * 1024;
-const MAX_CLIP_BYTES = 50 * 1024 * 1024;
-const MEDIA_FILE = /\.(jpe?g|png|webp|mp4|mov|webm)$/i;
-
-type Pending = { file: File; dir: string };
-
-/** Every file of a dropped folder (or of dropped files), with the folder path it sat in. */
-async function droppedFiles(event: DragEvent): Promise<Pending[]> {
-  const found: Pending[] = [];
-  const walk = async (entry: FileSystemEntry, dir: string): Promise<void> => {
-    if (entry.isFile) {
-      const file = await new Promise<File>((resolve, reject) => (entry as FileSystemFileEntry).file(resolve, reject));
-      found.push({ file, dir });
-      return;
-    }
-    const reader = (entry as FileSystemDirectoryEntry).createReader();
-    const path = dir ? `${dir}/${entry.name}` : entry.name;
-    // readEntries answers in batches: read until it returns nothing.
-    for (;;) {
-      const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
-      if (!batch.length) break;
-      for (const child of batch) await walk(child, path);
-    }
-  };
-  const entries = Array.from(event.dataTransfer.items)
-    .map((item) => item.webkitGetAsEntry())
-    .filter((entry): entry is FileSystemEntry => entry !== null);
-  for (const entry of entries) await walk(entry, "");
-  return found;
-}
 
 export default function MediaPage() {
   // The folder, kind and search are in the address, which a static page only knows in the browser.
@@ -61,18 +26,13 @@ export default function MediaPage() {
 function Media() {
   const { message } = App.useApp();
   const { me } = useMe();
-  const { token } = theme.useToken();
-  const folderInput = useRef<HTMLInputElement>(null);
-  const filesInput = useRef<HTMLInputElement>(null);
   const [data, setData] = useState<MediaList>({ items: [], folders: [] });
-  const [products, setProducts] = useState<AffiliateProduct[]>([]);
-  const [productId, setProductId] = useState<number | null>(null);
-  const [target, setTarget] = useState("");
   const [shown, setShown] = useUrlChoice<string | null>("folder", null);
   const [kind, setKind] = useUrlChoice<"all" | "photo" | "clip">("kind", "all", ["photo", "clip"]);
   const [query, setQuery] = useUrlChoice<string>("q", "");
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
-  const [dragging, setDragging] = useState(false);
+  // Items chosen for "Chuyển thư mục" on several at once, and what the dialog moves (one item or the chosen ones).
+  const [selected, setSelected] = useState<number[]>([]);
+  const [moving, setMoving] = useState<{ ids: number[]; current?: string }>({ ids: [] });
 
   const load = useCallback(async () => {
     const params = new URLSearchParams();
@@ -80,7 +40,10 @@ function Media() {
     if (kind !== "all") params.set("kind", kind);
     if (query.trim()) params.set("q", query.trim());
     try {
-      setData(await api<MediaList>(`/media?${params.toString()}`));
+      const found = await api<MediaList>(`/media?${params.toString()}`);
+      setData(found);
+      // What is no longer listed (moved out of the filter, deleted by a teammate) stops being chosen.
+      setSelected((ids) => ids.filter((id) => found.items.some((item) => item.id === id)));
     } catch (err) {
       message.error(errorMessage(err));
     }
@@ -91,62 +54,17 @@ function Media() {
     return () => clearTimeout(timer);
   }, [load]);
 
-  useEffect(() => {
-    api<AffiliateProduct[]>("/affiliate-products?status=approved")
-      .then(setProducts)
-      .catch(() => setProducts([]));
-    // A folder picker reads whole folders only through this non-standard attribute.
-    folderInput.current?.setAttribute("webkitdirectory", "");
-  }, []);
-
-  const product = products.find((row) => row.id === productId) ?? null;
-
-  async function send(pending: Pending[]) {
-    const usable = pending.filter(({ file }) => MEDIA_FILE.test(file.name));
-    const skipped = pending.length - usable.length;
-    if (!usable.length) {
-      message.warning("Không có ảnh (jpg, png, webp) hay video (mp4, mov, webm) nào");
-      return;
-    }
-    setProgress({ done: 0, total: usable.length });
-    let failed = 0;
-    // One file per request, like every upload: Cloudflare caps a request at 100 MB.
-    for (const [index, { file, dir }] of usable.entries()) {
-      const tooBig = /\.(mp4|mov|webm)$/i.test(file.name) ? file.size > MAX_CLIP_BYTES : file.size > MAX_PHOTO_BYTES;
-      if (tooBig) {
-        failed += 1;
-        message.error(`“${file.name}” quá lớn (ảnh tối đa 15 MB, video 50 MB)`);
-      } else {
-        try {
-          await upload<MediaItem>("/media", file, { folder: [target, dir].filter(Boolean).join("/") });
-        } catch (err) {
-          failed += 1;
-          message.error(`“${file.name}”: ${errorMessage(err)}`);
-        }
-      }
-      setProgress({ done: index + 1, total: usable.length });
-    }
-    setProgress(null);
-    const added = usable.length - failed;
-    if (added) message.success(`Đã thêm ${added} tư liệu${skipped ? `, bỏ qua ${skipped} file khác loại` : ""}`);
-    await load();
-  }
-
-  function picked(input: HTMLInputElement | null) {
-    const files = Array.from(input?.files ?? []);
-    if (input) input.value = "";
-    // A picked folder gives each file its path inside it ("Nồi chiên/cảnh 1/a.mp4").
-    void send(files.map((file) => ({ file, dir: file.webkitRelativePath.split("/").slice(0, -1).join("/") })));
-  }
-
   async function remove(item: MediaItem) {
     try {
       await api(`/media/${item.id}`, "DELETE");
       setData((old) => ({ ...old, items: old.items.filter((row) => row.id !== item.id) }));
+      setSelected((ids) => ids.filter((id) => id !== item.id));
     } catch (err) {
       message.error(errorMessage(err));
     }
   }
+
+  const allChosen = data.items.length > 0 && data.items.every((item) => selected.includes(item.id));
 
   return (
     <>
@@ -155,84 +73,7 @@ function Media() {
         description="Ảnh và clip của cả nhóm: kéo cả thư mục vào, hoặc tìm trên Google, TikTok rồi dán link. Dùng cho cảnh ở trang video hoặc nhờ Claude chọn."
       />
       <Flex vertical gap={16}>
-        <Card title="Thêm tư liệu" size="small">
-          <Flex vertical gap={12}>
-            <Flex gap={8} wrap align="center">
-              <Select
-                allowClear
-                showSearch
-                placeholder="Sản phẩm đang làm (để tìm và đặt thư mục)"
-                optionFilterProp="label"
-                value={productId ?? undefined}
-                options={products.map((row) => ({ value: row.id, label: row.name }))}
-                onChange={(value: number | undefined) => {
-                  setProductId(value ?? null);
-                  const name = products.find((row) => row.id === value)?.name ?? "";
-                  setTarget(name.slice(0, 80).replaceAll("/", "-"));
-                }}
-                style={{ flex: "1 1 280px" }}
-              />
-              <Input
-                aria-label="Thư mục"
-                prefix={<FolderAddOutlined />}
-                placeholder="Thư mục (không bắt buộc)…"
-                value={target}
-                onChange={(event) => setTarget(event.target.value)}
-                style={{ flex: "1 1 220px" }}
-              />
-            </Flex>
-            <div
-              data-testid="media-drop"
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={async (event) => {
-                event.preventDefault();
-                setDragging(false);
-                void send(await droppedFiles(event));
-              }}
-              style={{
-                border: `1px dashed ${dragging ? token.colorPrimary : token.colorBorder}`,
-                borderRadius: 8,
-                padding: 20,
-                textAlign: "center",
-                background: dragging ? token.colorPrimaryBg : undefined,
-              }}
-            >
-              <Flex vertical gap={8} align="center">
-                <InboxOutlined style={{ fontSize: 32, color: token.colorPrimary }} />
-                <Typography.Text>Kéo cả thư mục hoặc nhiều file ảnh, video vào đây</Typography.Text>
-                <Flex gap={8} wrap justify="center">
-                  <Button icon={<FolderAddOutlined />} onClick={() => folderInput.current?.click()}>
-                    Chọn thư mục
-                  </Button>
-                  <Button icon={<UploadOutlined />} onClick={() => filesInput.current?.click()}>
-                    Chọn file
-                  </Button>
-                </Flex>
-                <Typography.Text type="secondary">
-                  Ảnh tối đa 15 MB; video tối đa 50 MB, giữ 1 phút đầu.
-                </Typography.Text>
-              </Flex>
-              <input ref={folderInput} type="file" multiple hidden onChange={(e) => picked(e.currentTarget)} />
-              <input
-                ref={filesInput}
-                type="file"
-                multiple
-                hidden
-                accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
-                onChange={(e) => picked(e.currentTarget)}
-              />
-            </div>
-            {progress && <Progress percent={Math.round((progress.done / progress.total) * 100)} />}
-            <Typography.Text strong>
-              <LinkOutlined /> Tìm trên Google, TikTok rồi dán link
-            </Typography.Text>
-            <MediaLinkSearch keyword={product?.name ?? ""} folder={target} onAdded={() => void load()} />
-          </Flex>
-        </Card>
+        <MediaUploadCard folders={data.folders} onAdded={() => void load()} />
         <Card size="small">
           <Flex vertical gap={12}>
             <Flex gap={8} wrap align="center">
@@ -250,7 +91,7 @@ function Media() {
                 placeholder="Mọi thư mục"
                 value={shown}
                 onChange={(value) => setShown(value ?? null)}
-                options={data.folders.map(({ folder, count }) => ({ value: folder, label: `${folder} (${count})` }))}
+                options={data.folders.map((row) => ({ value: row.folder, label: folderLabel(row) }))}
                 style={{ flex: "1 1 220px", maxWidth: 320 }}
               />
               <Segmented
@@ -262,12 +103,55 @@ function Media() {
                   { value: "clip", label: "Clip" },
                 ]}
               />
+              {/* Once the folders are read, so the dialogs count what the folder holds. */}
+              {shown && data.folders.some((row) => row.folder === shown) && (
+                <FolderActions
+                  folder={shown}
+                  folders={data.folders}
+                  onRenamed={(to) => (to === shown ? void load() : setShown(to))}
+                  onCleared={() => setShown(null)}
+                />
+              )}
             </Flex>
+            {data.items.length > 0 && (
+              <Flex gap={8} wrap align="center" data-testid="media-selection">
+                <Button size="small" onClick={() => setSelected(allChosen ? [] : data.items.map((item) => item.id))}>
+                  {allChosen ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                </Button>
+                {selected.length > 0 && (
+                  <>
+                    <Typography.Text>Đã chọn {selected.length} tư liệu</Typography.Text>
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<FolderOutlined />}
+                      onClick={() => setMoving({ ids: selected })}
+                    >
+                      Chuyển thư mục
+                    </Button>
+                  </>
+                )}
+              </Flex>
+            )}
             <MediaGrid
               items={data.items}
-              actions={(item) =>
+              empty={shown || query.trim() || kind !== "all" ? "Không có tư liệu nào khớp bộ lọc" : undefined}
+              selected={selected}
+              onToggle={(id, chosen) =>
+                setSelected((ids) => (chosen ? [...ids, id] : ids.filter((other) => other !== id)))
+              }
+              actions={(item) => [
+                <Tooltip key="move" title="Chuyển thư mục">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<FolderOutlined />}
+                    aria-label={`Chuyển thư mục ${item.name}`}
+                    onClick={() => setMoving({ ids: [item.id], current: item.folder })}
+                  />
+                </Tooltip>,
                 // Only whoever added it deletes it.
-                item.created_by_id !== me.id
+                ...(item.created_by_id !== me.id
                   ? []
                   : [
                       <Popconfirm
@@ -286,12 +170,22 @@ function Media() {
                           aria-label={`Xoá ${item.name}`}
                         />
                       </Popconfirm>,
-                    ]
-              }
+                    ]),
+              ]}
             />
           </Flex>
         </Card>
       </Flex>
+      <MoveFolderModal
+        ids={moving.ids}
+        current={moving.current}
+        folders={data.folders}
+        onClose={() => setMoving({ ids: [] })}
+        onMoved={() => {
+          setSelected([]);
+          void load();
+        }}
+      />
     </>
   );
 }

@@ -128,7 +128,11 @@ export type MediaItem = {
   created_at: string;
 };
 
-export type MediaList = { items: MediaItem[]; folders: { folder: string; count: number }[] };
+/** A folder of the library with its count of items, and the topic group whose "Tư liệu" shows it (a linked folder
+ * with nothing in it yet has a count of 0). */
+export type MediaFolder = { folder: string; count: number; topic_id: number | null; topic: string | null };
+
+export type MediaList = { items: MediaItem[]; folders: MediaFolder[] };
 
 /** What pasting links into the library did: the items added, and each link that failed with why. */
 export type MediaLinksResult = { added: MediaItem[]; failed: { url: string; error: string }[] };
@@ -536,6 +540,8 @@ export type KnowledgeTopic = {
   stock_order: string[];
   /** False while the group takes the app's order (a new group, or one reset to it). */
   stock_order_custom: boolean;
+  /** "Tư liệu": the folder of the team's "Kho tư liệu" the group shows (with its subfolders); null: none linked. */
+  media_folder: string | null;
   video_count: number;
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;

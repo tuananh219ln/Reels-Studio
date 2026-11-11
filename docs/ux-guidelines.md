@@ -672,6 +672,12 @@ Built:
     đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
     topic that ignores accents and a status filter, both kept when switching, and "Tạo video", which
     opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
+  - "Tư liệu": the team's one Kho tư liệu on the folder the group links (subfolders included), not a library of its
+    own. Linked: "Thư mục <folder>, N tư liệu", "Tải ảnh vào thư mục này" (the upload card of `/media` with the
+    folder fixed), "Mở trong Kho tư liệu" (a link to `/media?folder=…`), "Đổi thư mục", "Bỏ liên kết" (asked first;
+    the items stay in the library) and the cards with "Chuyển thư mục". Not linked: an empty state with "Liên kết
+    thư mục", a dialog with the folder dropdown (a folder another group links is shown with its group and cannot
+    be picked; typing a new name creates it). Linking is an edit of the group, so it follows "Cho cả đội sửa";
   - "Prompt": the six prompts listed on the left (Viết kịch bản, Nhân bản, Học từ video mẫu, Phân tích
     video mẫu, Sửa theo góp ý, Viết bài), each tagged "Đã sửa", "Mặc định" or "Trống", and the chosen
     one edited on the right with "Lưu", and "Lịch sử" on the card's title (see "Edit history" below; there is
@@ -751,13 +757,19 @@ Built:
   PowerShell command with the token once, copyable. On a video page a waiting job reads "Đang chờ máy render: …"
   with "Hủy", and "Máy render đang dựng: …" while a machine renders it.
 - **Kho tư liệu** (`/media`): "Thêm tư liệu" picks the product being made (approved affiliate products), which names
-  the folder and the searches; a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
+  the folder and the searches, and the folder from a dropdown of the folders there with their counts, where typing a
+  new name offers "Tạo thư mục “…”" (no free text box, so a folder is not typed again slightly differently); a dashed drop zone takes a whole folder or many files ("Chọn thư mục", "Chọn file"),
   uploading one by one with a progress bar; under it the name with "Ảnh không nền", "Ảnh Google" and "Clip TikTok",
   which open the search in a new tab, and a box where pasting adds at once: a photo copied with "Sao chép hình
   ảnh", a link, or a "data:" address (Google Ảnh's thumbnails); a photo dragged from another tab can be dropped on
   it too. The primary "Dán ảnh / link", first in that row, adds whatever the clipboard holds in one click (the browser
-  asks once for permission); "Thêm link đã gõ" sends typed links. The library below filters by folder, Ảnh/Clip and name, as tall cards (a clip with its seconds) with "Xoá"
-  (videos that used it keep their copy). On a scene card, "Kho tư liệu" opens the same search and library in a
+  asks once for permission); "Thêm link đã gõ" sends typed links. The library below filters by folder, Ảnh/Clip and name, as tall cards (a clip with its seconds) with "Chuyển
+  thư mục" (a dialog with the same dropdown plus "Không thư mục") and "Xoá" (its maker only; videos that used it keep
+  their copy). Each card has a box: "Chọn tất cả" and, once some are chosen, "Đã chọn N tư liệu" with "Chuyển thư
+  mục" for all of them. With a folder chosen in the filter, "Đổi tên thư mục" (merging into a folder of that name) and
+  "Xoá thư mục" (a centred dialog saying how many items go to "Không thư mục", subfolders included, and which group's
+  "Tư liệu" is unlinked; no item is deleted) sit beside it. Moving, renaming and deleting a folder keep every item's
+  id and file. On a scene card, "Kho tư liệu" opens the same search and library in a
   dialog, on the folder of the product attached to the video (else its topic); "Dùng" copies an item into the scene,
   asking first when it replaces a picture.
 - **Thư viện nhạc** (`/music`): the team's tracks with a player, topic and mood tags, source/license
