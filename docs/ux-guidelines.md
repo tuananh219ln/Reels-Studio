@@ -719,7 +719,14 @@ Built:
   - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
     start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Số video cần làm trước khi đánh giá nhóm", changed in
     place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
-    with errors (which block saving) and warnings; the plan is replaced only by "Lưu kế hoạch". An AI plan waits as
+    with errors (which block saving) and warnings; the plan is changed only by "Lưu kế hoạch". A file's preview
+    asks "Cách nạp": "Ghi đè toàn bộ" (the default, as before), "Thêm vào cuối ngày", "Thêm vào ngày trống tiếp
+    theo" or "Thay các ngày có trong file", each with one line saying what it does and what it would change
+    (the days it goes to; for "Thay…" the days it replaces, a day that has a video tagged, the video kept). The
+    "missing days" warnings show for "Ghi đè toàn bộ" only. Fewer empty days than the file has warns "Còn X ngày
+    trống, file có Y ngày" and the button becomes "Nạp phần vừa"; "Huỷ" changes nothing. Once loaded, "Đã nạp kế
+    hoạch" lists the days filled, added to, replaced or emptied, the ideas skipped (topic already in the plan, day
+    full) and the file's days that found no room, closed by "Đã xem". An AI plan waits as
     a draft ("Xem trước" / "Bỏ") until then; a failed one shows its error;
   - "Prompt kế hoạch", folded, with "Lưu" and "Lịch sử";
   - a plan with no idea yet starts from one empty block saying "Bấm “Lập kế hoạch bằng AI”…, hoặc “Nhập file
