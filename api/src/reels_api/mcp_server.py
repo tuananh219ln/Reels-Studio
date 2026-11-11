@@ -848,10 +848,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         `seconds` giây từ giây `start` của cảnh; x, y là tâm trong khung 1080×1920. Kiểu, cỡ, hiệu ứng, sticker
         lấy từ "Đọc lựa chọn dựng video". Không có trên cảnh tiêu đề.
 
-        kind "photo" là ảnh chèn nửa khung, chỉ cho Video xuyên suốt: ảnh món của cảnh (gán ảnh cho cảnh bằng các
-        công cụ ảnh của cảnh như mọi khi) hiện rộng 1080, cao 960, cắt phủ kín, viền trắng, ở nửa trên khung (x 540,
-        y 480) và hiện đến hết cảnh; các trường khác bị bỏ qua, chỉnh y (480 nửa trên, 960 giữa, 1440 nửa dưới),
-        start, seconds sau bằng "Sửa lớp". Ảnh nằm dưới chữ của cảnh và các lớp khác. Mỗi cảnh một lớp ảnh."""
+        kind "photo" là ảnh chèn, chỉ cho Video xuyên suốt: ảnh món của cảnh (gán ảnh cho cảnh bằng các công cụ ảnh
+        của cảnh như mọi khi) hiện tràn sát hai mép (rộng 1080), cao 38% khung (730), không viền, mép giáp ảnh nền mờ
+        dần, sát mép trên khung (x 540, y 365) và hiện đến hết cảnh; các trường khác bị bỏ qua, chỉnh y (365 trên,
+        960 giữa, 1555 dưới), height (30–45, % khung), start, seconds sau bằng "Sửa lớp". Ảnh nằm dưới chữ của cảnh
+        và các lớp khác. Mỗi cảnh một lớp ảnh."""
         if kind == "photo":
             photo = layer_routes.HalfPhotoBody(scene_id=scene_id, scene_photo=True)
             return await run_in_threadpool(
@@ -878,10 +879,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         size: str | None = None,
         style: str | None = None,
         animation: str | None = None,
+        height: Annotated[int | None, Field(ge=30, le=45)] = None,
     ) -> dict:
-        """Sửa các trường được truyền của một lớp (ID lớp có trong "Đọc video", mục layers của cảnh). Ảnh chèn nửa
-        khung (kind "photo", style "half") chỉ đổi y (tâm, kẹp trong 480–1440), start và seconds; x luôn là 540."""
-        values = given(text=text, sticker=sticker, start=start, seconds=seconds, x=x, y=y)
+        """Sửa các trường được truyền của một lớp (ID lớp có trong "Đọc video", mục layers của cảnh). Ảnh chèn
+        (kind "photo", style "half") chỉ đổi y (tâm; 365 sát mép trên, 960 giữa, 1555 sát mép dưới với cao 38%),
+        height (30–45, % khung; giữ mép đang sát), start và seconds; x luôn là 540."""
+        values = given(text=text, sticker=sticker, start=start, seconds=seconds, x=x, y=y, height=height)
         values |= given(size=size, style=style, animation=animation)
         body = layer_routes.LayerBody(**values)
         return await run_in_threadpool(

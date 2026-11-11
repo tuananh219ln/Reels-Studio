@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
-from reels_render.layers import HALF, HALF_X, HALF_Y_MIN, is_half
+from reels_render.layers import HALF, HALF_X, half_height, half_y, is_half
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_TAIL, fit_seconds
 
@@ -98,7 +98,7 @@ def half_layer() -> SceneLayer:
         start=0,
         seconds=PHOTO_LAYER_SECONDS,
         x=HALF_X,
-        y=HALF_Y_MIN,
+        y=half_y(0),
         size="medium",
         style=HALF,
         animation="none",
@@ -351,10 +351,23 @@ def text_position(video: Video, scene: Scene) -> list[int] | None:
     if scene.is_title:
         position = effective(video)["title_text_position"]
         return [FRAME_WIDTH // 2, position[1]] if position else None
-    return effective(video)["text_position"]
+    return effective(video)["text_position"] or opposite_the_inset(video, scene)
 
 
-LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation")
+def opposite_the_inset(video: Video, scene: Scene) -> list[int] | None:
+    """Where a content scene's text goes when nobody placed it (its own, the video's) and the scene has an inset photo:
+    the side facing away from it, so it does not sit on the photo. An inset flush with the top edge leaves the text at
+    the template's place (the bottom); one in the middle or at the bottom sends it to the top. Never moved once a
+    member chose a place: moving the inset does not touch a place that is set."""
+    inset = next((layer for layer in scene.layers if is_half_layer(layer)), None)
+    if inset is None or not is_backdrop(video):
+        return None
+    if inset.y - half_height(inset.height) // 2 <= 0:
+        return None
+    return [FRAME_WIDTH // 2, 0]
+
+
+LAYER_FIELDS = ("kind", "text", "sticker", "start", "seconds", "x", "y", "size", "style", "animation", "height")
 
 
 def layer_fields(layer: SceneLayer) -> dict:
@@ -391,6 +404,9 @@ def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:
     # text layer's with the letter case it is drawn in (the scenes' "Dạng chữ"; capitals keep the earlier addresses).
     photo = layer_photo_key(layer)
     kept = [case] if layer.kind == "text" and case != "upper" else []
+    if is_half_layer(layer):
+        # An inset photo's height and place change its picture: it fades only where it is not flush with the frame.
+        kept += [str(layer.height), str(layer.y)]
     look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []), *kept)
     # A half-frame photo says whether its photo is its own or its scene's, so the card shows where to choose it.
     own = {"own_image": bool(layer.image_key)} if is_half_layer(layer) else {}

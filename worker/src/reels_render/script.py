@@ -9,7 +9,19 @@ from .blur import parse_blur
 from .captions import Word
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
-from .layers import ANIMATIONS, HALF, PHOTO_SHAPES, SIZES, STICKERS, TEXT_STYLES, Layer, render_layer
+from .layers import (
+    ANIMATIONS,
+    HALF,
+    HALF_HEIGHT_DEFAULT,
+    HALF_HEIGHT_MAX,
+    HALF_HEIGHT_MIN,
+    PHOTO_SHAPES,
+    SIZES,
+    STICKERS,
+    TEXT_STYLES,
+    Layer,
+    render_layer,
+)
 from .markup import MarkupError, Run, parse_scene_text
 from .sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS, SceneSound
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
@@ -256,6 +268,9 @@ def _parse_layers(value: object, label: str, base_dir: Path) -> tuple[Layer, ...
             style=_parse_preset(item.get("style", default_style), "style", style_presets, where),
             animation=_parse_preset(item.get("animation", "fade"), "animation", ANIMATIONS, where),
             image=base_dir / image if kind == "photo" else None,
+            height=int(
+                _number(item.get("height", HALF_HEIGHT_DEFAULT), "height", where, HALF_HEIGHT_MIN, HALF_HEIGHT_MAX)
+            ),
         )
         if kind in ("text", "photo"):
             try:

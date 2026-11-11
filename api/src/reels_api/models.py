@@ -449,6 +449,8 @@ class SceneLayer(Base):
     animation: Mapped[str] = mapped_column(String(16), default="fade")
     # The photo of a half-frame photo layer (style "half"), its own copy; "Ảnh món" shows its scene's photo instead.
     image_key: Mapped[str | None] = mapped_column(String(200))
+    # A half-frame photo's height in percent of the frame (30-45); other layers ignore it.
+    height: Mapped[int] = mapped_column(Integer, default=38, server_default="38")
 
     scene: Mapped[Scene] = relationship(back_populates="layers")
 

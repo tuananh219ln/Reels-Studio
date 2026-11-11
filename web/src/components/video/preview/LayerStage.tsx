@@ -95,7 +95,7 @@ export default function LayerStage({
       const half = isHalf(layer);
       const x = half ? HALF_X : Math.min(FRAME_WIDTH, Math.max(0, layer.x + point[0] - from[0]));
       const y = half
-        ? halfY(layer.y + point[1] - from[1])
+        ? halfY(layer.y + point[1] - from[1], layer.height)
         : Math.min(FRAME_HEIGHT, Math.max(0, layer.y + point[1] - from[1]));
       last = [x, y];
       setDragged({ id: layer.id, x, y });

@@ -53,35 +53,48 @@ export function layerCorner(width: number, height: number, layer: Pick<SceneLaye
 }
 
 /**
- * "Ảnh chèn nửa khung" (layers.HALF): a photo layer with a photo of its own, as wide as the frame and half as tall,
- * that moves only up and down, from the top half to the bottom half; the server keeps it there too.
+ * "Ảnh chèn" (layers.HALF): a photo layer with a photo of its own, as wide as the frame (no edge, square corners),
+ * 38% of the frame tall (30–45%), that moves only up and down, flush with the top edge, the middle or the bottom edge;
+ * the server keeps it there too. Its edge towards the picture behind it fades out, drawn by the api.
  */
 export const HALF = "half";
 export const HALF_X = FRAME_WIDTH / 2;
-export const HALF_Y_MIN = FRAME_HEIGHT / 4;
-export const HALF_Y_MAX = (FRAME_HEIGHT * 3) / 4;
-/** Where a dragged half-frame photo snaps to when it comes this close: the top half, the middle, the bottom half. */
-export const HALF_PLACES = [
-  { label: "Nửa trên", y: HALF_Y_MIN },
-  { label: "Giữa", y: FRAME_HEIGHT / 2 },
-  { label: "Nửa dưới", y: HALF_Y_MAX },
-];
+export const HALF_HEIGHT_DEFAULT = 38;
+export const HALF_HEIGHT_MIN = 30;
+export const HALF_HEIGHT_MAX = 45;
+/** Where a dragged inset photo snaps to when it comes this close: flush with the top, the middle, flush with the bottom. */
 const HALF_SNAP = 40;
+
+/** Its height in frame pixels (layers.half_height): 38% is 730. */
+export function halfHeight(percent: number = HALF_HEIGHT_DEFAULT): number {
+  return Math.round((FRAME_HEIGHT * Math.min(Math.max(percent, HALF_HEIGHT_MIN), HALF_HEIGHT_MAX)) / 100);
+}
+
+/** The three places an inset photo goes, as the centre `y` that puts it flush with an edge (or in the middle). */
+export function halfPlaces(percent: number = HALF_HEIGHT_DEFAULT): { value: string; label: string; y: number }[] {
+  const tall = halfHeight(percent);
+  return [
+    { value: "top", label: "Trên", y: Math.floor(tall / 2) },
+    { value: "middle", label: "Giữa", y: FRAME_HEIGHT / 2 },
+    { value: "bottom", label: "Dưới", y: FRAME_HEIGHT - Math.floor(tall / 2) },
+  ];
+}
 
 export function isHalf(layer: Pick<SceneLayer, "kind" | "style">): boolean {
   return layer.kind === "photo" && layer.style === HALF;
 }
 
-/** A half-frame photo's centre down the frame: kept inside it, and snapped to a nearby half or the middle. */
-export function halfY(y: number): number {
-  const kept = Math.round(Math.min(Math.max(y, HALF_Y_MIN), HALF_Y_MAX));
-  return HALF_PLACES.find((place) => Math.abs(place.y - kept) <= HALF_SNAP)?.y ?? kept;
+/** An inset photo's centre down the frame: kept inside it, and snapped to a nearby edge or the middle. */
+export function halfY(y: number, percent: number = HALF_HEIGHT_DEFAULT): number {
+  const places = halfPlaces(percent);
+  const kept = Math.round(Math.min(Math.max(y, places[0].y), places[2].y));
+  return places.find((place) => Math.abs(place.y - kept) <= HALF_SNAP)?.y ?? kept;
 }
 
 /** A layer's name in lists: its text, its sticker's name, "Ảnh chèn" or "Ảnh món". */
 export function layerName(layer: SceneLayer): string {
   if (layer.kind === "text") return layer.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
-  if (isHalf(layer)) return "Ảnh chèn nửa khung";
+  if (isHalf(layer)) return "Ảnh chèn";
   if (layer.kind === "photo") return "Ảnh món";
   return STICKERS.find((item) => item.value === layer.sticker)?.label ?? layer.sticker;
 }
