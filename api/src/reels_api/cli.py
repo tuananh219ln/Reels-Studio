@@ -21,7 +21,9 @@ Ask = Callable[[str], str]
 class _VietnameseParser(argparse.ArgumentParser):
     def error(self, message: str):
         # argparse's own usage errors are English; keep every CLI error Vietnamese.
-        print("Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user | worker", file=sys.stderr)
+        print(
+            "Lỗi: lệnh không hợp lệ. Dùng: python -m reels_api create-user | worker | seed-media-tags", file=sys.stderr
+        )
         sys.exit(2)
 
 
@@ -44,6 +46,11 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
     node.add_argument("--server", help="địa chỉ web, ví dụ https://reels.example.com (hoặc REELS_SERVER)")
     node.add_argument("--token", help="token của máy trên Cài đặt › Máy render (hoặc REELS_NODE_TOKEN)")
     node.add_argument("--once", action="store_true", help="nhận một lượt rồi thoát (để thử)")
+    seed = commands.add_parser(
+        "seed-media-tags",
+        help="gắn thẻ một lần cho ảnh Già Mà Khỏe trong Kho tư liệu, theo tên file (chạy lại không nhân đôi)",
+    )
+    seed.add_argument("--dry-run", action="store_true", help="chỉ in việc sẽ làm, không ghi gì")
     args = parser.parse_args(argv)
 
     if args.command == "node":
@@ -58,6 +65,8 @@ def main(argv: list[str] | None = None, ask: Ask = input, ask_secret: Ask = getp
         from .worker import run_job_command
 
         return run_job_command(args.job_id)
+    if args.command == "seed-media-tags":
+        return seed_media_tags(args.dry_run)
 
     if sys.stdin is None or not sys.stdin.isatty():
         print("Lỗi: lệnh này cần chạy trong terminal để nhập mật khẩu ẩn", file=sys.stderr)
@@ -133,3 +142,20 @@ def _ask_password(ask_secret: Ask) -> str:
             print("Lỗi: hai lần nhập mật khẩu không khớp", file=sys.stderr)
             continue
         return password
+
+
+def seed_media_tags(dry_run: bool) -> int:
+    """The one-off tags of the Già Mà Khỏe photos (media_tag_seed.py), with a line per photo."""
+    from .media_tag_seed import apply
+
+    try:
+        with sessionmaker(get_engine(), expire_on_commit=False)() as db:
+            for line in apply(db, dry_run=dry_run):
+                print(line)
+    except ConfigError as err:
+        print(f"Lỗi: {err}", file=sys.stderr)
+        return 1
+    except SQLAlchemyError:
+        print("Lỗi: không kết nối được cơ sở dữ liệu", file=sys.stderr)
+        return 1
+    return 0

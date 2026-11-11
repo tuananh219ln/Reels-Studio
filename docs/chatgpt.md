@@ -79,7 +79,7 @@ service:
 
 Members fill "Kho tư liệu" (`/media`) by dragging whole folders of their own footage and product photos, or by
 searching the product on Google Ảnh / TikTok from the page and pasting the links back. The assistant reads it with
-`list_media` (by folder, kind or name), **looks at the items** with `view_media` before choosing, adds links the
+`list_media` (by folder, kind, tags such as `xoay-co,sofa` (every one) or a search over names, folders and tags; each item with its tags), **looks at the items** with `view_media` before choosing, adds links the
 member gives with `add_media_from_links`, and puts an item in a scene with `set_scene_media_from_library` (a copy).
 
 ## Editing like the studio, and checking the result

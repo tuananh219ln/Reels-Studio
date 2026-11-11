@@ -42,6 +42,7 @@ TOPIC_FIELDS = (
     "text_look",
     "text_ai",
     "stock_order",
+    "media_folder",
     "templates",
     "edit_template_default",
     "plan_start_date",

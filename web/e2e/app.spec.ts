@@ -1046,3 +1046,177 @@ test("phone width: the video list's filters sit behind Bộ lọc", async ({ pag
   await expect(page.getByRole("button", { name: "Bộ lọc (1)" })).toBeVisible();
   await expect(page).toHaveURL(/[?&]status=failed/);
 });
+
+// A 1×1 PNG: the library takes it as a photo.
+const PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test("Kho tư liệu: items move between folders keeping their id, folders are renamed and deleted, and a group shows its folder", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  // The api takes a write only from the app's own origin.
+  const headers = { Origin: new URL(page.url()).origin };
+  const ids: number[] = [];
+  for (const [name, folder] of [
+    ["goi.png", "Gia goi khop"],
+    ["ngu-1.png", "Gia - Giac ngu"],
+    ["ngu-2.png", "Gia - Giac ngu"],
+  ]) {
+    const made = await page.request.post("/api/media", {
+      multipart: { file: { name, mimeType: "image/png", buffer: PIXEL }, folder },
+      headers,
+    });
+    expect(made.status()).toBe(201);
+    ids.push((await made.json()).id);
+  }
+  const folderOf = async () =>
+    Object.fromEntries(
+      ((await (await page.request.get("/api/media")).json()).items as { id: number; folder: string }[]).map((item) => [
+        item.id,
+        item.folder,
+      ]),
+    );
+
+  // One item: its card's "Chuyển thư mục", picking a folder that is there.
+  await page.goto(`/media?folder=${encodeURIComponent("Gia goi khop")}`);
+  await expect(page.getByTestId("media-item")).toHaveCount(1);
+  await page.getByRole("button", { name: "Chuyển thư mục goi.png" }).click();
+  const move = page.getByRole("dialog", { name: "Chuyển thư mục" });
+  await chooseOption(page, move.getByLabel("Thư mục chuyển tới"), "Gia - Giac ngu (2)");
+  await move.getByRole("button", { name: "Chuyển thư mục" }).click();
+  await expect(page.getByText("Đã chuyển 1 tư liệu vào “Gia - Giac ngu”")).toBeVisible();
+  await expect(page.getByTestId("media-item")).toHaveCount(0);
+
+  // Several at once, into a folder made by typing its name.
+  await page.goto(`/media?folder=${encodeURIComponent("Gia - Giac ngu")}`);
+  await expect(page.getByTestId("media-item")).toHaveCount(3);
+  await page.getByRole("button", { name: "Chọn tất cả" }).click();
+  await expect(page.getByText("Đã chọn 3 tư liệu")).toBeVisible();
+  await page.getByTestId("media-selection").getByRole("button", { name: "Chuyển thư mục" }).click();
+  const batch = page.getByRole("dialog", { name: "Chuyển 3 tư liệu sang thư mục khác" });
+  await batch.getByLabel("Thư mục chuyển tới").fill("Già Mà Khỏe");
+  await chooseOption(page, batch.getByLabel("Thư mục chuyển tới"), "Tạo thư mục “Già Mà Khỏe”");
+  await batch.getByRole("button", { name: "Chuyển thư mục" }).click();
+  await expect(page.getByText("Đã chuyển 3 tư liệu vào “Già Mà Khỏe”")).toBeVisible();
+  expect(await folderOf()).toEqual(Object.fromEntries(ids.map((id) => [id, "Già Mà Khỏe"])));
+
+  // Renaming the folder: the filter follows it.
+  await page.goto(`/media?folder=${encodeURIComponent("Già Mà Khỏe")}`);
+  await expect(page.getByTestId("media-item")).toHaveCount(3);
+  await page.getByRole("button", { name: "Đổi tên thư mục" }).click();
+  const rename = page.getByRole("dialog", { name: "Đổi tên thư mục “Già Mà Khỏe”" });
+  await rename.getByLabel("Tên mới").fill("Già - Dưỡng sinh");
+  await rename.getByRole("button", { name: "Đổi tên thư mục" }).click();
+  await expect.poll(() => new URL(page.url()).searchParams.get("folder")).toBe("Già - Dưỡng sinh");
+  await expect(page.getByTestId("media-item")).toHaveCount(3);
+
+  // A group links the folder on its "Tư liệu" tab and shows its items.
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Tư liệu", exact: true }).click();
+  await health.getByRole("button", { name: "Liên kết thư mục" }).click();
+  const link = page.getByRole("dialog", { name: "Liên kết thư mục cho nhóm “Sức khỏe”" });
+  await chooseOption(page, link.getByLabel("Thư mục của nhóm"), "Già - Dưỡng sinh (3)");
+  await link.getByRole("button", { name: "Liên kết thư mục" }).click();
+  await expect(health.getByTestId("media-item")).toHaveCount(3);
+  // Uploading from the tab lands in the group's folder.
+  await health.getByRole("button", { name: "Tải ảnh vào thư mục này" }).click();
+  await health
+    .locator('input[type="file"][accept]')
+    .setInputFiles({ name: "moi.png", mimeType: "image/png", buffer: PIXEL });
+  await expect(health.getByTestId("media-item")).toHaveCount(4);
+  await expect(health.getByRole("link", { name: "Mở trong Kho tư liệu" })).toHaveAttribute(
+    "href",
+    `/media?folder=${encodeURIComponent("Già - Dưỡng sinh")}`,
+  );
+
+  // Deleting the folder: every item stays, in "Không thư mục", and the group is unlinked.
+  await page.goto(`/media?folder=${encodeURIComponent("Già - Dưỡng sinh")}`);
+  await page.getByRole("button", { name: "Xoá thư mục" }).click();
+  const confirm = page.getByRole("dialog", { name: "Xoá thư mục “Già - Dưỡng sinh”?" });
+  await expect(confirm).toContainText("4 tư liệu chuyển về Không thư mục");
+  await expect(confirm).toContainText("Nhóm Sức khỏe sẽ bỏ liên kết");
+  await confirm.getByRole("button", { name: "Xoá thư mục" }).click();
+  await expect(page.getByText("Đã xoá thư mục, 4 tư liệu về Không thư mục")).toBeVisible();
+  const after = await folderOf();
+  expect(Object.keys(after)).toHaveLength(4);
+  expect(Object.values(after).every((folder) => folder === "")).toBe(true);
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await health.getByRole("tab", { name: "Tư liệu", exact: true }).click();
+  await expect(health.getByRole("button", { name: "Liên kết thư mục" })).toBeVisible();
+});
+
+test("Kho tư liệu: tags are edited on one item and on a batch, and the filter asks for every tag chosen", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  const headers = { Origin: new URL(page.url()).origin };
+  for (const [name, folder, tags] of [
+    ["co-sofa.png", "Già/Sofa", "xoay-co, sofa"],
+    ["co-giuong.png", "Già/Ngủ", "xoay-co, phong-ngu"],
+    ["vai-sofa.png", "Già/Sofa", "nhun-vai, sofa"],
+  ]) {
+    const made = await page.request.post("/api/media", {
+      multipart: { file: { name, mimeType: "image/png", buffer: PIXEL }, folder, tags },
+      headers,
+    });
+    expect(made.status()).toBe(201);
+  }
+  const cards = page.getByTestId("media-item");
+  const card = (name: string) => cards.filter({ hasText: name });
+
+  // Two tags: only the item with both; with a folder too, what is in both.
+  await page.goto("/media?tags=xoay-co,sofa");
+  await expect(cards).toHaveCount(1);
+  await expect(card("co-sofa.png").getByTestId("media-tags")).toHaveText(/xoay-co.*sofa/);
+  await page.goto(`/media?tags=xoay-co&folder=${encodeURIComponent("Già/Ngủ")}`);
+  await expect(cards).toHaveCount(1);
+  await expect(card("co-giuong.png")).toBeVisible();
+
+  // One item's tags: typed with accents, kept as the library keeps them, still there after a reload.
+  await page.goto("/media");
+  await expect(cards).toHaveCount(3);
+  await page.getByRole("button", { name: "Sửa thẻ vai-sofa.png" }).click();
+  const edit = page.getByRole("dialog", { name: "Sửa thẻ “vai-sofa.png”" });
+  await edit.getByLabel("Thẻ của tư liệu").fill("Buổi Tối");
+  await edit.getByLabel("Thẻ của tư liệu").press("Enter");
+  // The suggestions close when the dialog's title is clicked, uncovering its buttons.
+  await edit.locator(".ant-modal-title").click();
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
+  await edit.getByRole("button", { name: "Sửa thẻ" }).click();
+  await expect(page.getByText("Đã lưu thẻ của “vai-sofa.png”")).toBeVisible();
+  await page.reload();
+  await expect(card("vai-sofa.png").getByTestId("media-tags")).toContainText("buoi-toi");
+
+  // A batch: "Thêm thẻ" then "Gỡ thẻ" on every item.
+  await page.getByRole("button", { name: "Chọn tất cả" }).click();
+  await page.getByTestId("media-selection").getByRole("button", { name: "Thêm thẻ" }).click();
+  const add = page.getByRole("dialog", { name: "Thêm thẻ cho 3 tư liệu" });
+  await add.getByLabel("Thẻ của tư liệu").fill("Ông");
+  await add.getByLabel("Thẻ của tư liệu").press("Enter");
+  // The suggestions close when the dialog's title is clicked, uncovering its buttons.
+  await add.locator(".ant-modal-title").click();
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
+  await add.getByRole("button", { name: "Thêm thẻ" }).click();
+  await expect(page.getByText("Đã thêm thẻ ở 3 tư liệu")).toBeVisible();
+  await page.goto("/media?tags=ong");
+  await expect(cards).toHaveCount(3);
+  await page.getByRole("button", { name: "Chọn tất cả" }).click();
+  await page.getByTestId("media-selection").getByRole("button", { name: "Gỡ thẻ" }).click();
+  const remove = page.getByRole("dialog", { name: "Gỡ thẻ cho 3 tư liệu" });
+  await chooseOption(page, remove.getByLabel("Thẻ của tư liệu"), "sofa (2)");
+  // The suggestions close when the dialog's title is clicked, uncovering its buttons.
+  await remove.locator(".ant-modal-title").click();
+  await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
+  await remove.getByRole("button", { name: "Gỡ thẻ" }).click();
+  await expect(page.getByText("Đã gỡ thẻ ở 2 tư liệu")).toBeVisible();
+  await page.goto("/media?tags=sofa");
+  await expect(page.getByText("Không có tư liệu nào khớp bộ lọc")).toBeVisible();
+});

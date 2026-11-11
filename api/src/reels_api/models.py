@@ -201,6 +201,10 @@ class KnowledgeTopic(Base):
     # "Thứ tự nguồn ảnh": the stock sources in the order its videos ask them ("Tự tìm ảnh", the picker, "Tìm ảnh").
     # None: the app's order (routes_videos.STOCK_SOURCES). Sources missing from it follow in the app's order.
     stock_order: Mapped[list | None] = mapped_column(JSONB(none_as_null=True))
+    # "Tư liệu" (migration 0076): the folder of the team's one "Kho tư liệu" the group uses, its view showing that
+    # folder with its subfolders; None: none linked. A folder belongs to at most one group; renaming the folder on
+    # /media follows here, clearing it unlinks (docs/decisions/2026-11-11-media-folders.md).
+    media_folder: Mapped[str | None] = mapped_column(String(200), unique=True)
     # Who made the group: only they delete it (ownership.py); None (made before 2026-11-09, maker unknown): nobody.
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -899,6 +903,8 @@ class MediaItem(Base):
     folder: Mapped[str] = mapped_column(String(200), default="", server_default="", index=True)
     source_url: Mapped[str | None] = mapped_column(Text)  # the link it came from, kept for a copyright claim
     seconds: Mapped[float | None] = mapped_column(Float)  # a clip's length
+    # What it shows, for looking it up (media_tags.py, migration 0077): lowercase, no accents, "-" between words.
+    tags: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

@@ -120,6 +120,8 @@ export type MediaItem = {
   folder: string;
   source_url: string | null;
   seconds: number | null;
+  /** What it shows, lowercase without accents and joined with "-" ("xoay-co"); the api cleans what is typed. */
+  tags: string[];
   file_url: string;
   thumb_url: string;
   created_by: string;
@@ -128,7 +130,14 @@ export type MediaItem = {
   created_at: string;
 };
 
-export type MediaList = { items: MediaItem[]; folders: { folder: string; count: number }[] };
+/** A folder of the library with its count of items, and the topic group whose "Tư liệu" shows it (a linked folder
+ * with nothing in it yet has a count of 0). */
+export type MediaFolder = { folder: string; count: number; topic_id: number | null; topic: string | null };
+
+/** A tag of the library with how many items carry it. */
+export type MediaTag = { tag: string; count: number };
+
+export type MediaList = { items: MediaItem[]; folders: MediaFolder[]; tags: MediaTag[] };
 
 /** What pasting links into the library did: the items added, and each link that failed with why. */
 export type MediaLinksResult = { added: MediaItem[]; failed: { url: string; error: string }[] };
@@ -536,6 +545,8 @@ export type KnowledgeTopic = {
   stock_order: string[];
   /** False while the group takes the app's order (a new group, or one reset to it). */
   stock_order_custom: boolean;
+  /** "Tư liệu": the folder of the team's "Kho tư liệu" the group shows (with its subfolders); null: none linked. */
+  media_folder: string | null;
   video_count: number;
   /** A group of a Page the signed-in member owns and uses ("của tôi"): listed first where a group is picked. */
   mine: boolean;

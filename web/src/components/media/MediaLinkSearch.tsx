@@ -24,12 +24,15 @@ const MEDIA_TYPES = /^(image\/(jpeg|png|webp)|video\/(mp4|quicktime|webm))$/;
 export default function MediaLinkSearch({
   keyword: initial,
   folder,
+  tags = [],
   onAdded,
 }: {
   /** The product's name (or the video's topic): what the buttons search for. */
   keyword: string;
   /** Where pasted links land in the library. */
   folder: string;
+  /** Tags every item added here gets ("Thêm tư liệu"'s tag box). */
+  tags?: string[];
   onAdded: (items: MediaItem[]) => void;
 }) {
   const { message } = App.useApp();
@@ -56,7 +59,7 @@ export default function MediaLinkSearch({
     const added: MediaItem[] = [];
     for (const file of files) {
       try {
-        added.push(await upload<MediaItem>("/media", file, { folder }));
+        added.push(await upload<MediaItem>("/media", file, { folder, tags: tags.join(",") }));
       } catch (err) {
         message.error(`${file.name}: ${errorMessage(err)}`);
       }
@@ -80,7 +83,7 @@ export default function MediaLinkSearch({
     try {
       if (inline.length) await addFiles(await Promise.all(inline.map(fileFromDataUrl)));
       if (urls.length) {
-        const result = await api<MediaLinksResult>("/media/links", "POST", { urls: urls.slice(0, 10), folder });
+        const result = await api<MediaLinksResult>("/media/links", "POST", { urls: urls.slice(0, 10), folder, tags });
         done(result.added);
         for (const failure of result.failed) {
           message.error(`${failure.error} (${failure.url.slice(0, 60)})`);

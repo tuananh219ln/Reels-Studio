@@ -1083,16 +1083,24 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         query: Annotated[str, Field(max_length=200)] = "",
         offset: Annotated[int, Field(ge=0)] = 0,
         limit: Annotated[int, Field(ge=1, le=100)] = 40,
+        tags: Annotated[str, Field(max_length=500)] = "",
     ) -> dict:
-        """Ảnh và clip trong kho tư liệu của nhóm (mới nhất trước), lọc theo thư mục (gồm thư mục con), loại hoặc
-        chữ trong tên; kèm danh sách thư mục. Người dùng kéo cả folder clip tự quay, ảnh sản phẩm vào kho trên web.
+        """Ảnh và clip trong kho tư liệu của nhóm (mới nhất trước), lọc theo thư mục (gồm thư mục con), loại, thẻ
+        (tags, phân tách bằng dấu phẩy, ví dụ "xoay-co,sofa": chỉ trả tư liệu có ĐỦ mọi thẻ; thẻ viết thường, không
+        dấu, nối bằng "-") hoặc chữ trong tên, thư mục và thẻ (query); mỗi tư liệu kèm thẻ của nó, kèm danh sách thư
+        mục và vốn thẻ trong kho với số lượng. Người dùng kéo cả folder clip tự quay, ảnh sản phẩm vào kho trên web.
         Xem hình bằng "Xem tư liệu" trước khi chọn cho cảnh."""
 
         def operation(db, me):
-            found = media_routes.list_media(folder or None, kind, query or None, me, db)
-            keep = ("id", "kind", "name", "folder", "seconds", "source_url")
+            found = media_routes.list_media(folder or None, kind, query or None, me, db, tags=tags or None)
+            keep = ("id", "kind", "name", "folder", "tags", "seconds", "source_url")
             items = [{key: item[key] for key in keep} for item in found["items"]]
-            return {"items": items[offset : offset + limit], "total": len(items), "folders": found["folders"]}
+            return {
+                "items": items[offset : offset + limit],
+                "total": len(items),
+                "folders": found["folders"],
+                "tags": found["tags"],
+            }
 
         return await run_in_threadpool(invoke, operation)
 

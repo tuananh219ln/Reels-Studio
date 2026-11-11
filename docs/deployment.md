@@ -173,6 +173,10 @@ wrapper, so that check is the main guard there.
 - **Locked out** (forgotten password, everyone disabled): run the same command with an existing
   email; after confirmation it sets a new password, re-enables the account, and signs out its old
   sessions. Sessions need no secret: they are random tokens stored hashed in Postgres.
+- **Tags of the Già Mà Khỏe photos (once, 2026-11-11):** after the deploy that adds tags, the owner runs
+  `python -m reels_api seed-media-tags --dry-run` in the Coolify terminal of the `api` container, reads the log,
+  then runs it without `--dry-run`. It adds each photo's tags by file name and never twice, so running it again is
+  harmless ([decision](decisions/2026-11-11-media-tags.md)).
 - **Storage growth:** each video is about 10–30 MB, which is about 1–3 GB/month at 3 videos/day.
   Deleting a video removes its folder for good; there is no other cleanup.
 - **Worker:** its log (Coolify Logs of the worker app) shows `Worker lock acquired` once it takes

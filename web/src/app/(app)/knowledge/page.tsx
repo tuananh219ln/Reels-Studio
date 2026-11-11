@@ -37,6 +37,7 @@ import { keepOnlyInAddress, useUrlChoiceIf, useUrlId } from "@/lib/urlState";
 import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
+import TopicMedia from "@/components/knowledge/TopicMedia";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
@@ -303,6 +304,7 @@ const TOPIC_FIELDS: Record<string, string> = {
   text_look: "Chữ & phụ đề",
   text_ai: "AI chọn kiểu chữ cho từng video",
   stock_order: "Thứ tự nguồn ảnh",
+  media_folder: "Thư mục tư liệu",
   templates: "Mẫu dựng của nhóm",
   edit_template_default: "Mẫu cho video mới",
   plan_start_date: "Ngày bắt đầu kế hoạch",
@@ -474,6 +476,11 @@ function TopicBody({
             key: "videos",
             label: `Video (${topic.video_count})`,
             children: <TopicVideos topicId={topic.id} canCreate={Boolean(topic.script_prompt)} visible={visible} />,
+          },
+          {
+            key: "media",
+            label: "Tư liệu",
+            children: <TopicMedia topic={topic} update={update} locked={locked} />,
           },
           {
             key: "prompts",
