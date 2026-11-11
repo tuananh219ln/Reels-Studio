@@ -231,3 +231,16 @@ def test_the_title_and_the_last_scene_have_one_crossfade_to_cover(place, seconds
 @pytest.mark.parametrize("text", ["5 MÓN *GIÚP", "CÁ " * 60])
 def test_title_text_that_reels_render_refuses_still_blocks(text):
     assert messages(run(title(text=text)).blocking, 0)
+
+
+@pytest.mark.parametrize(("seconds", "voice_seconds", "warned"), [
+    (4.0, None, False),
+    (4.0, 3.0, False),
+    (4.0, 3.4, False),
+    (4.0, 5.0, True),
+])
+def test_narration_longer_than_the_scene_warns(seconds, voice_seconds, warned):
+    scene = SceneInput(9, False, SCENE_TEXT, seconds, True, "lời đọc", voice_seconds)
+    checks = run(title(), scenes(2) + [scene] + scenes(2))
+    assert any("Lời đọc dài" in message for message in messages(checks.warnings, 9)) is warned
+    assert messages(checks.blocking, 9) == []

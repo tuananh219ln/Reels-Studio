@@ -140,7 +140,7 @@ def run_job(
         log.info("Job %s (%s) for %s started", job.id, job.kind, owner)
         try:
             if job.kind in ("script", "clone"):
-                run_script_job(db, job, call)
+                run_script_job(db, job, storage, call)
             elif job.kind == "learn":
                 run_learn_job(db, job, storage, call)
             elif job.kind == "plan":
@@ -251,7 +251,9 @@ def _finish(db: DbSession, job_id: int, status: str, error: str | None = None, d
 # --- Script ---
 
 
-def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | None) -> None:
+def run_script_job(
+    db: DbSession, job: Job, storage: DirectoryStorage, call: Callable[[str, str], str] | None
+) -> None:
     video = db.get(Video, job.video_id)
     # A retried job whose script was already saved has nothing to do: no new Claude call,
     # and nothing the members edited meanwhile is overwritten.
@@ -282,6 +284,21 @@ def run_script_job(db: DbSession, job: Job, call: Callable[[str, str], str] | No
         save_script(db, video, script)
         affiliate_rounds.ask_after_script(db, video, job.created_by_id)
         db.commit()
+    _make_voices_early(db, video, storage)
+
+
+def _make_voices_early(db: DbSession, video: Video, storage: DirectoryStorage) -> None:
+    """Narration made right after the script, so the real length is known before any render and the checks can
+    warn about scenes the narration lengthens. The render reuses these MP3s. A failure here is not the script's
+    failure: the video keeps its script and the render job makes the missing narration again."""
+    if not video.voice_enabled:
+        return
+    title, scenes = split_scenes(db, video)
+    try:
+        make_voices(db, video, ([title] if title else []) + scenes, storage)
+    except JobFailure as err:
+        db.rollback()
+        log.warning("Narration for video %s not made with the script: %s\n%s", video.id, err.message, err.detail)
 
 
 def script_prompt(

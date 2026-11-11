@@ -120,6 +120,11 @@ def check_script(
             warn(Issue(credit_warning(scene.photo_credit), scene.id, "image"))
         if not MIN_SECONDS <= scene.seconds <= MAX_SECONDS:
             block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
+        if scene.voice_seconds is not None:
+            fitted = fit_seconds(scene.seconds, scene.voice_seconds)
+            if fitted > scene.seconds + 0.01:
+                warn(Issue(f"Lời đọc dài {scene.voice_seconds:.1f} giây, dài hơn cảnh {scene.seconds:g} giây: "
+                           f"cảnh sẽ kéo dài thành {fitted:g} giây", scene.id, "voice"))
         neighbours = (index > 0) + (index < len(every) - 1)
         played = fit_seconds(scene.seconds, scene.voice_seconds) + neighbours * CROSSFADE_SIDE_SECONDS
         if scene.clip_seconds is not None and played * scene.clip_speed > scene.clip_seconds + 0.01:
