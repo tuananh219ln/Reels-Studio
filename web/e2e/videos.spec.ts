@@ -1062,8 +1062,8 @@ test("half-frame photo: only on a backdrop video, the scene's dish photo across 
   const from = (await photo.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  // Up past the top half: kept there.
-  await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 - box.height * 0.55, { steps: 8 });
+  // Up past the top edge: kept flush with it.
+  await page.mouse.move(from.x + from.width / 2 + 30, from.y + from.height / 2 - box.height * 0.75, { steps: 8 });
   await page.mouse.up();
   await expect.poll(place).toEqual(["0%", "0%", "100%"]);
 });
