@@ -1076,6 +1076,8 @@ test("inset photo: only on a backdrop video, a rounded square narrower than the 
   inset = dialog.getByRole("slider", { name: "Ảnh chèn" });
   await expect(inset).toHaveAttribute("aria-valuenow", "1613");
   // Dragged up to the frame's top and sideways: it stays centred across and stops flush with the top edge.
+  // hover() waits for the window's opening animation to end, so the boxes below are where they stay.
+  await inset.hover();
   const frame = (await dialog.getByTestId("place-frame").boundingBox())!;
   const from = (await inset.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
