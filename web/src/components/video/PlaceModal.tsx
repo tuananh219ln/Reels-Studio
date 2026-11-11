@@ -168,6 +168,8 @@ export default function PlaceModal({
       open
       title={tab === "inset" ? "Vị trí ảnh chèn" : "Vị trí chữ"}
       onCancel={onClose}
+      // A drag let go over the mask must not close the window and drop the place: only ✕ does.
+      mask={{ closable: false }}
       centered
       width={420}
       footer={null}

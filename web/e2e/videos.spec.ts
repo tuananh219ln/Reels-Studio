@@ -1075,13 +1075,16 @@ test("inset photo: only on a backdrop video, a rounded square narrower than the 
   dialog = page.getByRole("dialog", { name: "Vị trí ảnh chèn" });
   inset = dialog.getByRole("slider", { name: "Ảnh chèn" });
   await expect(inset).toHaveAttribute("aria-valuenow", "1613");
-  // Dragged far up and sideways: it stays centred across and stops flush with the top edge.
+  // Dragged up to the frame's top and sideways: it stays centred across and stops flush with the top edge.
+  const frame = (await dialog.getByTestId("place-frame").boundingBox())!;
   const from = (await inset.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  await page.mouse.move(from.x + from.width / 2 + 40, from.y - 400, { steps: 8 });
+  await page.mouse.move(from.x + from.width / 2 + 40, frame.y + 2, { steps: 8 });
   await page.mouse.up();
   await expect(inset).toHaveAttribute("aria-valuenow", "307");
+  // The window stays open after the drag.
+  await expect(dialog).toBeVisible();
   // The text's tab: now the text box moves and the inset is locked.
   await dialog.getByRole("tab", { name: "Chữ" }).click();
   dialog = page.getByRole("dialog", { name: "Vị trí chữ" });
