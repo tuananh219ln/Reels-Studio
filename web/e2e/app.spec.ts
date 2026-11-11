@@ -1220,3 +1220,74 @@ test("Kho tư liệu: tags are edited on one item and on a batch, and the filter
   await page.goto("/media?tags=sofa");
   await expect(page.getByText("Không có tư liệu nào khớp bộ lọc")).toBeVisible();
 });
+
+test("Kho tư liệu: folders show as a tree, a parent counts and shows everything below it, and a group links a parent", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  const headers = { Origin: new URL(page.url()).origin };
+  for (const [name, folder, tags] of [
+    ["goi-1.png", "Gia/Goi khop", ""],
+    ["goi-2.png", "Gia/Goi khop", "sofa"],
+    ["dung.png", "Gia/Thang bang", "sofa"],
+    ["thang.png", "Gia/Thang bang", ""],
+    ["cha.png", "Gia", ""],
+    ["bep.png", "Gian/Bep", ""],
+  ]) {
+    const made = await page.request.post("/api/media", {
+      multipart: { file: { name, mimeType: "image/png", buffer: PIXEL }, folder, tags },
+      headers,
+    });
+    expect(made.status()).toBe(201);
+  }
+  const cards = page.getByTestId("media-item");
+  const dropdown = page.locator(".ant-select-dropdown:visible");
+  const node = (title: string) =>
+    dropdown.locator(".ant-select-tree-treenode").filter({ has: page.getByTitle(title, { exact: true }) });
+
+  // The filter is a tree: "Gia" counts its own item and its children's, "Gian" stays apart; closing "Gia" hides them.
+  await page.goto("/media");
+  await expect(cards).toHaveCount(6);
+  await page.getByLabel("Lọc theo thư mục").click();
+  for (const title of ["Gia (5)", "Goi khop (2)", "Thang bang (2)", "Gian (1)", "Bep (1)"]) {
+    await expect(dropdown.getByTitle(title, { exact: true })).toBeVisible();
+  }
+  await node("Gia (5)").locator(".ant-select-tree-switcher").click();
+  await expect(dropdown.getByTitle("Goi khop (2)", { exact: true })).toBeHidden();
+  await expect(dropdown.getByTitle("Gian (1)", { exact: true })).toBeVisible();
+  await node("Gia (5)").locator(".ant-select-tree-switcher").click();
+  await expect(dropdown.getByTitle("Goi khop (2)", { exact: true })).toBeVisible();
+
+  // A parent shows everything in it and below it; a child only its own; with a tag, what is in both.
+  await dropdown.getByTitle("Gia (5)", { exact: true }).click();
+  await expect(cards).toHaveCount(5);
+  await expect(cards.filter({ hasText: "bep.png" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Đổi tên thư mục" })).toBeVisible();
+  await chooseOption(page, page.getByLabel("Lọc theo thư mục"), "Thang bang (2)");
+  await expect(cards).toHaveCount(2);
+  await page.goto(`/media?folder=${encodeURIComponent("Gia/Thang bang")}&tags=sofa`);
+  await expect(cards).toHaveCount(1);
+  await expect(cards.filter({ hasText: "dung.png" })).toBeVisible();
+
+  // The upload form's folder box is the same tree.
+  await page.getByLabel("Thư mục", { exact: true }).click();
+  await expect(dropdown.getByTitle("Gia (5)", { exact: true })).toBeVisible();
+  await expect(dropdown.getByTitle("Goi khop (2)", { exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // A group links the parent from the same tree, and its tab shows everything below it.
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Tư liệu", exact: true }).click();
+  await health.getByRole("button", { name: "Liên kết thư mục" }).click();
+  const link = page.getByRole("dialog", { name: "Liên kết thư mục cho nhóm “Sức khỏe”" });
+  await link.getByLabel("Thư mục của nhóm").click();
+  await expect(dropdown.getByTitle("Thang bang (2)", { exact: true })).toBeVisible();
+  await dropdown.getByTitle("Gia (5)", { exact: true }).click();
+  await link.locator(".ant-modal-title").click();
+  await link.getByRole("button", { name: "Liên kết thư mục" }).click();
+  await expect(health.getByTestId("media-item")).toHaveCount(5);
+  await expect(health.getByText("5 tư liệu", { exact: false })).toBeVisible();
+});

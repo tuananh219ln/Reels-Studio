@@ -158,3 +158,41 @@ def test_linking_a_folder_is_an_edit_of_the_group(an, db):
     db.commit()
     refused = an.patch(f"/api/knowledge/topics/{topic.id}", json={"media_folder": "Gia"})
     assert refused.status_code == 403
+
+
+def test_a_folder_filter_takes_whole_path_segments(an, db):
+    """Choosing a node of the tree: the folder itself, items right in it and every folder below it, at any depth, but
+    never a folder whose name only starts with the same letters (docs/decisions/2026-11-11-media-folder-tree.md)."""
+    for name, folder in (
+        ("cha.jpg", "Gia"),
+        ("lung.jpg", "Gia/Lung"),
+        ("tren.jpg", "Gia/Lung/Tren"),
+        ("lungo.jpg", "Gia/Lungo"),
+        ("gian.jpg", "Gian"),
+        ("bep.jpg", "Gian/Bep"),
+    ):
+        send_photo(an, name, folder)
+
+    def shown(folder: str, **params) -> list[str]:
+        items = an.get("/api/media", params={"folder": folder, **params}).json()["items"]
+        return sorted(item["name"] for item in items)
+
+    assert shown("Gia") == ["cha.jpg", "lung.jpg", "lungo.jpg", "tren.jpg"]
+    assert shown("Gia/Lung") == ["lung.jpg", "tren.jpg"]
+    assert shown("Gia/Lung/Tren") == ["tren.jpg"]
+    assert shown("Gian") == ["bep.jpg", "gian.jpg"]
+    # A folder that is only a parent of others (no item right in it) still filters on what is below it.
+    assert shown("Gian/Bep") == ["bep.jpg"]
+    # With the other filters, what meets them all.
+    an.patch(f"/api/media/{an.get('/api/media', params={'q': 'tren'}).json()['items'][0]['id']}", json={"tags": ["x"]})
+    assert shown("Gia", tags="x") == ["tren.jpg"]
+    assert shown("Gia", q="lung") == ["lung.jpg", "lungo.jpg", "tren.jpg"]
+
+
+def test_renaming_a_parent_with_no_item_of_its_own_renames_its_whole_branch(an, db):
+    send_photo(an, "a.jpg", "Gia/Lung")
+    send_photo(an, "b.jpg", "Gia/Goi khop/Sang")
+    send_photo(an, "c.jpg", "Gian")
+    renamed = an.post("/api/media/folders/rename", json={"folder": "Gia", "to": "Già"})
+    assert renamed.status_code == 200 and renamed.json()["moved"] == 2
+    assert counts(an) == {"Già/Lung": 1, "Già/Goi khop/Sang": 1, "Gian": 1}

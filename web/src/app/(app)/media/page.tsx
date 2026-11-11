@@ -4,9 +4,8 @@ import { useMe } from "@/components/MeContext";
 import { DeleteOutlined, FolderOutlined, SearchOutlined, TagsOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Tooltip, Typography } from "antd";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import FilterSelect from "@/components/FilterSelect";
 import FolderActions from "@/components/media/FolderActions";
-import { folderLabel } from "@/components/media/FolderSelect";
+import { FolderFilter } from "@/components/media/FolderSelect";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaUploadCard from "@/components/media/MediaUploadCard";
 import MoveFolderModal from "@/components/media/MoveFolderModal";
@@ -14,6 +13,7 @@ import TagEditModal, { type TagEdit } from "@/components/media/TagEditModal";
 import TagSelect from "@/components/media/TagSelect";
 import PageHeader from "@/components/PageHeader";
 import { api, errorMessage, type MediaItem, type MediaList } from "@/lib/api";
+import { inFolder } from "@/lib/folderTree";
 import { useUrlChoice } from "@/lib/urlState";
 
 export default function MediaPage() {
@@ -93,12 +93,11 @@ function Media() {
                 onChange={(event) => setQuery(event.target.value)}
                 style={{ flex: "1 1 220px", maxWidth: 320 }}
               />
-              <FilterSelect<string>
+              <FolderFilter
                 aria-label="Lọc theo thư mục"
-                placeholder="Mọi thư mục"
+                folders={data.folders}
                 value={shown}
-                onChange={(value) => setShown(value ?? null)}
-                options={data.folders.map((row) => ({ value: row.folder, label: folderLabel(row) }))}
+                onChange={setShown}
                 style={{ flex: "1 1 220px", maxWidth: 320 }}
               />
               <TagSelect
@@ -121,7 +120,7 @@ function Media() {
                 ]}
               />
               {/* Once the folders are read, so the dialogs count what the folder holds. */}
-              {shown && data.folders.some((row) => row.folder === shown) && (
+              {shown && data.folders.some((row) => inFolder(row.folder, shown)) && (
                 <FolderActions
                   folder={shown}
                   folders={data.folders}

@@ -5,10 +5,11 @@ import { App, Button, Form, Input, Modal, Typography } from "antd";
 import { useState } from "react";
 import { cleanFolder } from "@/components/media/FolderSelect";
 import { api, errorMessage, type MediaFolder } from "@/lib/api";
+import { inFolder } from "@/lib/folderTree";
 
 /** The folder and its subfolders, as the library's filter shows them. */
 function within(folders: MediaFolder[], folder: string): MediaFolder[] {
-  return folders.filter((row) => row.folder === folder || row.folder.startsWith(`${folder}/`));
+  return folders.filter((row) => inFolder(row.folder, folder));
 }
 
 /**

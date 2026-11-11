@@ -180,7 +180,9 @@ Photos and clips gathered once and used in any scene ([routes_media.py](../api/s
   product's name in the member's browser; the app never searches or downloads from Google by itself.
 - **Using an item** (`POST /api/media/{id}/use`) copies it into the scene through the editor's own `_store_photo` and
   `_attach_clip`, with their locks and checks. Thumbnails are a photo, or a clip's frame at one second.
-- **Folders are labels** (`media_items.folder`), a folder including its subfolders. `GET /api/media` lists every
+- **Folders are labels** (`media_items.folder`), a folder including its subfolders (whole parts of the path: `Gia`
+  takes `Gia/…`, never `Gian`). The web draws them as a tree built from the flat list
+  ([folderTree.ts](../web/src/lib/folderTree.ts), [decision](decisions/2026-11-11-media-folder-tree.md)). `GET /api/media` lists every
   folder with its count and the topic group linking it (a linked folder with no item yet too). "Chuyển thư mục"
   (`POST /api/media/move`, one item or a chosen batch), renaming (`POST /api/media/folders/rename`, merging into a
   folder of that name) and deleting a folder (`POST /api/media/folders/clear`, its items to "Không thư mục") change
