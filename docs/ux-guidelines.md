@@ -260,7 +260,8 @@ Built:
   opens the dialog (`/videos?reference=<id>`) on "Dùng mẫu đã học" with that sample chosen.
 - **Video list** (`/videos`): "Tạo video"; then, on one row, the search by title or topic and the filters:
   status (Cần làm: a draft older than 2 days, a failed job, an MP4 behind the edits, or a finished video not out
-  on Facebook or TikTok; Nháp, Đang xử lý, Xong, Lỗi, MP4 cần render lại), platform, Fanpage (any Page the video
+  on Facebook or TikTok; Nháp, Đang xử lý, Chờ đăng, Đã lên lịch, Đã đăng, Lỗi, MP4 cần render lại: the same
+  choices as a group's "Video" tab, lib/videoStatus.ts), platform, Fanpage (any Page the video
   is out on or set for), topic group ("Sức khỏe (12)", its number of videos; remembered in the browser) and
   creator ("Của tôi" first, then the team; it starts on "Của tôi" once the member has made a video), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
   nhóm chủ đề" or "Cả đội" while empty; sort "Mới nhất" or "Nhiều view nhất". With a group chosen, a grey line
@@ -282,8 +283,10 @@ Built:
     for more, a long name cut and in full on hover) and "Đăng 03/11 07:00" or "Hẹn đăng 05/11 20:00"
     (the year only when it is not this one), or "Chưa đăng"; at 48 hours "N× trung vị" (orange and
     bold from 10×) and "N% share" (green once it reaches the goal); a warning on its own line (a job's
-    stage while posted, "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot
-    and a word ("Đã đăng", "Đã lên lịch", or Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) and on
+    "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot and a word, the api's
+    `status_label` everywhere (Nháp / Chờ / Đang viết / Đang render… / Lỗi while there is no MP4 or a job runs; with
+    an MP4, by its posting: "Chờ đăng" (dark grey), "Đã lên lịch" (amber), "Đã đăng" (green); "Xong" said nothing
+    about posting, 2026-11-12) and on
     the right the creator and the day it was made; under them, small, the topic group and its plan day.
     The kind tags sit under the title with the "Đã đăng" icons on their right;
   - a list, one row per video: small thumbnail and title, "Loại" (the kind tags), the status (with "Đã
@@ -670,7 +673,8 @@ Built:
     "Share/view" (the 48-hour reading of the post with the most views), who made it, when) or a card per
     video (a larger picture, title, status, platforms and one line of those numbers, "Chưa có số liệu
     đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
-    topic that ignores accents and a status filter, both kept when switching, and "Tạo video", which
+    topic that ignores accents and a status filter (every choice of the video list's but "Cần làm", each with its
+    count in the group, listed even when empty), both kept when switching, and "Tạo video", which
     opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
   - "Tư liệu": the team's one Kho tư liệu on the folder the group links (subfolders included), not a library of its
     own. Linked: "Thư mục <folder>, N tư liệu", "Tải ảnh vào thư mục này" (the upload card of `/media` with the
@@ -746,7 +750,7 @@ Built:
     browser as `plan-compact`; a compact card shows its title, status, numbers and buttons, and opens on its title
     or arrow), then the day in full: a line counting its shown ideas by status
     ("Không có ý tưởng khớp" when the filters hide them all), and each idea with a 3 px left border in its status
-    colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong, Đã
+    colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Chờ đăng, Đã
     lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while no post is set, "Tạo video" or "Mở video"
     with "Sửa" beside it (always shown, "Gọn" too: one "Sửa ý tưởng" form with the four fields, saved together by
     "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in the plan shows in the form, which stays

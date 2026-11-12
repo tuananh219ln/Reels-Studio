@@ -67,7 +67,10 @@ export type VideoRow = {
   created_by_id: number;
   created_at: string;
   status: VideoStatus;
+  /** For a person; a video with its MP4 is named by its posting ("Chờ đăng", "Đã lên lịch", "Đã đăng"). */
   status_label: string;
+  /** Where a video with its MP4 stands on posting (api videos.post_stage); null until it has one. */
+  post_stage: "ready" | "scheduled" | "posted" | null;
   mp4_outdated: boolean;
   rerender_failed: boolean;
   thumbnail_url: string | null;
