@@ -2,16 +2,14 @@
 theo ngày": odd days of the Vietnam calendar a backdrop video, even days slides). A mode asked for the one video wins
 over the group's; every way of making a video goes through start_video, where it is resolved."""
 
-from datetime import date, datetime, timedelta
+from datetime import date
 
 import pytest
 from conftest import client_for, first_topic, login, make_user
 from sqlalchemy import select
-from test_auto_runs import auto_page, plan, runs
 from test_mcp import call, grant, mcp_client, payload  # noqa: F401  (fixture)
 
-from reels_api import auto_runs, plans
-from reels_api.analytics import VIETNAM
+from reels_api import plans
 from reels_api.claude import BACKDROP_FORMAT, OUTPUT_FORMAT
 from reels_api.models import KnowledgeTopic, Video
 from reels_api.videos import group_video_mode, resolve_video_mode
@@ -206,24 +204,3 @@ def test_a_script_from_the_group_prompt_through_mcp_follows_the_group(mcp_client
     )
     assert not made.get("isError"), made
     assert db.scalar(select(Video).where(Video.topic == "Rau xanh cho tim")).mode == "single"
-
-
-# --- Semi-automatic posting ---
-
-
-@pytest.mark.parametrize(("day", "expected"), [(ODD, "single"), (EVEN, "slides")])
-def test_the_semi_automatic_round_makes_the_mode_of_the_day_it_prepares(db, me, day, expected):
-    set_group_mode(db, "alternate")
-    plan(db, start=day)
-    auto_page(db, me)
-    auto_runs.step(db, datetime(day.year, day.month, day.day, 8, 0, tzinfo=VIETNAM))
-    [run] = runs(db)
-    assert db.get(Video, run.video_id).mode == expected
-
-
-def test_the_semi_automatic_round_keeps_slides_for_a_group_never_set(db, me):
-    plan(db, start=ODD)
-    auto_page(db, me)
-    auto_runs.step(db, datetime(2026, 11, 11, 8, 0, tzinfo=VIETNAM) + timedelta(minutes=5))
-    [run] = runs(db)
-    assert db.get(Video, run.video_id).mode == "slides"

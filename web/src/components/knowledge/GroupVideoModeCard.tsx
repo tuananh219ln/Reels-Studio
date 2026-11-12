@@ -10,7 +10,7 @@ type Update = (body: Partial<KnowledgeTopic>) => Promise<KnowledgeTopic>;
 
 /**
  * "Kiểu video của nhóm": the mode every new video of the group takes, however it is made (the web, the team's AI, the
- * semi-automatic round, the assistant through MCP), unless one is picked for that video. "Xen kẽ theo ngày" goes by
+ * assistant through MCP), unless one is picked for that video. "Xen kẽ theo ngày" goes by
  * the Vietnam calendar day: odd days "Video xuyên suốt", even days "Slide ảnh".
  */
 export default function GroupVideoModeCard({ topic, update }: { topic: KnowledgeTopic; update: Update }) {
@@ -54,8 +54,8 @@ export default function GroupVideoModeCard({ topic, update }: { topic: Knowledge
       }
     >
       <Typography.Paragraph type="secondary">
-        Mọi video tạo mới trong nhóm theo kiểu này: tạo trên web, bằng AI của nhóm, bán tự động và trợ lý qua MCP. Chọn
-        riêng kiểu cho một video lúc tạo vẫn được. Video đã có không đổi.
+        Mọi video tạo mới trong nhóm theo kiểu này: tạo trên web, bằng AI của nhóm và trợ lý qua MCP. Chọn riêng kiểu
+        cho một video lúc tạo vẫn được. Video đã có không đổi.
       </Typography.Paragraph>
       <Radio.Group
         aria-label="Kiểu video của nhóm"

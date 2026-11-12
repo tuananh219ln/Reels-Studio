@@ -338,7 +338,7 @@ Built:
     mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
     the title choice, scene move/delete/add, every photo and clip action, "Vị trí chữ", music
     and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
-    previews and the MP4, "Tải MP4", "Nhân bản", "Xóa", "Render", the "Xuất bản" tab and the
+    previews and the MP4, "Tải MP4", "Nhân bản", "Chuyển sang nhóm khác", "Xóa", "Render", the "Xuất bản" tab and the
     post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
     "Nhân bản" unlocks the page, shown by "Đang chỉnh sửa" in grey by the title and a light
     orange outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
@@ -671,7 +671,9 @@ Built:
     video (a larger picture, title, status, platforms and one line of those numbers, "Chưa có số liệu
     đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
     topic that ignores accents and a status filter, both kept when switching, and "Tạo video", which
-    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
+    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt). The
+    video's maker has a red bin on each row and card ("Xóa video <title>"), confirmed as on the video page;
+    others see none;
   - "Tư liệu": the team's one Kho tư liệu on the folder the group links (subfolders included), not a library of its
     own. Linked: "Thư mục <folder>, N tư liệu", "Tải ảnh vào thư mục này" (the upload card of `/media` with the
     folder fixed), "Mở trong Kho tư liệu" (a link to `/media?folder=…`), "Đổi thư mục", "Bỏ liên kết" (asked first;
@@ -706,17 +708,14 @@ Built:
     to the Backlog):
   - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
     video", and "Sửa" (before a start date: "Chọn ngày bắt đầu để app biết hôm nay là ngày mấy"; "Kế hoạch chưa bắt
-    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days); then "Bán tự động hôm nay" when the group's Pages have
-    runs today (re-read every 10 seconds while open): per run the Page, the idea, its status (Đang dựng, Chờ duyệt,
-    Đã duyệt, Không duyệt, Lỗi, Bỏ qua) and why ("Đang chờ máy render", the failed job's error, "Hôm nay chưa có ý
-    tưởng trong kế hoạch"), a yellow alert listing banned words, and while it waits the MP4 to play, the voice and
-    music, "Mở video" (scene photos and script) and "Bản TikTok riêng" when made; the Page's owner gets "Bỏ qua TikTok
-    cho video này" (or why no draft would go), "Duyệt" and "Không duyệt" (confirmed); others read "Chờ chủ Page
-    duyệt". Once approved: "Facebook: hẹn đăng <time>, TikTok: …". Under it "Đã làm X/Y, đã lên lịch N, ngày còn
+    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days). Under it "Đã làm X/Y, đã lên lịch N, ngày còn
     trống N";
   - "Tiến độ trước khi đánh giá nhóm: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
     target to set; it only counts, the line under it says the team still judges the group in a meeting;
-  - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
+  - "Thiết lập", "Nhập file JSON/CSV", "Tạo bằng AI" and "Xóa nhiều ý tưởng", with a one-line hint. "Xóa nhiều
+    ý tưởng" opens a drawer with a tree Tuần › Ngày › idea (and the Backlog), a status filter, "Chọn tất cả của
+    tôi" and "Bỏ chọn": ticking a week or day ticks its ideas; a teammate's idea cannot be ticked (as one by one,
+    only an idea's maker deletes it); "Xóa N ý tưởng" deletes them at once, a video made from one stays. "Thiết lập" opens a panel with the
     start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Số video cần làm trước khi đánh giá nhóm", changed in
     place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
     with errors (which block saving) and warnings; the plan is changed only by "Lưu kế hoạch". A file's preview
@@ -855,11 +854,7 @@ Built:
 - **Quản lý Page**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
-  group and posting times and reorders its queue; others read them as a line. Under the owner line, the owner's
-  "Bán tự động" switch with its preparing time ("08:00" by default, saved on Enter or leaving the field; a time
-  not written "HH:MM", or one the api refuses, says so and the saved time comes back) and, once on,
-  the TikTok account its drafts go to (one of their own; "Không gửi nháp TikTok" when none, a warning when its
-  connection is missing or expired), "Bản TikTok riêng" (off by default) and where the videos wait for approval.
+  group and posting times and reorders its queue; others read them as a line.
 - **Bài đăng** and posting. Nothing is posted or approved here: a member reviews and posts a
   video from "Đăng" on its page; "Bài đăng" only retries a failed post. (The "Bình luận" page, which answered
   visitors' comments as the Page, went on 2026-11-10.)
@@ -1234,7 +1229,7 @@ and changed at any time on the video page's "Kiểu video" card, which asks firs
 and "Ảnh món" is kept. "Tạo video" starts on the topic group's "Kiểu video" (Kho kiến thức, "Xen kẽ theo ngày"
 resolved for today in Vietnam) and says so under the strip ("Theo kiểu video của nhóm: …, hôm nay …"); picking the
 other kind makes it that video's only ("Chỉ video này; nhóm đang theo …"). A video made without the dialog (the
-team's AI through MCP, the semi-automatic round, the assistant) takes the group's too:
+team's AI through MCP, the assistant) takes the group's too:
 
 - **Slide ảnh** (the default, every older video): each scene over its own photo or clip, as below.
 - **Video xuyên suốt:** one photo or clip, the title scene's, runs under the whole video ("5 công dụng của chuối

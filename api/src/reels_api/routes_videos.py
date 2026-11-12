@@ -523,6 +523,31 @@ def patch_video(
     return _saved(db, video)
 
 
+class GroupBody(BaseModel):
+    knowledge_topic_id: int
+
+
+@router.put("/videos/{video_id}/group")
+def move_video(
+    video_id: int, body: GroupBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Chuyển sang nhóm khác": the video, by its maker, to another topic group. Its look, mode and MP4 stay as they
+    are (a group's settings are taken when a video is made); the old group's plan idea made from it is freed, so that
+    plan shows the idea as still to make."""
+    video = lock_video(db, video_id)
+    ensure_owner(video.created_by_id, me.user_id, "video này", "chuyển nhóm được")
+    ensure_unlocked(db, video)
+    group = db.get(KnowledgeTopic, body.knowledge_topic_id)
+    if group is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    if group.id == video.knowledge_topic_id:
+        raise invalid(f"Video đã ở nhóm “{group.name}”")
+    for idea in db.scalars(select(TopicPlanItem).where(TopicPlanItem.video_id == video.id)):
+        idea.video_id = None
+    video.knowledge_topic_id = group.id
+    return _saved(db, video)
+
+
 @router.delete("/videos/{video_id}")
 def delete_video(
     video_id: int,

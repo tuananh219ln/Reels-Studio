@@ -387,7 +387,7 @@ function DisableModal({
           />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Page, nhóm chủ đề, ý tưởng kế hoạch và mẫu dựng của người này chuyển sang người được chọn. Page bỏ tài khoản
-            Shopee, TikTok và bán tự động cũ để người nhận tự gắn lại.
+            Shopee cũ để người nhận tự gắn lại.
           </Typography.Text>
         </div>
         <div>

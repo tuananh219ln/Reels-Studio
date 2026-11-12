@@ -30,7 +30,7 @@ from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 
-from . import auto_runs, clips, jobs, motion, plans, remote_media, video_options
+from . import clips, jobs, motion, remote_media, video_options
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -373,18 +373,6 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 ],
                 "total": len(rows),
             }
-
-        return await run_in_threadpool(invoke, operation)
-
-    @tool("Đọc video chờ duyệt (bán tự động)", read=True)
-    async def list_auto_runs(knowledge_topic_id: int | None = None) -> dict:
-        """Lượt chạy bán tự động hôm nay (giờ Việt Nam) của các Page: ý tưởng, video, trạng thái (đang dựng, chờ duyệt,
-        đã duyệt, không duyệt, lỗi, bỏ qua) kèm lý do, cảnh báo từ cấm và bước TikTok. Chỉ đọc: duyệt hay không là việc
-        của chủ Page trong app, ở dải "Hôm nay" của tab Kế hoạch."""
-
-        def operation(db, me):
-            rows = auto_runs.runs_of(db, knowledge_topic_id, plans.today())
-            return {"runs": [auto_runs.payload(db, run, me.user_id) for run in rows]}
 
         return await run_in_threadpool(invoke, operation)
 
