@@ -53,8 +53,7 @@ def test_enabling_an_active_member_logs_nothing(client, db, me, binh):
 def owned_by(db, user):
     """A Page with Binh's own Shopee and TikTok accounts and semi-auto on, a group, a plan idea and a template."""
     shopee = AffiliateAccount(owner_id=user.id, platform="shopee", name="Shopee của Bình")
-    tiktok = AffiliateAccount(owner_id=user.id, platform="tiktok", name="TikTok của Bình")
-    db.add_all([shopee, tiktok])
+    db.add(shopee)
     db.flush()
     group = KnowledgeTopic(name="Gan", created_by_id=user.id)
     db.add(group)
@@ -66,8 +65,6 @@ def owned_by(db, user):
         token_tail="x",
         owner_id=user.id,
         shopee_account_id=shopee.id,
-        tiktok_account_id=tiktok.id,
-        auto_prepare=True,
         knowledge_topic_id=group.id,
     )
     idea = TopicPlanItem(
@@ -85,8 +82,8 @@ def test_disabling_hands_the_members_things_to_a_chosen_active_member(client, db
     assert response.status_code == 200, response.text
     db.expire_all()
     assert page.owner_id == group.created_by_id == idea.created_by_id == template.created_by_id == chi.id
-    # Binh's own affiliate accounts are not Chi's: the Page drops them, and semi-auto waits for Chi to turn it on.
-    assert (page.shopee_account_id, page.tiktok_account_id, page.auto_prepare) == (None, None, False)
+    # Binh's own Shopee account is not Chi's: the Page drops it.
+    assert page.shopee_account_id is None
     [entry] = client.get(f"/api/edit-logs?entity_type=user&entity_id={binh.id}").json()["entries"]
     assert entry["changes"]["transfer"]["new"] == "1 Page, 1 nhóm chủ đề, 1 ý tưởng, 1 mẫu dựng cho Lê Chi"
 

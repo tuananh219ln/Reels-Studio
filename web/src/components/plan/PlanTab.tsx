@@ -69,7 +69,6 @@ import { useLeaveGuard } from "@/lib/unsaved";
 import { useUrlChoiceIf } from "@/lib/urlState";
 import EditHistory from "@/components/EditHistory";
 import FormDrawer from "@/components/FormDrawer";
-import AutoRuns from "@/components/plan/AutoRuns";
 import { COLORS } from "@/app/theme";
 
 const PLAN_DAYS = 30;
@@ -1017,7 +1016,6 @@ function TodayStrip({ plan, change }: { plan: Plan; change: Change }) {
           <EditIdeaButton item={item} onChange={change} />
         </Flex>
       ))}
-      <AutoRuns topicId={plan.topic_id} />
     </Flex>
   );
 }
