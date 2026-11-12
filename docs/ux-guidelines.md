@@ -1266,26 +1266,36 @@ next scene; its start and length can be typed in "Chỉnh cảnh". It sits under
 layers; the text gets no shade of its own, so a box style keeps it readable over a busy photo. One photo layer per
 scene.
 
-A content scene's card on a "Video xuyên suốt" has two columns. The left one, from the top: the preview (the backdrop
-playing, the inset photo over it, the scene's text box on top, as the render lays them); **"Chỉnh vị trí chữ"** (the
-primary button, always there, with or without an inset); the scene's own picture tools while the inset shows the
-scene's photo (or on an older scene's "Ảnh món"); then the **"Ảnh chèn"** block: its title and a switch on one row.
-Off, one line, "Đang tắt. Bật để chọn vị trí và ảnh.", and no other button. On: "Chỉnh vị trí ảnh chèn (kéo lên
-xuống)", the "Cỡ ảnh" slider (30–45, step 1, "Cỡ ảnh: 32% (hẹp hơn video)" under it, the preview resizing while it is
-dragged and keeping the edge it is flush with), and one row of four buttons for the inset's own photo, kept apart from
-the scene's picture tools: Tải lên, Kho (Kho tư liệu), Tìm (the stock libraries) and AI (the scene's AI photo, from
-its "Prompt ảnh AI", after asking). The right column keeps the text, narration, "Số giây", "Bắt đầu từ giây", "Từ khóa
-tìm ảnh" and "Prompt ảnh AI", and a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part of the
-inset (never blocking). The Trên / Giữa / Dưới buttons are gone.
+A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 220 px left
+column and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
+the scene's text box on top, as the render lays them) beside the text, narration, "Số giây", "Bắt đầu từ giây", "Từ
+khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part
+of the inset (never blocking). Row 2: **"Chỉnh vị trí chữ & ảnh chèn"** (the primary button, always there, with or
+without an inset). Row 3: the scene's own picture tools while the inset shows the scene's photo (or on an older
+scene's "Ảnh món"). The **"Ảnh chèn"** block sits on the right of rows 2 and 3, as wide as the column and only as tall
+as what it holds. Narrower than 576 px, one column: preview, button, picture tools, block, then the fields.
 
-Both "Chỉnh vị trí" buttons open one window with two tabs, **Chữ** and **Ảnh chèn** (only Chữ without an inset),
-titled "Vị trí chữ" or "Vị trí ảnh chèn", with "Kéo lên hoặc xuống (hoặc dùng phím mũi tên); luôn ở giữa theo chiều
-ngang." Over a 9:16 frame drawn as the render lays it, the open tab's one is dragged up and down (mouse, touch, or the
-up and down arrow keys, 10 px a press): `ns-resize` cursor, dashed outline and ⇅ beside it; the other is dimmed
-(opacity 0.55) and locked. The text stays inside the safe zone (y 220–1440, as on the title scene, darkened outside it
-on the Chữ tab); the inset goes from flush with the top edge to flush with the bottom edge, with no extra margin.
-"Vị trí gốc" puts the open tab's one back (the inset flush with the bottom edge, the text unplaced), "Lưu" saves both
-and closes, ✕ drops what was not saved. The title scene and slide videos keep "Vị trí chữ" on the picture, as before.
+The block is its title and a switch on one row. Off, one line, "Đang tắt. Bật để chèn ảnh của cảnh.". On: the "Cỡ ảnh"
+slider (30–45, step 1, "Cỡ ảnh: 32% (hẹp hơn video)" under it, the preview resizing while it is dragged and keeping
+the edge it is flush with), nothing else. The inset always shows the scene's photo, so changing the scene's photo with
+the left column's tools changes it too; the block has no picture buttons of its own. An inset an older edit gave a
+photo of its own keeps rendering it, with "Đang dùng ảnh riêng chọn từ trước." and "Dùng ảnh của cảnh" in the block.
+Turning the switch off asks first only for such an inset (its own photo is lost); turned on again while the card is
+open, the inset comes back with the size and place it had. The Trên / Giữa / Dưới buttons are gone.
+
+The button opens one window, titled "Vị trí chữ & ảnh chèn" ("Vị trí chữ" without an inset), with two tabs, **Chữ**
+and **Ảnh chèn** (only Chữ without an inset), opening on Chữ, and "Bấm vào chữ hoặc ảnh chèn rồi kéo lên xuống (hoặc
+dùng phím mũi tên); luôn ở giữa theo chiều ngang." Over a 9:16 frame drawn as the render lays it, the open tab's one is
+dragged up and down (mouse, touch, or the up and down arrow keys, 10 px a press): `ns-resize` cursor, dashed outline
+and ⇅ beside it; the other is dimmed (opacity 0.55) with a thin white dashed outline, and pressing it opens its tab and
+drags it. The text stays inside the safe zone (y 220–1440, as on the title scene, darkened outside it on the Chữ tab);
+the inset goes from flush with the top edge to flush with the bottom edge, with no extra margin. "Vị trí gốc" puts the
+open tab's one back (the inset flush with the bottom edge, the text unplaced), "Lưu" saves both and closes, ✕ drops
+what was not saved. The title scene and slide videos keep "Vị trí chữ" on the picture, as before.
+
+Every preview clip in a scene card and its windows is muted from the moment it is made (the `muted` attribute written,
+not only the property), so editing never plays a clip's sound; the clip player with controls starts muted and plays
+sound only when a member turns it on.
 
 "Nghỉ sau lời đọc" (Thiết lập › Âm thanh: Ngắn 0,4 s, Vừa 0,7 s, Dài 1 s) is the pause after each scene's
 narration for scenes whose seconds follow it; changing it changes those scenes' seconds at once.

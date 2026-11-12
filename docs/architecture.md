@@ -319,8 +319,9 @@ A scene may hold an uploaded video clip instead of a photo
   (2026-11-09): the api refuses one on a slide video, and one kept from switching is left out of a slide video's render
   and fingerprint, like "Ảnh món". It shows its scene's photo (`videos.layer_photo_key`), so the scene's picture tools
   find and edit it, unless it has a photo of its own, `scene_layers.image_key` (migration 0063; a copy, deleted with the
-  layer or its scene; `own_image` in the payload), which the web's "Ảnh chèn" block (Tải lên, Kho, Tìm) and the
-  api's other ways in give it (2026-11-12). It is a square `scene_layers.height` percent of the frame's height on each
+  layer or its scene; `own_image` in the payload), which only the api's ways in give it now: the web's "Ảnh chèn"
+  block lost its Tải lên, Kho, Tìm and AI buttons (2026-11-12, scene card layout) and offers "Dùng ảnh của cảnh" for
+  an inset that has one. It is a square `scene_layers.height` percent of the frame's height on each
   side ("Cỡ ảnh", migration 0078; 30–45%, 32% = 614 px for a new one, so always narrower than the 1080 px frame), with
   rounded corners and no border (`layers.render_half`: scaled to cover, cut in the middle; 2026-11-12, replacing the
   edge-to-edge strip with faded edges), centred across, so only `y` (its centre: 307 flush with the top edge, 960 in
@@ -331,8 +332,7 @@ A scene may hold an uploaded video clip instead of a photo
   `link_scene_photo`) adds one showing the scene's photo, turns an "Ảnh món" into one, or lets one's own copy go;
   `media_id` (the library), `url` (a photo's link, also what the block's "Tìm" sends) and
   `POST /api/layers/half-photo/upload` give it a photo of its own, replacing the one it shows (an older copy of its own
-  is deleted) and keeping its place and size. The block's "AI" lets its own copy go and makes the scene's photo with the
-  scene's AI photo job. A new one is flush with the bottom edge (`y` 1613, `height` 32), `start` 0
+  is deleted) and keeping its place and size. A new one is flush with the bottom edge (`y` 1613, `height` 32), `start` 0
   and `seconds` 60, so it shows with the scene's narration until the next scene; never on the title scene, one photo
   layer per scene. A script gives each scene that names a dish one (`videos.half_layer`); without a photo it blocks the
   render. "Ảnh món" is no longer made by the web, but older videos keep and render theirs. It joins the fingerprint

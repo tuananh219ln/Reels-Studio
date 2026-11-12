@@ -1013,7 +1013,7 @@ test("studio layers: a sticker and a text over a scene, changed, removed with De
   await expect(tools.getByRole("button", { name: "Thêm sticker Trái tim" })).toBeDisabled();
 });
 
-test("inset photo: only on a backdrop video, a rounded square narrower than the frame, placed in one window", async ({
+test("inset photo: only on a backdrop video, the scene's photo as a rounded square, placed with the text in one window", async ({
   page,
 }) => {
   test.setTimeout(180_000);
@@ -1038,17 +1038,19 @@ test("inset photo: only on a backdrop video, a rounded square narrower than the 
   await page.getByTestId("video-mode").getByText("Video xuyên suốt").click();
   await page.getByRole("button", { name: "Đổi", exact: true }).click();
 
-  // Off: one line and no inset button; "Chỉnh vị trí chữ" is there all the same.
+  // Off: one line; the one place button is there all the same, and there is no inset-only one.
   const panel = card.getByTestId("half-photo-panel");
-  await expect(panel.getByTestId("inset-off")).toHaveText("Đang tắt. Bật để chọn vị trí và ảnh.");
-  await expect(panel.getByTestId("inset-sources")).toHaveCount(0);
-  await expect(panel.getByRole("button", { name: "Chỉnh vị trí chữ" })).toBeVisible();
+  const block = panel.getByTestId("inset-block");
+  await expect(panel.getByTestId("inset-off")).toHaveText("Đang tắt. Bật để chèn ảnh của cảnh.");
+  await expect(panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" })).toBeVisible();
+  await expect(panel.getByRole("button", { name: /Chỉnh vị trí ảnh chèn/ })).toHaveCount(0);
 
-  // On, with a photo of its own uploaded in the "Ảnh chèn" block.
+  // On, it shows the scene's photo, chosen with the scene's own picture tools; the block has no picture buttons.
   await panel.getByRole("switch", { name: "Ảnh chèn" }).click();
-  await panel.getByLabel("Tải ảnh lên cho ảnh chèn").setInputFiles(file);
-  await expect(panel.getByTestId("half-photo-scene-tools")).toHaveCount(0);
-  await expect(panel.getByTestId("inset-size")).toHaveText("Cỡ ảnh: 32% (hẹp hơn video)");
+  await card.getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(file);
+  await expect(block.getByTestId("inset-size")).toHaveText("Cỡ ảnh: 32% (hẹp hơn video)");
+  await expect(block.getByRole("button")).toHaveCount(0);
+  await expect(block.getByTestId("inset-own-image")).toHaveCount(0);
 
   // 32%: a 614 px square, centred across (left 233 of 1080), flush with the bottom edge (top 1306 of 1920).
   const photo = panel.getByTestId("half-photo-stage").getByTestId("preview-layer");
@@ -1061,9 +1063,14 @@ test("inset photo: only on a backdrop video, a rounded square narrower than the 
     );
   await expect.poll(place).toEqual([21.6, 68, 56.9]);
 
-  // In the window, only the inset moves (the text is dimmed and locked), by arrow keys or dragged up and down.
-  await panel.getByRole("button", { name: "Chỉnh vị trí ảnh chèn (kéo lên xuống)" }).click();
-  let dialog = page.getByRole("dialog", { name: "Vị trí ảnh chèn" });
+  // The window opens on the text; pressing the dimmed inset picks it, then arrow keys move it.
+  await panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" }).click();
+  let dialog = page.getByRole("dialog", { name: "Vị trí chữ & ảnh chèn" });
+  await expect(dialog.getByRole("slider", { name: "Hộp chữ" })).toBeVisible();
+  await expect(dialog.getByTestId("place-inset")).toHaveCSS("opacity", "0.55");
+  // hover() waits for the window's opening animation to end, so the boxes below are where they stay.
+  await dialog.getByTestId("place-inset").hover();
+  await dialog.getByTestId("place-inset").click();
   let inset = dialog.getByRole("slider", { name: "Ảnh chèn" });
   await expect(inset).toHaveAttribute("aria-valuenow", "1613");
   await expect(dialog.getByTestId("place-text")).toHaveCSS("opacity", "0.55");
@@ -1072,29 +1079,31 @@ test("inset photo: only on a backdrop video, a rounded square narrower than the 
   await expect(inset).toHaveAttribute("aria-valuenow", "1603");
   // ✕ drops what was not saved.
   await dialog.getByRole("button", { name: "Đóng", exact: true }).click();
-  await panel.getByRole("button", { name: "Chỉnh vị trí ảnh chèn (kéo lên xuống)" }).click();
-  dialog = page.getByRole("dialog", { name: "Vị trí ảnh chèn" });
-  inset = dialog.getByRole("slider", { name: "Ảnh chèn" });
-  await expect(inset).toHaveAttribute("aria-valuenow", "1613");
-  // Dragged up to the frame's top and sideways: it stays centred across and stops flush with the top edge.
-  // hover() waits for the window's opening animation to end, so the boxes below are where they stay.
-  await inset.hover();
+  await panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" }).click();
+  dialog = page.getByRole("dialog", { name: "Vị trí chữ & ảnh chèn" });
+  // Dragged straight from the text's tab up to the frame's top and sideways: the inset is picked, stays centred
+  // across and stops flush with the top edge.
+  const resting = dialog.getByTestId("place-inset");
+  await resting.hover();
   const frame = (await dialog.getByTestId("place-frame").boundingBox())!;
-  const from = (await inset.boundingBox())!;
+  const from = (await resting.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width / 2 + 40, frame.y + 2, { steps: 8 });
   await page.mouse.up();
+  inset = dialog.getByRole("slider", { name: "Ảnh chèn" });
   await expect(inset).toHaveAttribute("aria-valuenow", "307");
   // The window stays open after the drag.
   await expect(dialog).toBeVisible();
-  // The text's tab: now the text box moves and the inset is locked.
-  await dialog.getByRole("tab", { name: "Chữ" }).click();
-  dialog = page.getByRole("dialog", { name: "Vị trí chữ" });
-  await expect(dialog.getByRole("slider", { name: "Hộp chữ" })).toBeVisible();
-  await expect(dialog.getByTestId("place-inset")).toHaveCSS("opacity", "0.55");
   await dialog.getByRole("button", { name: "Lưu" }).click();
   await expect(dialog).toHaveCount(0);
+  await expect.poll(place).toEqual([21.6, 0, 56.9]);
+
+  // Turned off and on again in the card, it comes back where it was.
+  await panel.getByRole("switch", { name: "Ảnh chèn" }).click();
+  await expect(photo).toHaveCount(0);
+  await panel.getByRole("switch", { name: "Ảnh chèn" }).click();
+  await expect(photo).toBeVisible();
   await expect.poll(place).toEqual([21.6, 0, 56.9]);
 });
 
@@ -2325,6 +2334,12 @@ test("Làm mờ vùng: a box drawn over a clip is saved, shown in the preview, t
     .getByRole("button", { name: "Đổi" })
     .click();
   await expect(first.getByTestId("scene-video")).toBeVisible();
+  // Every clip in the card is silent from the start: the muted attribute is written, not only the property.
+  const clips = first.locator("video");
+  for (const clip of await clips.all()) {
+    await expect(clip).toHaveAttribute("muted", "");
+    await expect(clip).toHaveJSProperty("muted", true);
+  }
   const preview = first.getByTestId("scene-preview");
   const plain = await preview.getAttribute("src");
 

@@ -86,7 +86,7 @@ export default function SceneInspector({
                   // The inset photo over the backdrop (the preview's `scene` carries it), with the scene's own picture
                   // tools while it shows the scene's photo; an older video's "Ảnh món" turns into one when it is on.
                   <Flex vertical gap={8}>
-                    <HalfPhotoPanel scene={saved} backdrop={scene} generating={generating}>
+                    <HalfPhotoPanel scene={saved} backdrop={scene}>
                       {(photoLayer(saved.layers) ||
                         saved.layers.some((layer) => isHalf(layer) && layer.own_image === false)) && (
                         <ScenePicture
