@@ -296,6 +296,8 @@ export default function TopicVideos({
             {
               key: "actions",
               width: 48,
+              // Pinned to the right: the table scrolls sideways, and the bin must show without scrolling.
+              fixed: "right",
               render: (_, row) => <DeleteVideoButton row={row} onDeleted={removeRow} />,
             },
           ]}
