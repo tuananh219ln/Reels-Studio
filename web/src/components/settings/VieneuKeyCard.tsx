@@ -76,7 +76,11 @@ export default function VieneuKeyCard({ footer, onSaved }: { footer?: React.Reac
           <a href={state.key.signup_url} target="_blank" rel="noreferrer">
             Tạo key ở trang Nhà phát triển của VieNeu
           </a>
-          . Key giọng ElevenLabs ở <Link prefetch={false} href="/settings/sources">Cài đặt › Nguồn tư liệu</Link>.
+          . Key giọng ElevenLabs ở{" "}
+          <Link prefetch={false} href="/settings/sources">
+            Cài đặt › Nguồn tư liệu
+          </Link>
+          .
         </Typography.Text>
         {origin === "unreadable" && (
           <Typography.Text type="warning">
