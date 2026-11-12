@@ -1,7 +1,7 @@
 """A video's "Bình luận thêm", and the ids of those written under each of its posts
 
-Revision ID: 0079
-Revises: 0078
+Revision ID: 0080
+Revises: 0079
 Create Date: 2026-11-12
 """
 
@@ -9,8 +9,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision = "0079"
-down_revision = "0078"
+revision = "0080"
+down_revision = "0079"
 branch_labels = None
 depends_on = None
 

@@ -2,7 +2,7 @@
 
 The owner (namtc), 2026-11-12, asked for "bình luận 1, bình luận 2" added line by line, and for @ tags of followers.
 
-- **Up to 5 per video** (`videos.extra_comments`, migration 0079), typed on "Nội dung đăng" under "Bình luận ghim".
+- **Up to 5 per video** (`videos.extra_comments`, migration 0080), typed on "Nội dung đăng" under "Bình luận ghim".
   The worker writes them after the first comment (the pinned text and the product links), in order, in the same
   round and under the same rules: only on a post with "Tự bình luận" or after "Bình luận ngay", never under a video
   with "Đã dán link tay".

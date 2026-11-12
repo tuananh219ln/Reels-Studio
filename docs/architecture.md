@@ -646,7 +646,7 @@ Planned:
     before Facebook is asked; a comment already written is edited, never written again, and a retry after a
     lost answer first looks for the Page's comment with the same text. Then the video's "Bình luận thêm"
     (`videos.extra_comments`, up to 5, set on "Nội dung đăng" with `PATCH /api/videos/{id}`) are written under the
-    reel in order, each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0079):
+    reel in order, each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0080):
     edited when its text changed, written once, and one removed from the video is left on Facebook. Facebook does
     not let an app tag (@) people, so an "@name" is plain text. A failed attempt (or no text to write)
     is recorded and waits for a member. Products are attached on the video page before posting, or on
