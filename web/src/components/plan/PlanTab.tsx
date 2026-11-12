@@ -82,7 +82,7 @@ const DRAG_TYPE = "text/plan-item";
 export const PLAN_STATUS_COLORS: Record<PlanItemStatus, string> = {
   idea: "default",
   started: "processing",
-  // Six statuses, six colours told apart at a glance: "Xong" and "Đã đăng" are not both green.
+  // Six statuses, six colours told apart at a glance: "Chờ đăng" and "Đã đăng" are not both green.
   scripted: "geekblue",
   done: "cyan",
   scheduled: "purple",
@@ -94,7 +94,7 @@ const STATUS_LABELS: Record<PlanItemStatus, string> = {
   idea: "Ý tưởng",
   started: "Đã tạo video",
   scripted: "Đã viết kịch bản",
-  done: "Xong",
+  done: "Chờ đăng",
   scheduled: "Đã lên lịch",
   posted: "Đã đăng",
 };

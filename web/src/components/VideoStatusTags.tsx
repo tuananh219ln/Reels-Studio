@@ -2,30 +2,15 @@
 
 import { Flex, theme } from "antd";
 import type { VideoRow } from "@/lib/api";
-import StatusText, { type StatusTone } from "@/components/StatusText";
-
-const TONES: Record<VideoRow["status"], StatusTone> = {
-  draft: "idle",
-  queued: "waiting",
-  writing: "active",
-  imaging: "active",
-  editing: "active",
-  finding: "active",
-  voicing: "active",
-  rendering: "active",
-  publishing: "active",
-  unpublishing: "active",
-  checking: "active",
-  done: "done",
-  failed: "danger",
-};
+import StatusText from "@/components/StatusText";
+import { videoStatusTone } from "@/lib/videoStatus";
 
 /** A video's status as a dot and a word, with its warnings after it in words. `only`: the status alone, or the
  * other labels alone (beside a card's title, when the status is said elsewhere). */
 export default function VideoStatusTags({ video, only }: { video: VideoRow; only?: "status" | "labels" }) {
   const { token } = theme.useToken();
   const status = (
-    <StatusText tone={TONES[video.status]} data-testid="video-status">
+    <StatusText tone={videoStatusTone(video)} data-testid="video-status">
       {video.status_label}
     </StatusText>
   );

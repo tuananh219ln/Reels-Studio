@@ -46,7 +46,7 @@ async function renderedVideo(page: Page) {
     await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
   }
   await page.getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 }
 
 test("a Page's owner gives it a topic group and its own posting times on Quản lý Page", async ({ page }) => {

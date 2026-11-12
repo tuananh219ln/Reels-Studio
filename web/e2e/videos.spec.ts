@@ -65,7 +65,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(second.getByText(/Sẽ đọc chữ trên màn hình: .+\. Giàu canxi\./)).toBeVisible();
 
   await page.getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
   // A script's scenes follow their narration ("Tự khớp lời đọc"): each lasts its fake narration of 0.3 s per word plus
   // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
   // the five scenes' 4 words 1.9 s each.
@@ -97,7 +97,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveAttribute("href", /facebook\.com\/reel\//);
 
-  // Once posted, the card says so rather than the video's own "Xong".
+  // Once posted, the card says so rather than "Chờ đăng".
   await page.goto("/videos");
   const card = page.getByTestId("video-card").first();
   await expect(card.getByTestId("video-status")).toHaveText("Đã đăng");
@@ -121,7 +121,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   // The bar says the render is on its way, wherever the member has scrolled, and when it is done.
   await expect(bar.getByTestId("render-bar-job")).toBeVisible();
   await expect(page.getByText("Đã render xong MP4")).toBeVisible({ timeout: 120_000 });
-  await expect(page.getByTestId("video-status")).toHaveText("Xong");
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng");
   await expect(bar.getByTestId("render-bar-job")).toHaveCount(0);
   await expect(bar).toContainText("MP4 đã theo bản mới nhất.");
   await expect(bar.getByRole("button", { name: "Render lại" })).toBeEnabled();
@@ -528,8 +528,8 @@ test("video list: status and creator filters, grid or list view remembered", asy
   const cards = page.getByTestId("video-card");
   await expect(cards).toHaveCount(1);
 
-  // A draft is under "Nháp", not under "Xong"; "Của tôi" keeps the member's own videos.
-  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Xong");
+  // A draft is under "Nháp", not under "Chờ đăng"; "Của tôi" keeps the member's own videos.
+  await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Chờ đăng");
   await expect(cards).toHaveCount(0);
   await expect(page.getByText("Không có video nào khớp")).toBeVisible();
   await chooseOption(page, page.getByLabel("Lọc theo trạng thái"), "Nháp");
@@ -567,9 +567,10 @@ test("video list: Cần làm, the group's week, and a TikTok nudge on a card doi
       const response = await route.fetch();
       const rows = await response.json();
       if (as !== "draft") {
-        rows[0] = { ...rows[0], status: "done", status_label: "Xong" };
+        rows[0] = { ...rows[0], status: "done", status_label: "Chờ đăng", post_stage: "ready" };
       }
       if (as === "posted") {
+        rows[0] = { ...rows[0], status_label: "Đã đăng", post_stage: "posted", posted_on: ["facebook"] };
         rows[0].post = {
           state: "posted",
           fanpage: "Vườn nhà",
@@ -1280,7 +1281,7 @@ async function renderedVideo(page: Page) {
   await jobFinished(page);
   await uploadPhotos(page);
   await page.getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 }
 
 async function openPublish(page: Page) {
@@ -2420,7 +2421,7 @@ test("a title clip with a start time renders, and removing it asks for a photo a
   await expect(title.getByText("Ở tốc độ 2× video ngắn hơn cảnh, khung cuối sẽ đứng yên")).toBeVisible();
 
   await page.getByRole("button", { name: "Render" }).click();
-  await expect(page.getByTestId("video-status")).toHaveText("Xong", { timeout: 120_000 });
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 
   await title.getByRole("button", { name: "Xoá video" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Xoá" }).click();

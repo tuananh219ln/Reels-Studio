@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import VideoStatusTags from "@/components/VideoStatusTags";
+import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import { useMe } from "@/components/MeContext";
 
@@ -126,11 +127,12 @@ export default function TopicVideos({
   }, [topicId, message]);
 
   const removeRow = (id: number) => setRows((current) => (current ?? []).filter((row) => row.id !== id));
-  const statuses = [...new Set((rows ?? []).map((row) => row.status_label))];
+  // Every choice, with how many of the group's videos are in it, so a group of finished videos still shows the rest.
+  const choice = VIDEO_STATUS_FILTERS.find((item) => item.value === status);
   const wanted = plain(search.trim());
   const shown = (rows ?? []).filter(
     (row) =>
-      (!status || row.status_label === status) &&
+      (!choice || choice.match(row)) &&
       (!wanted || plain(row.title).includes(wanted) || plain(row.topic).includes(wanted)),
   );
 
@@ -154,7 +156,10 @@ export default function TopicVideos({
             style={{ width: 180 }}
             value={status}
             onChange={(value) => setStatus(value ?? null)}
-            options={statuses.map((label) => ({ value: label, label }))}
+            options={VIDEO_STATUS_FILTERS.map(({ value, label, match }) => ({
+              value,
+              label: `${label} (${(rows ?? []).filter(match).length})`,
+            }))}
           />
           <Segmented<View>
             aria-label="Chế độ hiển thị"
