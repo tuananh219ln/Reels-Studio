@@ -56,6 +56,7 @@ export default function PageQueueSection({
       <Flex vertical gap={8} data-testid="page-queue">
         {page.mine ? (
           <Flex vertical gap={6}>
+            <Typography.Text style={{ fontSize: 12 }}>Nhóm chủ đề Page đăng</Typography.Text>
             <Select
               size="small"
               aria-label={`Nhóm chủ đề của ${page.name}`}
@@ -65,6 +66,7 @@ export default function PageQueueSection({
               onChange={(value) => run(`/queue/pages/${page.id}`, "PATCH", { knowledge_topic_id: value ?? null })}
               options={overview.topics.map((topic) => ({ value: topic.id, label: topic.name }))}
             />
+            <Typography.Text style={{ fontSize: 12 }}>Giờ đăng mỗi ngày (giờ Việt Nam)</Typography.Text>
             <Flex gap={6} align="center">
               <Select
                 size="small"
@@ -106,13 +108,19 @@ export default function PageQueueSection({
                   )}${page.free_slots.length > SHOWN_SLOTS ? ` và ${page.free_slots.length - SHOWN_SLOTS} khung khác` : ""}.`
               : ` Không còn khung trống trong ${overview.fill_ahead_hours} giờ tới.`)}
         </Typography.Text>
+        <Typography.Text strong style={{ fontSize: 13, marginTop: 4 }}>
+          Hàng chờ ({page.items.length})
+        </Typography.Text>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Video chờ đến lượt đăng, theo thứ tự dưới đây. Khi một khung giờ trống còn trong {overview.fill_ahead_hours}{" "}
+          giờ tới, video đầu hàng được hẹn giờ vào khung đó và chuyển sang “Đã lên lịch”.
+        </Typography.Text>
         {page.items.length === 0 ? (
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Hàng chờ trống. Thêm video từ trang video, nút “Thêm vào hàng chờ”.
           </Typography.Text>
         ) : (
           <Flex vertical gap={6}>
-            <Typography.Text style={{ fontSize: 12 }}>Hàng chờ ({page.items.length})</Typography.Text>
             {page.items.map((item, index) => (
               <Flex key={item.id} gap={8} align="center" data-testid="queue-item">
                 <Typography.Text type="secondary" style={{ width: 16, fontSize: 12 }}>

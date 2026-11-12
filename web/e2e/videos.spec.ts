@@ -304,7 +304,7 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   const card = page.getByTestId("video-card").first();
   await expect(card.getByTestId("video-content-type")).toHaveText("Hướng dẫn trồng");
   await expect(card.getByTestId("video-kind")).toContainText("AI viết");
-  await expect(card.getByTestId("posted-platforms").locator('[data-posted="true"]')).toHaveCount(0);
+  await expect(card.getByTestId("posted-platforms")).toHaveText("Chưa đăng");
 
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
@@ -402,7 +402,7 @@ test("knowledge topics: a group's text look from an AI suggestion is what its ne
   await expect(group.getByRole("heading", { name: "Viết kịch bản & tìm ảnh" })).toBeVisible();
   await expect(group.getByRole("heading", { name: "Video mới của nhóm" })).toBeVisible();
   const card = group.getByTestId("group-text-look");
-  await expect(card).toContainText("Theo Thiết lập mặc định của người tạo video");
+  await expect(card).toContainText("Tắt: video mới theo Thiết lập mặc định của người tạo video.");
   await expect(card.getByRole("button", { name: "Lưu chữ & phụ đề" })).toBeDisabled();
 
   // "AI gợi ý" is a job on the team's (fake) LLM: its looks show up once the worker has made them.
@@ -1330,7 +1330,8 @@ test("Đăng bài: a Facebook video's MP4 goes to TikTok and YouTube Shorts from
   await page.getByRole("menuitem", { name: "Video" }).click();
   const platforms = page.getByTestId("video-card").first().getByTestId("posted-platforms");
   await expect(platforms.locator('[data-platform="youtube"]')).toHaveAttribute("data-posted", "true");
-  await expect(platforms.locator('[data-platform="instagram"]')).toHaveAttribute("data-posted", "false");
+  // Only the platforms it is out on are shown.
+  await expect(platforms.locator('[data-platform="instagram"]')).toHaveCount(0);
 });
 
 test("a posted video appears in Bài đăng and its calendar", async ({ page }) => {

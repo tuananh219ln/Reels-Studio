@@ -190,10 +190,14 @@ export default function GroupTextLookCard({
         </Typography.Text>
         <Flex align="center" gap={8}>
           <Switch checked={own} onChange={setOwn} aria-label="Nhóm có kiểu chữ riêng" />
-          <Typography.Text>
-            {own ? "Nhóm có kiểu chữ riêng" : "Theo Thiết lập mặc định của người tạo video"}
-          </Typography.Text>
+          {/* One fixed label, so the switch reads the same on and off (screen review 2026-11-12). */}
+          <Typography.Text>Nhóm có kiểu chữ riêng</Typography.Text>
         </Flex>
+        <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: -6 }}>
+          {own
+            ? "Bật: video mới của nhóm dùng kiểu chữ chỉnh bên dưới."
+            : "Tắt: video mới theo Thiết lập mặc định của người tạo video."}
+        </Typography.Text>
         <Flex align="center" gap={8}>
           <Switch checked={aiEach} onChange={setAiEach} aria-label="AI chọn kiểu chữ cho từng video" />
           <Typography.Text>AI chọn kiểu chữ cho từng video</Typography.Text>

@@ -41,11 +41,11 @@ const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
     key: "group:team",
     label: "Chung cả nhóm",
     tabs: [
-      { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, VieNeu", icon: <RobotOutlined /> },
+      { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, giọng VieNeu", icon: <RobotOutlined /> },
       {
         key: "/settings/sources",
         label: "Nguồn tư liệu",
-        hint: "Kho ảnh, ảnh AI, giọng đọc",
+        hint: "Kho ảnh, ảnh AI, giọng ElevenLabs",
         icon: <PictureOutlined />,
       },
       { key: "/settings/templates", label: "Mẫu dựng", hint: "Thư viện mẫu của đội", icon: <ThunderboltOutlined /> },
