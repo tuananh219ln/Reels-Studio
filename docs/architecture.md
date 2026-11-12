@@ -645,7 +645,11 @@ Planned:
     default in "Đăng"), has been live 2 minutes and has had no attempt, or when a member asked with "Bình luận
     ngay" / "Cập nhật bình luận", `POST /api/posts/{id}/comment` (409 unless live). The attempt is stamped
     before Facebook is asked; a comment already written is edited, never written again, and a retry after a
-    lost answer first looks for the Page's comment with the same text. A failed attempt (or no text to write)
+    lost answer first looks for the Page's comment with the same text. Then the video's "Bình luận thêm"
+    (`videos.extra_comments`, up to 5, set on "Nội dung đăng" with `PATCH /api/videos/{id}`) are written under the
+    reel in order, each kept by place in `publications.extra_comment_ids` / `extra_comment_texts` (migration 0079):
+    edited when its text changed, written once, and one removed from the video is left on Facebook. Facebook does
+    not let an app tag (@) people, so an "@name" is plain text. A failed attempt (or no text to write)
     is recorded and waits for a member. Products are attached on the video page before posting, or on
     `/affiliate` after, with `PUT /api/affiliate-products/videos/{id}`; changing them asks the worker to edit
     each live post's comment. `GET /api/affiliate-products/videos` gives each video its live posts (`posts`:

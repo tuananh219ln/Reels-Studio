@@ -1023,6 +1023,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # The products whose links go in the comment under the video's reels (post_comments.py).
         "affiliate_product_ids": [product.id for product in affiliate.products_of(db, video.id)],
         "pinned_comment": video.pinned_comment,
+        "extra_comments": video.extra_comments,
         "self_review": video.self_review,
         "music_suggestions": video.music_suggestions,
         "created_by": video.created_by.name,

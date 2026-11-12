@@ -281,6 +281,8 @@ class Video(Base):
     hashtags: Mapped[list] = mapped_column(JSONB, default=list)
     affiliates: Mapped[list] = mapped_column(JSONB, default=list)
     pinned_comment: Mapped[str] = mapped_column(Text, default="")
+    # "Bình luận thêm": more comments the Page writes under each reel after the first, in order (post_comments.py).
+    extra_comments: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     self_review: Mapped[list] = mapped_column(JSONB, default=list)
     music_suggestions: Mapped[list] = mapped_column(JSONB, default=list)
     thumbnail_key: Mapped[str | None] = mapped_column(String(200))
@@ -764,6 +766,9 @@ class Publication(Base):
     auto_comment: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     comment_id: Mapped[str | None] = mapped_column(String(64))
     comment_text: Mapped[str | None] = mapped_column(Text)  # what was sent last
+    # The video's "Bình luận thêm" written under it: Facebook's ids and the texts sent, by place, so each is edited.
+    extra_comment_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    extra_comment_texts: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     comment_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # set before asking Facebook
     commented_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # Facebook took it
     comment_error: Mapped[str | None] = mapped_column(Text)

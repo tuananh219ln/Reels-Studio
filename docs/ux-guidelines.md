@@ -318,7 +318,11 @@ Built:
   scripts and clips; the card then says the sample was deleted).
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
   as a small player beside its length, with the listening volume under it, "Tải MP4", "Đăng" and "Thêm vào hàng chờ", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
-  đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
+  đăng" (the post texts; under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page writes them under
+  the reel after the pinned one, in order, and that Facebook does not let an app tag @ people, then each saved one
+  as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which opens
+  a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
+  bình luận"); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any

@@ -9,7 +9,8 @@ request never calls Facebook. A post is due when
 - a member asked ("Bình luận ngay" / "Cập nhật bình luận") since the last attempt;
 and never under a video marked "Đã dán link tay" (`videos.manual_comment`), whose links a member pasted by hand.
 
-Never two comments: the comment's id is kept and a later request edits that comment. The attempt is stamped before
+Never two comments: the comment's id is kept and a later request edits that comment. The video's "Bình luận thêm"
+follow the first, in order, each kept by its id the same way. The attempt is stamped before
 Facebook is asked, so an answer lost on the way is not retried by itself; a member's retry first looks for a comment
 the Page already wrote with the same text. A failed attempt is recorded on the post and waits for a member.
 """
@@ -75,8 +76,10 @@ def due_posts(db: DbSession, limit: int = BATCH) -> list[Publication]:
 
 
 def write(db: DbSession, post: Publication) -> None:
-    """Write or edit the post's comment once and record what happened. Commits."""
+    """Write or edit the post's comment, then its video's "Bình luận thêm", once each, and record what happened.
+    Commits."""
     may_exist = post.comment_sent_at is not None and post.comment_id is None
+    tried_before = post.comment_sent_at is not None
     try:
         text = affiliate.comment_text(db, post)
     except ShopeeError as err:
@@ -85,28 +88,65 @@ def write(db: DbSession, post: Publication) -> None:
         db.commit()
         log.warning("Could not make Shopee links for post %s: %s %s", post.id, err.message, err.detail)
         return
+    extras = _extras(db, post)
     post.comment_sent_at = now()
-    if not text:
+    if not text and not extras:
         post.comment_error = NOTHING_TO_SAY
         db.commit()
         return
     db.commit()
     try:
         page = fanpages.load_page(db, post.fanpage_id)
-        if post.comment_id:
-            if text != post.comment_text:
-                facebook.edit_comment(page, post.comment_id, text)
-        else:
-            found = facebook.page_comment(page, post.remote_id, text) if may_exist else None
-            post.comment_id = found or facebook.post_comment(page, post.remote_id, text)
+        if text:
+            if post.comment_id:
+                if text != post.comment_text:
+                    facebook.edit_comment(page, post.comment_id, text)
+            else:
+                found = facebook.page_comment(page, post.remote_id, text) if may_exist else None
+                post.comment_id = found or facebook.post_comment(page, post.remote_id, text)
+            post.comment_text = text
+            db.commit()
     except FacebookError as err:
         post.comment_error = err.message
         db.commit()
         log.warning("Could not comment on post %s: %s %s", post.id, err.message, err.detail)
         return
-    post.comment_text, post.commented_at, post.comment_error = text, now(), None
+    if not _write_extras(db, post, page, extras, tried_before):
+        return
+    post.commented_at, post.comment_error = now(), None
     db.commit()
-    log.info("Commented on post %s as %s", post.id, post.comment_id)
+    log.info("Commented on post %s as %s, %d more", post.id, post.comment_id, len(extras))
+
+
+def _extras(db: DbSession, post: Publication) -> list[str]:
+    video = db.get(Video, post.video_id) if post.video_id else None
+    return [text for text in (video.extra_comments if video else []) if text.strip()]
+
+
+def _write_extras(db: DbSession, post: Publication, page, extras: list[str], tried_before: bool) -> bool:
+    """ "Bình luận thêm" by place: an earlier one edited when its text changed, a new one written (or, after an
+    attempt whose answer may have been lost, found first). Each is recorded as soon as Facebook takes it, so a later
+    failure never writes it twice. One removed from the video is left on Facebook. False when one failed."""
+    ids, texts = list(post.extra_comment_ids or []), list(post.extra_comment_texts or [])
+    for place, text in enumerate(extras):
+        try:
+            if place < len(ids):
+                if texts[place] != text:
+                    facebook.edit_comment(page, ids[place], text)
+                    texts[place] = text
+            else:
+                found = facebook.page_comment(page, post.remote_id, text) if tried_before else None
+                ids.append(found or facebook.post_comment(page, post.remote_id, text))
+                texts.append(text)
+        except FacebookError as err:
+            post.comment_error = f"Bình luận thêm {place + 1}: {err.message}"
+            db.commit()
+            log.warning("Could not write extra comment %d on post %s: %s", place + 1, post.id, err.detail)
+            return False
+        finally:
+            post.extra_comment_ids, post.extra_comment_texts = list(ids), list(texts)
+        db.commit()
+    return True
 
 
 def write_due(factory: sessionmaker) -> None:
@@ -148,5 +188,7 @@ def payload(post: Publication) -> dict:
         "auto": post.auto_comment,
         "error": post.comment_error,
         "text": post.comment_text,
+        # How many of the video's "Bình luận thêm" are written under the post.
+        "extra_count": len(post.extra_comment_ids or []),
         "at": post.commented_at.isoformat() if post.commented_at else None,
     }

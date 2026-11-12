@@ -192,6 +192,53 @@ def test_changing_the_products_updates_a_written_comment(an, db, me, storage, fa
     assert comment["message"].endswith("Nồi hầm mini: https://s.shopee.vn/12") and comment["edits"] == 1
 
 
+# "Bình luận thêm": more comments of the Page under the reel, after the first
+
+
+def test_extra_comments_follow_the_first_in_order_once_each(db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    db.get(Video, post.video_id).extra_comments = ["Bố mẹ nhà bạn thích món nào?", "Lưu lại nấu cuối tuần nhé!"]
+    db.commit()
+    post_comments.write(db, post)
+    messages = [comment["message"] for comment in comments_on(fakes, post)]
+    assert messages == ["Món nào nhà bạn hay nấu nhất?", "Bố mẹ nhà bạn thích món nào?", "Lưu lại nấu cuối tuần nhé!"]
+    assert len(post.extra_comment_ids) == 2 and post.comment_error is None
+    assert due(db) == [], "written once"
+
+
+def test_an_edited_extra_comment_is_edited_and_a_new_one_is_added(an, db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    db.get(Video, post.video_id).extra_comments = ["Một"]
+    db.commit()
+    post_comments.write(db, post)
+    db.get(Video, post.video_id).extra_comments = ["Một, sửa lại", "Hai"]
+    db.commit()
+    an.post(f"/api/posts/{post.id}/comment")
+    db.expire_all()
+    post = db.get(Publication, post.id)
+    post_comments.write(db, post)
+    extras = comments_on(fakes, post)[1:]
+    assert [(comment["message"], comment["edits"]) for comment in extras] == [("Một, sửa lại", 1), ("Hai", 0)]
+
+
+def test_extra_comments_alone_are_something_to_say(db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    video = db.get(Video, post.video_id)
+    video.pinned_comment, video.extra_comments = "", ["Chia sẻ cho bạn bè nhé!"]
+    db.commit()
+    post_comments.write(db, post)
+    assert [comment["message"] for comment in comments_on(fakes, post)] == ["Chia sẻ cho bạn bè nhé!"]
+    assert post.comment_error is None
+
+
+def test_extra_comments_are_saved_trimmed_and_at_most_five(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=1)
+    saved = an.patch(f"/api/videos/{video.id}", json={"extra_comments": [" Một ", "", "Hai"]})
+    assert saved.status_code == 200 and saved.json()["extra_comments"] == ["Một", "Hai"]
+    too_many = an.patch(f"/api/videos/{video.id}", json={"extra_comments": [str(n) for n in range(6)]})
+    assert too_many.status_code == 422
+
+
 # The post's payload and "Bình luận ngay"
 
 
