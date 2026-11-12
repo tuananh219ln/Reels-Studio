@@ -49,12 +49,10 @@ def _log(db: DbSession, user: User, me: Session, changes: dict) -> None:
 
 def _hand_on(db: DbSession, user: User, to: User) -> str:
     """Moves the member's Pages, topic groups, plan ideas and templates to `to`; says what moved. A Page drops its
-    affiliate accounts and semi-auto, which were the old owner's, for the new owner to set."""
+    Shopee account, which was the old owner's, for the new owner to set."""
     counts = []
     pages = db.execute(
-        update(Fanpage)
-        .where(Fanpage.owner_id == user.id)
-        .values(owner_id=to.id, shopee_account_id=None, tiktok_account_id=None, auto_prepare=False)
+        update(Fanpage).where(Fanpage.owner_id == user.id).values(owner_id=to.id, shopee_account_id=None)
     ).rowcount
     counts.append((pages, "Page"))
     for model, name in ((KnowledgeTopic, "nhóm chủ đề"), (TopicPlanItem, "ý tưởng"), (EditTemplate, "mẫu dựng")):

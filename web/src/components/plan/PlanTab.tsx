@@ -69,7 +69,7 @@ import { useLeaveGuard } from "@/lib/unsaved";
 import { useUrlChoiceIf } from "@/lib/urlState";
 import EditHistory from "@/components/EditHistory";
 import FormDrawer from "@/components/FormDrawer";
-import AutoRuns from "@/components/plan/AutoRuns";
+import BulkDeleteIdeas from "@/components/plan/BulkDeleteIdeas";
 import { COLORS } from "@/app/theme";
 
 const PLAN_DAYS = 30;
@@ -82,7 +82,7 @@ const DRAG_TYPE = "text/plan-item";
 export const PLAN_STATUS_COLORS: Record<PlanItemStatus, string> = {
   idea: "default",
   started: "processing",
-  // Six statuses, six colours told apart at a glance: "Xong" and "Đã đăng" are not both green.
+  // Six statuses, six colours told apart at a glance: "Chờ đăng" and "Đã đăng" are not both green.
   scripted: "geekblue",
   done: "cyan",
   scheduled: "purple",
@@ -94,7 +94,7 @@ const STATUS_LABELS: Record<PlanItemStatus, string> = {
   idea: "Ý tưởng",
   started: "Đã tạo video",
   scripted: "Đã viết kịch bản",
-  done: "Xong",
+  done: "Chờ đăng",
   scheduled: "Đã lên lịch",
   posted: "Đã đăng",
 };
@@ -466,6 +466,7 @@ function PlanView({
           >
             {working ? "AI đang lập kế hoạch…" : "Tạo bằng AI"}
           </Button>
+          <BulkDeleteIdeas plan={plan} statusLabels={STATUS_LABELS} change={change} />
         </Flex>
         <Typography.Paragraph type="secondary" style={{ margin: "8px 0 0", fontSize: 13 }}>
           File và kế hoạch AI hiện bảng xem trước; 30 ngày chỉ bị thay khi bấm “Lưu kế hoạch”, Backlog vẫn giữ.
@@ -1017,7 +1018,6 @@ function TodayStrip({ plan, change }: { plan: Plan; change: Change }) {
           <EditIdeaButton item={item} onChange={change} />
         </Flex>
       ))}
-      <AutoRuns topicId={plan.topic_id} />
     </Flex>
   );
 }

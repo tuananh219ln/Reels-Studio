@@ -7,6 +7,7 @@ import {
   DeleteOutlined,
   DownloadOutlined,
   EditOutlined,
+  FolderOutlined,
   MoreOutlined,
   PlusOutlined,
 } from "@ant-design/icons";
@@ -64,6 +65,7 @@ import { usePolling } from "@/lib/polling";
 import { usePresence } from "@/lib/presence";
 import { COLORS } from "@/app/theme";
 import FormDrawer from "@/components/FormDrawer";
+import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket while a job runs,
 // someone edits or a teammate has it open. A video only looked at, alone and with nothing running, is read less often.
@@ -114,6 +116,7 @@ export default function VideoPage() {
   // app the address only changes once the page has rendered.
   const askedClone = useSearchParams().get("clone");
   const [cloning, setCloning] = useState<CloneTarget | null>(null);
+  const [moving, setMoving] = useState(false);
   const [seenAsk, setSeenAsk] = useState<string | null>(null);
   if (askedClone !== seenAsk) {
     setSeenAsk(askedClone);
@@ -488,10 +491,17 @@ export default function VideoPage() {
                   ...(video.has_script && video.platform === "facebook"
                     ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setCloning("tiktok") }]
                     : []),
-                  // Only its maker deletes a video (or its scenes); the api refuses anyone else.
+                  // Only its maker moves or deletes a video (or its scenes); the api refuses anyone else.
                   ...(video.created_by_id === me.id
                     ? [
-                        ...(video.has_script ? [{ type: "divider" as const }] : []),
+                        {
+                          key: "group",
+                          icon: <FolderOutlined />,
+                          label: "Chuyển sang nhóm khác",
+                          disabled: video.locked,
+                          onClick: () => setMoving(true),
+                        },
+                        { type: "divider" as const },
                         {
                           key: "delete",
                           icon: <DeleteOutlined />,
@@ -848,6 +858,7 @@ export default function VideoPage() {
         />
       )}
       <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
+      <MoveGroupDrawer video={video} open={moving} onClose={() => setMoving(false)} onMoved={receive} />
     </EditorContext.Provider>
   );
 }

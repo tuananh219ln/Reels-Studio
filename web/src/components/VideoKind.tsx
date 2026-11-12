@@ -1,7 +1,7 @@
 "use client";
 
 import { FacebookFilled, InstagramFilled, TikTokFilled, YoutubeFilled } from "@ant-design/icons";
-import { AutoComplete, Flex, Tag, Tooltip, theme } from "antd";
+import { AutoComplete, Flex, Tag, Tooltip, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { api, type VideoMadeVia, type VideoRow } from "@/lib/api";
 
@@ -73,28 +73,26 @@ const PLATFORMS = [
 
 /** "Đã đăng": one icon per platform, in its colour where the video is out, grey where it is not. */
 export function PostedPlatforms({ postedOn, size = 16 }: { postedOn: VideoRow["posted_on"]; size?: number }) {
-  const { token } = theme.useToken();
   const out = new Set(postedOn);
+  const shown = PLATFORMS.filter((platform) => out.has(platform.key));
+  // Only where it is out: grey icons for the others read as posted, or as buttons (screen review 2026-11-12).
+  if (!shown.length) {
+    return (
+      <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="posted-platforms">
+        Chưa đăng
+      </Typography.Text>
+    );
+  }
   return (
     <Flex
       gap={6}
       align="center"
       data-testid="posted-platforms"
-      aria-label={
-        out.size
-          ? `Đã đăng: ${PLATFORMS.filter((platform) => out.has(platform.key))
-              .map((platform) => platform.name)
-              .join(", ")}`
-          : "Chưa đăng nền tảng nào"
-      }
+      aria-label={`Đã đăng: ${shown.map((platform) => platform.name).join(", ")}`}
     >
-      {PLATFORMS.map(({ key, name, Icon, color }) => (
-        <Tooltip key={key} title={out.has(key) ? `Đã đăng ${name}` : `Chưa đăng ${name}`}>
-          <Icon
-            data-platform={key}
-            data-posted={out.has(key) ? "true" : "false"}
-            style={{ fontSize: size, color: out.has(key) ? color : token.colorTextQuaternary }}
-          />
+      {shown.map(({ key, name, Icon, color }) => (
+        <Tooltip key={key} title={`Đã đăng ${name}`}>
+          <Icon data-platform={key} data-posted="true" style={{ fontSize: size, color }} />
         </Tooltip>
       ))}
     </Flex>

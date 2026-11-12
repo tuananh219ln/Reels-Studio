@@ -54,17 +54,6 @@ test("Quản lý Page: the empty list's button is named apart, and an empty Tran
   await other.close();
 });
 
-test("Quản lý Page: a wrong preparing time is refused and the saved one comes back", async ({ page }) => {
-  await loginAsSeed(page);
-  await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
-  const time = page.getByLabel("Giờ chuẩn bị Trang Dưỡng Sinh");
-  await time.fill("25:99");
-  await time.press("Enter");
-  await expect(page.getByText("Giờ chuẩn bị phải có dạng HH:MM, ví dụ 08:00")).toBeVisible();
-  await expect(time).toHaveValue("08:00");
-});
-
 test("30-day plan: an empty plan says which button asks the AI", async ({ page }) => {
   await loginAsSeed(page);
   await page.goto("/knowledge");

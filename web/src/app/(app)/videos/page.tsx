@@ -60,7 +60,7 @@ import {
 } from "@/lib/api";
 import { VIDEO_MODES, groupVideoModeLabel, videoModeLabel } from "@/components/video/videoModes";
 import { COLORS } from "@/app/theme";
-import StatusText, { type StatusTone } from "@/components/StatusText";
+import StatusText from "@/components/StatusText";
 import FilterSelect from "@/components/FilterSelect";
 import PageHeader from "@/components/PageHeader";
 import { usePolling } from "@/lib/polling";
@@ -70,6 +70,7 @@ import { loadLastChoices, saveLastChoice } from "@/lib/lastChoices";
 import { useGuardedClose } from "@/lib/unsaved";
 import FormDrawer from "@/components/FormDrawer";
 import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
+import { VIDEO_STATUS_FILTERS, videoStatusTone, type VideoStatusFilter } from "@/lib/videoStatus";
 
 /** While a video is being made the list follows its stages closely; otherwise only teammates' new videos and the
  * numbers change, which a minute's wait shows soon enough. */
@@ -87,7 +88,7 @@ const TIKTOK_NUDGE_TIMES = 3;
 /** A draft older than this many days waits on someone ("Cần làm"). */
 const STALE_DRAFT_DAYS = 2;
 
-type StatusFilter = "all" | "todo" | "draft" | "working" | "done" | "failed" | "outdated";
+type StatusFilter = "all" | "todo" | VideoStatusFilter;
 
 /** Out on Facebook (or set for later) or recorded as posted on TikTok. */
 const isOut = (row: VideoRow) => row.post !== null || row.tiktok_posted;
@@ -105,19 +106,11 @@ function needsWork(row: VideoRow): boolean {
   );
 }
 
-/** The status filter's groups: a job in any stage counts as "Đang xử lý". */
+/** The status filter: "Cần làm" first, then the choices every video list shares (lib/videoStatus.ts). */
 const STATUS_FILTERS: { value: StatusFilter; label: string; match: (row: VideoRow) => boolean }[] = [
   { value: "all", label: "Mọi trạng thái", match: () => true },
   { value: "todo", label: "Cần làm", match: needsWork },
-  { value: "draft", label: "Nháp", match: (row) => row.status === "draft" },
-  {
-    value: "working",
-    label: "Đang xử lý",
-    match: (row) => !["draft", "done", "failed"].includes(row.status),
-  },
-  { value: "done", label: "Xong", match: (row) => row.status === "done" },
-  { value: "failed", label: "Lỗi", match: (row) => row.status === "failed" || row.rerender_failed },
-  { value: "outdated", label: "MP4 cần render lại", match: (row) => row.mp4_outdated },
+  ...VIDEO_STATUS_FILTERS,
 ];
 
 export default function VideosPage() {
@@ -629,15 +622,8 @@ function postLine(post: VideoRowPost): string {
   return `${post.fanpage}, ${post.state === "scheduled" ? "hẹn " : ""}${formatDateTime(post.at)}${more}`;
 }
 
-/** The card's status: grey for a draft, blue while a job runs, green once out, amber while waiting. */
-function cardTone(row: VideoRow): StatusTone {
-  if (row.post?.state === "posted") return "success";
-  if (row.post?.state === "scheduled") return "waiting";
-  if (row.status === "failed") return "danger";
-  if (row.status === "done") return "done";
-  if (row.status === "draft") return "idle";
-  return "active";
-}
+/** The card's status: grey for a draft, blue while a job runs, green once out, amber while scheduled. */
+const cardTone = videoStatusTone;
 
 /** A card on its side. The thumbnail is left as it is but for its views, in the corner as on a profile grid; the
  * text reads top to bottom: what it is, where it went, how it did, and who made it. */
@@ -647,13 +633,7 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
   const post = row.post;
   const standout = post?.times_median != null && post.times_median >= STANDOUT_TIMES;
   // A job's stage or a warning, said in words after the status rather than as more tags.
-  const warning = row.rerender_failed
-    ? "render lại lỗi"
-    : row.mp4_outdated
-      ? "MP4 chưa cập nhật theo bản sửa"
-      : post && !["done", "draft"].includes(row.status)
-        ? row.status_label.toLowerCase()
-        : null;
+  const warning = row.rerender_failed ? "render lại lỗi" : row.mp4_outdated ? "MP4 chưa cập nhật theo bản sửa" : null;
   const small = { fontSize: 12, lineHeight: "18px" } as const;
   return (
     <Link
@@ -756,7 +736,7 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
           <Flex justify="space-between" align="flex-end" gap={8} style={{ marginTop: "auto", paddingTop: 10 }}>
             <Flex gap={10} align="center" style={small}>
               <StatusText tone={cardTone(row)} data-testid="video-status">
-                {post ? (post.state === "posted" ? "Đã đăng" : "Đã lên lịch") : row.status_label}
+                {row.status_label}
               </StatusText>
             </Flex>
             <Typography.Text type="secondary" style={{ ...small, textAlign: "right", flex: "none" }}>

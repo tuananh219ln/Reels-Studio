@@ -558,6 +558,26 @@ def queue_position(db: DbSession, job: Job) -> int:
     return db.scalar(select(func.count()).select_from(Job).where(Job.status == "queued", Job.id <= job.id))
 
 
+# A video with its MP4 and no job, by where its posts stand: "Xong" said nothing about posting (2026-11-12).
+POST_STAGE_LABELS = {"ready": "Chờ đăng", "scheduled": "Đã lên lịch", "posted": "Đã đăng"}
+
+
+def post_stage(extras: dict) -> str:
+    """Out anywhere (`posted_on`), else a Facebook post set for later, else waiting to be posted."""
+    if extras.get("posted_on"):
+        return "posted"
+    post = extras.get("post")
+    return "scheduled" if post and post.get("state") == "scheduled" else "ready"
+
+
+def _with_post_stage(status: dict, extras: dict) -> dict:
+    """The status of a "done" video named by its posting, with `post_stage` (None while not done)."""
+    if status["status"] != "done":
+        return {**status, "post_stage": None}
+    stage = post_stage(extras)
+    return {**status, "status_label": POST_STAGE_LABELS[stage], "post_stage": stage}
+
+
 def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) -> dict:
     if job is not None and job.status == "queued":
         code, label = "queued", f"Chờ thứ {queue_position(db, job)}"
@@ -994,6 +1014,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
     posts = publications_of(db, video.id)
     # One small query, and only for a video that has posts: this payload answers every save and poll of the editor.
     by_page = analytics.medians(db) if posts else {}
+    extras = list_extras(db, [video])[video.id]
     payload = {
         "id": video.id,
         "topic": video.topic,
@@ -1023,13 +1044,14 @@ def video_payload(db: DbSession, video: Video) -> dict:
         # The products whose links go in the comment under the video's reels (post_comments.py).
         "affiliate_product_ids": [product.id for product in affiliate.products_of(db, video.id)],
         "pinned_comment": video.pinned_comment,
+        "extra_comments": video.extra_comments,
         "self_review": video.self_review,
         "music_suggestions": video.music_suggestions,
         "created_by": video.created_by.name,
         # Only its maker deletes it, or its scenes (ownership.py).
         "created_by_id": video.created_by_id,
         "created_at": video.created_at.isoformat(),
-        **_status(db, video, job, failed),
+        **_with_post_stage(_status(db, video, job, failed), extras),
         **_labels(video, title, scenes, job, failed),
         "locked": job is not None,
         "active_job": _job_payload(job),
@@ -1072,7 +1094,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "publications": [publication_payload(post, by_page) for post in posts],
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
         # Where it is out, as on the list: the page's row of platform icons.
-        "posted_on": list_extras(db, [video])[video.id]["posted_on"],
+        "posted_on": extras["posted_on"],
         "fanpages": [
             {
                 "id": page.id,
@@ -1269,6 +1291,14 @@ def list_payload(
     db: DbSession, video: Video, family: tuple[set[int], set[int]] = (set(), set()), extras: dict | None = None
 ) -> dict:
     """`family`: made_from, and `extras`: this video's list_extras, both read once per list."""
+    extras = extras or {
+        "knowledge_topic": None,
+        "plan_day": None,
+        "post": None,
+        "tiktok_posted": False,
+        "posted_on": [],
+        "product_count": 0,
+    }
     title, scenes = split_scenes(db, video)
     job = active_job(db, video.id)
     failed = _last_failed(db, video.id)
@@ -1290,18 +1320,8 @@ def list_payload(
         "assistant_app": video.assistant_app,
         "mode": video.mode,
         "content_type": video.content_type,
-        **_status(db, video, job, failed),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
-        **(
-            extras
-            or {
-                "knowledge_topic": None,
-                "plan_day": None,
-                "post": None,
-                "tiktok_posted": False,
-                "posted_on": [],
-                "product_count": 0,
-            }
-        ),
+        **extras,
+        **_with_post_stage(_status(db, video, job, failed), extras),
     }

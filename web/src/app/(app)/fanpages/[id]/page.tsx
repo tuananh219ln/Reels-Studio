@@ -473,12 +473,15 @@ function FanpageDashboard() {
         title={data?.page.name ?? "Fanpage"}
         actions={
           <>
-            <Segmented<Days>
-              value={days}
-              onChange={setDays}
-              aria-label="Khoảng thời gian"
-              options={PERIODS.map((value) => ({ value, label: `${value} ngày` }))}
-            />
+            {/* The period is the numbers' only: "Lịch đăng" looks ahead, not back. */}
+            {tab !== "schedule" && (
+              <Segmented<Days>
+                value={days}
+                onChange={setDays}
+                aria-label="Khoảng thời gian"
+                options={PERIODS.map((value) => ({ value, label: `${value} ngày` }))}
+              />
+            )}
             <Button
               icon={<ReloadOutlined spin={pending} />}
               disabled={pending || data?.page.active === false}
@@ -489,13 +492,16 @@ function FanpageDashboard() {
           </>
         }
         description={
-          data && (
+          data &&
+          (tab === "schedule" ? (
+            "Video trong hàng chờ tự được hẹn giờ vào khung giờ đăng trống gần nhất (trong 48 giờ tới), rồi chuyển sang cột “Đã lên lịch”."
+          ) : (
             <>
               Từ {shortDay(data.start)} đến {shortDay(data.end)} (giờ Việt Nam), mỗi số so với {data.days} ngày trước
               đó. Số của Page do Facebook tính theo ngày giờ Thái Bình Dương nên lệch giờ Việt Nam một chút; chỉ có
               những số Facebook cho đọc.
             </>
-          )
+          ))
         }
       />
       {data === null ? (

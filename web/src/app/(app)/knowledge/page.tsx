@@ -525,7 +525,7 @@ function TopicBody({
                     id={`new-${topic.id}`}
                     title="Video mới của nhóm"
                     hint={
-                      "Mọi video tạo mới trong nhóm (trên web, bán tự động, trợ lý qua MCP) bắt đầu theo phần này, " +
+                      "Mọi video tạo mới trong nhóm (trên web, trợ lý qua MCP) bắt đầu theo phần này, " +
                       "thay cho Thiết lập mặc định của người tạo. Chỉnh riêng trên từng video vẫn được; video đã có không đổi."
                     }
                   />

@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, auto_runs, facebook, fanpages, page_dashboard, plans
+from . import affiliate, facebook, fanpages, page_dashboard
 from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session
@@ -30,15 +30,6 @@ class AddBody(TokenBody):
 
 class ActiveBody(BaseModel):
     active: bool
-
-
-class AutoBody(BaseModel):
-    """ "Bán tự động" on the Page's card; an absent field is left as it is."""
-
-    auto_prepare: bool | None = None
-    prepare_time: str | None = None
-    tiktok_account_id: int | None = None
-    tiktok_own_version: bool | None = None
 
 
 class ShopeeAccountBody(BaseModel):
@@ -78,19 +69,6 @@ def _shopee_account(db: DbSession, row: Fanpage, me: Session) -> dict | None:
     return {"id": account.id, "name": account.name, "usable": affiliate.credentials(account) is not None}
 
 
-def _auto(db: DbSession, row: Fanpage, me: Session) -> dict | None:
-    """ "Bán tự động", shown only to the Page's owner, who alone sets it and approves its videos."""
-    if row.owner_id != me.user_id:
-        return None
-    return {
-        "auto_prepare": row.auto_prepare,
-        "prepare_time": row.prepare_time,
-        "tiktok_account_id": row.tiktok_account_id,
-        "tiktok_own_version": row.tiktok_own_version,
-        "tiktok_problem": auto_runs.tiktok_account_problem(db, row) if row.tiktok_account_id else None,
-    }
-
-
 def _rows(db: DbSession, me: Session) -> list[dict]:
     rows = list(
         db.scalars(
@@ -117,7 +95,6 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "owner": {"id": row.owner.id, "name": row.owner.name} if row.owner else None,
             "mine": row.owner_id == me.user_id,
             "shopee_account": _shopee_account(db, row, me),
-            "auto": _auto(db, row, me),
             "check": checks[row.id],
             "insights": insights[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),
@@ -213,34 +190,6 @@ def set_shopee_account(
         if not account.active:
             raise invalid(f"Tài khoản “{account.name}” đang ngừng dùng")
     row.shopee_account_id = body.account_id
-    db.commit()
-    return _rows(db, me)
-
-
-@router.put("/{fanpage_id}/auto")
-def set_auto(
-    fanpage_id: int, body: AutoBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
-) -> list[dict]:
-    """ "Bán tự động": the switch, the preparing time and the TikTok account of the Page, set by its owner only."""
-    row = _fanpage(db, fanpage_id)
-    if row.owner_id != me.user_id:
-        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới bật được bán tự động")
-    fields = body.model_fields_set
-    if "prepare_time" in fields and body.prepare_time is not None:
-        try:
-            [row.prepare_time] = plans.check_post_times([body.prepare_time])
-        except plans.PlanError:
-            raise invalid("Giờ chuẩn bị phải có dạng HH:MM") from None
-    if "tiktok_account_id" in fields:
-        if body.tiktok_account_id is not None:
-            account = db.get(AffiliateAccount, body.tiktok_account_id)
-            if account is None or account.owner_id != me.user_id or account.platform != "tiktok":
-                raise invalid("Hãy chọn một tài khoản TikTok của bạn")
-        row.tiktok_account_id = body.tiktok_account_id
-    if body.auto_prepare is not None:
-        row.auto_prepare = body.auto_prepare
-    if body.tiktok_own_version is not None:
-        row.tiktok_own_version = body.tiktok_own_version
     db.commit()
     return _rows(db, me)
 

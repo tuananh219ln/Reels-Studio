@@ -64,7 +64,8 @@ export default function PostComment({ post, onChanged }: { post: Post; onChanged
       {comment.state === "done" && comment.at && (
         <Tooltip title={comment.text}>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Bình luận lúc {formatDateTime(comment.at)}, nhớ ghim trên Facebook
+            Bình luận lúc {formatDateTime(comment.at)}
+            {comment.extra_count ? `, thêm ${comment.extra_count} bình luận` : ""}, nhớ ghim trên Facebook
           </Typography.Text>
         </Tooltip>
       )}
