@@ -131,6 +131,7 @@ MAX_LONG_TEXT_LENGTH = 5000
 MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
 MAX_LIST_ITEMS = 20
+MAX_EXTRA_COMMENTS = 5
 NEW_SCENE_SECONDS = 4
 MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 TITLE_SECONDS = 3  # as the script job gives the title scene
@@ -168,6 +169,7 @@ class VideoPatchBody(BaseModel):
     hashtags: list[str] | None = None
     affiliates: list[str] | None = None
     pinned_comment: str | None = None
+    extra_comments: list[str] | None = None  # "Bình luận thêm", at most MAX_EXTRA_COMMENTS
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
     music_start: object = None  # seconds into the song where the video's music starts
@@ -477,6 +479,10 @@ def patch_video(
         video.caption = _clean_text(body.caption, MAX_LONG_TEXT_LENGTH, "Caption").strip()
     if "pinned_comment" in fields and body.pinned_comment is not None:
         video.pinned_comment = _clean_text(body.pinned_comment, MAX_LONG_TEXT_LENGTH, "Bình luận ghim").strip()
+    if "extra_comments" in fields and body.extra_comments is not None:
+        video.extra_comments = _clean_list(
+            body.extra_comments, MAX_LONG_TEXT_LENGTH, "Bình luận thêm", max_items=MAX_EXTRA_COMMENTS
+        )
     if "hashtags" in fields and body.hashtags is not None:
         video.hashtags = _clean_list(body.hashtags, MAX_KEYWORD_LENGTH, "Hashtag")
     if "affiliates" in fields and body.affiliates is not None:

@@ -344,6 +344,8 @@ export type VideoDetail = VideoRow & {
   /** Shopee's product suggestions for the video (the worker searches with a member's own account). */
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
   pinned_comment: string;
+  /** "Bình luận thêm": more comments of the Page under each reel after the first, in order. */
+  extra_comments: string[];
   self_review: string[];
   music_suggestions: string[];
   locked: boolean;
@@ -1309,6 +1311,8 @@ export type Post = {
     auto: boolean;
     error: string | null;
     text: string | null;
+    /** How many of the video's "Bình luận thêm" are written under the post. */
+    extra_count?: number;
     at: string | null;
   };
 };
