@@ -106,6 +106,30 @@ def test_list_keeps_one_topic_groups_videos_for_its_tab_in_kho_kien_thuc(an, db,
     assert {row["id"] for row in an.get("/api/videos").json()} == {mine.id, garden.id}
 
 
+def test_a_rendered_video_says_whether_it_waits_to_be_posted_is_scheduled_or_is_out(an, db, me, storage):
+    """ "Xong" said nothing about posting: a video with an MP4 is "Chờ đăng", "Đã lên lịch" or "Đã đăng"."""
+    page = Fanpage(page_id="p1", name="Vườn nhà", token_encrypted="x", token_tail="x")
+    db.add(page)
+    draft, ready, later, out = (make_video(db, storage, me, topic=name) for name in ("nháp", "chờ", "hẹn", "đăng"))
+    for video in (ready, later, out):
+        video.mp4_key = f"videos/{video.id}/video.mp4"
+    db.flush()
+    _post(db, me, later, page, status="scheduled", at=now() + timedelta(days=1))
+    _post(db, me, out, page)
+    db.commit()
+
+    rows = {row["id"]: row for row in an.get("/api/videos").json()}
+    expected = {
+        draft.id: ("draft", "Nháp", None),
+        ready.id: ("done", "Chờ đăng", "ready"),
+        later.id: ("done", "Đã lên lịch", "scheduled"),
+        out.id: ("done", "Đã đăng", "posted"),
+    }
+    assert {key: (row["status"], row["status_label"], row["post_stage"]) for key, row in rows.items()} == expected
+    page_view = an.get(f"/api/videos/{later.id}").json()
+    assert (page_view["status_label"], page_view["post_stage"]) == ("Đã lên lịch", "scheduled")
+
+
 def _post(db, me, video, page, status="published", at=None, latest=None, h48=None):
     at = at or now() - timedelta(days=3)
     post = Publication(

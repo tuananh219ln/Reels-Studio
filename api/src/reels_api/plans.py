@@ -47,12 +47,13 @@ VIETNAM = timezone(timedelta(hours=7))
 GROUP_PLACEHOLDER = "[Chủ đề nhóm]"
 PER_DAY_PLACEHOLDER = "[Số video mỗi ngày]"
 
-# Read from the linked video and its posts, never stored: "Xong" means the video has an MP4.
+# Read from the linked video and its posts, never stored: "Chờ đăng" means the video has an MP4 and no post yet,
+# as on the video lists ("Xong" said nothing about posting, 2026-11-12).
 STATUS_LABELS = {
     "idea": "Ý tưởng",
     "started": "Đã tạo video",
     "scripted": "Đã viết kịch bản",
-    "done": "Xong",
+    "done": "Chờ đăng",
     "scheduled": "Đã lên lịch",
     "posted": "Đã đăng",
 }

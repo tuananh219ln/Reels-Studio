@@ -204,6 +204,36 @@ def delete_item(item_id: int, me: Session = Depends(current_member), db: DbSessi
     return _saved(db, topic)
 
 
+class IdeaIdsBody(BaseModel):
+    ids: list[int]
+
+
+@router.post("/{topic_id}/items/delete")
+def delete_items(
+    topic_id: int, body: IdeaIdsBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Xoá các ý tưởng đã chọn": the ideas only, as one deletes them one by one (a video made from one stays). All or
+    none: one that is not the member's, or not in this group, refuses the whole choice."""
+    topic = _editable(db, topic_id, me)
+    wanted = set(body.ids)
+    if not wanted:
+        raise invalid("Hãy chọn ít nhất một ý tưởng")
+    items = db.scalars(
+        select(TopicPlanItem).where(TopicPlanItem.knowledge_topic_id == topic.id, TopicPlanItem.id.in_(wanted))
+    ).all()
+    if len(items) != len(wanted):
+        raise ApiError(404, "plan_item_not_found", "Có ý tưởng không còn trong kế hoạch, hãy tải lại trang")
+    others = sum(1 for item in items if item.created_by_id != me.user_id)
+    if others:
+        raise ApiError(403, "not_owner", f"{others} ý tưởng do thành viên khác tạo, chỉ người tạo mới xoá được")
+    days = {item.day for item in items}
+    for item in items:
+        db.delete(item)
+    for day in days:
+        plans.renumber(db, topic.id, day)
+    return _saved(db, topic)
+
+
 @router.get("/{topic_id}")
 def get_plan(topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     topic = db.get(KnowledgeTopic, topic_id)

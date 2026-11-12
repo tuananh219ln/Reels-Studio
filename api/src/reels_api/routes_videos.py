@@ -131,6 +131,7 @@ MAX_LONG_TEXT_LENGTH = 5000
 MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
 MAX_LIST_ITEMS = 20
+MAX_EXTRA_COMMENTS = 5
 NEW_SCENE_SECONDS = 4
 MAX_MUSIC_START = 600  # seconds into a song; past its end the song loops from its start
 TITLE_SECONDS = 3  # as the script job gives the title scene
@@ -168,6 +169,7 @@ class VideoPatchBody(BaseModel):
     hashtags: list[str] | None = None
     affiliates: list[str] | None = None
     pinned_comment: str | None = None
+    extra_comments: list[str] | None = None  # "Bình luận thêm", at most MAX_EXTRA_COMMENTS
     music_suggestions: list[str] | None = None
     music_volume: int | None = None
     music_start: object = None  # seconds into the song where the video's music starts
@@ -477,6 +479,10 @@ def patch_video(
         video.caption = _clean_text(body.caption, MAX_LONG_TEXT_LENGTH, "Caption").strip()
     if "pinned_comment" in fields and body.pinned_comment is not None:
         video.pinned_comment = _clean_text(body.pinned_comment, MAX_LONG_TEXT_LENGTH, "Bình luận ghim").strip()
+    if "extra_comments" in fields and body.extra_comments is not None:
+        video.extra_comments = _clean_list(
+            body.extra_comments, MAX_LONG_TEXT_LENGTH, "Bình luận thêm", max_items=MAX_EXTRA_COMMENTS
+        )
     if "hashtags" in fields and body.hashtags is not None:
         video.hashtags = _clean_list(body.hashtags, MAX_KEYWORD_LENGTH, "Hashtag")
     if "affiliates" in fields and body.affiliates is not None:
@@ -520,6 +526,31 @@ def patch_video(
         # The thumbnail is the title scene's first frame, drawn in the text box style at the title's place.
         title, _ = split_scenes(db, video)
         refresh_thumbnail(db, storage, video, title)
+    return _saved(db, video)
+
+
+class GroupBody(BaseModel):
+    knowledge_topic_id: int
+
+
+@router.put("/videos/{video_id}/group")
+def move_video(
+    video_id: int, body: GroupBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Chuyển sang nhóm khác": the video, by its maker, to another topic group. Its look, mode and MP4 stay as they
+    are (a group's settings are taken when a video is made); the old group's plan idea made from it is freed, so that
+    plan shows the idea as still to make."""
+    video = lock_video(db, video_id)
+    ensure_owner(video.created_by_id, me.user_id, "video này", "chuyển nhóm được")
+    ensure_unlocked(db, video)
+    group = db.get(KnowledgeTopic, body.knowledge_topic_id)
+    if group is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    if group.id == video.knowledge_topic_id:
+        raise invalid(f"Video đã ở nhóm “{group.name}”")
+    for idea in db.scalars(select(TopicPlanItem).where(TopicPlanItem.video_id == video.id)):
+        idea.video_id = None
+    video.knowledge_topic_id = group.id
     return _saved(db, video)
 
 

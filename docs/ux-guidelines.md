@@ -260,7 +260,8 @@ Built:
   opens the dialog (`/videos?reference=<id>`) on "Dùng mẫu đã học" with that sample chosen.
 - **Video list** (`/videos`): "Tạo video"; then, on one row, the search by title or topic and the filters:
   status (Cần làm: a draft older than 2 days, a failed job, an MP4 behind the edits, or a finished video not out
-  on Facebook or TikTok; Nháp, Đang xử lý, Xong, Lỗi, MP4 cần render lại), platform, Fanpage (any Page the video
+  on Facebook or TikTok; Nháp, Đang xử lý, Chờ đăng, Đã lên lịch, Đã đăng, Lỗi, MP4 cần render lại: the same
+  choices as a group's "Video" tab, lib/videoStatus.ts), platform, Fanpage (any Page the video
   is out on or set for), topic group ("Sức khỏe (12)", its number of videos; remembered in the browser) and
   creator ("Của tôi" first, then the team; it starts on "Của tôi" once the member has made a video), each showing "Mọi trạng thái", "Mọi nền tảng", "Mọi Fanpage", "Mọi
   nhóm chủ đề" or "Cả đội" while empty; sort "Mới nhất" or "Nhiều view nhất". With a group chosen, a grey line
@@ -270,8 +271,9 @@ Built:
   the default, has no platform tag), how its script came (AI viết, Tự viết, Từ video mẫu, Nhân bản, or the assistant that wrote it
   through MCP: "Muse (MCP)", "ChatGPT (MCP)", "Claude (MCP)", "Trợ lý AI (MCP)" when unknown),
   "Xuyên suốt" for a backdrop video and "Sản phẩm" (with a count above one) when products are attached; and
-  "Đã đăng" as four icons, Facebook, TikTok, YouTube and Instagram, each in its colour once the video is out
-  there and grey until then (the name on hover). A TikTok version sits on its source's card (or row) as a small "TikTok" link
+  "Đã đăng" as the icons of the platforms the video is out on (Facebook, TikTok, YouTube, Instagram, each in its
+  colour, the name on hover), or "Chưa đăng" in grey when it is out nowhere: grey icons for the others read as
+  posted or as buttons (screen review 2026-11-12). A TikTok version sits on its source's card (or row) as a small "TikTok" link
   with its status ("Nháp", "Đã đăng") that opens it, not on a card of its own; it gets its own card when a platform
   is chosen or its source is filtered out. A Facebook video at 3× its Page's median or more at 48 hours with no
   TikTok version shows "+ Tạo bản TikTok" there instead, opening its "Tạo bản TikTok" drawer. Two views, remembered in the browser; a click opens the video:
@@ -282,8 +284,10 @@ Built:
     for more, a long name cut and in full on hover) and "Đăng 03/11 07:00" or "Hẹn đăng 05/11 20:00"
     (the year only when it is not this one), or "Chưa đăng"; at 48 hours "N× trung vị" (orange and
     bold from 10×) and "N% share" (green once it reaches the goal); a warning on its own line (a job's
-    stage while posted, "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot
-    and a word ("Đã đăng", "Đã lên lịch", or Nháp / Chờ / Đang viết / Đang render / Xong / Lỗi) and on
+    "Render lại lỗi", "MP4 chưa cập nhật theo bản sửa"); then the status as a dot and a word, the api's
+    `status_label` everywhere (Nháp / Chờ / Đang viết / Đang render… / Lỗi while there is no MP4 or a job runs; with
+    an MP4, by its posting: "Chờ đăng" (dark grey), "Đã lên lịch" (amber), "Đã đăng" (green); "Xong" said nothing
+    about posting, 2026-11-12) and on
     the right the creator and the day it was made; under them, small, the topic group and its plan day.
     The kind tags sit under the title with the "Đã đăng" icons on their right;
   - a list, one row per video: small thumbnail and title, "Loại" (the kind tags), the status (with "Đã
@@ -318,7 +322,11 @@ Built:
   scripts and clips; the card then says the sample was deleted).
   The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
   as a small player beside its length, with the listening volume under it, "Tải MP4", "Đăng" and "Thêm vào hàng chờ", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
-  đăng" (the post texts); until a member picks a tab it shows "Thiết lập" while there is no MP4
+  đăng" (the post texts; under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page writes them under
+  the reel after the pinned one, in order, and that Facebook does not let an app tag @ people, then each saved one
+  as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which opens
+  a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
+  bình luận"); until a member picks a tab it shows "Thiết lập" while there is no MP4
   and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
@@ -338,7 +346,7 @@ Built:
     mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
     the title choice, scene move/delete/add, every photo and clip action, "Vị trí chữ", music
     and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
-    previews and the MP4, "Tải MP4", "Nhân bản", "Xóa", "Render", the "Xuất bản" tab and the
+    previews and the MP4, "Tải MP4", "Nhân bản", "Chuyển sang nhóm khác", "Xóa", "Render", the "Xuất bản" tab and the
     post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
     "Nhân bản" unlocks the page, shown by "Đang chỉnh sửa" in grey by the title and a light
     orange outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
@@ -670,8 +678,11 @@ Built:
     "Share/view" (the 48-hour reading of the post with the most views), who made it, when) or a card per
     video (a larger picture, title, status, platforms and one line of those numbers, "Chưa có số liệu
     đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
-    topic that ignores accents and a status filter, both kept when switching, and "Tạo video", which
-    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
+    topic that ignores accents and a status filter (every choice of the video list's but "Cần làm", each with its
+    count in the group, listed even when empty), both kept when switching, and "Tạo video", which
+    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt). The
+    video's maker has a red bin on each row and card ("Xóa video <title>"), confirmed as on the video page;
+    others see none;
   - "Tư liệu": the team's one Kho tư liệu on the folder the group links (subfolders included), not a library of its
     own. Linked: "Thư mục <folder>, N tư liệu", "Tải ảnh vào thư mục này" (the upload card of `/media` with the
     folder fixed), "Mở trong Kho tư liệu" (a link to `/media?folder=…`), "Đổi thư mục", "Bỏ liên kết" (asked first;
@@ -696,7 +707,7 @@ Built:
       của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled
       out above them: chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none; Cài đặt › Mẫu
       dựng tags each template with the groups that hold it); on the right "Chữ & phụ đề của nhóm": the switches
-      "Nhóm có kiểu chữ riêng" (off: "Theo Thiết lập mặc định của người tạo video") and "AI chọn kiểu chữ cho từng
+      "Nhóm có kiểu chữ riêng" (one fixed label, with a grey line under it saying what on and off do) and "AI chọn kiểu chữ cho từng
       video" (on: a grey line on what it does), "Gợi ý từ AI" with "AI gợi ý" ("Gợi ý lại" once there are some; while
       the job runs a spinner and "AI đang nghĩ kiểu chữ cho nhóm…", the card re-reading the group every 3 seconds; a
       failed job an error with its reason), each suggestion a card with a sample line drawn in its colours, its name,
@@ -706,17 +717,14 @@ Built:
     to the Backlog):
   - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
     video", and "Sửa" (before a start date: "Chọn ngày bắt đầu để app biết hôm nay là ngày mấy"; "Kế hoạch chưa bắt
-    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days); then "Bán tự động hôm nay" when the group's Pages have
-    runs today (re-read every 10 seconds while open): per run the Page, the idea, its status (Đang dựng, Chờ duyệt,
-    Đã duyệt, Không duyệt, Lỗi, Bỏ qua) and why ("Đang chờ máy render", the failed job's error, "Hôm nay chưa có ý
-    tưởng trong kế hoạch"), a yellow alert listing banned words, and while it waits the MP4 to play, the voice and
-    music, "Mở video" (scene photos and script) and "Bản TikTok riêng" when made; the Page's owner gets "Bỏ qua TikTok
-    cho video này" (or why no draft would go), "Duyệt" and "Không duyệt" (confirmed); others read "Chờ chủ Page
-    duyệt". Once approved: "Facebook: hẹn đăng <time>, TikTok: …". Under it "Đã làm X/Y, đã lên lịch N, ngày còn
+    đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days). Under it "Đã làm X/Y, đã lên lịch N, ngày còn
     trống N";
   - "Tiến độ trước khi đánh giá nhóm: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
     target to set; it only counts, the line under it says the team still judges the group in a meeting;
-  - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
+  - "Thiết lập", "Nhập file JSON/CSV", "Tạo bằng AI" and "Xóa nhiều ý tưởng", with a one-line hint. "Xóa nhiều
+    ý tưởng" opens a drawer with a tree Tuần › Ngày › idea (and the Backlog), a status filter, "Chọn tất cả của
+    tôi" and "Bỏ chọn": ticking a week or day ticks its ideas; a teammate's idea cannot be ticked (as one by one,
+    only an idea's maker deletes it); "Xóa N ý tưởng" deletes them at once, a video made from one stays. "Thiết lập" opens a panel with the
     start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Số video cần làm trước khi đánh giá nhóm", changed in
     place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
     with errors (which block saving) and warnings; the plan is changed only by "Lưu kế hoạch". A file's preview
@@ -746,7 +754,7 @@ Built:
     browser as `plan-compact`; a compact card shows its title, status, numbers and buttons, and opens on its title
     or arrow), then the day in full: a line counting its shown ideas by status
     ("Không có ý tưởng khớp" when the filters hide them all), and each idea with a 3 px left border in its status
-    colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Xong, Đã
+    colour, its topic, pain group, pain and hook, a status tag (Ý tưởng, Đã tạo video, Đã viết kịch bản, Chờ đăng, Đã
     lên lịch, Đã đăng) with the post's time, "Dự kiến đăng <time>" while no post is set, "Tạo video" or "Mở video"
     with "Sửa" beside it (always shown, "Gọn" too: one "Sửa ý tưởng" form with the four fields, saved together by
     "Lưu"; "Huỷ" changes nothing; a refusal such as a topic already in the plan shows in the form, which stays
@@ -855,11 +863,7 @@ Built:
 - **Quản lý Page**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
-  group and posting times and reorders its queue; others read them as a line. Under the owner line, the owner's
-  "Bán tự động" switch with its preparing time ("08:00" by default, saved on Enter or leaving the field; a time
-  not written "HH:MM", or one the api refuses, says so and the saved time comes back) and, once on,
-  the TikTok account its drafts go to (one of their own; "Không gửi nháp TikTok" when none, a warning when its
-  connection is missing or expired), "Bản TikTok riêng" (off by default) and where the videos wait for approval.
+  group and posting times and reorders its queue; others read them as a line.
 - **Bài đăng** and posting. Nothing is posted or approved here: a member reviews and posts a
   video from "Đăng" on its page; "Bài đăng" only retries a failed post. (The "Bình luận" page, which answered
   visitors' comments as the Page, went on 2026-11-10.)
@@ -956,7 +960,7 @@ Built:
   is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
   line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
-  VieNeu", "Kho ảnh, ảnh AI, giọng đọc", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
+  giọng VieNeu", "Kho ảnh, ảnh AI, giọng ElevenLabs", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
   narrower, a row above it. Every tab starts the
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
@@ -985,7 +989,8 @@ Built:
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
     Under the provider choice, the card "Giọng đọc VieNeu" ("Sẵn sàng" / "Chưa cấu hình") takes the VieNeu API key the
-    same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page; with a key, VieNeu's
+    same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page and one to Nguồn tư liệu
+    for ElevenLabs' key (whose card links back here); with a key, VieNeu's
     voices join the "Giọng" picker. A service whose voices cannot be listed is named in yellow under the picker.
   - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
     (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
@@ -995,7 +1000,9 @@ Built:
     from the picker and "Tìm ảnh" for the whole team, and its API
     key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
     của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
-    ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, and
+    ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, with one line saying
+    which is in use and whether it costs ("Đang dùng: Gemini, mỗi ảnh AI tốn phí"; when nobody chose one there,
+    that the app follows the server's setting), and
     "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
     định" once edited; empty adds nothing) in the first card of "Dịch vụ AI", then its keys side by
     side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
@@ -1025,7 +1032,9 @@ Built:
     the chosen ones. A stopped Page cannot be posted to.
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
     app already reads): "← Quản lý Page" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
-    (28 at first) and "Kiểm tra ngay"; a grey line naming the period (Vietnam time, today included) and that each
+    (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says
+    that a queued video is scheduled at the nearest free posting time within 48 hours and moves to "Đã lên lịch";
+    elsewhere a grey line naming the period (Vietnam time, today included) and that each
     number is set against the same number of days just before. Every figure is a tile: its name (an ⓘ tip where
     the number needs one), the value, and "↑ 12% so với 28 ngày trước" in green or "↓" in red, the arrow always
     there so the direction is not colour alone; "Chưa có 28 ngày trước để so" when there is nothing to compare.
@@ -1057,10 +1066,11 @@ Built:
       table says the numbers are the latest reading, that posts made outside the app are not there, and the
       Page's 48-hour median (or how many measured posts it needs). Over 50 rows the table pages by 50; none says
       "Chưa có bài nào app đăng lên Page này trong N ngày."
-    - **Lịch đăng**: "Đăng theo lịch" (as it was on the card): the topic group the Page posts and its posting
-      times (tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
+    - **Lịch đăng**: "Đăng theo lịch" (as it was on the card): the topic group the Page posts ("Nhóm chủ đề Page
+      đăng" above it) and its posting times ("Giờ đăng mỗi ngày (giờ Việt Nam)" above them; tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
       line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the
-      rest), then "Hàng chờ (N)": each waiting video's number, cover, title (opening the video), who added it
+      rest), then "Hàng chờ (N)" in bold, always there, with a grey line on how it empties (the first video is
+      scheduled at a free time once that time is within 48 hours, then shows under "Đã lên lịch"): each waiting video's number, cover, title (opening the video), who added it
       and when, the reason in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ
       khỏi hàng chờ", confirmed); an empty queue says how to add one. Beside it the whole week of scheduled
       posts and free times.
@@ -1234,7 +1244,7 @@ and changed at any time on the video page's "Kiểu video" card, which asks firs
 and "Ảnh món" is kept. "Tạo video" starts on the topic group's "Kiểu video" (Kho kiến thức, "Xen kẽ theo ngày"
 resolved for today in Vietnam) and says so under the strip ("Theo kiểu video của nhóm: …, hôm nay …"); picking the
 other kind makes it that video's only ("Chỉ video này; nhóm đang theo …"). A video made without the dialog (the
-team's AI through MCP, the semi-automatic round, the assistant) takes the group's too:
+team's AI through MCP, the assistant) takes the group's too:
 
 - **Slide ảnh** (the default, every older video): each scene over its own photo or clip, as below.
 - **Video xuyên suốt:** one photo or clip, the title scene's, runs under the whole video ("5 công dụng của chuối

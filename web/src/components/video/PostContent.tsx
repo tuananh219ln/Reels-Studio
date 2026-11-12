@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
 import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
+import ExtraComments from "./ExtraComments";
 
 type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_comment" | "music_suggestions">;
 
@@ -69,6 +70,7 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           save={(pinned_comment) => patch({ pinned_comment })}
         />
         <Warnings messages={warningsFor("pinned_comment")} />
+        <ExtraComments video={video} />
         <AutoSaveField
           label="Gợi ý nhạc"
           value={video.music_suggestions.join("\n")}
