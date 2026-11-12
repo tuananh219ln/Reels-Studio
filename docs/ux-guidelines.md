@@ -338,7 +338,7 @@ Built:
     mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
     the title choice, scene move/delete/add, every photo and clip action, "Vị trí chữ", music
     and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
-    previews and the MP4, "Tải MP4", "Nhân bản", "Xóa", "Render", the "Xuất bản" tab and the
+    previews and the MP4, "Tải MP4", "Nhân bản", "Chuyển sang nhóm khác", "Xóa", "Render", the "Xuất bản" tab and the
     post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
     "Nhân bản" unlocks the page, shown by "Đang chỉnh sửa" in grey by the title and a light
     orange outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
@@ -671,7 +671,9 @@ Built:
     video (a larger picture, title, status, platforms and one line of those numbers, "Chưa có số liệu
     đăng" for a video not out yet); a video without numbers shows "—", never 0. A search over title and
     topic that ignores accents and a status filter, both kept when switching, and "Tạo video", which
-    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt);
+    opens "Tạo video" on `/videos` with this group chosen (hidden while the group has no script prompt). The
+    video's maker has a red bin on each row and card ("Xóa video <title>"), confirmed as on the video page;
+    others see none;
   - "Tư liệu": the team's one Kho tư liệu on the folder the group links (subfolders included), not a library of its
     own. Linked: "Thư mục <folder>, N tư liệu", "Tải ảnh vào thư mục này" (the upload card of `/media` with the
     folder fixed), "Mở trong Kho tư liệu" (a link to `/media?folder=…`), "Đổi thư mục", "Bỏ liên kết" (asked first;
@@ -710,7 +712,10 @@ Built:
     trống N";
   - "Tiến độ trước khi đánh giá nhóm: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the
     target to set; it only counts, the line under it says the team still judges the group in a meeting;
-  - "Thiết lập", "Nhập file JSON/CSV" and "Tạo bằng AI", with a one-line hint. "Thiết lập" opens a panel with the
+  - "Thiết lập", "Nhập file JSON/CSV", "Tạo bằng AI" and "Xóa nhiều ý tưởng", with a one-line hint. "Xóa nhiều
+    ý tưởng" opens a drawer with a tree Tuần › Ngày › idea (and the Backlog), a status filter, "Chọn tất cả của
+    tôi" and "Bỏ chọn": ticking a week or day ticks its ideas; a teammate's idea cannot be ticked (as one by one,
+    only an idea's maker deletes it); "Xóa N ý tưởng" deletes them at once, a video made from one stays. "Thiết lập" opens a panel with the
     start date, ideas per day (1–10), "Giờ đăng" (1–10 times, as tags) and "Số video cần làm trước khi đánh giá nhóm", changed in
     place: "Lưu" sends only the changed fields at once, "Huỷ" drops them. File and AI both end in a preview table
     with errors (which block saving) and warnings; the plan is changed only by "Lưu kế hoạch". A file's preview

@@ -1,14 +1,15 @@
 "use client";
 
 import EmptyState from "@/components/EmptyState";
-import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
+import { AppstoreOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tooltip, Typography, theme } from "antd";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
+import { useMe } from "@/components/MeContext";
 
 /** Accents and case ignored, so "rau mam" finds "Rau mầm". */
 function plain(text: string): string {
@@ -57,6 +58,45 @@ function numbers(row: VideoRow) {
   };
 }
 
+/** "Xóa" on a row, for the video's maker only (the api refuses anyone else), asked first as on the video page. */
+function DeleteVideoButton({ row, onDeleted }: { row: VideoRow; onDeleted: (id: number) => void }) {
+  const { message, modal } = App.useApp();
+  const { me } = useMe();
+  if (row.created_by_id !== me.id) return null;
+  const title = row.title || row.topic;
+  return (
+    <Tooltip title="Xóa video">
+      <Button
+        type="text"
+        size="small"
+        danger
+        icon={<DeleteOutlined />}
+        aria-label={`Xóa video ${title}`}
+        onClick={() =>
+          modal.confirm({
+            title: `Xóa video “${title}”?`,
+            content:
+              "Xóa hẳn video, các cảnh, job và mọi file (ảnh, MP4, ảnh thu nhỏ). Không khôi phục được. " +
+              "Bài đã đăng hoặc đã hẹn giờ trên Facebook vẫn còn.",
+            okText: "Xóa",
+            cancelText: "Huỷ",
+            okButtonProps: { danger: true },
+            onOk: async () => {
+              try {
+                await api(`/videos/${row.id}`, "DELETE");
+                message.success("Đã xóa video");
+                onDeleted(row.id);
+              } catch (err) {
+                message.error(errorMessage(err));
+              }
+            },
+          })
+        }
+      />
+    </Tooltip>
+  );
+}
+
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
 export default function TopicVideos({
   topicId,
@@ -85,6 +125,7 @@ export default function TopicVideos({
       });
   }, [topicId, message]);
 
+  const removeRow = (id: number) => setRows((current) => (current ?? []).filter((row) => row.id !== id));
   const statuses = [...new Set((rows ?? []).map((row) => row.status_label))];
   const wanted = plain(search.trim());
   const shown = (rows ?? []).filter(
@@ -134,7 +175,7 @@ export default function TopicVideos({
         )}
       </Flex>
       {view === "list" ? (
-        <VideoCards rows={rows} shown={shown} />
+        <VideoCards rows={rows} shown={shown} onDeleted={removeRow} />
       ) : (
         <Table<VideoRow>
           size="small"
@@ -252,6 +293,13 @@ export default function TopicVideos({
                 </Flex>
               ),
             },
+            {
+              key: "actions",
+              width: 48,
+              // Pinned to the right: the table scrolls sideways, and the bin must show without scrolling.
+              fixed: "right",
+              render: (_, row) => <DeleteVideoButton row={row} onDeleted={removeRow} />,
+            },
           ]}
         />
       )}
@@ -260,7 +308,15 @@ export default function TopicVideos({
 }
 
 /** "Danh sách": a card per video, with a larger picture, its status and its main numbers. */
-function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[] }) {
+function VideoCards({
+  rows,
+  shown,
+  onDeleted,
+}: {
+  rows: VideoRow[] | null;
+  shown: VideoRow[];
+  onDeleted: (id: number) => void;
+}) {
   const { token } = theme.useToken();
   if (rows !== null && shown.length === 0) {
     return <EmptyState description={rows.length ? "Không có video nào khớp" : "Nhóm này chưa có video nào"} />;
@@ -294,11 +350,14 @@ function VideoCards({ rows, shown }: { rows: VideoRow[] | null; shown: VideoRow[
                 />
               )}
               <Flex vertical gap={6} style={{ minWidth: 0, flex: 1 }}>
-                <Link prefetch={false} href={`/videos/${row.id}`}>
-                  <Typography.Text strong style={{ color: "inherit" }}>
-                    {row.title || row.topic}
-                  </Typography.Text>
-                </Link>
+                <Flex justify="space-between" align="flex-start" gap={8}>
+                  <Link prefetch={false} href={`/videos/${row.id}`}>
+                    <Typography.Text strong style={{ color: "inherit" }}>
+                      {row.title || row.topic}
+                    </Typography.Text>
+                  </Link>
+                  <DeleteVideoButton row={row} onDeleted={onDeleted} />
+                </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                   {row.topic}
                   {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}, {row.created_by},{" "}

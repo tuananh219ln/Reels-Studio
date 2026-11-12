@@ -69,6 +69,7 @@ import { useLeaveGuard } from "@/lib/unsaved";
 import { useUrlChoiceIf } from "@/lib/urlState";
 import EditHistory from "@/components/EditHistory";
 import FormDrawer from "@/components/FormDrawer";
+import BulkDeleteIdeas from "@/components/plan/BulkDeleteIdeas";
 import { COLORS } from "@/app/theme";
 
 const PLAN_DAYS = 30;
@@ -465,6 +466,7 @@ function PlanView({
           >
             {working ? "AI đang lập kế hoạch…" : "Tạo bằng AI"}
           </Button>
+          <BulkDeleteIdeas plan={plan} statusLabels={STATUS_LABELS} change={change} />
         </Flex>
         <Typography.Paragraph type="secondary" style={{ margin: "8px 0 0", fontSize: 13 }}>
           File và kế hoạch AI hiện bảng xem trước; 30 ngày chỉ bị thay khi bấm “Lưu kế hoạch”, Backlog vẫn giữ.

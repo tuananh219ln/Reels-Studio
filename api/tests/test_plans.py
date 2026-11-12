@@ -147,6 +147,43 @@ def test_ideas_are_edited_moved_between_days_and_deleted(an, topic_id):
     assert an.delete(f"/api/plans/items/{b1}").status_code == 404
 
 
+def test_chosen_ideas_are_deleted_together_and_each_day_renumbered(an, db, topic_id):
+    for n in range(1, 4):
+        add(an, topic_id, 1, f"A{n}")
+    add(an, topic_id, 2, "B1")
+    plan = add(an, topic_id, None, "Backlog 1").json()
+    ids = {item["topic"]: item["id"] for item in plan["items"]}
+
+    after = an.post(f"/api/plans/{topic_id}/items/delete", json={"ids": [ids["A1"], ids["B1"], ids["Backlog 1"]]})
+
+    assert after.status_code == 200
+    body = after.json()
+    assert ideas_of(body, 1) == ["A2", "A3"] and ideas_of(body, 2) == []
+    assert [item["position"] for item in body["items"] if item["day"] == 1] == [1, 2]
+    assert all(item["day"] is not None for item in body["items"])
+
+
+def test_deleting_chosen_ideas_refuses_all_when_one_is_a_teammates_or_another_groups(client, db, topic_id):
+    make_user(db)
+    login(client)
+    mine = add(client, topic_id, 1, "Của An").json()["items"][0]["id"]
+    make_user(db, email="binh@doi.vn", name="Trần Thị Bình")
+    login(client, "binh@doi.vn")
+    plan = add(client, topic_id, 1, "Của Bình").json()
+    theirs = next(item["id"] for item in plan["items"] if item["topic"] == "Của Bình")
+
+    refused = client.post(f"/api/plans/{topic_id}/items/delete", json={"ids": [mine, theirs]})
+
+    assert refused.status_code == 403
+    assert refused.json()["message"] == "1 ý tưởng do thành viên khác tạo, chỉ người tạo mới xoá được"
+    assert ideas_of(client.get(f"/api/plans/{topic_id}").json(), 1) == ["Của An", "Của Bình"]
+    other = KnowledgeTopic(name="Nhóm khác")
+    db.add(other)
+    db.commit()
+    gone = client.post(f"/api/plans/{other.id}/items/delete", json={"ids": [theirs]})
+    assert gone.status_code == 404
+
+
 # --- Import ---
 
 
