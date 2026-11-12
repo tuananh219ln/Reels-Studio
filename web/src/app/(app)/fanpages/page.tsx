@@ -7,6 +7,7 @@ import {
   FacebookOutlined,
   MoreOutlined,
   PlusOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   StopOutlined,
 } from "@ant-design/icons";
@@ -165,6 +166,18 @@ function OwnerLine({
   );
 }
 
+/** What "Bán tự động" does, said beside its switch: the worker's round in api auto_runs.py. */
+const AUTO_HELP = (
+  <>
+    Bật: mỗi ngày đến giờ này (giờ Việt Nam), app tự làm video cho các ý tưởng của ngày hôm nay trong Kế hoạch 30 ngày
+    của nhóm gắn với Page: viết kịch bản bằng AI của nhóm (tốn phí), tìm ảnh, render. Video chờ bạn duyệt ở dải “Hôm
+    nay” trong tab Kế hoạch 30 ngày; chưa duyệt thì không đăng gì. Duyệt xong mới hẹn giờ đăng Facebook theo giờ đăng
+    của Page (khung trống gần nhất trong 48 giờ) và gửi nháp TikTok nếu đã chọn tài khoản.
+    <br />
+    Tắt: app không tự làm video. Hàng chờ và lịch đăng của Page vẫn chạy như thường.
+  </>
+);
+
 /** "Bán tự động", for the Page's owner: each morning at its time the app makes today's plan ideas into videos
  * waiting for approval in the "Hôm nay" strip of the group's plan; nothing is posted before that. */
 function AutoLine({
@@ -227,6 +240,9 @@ function AutoLine({
           onBlur={() => void saveTime()}
           onPressEnter={() => void saveTime()}
         />
+        <Tooltip title={AUTO_HELP}>
+          <QuestionCircleOutlined aria-label="Bán tự động là gì?" style={{ fontSize: 12, cursor: "help" }} />
+        </Tooltip>
       </Flex>
       {auto.auto_prepare && (
         <>
