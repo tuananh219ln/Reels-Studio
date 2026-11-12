@@ -16,6 +16,7 @@ import {
   theme,
   Typography,
 } from "antd";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { SettingsHeader, SettingsSection as Section } from "@/components/settings/SettingsBlocks";
@@ -348,10 +349,15 @@ export default function SourcesPage() {
                     ]}
                     style={{ alignSelf: "flex-start" }}
                   />
+                  {/* What is in use, said once: the switch alone read as "chosen" even when the app picked it. */}
+                  <Typography.Text data-testid="ai-provider-in-use">
+                    Đang dùng: {data.ai_provider === "gemini" ? "Gemini, mỗi ảnh AI tốn phí" : "Cloudflare, miễn phí"}
+                    {data.ai_provider_saved
+                      ? "."
+                      : " (chưa ai chọn ở đây nên app tự lấy theo cấu hình máy chủ; bấm một nguồn để chọn hẳn)."}
+                  </Typography.Text>
                   <Typography.Text type="secondary">
-                    Hết lượt Cloudflare trong ngày thì app báo lỗi chứ không tự chuyển sang Gemini (tốn phí).
-                    {!data.ai_provider_saved &&
-                      " Chưa chọn: app dùng Cloudflare nếu đã có token, không thì dùng Gemini."}
+                    Hết lượt Cloudflare trong ngày thì app báo lỗi chứ không tự chuyển sang Gemini.
                   </Typography.Text>
                   {data.ai_style && style !== null && (
                     <Flex vertical gap={8} style={{ marginTop: 8 }}>
@@ -458,7 +464,11 @@ export default function SourcesPage() {
                   >
                     <Flex vertical gap={12}>
                       <Typography.Text type="secondary">
-                        Đọc lời từng cảnh khi render, và danh sách giọng ở Thiết lập mặc định.
+                        Đọc lời từng cảnh khi render, và danh sách giọng ở Thiết lập mặc định. Key giọng VieNeu ở{" "}
+                        <Link prefetch={false} href="/settings/ai">
+                          Cài đặt › Mô hình AI
+                        </Link>
+                        .
                       </Typography.Text>
                       <KeyField name="elevenlabs" label="ElevenLabs" value={data.voices.key} onSaved={setData} />
                     </Flex>

@@ -270,8 +270,9 @@ Built:
   the default, has no platform tag), how its script came (AI viết, Tự viết, Từ video mẫu, Nhân bản, or the assistant that wrote it
   through MCP: "Muse (MCP)", "ChatGPT (MCP)", "Claude (MCP)", "Trợ lý AI (MCP)" when unknown),
   "Xuyên suốt" for a backdrop video and "Sản phẩm" (with a count above one) when products are attached; and
-  "Đã đăng" as four icons, Facebook, TikTok, YouTube and Instagram, each in its colour once the video is out
-  there and grey until then (the name on hover). A TikTok version sits on its source's card (or row) as a small "TikTok" link
+  "Đã đăng" as the icons of the platforms the video is out on (Facebook, TikTok, YouTube, Instagram, each in its
+  colour, the name on hover), or "Chưa đăng" in grey when it is out nowhere: grey icons for the others read as
+  posted or as buttons (screen review 2026-11-12). A TikTok version sits on its source's card (or row) as a small "TikTok" link
   with its status ("Nháp", "Đã đăng") that opens it, not on a card of its own; it gets its own card when a platform
   is chosen or its source is filtered out. A Facebook video at 3× its Page's median or more at 48 hours with no
   TikTok version shows "+ Tạo bản TikTok" there instead, opening its "Tạo bản TikTok" drawer. Two views, remembered in the browser; a click opens the video:
@@ -698,7 +699,7 @@ Built:
       của app" or one of the group's, with "Lưu mẫu dựng"; the order a new video's template is picked in is spelled
       out above them: chosen on the video › the group's › the maker's own (Cài đặt › Mẫu dựng) › none; Cài đặt › Mẫu
       dựng tags each template with the groups that hold it); on the right "Chữ & phụ đề của nhóm": the switches
-      "Nhóm có kiểu chữ riêng" (off: "Theo Thiết lập mặc định của người tạo video") and "AI chọn kiểu chữ cho từng
+      "Nhóm có kiểu chữ riêng" (one fixed label, with a grey line under it saying what on and off do) and "AI chọn kiểu chữ cho từng
       video" (on: a grey line on what it does), "Gợi ý từ AI" with "AI gợi ý" ("Gợi ý lại" once there are some; while
       the job runs a spinner and "AI đang nghĩ kiểu chữ cho nhóm…", the card re-reading the group every 3 seconds; a
       failed job an error with its reason), each suggestion a card with a sample line drawn in its colours, its name,
@@ -951,7 +952,7 @@ Built:
   is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
   line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
-  VieNeu", "Kho ảnh, ảnh AI, giọng đọc", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
+  giọng VieNeu", "Kho ảnh, ảnh AI, giọng ElevenLabs", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
   narrower, a row above it. Every tab starts the
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
@@ -980,7 +981,8 @@ Built:
     names "Kiểm tra kết nối" fetched), then "Lưu", "Kiểm tra kết nối" (enabled once saved) and
     "Dùng để viết kịch bản". What still stops a provider is shown in yellow under its fields.
     Under the provider choice, the card "Giọng đọc VieNeu" ("Sẵn sàng" / "Chưa cấu hình") takes the VieNeu API key the
-    same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page; with a key, VieNeu's
+    same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page and one to Nguồn tư liệu
+    for ElevenLabs' key (whose card links back here); with a key, VieNeu's
     voices join the "Giọng" picker. A service whose voices cannot be listed is named in yellow under the picker.
   - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
     (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
@@ -990,7 +992,9 @@ Built:
     from the picker and "Tìm ảnh" for the whole team, and its API
     key (pasted with "Lưu key", then "Đã lưu, kết thúc bằng …abcd" or "Đang dùng key trong file .env
     của máy chủ", with "Dán key mới", "Xoá key" and a "Lấy key" link); below, "Nguồn ảnh AI mặc định"
-    ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, and
+    ("Cloudflare (miễn phí)" | "Gemini (tốn phí)"), which every "Tạo ảnh AI" button uses, with one line saying
+    which is in use and whether it costs ("Đang dùng: Gemini, mỗi ảnh AI tốn phí"; when nobody chose one there,
+    that the app follows the server's setting), and
     "Phong cách ảnh AI" (the text added after every scene's prompt, "Lưu phong cách", "Dùng mặc
     định" once edited; empty adds nothing) in the first card of "Dịch vụ AI", then its keys side by
     side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
@@ -1020,7 +1024,9 @@ Built:
     the chosen ones. A stopped Page cannot be posted to.
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
     app already reads): "← Quản lý Page" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
-    (28 at first) and "Kiểm tra ngay"; a grey line naming the period (Vietnam time, today included) and that each
+    (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says
+    that a queued video is scheduled at the nearest free posting time within 48 hours and moves to "Đã lên lịch";
+    elsewhere a grey line naming the period (Vietnam time, today included) and that each
     number is set against the same number of days just before. Every figure is a tile: its name (an ⓘ tip where
     the number needs one), the value, and "↑ 12% so với 28 ngày trước" in green or "↓" in red, the arrow always
     there so the direction is not colour alone; "Chưa có 28 ngày trước để so" when there is nothing to compare.
@@ -1052,10 +1058,11 @@ Built:
       table says the numbers are the latest reading, that posts made outside the app are not there, and the
       Page's 48-hour median (or how many measured posts it needs). Over 50 rows the table pages by 50; none says
       "Chưa có bài nào app đăng lên Page này trong N ngày."
-    - **Lịch đăng**: "Đăng theo lịch" (as it was on the card): the topic group the Page posts and its posting
-      times (tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
+    - **Lịch đăng**: "Đăng theo lịch" (as it was on the card): the topic group the Page posts ("Nhóm chủ đề Page
+      đăng" above it) and its posting times ("Giờ đăng mỗi ngày (giờ Việt Nam)" above them; tags such as "20:00", typed or removed with ×; "Dùng giờ của nhóm" goes back to the group's), a small
       line saying whose times they are and the next three free times within 48 hours ("và N khung khác" for the
-      rest), then "Hàng chờ (N)": each waiting video's number, cover, title (opening the video), who added it
+      rest), then "Hàng chờ (N)" in bold, always there, with a grey line on how it empties (the first video is
+      scheduled at a free time once that time is within 48 hours, then shows under "Đã lên lịch"): each waiting video's number, cover, title (opening the video), who added it
       and when, the reason in yellow when it could not be scheduled, "Lên"/"Xuống" for the owner and a bin ("Bỏ
       khỏi hàng chờ", confirmed); an empty queue says how to add one. Beside it the whole week of scheduled
       posts and free times.
