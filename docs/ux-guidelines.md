@@ -716,7 +716,8 @@ Built:
   - "Kế hoạch 30 ngày" and "Backlog" (with its count; an idea of a day dropped on the tab's name goes
     to the Backlog):
   - on top, "Hôm nay": "Hôm nay là ngày N/30" and today's ideas, each with its status tag, "Tạo video" or "Mở
-    video", and "Sửa" (before a start date: "Chọn ngày bắt đầu để app biết hôm nay là ngày mấy"; "Kế hoạch chưa bắt
+    video", "Duyệt" once its video is ready (it schedules the video at the plan's suggested time, after a
+    confirm showing that time), and "Sửa" (before a start date: "Chọn ngày bắt đầu để app biết hôm nay là ngày mấy"; "Kế hoạch chưa bắt
     đầu" / "Kế hoạch đã hết 30 ngày" outside the 30 days). Under it "Đã làm X/Y, đã lên lịch N, ngày còn
     trống N";
   - "Tiến độ trước khi đánh giá nhóm: đã làm X/Y video" with the target to change or clear ("Xóa mục tiêu"), or the

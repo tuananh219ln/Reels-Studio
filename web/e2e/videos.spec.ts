@@ -164,6 +164,62 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(text).toHaveValue("Sữa chua\nThêm *đạm*");
 });
 
+test("30-day plan: a ready video is approved from its idea card", async ({ page }) => {
+  test.setTimeout(300_000);
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  const knowledge = await (await page.request.get("/api/knowledge")).json();
+  const group = knowledge.topics.find((topic: { name: string }) => topic.name === "Sức khỏe").id;
+  const headers = { Origin: new URL(page.url()).origin };
+  // The plan's suggested time must be ahead: the plan starts tomorrow, one late post time.
+  const tomorrow = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(Date.now() + 24 * 3600 * 1000));
+  const patched = await page.request.patch(`/api/plans/${group}`, {
+    data: { start_date: tomorrow, post_times: ["23:00"] },
+    headers,
+  });
+  expect(patched.ok()).toBe(true);
+  const added = await page.request.post(`/api/plans/${group}/items`, {
+    data: { day: 1, topic: "Uống nước ấm buổi sáng", pain_group: "", pain: "", hook: "" },
+    headers,
+  });
+  expect(added.ok()).toBe(true);
+  const plan = await added.json();
+  const item = plan.items.find((entry: { topic: string }) => entry.topic === "Uống nước ấm buổi sáng");
+  expect(item).toBeTruthy();
+  expect(item.suggested_post_at).toBeTruthy();
+
+  // Make the video from the idea, as the plan tab's "Tạo video" does.
+  await page.goto(`/videos?plan_item=${item.id}`);
+  const dialog = page.getByRole("dialog", { name: "Tạo video" });
+  await expect(dialog.getByLabel("Chủ đề", { exact: true })).toHaveValue("Uống nước ấm buổi sáng");
+  await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
+  await expect(page).toHaveURL(/\/videos\/\d+$/);
+  await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
+  await uploadPhotos(page);
+  await page.getByRole("button", { name: "Render" }).click();
+  await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
+
+  // Back on the plan tab, the ready idea carries a "Duyệt" button.
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  const card = page.getByTestId("plan-idea").filter({ hasText: "Uống nước ấm buổi sáng" });
+  await expect(card.getByTestId("plan-idea-approve")).toBeVisible();
+  await card.getByTestId("plan-idea-approve").click();
+  const confirm = page.locator(".ant-popover", { hasText: "Duyệt đăng lúc" });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "Duyệt", exact: true }).click();
+  // The plan reloads: the idea is scheduled at the plan's suggested time.
+  await expect(card).toContainText("Đã lên lịch", { timeout: 30_000 });
+  await expect(card).toContainText("23:00");
+});
+
 test("knowledge topics: each opens from its line, keeps its own texts, and an empty one cannot make a video", async ({
   page,
 }) => {

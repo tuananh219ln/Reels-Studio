@@ -63,7 +63,10 @@ import {
   type PlanImportMode,
   type PlanImportReport,
   type PlanPreview,
+  type VideoDetail,
 } from "@/lib/api";
+import { myPageOfGroup } from "@/lib/lastChoices";
+import { myPages, NO_PAGE_OF_MINE } from "@/lib/myPages";
 import { usePolling } from "@/lib/polling";
 import { useLeaveGuard } from "@/lib/unsaved";
 import { useUrlChoiceIf } from "@/lib/urlState";
@@ -1430,6 +1433,7 @@ function IdeaCard({
       <Flex justify="space-between" align="center" style={{ marginTop: 6 }}>
         <Flex align="center" gap={6}>
           <IdeaAction item={item} />
+          <ApproveIdeaButton item={item} onChange={onChange} />
           <EditIdeaButton item={item} onChange={onChange} />
         </Flex>
         <Flex gap={2}>
@@ -1460,6 +1464,62 @@ function IdeaCard({
       </Flex>
       <PostNumbers posts={item.posts ?? []} shareGoal={shareGoal} />
     </div>
+  );
+}
+
+/** "Duyệt" on a plan idea: schedule its video at the plan's suggested time, without opening the video page.
+ * The same POST the video page's "Đăng bài" drawer sends, with the same guards: the member's own Page of the
+ * video's group, the MP4 current, the video free, and the MP4 not already on that Page. Approval stays a manual
+ * gate; this only moves it onto the plan tab, and the confirm shows the time so a wrong slot is caught. */
+function ApproveIdeaButton({ item, onChange }: { item: PlanItem; onChange: Change }) {
+  const { me } = useMe();
+  const [busy, setBusy] = useState(false);
+  if (item.video_id === null || item.status !== "done" || item.suggested_post_at === null) {
+    return null;
+  }
+  const when = formatDateTime(item.suggested_post_at);
+  async function approve() {
+    setBusy(true);
+    try {
+      await onChange(async () => {
+        const video = await api<VideoDetail>(`/videos/${item.video_id}`);
+        const own = myPages(video.fanpages, me.id);
+        const fanpage = myPageOfGroup(video, me.id) ?? (own.length === 1 ? own[0].id : null);
+        if (fanpage === null) {
+          throw new Error(NO_PAGE_OF_MINE);
+        }
+        if (video.mp4_outdated) {
+          throw new Error("Hãy render lại trước khi đăng");
+        }
+        if (video.locked) {
+          throw new Error("Video đang có job chạy, hãy đợi xong rồi duyệt");
+        }
+        if (video.posted_fanpage_ids.includes(fanpage)) {
+          throw new Error("Bản MP4 này đang có trên Fanpage đó. Hãy render bản mới hoặc xóa bài cũ.");
+        }
+        await api<VideoDetail>(`/videos/${item.video_id}/publish`, "POST", {
+          fanpage_id: fanpage,
+          scheduled_at: item.suggested_post_at,
+          auto_comment: true,
+        });
+        return api<Plan>(`/plans/${item.knowledge_topic_id}`);
+      }, `Đã hẹn đăng lúc ${when}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Popconfirm
+      title={`Duyệt đăng lúc ${when}?`}
+      description="Video sẽ tự đăng lên Facebook vào giờ này."
+      okText="Duyệt"
+      cancelText="Huỷ"
+      onConfirm={() => void approve()}
+    >
+      <Button size="small" type="primary" loading={busy} data-testid="plan-idea-approve">
+        Duyệt
+      </Button>
+    </Popconfirm>
   );
 }
 
