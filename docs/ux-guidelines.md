@@ -1484,3 +1484,17 @@ A group has a "Lịch đăng" tab after "Backlog": the calendar of "Bài đăng"
 those on Facebook and those waiting for their time, whether a member scheduled them or a Page's queue did. The queue
 schedules a video only when its Page's next slot is within 48 hours, so a queued video shows there a day or two before
 it goes. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).
+
+
+### Kho kiến thức: the groups bar and "Cập nhật view"
+
+The groups sit in one card above the group: the "Của tôi (n) / Cả đội (m)" switch and the new-group field on one line, the
+groups as pills with their video count under it. "Của tôi" is the start (kept on the browser once chosen) and means the
+groups of the member's Pages and the groups the member made; the group shown stays in the list whatever the switch. An
+empty "Của tôi" says so and points to "Cả đội". "Cập nhật view", before "Tự duyệt khi render xong" on the Video tab, asks
+the worker to read the numbers of every posted video of the group (`POST /api/posts/refresh?knowledge_topic_id=`), and
+the list reads itself every 5 seconds for two minutes after.
+
+The video table's title cell has a line under the title: the Page and when it was posted ("đăng") or is set ("hẹn"),
+else the Page queue it waits in, else the time the plan suggests, then its content type and product count, joined with
+commas; nothing when none applies.

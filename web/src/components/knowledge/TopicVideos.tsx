@@ -9,8 +9,8 @@ import VideoStatusTags from "@/components/VideoStatusTags";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
-import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Tag, Typography, theme } from "antd";
+import { AppstoreOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Tag, Tooltip, Typography, theme } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -69,6 +69,26 @@ function otherTopic(row: VideoRow): string {
   return !topic || title.includes(topic) || topic.includes(title) ? "" : row.topic;
 }
 
+/** The line under a video's title: where and when it is out or set to go, else the Page queue it waits in or the time
+ * the plan suggests, then its content type and product count, so a row says more than its title. */
+function rowDetails(row: VideoRow): string {
+  const parts: string[] = [];
+  const post = row.post;
+  if (post) {
+    const pages = post.pages > 1 ? `${post.fanpage} +${post.pages - 1}` : post.fanpage;
+    parts.push(`${pages}, ${post.state === "posted" ? "đăng" : "hẹn"} ${formatDateTime(post.at)}`);
+  } else if (row.queue) {
+    parts.push(
+      row.queue.error ? `Hàng chờ ${row.queue.fanpage}: ${row.queue.error}` : `Trong hàng chờ ${row.queue.fanpage}`,
+    );
+  } else if (row.suggested_post_at) {
+    parts.push(`Gợi ý đăng ${formatDateTime(row.suggested_post_at)}`);
+  }
+  if (row.content_type) parts.push(row.content_type);
+  if (row.product_count) parts.push(`${row.product_count} sản phẩm`);
+  return parts.join(", ");
+}
+
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
 export default function TopicVideos({
   topicId,
@@ -115,11 +135,35 @@ export default function TopicVideos({
       live = false;
     };
   }, [topicId, message]);
+  // "Cập nhật view": the worker reads the numbers in its next rounds, so the list is read often for a while after.
+  const [refreshing, setRefreshing] = useState(false);
+  const [watching, setWatching] = useState(false);
+  useEffect(() => {
+    if (!watching) return;
+    const timer = window.setTimeout(() => setWatching(false), 120_000);
+    return () => window.clearTimeout(timer);
+  }, [watching]);
+  async function refreshViews() {
+    setRefreshing(true);
+    try {
+      const { asked } = await api<{ asked: number }>(`/posts/refresh?knowledge_topic_id=${topicId}`, "POST");
+      message.success(
+        asked
+          ? `Đã nhờ đọc lại view của ${asked} bài, số mới hiện sau ít phút`
+          : "Không có bài nào cần đọc thêm (chưa có bài đã đăng, hoặc đang chờ đọc view rồi)",
+      );
+      setWatching(true);
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setRefreshing(false);
+    }
+  }
   usePolling(
     async () => {
       if (visible) await load(true);
     },
-    rows?.some((row) => !["draft", "done", "failed"].includes(row.status)) ? 5000 : 60000,
+    watching || rows?.some((row) => !["draft", "done", "failed"].includes(row.status)) ? 5000 : 60000,
   );
 
   // Every choice, with how many of the group's videos are in it, so a group of finished videos still shows the rest.
@@ -168,6 +212,11 @@ export default function TopicVideos({
           />
         </Flex>
         <Flex wrap gap={16} align="center">
+          <Tooltip title="Đọc lại view, share của các bài đã đăng trong nhóm từ Facebook">
+            <Button icon={<ReloadOutlined />} loading={refreshing} onClick={refreshViews}>
+              Cập nhật view
+            </Button>
+          </Tooltip>
           <AutoApproveSwitch />
           {canCreate && (
             <Link prefetch={false} href={`/videos?group=${topicId}`}>
@@ -250,6 +299,15 @@ export default function TopicVideos({
                         </Typography.Text>
                       )}
                     </Flex>
+                  )}
+                  {rowDetails(row) && (
+                    <Typography.Text
+                      type="secondary"
+                      ellipsis={{ tooltip: true }}
+                      style={{ fontSize: 13, maxWidth: 320 }}
+                    >
+                      {rowDetails(row)}
+                    </Typography.Text>
                   )}
                 </Flex>
               ),

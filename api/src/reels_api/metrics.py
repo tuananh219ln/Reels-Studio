@@ -21,7 +21,7 @@ from sqlalchemy.orm import sessionmaker
 
 from . import analytics, facebook, fanpages
 from .facebook import FacebookError
-from .models import PostMetrics, Publication
+from .models import PostMetrics, Publication, Video
 from .sessions import now
 
 log = logging.getLogger("reels_api.metrics")
@@ -77,6 +77,26 @@ def ask_if_stale(db: DbSession) -> int:
             live <= at - FIRST_READING,
             live > at - timedelta(days=FOLLOW_DAYS),
             or_(tried.is_(None), tried <= at - ON_OPEN),
+            ~_asked(),
+        )
+    ).all()
+    for post in rows:
+        post.metrics_requested_at = at
+    return len(rows)
+
+
+def ask_for_topic(db: DbSession, topic_id: int) -> int:
+    """ "Cập nhật view" of a topic group: ask for a new reading of each of its posts that are out, whatever their age,
+    unless one is already asked for. Returns how many were asked; the caller commits."""
+    at = now()
+    rows = db.scalars(
+        select(Publication)
+        .join(Video, Video.id == Publication.video_id)
+        .where(
+            Video.knowledge_topic_id == topic_id,
+            Publication.platform == "facebook",
+            Publication.remote_id.is_not(None),
+            _is_published(at),
             ~_asked(),
         )
     ).all()

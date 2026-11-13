@@ -70,6 +70,17 @@ def freshen(me: Session = Depends(current_member), db: DbSession = Depends(get_d
     return {"asked": asked}
 
 
+@router.post("/refresh")
+def refresh_topic(
+    knowledge_topic_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Cập nhật view" of a topic group: the worker reads the numbers of its posts in its next round. The request never
+    calls Facebook."""
+    asked = metrics.ask_for_topic(db, knowledge_topic_id)
+    db.commit()
+    return {"asked": asked}
+
+
 @router.post("/{post_id}/comment")
 def request_comment(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """ "Bình luận ngay" / "Cập nhật bình luận": the worker writes the affiliate comment, or edits the one it wrote, in
