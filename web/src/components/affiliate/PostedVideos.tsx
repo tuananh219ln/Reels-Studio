@@ -229,7 +229,17 @@ export default function PostedVideos() {
 
   function title(video: AffiliateVideo) {
     return (
-      <Link prefetch={false} href={`/videos/${video.id}`} style={{ fontWeight: 500 }}>
+      <Link
+        prefetch={false}
+        href={`/videos/${video.id}`}
+        style={{
+          fontWeight: 500,
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}
+      >
         {video.title}
       </Link>
     );

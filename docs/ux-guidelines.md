@@ -1498,3 +1498,11 @@ the list reads itself every 5 seconds for two minutes after.
 The video table's title cell has a line under the title: the Page and when it was posted ("đăng") or is set ("hẹn"),
 else the Page queue it waits in, else the time the plan suggests, then its content type and product count, joined with
 commas; nothing when none applies.
+
+### The other lists of videos (2026-11-14)
+
+The same cell and merged columns as the Video list: a thumbnail and a title on up to two lines.
+- **Kho kiến thức, a group's video table:** ID, **Video** (the line under the title: "Ngày N", another topic, where it is out or set to go, content type, product count), **Trạng thái** (status and platform icons, the kind tags under them), **Số liệu** ("View a, 48h b" over "Share c, share/view d"; dashes before a post is out), **Tạo**, then "⋮".
+- **Bài đăng:** a video's row has **Số liệu** (its views added up, the latest post's time under it) in place of "Tổng view" and "Lần đăng gần nhất"; an opened video's posts have one **Bài đăng** column (Page, time and who posted, and who closed it) in place of "Fanpage" and "Giờ đăng".
+- **Page › Nội dung** and **Affiliate › Video đã đăng:** the title takes up to two lines.
+- **Nâng cấp lại:** a video shows its thumbnail, its topic on up to two lines and "#id, tạo <giờ>" under it.

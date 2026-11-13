@@ -222,7 +222,8 @@ test("shared actions: a Page owner can take down a teammate's reel from the post
     return route.fulfill({ json: {} });
   });
   await page.goto("/posts");
-  await page.getByTestId("post-group").click();
+  // The last cell: the middle of the row now lands on the video title, which opens the video.
+  await page.getByTestId("post-group").getByRole("cell").last().click();
   const posts = page.getByTestId("post-rows");
   await expect(posts.getByRole("button", { name: "Xóa", exact: true })).toBeEnabled();
   await posts.getByRole("button", { name: "Xóa", exact: true }).click();

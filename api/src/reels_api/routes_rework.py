@@ -12,6 +12,7 @@ from .db import get_db
 from .errors import ApiError
 from .models import Job, PageQueueItem, Session, Video
 from .sessions import current_member
+from .videos import thumbnail_url
 
 router = APIRouter(prefix="/api/rework")
 
@@ -42,6 +43,8 @@ def candidates(me: Session = Depends(current_member), db: DbSession = Depends(ge
             {
                 "id": video.id,
                 "topic": video.topic,
+                "thumbnail_url": thumbnail_url(video),
+                "created_at": video.created_at.isoformat(),
                 "eligible": reason is None,
                 "reason": reason,
                 "job": {

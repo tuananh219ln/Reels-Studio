@@ -315,12 +315,18 @@ function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void })
       },
     },
     { title: "Trạng thái", key: "status", width: 220, render: (_, group) => <StatusSummary posts={group.posts} /> },
-    { title: "Tổng view", key: "views", width: 120, render: (_, group) => totalViews(group.posts) },
     {
-      title: "Lần đăng gần nhất",
-      key: "at",
-      width: 170,
-      render: (_, group) => formatDateTime(group.posts.map((post) => post.at).reduce((a, b) => (a > b ? a : b))),
+      title: "Số liệu",
+      key: "numbers",
+      width: 210,
+      render: (_, group) => (
+        <Flex vertical>
+          <Typography.Text strong>{totalViews(group.posts)} view</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Gần nhất {formatDateTime(group.posts.map((post) => post.at).reduce((a, b) => (a > b ? a : b)))}
+          </Typography.Text>
+        </Flex>
+      ),
     },
   ];
   return (
@@ -349,25 +355,15 @@ function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) 
       render: (_, post) => <PostComment post={post} onChanged={onDone} />,
     },
     {
-      title: "Fanpage",
-      key: "fanpage",
-      width: 220,
+      title: "Bài đăng",
+      key: "post",
+      width: 300,
       render: (_, post) => (
         <Flex vertical>
           <Typography.Text>{post.fanpage ?? "—"}</Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            Người đăng: {post.created_by}
+            {formatDateTime(post.at)}, người đăng {post.created_by}
           </Typography.Text>
-        </Flex>
-      ),
-    },
-    {
-      title: "Giờ đăng",
-      key: "at",
-      width: 230,
-      render: (_, post) => (
-        <Flex vertical>
-          <span>{formatDateTime(post.at)}</span>
           {post.closed_at && (
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
               {post.status === "deleted" ? "Xóa" : "Hủy"}: {post.closed_by ?? "Trên Facebook"},{" "}

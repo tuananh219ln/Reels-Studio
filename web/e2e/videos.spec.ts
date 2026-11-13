@@ -412,7 +412,7 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await videos.getByLabel("Tìm video của nhóm").fill("rau mam");
   await expect(videos.getByRole("row")).toHaveCount(2);
   // An unposted video shows dashes for its numbers, never a zero it does not have.
-  await expect(videos.getByRole("columnheader", { name: "View 48h" })).toBeVisible();
+  await expect(videos.getByRole("columnheader", { name: "Số liệu" })).toBeVisible();
   await expect(videos.getByRole("row").nth(1)).toContainText("—");
   // "Danh sách" keeps the search, and is remembered in this browser.
   await videos.getByText("Danh sách", { exact: true }).click();
