@@ -10,8 +10,9 @@ import QueueButton from "@/components/video/QueueButton";
 import type { VideoRow } from "@/lib/api";
 import { api, errorMessage, type VideoDetail } from "@/lib/api";
 import { MoreOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Spin, Typography } from "antd";
-import Link from "next/link";
+import { App, Button, Dropdown, Flex, Spin, Typography } from "antd";
+import type { MenuProps } from "antd";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import JobActions from "./JobActions";
 import ApproveVideoButton from "./ApproveVideoButton";
@@ -27,6 +28,7 @@ export default function VideoActions({
 }) {
   const { me } = useMe();
   const { message, modal } = App.useApp();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [detail, setDetail] = useState<VideoDetail | null>(null);
   const [failed, setFailed] = useState(false);
@@ -66,6 +68,38 @@ export default function VideoActions({
       },
     });
   }
+  /** The "⋮" menu: quick actions at once; posting and the queue open a drawer, as they need their own forms. */
+  function menuItems(): MenuProps["items"] {
+    if (!detail) {
+      return failed
+        ? [{ key: "again", label: "Không tải được, thử lại", onClick: () => void read() }]
+        : [{ key: "loading", label: <Spin size="small" />, disabled: true }];
+    }
+    const mine = detail.created_by_id === me.id;
+    const posting = Boolean(detail.mp4) || Boolean(detail.active_job ?? detail.failed_job);
+    return [
+      { key: "open", label: "Mở video", onClick: () => router.push(`/videos/${video.id}`) },
+      ...(posting ? [{ key: "post", label: "Đăng bài, hàng chờ, job…", onClick: () => setOpen(true) }] : []),
+      ...(detail.mp4
+        ? [{ key: "mp4", label: "Tải MP4", onClick: () => window.location.assign(detail.mp4!.download_url) }]
+        : []),
+      ...(detail.has_script
+        ? [
+            { key: "clone", label: "Nhân bản", onClick: () => setClone("same") },
+            ...(detail.platform === "facebook"
+              ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setClone("tiktok") }]
+              : []),
+          ]
+        : []),
+      ...(mine
+        ? [
+            { type: "divider" as const },
+            { key: "move", label: "Chuyển sang nhóm khác", disabled: detail.locked, onClick: () => setMoving(true) },
+            { key: "delete", label: "Xóa video", danger: true, disabled: detail.locked, onClick: remove },
+          ]
+        : []),
+    ];
+  }
   const name = video.title || video.topic;
   return (
     <div
@@ -87,42 +121,32 @@ export default function VideoActions({
         {video.post_stage === "ready" && video.suggested_post_at != null && (
           <ApproveVideoButton videoId={video.id} onDone={() => changed()} />
         )}
-        <Button
-          size="small"
-          type="text"
-          icon={<MoreOutlined />}
-          aria-label={`Thao tác với video ${name}`}
-          onClick={(event) => {
-            event.preventDefault();
-            setDetail(null);
-            setOpen(true);
-            void read();
+        <Dropdown
+          trigger={["click"]}
+          placement="bottomRight"
+          onOpenChange={(next) => {
+            // Read the full video once, when the menu is first opened; no per-row background requests.
+            if (next && !detail) void read();
           }}
-        />
+          menu={{ items: menuItems() }}
+        >
+          <Button size="small" type="text" icon={<MoreOutlined />} aria-label={`Thao tác với video ${name}`} />
+        </Dropdown>
       </Flex>
-      <FormDrawer title="Thao tác video" open={open} onClose={() => setOpen(false)} footer={null}>
-        {!detail ? (
-          failed ? (
-            <Button onClick={() => void read()}>Thử lại</Button>
-          ) : (
-            <Spin />
-          )
-        ) : (
-          <EditorContext.Provider
-            value={{
-              locked: detail.locked,
-              readOnly: true,
-              flush: async () => {},
-              reportFailed: () => {},
-              track: () => {},
-              onSaved: (next) => void changed(next),
-            }}
-          >
+      {detail && (
+        <EditorContext.Provider
+          value={{
+            locked: detail.locked,
+            readOnly: true,
+            flush: async () => {},
+            reportFailed: () => {},
+            track: () => {},
+            onSaved: (next) => void changed(next),
+          }}
+        >
+          <FormDrawer title="Đăng bài và hàng chờ" open={open} onClose={() => setOpen(false)} footer={null}>
             <Flex vertical gap={12}>
               <Typography.Text strong>{name}</Typography.Text>
-              <Link href={`/videos/${video.id}`} prefetch={false}>
-                Mở video
-              </Link>
               {detail.mp4 && (
                 <>
                   <PublishButton video={detail} />
@@ -142,7 +166,6 @@ export default function VideoActions({
                       await changed();
                     }}
                   />
-                  <Button href={detail.mp4.download_url}>Tải MP4</Button>
                 </>
               )}
               {(detail.active_job ?? detail.failed_job) && (
@@ -159,35 +182,19 @@ export default function VideoActions({
                   }}
                 />
               )}
-              {detail.has_script && (
-                <>
-                  <Button onClick={() => setClone("same")}>Nhân bản</Button>
-                  {detail.platform === "facebook" && <Button onClick={() => setClone("tiktok")}>Tạo bản TikTok</Button>}
-                </>
-              )}
-              {detail.created_by_id === me.id && (
-                <>
-                  <Button disabled={detail.locked} onClick={() => setMoving(true)}>
-                    Chuyển sang nhóm khác
-                  </Button>
-                  <Button danger disabled={detail.locked} onClick={remove}>
-                    Xóa video
-                  </Button>
-                </>
-              )}
             </Flex>
-            <CloneModal videoId={video.id} target={clone} onClose={() => setClone(null)} />
-            <MoveGroupDrawer
-              video={detail}
-              open={moving}
-              onClose={() => setMoving(false)}
-              onMoved={(next) => {
-                void changed(next);
-              }}
-            />
-          </EditorContext.Provider>
-        )}
-      </FormDrawer>
+          </FormDrawer>
+          <CloneModal videoId={video.id} target={clone} onClose={() => setClone(null)} />
+          <MoveGroupDrawer
+            video={detail}
+            open={moving}
+            onClose={() => setMoving(false)}
+            onMoved={(next) => {
+              void changed(next);
+            }}
+          />
+        </EditorContext.Provider>
+      )}
     </div>
   );
 }

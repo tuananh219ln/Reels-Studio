@@ -30,10 +30,7 @@ test("a group's list deletes the maker's video after asking", async ({ page }) =
   await expect(health.getByRole("button", { name: "Xóa video Rau dền luộc" })).toHaveCount(0);
 
   await health.getByRole("button", { name: "Thao tác với video Rau dền luộc" }).click();
-  await page
-    .getByRole("dialog", { name: "Thao tác video" })
-    .getByRole("button", { name: "Xóa video", exact: true })
-    .click();
+  await page.getByRole("menuitem", { name: "Xóa video", exact: true }).click();
   const confirm = page.getByRole("dialog", { name: "Xóa video “Rau dền luộc”?" });
   await confirm.getByRole("button", { name: "Xóa" }).click();
   await expect(page.getByText("Đã xóa video")).toBeVisible();
