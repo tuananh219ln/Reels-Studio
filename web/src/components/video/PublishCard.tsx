@@ -37,8 +37,8 @@ type Platform = "facebook" | "tiktok" | "youtube" | "instagram";
  * TikTok: through the member's own connection, or recorded after posting by hand. YouTube Shorts and Instagram Reels:
  * posted by hand and recorded with their link. "Tạo bản TikTok" stays for a TikTok version with its own script.
  */
-export function PublishButton({ video }: { video: VideoDetail }) {
-  const { message } = App.useApp();
+export function PublishButton({ video, block }: { video: VideoDetail; block?: boolean }) {
+  const { message, modal } = App.useApp();
   const { me } = useMe();
   const editor = useEditor();
   // /videos/<id>?publish=<fanpage id>: a suggestion on "Bài đăng" opens the dialog, with that Page picked if given.
@@ -186,7 +186,26 @@ export function PublishButton({ video }: { video: VideoDetail }) {
   const label = (name: string, count: number) => (count ? `${name} (${count})` : name);
   return (
     <>
-      <Button type="primary" icon={<SendOutlined />} disabled={video.locked} onClick={() => setOpen(true)}>
+      <Button
+        type="primary"
+        block={block}
+        icon={<SendOutlined />}
+        disabled={video.locked}
+        onClick={() => {
+          // A red QC check does not stop posting, but the member says so first.
+          if (video.mp4?.qc?.status !== "fail") {
+            setOpen(true);
+            return;
+          }
+          modal.confirm({
+            title: "MP4 chưa đạt kiểm tra chất lượng",
+            content: "Còn mục đỏ ở “Sẵn sàng đăng?”. Nên sửa rồi render lại; vẫn đăng bản này?",
+            okText: "Vẫn đăng",
+            cancelText: "Huỷ",
+            onOk: () => setOpen(true),
+          });
+        }}
+      >
         Đăng bài
       </Button>
       <FormDrawer

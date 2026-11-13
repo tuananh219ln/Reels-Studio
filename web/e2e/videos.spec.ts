@@ -3,7 +3,17 @@ import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { SEED, addUser, chooseOption, connectFacebook, login, loginAsSeed, resetDatabase } from "./helpers";
+import {
+  SEED,
+  addUser,
+  chooseOption,
+  connectFacebook,
+  login,
+  loginAsSeed,
+  openPanel,
+  openPublishDrawer,
+  resetDatabase,
+} from "./helpers";
 
 // The api, a real worker with FFmpeg, and fake Claude/stock sources (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
@@ -33,6 +43,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   // Before an MP4 the side panel opens on "Thiết lập"; the post texts have their own tab.
   await expect(page.getByRole("tab", { name: "Thiết lập" })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Đăng bài" }).click();
+  await openPanel(page, "Rà soát an toàn của AI");
   await expect(page.getByTestId("self-review")).toBeVisible();
   await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
 
@@ -1389,8 +1400,7 @@ async function renderedVideo(page: Page) {
 }
 
 async function openPublish(page: Page) {
-  // The button's name includes its icon's label.
-  await page.getByRole("button", { name: "send Đăng bài", exact: true }).click();
+  await openPublishDrawer(page);
 }
 
 /** A `datetime-local` value some hours from now: "Giờ đăng" is read as Vietnam time, not the browser's. */
@@ -2332,6 +2342,7 @@ test("add and remove music", async ({ page }) => {
   await loginAsSeed(page);
   await newVideoWithScript(page, "rau củ tốt cho tim");
 
+  await openPanel(page, "Nhạc nền");
   await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
   await expect(page.getByTestId("music-name")).toHaveText(/e2e-tone-\d+\.mp3/);
   await expect(page.getByText("Âm lượng: 25%")).toBeVisible();
@@ -2364,6 +2375,7 @@ test("add a track to the music library, then choose it for a video", async ({ pa
   await expect(rows.filter({ hasText: "Piano xương khớp" })).toHaveCount(1);
 
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await openPanel(page, "Nhạc nền");
   await page.getByRole("button", { name: "Chọn từ thư viện" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn nhạc từ thư viện" });
   // The unfiltered list arrives first, so the empty result below really comes from the filter.
@@ -2424,6 +2436,7 @@ test("clone a video with a change request, then see every job in the job log", a
   test.setTimeout(180_000);
   await loginAsSeed(page);
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
+  await openPanel(page, "Nhạc nền");
   await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
   await expect(page.getByTestId("music-name")).toBeVisible();
   const sourceUrl = page.url();
@@ -2685,10 +2698,14 @@ test("video settings: a member's defaults reach their new video, which then chan
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
   await page.getByRole("tab", { name: "Thiết lập" }).click();
+  // A closed panel's controls are left out of role queries: open "Hình ảnh" to read its choice.
+  await openPanel(page, "Hình ảnh");
   const motion = page.getByTestId("motion-settings");
   await expect(motion.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).toBeChecked();
-  await expect(page.getByText("Tốc độ đọc: 1,15×")).toBeVisible();
+  // On the video's tab the speed is shown beside its slider, not in its label.
+  await expect(page.getByTestId("audio-settings").getByTestId("slider-value").first()).toHaveText("1,15×");
   await expect(page.getByRole("slider", { name: "Tốc độ đọc" })).toHaveAttribute("aria-valuenow", "1.15");
+  await openPanel(page, "Chữ & phụ đề");
 
   // The old preset boxes are gone: a member adds a team style, which the video picks at once.
   const preview = page.getByTestId("title-scene").getByTestId("scene-preview");
@@ -2872,6 +2889,7 @@ test("text size: a smaller size on Thiết lập redraws the scenes' previews, t
   const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
   const [sceneBefore, titleBefore] = [await scenePreview.getAttribute("src"), await titlePreview.getAttribute("src")];
   await page.getByRole("tab", { name: "Thiết lập" }).click();
+  await openPanel(page, "Chữ & phụ đề");
   const text = page.getByTestId("text-settings");
   await text.getByLabel("Cỡ chữ", { exact: true }).getByText("Nhỏ", { exact: true }).click();
   await expect(scenePreview).not.toHaveAttribute("src", sceneBefore ?? "");
@@ -2891,6 +2909,7 @@ test("text case: keeping the text as typed redraws the scenes' previews, and the
   const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
   const [sceneBefore, titleBefore] = [await scenePreview.getAttribute("src"), await titlePreview.getAttribute("src")];
   await page.getByRole("tab", { name: "Thiết lập" }).click();
+  await openPanel(page, "Chữ & phụ đề");
   const text = page.getByTestId("text-settings");
   const sceneCase = text.getByLabel("Dạng chữ", { exact: true });
   // Capitals, the original template, until a member chooses otherwise.

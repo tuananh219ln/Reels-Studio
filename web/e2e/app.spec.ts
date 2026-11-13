@@ -9,6 +9,7 @@ import {
   login,
   loginAsSeed,
   openAccountMenu,
+  openPanel,
   resetDatabase,
   row,
 } from "./helpers";
@@ -184,6 +185,7 @@ test("Tự viết: a pasted script becomes scenes at once, with no AI and a safe
   await page.getByRole("button", { name: "Thêm cảnh" }).click();
   await expect(page.getByTestId("scene")).toHaveCount(3);
   await page.getByRole("tab", { name: "Đăng bài" }).click();
+  await openPanel(page, "Rà soát an toàn của AI");
   await expect(page.getByTestId("hand-written-review")).toBeVisible();
 });
 

@@ -348,7 +348,7 @@ Built:
   suggested time), **Affiliate** ("N sản phẩm", or "Chưa gắn sản phẩm" in orange) and, once a Facebook post is out,
   **48 giờ** (when its 48-hour numbers are read, then their views). A time within a day reads "12 phút trước" or
   "sau 3 giờ", otherwise dd/mm/yyyy hh:mm, all in Vietnam time, the full time on hover. Render, Đăng and 48 giờ open
-  the "Xuất bản" tab, Affiliate opens "Nội dung đăng".
+  the "Đăng bài" tab, and so does Affiliate (its products are under "Sản phẩm Shopee" there).
   Under the progress line, "Loại nội dung": filled by the AI that writes the script (one of the team's types when
   one fits, 2026-11-10), empty for a script written by hand; a small field typed freely or picked from the types the
   team's videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
@@ -362,14 +362,21 @@ Built:
   meanwhile) and "Lưu phân tích". The card's header has "Tạo thêm video từ mẫu này" once the sample is
   analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
   scripts and clips; the card then says the sample was deleted).
-  The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
-  as a small player beside its length, with the listening volume under it, "Tải MP4", "Đăng" and "Thêm vào hàng chờ", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
-  đăng" (the post texts; under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page writes them under
+  The scenes fill the left column. The right column is a panel with two tabs. "Đăng bài" goes in the order a member
+  posts: "Sẵn sàng đăng?" first (the QC tiles, below; "Tải MP4" beside "Đăng bài" on one row; "Duyệt" for a planned
+  video; the MP4 as a small player with the listening volume under it, beside its length and render time); then
+  "Nội dung đăng" (Caption, three lines growing as typed, and Hashtag, with "Copy caption + hashtag" in its title);
+  then four blocks that start closed, each a title with its current state in grey beside it while closed: "Bình
+  luận" ("1 ghim, 2 thêm", "Copy ghim" in its title), "Sản phẩm Shopee" or "Sản phẩm TikTok Shop" ("Chưa gắn" or
+  "Đã gắn N"; the AI's product ideas, the Shopee suggestions and the approved products), "Gợi ý nhạc" ("Copy" in its
+  title) and "Rà soát an toàn của AI" ("N điểm đã sửa"); then "Bài đăng của video". A block's fields stay mounted
+  while it is closed, and a "Copy" in a title copies without opening it. "Thiết lập" holds the video's own settings
+  (below). Under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page writes them under
   the reel after the pinned one, in order, and that Facebook does not let an app tag @ people, then each saved one
   as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which opens
   a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
-  bình luận"); until a member picks a tab it shows "Thiết lập" while there is no MP4
-  and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
+  bình luận". Until a member picks a tab it shows "Thiết lập" while there is no MP4
+  and "Đăng bài" once there is. On a wide screen the panel stays in view while the scenes scroll.
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
   Page in use) and "Tự bình luận"; once queued, the button
@@ -388,7 +395,7 @@ Built:
     mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
     the title choice, scene move/delete/add, every photo and clip action, "Vị trí chữ", music
     and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
-    previews and the MP4, "Tải MP4", "Nhân bản", "Chuyển sang nhóm khác", "Xóa", "Render", the "Xuất bản" tab and the
+    previews and the MP4, "Tải MP4", "Nhân bản", "Chuyển sang nhóm khác", "Xóa", "Render", the "Đăng bài" tab and the
     post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
     "Nhân bản" unlocks the page, shown by "Đang chỉnh sửa" in grey by the title and a light
     orange outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
@@ -562,7 +569,7 @@ Built:
   - a photo pasted from a stock site's link (Shutterstock, Getty, iStock, Adobe Stock, 123RF, Dreamstime…) is kept,
     with a warning that its preview carries a watermark and needs a licence;
   - **listening volume** ("Âm lượng nghe"): a speaker button that mutes ("Tắt tiếng" / "Bật tiếng")
-    and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Xuất bản",
+    and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Đăng bài",
     and in "Cắt video" once "Nghe tiếng gốc" is on. It is how loud this browser plays, never part of
     the video: it multiplies the video's own mix (music, narration, ducking keep their proportions),
     changes nothing rendered or posted, and is remembered per browser, the same level for every
@@ -598,9 +605,11 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
-  - under the MP4 on "Xuất bản", "Kiểm tra chất lượng" lists the automatic QC, failed checks first, each a
-    status dot with its label and measure; the title says "Đạt chuẩn đăng", "Đăng được, nên xem lại" or "Chưa đạt,
-    nên sửa rồi render lại". It is advice: posting is never blocked by it;
+  - at the top of "Đăng bài", "Sẵn sàng đăng?" shows the automatic QC as a grid of tiles, three to a row, worst
+    first: each check's label and measure on a red, yellow or green tile; pressing one shows the whole measure and
+    what to do ("Nên sửa rồi render lại trước khi đăng." / "Đăng được, nhưng nên xem lại."). The title's badge says
+    "N mục cần sửa" (the checks not passed) or "Đạt chuẩn đăng". It is advice: with a red check "Đăng bài" still
+    works, after a confirmation ("MP4 chưa đạt kiểm tra chất lượng", "Vẫn đăng");
   - a "Cảnh động" shows its status under the picture: "Đang dựng cảnh động" while its job runs, then
     "Cảnh động, N giây". It is changed through the assistant; another photo or clip replaces it as usual;
   - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture
@@ -627,8 +636,19 @@ Built:
     keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
-  - the "Thiết lập" tab, every change saved at once, with a row of buttons on top (Âm thanh, Nhạc
-    nền, Hình ảnh, Chữ & phụ đề, Logo) that scrolls the panel to that group ("Logo", last: the video's channel among the member's own, and "Gắn logo vào video", greyed until the channel has a logo, with a link to Quản lý Page; the channel is locked once the video is posted): "Âm thanh" (narration on/off, the
+  - the "Thiết lập" tab, every change saved at once. "Logo" comes first and is always open, on a light brand tint:
+    "Kênh" (the video's channel among the member's own, locked once the video is posted), "Gắn" with the "Gắn logo vào
+    video" switch (greyed until the channel has a logo; "Chọn kênh để gắn logo" until a channel is chosen, "Góc trên
+    phải, trừ cảnh tiêu đề" after), "Quản lý Page →", "Đang gắn"/"Chưa gắn" in its title, and a small 9:16 frame of
+    a content scene with the badge where the render puts it. The other groups are panels that open and close, several
+    at once, remembered per member in the browser ("Âm thanh" open the first time); a closed one shows its values in
+    grey beside its name ("Có giọng đọc, 100%", "Wind hill, 25%", "Mờ dần, Zoom vào, Mạnh", "Không hộp, Cỡ nhỏ, Phụ
+    đề tắt"). At the panel's foot, kept in view: "Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký
+    tự)." and the link to Cài đặt › Thiết lập mặc định. "Âm thanh" puts one control per row, its label on the left
+    (92 px) and any explanation behind an ⓘ: "Đọc lời" (the switch beside the voice and "Nghe thử"), "Tốc độ" (the
+    slider with its value beside it), "Âm lượng giọng", "Nghỉ sau lời" (0,4 / 0,7 / 1 giây); Cài đặt › Thiết lập mặc
+    định keeps the stacked card. In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
+    The groups: "Âm thanh" (narration on/off, the
     voice picked from the ElevenLabs account's voices, and VieNeu's once its key is set, grouped "ElevenLabs" and "VieNeu"
     when both have voices, with "Nghe thử" playing ElevenLabs' free sample (VieNeu voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
@@ -659,7 +679,7 @@ Built:
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and a line linking
     to the member's defaults ("Video mới lấy mặc định của người tạo…"). There is no button to take the
     defaults back (removed 2026-11-08). A new video starts with its maker's defaults (their own, or the
-    app's built-in ones while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
+    app's built-in ones while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Đăng bài";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
     Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and

@@ -70,3 +70,29 @@ export async function chooseOption(page: Page, select: Locator, option: string) 
   await expect(dropdown).not.toHaveClass(/-(appear|enter|leave)/);
   await dropdown.getByTitle(option, { exact: true }).click();
 }
+
+/**
+ * Opens a panel of the video page's side tabs ("Nhạc nền", "Bình luận"…) by its title, if it is closed. The panels
+ * start closed (but for "Âm thanh") and stay mounted, so a hidden field can be read but not seen or clicked.
+ */
+export async function openPanel(page: Page, title: string) {
+  const header = page.locator(".ant-collapse-header[aria-expanded]").filter({
+    has: page.locator(".ant-collapse-title").getByText(title, { exact: true }),
+  });
+  if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
+  await expect(header).toHaveAttribute("aria-expanded", "true");
+}
+
+/**
+ * "Đăng bài" on the video page. A red QC check asks first (the e2e MP4s have silent narration); the test goes on to
+ * the drawer either way.
+ */
+export async function openPublishDrawer(page: Page) {
+  // The button's name includes its icon's label.
+  await page.getByRole("button", { name: "send Đăng bài", exact: true }).click();
+  const ask = page.locator(".ant-modal-confirm").filter({ hasText: "MP4 chưa đạt kiểm tra chất lượng" });
+  const drawer = page.getByRole("dialog", { name: "Đăng bài" });
+  await expect(ask.or(drawer).first()).toBeVisible();
+  if (await ask.isVisible()) await ask.getByRole("button", { name: "Vẫn đăng" }).click();
+  await expect(drawer).toBeVisible();
+}
