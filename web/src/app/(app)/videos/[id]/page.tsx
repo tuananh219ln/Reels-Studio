@@ -7,7 +7,8 @@ import { EditorContext } from "@/components/video/AutoSaveField";
 import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
 import PublishTab from "@/components/video/PublishTab";
-import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
+import { QcChip } from "@/components/video/QcCard";
+import { RenderButtons, RenderStatus, showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
@@ -36,29 +37,28 @@ import {
   FolderOutlined,
   MoreOutlined,
   PlusOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
   App,
   Button,
   Card,
-  Col,
   Collapse,
+  Drawer,
   Dropdown,
   Flex,
   Grid,
   Radio,
   Result,
-  Row,
   Segmented,
-  Space,
   Spin,
   Tabs,
   Typography,
 } from "antd";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket while a job runs,
@@ -86,14 +86,24 @@ const JOB_NAMES = {
 /** The side panel's tabs: "Đăng bài" (post texts, MP4 and posting together) and the video's own settings. */
 type SideTab = "publish" | "setup";
 
-// Side by side only on a computer, which has no header bar: just under the top, above the render bar.
-const SIDE_PANEL_STYLE = {
-  position: "sticky",
-  top: 16,
-  maxHeight: "calc(100vh - 16px - 96px)",
-  overflowY: "auto",
-  paddingRight: 4,
-} as const;
+// The side panel's width beside the scenes; below WIDE_FROM it becomes a drawer opened from the header.
+const SIDE_WIDTH = 440;
+const WIDE_FROM = 1100;
+// The phone's own header bar (AppShell), under which the page's header sticks.
+const PHONE_HEADER = 60;
+
+/** Whether the window is at least `width` px wide, following it as it is resized. */
+function useWiderThan(width: number) {
+  return useSyncExternalStore(
+    (changed) => {
+      const query = window.matchMedia(`(min-width: ${width}px)`);
+      query.addEventListener("change", changed);
+      return () => query.removeEventListener("change", changed);
+    },
+    () => window.matchMedia(`(min-width: ${width}px)`).matches,
+    () => true,
+  );
+}
 
 export default function VideoPage() {
   const { id } = useParams<{ id: string }>();
@@ -120,10 +130,26 @@ export default function VideoPage() {
   useEffect(() => {
     if (askedClone !== null) router.replace(`/videos/${id}`);
   }, [askedClone, id, router]);
-  // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Xuất bản".
+  // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Đăng bài".
   const [sideTab, setSideTab] = useState<SideTab | null>(null);
-  // The two columns sit side by side from xl up; only then does the side panel stick.
-  const sideBySide = Grid.useBreakpoint().xl ?? false;
+  // From 1100 px the side panel sits beside the scenes; narrower, it is a drawer, open or not.
+  const sideBySide = useWiderThan(WIDE_FROM);
+  const [sideOpen, setSideOpen] = useState(false);
+  const screens = Grid.useBreakpoint();
+  // A computer has no header bar of its own (AppShell's lg); a phone leaves out the header's summary line.
+  const desktop = screens.lg ?? true;
+  const phone = !(screens.sm ?? true);
+  // The fixed header's height, so the side panel sticks just under it and fills the rest of the window.
+  const header = useRef<HTMLDivElement>(null);
+  const [headerHeight, setHeaderHeight] = useState(120);
+  const loaded = video !== null;
+  useEffect(() => {
+    const element = header.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setHeaderHeight(element.offsetHeight));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [loaded]);
   const pending = useRef(new Set<Promise<unknown>>());
   // "Xem" or "Chỉnh sửa", chosen when the page opens: a video already rendered or posted opens in "Xem", so a stray
   // click cannot change it; a draft opens in "Chỉnh sửa". Null until the video has loaded.
@@ -284,6 +310,12 @@ export default function VideoPage() {
     showFirstBlocking();
   }
 
+  /** Shows the side panel, on `tab` when given: the drawer opens on a narrower screen. */
+  function openSide(tab?: SideTab) {
+    if (tab) setSideTab(tab);
+    if (!sideBySide) setSideOpen(true);
+  }
+
   function setAllExpanded(open: boolean) {
     const ids = [video?.title_scene, ...(video?.scenes ?? [])].filter((scene) => !!scene).map((scene) => scene!.id);
     setExpanded(Object.fromEntries(ids.map((sceneId) => [sceneId, open])));
@@ -362,158 +394,211 @@ export default function VideoPage() {
 
   return (
     <EditorContext.Provider value={editor}>
-      <Link prefetch={false} href="/videos" style={{ fontSize: 13 }}>
-        <ArrowLeftOutlined /> Danh sách video
-      </Link>
-      <Flex wrap gap={12} justify="space-between" align="flex-start" style={{ margin: "6px 0 16px" }}>
-        {/* Grows beside the actions, but never below 320 px: on a phone the actions wrap under the title. */}
-        <div style={{ minWidth: 0, flex: "1 1 320px" }}>
-          <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }} data-testid="video-title">
-            {video.title || video.topic}
-          </Typography.Title>
-          {/* Status, the topic and who is here on one line, so the scenes start high on the screen. */}
-          <Flex wrap align="center" gap={8} style={{ marginTop: 6 }}>
-            <Flex gap={12} align="center" wrap>
+      {/* Fixed at the top while the page scrolls: what the video is and how it stands, its main actions on the first
+        row ("Xem trước" and "Render" always in reach), the progress line, QC and the render's state on the second. */}
+      <div
+        ref={header}
+        data-testid="render-bar"
+        data-compact={phone ? "true" : undefined}
+        style={{
+          position: "sticky",
+          top: desktop ? 0 : PHONE_HEADER,
+          zIndex: 9,
+          margin: desktop ? "-32px -32px 12px" : "-20px -16px 12px",
+          padding: desktop ? "12px 32px 10px" : "8px 16px",
+          background: COLORS.layout,
+          borderBottom: `1px solid ${COLORS.border}`,
+        }}
+      >
+        <Flex wrap gap={8} justify="space-between" align="center">
+          <Flex wrap align="center" gap="4px 10px" style={{ minWidth: 0, flex: "1 1 320px" }}>
+            <Link prefetch={false} href="/videos" style={{ fontSize: 13, flex: "none" }}>
+              <ArrowLeftOutlined /> Danh sách video
+            </Link>
+            {/* At least 300 px: on a phone it takes a row of its own rather than squeezing to a few letters. */}
+            <Typography.Title
+              level={4}
+              ellipsis={{ tooltip: video.title || video.topic }}
+              style={{ margin: 0, fontWeight: 600, flex: "1 1 300px", minWidth: 0 }}
+              data-testid="video-title"
+            >
+              {video.title || video.topic}
+            </Typography.Title>
+            <Flex gap={10} align="center" wrap style={{ flex: "none" }}>
               <VideoStatusTags video={video} />
               {video.has_script && !viewing && (
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="editing-tag">
                   Đang chỉnh sửa
                 </Typography.Text>
               )}
+              <PresenceAvatars others={others} />
             </Flex>
-            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-              Chủ đề {video.topic}
-              {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by} lúc{" "}
-              <span data-testid="video-created-at">{formatDateTime(video.created_at)}</span>
-            </Typography.Text>
-            <PresenceAvatars others={others} />
           </Flex>
-          <VideoProgress video={video} onOpenTab={() => setSideTab("publish")} />
-          <Flex wrap align="center" gap={8} style={{ marginTop: 6 }} data-testid="video-kind-line">
-            <ContentTypeField
-              key={video.content_type}
-              value={video.content_type}
-              disabled={video.locked}
-              onSave={(content_type) => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { content_type }))}
-            />
-            {/* The type is in the field already; the tags say how the video was made. */}
-            <VideoKindTags video={{ ...video, content_type: "" }} />
-            <PostedPlatforms postedOn={video.posted_on ?? []} />
+          <Flex wrap gap={8} align="center">
+            {video.has_script &&
+              (viewing ? (
+                <Button icon={<EditOutlined />} onClick={startEditing}>
+                  Chỉnh sửa
+                </Button>
+              ) : (
+                <Button type="primary" ghost icon={<CheckOutlined />} onClick={finishEditing}>
+                  Xong
+                </Button>
+              ))}
+            {/* In "Duyệt phân tích trước" the "Video mẫu" card writes, after saving the edited analysis. */}
+            {!video.has_script && !job && !video.reference?.awaiting_review && (
+              <Button
+                type="primary"
+                disabled={busy}
+                onClick={() => act(() => api<VideoDetail>(`/videos/${id}/script`, "POST"))}
+              >
+                Viết kịch bản
+              </Button>
+            )}
+            {/* The rarer actions sit under "⋯", "Xóa" last and apart. */}
+            {(video.has_script || video.created_by_id === me.id) && (
+              <Dropdown
+                trigger={["click"]}
+                disabled={busy}
+                menu={{
+                  items: [
+                    ...(video.has_script
+                      ? [{ key: "clone", icon: <CopyOutlined />, label: "Nhân bản", onClick: () => setCloning("same") }]
+                      : []),
+                    ...(video.has_script && video.platform === "facebook"
+                      ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setCloning("tiktok") }]
+                      : []),
+                    // Only its maker moves or deletes a video (or its scenes); the api refuses anyone else.
+                    ...(video.created_by_id === me.id
+                      ? [
+                          {
+                            key: "group",
+                            icon: <FolderOutlined />,
+                            label: "Chuyển sang nhóm khác",
+                            disabled: video.locked,
+                            onClick: () => setMoving(true),
+                          },
+                          { type: "divider" as const },
+                          {
+                            key: "delete",
+                            icon: <DeleteOutlined />,
+                            label: "Xóa video",
+                            danger: true,
+                            disabled: video.locked,
+                            onClick: remove,
+                          },
+                        ]
+                      : []),
+                  ],
+                }}
+              >
+                <Button icon={<MoreOutlined />} aria-label="Thao tác khác với video" />
+              </Dropdown>
+            )}
+            {video.has_script && (
+              <RenderButtons
+                video={video}
+                busy={busy}
+                onRender={render}
+                onGenerateImages={generateImages}
+                onPreview={async () => {
+                  // The preview shows the saved scenes: the field being typed in is saved first.
+                  await editor.flush();
+                  setPreviewFrom(0);
+                }}
+              />
+            )}
+            {video.has_script && !sideBySide && (
+              <Button icon={<SettingOutlined />} onClick={() => openSide()} data-testid="open-side-panel">
+                Thiết lập / Đăng bài
+              </Button>
+            )}
           </Flex>
-          {video.clone_of && (
-            <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="clone-of">
-              Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
-            </Typography.Paragraph>
-          )}
-          {(video.variant_of || video.variants.length > 0) && (
-            <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="variants">
-              {video.variant_of && (
-                <>
-                  {/* The link goes to the Facebook video this TikTok version was made from; both share a title. */}
-                  Bản Facebook gốc:{" "}
-                  <Link prefetch={false} href={`/videos/${video.variant_of.id}`}>
-                    {video.variant_of.title}
-                  </Link>
-                </>
-              )}
-              {video.variants.length > 0 && (
-                <>
-                  Bản TikTok:{" "}
-                  {video.variants.map((variant, index) => (
-                    <span key={variant.id}>
-                      {index > 0 && ", "}
-                      <Link prefetch={false} href={`/videos/${variant.id}`}>
-                        {variant.title}
-                      </Link>
-                    </span>
-                  ))}
-                </>
-              )}
-            </Typography.Paragraph>
-          )}
-          {video.plan_idea && (
-            <Alert
-              type="info"
-              style={{ marginTop: 8, padding: "6px 12px" }}
-              data-testid="plan-idea-card"
-              title={
-                <>
-                  Theo kế hoạch 30 ngày, {video.plan_idea.day === null ? "Backlog" : `ngày ${video.plan_idea.day}`}
-                  {video.plan_idea.pain_group ? `, ${video.plan_idea.pain_group}` : ""}
-                </>
-              }
-              description={
-                <div style={{ fontSize: 13 }}>
-                  {video.plan_idea.pain && <div>Nỗi đau: {video.plan_idea.pain}</div>}
-                  {video.plan_idea.hook && <div>Hook: {video.plan_idea.hook}</div>}
-                </div>
-              }
+        </Flex>
+        <Flex wrap gap="4px 12px" align="center" justify="space-between" style={{ marginTop: 6 }}>
+          <Flex wrap gap="4px 8px" align="center" style={{ minWidth: 0 }}>
+            <VideoProgress video={video} onOpenTab={() => openSide("publish")} />
+            {video.mp4?.qc && <QcChip qc={video.mp4.qc} onOpen={() => openSide("publish")} />}
+          </Flex>
+          {video.has_script && (
+            <RenderStatus
+              video={video}
+              busy={busy}
+              compact={phone}
+              onShowBlocking={showBlocking}
+              jobName={job ? JOB_NAMES[job.kind] : undefined}
+              onCancelJob={job ? () => act(() => api<VideoDetail>(`/jobs/${job.id}/cancel`, "POST")) : undefined}
             />
           )}
-        </div>
-        <Space wrap>
-          {video.has_script &&
-            (viewing ? (
-              <Button icon={<EditOutlined />} onClick={startEditing}>
-                Chỉnh sửa
-              </Button>
-            ) : (
-              <Button type="primary" icon={<CheckOutlined />} onClick={finishEditing}>
-                Xong
-              </Button>
-            ))}
-          {/* In "Duyệt phân tích trước" the "Video mẫu" card writes, after saving the edited analysis. */}
-          {!video.has_script && !job && !video.reference?.awaiting_review && (
-            <Button
-              type="primary"
-              disabled={busy}
-              onClick={() => act(() => api<VideoDetail>(`/videos/${id}/script`, "POST"))}
-            >
-              Viết kịch bản
-            </Button>
-          )}
-          {/* The main action stays a button; the rarer ones sit under "⋯", "Xóa" last and apart. */}
-          {(video.has_script || video.created_by_id === me.id) && (
-            <Dropdown
-              trigger={["click"]}
-              disabled={busy}
-              menu={{
-                items: [
-                  ...(video.has_script
-                    ? [{ key: "clone", icon: <CopyOutlined />, label: "Nhân bản", onClick: () => setCloning("same") }]
-                    : []),
-                  ...(video.has_script && video.platform === "facebook"
-                    ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setCloning("tiktok") }]
-                    : []),
-                  // Only its maker moves or deletes a video (or its scenes); the api refuses anyone else.
-                  ...(video.created_by_id === me.id
-                    ? [
-                        {
-                          key: "group",
-                          icon: <FolderOutlined />,
-                          label: "Chuyển sang nhóm khác",
-                          disabled: video.locked,
-                          onClick: () => setMoving(true),
-                        },
-                        { type: "divider" as const },
-                        {
-                          key: "delete",
-                          icon: <DeleteOutlined />,
-                          label: "Xóa video",
-                          danger: true,
-                          disabled: video.locked,
-                          onClick: remove,
-                        },
-                      ]
-                    : []),
-                ],
-              }}
-            >
-              <Button icon={<MoreOutlined />} aria-label="Thao tác khác với video" />
-            </Dropdown>
-          )}
-        </Space>
+        </Flex>
+      </div>
+      {/* What the video is about and how it was made: read once, so it scrolls away under the header. */}
+      <Flex wrap align="center" gap="4px 12px" style={{ marginBottom: 12 }} data-testid="video-kind-line">
+        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+          Chủ đề {video.topic}
+          {video.knowledge_topic ? `, nhóm ${video.knowledge_topic}` : ""}, tạo bởi {video.created_by} lúc{" "}
+          <span data-testid="video-created-at">{formatDateTime(video.created_at)}</span>
+        </Typography.Text>
+        <ContentTypeField
+          key={video.content_type}
+          value={video.content_type}
+          disabled={video.locked}
+          onSave={(content_type) => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { content_type }))}
+        />
+        {/* The type is in the field already; the tags say how the video was made. */}
+        <VideoKindTags video={{ ...video, content_type: "" }} />
+        <PostedPlatforms postedOn={video.posted_on ?? []} />
       </Flex>
+      {video.clone_of && (
+        <Typography.Paragraph type="secondary" style={{ margin: "0 0 12px", fontSize: 13 }} data-testid="clone-of">
+          Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
+        </Typography.Paragraph>
+      )}
+      {(video.variant_of || video.variants.length > 0) && (
+        <Typography.Paragraph type="secondary" style={{ margin: "0 0 12px", fontSize: 13 }} data-testid="variants">
+          {video.variant_of && (
+            <>
+              {/* The link goes to the Facebook video this TikTok version was made from; both share a title. */}
+              Bản Facebook gốc:{" "}
+              <Link prefetch={false} href={`/videos/${video.variant_of.id}`}>
+                {video.variant_of.title}
+              </Link>
+            </>
+          )}
+          {video.variants.length > 0 && (
+            <>
+              Bản TikTok:{" "}
+              {video.variants.map((variant, index) => (
+                <span key={variant.id}>
+                  {index > 0 && ", "}
+                  <Link prefetch={false} href={`/videos/${variant.id}`}>
+                    {variant.title}
+                  </Link>
+                </span>
+              ))}
+            </>
+          )}
+        </Typography.Paragraph>
+      )}
+      {video.plan_idea && (
+        <Alert
+          type="info"
+          style={{ marginBottom: 12, padding: "6px 12px" }}
+          data-testid="plan-idea-card"
+          title={
+            <>
+              Theo kế hoạch 30 ngày, {video.plan_idea.day === null ? "Backlog" : `ngày ${video.plan_idea.day}`}
+              {video.plan_idea.pain_group ? `, ${video.plan_idea.pain_group}` : ""}
+            </>
+          }
+          description={
+            <div style={{ fontSize: 13 }}>
+              {video.plan_idea.pain && <div>Nỗi đau: {video.plan_idea.pain}</div>}
+              {video.plan_idea.hook && <div>Hook: {video.plan_idea.hook}</div>}
+            </div>
+          }
+        />
+      )}
 
       {job && (
         <Alert
@@ -631,178 +716,160 @@ export default function VideoPage() {
           </Card>
         )
       ) : (
-        <Row gutter={[16, 16]}>
-          <Col xs={24} xl={15} xxl={11}>
-            {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
-            <Flex
-              vertical
-              gap={16}
-              data-testid="editor-column"
-              style={
-                viewing
-                  ? undefined
-                  : { outline: `1px solid ${COLORS.primaryBorder}`, outlineOffset: 8, borderRadius: 12 }
-              }
-            >
-              {video.video_blocking.map((reason) => (
-                <Alert key={reason} type="error" showIcon title={reason} data-testid="video-blocking" />
+        <SideLayout
+          wide={sideBySide}
+          top={headerHeight}
+          open={sideOpen}
+          onClose={() => setSideOpen(false)}
+          panel={
+            <Tabs
+              activeKey={sideTab ?? (video.mp4 ? "publish" : "setup")}
+              onChange={(key) => setSideTab(key as SideTab)}
+              items={[
+                {
+                  key: "publish",
+                  label: "Đăng bài",
+                  children: <PublishTab video={video} postEditor={postEditor} onApproved={load} />,
+                },
+                {
+                  key: "setup",
+                  label: "Thiết lập",
+                  children: <SetupTab video={video} />,
+                },
+              ]}
+            />
+          }
+        >
+          {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
+          <Flex
+            vertical
+            gap={16}
+            data-testid="editor-column"
+            style={
+              viewing ? undefined : { outline: `1px solid ${COLORS.primaryBorder}`, outlineOffset: 8, borderRadius: 12 }
+            }
+          >
+            {video.video_blocking.map((reason) => (
+              <Alert key={reason} type="error" showIcon title={reason} data-testid="video-blocking" />
+            ))}
+            {video.video_warnings
+              .filter((warning) => warning.field === "total" || warning.field === "scenes")
+              .map((warning) => (
+                <Alert key={warning.message} type="warning" showIcon title={warning.message} />
               ))}
-              {video.video_warnings
-                .filter((warning) => warning.field === "total" || warning.field === "scenes")
-                .map((warning) => (
-                  <Alert key={warning.message} type="warning" showIcon title={warning.message} />
-                ))}
-              {video.title_scene && (
-                <Card title="Tiêu đề" size="small">
-                  <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
-                  <Radio.Group
-                    style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
-                    value={video.title_options.indexOf(video.title_scene.text)}
-                    disabled={video.locked || viewing}
-                    onChange={(event) => {
-                      const text = video.title_options[event.target.value as number];
-                      void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
-                    }}
-                    options={video.title_options.map((option, index) => ({ value: index, label: option }))}
-                  />
-                  {/* Under the options, not in the card's header, where on a phone it squeezed the title to "T…". */}
-                  {/* A script typed through MCP was written by the member's Claude: script_by names it instead. */}
-                  {video.hand_written && !video.script_by && (
-                    <Typography.Text
-                      type="secondary"
-                      style={{ display: "block", marginTop: 10, fontSize: 12 }}
-                      data-testid="script-by"
-                    >
-                      Kịch bản tự viết, không qua AI
-                    </Typography.Text>
-                  )}
-                  {video.script_by && (
-                    <Typography.Text
-                      type="secondary"
-                      style={{ display: "block", marginTop: 10, fontSize: 12 }}
-                      data-testid="script-by"
-                    >
-                      Kịch bản viết bởi {video.script_by}
-                    </Typography.Text>
-                  )}
-                </Card>
-              )}
-              {video.has_script && (
-                <Card title="Kiểu video" size="small" data-testid="video-mode">
-                  <Segmented
-                    aria-label="Kiểu video"
-                    value={video.mode}
-                    disabled={video.locked || viewing}
-                    options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
-                    onChange={(value) =>
-                      modal.confirm({
-                        title: `Đổi sang “${VIDEO_MODES.find((item) => item.value === value)?.label}”?`,
-                        content: "Ảnh, clip và ảnh món đã chọn vẫn được giữ, đổi lại lúc nào cũng được.",
-                        okText: "Đổi",
-                        cancelText: "Huỷ",
-                        onOk: () => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { mode: value as VideoMode })),
-                      })
-                    }
-                  />
-                  <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
-                    {VIDEO_MODES.find((item) => item.value === video.mode)?.hint}
-                  </Typography.Text>
-                </Card>
-              )}
-              <Flex justify="flex-end" gap={4}>
-                <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
-                  Mở tất cả
-                </Button>
-                <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
-                  Thu gọn tất cả
-                </Button>
-              </Flex>
-              {video.title_scene && (
-                <SceneCard
-                  scene={video.title_scene}
-                  label="Cảnh tiêu đề"
-                  backdrop={isBackdrop(video)}
-                  generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
-                  editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
-                  voiceEnabled={video.voice_enabled}
-                  onPreview={() => setPreviewFrom(0)}
-                  expanded={expanded[video.title_scene.id] ?? !viewing}
-                  onToggle={() => {
-                    const titleId = video.title_scene!.id;
-                    setExpanded((current) => ({ ...current, [titleId]: !(current[titleId] ?? !viewing) }));
+            {video.title_scene && (
+              <Card title="Tiêu đề" size="small">
+                <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
+                <Radio.Group
+                  style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
+                  value={video.title_options.indexOf(video.title_scene.text)}
+                  disabled={video.locked || viewing}
+                  onChange={(event) => {
+                    const text = video.title_options[event.target.value as number];
+                    void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
                   }}
+                  options={video.title_options.map((option, index) => ({ value: index, label: option }))}
                 />
-              )}
-              {scenes.map((scene, index) => (
-                <SceneCard
-                  key={scene.id}
-                  scene={scene}
-                  label={`Cảnh ${index + 1}`}
-                  backdrop={isBackdrop(video)}
-                  backdropScene={video.title_scene}
-                  generating={job?.kind === "image" && job.scene_id === scene.id}
-                  editing={job?.kind === "image_edit" && job.scene_id === scene.id}
-                  voiceEnabled={video.voice_enabled}
-                  onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
-                  expanded={expanded[scene.id] ?? !viewing}
-                  onToggle={() =>
-                    setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? !viewing) }))
-                  }
-                  onMove={(step) => move(index, step)}
-                  onDelete={
-                    video.created_by_id === me.id
-                      ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))
-                      : undefined
+                {/* Under the options, not in the card's header, where on a phone it squeezed the title to "T…". */}
+                {/* A script typed through MCP was written by the member's Claude: script_by names it instead. */}
+                {video.hand_written && !video.script_by && (
+                  <Typography.Text
+                    type="secondary"
+                    style={{ display: "block", marginTop: 10, fontSize: 12 }}
+                    data-testid="script-by"
+                  >
+                    Kịch bản tự viết, không qua AI
+                  </Typography.Text>
+                )}
+                {video.script_by && (
+                  <Typography.Text
+                    type="secondary"
+                    style={{ display: "block", marginTop: 10, fontSize: 12 }}
+                    data-testid="script-by"
+                  >
+                    Kịch bản viết bởi {video.script_by}
+                  </Typography.Text>
+                )}
+              </Card>
+            )}
+            {video.has_script && (
+              <Card title="Kiểu video" size="small" data-testid="video-mode">
+                <Segmented
+                  aria-label="Kiểu video"
+                  value={video.mode}
+                  disabled={video.locked || viewing}
+                  options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
+                  onChange={(value) =>
+                    modal.confirm({
+                      title: `Đổi sang “${VIDEO_MODES.find((item) => item.value === value)?.label}”?`,
+                      content: "Ảnh, clip và ảnh món đã chọn vẫn được giữ, đổi lại lúc nào cũng được.",
+                      okText: "Đổi",
+                      cancelText: "Huỷ",
+                      onOk: () => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { mode: value as VideoMode })),
+                    })
                   }
                 />
-              ))}
-              <Button
-                icon={<PlusOutlined />}
-                disabled={video.locked || viewing || busy}
-                onClick={() => act(() => api<VideoDetail>(`/videos/${id}/scenes`, "POST"))}
-              >
-                Thêm cảnh
+                <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
+                  {VIDEO_MODES.find((item) => item.value === video.mode)?.hint}
+                </Typography.Text>
+              </Card>
+            )}
+            <Flex justify="flex-end" gap={4}>
+              <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
+                Mở tất cả
+              </Button>
+              <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
+                Thu gọn tất cả
               </Button>
             </Flex>
-          </Col>
-          <Col xs={24} xl={9} xxl={13}>
-            {/* On a wide screen the side panel stays in view while the scenes scroll past it. */}
-            <div style={sideBySide ? SIDE_PANEL_STYLE : undefined} data-side-panel>
-              <Tabs
-                activeKey={sideTab ?? (video.mp4 ? "publish" : "setup")}
-                onChange={(key) => setSideTab(key as SideTab)}
-                items={[
-                  {
-                    key: "publish",
-                    label: "Đăng bài",
-                    children: <PublishTab video={video} postEditor={postEditor} onApproved={load} />,
-                  },
-                  {
-                    key: "setup",
-                    label: "Thiết lập",
-                    children: <SetupTab video={video} />,
-                  },
-                ]}
+            {video.title_scene && (
+              <SceneCard
+                scene={video.title_scene}
+                label="Cảnh tiêu đề"
+                backdrop={isBackdrop(video)}
+                generating={job?.kind === "image" && job.scene_id === video.title_scene.id}
+                editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
+                voiceEnabled={video.voice_enabled}
+                onPreview={() => setPreviewFrom(0)}
+                expanded={expanded[video.title_scene.id] ?? !viewing}
+                onToggle={() => {
+                  const titleId = video.title_scene!.id;
+                  setExpanded((current) => ({ ...current, [titleId]: !(current[titleId] ?? !viewing) }));
+                }}
               />
-            </div>
-          </Col>
-        </Row>
-      )}
-      {video.has_script && (
-        <RenderBar
-          video={video}
-          busy={busy}
-          onRender={render}
-          onGenerateImages={generateImages}
-          onShowBlocking={showBlocking}
-          jobName={job ? JOB_NAMES[job.kind] : undefined}
-          onCancelJob={job ? () => act(() => api<VideoDetail>(`/jobs/${job.id}/cancel`, "POST")) : undefined}
-          onPreview={async () => {
-            // The preview shows the saved scenes: the field being typed in is saved first.
-            await editor.flush();
-            setPreviewFrom(0);
-          }}
-        />
+            )}
+            {scenes.map((scene, index) => (
+              <SceneCard
+                key={scene.id}
+                scene={scene}
+                label={`Cảnh ${index + 1}`}
+                backdrop={isBackdrop(video)}
+                backdropScene={video.title_scene}
+                generating={job?.kind === "image" && job.scene_id === scene.id}
+                editing={job?.kind === "image_edit" && job.scene_id === scene.id}
+                voiceEnabled={video.voice_enabled}
+                onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
+                expanded={expanded[scene.id] ?? !viewing}
+                onToggle={() =>
+                  setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? !viewing) }))
+                }
+                onMove={(step) => move(index, step)}
+                onDelete={
+                  video.created_by_id === me.id
+                    ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))
+                    : undefined
+                }
+              />
+            ))}
+            <Button
+              icon={<PlusOutlined />}
+              disabled={video.locked || viewing || busy}
+              onClick={() => act(() => api<VideoDetail>(`/videos/${id}/scenes`, "POST"))}
+            >
+              Thêm cảnh
+            </Button>
+          </Flex>
+        </SideLayout>
       )}
       {previewFrom !== null && (
         <VideoPreview
@@ -815,5 +882,65 @@ export default function VideoPage() {
       <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
       <MoveGroupDrawer video={video} open={moving} onClose={() => setMoving(false)} onMoved={receive} />
     </EditorContext.Provider>
+  );
+}
+
+/**
+ * The scenes and the side panel: side by side on a wide screen, the panel at a fixed width and stuck under the
+ * header, scrolling on its own; on a narrower one the scenes take the width and the panel is a drawer.
+ */
+function SideLayout({
+  wide,
+  top,
+  open,
+  onClose,
+  panel,
+  children,
+}: {
+  wide: boolean;
+  /** The fixed header's height. */
+  top: number;
+  open: boolean;
+  onClose: () => void;
+  panel: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  if (!wide) {
+    return (
+      <>
+        {children}
+        {/* Kept mounted while closed, so a field being typed in keeps its text. */}
+        <Drawer
+          open={open}
+          onClose={onClose}
+          placement="right"
+          size={SIDE_WIDTH}
+          forceRender
+          title="Thiết lập / Đăng bài"
+          styles={{ body: { paddingTop: 0 } }}
+        >
+          <div data-side-panel>{panel}</div>
+        </Drawer>
+      </>
+    );
+  }
+  return (
+    <div
+      style={{ display: "grid", gridTemplateColumns: `minmax(0, 1fr) ${SIDE_WIDTH}px`, gap: 16, alignItems: "start" }}
+    >
+      {children}
+      <div
+        data-side-panel
+        style={{
+          position: "sticky",
+          top: top + 12,
+          maxHeight: `calc(100vh - ${top + 24}px)`,
+          overflowY: "auto",
+          paddingRight: 4,
+        }}
+      >
+        {panel}
+      </div>
+    </div>
   );
 }
