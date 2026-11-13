@@ -77,10 +77,9 @@ test("shared actions: video lists open the same actions without navigating to th
   expect(made.ok()).toBeTruthy();
   await page.reload();
   await page.getByRole("button", { name: "Thao tác với video Video thao tác dùng chung" }).click();
-  const actions = page.getByRole("dialog", { name: "Thao tác video" });
-  await expect(actions.getByRole("button", { name: "Nhân bản", exact: true })).toBeVisible();
-  await expect(actions.getByRole("button", { name: "Chuyển sang nhóm khác" })).toBeVisible();
-  await expect(actions.getByRole("button", { name: "Xóa video", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Nhân bản", exact: true })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Chuyển sang nhóm khác" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Xóa video", exact: true })).toBeVisible();
   await expect(page).toHaveURL(/\/videos$/);
 });
 
@@ -154,6 +153,9 @@ test("shared actions: the job log retries and cancels eligible work in place", a
             llm: null,
             error: status === "failed" ? "Lỗi dịch vụ giả" : null,
             can_cancel: status === "queued",
+            retry_of_id: null,
+            waited_seconds: null,
+            thumbnail_url: null,
           },
         ],
       });
@@ -172,15 +174,22 @@ test("shared actions: the job log retries and cancels eligible work in place", a
   });
   await page.goto("/jobs");
   const row = page.getByRole("row").filter({ hasText: "Job kiểm tra thao tác" });
-  await row.getByRole("button", { name: "Thử lại", exact: true }).click();
-  await expect(page.getByText("Job sẽ chạy lại qua worker; các dịch vụ AI có thể phát sinh chi phí.")).toBeVisible();
-  await page.locator(".ant-popover").getByRole("button", { name: "Thử lại", exact: true }).click();
-  await expect(row.getByRole("button", { name: "Hủy job", exact: true })).toBeVisible();
+  const menu = row.getByRole("button", { name: "Thao tác job #98765" });
+  await menu.click();
+  await page.getByRole("menuitem", { name: "Thử lại", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Job sẽ chạy lại qua worker; các dịch vụ AI có thể phát sinh chi phí.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Thử lại", exact: true }).click();
+  await expect(row).toContainText("Chờ");
   expect(retried).toBe(1);
-  await row.getByRole("button", { name: "Hủy job", exact: true }).click();
-  await page.locator(".ant-popover").getByRole("button", { name: "Hủy job", exact: true }).click();
+  await menu.click();
+  await expect(page.getByRole("menuitem", { name: "Thử lại", exact: true })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Hủy job", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Hủy job", exact: true }).click();
   await expect(row).toContainText("Đã hủy");
-  await expect(row.getByRole("button", { name: "Hủy job", exact: true })).toHaveCount(0);
+  await menu.click();
+  await expect(page.getByRole("menuitem", { name: "Hủy job", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   expect(cancelled).toBe(1);
   await expect(page).toHaveURL(/\/jobs$/);
 });
@@ -223,7 +232,8 @@ test("shared actions: a Page owner can take down a teammate's reel from the post
     return route.fulfill({ json: {} });
   });
   await page.goto("/posts");
-  await page.getByTestId("post-group").click();
+  // The last cell: the middle of the row now lands on the video title, which opens the video.
+  await page.getByTestId("post-group").getByRole("cell").last().click();
   const posts = page.getByTestId("post-rows");
   await expect(posts.getByRole("button", { name: "Xóa", exact: true })).toBeEnabled();
   await posts.getByRole("button", { name: "Xóa", exact: true }).click();

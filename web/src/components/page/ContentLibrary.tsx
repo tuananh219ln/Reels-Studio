@@ -295,11 +295,11 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
       render: (_, post) => (
         <Flex gap={10} align="center" style={{ minWidth: 0 }}>
           <VideoThumbnail name={post.video.title} url={post.video.thumbnail_url} width={32} />
-          <Typography.Text ellipsis={{ tooltip: post.video.title }} style={{ minWidth: 0 }}>
+          <Typography.Paragraph ellipsis={{ rows: 2, tooltip: post.video.title }} style={{ margin: 0, minWidth: 0 }}>
             <Link prefetch={false} href={`/videos/${post.video.id}`}>
               {post.video.title}
             </Link>
-          </Typography.Text>
+          </Typography.Paragraph>
         </Flex>
       ),
     },

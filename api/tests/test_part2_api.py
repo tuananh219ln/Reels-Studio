@@ -241,6 +241,31 @@ def test_job_log_lists_every_job_with_its_details(an, db, me, storage):
     assert TestClient(an.app).get("/api/jobs").status_code == 401
 
 
+def test_job_log_row_tells_the_wait_and_the_job_it_retries(an, db, me, storage):
+    video = make_video(db, storage, me)
+    first = Job(video_id=video.id, kind="render", status="failed", created_by_id=me.id)
+    db.add(first)
+    db.commit()
+    started = now()
+    retry = Job(
+        video_id=video.id,
+        kind="render",
+        status="done",
+        created_by_id=me.id,
+        retry_of_id=first.id,
+        created_at=started - timedelta(seconds=7),
+        started_at=started,
+        finished_at=started + timedelta(seconds=3),
+    )
+    db.add(retry)
+    db.commit()
+    rows = {row["id"]: row for row in an.get("/api/jobs").json()}
+    assert rows[retry.id]["retry_of_id"] == first.id
+    assert rows[retry.id]["waited_seconds"] == pytest.approx(7, abs=1)
+    assert rows[first.id]["retry_of_id"] is None and rows[first.id]["waited_seconds"] is None
+    assert "thumbnail_url" in rows[retry.id]
+
+
 def test_music_file_needs_a_login(app, db, me, storage):
     video = make_video(db, storage, me)
     video.music_key = f"videos/{video.id}/music-a.mp3"

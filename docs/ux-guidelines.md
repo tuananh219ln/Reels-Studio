@@ -330,9 +330,11 @@ Built:
     about posting, 2026-11-12) and on
     the right the creator and the day it was made; under them, small, the topic group and its plan day.
     The kind tags sit under the title with the "Đã đăng" icons on their right;
-  - a list, one row per video: small thumbnail and title, "Loại" (the kind tags), the status (with "Đã
-    đăng" or "Đã lên lịch" under it), "Đã đăng" (the platform icons), "Đăng" (Page and time, or "Chưa đăng"), "View" (sortable), "48h" (the multiple or
-    "chưa đủ dữ liệu", the share/view under it) and "Tạo" (group, plan day, creator, day). Above the videos, one
+  - a list, one row per video, in four columns (2026-11-14): **Video** (small thumbnail, the title on up to two lines, and
+    under it the Page and time of its post, "hẹn" while scheduled, or "Chưa đăng"), **Trạng thái** (the status, "Đã đăng" or
+    "Đã lên lịch" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
+    **Số liệu** (the views, sortable, with the 48h multiple or "chưa đủ dữ liệu" and the share rate under it; "—" before
+    the first reading) and **Tạo** (group, plan day, creator, day), then the "⋮" button. Above the videos, one
   banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
   "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video" with "Làm tiếp" (the next idea not made), or green once
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
@@ -992,9 +994,12 @@ Built:
 - **Nhật ký job** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
-  Each row: the video title with its kind and job number under it, a status tag with an icon, who
-  started it, retry/cancel actions where applicable, start with the duration under it, AI call count with the model that wrote a script
-  ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
+  Columns: **Job và video** (the video's small thumbnail, its title on up to two lines, and under it the kind, the job
+  number, who started it and, for a retry, "thử lại job #N"), **Trạng thái** (the status with "chờ N giây trong hàng"
+  under it once the job waited a second or more), **Bắt đầu** (the time with the duration under it), **AI** (the call
+  count, with the model that wrote a script, "DeepSeek · deepseek-chat", under it), **Lỗi** (up to two lines), and a
+  last column with only a vertical "⋮" button. Its small menu holds "Mở video" (or "Mở bài viết", "Mở Kho kiến thức"),
+  "Thử lại" on a failed job and "Hủy job" on a waiting one; retry and cancel ask first. A row opens its video.
 - **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
   headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
   Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab
@@ -1467,6 +1472,14 @@ Where something is edited, its history is shown there, not on a page of its own
 - **The groups' list** has a history button on "Nhóm chủ đề": the groups made, renamed and deleted, so a deleted
   group's name is still found.
 
+## Video row menu (2026-11-14)
+
+On every list of videos the last column is a vertical "⋮" button (aria-label "Thao tác với video <tên>") that opens a
+small dropdown, not a drawer. The video is read once, when the menu is first opened. It holds "Mở video", "Đăng bài,
+hàng chờ, job…" (opens a drawer with the posting dialog, "Duyệt", the queue and retry/cancel, which need their own
+forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Tạo bản TikTok" (a Facebook video), and, for the
+maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; both off while a job runs).
+
 
 ### Kho kiến thức: "Lịch đăng" and the video id
 
@@ -1474,3 +1487,25 @@ A group has a "Lịch đăng" tab after "Backlog": the calendar of "Bài đăng"
 those on Facebook and those waiting for their time, whether a member scheduled them or a Page's queue did. The queue
 schedules a video only when its Page's next slot is within 48 hours, so a queued video shows there a day or two before
 it goes. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).
+
+
+### Kho kiến thức: the groups bar and "Cập nhật view"
+
+The groups sit in one card above the group: the "Của tôi (n) / Cả đội (m)" switch and the new-group field on one line, the
+groups as pills with their video count under it. "Của tôi" is the start (kept on the browser once chosen) and means the
+groups of the member's Pages and the groups the member made; the group shown stays in the list whatever the switch. An
+empty "Của tôi" says so and points to "Cả đội". "Cập nhật view", before "Tự duyệt khi render xong" on the Video tab, asks
+the worker to read the numbers of every posted video of the group (`POST /api/posts/refresh?knowledge_topic_id=`), and
+the list reads itself every 5 seconds for two minutes after.
+
+The video table's title cell has a line under the title: the Page and when it was posted ("đăng") or is set ("hẹn"),
+else the Page queue it waits in, else the time the plan suggests, then its content type and product count, joined with
+commas; nothing when none applies.
+
+### The other lists of videos (2026-11-14)
+
+The same cell and merged columns as the Video list: a thumbnail and a title on up to two lines.
+- **Kho kiến thức, a group's video table:** ID, **Video** (the line under the title: "Ngày N", another topic, where it is out or set to go, content type, product count), **Trạng thái** (status and platform icons, the kind tags under them), **Số liệu** ("View a, 48h b" over "Share c, share/view d"; dashes before a post is out), **Tạo**, then "⋮".
+- **Bài đăng:** a video's row has **Số liệu** (its views added up, the latest post's time under it) in place of "Tổng view" and "Lần đăng gần nhất"; an opened video's posts have one **Bài đăng** column (Page, time and who posted, and who closed it) in place of "Fanpage" and "Giờ đăng".
+- **Page › Nội dung** and **Affiliate › Video đã đăng:** the title takes up to two lines.
+- **Nâng cấp lại:** a video shows its thumbnail, its topic on up to two lines and "#id, tạo <giờ>" under it.

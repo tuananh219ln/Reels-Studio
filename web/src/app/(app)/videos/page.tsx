@@ -818,7 +818,7 @@ function VideoTable({
         rowKey="id"
         dataSource={rows}
         pagination={{ pageSize: 50, hideOnSinglePage: true, showSizeChanger: false, ...tablePage }}
-        scroll={{ x: 1520 }}
+        scroll={{ x: 1100 }}
         onRow={(row) => ({
           onClick: () => router.push(`/videos/${row.id}`),
           style: { cursor: "pointer" },
@@ -835,33 +835,41 @@ function VideoTable({
           {
             title: "Video",
             key: "video",
+            width: 420,
             render: (_, row) => (
               <VideoTitleCell
                 id={row.id}
                 title={row.title || row.topic}
                 thumbnailUrl={row.thumbnail_url}
-                sub={row.title && `Chủ đề: ${row.topic}`}
+                maxWidth={340}
+                sub={
+                  row.post ? (
+                    postLine(row.post)
+                  ) : (
+                    <Typography.Text type="secondary">
+                      {row.title ? `Chủ đề: ${row.topic}` : "Chưa đăng"}
+                    </Typography.Text>
+                  )
+                }
               />
             ),
           },
           {
-            title: "Loại",
-            key: "kind",
-            width: 210,
-            render: (_, row) => <VideoKindTags video={row} />,
-          },
-          {
             title: "Trạng thái",
             key: "status",
-            width: 200,
+            width: 260,
             render: (_, row) => (
               <Flex vertical gap={4} align="flex-start">
-                <VideoStatusTags video={row} />
-                {row.post && (
-                  <StatusText tone={row.post.state === "posted" ? "success" : "waiting"} style={{ fontSize: 13 }}>
-                    {row.post.state === "posted" ? "Đã đăng" : "Đã lên lịch"}
-                  </StatusText>
-                )}
+                <Flex gap={8} align="center" wrap>
+                  <VideoStatusTags video={row} />
+                  {row.post && (
+                    <StatusText tone={row.post.state === "posted" ? "success" : "waiting"} style={{ fontSize: 13 }}>
+                      {row.post.state === "posted" ? "Đã đăng" : "Đã lên lịch"}
+                    </StatusText>
+                  )}
+                  <PostedPlatforms postedOn={row.posted_on} />
+                </Flex>
+                <VideoKindTags video={row} />
                 <VersionLinks versions={versions.get(row.id) ?? []} />
                 {wantsTikTok(row) && (
                   <Link href={`/videos/${row.id}?clone=tiktok`} onClick={(event) => event.stopPropagation()}>
@@ -872,59 +880,39 @@ function VideoTable({
             ),
           },
           {
-            title: "Đã đăng",
-            key: "platforms",
-            width: 130,
-            render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
-          },
-          {
-            title: "Đăng",
-            key: "post",
-            width: 220,
-            render: (_, row) =>
-              row.post ? postLine(row.post) : <Typography.Text type="secondary">Chưa đăng</Typography.Text>,
-          },
-          {
-            title: "View",
-            key: "views",
-            width: 100,
-            align: "right",
+            title: "Số liệu",
+            key: "numbers",
+            width: 190,
             sorter: (a, b) => (a.post?.views ?? -1) - (b.post?.views ?? -1),
-            render: (_, row) =>
-              row.post?.views !== null && row.post?.views !== undefined ? (
-                <Typography.Text strong>{row.post.views.toLocaleString("vi-VN")}</Typography.Text>
-              ) : (
-                <Typography.Text type="secondary">—</Typography.Text>
-              ),
-          },
-          {
-            title: "48h",
-            key: "h48",
-            width: 150,
             render: (_, row) => {
               const post = row.post;
-              if (!post || (post.times_median === null && post.share_rate === null)) {
+              if (!post || (post.views === null && post.times_median === null && post.share_rate === null)) {
                 return <Typography.Text type="secondary">—</Typography.Text>;
               }
               const standout = post.times_median !== null && post.times_median >= STANDOUT_TIMES;
               return (
-                <Typography.Text strong={standout} style={standout ? { color: COLORS.primary } : undefined}>
-                  {post.times_median !== null
-                    ? `${post.times_median.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}×`
-                    : "chưa đủ dữ liệu"}
-                  {post.share_rate !== null && (
-                    <Typography.Text type="secondary" style={{ display: "block", fontSize: 12 }}>
-                      {percent(post.share_rate)} share
-                    </Typography.Text>
-                  )}
-                </Typography.Text>
+                <Flex vertical>
+                  <Typography.Text strong>
+                    {post.views !== null ? `${post.views.toLocaleString("vi-VN")} view` : "— view"}
+                  </Typography.Text>
+                  <Typography.Text
+                    type={standout ? undefined : "secondary"}
+                    strong={standout}
+                    style={{ fontSize: 12, ...(standout ? { color: COLORS.primary } : {}) }}
+                  >
+                    {post.times_median !== null
+                      ? `48h: ${post.times_median.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}×`
+                      : "48h: chưa đủ dữ liệu"}
+                    {post.share_rate !== null && `, ${percent(post.share_rate)} share`}
+                  </Typography.Text>
+                </Flex>
               );
             },
           },
           {
             title: "Tạo",
             key: "made",
-            width: 260,
+            width: 220,
             render: (_, row) => <Typography.Text type="secondary">{madeLine(row, true)}</Typography.Text>,
           },
         ]}

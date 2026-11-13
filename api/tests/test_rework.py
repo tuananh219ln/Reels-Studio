@@ -180,3 +180,13 @@ def test_invalid_scene_plan_never_partially_changes_video(committed, storage, fa
     with committed() as db:
         assert all(scene.voice_text == "" for scene in db.scalars(select(Scene).where(Scene.video_id == video_id)))
         assert db.get(Video, video_id).caption == "caption"
+
+
+def test_the_candidate_list_gives_each_video_its_cover_and_creation_time(client, db, storage):
+    user = make_user(db)
+    login(client)
+    video = make_video(db, storage, user)
+    [row] = client.get("/api/rework/videos").json()["videos"]
+    assert row["id"] == video.id
+    assert "thumbnail_url" in row
+    assert row["created_at"].startswith(str(video.created_at.year))

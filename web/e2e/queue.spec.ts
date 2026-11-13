@@ -83,7 +83,10 @@ test("a Page's owner gives it a topic group and its own posting times on Quản 
   await expect(page.getByRole("link", { name: "Trang Dưỡng Sinh" })).toBeVisible();
   await page.getByRole("menuitem", { name: "Kho kiến thức" }).click();
   // Their group stays under the "Của tôi" filter of the group chips.
-  await page.getByLabel("Lọc nhóm").getByText("Của tôi", { exact: true }).click();
+  await page
+    .getByLabel("Lọc nhóm")
+    .getByText(/^Của tôi/)
+    .click();
   await expect(page.getByTestId("topic-list").getByRole("button", { name: new RegExp(GROUP) })).toBeVisible();
   await page.getByRole("menuitem", { name: "Video" }).click();
   await page.getByRole("button", { name: "Tạo video" }).click();

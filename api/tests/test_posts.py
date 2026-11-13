@@ -57,6 +57,28 @@ def test_a_post_names_the_topic_group_of_its_video(an, db, me, storage):
     assert row["knowledge_topic_id"] == db.get(Video, post.video_id).knowledge_topic_id is not None
 
 
+def test_cập_nhật_view_asks_for_the_numbers_of_the_posts_of_one_group_only(an, db, me, storage):
+    from reels_api.models import KnowledgeTopic
+
+    mine = add_post(db, storage, me, status="published", remote_id="1", published_at=in_hours(-5))
+    other_group = KnowledgeTopic(name="Nhóm khác", created_by_id=me.id)
+    db.add(other_group)
+    db.commit()
+    other = add_post(db, storage, me, status="published", remote_id="2", published_at=in_hours(-5))
+    db.get(Video, other.video_id).knowledge_topic_id = other_group.id
+    unposted = add_post(db, storage, me, status="pending")
+    db.commit()
+    topic_id = db.get(Video, mine.video_id).knowledge_topic_id
+    assert an.post(f"/api/posts/refresh?knowledge_topic_id={topic_id}").json() == {"asked": 1}
+    db.refresh(mine)
+    db.refresh(other)
+    db.refresh(unposted)
+    assert mine.metrics_requested_at is not None
+    assert other.metrics_requested_at is None and unposted.metrics_requested_at is None
+    # Asked again before the worker read it: nothing new to ask for.
+    assert an.post(f"/api/posts/refresh?knowledge_topic_id={topic_id}").json() == {"asked": 0}
+
+
 def test_a_post_whose_publish_failed_gives_the_reason_and_the_job_to_retry(an, db, me, storage):
     post = add_post(db, storage, me, status="pending", remote_id="1000")
     add_publish_job(db, post, me, "failed", "Token cũ")

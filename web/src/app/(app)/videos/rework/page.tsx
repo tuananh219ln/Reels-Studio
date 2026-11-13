@@ -3,13 +3,16 @@
 import { App, Alert, Button, Card, Checkbox, Flex, Space, Table, Tag, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage } from "@/lib/api";
+import VideoTitleCell from "@/components/VideoTitleCell";
+import { api, errorMessage, formatDateTime } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 
 type Progress = { stage?: string; replaced?: number[]; kept?: number[]; render_after?: boolean };
 type Row = {
   id: number;
   topic: string;
+  thumbnail_url: string | null;
+  created_at: string;
   eligible: boolean;
   reason: string | null;
   job: { id: number; status: string; error: string | null; progress: Progress } | null;
@@ -155,10 +158,15 @@ export default function ReworkVideos() {
               {
                 title: "Video",
                 key: "topic",
+                width: 380,
                 render: (_, row) => (
-                  <Link prefetch={false} href={`/videos/${row.id}`}>
-                    #{row.id} · {row.topic}
-                  </Link>
+                  <VideoTitleCell
+                    id={row.id}
+                    title={row.topic}
+                    thumbnailUrl={row.thumbnail_url}
+                    maxWidth={300}
+                    sub={`#${row.id}, tạo ${formatDateTime(row.created_at)}`}
+                  />
                 ),
               },
               {
