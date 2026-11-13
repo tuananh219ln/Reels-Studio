@@ -47,6 +47,7 @@ export default function ArticleActions({
     <Flex gap={4} wrap onClick={(event) => event.stopPropagation()}>
       <PublishButton
         article={article}
+        label="Đăng bài"
         options={null}
         disabled={article.busy}
         onSaved={() => void onChanged()}

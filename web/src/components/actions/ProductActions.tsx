@@ -13,15 +13,16 @@ type Props = {
   productId?: number;
   name?: string;
   editLabel?: string;
+  onEdit?: (product: AffiliateProduct) => void;
   onChanged: () => void | Promise<void>;
 };
-export default function ProductActions({ product, productId, name, onChanged, editLabel }: Props) {
+export default function ProductActions({ product, productId, name, onChanged, editLabel, onEdit }: Props) {
   const { me } = useMe();
   const { message } = App.useApp();
   const [open, setOpen] = useState(false);
   const [loaded, setLoaded] = useState<AffiliateProduct | null>(null);
   const [options, setOptions] = useState<AffiliateOptions | null>(null);
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState<AffiliateProduct | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const row = product ?? loaded;
@@ -40,9 +41,14 @@ export default function ProductActions({ product, productId, name, onChanged, ed
     await onChanged();
   }
   async function edit() {
+    if (!row) return;
+    if (onEdit) {
+      onEdit(row);
+      return;
+    }
     try {
       setOptions(await api<AffiliateOptions>("/affiliate-products/options"));
-      setEditing(true);
+      setEditing(row);
     } catch (err) {
       message.error(errorMessage(err));
     }
@@ -148,11 +154,11 @@ export default function ProductActions({ product, productId, name, onChanged, ed
       )}
       {options && (
         <ProductModal
-          target={editing ? row : null}
+          target={editing}
           options={options}
-          onClose={() => setEditing(false)}
+          onClose={() => setEditing(null)}
           onDone={async () => {
-            setEditing(false);
+            setEditing(null);
             await changed();
           }}
         />

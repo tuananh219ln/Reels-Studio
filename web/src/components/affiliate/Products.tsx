@@ -291,7 +291,7 @@ export default function Products() {
       title: "Thao tác",
       key: "actions",
       width: 230,
-      render: (_, product) => <ProductActions product={product} onChanged={() => reload(true)} />,
+      render: (_, product) => <ProductActions product={product} onEdit={setTarget} onChanged={() => reload(true)} />,
     },
   ];
 

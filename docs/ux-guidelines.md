@@ -110,7 +110,8 @@ why and does not report success.
   root folder and keeps its own filters so they do not overwrite the Knowledge page's address.
   Uploads in the group still go into its linked folder. Folder-wide unlinking stays on the group.
 - **Music:** every library picker shows source/license information (a warning when absent), and
-  offers the same track editor without leaving the picker. Each form instance has unique field ids.
+  offers the same track editor without leaving the picker. Each form instance has unique field ids,
+  and background refreshes keep unsaved edits. A late list response never replaces a newer reading.
 - **Products:** product lists, suggestions and attached-product follow-up share edit, approval,
   failed-lookup recovery and maker-only deletion controls. Compact contexts fetch details on demand;
   editing returns approval to draft as before. The form's ids are unique per instance.

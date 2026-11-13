@@ -10,10 +10,23 @@ test.afterEach(async ({ page }, info) => {
 
 test("shared actions: article list offers posting, making a Reel and deletion", async ({ page }) => {
   await loginAsSeed(page);
+  let releaseKnowledge: () => void = () => {};
+  const knowledgeReady = new Promise<void>((resolve) => {
+    releaseKnowledge = resolve;
+  });
+  await page.route("**/api/knowledge", async (route) => {
+    await knowledgeReady;
+    await route.continue();
+  });
   await page.goto("/articles");
   await page.getByRole("button", { name: "Tạo bài viết" }).click();
   const create = page.getByRole("dialog", { name: "Tạo bài viết" });
   await create.getByLabel("Chủ đề của bài").fill("Bài kiểm tra thao tác dùng chung");
+  try {
+    await expect(create.getByRole("button", { name: "Tạo bài", exact: true })).toBeDisabled();
+  } finally {
+    releaseKnowledge();
+  }
   await create.getByRole("button", { name: "Tạo bài", exact: true }).click();
   await expect(page).toHaveURL(/\/articles\/\d+$/);
   await page.goto("/articles");

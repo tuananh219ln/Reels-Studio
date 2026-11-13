@@ -93,6 +93,7 @@ function NewArticleDrawer({
       onOk={submit}
       okText="Tạo bài"
       confirmLoading={busy}
+      okButtonProps={{ disabled: groups.length === 0 }}
       destroyOnHidden
     >
       <Form form={form} layout="vertical" initialValues={{ kind: "kien_thuc", topic: "" }} requiredMark={false}>
@@ -185,15 +186,10 @@ function Articles() {
 
   const columns: ColumnsType<Article> = [
     {
-      key: "actions",
-      title: "Thao tác",
-      width: 280,
-      fixed: "right",
-      render: (_, row) => <ArticleActions article={row} onChanged={() => load(true)} />,
-    },
-    {
       title: "Bài viết",
       key: "article",
+      width: 320,
+      minWidth: 260,
       render: (_, row) => (
         <Flex gap={12} align="center">
           <ArticleThumb article={row} />
@@ -272,6 +268,13 @@ function Articles() {
         </Flex>
       ),
     },
+    {
+      key: "actions",
+      title: "Thao tác",
+      width: 280,
+      fixed: "right",
+      render: (_, row) => <ArticleActions article={row} onChanged={() => load(true)} />,
+    },
   ];
 
   return (
@@ -310,7 +313,7 @@ function Articles() {
             columns={columns}
             dataSource={rows}
             pagination={false}
-            scroll={{ x: 1100 }}
+            scroll={{ x: "max-content" }}
             locale={{
               emptyText: (
                 <EmptyState

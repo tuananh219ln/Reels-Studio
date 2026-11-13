@@ -2371,6 +2371,13 @@ test("add a track to the music library, then choose it for a video", async ({ pa
   await picker.getByRole("button", { name: "Sửa thông tin" }).click();
   const quickEdit = page.getByRole("dialog", { name: "Sửa bài nhạc" });
   await quickEdit.getByLabel("Nguồn / giấy phép").fill("Nhạc tự thu của nhóm");
+  // Returning to the tab reloads the video; it must not reset the unsaved library form.
+  const refreshedWhileEditing = page.waitForResponse(
+    (response) => /\/api\/videos\/\d+$/.test(response.url()) && response.request().method() === "GET",
+  );
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await refreshedWhileEditing;
+  await expect(quickEdit.getByLabel("Nguồn / giấy phép")).toHaveValue("Nhạc tự thu của nhóm");
   await quickEdit.getByRole("button", { name: "Lưu", exact: true }).click();
   await expect(quickEdit).toBeHidden();
   await expect(picker.getByText("Nhạc tự thu của nhóm")).toBeVisible();

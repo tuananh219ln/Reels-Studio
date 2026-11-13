@@ -111,12 +111,14 @@ export function PublishButton({
   disabled,
   onSaved,
   beforePublish,
+  label,
 }: {
   article: Article;
   options: ArticleOptions | null;
   disabled: boolean;
   onSaved: (article: Article) => void;
   beforePublish: () => Promise<void>;
+  label?: string;
 }) {
   const { message, modal } = App.useApp();
   const [open, setOpen] = useState(false);
@@ -177,13 +179,13 @@ export function PublishButton({
   return (
     <>
       <Button
-        aria-label="Đăng bài"
+        aria-label={label}
         type="primary"
         icon={<SendOutlined />}
         disabled={disabled}
         onClick={() => setOpen(true)}
       >
-        Đăng
+        {label ?? "Đăng"}
       </Button>
       <FormDrawer
         title="Đăng bài viết"

@@ -22,7 +22,7 @@ export default function LibraryPicker({
   onPick: (track: MusicTrack) => void;
 }) {
   const [filters, setFilters] = useState<Filters>({ q: "" });
-  const [editing, setEditing] = useState<MusicTrack | null>(null);
+  const [editing, setEditing] = useState<{ track: MusicTrack } | null>(null);
   const { tracks, loading, reload } = useTracks(filters, open);
 
   return (
@@ -38,7 +38,7 @@ export default function LibraryPicker({
             <List.Item
               data-testid="library-track"
               actions={[
-                <Button key="edit" disabled={busy} onClick={() => setEditing(track)}>
+                <Button key="edit" disabled={busy} onClick={() => setEditing({ track })}>
                   Sửa thông tin
                 </Button>,
                 <Button key="pick" type="primary" disabled={busy} onClick={() => onPick(track)}>
@@ -60,7 +60,7 @@ export default function LibraryPicker({
       </Modal>
       {editing && (
         <TrackModal
-          target={{ track: editing }}
+          target={editing}
           onClose={() => setEditing(null)}
           onDone={async () => {
             setEditing(null);

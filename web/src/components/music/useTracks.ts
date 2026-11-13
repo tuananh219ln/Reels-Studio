@@ -1,7 +1,7 @@
 "use client";
 
 import { App } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, errorMessage, type MusicOptions, type MusicTrack } from "@/lib/api";
 
 export type TrackFilters = { topic?: string; mood?: string; q: string };
@@ -12,8 +12,10 @@ export function useTracks(filters: TrackFilters, enabled = true) {
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [loading, setLoading] = useState(true);
   const { topic, mood, q } = filters;
+  const latestRead = useRef(0);
 
   const reload = useCallback(async () => {
+    const read = ++latestRead.current;
     setLoading(true);
     const params = new URLSearchParams();
     const values: [string, string | undefined][] = [
@@ -27,11 +29,12 @@ export function useTracks(filters: TrackFilters, enabled = true) {
       }
     }
     try {
-      setTracks(await api<MusicTrack[]>(`/music?${params}`));
+      const found = await api<MusicTrack[]>(`/music?${params}`);
+      if (read === latestRead.current) setTracks(found);
     } catch (err) {
-      message.error(errorMessage(err));
+      if (read === latestRead.current) message.error(errorMessage(err));
     } finally {
-      setLoading(false);
+      if (read === latestRead.current) setLoading(false);
     }
   }, [message, topic, mood, q]);
 
