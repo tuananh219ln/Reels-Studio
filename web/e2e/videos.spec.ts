@@ -817,7 +817,8 @@ test("Sửa ảnh: erase a drawn box, edit in words, then bring back the origina
   await expect(erase).toBeDisabled();
   const photo = dialog.getByRole("img", { name: "Ảnh của cảnh" });
   await expect.poll(() => photo.evaluate((element: HTMLImageElement) => element.naturalWidth)).toBeGreaterThan(0);
-  const area = (await dialog.getByTestId("image-edit-canvas").boundingBox())!;
+  // Measured once the dialog's opening zoom has finished, or the box can be drawn off the photo.
+  const area = (await settledBox(page, dialog.getByTestId("image-edit-canvas")))!;
   await page.mouse.move(area.x + area.width * 0.3, area.y + area.height * 0.4);
   await page.mouse.down();
   await page.mouse.move(area.x + area.width * 0.6, area.y + area.height * 0.5, { steps: 5 });
