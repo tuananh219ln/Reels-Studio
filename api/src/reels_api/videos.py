@@ -17,7 +17,7 @@ from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, 
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_TAIL, fit_seconds
 
-from . import affiliate, analytics, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
+from . import affiliate, analytics, brands, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -472,6 +472,9 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     look = look_signature(video)
     if look is not None:
         data = [data, look]
+    # The channel logo joins only while it is laid on, so MP4s rendered before logos existed stay current.
+    if (logo := brands.logo_signature(video)) is not None:
+        data = [data, logo]
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -1074,6 +1077,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         if video.mp4_key
         else None,
         "thumbnail_url": thumbnail_url(video),
+        **brands.payload_of(db, video),
         "music": {
             "url": f"/api/videos/{video.id}/music.mp3?v={_version(video.music_key)}",
             "name": video.music_name,

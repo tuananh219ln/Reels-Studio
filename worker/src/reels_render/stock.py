@@ -256,7 +256,7 @@ def find_stock_images(
         image = found.get(scene.number)
         return replace(scene, image=image) if image is not None else scene
 
-    resolved = Script(title=resolve(script.title), scenes=[resolve(scene) for scene in script.scenes])
+    resolved = Script(title=resolve(script.title), scenes=[resolve(scene) for scene in script.scenes], logo=script.logo)
     missing = [scene for scene in resolved.all_scenes if scene.image is None and scene.video is None]
     return StockResult(resolved, missing, client.api_calls if client is not None else 0)
 

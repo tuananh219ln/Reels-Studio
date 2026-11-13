@@ -101,7 +101,7 @@ why and does not report success.
 - **Articles:** the list offers the detail page's publishing drawer, "Làm reel từ bài này" and the
   maker's delete confirmation. Publishing loads Page options when opened; no request per list row.
 - **Pages:** the dashboard reuses the card's token replacement and stop confirmation, and exposes
-  the same account/owner controls through "Tài khoản và chủ Page". Token errors can be fixed in place.
+  the same account/owner and Page-logo controls through "Tài khoản và chủ Page". Token errors can be fixed in place.
 - **Posts:** the posts table exposes affiliate-comment actions; a Page's content library can open
   the same metrics, insights, comments, check/take-down and failed-post retry controls. Affiliate
   follow-up opens each reel's comment and post actions. The author or Page owner can take a post down.
@@ -490,8 +490,10 @@ Built:
     right-hand buttons with counts, avatar, channel and follow button, the video's caption and
     hashtags on one line, the music's name, the navigation bar; Shorts' red progress line), with
     generic icons and the video's Page as the channel, so the member sees what each app covers.
-    The choice is remembered in the browser. A switch adds the template's safe zone as a yellow
-    dashed box. The timeline has a ruler in whole seconds ("00:07"), one segment per scene as long
+    The choice is remembered in the browser. The switch "Hiện vùng an toàn" (remembered in the browser) shades what the apps cover in
+    translucent red (top 190 px, bottom from 1480 px, the button column x ≥ 900, y 850–1600) and adds the template's safe zone as a
+    yellow dashed box. While the video's logo is on, the channel's badge is laid over each scene by css where the renderer
+    puts it (title: centred on the text box's top edge; other scenes: top right). The timeline has a ruler in whole seconds ("00:07"), one segment per scene as long
     as the scene with its picture repeated along it and "Cảnh N, Xs" on it (the current one
     outlined), and a playhead that follows the preview. A click on a segment plays that scene; a
     press or drag on the ruler or the playhead goes to that second and pauses there (← → on the
@@ -624,7 +626,7 @@ Built:
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
   - the "Thiết lập" tab, every change saved at once, with a row of buttons on top (Âm thanh, Nhạc
-    nền, Hình ảnh, Chữ & phụ đề) that scrolls the panel to that group: "Âm thanh" (narration on/off, the
+    nền, Hình ảnh, Chữ & phụ đề, Logo) that scrolls the panel to that group ("Logo", last: the video's channel among the member's own, and "Gắn logo vào video", greyed until the channel has a logo, with a link to Quản lý Page; the channel is locked once the video is posted): "Âm thanh" (narration on/off, the
     voice picked from the ElevenLabs account's voices, and VieNeu's once its key is set, grouped "ElevenLabs" and "VieNeu"
     when both have voices, with "Nghe thử" playing ElevenLabs' free sample (VieNeu voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library

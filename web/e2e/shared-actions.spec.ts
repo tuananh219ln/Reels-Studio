@@ -49,6 +49,19 @@ test("shared actions: Page dashboard can replace its token without leaving the P
   await expect(page).toHaveURL(/\/fanpages\/\d+/);
 });
 
+test("shared actions: Page logo controls are shared by cards and the dashboard", async ({ page }) => {
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.goto("/fanpages");
+  await expect(page.getByTestId("fanpage-card").getByTestId("fanpage-logo")).toBeVisible();
+  await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await page.getByRole("button", { name: "Thao tác với Trang Dưỡng Sinh" }).click();
+  await page.getByText("Tài khoản và chủ Page", { exact: true }).click();
+  const settings = page.getByRole("dialog", { name: /Tài khoản và chủ Page/ });
+  await expect(settings.getByTestId("fanpage-logo")).toBeVisible();
+  await expect(settings.getByRole("button", { name: "Tải logo", exact: true })).toBeVisible();
+});
+
 test("shared actions: video lists open the same actions without navigating to the editor", async ({ page }) => {
   await loginAsSeed(page);
   const knowledge = await (await page.request.get("/api/knowledge")).json();
