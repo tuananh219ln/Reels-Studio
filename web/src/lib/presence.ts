@@ -15,8 +15,15 @@ function newTab(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Tells the api this page is closing. `keepalive` lets the request finish while the tab closes. */
+/** Tells the api this page is closing. `sendBeacon` is made for a closing page: unlike a `fetch` with
+ * `keepalive`, the browser hands it to the network service at once, so it still arrives when the tab is
+ * closed from outside (Playwright's `page.close()`, the tab's close button). Falls back to the fetch when
+ * the beacon cannot be queued. */
 function sendLeave(videoId: string, tab: string) {
+  const body = new Blob([JSON.stringify({ tab })], { type: "application/json" });
+  if (navigator.sendBeacon(`/api/presence/videos/${videoId}/leave`, body)) {
+    return;
+  }
   void fetch(`/api/presence/videos/${videoId}/leave`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

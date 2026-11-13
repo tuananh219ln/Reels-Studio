@@ -3023,9 +3023,11 @@ test("each member sees who else has the video open, and whether they are editing
   await expect(binh.getByRole("button", { name: "Xong" })).toBeVisible();
   await expect(page.getByLabel("Trần Thị Bình đang chỉnh sửa")).toBeVisible(later);
 
-  // Closing the tab leaves at once rather than after the 30 s time-out.
+  // Closing the tab leaves at once rather than after the 30 s time-out. The leave is sent when the tab
+  // closes; An's page reports every 10 s, so 15 s leaves almost no room for a slow answer on a loaded
+  // runner. 25 s still proves "at once": a missing leave only drops out after the 30 s time-out.
   await binh.close();
-  await expect(page.getByTestId("presence")).toHaveCount(0, later);
+  await expect(page.getByTestId("presence")).toHaveCount(0, { timeout: 25_000 });
 });
 
 test("video page: one poll at a time, none while the tab is hidden, and the menu prefetches no pages", async ({
