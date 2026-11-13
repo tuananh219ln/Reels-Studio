@@ -21,7 +21,7 @@ from .graph import (
 )
 from .images import normalize_image
 from .layers import layer_corner, render_layer
-from .logo import TEXT_TOP_MIN, TITLE_BOX_MIN_TOP, TITLE_NO_BOX_TEXT_TOP, corner_placement, title_placement
+from .logo import TEXT_TOP_MIN, corner_placement
 from .markup import Run, cased
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .script import Scene, Script
@@ -99,7 +99,6 @@ def render_video(
         script = found.script
         inputs, captions, layers, sounds = [], [], [], []
         scene_start = 0
-        title_box_top = None
         for index, (scene, layout) in enumerate(zip(script.all_scenes, layouts)):
             if scene.video is not None:
                 image, video_start = scene.video.resolve(), scene.video_start
@@ -117,16 +116,11 @@ def render_video(
                 box_x, box_y = 0, 0
             else:
                 render_box(layout, first_palette if index == 0 else palette).save(box)
-                min_top = None
-                if script.logo is not None:
-                    # Room for the logo: above a title's box, and the corner badge's row on the other scenes.
-                    boxed = first_palette.box is not None
-                    min_top = (TITLE_BOX_MIN_TOP if boxed else TITLE_NO_BOX_TEXT_TOP) if index == 0 else TEXT_TOP_MIN
+                # Room for the corner badge's row on the content scenes; the title scene has no logo.
+                min_top = TEXT_TOP_MIN if script.logo is not None and index > 0 else None
                 box_x, box_y = place_box(
                     layout.width, layout.height, scene.text_position, is_title=index == 0, min_top=min_top
                 )
-                if index == 0:
-                    title_box_top = box_y if first_palette.box is not None else None
             # Captions sit just above a content scene's text box; the title scene keeps its hook box alone. The
             # narration's are timed by estimate; a clip's own sound has each word's real seconds.
             cues = []
@@ -226,7 +220,7 @@ def render_video(
             layers,
             sounds,
             music_start,
-            logo_input(script.logo, title_box_top, timeline),
+            logo_input(script.logo, timeline),
         )
         try:
             ffmpeg.run(argv, "FFmpeg render lỗi")
@@ -236,12 +230,11 @@ def render_video(
     return _publish(temp, output)
 
 
-def logo_input(badge: Path | None, title_box_top: int | None, timeline) -> LogoInput | None:
-    """The channel badge: on the title scene (its centre on the text box's top edge, or at the top without a box),
-    then in the corner from the second the title scene ends; None without a logo."""
+def logo_input(badge: Path | None, timeline) -> LogoInput | None:
+    """The channel badge, in the corner from the second the title scene ends; None without a logo."""
     if badge is None:
         return None
-    return LogoInput(badge, title_placement(title_box_top), corner_placement(), timeline.scene_frames[0] / FPS)
+    return LogoInput(badge, corner_placement(), timeline.scene_frames[0] / FPS)
 
 
 def scene_lines(script: Script, options: RenderOptions) -> list[list[list[Run]]]:
