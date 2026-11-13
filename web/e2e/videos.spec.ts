@@ -818,6 +818,21 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   await expect(first.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
 });
 
+test("a scene dragged by its handle onto another takes its place, and the order is saved", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "canh rau cho người lớn tuổi");
+  const scenes = page.getByTestId("scene");
+  // The content scenes are closed (the title is open), so each sums itself up in its title row.
+  const third = await scenes.nth(2).getByTestId("scene-summary").innerText();
+  const first = await scenes.nth(0).getByTestId("scene-summary").innerText();
+  await scenes.nth(2).getByTestId("scene-drag-handle").dragTo(scenes.nth(0));
+  await expect(scenes.nth(0).getByTestId("scene-summary")).toHaveText(third);
+  await expect(scenes.nth(1).getByTestId("scene-summary")).toHaveText(first);
+  await page.reload();
+  await expect(page.getByTestId("scene").nth(0).getByTestId("scene-summary")).toHaveText(third);
+});
+
 test("Sửa ảnh: erase a drawn box, edit in words, then bring back the original", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);

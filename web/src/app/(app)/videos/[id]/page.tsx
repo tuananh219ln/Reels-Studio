@@ -163,6 +163,9 @@ export default function VideoPage() {
   // Which scene cards are open, by scene id: one at a time (opening one closes the others), all of them only through
   // "Mở tất cả". When the page opens, the first scene that blocks the render opens, or on a draft the first scene.
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  // A content scene being dragged by its handle, and the scene it would drop on.
+  const [dragged, setDragged] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<number | null>(null);
   // "Xem trước" is open from this scene (0 is the title scene); null: closed.
   const [previewFrom, setPreviewFrom] = useState<number | null>(null);
 
@@ -464,6 +467,17 @@ export default function VideoPage() {
       return;
     }
     [ids[index], ids[target]] = [ids[target], ids[index]];
+    void act(() => api<VideoDetail>(`/videos/${id}/scene-order`, "PUT", { ids }));
+  }
+
+  /** A content scene dropped on another takes its place; the ones between shift by one. */
+  function dropScene(movedId: number, targetId: number) {
+    const ids = scenes.map((scene) => scene.id);
+    const from = ids.indexOf(movedId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, movedId);
     void act(() => api<VideoDetail>(`/videos/${id}/scene-order`, "PUT", { ids }));
   }
 
@@ -947,6 +961,25 @@ export default function VideoPage() {
                 expanded={expanded[scene.id] ?? false}
                 onToggle={() => toggle(scene.id)}
                 onMove={(step) => move(index, step)}
+                reorder={
+                  viewing || video.locked
+                    ? undefined
+                    : {
+                        dragging: dragged === scene.id,
+                        over: dropTarget === scene.id && dragged !== scene.id,
+                        onStart: () => setDragged(scene.id),
+                        onOver: () => setDropTarget(scene.id),
+                        onDrop: (movedId) => {
+                          if (movedId) dropScene(movedId, scene.id);
+                          setDragged(null);
+                          setDropTarget(null);
+                        },
+                        onEnd: () => {
+                          setDragged(null);
+                          setDropTarget(null);
+                        },
+                      }
+                }
                 onDelete={
                   video.created_by_id === me.id
                     ? () => act(() => api<VideoDetail>(`/scenes/${scene.id}`, "DELETE"))

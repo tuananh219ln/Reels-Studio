@@ -424,7 +424,9 @@ Built:
     thumbnail of the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, while closed its text on one line (without
     the `*` marks), a status (red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). "Lên
     trên", "Xuống dưới" and "Xóa cảnh" show only on hover, keyboard focus or while the card is open (always on a
-    touch screen). A click or Enter on the row opens the card and closes the one that was open, or closes it; only
+    touch screen). While the page can be edited, a content scene's row starts with a handle (⋮⋮, "Kéo để đổi thứ tự"):
+    dragged onto another content scene's card, it takes that place and the ones between shift by one (a brand line
+    on the card's top edge shows where it lands); the arrows stay for the keyboard. A click or Enter on the row opens the card and closes the one that was open, or closes it; only
     "Mở tất cả" opens several. On a scene's row ↑ and ↓ open the scene above or below; Ctrl+Enter (⌘+Enter) in an open
     card saves the field being typed in and opens the next scene. When the page opens, the first scene with a red
     reason is open, else on a draft the first scene, else none. "Thêm cảnh" opens the new scene. A closed card keeps
