@@ -9,17 +9,21 @@ import json
 import logging
 import math
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
 
 from PIL import Image, ImageOps
 from sqlalchemy.orm import Session as DbSession
+
+from reels_render.timeline import fit_seconds
 
 from . import clips, llm, source_keys, stock_clips, youtube_footage
 from .claude import ClaudeError
 from .models import AppSetting, Job, Scene, Video
 from .storage import DirectoryStorage
 from .uploads import UploadRejected
-from .videos import new_key, refresh_thumbnail
+from .video_options import voice_pause
+from .videos import drop_original, made_voice_seconds, new_key, refresh_thumbnail
 
 log = logging.getLogger(__name__)
 SETTING_KEY = "auto_footage"
@@ -59,6 +63,7 @@ class Finder:
         order: list[str],
         off: set[str],
         used: set[str],
+        on_saved: Callable[[Scene, bool], None] | None = None,
     ):
         self.db, self.job, self.storage, self.video = db, job, storage, video
         self.sources = [
@@ -69,12 +74,12 @@ class Finder:
         self.used = used
         self.failed: set[str] = set()
         self.target = llm.active_target(db)
+        self.on_saved = on_saved
 
-    def fill(self, scene: Scene) -> bool:
+    def fill(self, scene: Scene, *, replace: bool = False) -> bool:
         # In single-backdrop mode only the title is a moving background. Content photos feed the inset.
         if (
-            scene.image_key
-            or scene.video_key
+            ((scene.image_key or scene.video_key) and not replace)
             or (self.video.mode == "single" and not scene.is_title)
             or llm.problem(self.target)
             or not (scene.keywords or scene.keywords_en)
@@ -136,7 +141,12 @@ class Finder:
 
     def _choose(self, scene: Scene, path: Path, folder: Path, url: str) -> bool:
         sample = clips.probe_sample(path)
-        length = round(min(10.0, max(1.0, scene.seconds)) + 0.4, 3)
+        length = round(
+            max(1.0, fit_seconds(scene.seconds, made_voice_seconds(self.video, scene), voice_pause(self.video))) + 0.4,
+            3,
+        )
+        if length > 60:
+            return False
         if not math.isfinite(sample.seconds) or not length <= sample.seconds <= youtube_footage.MAX_SECONDS:
             return False
         # Two frames per possible window show the action, not just a video's cover. Only these windows may be chosen.
@@ -176,13 +186,19 @@ class Finder:
         output = folder / "selected.mp4"
         clips.cut_part(path, sample, starts[index], length, output)
         clip = clips.check_clip(output)
+        old = [scene.image_key, scene.video_key, drop_original(scene)]
         key = new_key(self.video.id, f"clip-{scene.id}", clip.extension)
         self.storage.save_file(key, output)
         scene.video_key, scene.video_seconds = key, round(clip.seconds, 3)
+        scene.image_key = None
         scene.video_start, scene.video_speed, scene.video_sound, scene.words = 0, 1, False, None
         scene.image_source, scene.image_auto, scene.image_error, scene.image_credit = url, True, None, None
         if scene.is_title:
             refresh_thumbnail(self.db, self.storage, self.video, scene)
+        if self.on_saved:
+            self.on_saved(scene, True)
         self.db.commit()
+        for old_key in old:
+            self.storage.delete(old_key)
         self.used.add(url)
         return True

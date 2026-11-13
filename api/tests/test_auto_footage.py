@@ -64,7 +64,9 @@ def test_job_selects_and_cuts_footage_or_falls_back_to_photo(
     assert job.claude_calls == 1
     if accepted:
         assert scene.video_key and storage.exists(scene.video_key)
-        assert scene.video_seconds == pytest.approx(2.4, abs=0.05)
+        # Six spoken words plus MP3 padding and lead/tail need 2.5 s, plus 0.4 s of clip spare.
+        assert scene.voice_key
+        assert scene.video_seconds == pytest.approx(2.9, abs=0.05)
         assert scene.image_key is None and scene.video_sound is False
         assert scene.image_source == "https://www.youtube.com/watch?v=abcdefghijk"
         assert video.thumbnail_key and storage.exists(video.thumbnail_key)
@@ -201,7 +203,8 @@ def test_unavailable_youtube_uses_stock_video_automatically(db, storage, fakes, 
     assert scene.video_key and storage.exists(scene.video_key)
     assert scene.image_source.startswith(fakes.url + "/clips/")
     assert fakes.clip_queries == [("pexels", "pumpkin soup")]
-    assert scene.video_seconds == pytest.approx(2.4, abs=0.05)
+    assert scene.voice_key
+    assert scene.video_seconds == pytest.approx(2.9, abs=0.05)
     assert job.claude_calls == 1
 
 
@@ -234,3 +237,30 @@ def test_a_provider_failure_is_not_retried_for_every_scene(db, storage, fakes, m
     auto_photos.run(db, job, storage)
     assert job.claude_calls == 1
     assert all(scene.image_key for scene in db.scalars(select(Scene).where(Scene.video_id == video.id)))
+
+
+@needs_ffmpeg
+def test_automatic_clip_is_cut_after_actual_narration_length_is_known(db, storage, fakes, monkeypatch, tmp_path):
+    from reels_api import youtube_footage
+
+    user = make_user(db)
+    video = make_video(db, storage, user, scene_count=0, images=False)
+    scene = db.scalar(select(Scene).where(Scene.video_id == video.id))
+    scene.seconds, scene.seconds_auto = 1, True
+    scene.voice_text = "Món canh quen thuộc giúp bữa cơm thêm đa dạng."
+    db.add(AppSetting(key="auto_footage", value=True))
+    job = Job(video_id=video.id, kind="photos", status="running", created_by_id=user.id)
+    db.add(job)
+    db.commit()
+    source = tmp_path / "long-source.mp4"
+    source.write_bytes(clip_bytes(tmp_path, seconds=8, size="576x1024"))
+    monkeypatch.setattr(youtube_footage, "search", lambda keyword: ["https://www.youtube.com/watch?v=abcdefghijk"])
+    monkeypatch.setattr(youtube_footage, "download", lambda url, folder: source)
+    fakes.claude_replies = [{"index": 0}]
+
+    auto_photos.run(db, job, storage)
+
+    assert scene.voice_key and scene.voice_seconds > 2.5
+    assert scene.seconds > 3
+    assert scene.video_seconds >= scene.seconds + 0.39
+    assert scene.video_seconds > 3.4, "the old pre-TTS cut was only 1.4 seconds"

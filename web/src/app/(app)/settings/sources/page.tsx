@@ -308,14 +308,18 @@ export default function SourcesPage() {
                 />
                 <Flex vertical gap={4}>
                   <Typography.Text strong>Tự tìm và chọn clip theo kịch bản</Typography.Text>
+                  <Link prefetch={false} href="/videos/rework">
+                    Nâng cấp các video chưa đăng
+                  </Link>
                   <Typography.Text type="secondary">
                     Không cần tìm link: sau khi viết kịch bản, app tìm video công khai trên YouTube và các kho Pexels,
                     Pixabay đang bật. AI xem khung hình, chọn và cắt đoạn đúng nội dung; không có clip phù hợp thì tìm
                     ảnh. Giữ nguyên tư liệu đã chọn. Video xuyên suốt chỉ tìm clip cho nền chung.
                   </Typography.Text>
                   <Typography.Text type="secondary">
-                    Cần model đọc được ảnh trong Mô hình AI; tối đa 3 lượt gọi AI mỗi cảnh, có tính phí theo model. Bật
-                    mục này cũng bật tự tìm ảnh. TikTok chưa được tự tìm kiếm.
+                    Cần model đọc được ảnh trong Mô hình AI; tối đa 3 lượt gọi AI mỗi cảnh, có tính phí theo model và
+                    giọng đọc. App tạo giọng trước để cắt clip đủ dài, giọng được dùng lại khi render. Bật mục này cũng
+                    bật tự tìm ảnh. TikTok chưa được tự tìm kiếm.
                   </Typography.Text>
                 </Flex>
               </Flex>
