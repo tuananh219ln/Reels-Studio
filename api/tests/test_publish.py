@@ -1113,7 +1113,7 @@ def test_a_deleted_post_really_gone_from_facebook_stays_deleted(committed, ready
         db.commit()
     job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
     assert job.status == "failed", "a post that stays deleted says why"
-    assert job.error.startswith("Facebook không trả reel này")
+    assert job.error.startswith("Facebook không trả reel ")
     assert post_of(committed, video_id).status == "deleted"
 
 

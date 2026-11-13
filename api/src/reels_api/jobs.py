@@ -1110,7 +1110,8 @@ def run_check_job(db: DbSession, job: Job) -> None:
         # A deleted post that stays deleted says why, or the member sees a finished job and no change.
         if status is None:
             raise JobFailure(
-                "Facebook không trả reel này (không còn, hoặc token của Page không đọc được nó), bài vẫn ghi là đã xóa",
+                f"Facebook không trả reel {post.remote_id} (không còn, hoặc token của Page không đọc được nó), "
+                "bài vẫn ghi là đã xóa",
                 f"reel {post.remote_id}",
             )
         raise JobFailure(
