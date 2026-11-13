@@ -340,6 +340,13 @@ Built:
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
   for the member's own groups.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
+  A **header fixed at the top** (2026-11-14) holds, on its first row, "← Danh sách video", the title on one line (cut
+  with "…", whole in a tooltip), the status, "Đang chỉnh sửa" and who else is here, then the actions: "Chỉnh sửa" or
+  "Xong", "⋯", the photo helpers while a scene has no picture, "Xem trước" and "Render"/"Render lại" (the main
+  button). Its second row is the progress line, a **QC chip** once the MP4 has QC ("QC: đạt" in green, "QC: N mục chưa
+  đạt" in red or yellow; pressing it opens "Đăng bài"), and, at its end, the render's state and summary (below).
+  Under the header, scrolling away with the page: the topic, group and maker, "Loại nội dung" with the kind tags,
+  and the clone, TikTok-version and 30-day-plan notes.
   The status line ends "tạo bởi <member> lúc dd/mm/yyyy hh:mm". Under it, the **progress line** (2026-11-10):
   where the video stands, one step after another, each with a green tick (done), an orange mark (needs a look), a grey
   clock (not yet) or a spinner (a job on it), and its time: **Kịch bản** (when written), **Ảnh** ("5/7 cảnh" with a
@@ -376,20 +383,22 @@ Built:
   as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which opens
   a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
   bình luận". Until a member picks a tab it shows "Thiết lập" while there is no MP4
-  and "Đăng bài" once there is. On a wide screen the panel stays in view while the scenes scroll.
+  and "Đăng bài" once there is. From 1100 px wide the panel is 440 px beside the scenes, stuck under the header and
+  scrolling on its own; narrower, it is a drawer from the right, opened by "Thiết lập / Đăng bài" in the header (the
+  progress line and the QC chip open it too).
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
   Page in use) and "Tự bình luận"; once queued, the button
   becomes "Trong hàng chờ của “Page”" (linking to Quản lý Page), with the reason when it could not be
   scheduled and "Bỏ khỏi hàng chờ"; it comes back once the worker has scheduled the post.
-  "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
+  "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in the fixed header (there is no bar at the bottom), whose second row
   counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
-  one when clicked, opening the scene that holds it. While a job runs, the bar says which one with
+  one when clicked, opening the scene that holds it. While a job runs, it says which one with
   a spinner and its running time ("Đang render video… 0:42 / khoảng 1:15", the estimate being the
   last render's time), or that it is queued, with "Hủy"; a render seen to finish says "Đã render
   xong MP4". With nothing running, it says how the MP4 stands ("Sẵn sàng render." before the first
   one, "Bản sửa chưa có trong MP4" in orange after an edit, else "MP4 đã theo bản mới nhất."), and
-  under that a summary: content scenes, the length the scenes add up to, narration on or off, and
+  beside that a summary (left out on a phone): content scenes, the length the scenes add up to, narration on or off, and
   the current MP4's length. Once there is an MP4 the button reads "Render lại". The editor has:
   - **View and edit mode**, for the whole page. A video already rendered or posted opens in view
     mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
@@ -423,7 +432,7 @@ Built:
     warnings. Under the text and the voice text a counter shows the words as typed (the `*` not
     counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
     on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
-  - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
+  - **"Xem trước"** in the header, and "Xem từ cảnh này" (a play icon) on every scene card,
     play the video in the browser before any render, in a drawer from the right that leaves a strip
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
     the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
@@ -538,7 +547,7 @@ Built:
     the Vietnamese then the English ones, TikTok the Vietnamese ones) and opens on the one picked. With the team's
     Chrome extension ("Reels Studio – Google Ảnh", `extension/`), "Tìm trên Google" also makes that scene the target
     of "Gửi ảnh vào Reels Studio: <cảnh>" on any image's right-click menu, which puts the photo on it like a pasted
-    link; and the render bar shows "Lấy ảnh Google cho cảnh thiếu ảnh" beside "Tạo ảnh AI cho cảnh thiếu", which
+    link; and the header shows "Lấy ảnh Google cho cảnh thiếu ảnh" beside "Tạo ảnh AI cho cảnh thiếu", which
     searches Google Ảnh for every scene without a photo or clip (its first two keywords) and puts the first usable
     result on each, marked "Tự chọn, kiểm tra lại", then says how many it filled; a CAPTCHA stops it with a dialog
     saying to solve it in the Google tab and press again. Without the extension neither shows. Then
@@ -1156,9 +1165,12 @@ Phones (below 992 px wide; built):
   only. On a wider screen there is no header: the sidebar stays in place while the page scrolls,
   with the member's name and account menu (Đổi mật khẩu, Sửa tên, Đăng xuất) at its foot. The page
   beside it has no maximum width: on a large screen tables and cards fill the window, and only
-  paragraphs of grey explanation stop at about 820 px so they stay readable.
-- In the video editor the actions ("Nhân bản", "Xóa") wrap under the title, the tab panel sits
-  under the scenes, the render bar stays at the bottom of the screen, and each scene's preview is
+  paragraphs of grey explanation stop at about 820 px so they stay readable. On a video's page the sidebar folds to
+  a 56 px rail of icons (each a link, its name in a tooltip), with "Mở rộng menu" on top to widen it and "Thu gọn
+  menu" to fold it back (widened, it stays so until folded or the page is reloaded). A menu hidden with "Ẩn menu"
+  elsewhere is the rail here too.
+- In the video editor the actions wrap under the title in the fixed header, the tab panel is the drawer, and each
+  scene's preview is
   a centred thumbnail at most 220 px wide.
 - Tables keep their columns and scroll sideways inside their card; the page itself never scrolls
   sideways.

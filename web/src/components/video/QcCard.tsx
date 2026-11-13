@@ -1,6 +1,6 @@
 "use client";
 
-import { Flex, Popover, Typography } from "antd";
+import { Button, Flex, Popover, Typography } from "antd";
 import StatusText, { type StatusTone } from "@/components/StatusText";
 import type { QcResult } from "@/lib/api";
 
@@ -87,5 +87,22 @@ export default function QcGrid({ qc }: { qc: QcResult }) {
         </Popover>
       ))}
     </div>
+  );
+}
+
+/** The QC in the page's header: red or yellow while checks still want a look, green when the MP4 passes; pressing it
+ * opens "Đăng bài", where the tiles are. */
+export function QcChip({ qc, onOpen }: { qc: QcResult; onOpen: () => void }) {
+  const open = qc.checks.filter((check) => check.status !== "pass").length;
+  return (
+    <Button
+      size="small"
+      type="text"
+      onClick={onOpen}
+      data-testid="qc-chip"
+      style={{ background: TILE[qc.status].background, border: `1px solid ${TILE[qc.status].border}`, fontSize: 13 }}
+    >
+      <StatusText tone={TONE[qc.status]}>{open === 0 ? "QC: đạt" : `QC: ${open} mục chưa đạt`}</StatusText>
+    </Button>
   );
 }
