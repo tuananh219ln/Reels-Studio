@@ -53,6 +53,50 @@ def _vertical_frame(path: Path, sample: clips.Sample, second: float) -> bytes:
         return output.getvalue()
 
 
+def scene_length(video: Video, scene: Scene) -> float:
+    """Seconds to cut: the scene's real length (narration and pauses once the voice exists) plus 0.4 s of spare."""
+    return round(
+        max(1.0, fit_seconds(scene.seconds, made_voice_seconds(video, scene), voice_pause(video))) + 0.4,
+        3,
+    )
+
+
+def windows(sample: clips.Sample, length: float) -> list[float] | None:
+    """Possible start times of a cut of `length`, or None when the source cannot give one."""
+    if length > 60 or not math.isfinite(sample.seconds) or not length <= sample.seconds <= youtube_footage.MAX_SECONDS:
+        return None
+    return sorted({round((sample.seconds - length) * index / (WINDOWS - 1), 3) for index in range(WINDOWS)})
+
+
+def attach(
+    db: DbSession,
+    storage: DirectoryStorage,
+    video: Video,
+    scene: Scene,
+    path: Path,
+    sample: clips.Sample,
+    start: float,
+    length: float,
+    url: str,
+) -> list[str | None]:
+    """Cut one chosen window and store it as the scene's silent clip. Returns the replaced files to delete once the
+    caller has committed; the caller holds the video lock."""
+    with tempfile.TemporaryDirectory(prefix="reels_footage_cut_") as directory:
+        output = Path(directory) / "selected.mp4"
+        clips.cut_part(path, sample, start, length, output)
+        clip = clips.check_clip(output)
+        old = [scene.image_key, scene.video_key, drop_original(scene)]
+        key = new_key(video.id, f"clip-{scene.id}", clip.extension)
+        storage.save_file(key, output)
+    scene.video_key, scene.video_seconds = key, round(clip.seconds, 3)
+    scene.image_key = None
+    scene.video_start, scene.video_speed, scene.video_sound, scene.words = 0, 1, False, None
+    scene.image_source, scene.image_auto, scene.image_error, scene.image_credit = url, True, None, None
+    if scene.is_title:
+        refresh_thumbnail(db, storage, video, scene)
+    return old
+
+
 class Finder:
     def __init__(
         self,
@@ -116,7 +160,7 @@ class Finder:
                         else:
                             path = folder / "source.mp4"
                             path.write_bytes(stock_clips.download(hit, 30))
-                        if self._choose(scene, path, folder, url):
+                        if self._choose(scene, path, url):
                             return True
                 except (
                     youtube_footage.FootageError,
@@ -139,18 +183,13 @@ class Finder:
                 break  # One unused candidate per source; reserve attempts for the other sources.
         return False
 
-    def _choose(self, scene: Scene, path: Path, folder: Path, url: str) -> bool:
+    def _choose(self, scene: Scene, path: Path, url: str) -> bool:
         sample = clips.probe_sample(path)
-        length = round(
-            max(1.0, fit_seconds(scene.seconds, made_voice_seconds(self.video, scene), voice_pause(self.video))) + 0.4,
-            3,
-        )
-        if length > 60:
-            return False
-        if not math.isfinite(sample.seconds) or not length <= sample.seconds <= youtube_footage.MAX_SECONDS:
+        length = scene_length(self.video, scene)
+        starts = windows(sample, length)
+        if starts is None:
             return False
         # Two frames per possible window show the action, not just a video's cover. Only these windows may be chosen.
-        starts = sorted({round((sample.seconds - length) * index / (WINDOWS - 1), 3) for index in range(WINDOWS)})
         frames = [_vertical_frame(path, sample, start + offset * length) for start in starts for offset in (0.2, 0.8)]
         context = json.dumps(
             {
@@ -183,18 +222,7 @@ class Finder:
             return False
         if type(index) is not int or not 0 <= index < len(starts):
             return False
-        output = folder / "selected.mp4"
-        clips.cut_part(path, sample, starts[index], length, output)
-        clip = clips.check_clip(output)
-        old = [scene.image_key, scene.video_key, drop_original(scene)]
-        key = new_key(self.video.id, f"clip-{scene.id}", clip.extension)
-        self.storage.save_file(key, output)
-        scene.video_key, scene.video_seconds = key, round(clip.seconds, 3)
-        scene.image_key = None
-        scene.video_start, scene.video_speed, scene.video_sound, scene.words = 0, 1, False, None
-        scene.image_source, scene.image_auto, scene.image_error, scene.image_credit = url, True, None, None
-        if scene.is_title:
-            refresh_thumbnail(self.db, self.storage, self.video, scene)
+        old = attach(self.db, self.storage, self.video, scene, path, sample, starts[index], length, url)
         if self.on_saved:
             self.on_saved(scene, True)
         self.db.commit()
