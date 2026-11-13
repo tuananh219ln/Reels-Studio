@@ -28,7 +28,9 @@ def test_the_tiktok_caption_ignores_the_videos_own_hashtag_field():
 
 
 def test_a_group_without_a_tiktok_set_gets_the_bare_text():
-    caption = "Đứng lên ngồi xuống mà gối kêu lục cục. #suckhoe #duongsinh #songkhoe #videoviral #reels #trendingreels #fyp"
+    caption = (
+        "Đứng lên ngồi xuống mà gối kêu lục cục. #suckhoe #duongsinh #songkhoe #videoviral #reels #trendingreels #fyp"
+    )
     assert hashtags.tiktok_caption(caption, "Già Mà Khỏe – Dưỡng sinh sau 50") == (
         "Đứng lên ngồi xuống mà gối kêu lục cục."
     )

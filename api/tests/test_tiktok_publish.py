@@ -10,7 +10,15 @@ from sqlalchemy import delete, select
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
 from reels_api import crypto, tiktok, tiktok_connections, tiktok_publish
-from reels_api.models import AffiliateAccount, Job, KnowledgeTopic, Publication, TikTokConnection, TikTokOAuthState, Video
+from reels_api.models import (
+    AffiliateAccount,
+    Job,
+    KnowledgeTopic,
+    Publication,
+    TikTokConnection,
+    TikTokOAuthState,
+    Video,
+)
 from reels_api.storage import DirectoryStorage
 
 MP4 = b"fake mp4 bytes " * 100
