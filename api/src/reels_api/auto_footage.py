@@ -91,6 +91,7 @@ def attach(
     scene.video_key, scene.video_seconds = key, round(clip.seconds, 3)
     scene.image_key = None
     scene.video_start, scene.video_speed, scene.video_sound, scene.words = 0, 1, False, None
+    scene.video_loop = False
     scene.image_source, scene.image_auto, scene.image_error, scene.image_credit = url, True, None, None
     if scene.is_title:
         refresh_thumbnail(db, storage, video, scene)

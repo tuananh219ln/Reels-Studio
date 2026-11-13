@@ -438,6 +438,7 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             scene.image_key,
             *([scene.video_key, scene.video_start] if scene.video_key else []),
             *([["video_speed", scene.video_speed]] if scene.video_speed not in (None, 1) else []),
+            *([["video_loop", True]] if scene.video_key and scene.video_loop else []),
             # The clip's own sound and its words join only when heard, so MP4s rendered before them stay current.
             *([["video_sound", scene.words or []]] if scene.video_key and scene.video_sound else []),
             *([["text_position", *position]] if (position := text_position(video, scene)) else []),
@@ -533,6 +534,7 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
             text_size(video, scene.is_title),
             text_case(video, scene.is_title),
             photo_credit(scene),
+            bool(scene.video_key and scene.video_loop),
         )
 
     return (to_input(title) if title else None), [to_input(scene) for scene in scenes]
@@ -875,6 +877,7 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
             "seconds": scene.video_seconds,
             "start": scene.video_start,
             "speed": scene.video_speed,
+            "loop": scene.video_loop,
             # "Tiếng gốc": the clip's own sound is heard in the render; `words` say whether captions follow it.
             "sound": scene.video_sound,
             "words": len(scene.words or []),
@@ -908,6 +911,13 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "motion": motion_payload(scene),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],
         "warnings": [issue.message for issue in checks.warnings if issue.scene_id == scene.id],
+        # The same, each with the field it is about, so the page can offer the fix beside it ("Lặp clip").
+        "issues": [
+            {"message": issue.message, "field": issue.field, "level": level}
+            for level, found in (("blocking", checks.blocking), ("warning", checks.warnings))
+            for issue in found
+            if issue.scene_id == scene.id
+        ],
     }
 
 

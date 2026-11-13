@@ -2576,6 +2576,44 @@ test("Làm mờ vùng: a box drawn over a clip is saved, shown in the preview, t
   await expect(preview).toHaveAttribute("src", plain ?? "");
 });
 
+test("a clip shorter than its scene: Lặp clip beside the warning takes it away, and Bỏ lặp brings it back", async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "rau muống xào tỏi");
+  const first = page.getByTestId("scene").first();
+  await openScene(first);
+  await first.getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(makeClip());
+  await page
+    .getByRole("dialog")
+    .filter({ hasText: "Video sẽ thay ảnh của cảnh này?" })
+    .getByRole("button", { name: "Đổi" })
+    .click();
+  await expect(first.getByTestId("scene-video")).toBeVisible();
+  // Eight seconds of scene over a three-second clip: its last frame would hold.
+  const seconds = first.getByLabel("Số giây");
+  await seconds.fill("8");
+  await seconds.blur();
+  const warning = first.getByTestId("scene-warning").filter({ hasText: "khung cuối sẽ đứng yên" });
+  await expect(warning).toBeVisible();
+  await warning.getByRole("button", { name: "Lặp clip" }).click();
+  await expect(warning).toHaveCount(0);
+  await expect(first.getByTestId("clip-looped")).toContainText("Clip lặp lại");
+
+  await first.getByTestId("clip-looped").getByRole("button", { name: "Bỏ lặp" }).click();
+  await expect(first.getByTestId("clip-looped")).toHaveCount(0);
+  await expect(warning).toBeVisible();
+
+  // Another reason points at its field: "Sửa chữ" puts the cursor in the scene's text.
+  const text = first.getByLabel("Chữ trên màn hình");
+  await text.fill("Một hai ba bốn năm sáu bảy tám chín mười mười một");
+  await text.blur();
+  const words = first.getByTestId("scene-warning").filter({ hasText: "nên tối đa 10 từ" });
+  await words.getByRole("button", { name: "Sửa chữ" }).click();
+  await expect(text).toBeFocused();
+});
+
 test("a title clip with a start time renders, and removing it asks for a photo again", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);

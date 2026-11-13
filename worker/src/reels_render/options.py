@@ -58,6 +58,9 @@ class RenderOptions:
     # The script carries a channel logo (`Script.logo`). Same reason: a machine on older code would render the video
     # without it, so it refuses the option instead.
     logo: bool = False
+    # Some scene loops its clip ("video_loop"). Same reason: a machine on older code would hold the clip's last
+    # frame instead, so it refuses the option.
+    clip_loop: bool = False
 
     def __post_init__(self) -> None:
         for name, value, allowed in (

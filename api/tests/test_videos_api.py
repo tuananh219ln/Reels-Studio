@@ -963,6 +963,50 @@ def test_a_clip_speed_is_checked_warns_on_a_short_clip_and_goes_with_the_clip(an
     assert again["video"]["speed"] == 1, "a new clip starts at 1×"
 
 
+def test_a_clip_loop_needs_a_clip(an, db, me, storage):
+    video = make_video(db, storage, me)
+    response = an.patch(f"/api/scenes/{scene_ids(db, video)[0]}", json={"video_loop": True})
+    assert (response.status_code, response.json()["message"]) == (422, "Cảnh này chưa có video")
+
+
+@needs_ffmpeg
+def test_lap_clip_takes_the_short_clip_warning_away_outdates_the_mp4_and_goes_with_the_clip(
+    an, db, me, storage, tmp_path
+):
+    """ "Lặp clip": the warning carries its field, so the page offers the fix; on, the warning goes, the MP4
+    fingerprint changes and the render is told; a new clip starts without it."""
+    from reels_api.videos import render_signature, split_scenes
+
+    def signature():
+        db.expire_all()
+        row = db.get(Video, video.id)
+        return render_signature(row, *split_scenes(db, row))
+
+    video = make_video(db, storage, me)
+    target = scene_ids(db, video)[0]
+    clip = clip_bytes(tmp_path, seconds=3)
+    an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip)})
+    short = an.patch(f"/api/scenes/{target}", json={"video_start": 1.5}).json()["scenes"][0]
+    assert {"message": "Video ngắn hơn cảnh, khung cuối sẽ đứng yên", "field": "video", "level": "warning"} in (
+        short["issues"]
+    )
+    assert short["video"]["loop"] is False
+    before = signature()
+
+    looped = an.patch(f"/api/scenes/{target}", json={"video_loop": True}).json()["scenes"][0]
+    assert looped["video"]["loop"] is True
+    assert "Video ngắn hơn cảnh, khung cuối sẽ đứng yên" not in looped["warnings"]
+    assert all(issue["field"] != "video" for issue in looped["issues"])
+    assert signature() != before
+
+    # A looped clip's words would drift from their captions: its own sound and the loop exclude each other.
+    refused = an.patch(f"/api/scenes/{target}", json={"video_sound": True})
+    assert refused.status_code == 422
+
+    again = an.post(f"/api/scenes/{target}/video", files={"file": ("vuon.mp4", clip)}).json()["scenes"][0]
+    assert again["video"]["loop"] is False, "a new clip does not loop"
+
+
 @needs_ffmpeg
 def test_title_clip_draws_the_thumbnail_from_its_start_frame(an, db, me, storage, tmp_path):
     video = make_video(db, storage, me)
@@ -1025,3 +1069,14 @@ def test_a_long_clip_sets_at_most_10_seconds_and_deleting_the_scene_deletes_it(a
     clip_key = db.scalar(select(Scene.video_key).where(Scene.id == target))
     assert an.delete(f"/api/scenes/{target}").status_code == 200
     assert not storage.exists(clip_key)
+
+
+def test_a_render_machine_is_sent_the_loop_flag_only_when_a_clip_loops():
+    """A machine on older code would hold a looped clip's last frame: it is sent `clip_loop` and refuses the video."""
+    from dataclasses import replace
+
+    from reels_api import render_nodes
+    from reels_render.options import RenderOptions
+
+    assert "clip_loop" not in render_nodes.options_dict(RenderOptions())
+    assert render_nodes.options_dict(replace(RenderOptions(), clip_loop=True))["clip_loop"] is True

@@ -1404,7 +1404,13 @@ position, narration, music, and the crossfade. Upload limits, storage, and rende
 - **Length:** a new clip sets the scene's seconds to the clip's length minus the crossfades around
   it, at most 10 s. Members may
   change both fields. A scene longer than the clip left after its start holds the last frame for
-  the rest of the scene and shows a yellow warning, "Video ngắn hơn cảnh, khung cuối sẽ đứng yên".
+  the rest of the scene and shows a yellow warning, "Video ngắn hơn cảnh, khung cuối sẽ đứng yên", with **"Lặp clip"**
+  beside it (2026-11-14): the clip then starts again from its start time for as long as the scene lasts, the
+  warning goes, and "Clip lặp lại" with "Bỏ lặp" shows under the picture. "Lặp clip" and "Tiếng gốc" exclude each
+  other (a looped clip's words would drift from their captions); a new or removed clip is not looped.
+- **Fixes beside the reasons** (2026-11-14): a scene's reason has a button when one step fixes it: "Lặp clip" (above),
+  "Tải ảnh lên" ("Cảnh chưa có ảnh", the card's file picker), "Nhập từ khóa", "Sửa chữ", "Sửa lời đọc" and "Sửa số
+  giây" (the cursor goes to that field). None in view mode, while the video is locked, or on the studio's list.
 - **Title scene as a clip:** the hook box appears on the very first frame with no fade-in. The
   thumbnail and the title-scene preview are the clip's frame at the start time, so the first
   frame of the MP4 still matches the thumbnail. Members choose the start time so that this frame

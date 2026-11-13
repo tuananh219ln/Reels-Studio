@@ -293,6 +293,8 @@ export type SceneData = {
     seconds: number;
     start: number;
     speed: number;
+    /** "Lặp clip": shorter than the scene, it starts again from `start` instead of holding its last frame. */
+    loop?: boolean;
     /** "Làm mờ vùng": boxes blurred for the whole scene, fractions of the 1080x1920 frame. */
     blur: [number, number, number, number][];
     /** "Tiếng gốc": the clip's own sound is heard in the render. */
@@ -322,7 +324,12 @@ export type SceneData = {
   motion: { html: string; seconds: number; pending: boolean } | null;
   blocking: string[];
   warnings: string[];
+  /** The same reasons, each with the field it is about ("video", "keywords", "text"…), so a fix can sit beside it;
+   * missing from an api older than the page. */
+  issues?: SceneIssue[];
 };
+
+export type SceneIssue = { message: string; field: string; level: "blocking" | "warning" };
 
 export type VideoDetail = VideoRow & {
   /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */

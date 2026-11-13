@@ -197,6 +197,13 @@ def test_a_scene_longer_than_its_clip_only_warns(seconds, voice_seconds, warned)
     assert messages(checks.blocking, 9) == []
 
 
+def test_a_looped_clip_never_warns_that_it_is_short():
+    """ "Lặp clip": the clip starts again instead of holding its last frame, so its length no longer matters."""
+    clip = SceneInput(9, False, SCENE_TEXT, 5, True, clip_seconds=2.0, clip_loop=True)
+    checks = run(title(), scenes(2) + [clip] + scenes(2))
+    assert messages(checks.warnings, 9) == []
+
+
 @pytest.mark.parametrize(
     ("speed", "seconds", "message"),
     [
