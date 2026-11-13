@@ -63,6 +63,8 @@ class Scene:
 class Script:
     title: Scene
     scenes: list[Scene]
+    # The channel's badge (logo.make_badge) laid on the finished video; None: no logo.
+    logo: Path | None = None
 
     @property
     def all_scenes(self) -> list[Scene]:
@@ -103,7 +105,19 @@ def parse_script(data: object, base_dir: Path) -> Script:
     return Script(
         title=title,
         scenes=[_parse_scene(item, number, base_dir) for number, item in enumerate(scenes, start=1)],
+        logo=_parse_logo(data.get("logo"), base_dir),
     )
+
+
+def _parse_logo(value: object, base_dir: Path) -> Path | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise InputError('"logo" phải là đường dẫn tới ảnh badge PNG')
+    path = (base_dir / value).resolve()
+    if not path.is_file():
+        raise InputError(f"Không tìm thấy ảnh logo: {value}")
+    return path
 
 
 def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:

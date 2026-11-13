@@ -323,6 +323,9 @@ export type SceneData = {
 };
 
 export type VideoDetail = VideoRow & {
+  /** The video's channel ("Kênh") and whether its logo is laid on the MP4 (api brands.payload_of). */
+  brand: { id: number; name: string; logo_badge_url: string | null } | null;
+  logo_enabled: boolean;
   has_script: boolean;
   /** "Tự viết": a member wrote the script; no AI wrote it or reviewed its safety. */
   hand_written: boolean;
@@ -598,6 +601,8 @@ export type Fanpage = {
   shopee_account: { id: number; name: string; usable: boolean } | null;
   /** The TikTok account its videos open with on their Đăng TikTok card, shown only to its owner. */
   tiktok_account: { id: number; name: string; connected: boolean } | null;
+  /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
+  brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
   /** The worker's last check of the token (api fanpages.check). */
   check: {
     checked_at: string | null;
@@ -1566,4 +1571,22 @@ export type QueueOverview = {
   pages: QueuePage[];
   topics: { id: number; name: string }[];
   fill_ahead_hours: number;
+};
+
+/** What a logo upload, "Dùng ảnh Fanpage" or removal answers (api brands.py). */
+export type BrandLogoResult = {
+  logo_url: string | null;
+  logo_badge_url: string | null;
+  logo_version: string | null;
+  /** Videos with an MP4 and the logo on, not posted yet: they need a new render. */
+  videos_outdated: number;
+};
+
+/** A channel in the list the video's Logo card picks from (GET /api/brands). */
+export type BrandRow = {
+  id: number;
+  name: string;
+  logo_badge_url: string | null;
+  logo_default_on: boolean;
+  mine: boolean;
 };

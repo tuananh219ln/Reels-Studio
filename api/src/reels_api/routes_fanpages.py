@@ -7,10 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, facebook, fanpages, page_dashboard, tiktok_connections
+from . import affiliate, brands, facebook, fanpages, page_dashboard, tiktok_connections
 from .db import get_db
 from .errors import ApiError
-from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session, TikTokConnection
+from .models import AffiliateAccount, Brand, Fanpage, FanpageFollowers, Session, TikTokConnection
 from .ownership import ensure_owner
 from .routes_videos import invalid
 from .sessions import current_member
@@ -88,6 +88,18 @@ def _tiktok_account(db: DbSession, row: Fanpage, me: Session) -> dict | None:
     }
 
 
+def _brand(brand: Brand | None) -> dict | None:
+    if brand is None:
+        return None
+    return {
+        "id": brand.id,
+        "name": brand.name,
+        "logo_badge_url": brands.badge_url(brand),
+        "logo_default_on": brand.logo_default_on,
+        "owner_id": brand.owner_id,
+    }
+
+
 def _rows(db: DbSession, me: Session) -> list[dict]:
     rows = list(
         db.scalars(
@@ -100,6 +112,9 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
     insights = fanpages.insights_summary(db, rows)
     scheduled = fanpages.scheduled_counts(db)
     posts = fanpages.post_counts(db)
+    brand_of_page = {
+        brand.fanpage_id: brand for brand in db.scalars(select(Brand).where(Brand.fanpage_id.is_not(None)))
+    }
     return [
         {
             "id": row.id,
@@ -115,6 +130,8 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "mine": row.owner_id == me.user_id,
             "shopee_account": _shopee_account(db, row, me),
             "tiktok_account": _tiktok_account(db, row, me),
+            # The Page's brand ("Kênh") and its logo, laid on the videos made for it (brands.py).
+            "brand": _brand(brand_of_page.get(row.id)),
             "check": checks[row.id],
             "insights": insights[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),

@@ -6,6 +6,7 @@ import { useState } from "react";
 import { COLORS } from "@/app/theme";
 import { api, errorMessage, type VideoDefaults, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
+import LogoCard from "./LogoCard";
 import MusicCard from "./MusicCard";
 import { AudioSettings, MotionSettings, TextSettings } from "./VideoSettings";
 
@@ -14,6 +15,7 @@ const SECTIONS = [
   { key: "music", label: "Nhạc nền" },
   { key: "motion", label: "Hình ảnh" },
   { key: "text", label: "Chữ & phụ đề" },
+  { key: "logo", label: "Logo" },
 ] as const;
 type Section = (typeof SECTIONS)[number]["key"];
 
@@ -90,6 +92,9 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
       </div>
       <div id={anchor("text")} style={{ scrollMarginTop: 44 }}>
         <TextSettings values={values} onChange={change} disabled={disabled} />
+      </div>
+      <div id={anchor("logo")} style={{ scrollMarginTop: 44 }}>
+        <LogoCard video={video} disabled={disabled} onSave={(options) => void save({ options })} />
       </div>
       <Flex wrap gap={8} align="center">
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>

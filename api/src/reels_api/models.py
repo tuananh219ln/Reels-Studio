@@ -596,6 +596,34 @@ class Fanpage(Base):
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
 
 
+class Brand(Base):
+    """A "Kênh": one brand with one logo, which is laid on the MP4 at render (brands.py). It groups one Facebook Page,
+    one TikTok account and one YouTube channel, kept to filter where a video may be posted."""
+
+    __tablename__ = "brands"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(120), unique=True)
+    slug: Mapped[str] = mapped_column(String(120), unique=True)
+    logo_path: Mapped[str | None] = mapped_column(String(255))  # the uploaded picture's storage key
+    logo_badge_path: Mapped[str | None] = mapped_column(String(255))  # the round badge made from it
+    logo_version: Mapped[str | None] = mapped_column(String(16))  # content hash: the badge's ?v= and what an MP4 shows
+    fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id", ondelete="SET NULL"), unique=True)
+    tiktok_username: Mapped[str | None] = mapped_column(String(64))
+    tiktok_account_id: Mapped[str | None] = mapped_column(String(64))
+    youtube_channel_id: Mapped[str | None] = mapped_column(String(64))
+    youtube_handle: Mapped[str | None] = mapped_column(String(64))
+    logo_default_on: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    fanpage: Mapped[Fanpage | None] = relationship()
+    owner: Mapped[User] = relationship(foreign_keys=[owner_id])
+
+
 class PageQueueItem(Base):
     """A rendered video waiting in a Page's queue: the worker gives the first one the Page's next free posting time and
     schedules it on Facebook (page_queue.py). The row goes once the post is made; one it could not post keeps why."""

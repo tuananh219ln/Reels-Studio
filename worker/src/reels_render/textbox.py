@@ -361,12 +361,17 @@ def _clamp(start: int, size: int, low: int, high: int, frame: int) -> int:
     return max(low, min(start, high - size))
 
 
-def place_box(width: int, height: int, centre: tuple[int, int] | None, is_title: bool) -> tuple[int, int]:
+def place_box(
+    width: int, height: int, centre: tuple[int, int] | None, is_title: bool, min_top: int | None = None
+) -> tuple[int, int]:
     """Top-left corner of a text box: where the template puts it, or centred on `centre` (a member dragged it)
-    inside SAFE_ZONE. The title moves only up and down, so the thumbnail stays centred."""
+    inside SAFE_ZONE. The title moves only up and down, so the thumbnail stays centred. `min_top` (a channel logo is
+    on) keeps the box from starting higher than that, below the safe zone's own top."""
     if centre is None:
-        return title_box_position(width, height) if is_title else scene_box_position(width, height)
+        x, y = title_box_position(width, height) if is_title else scene_box_position(width, height)
+        return x, y if min_top is None else max(y, min_top)
     left, top, right, bottom = SAFE_ZONE
+    top = top if min_top is None else max(top, min_top)
     x = (FRAME_WIDTH - width) // 2 if is_title else _clamp(centre[0] - width // 2, width, left, right, FRAME_WIDTH)
     y = _clamp(centre[1] - height // 2, height, top, bottom, FRAME_HEIGHT)
     return x, y

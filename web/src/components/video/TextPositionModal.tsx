@@ -9,6 +9,35 @@ import { COLORS } from "@/app/theme";
 export const FRAME_WIDTH = 1080;
 export const FRAME_HEIGHT = 1920;
 const SCENE_BOX_BOTTOM = 1440;
+/** What the platforms draw over a video (frame 1080×1920): the search bar on top, the caption and music below, the
+ * like/comment/share column on the right. The logo and the text stay out of it (api docs: brand logo). */
+export const COVERED = {
+  top: 190,
+  bottom: 1480,
+  rightColumn: { x: 900, y1: 850, y2: 1600 },
+};
+/** The channel badge as the renderer lays it (reels_render.logo): its stored picture is 686 px across with the
+ * logo 512 px in it, scaled to 170 px (title) or 120 px (corner) of logo. */
+const BADGE_CANVAS = 686;
+const BADGE_LOGO = 512;
+const BADGE_PAD = 61;
+const badgeWidth = (diameter: number) => Math.round((BADGE_CANVAS * diameter) / BADGE_LOGO);
+export const LOGO_TITLE_WIDTH = badgeWidth(170);
+export const LOGO_CORNER_WIDTH = badgeWidth(120);
+/** Top-left of the badge on a scene: the title's is centred on its text box's top edge (`boxTop`; null: no box, the
+ * ring 200 px from the top), the others' ring is 60 px from the right and 200 px from the top. */
+export function logoCorner(isTitle: boolean, boxTop: number | null): [number, number] {
+  if (!isTitle) {
+    const pad = (BADGE_PAD * 120) / BADGE_LOGO;
+    return [Math.round(FRAME_WIDTH - 60 + pad - LOGO_CORNER_WIDTH), Math.round(200 - pad)];
+  }
+  const x = Math.floor((FRAME_WIDTH - LOGO_TITLE_WIDTH) / 2);
+  if (boxTop === null) {
+    return [x, Math.round(200 - (BADGE_PAD * 170) / BADGE_LOGO)];
+  }
+  return [x, Math.round(Math.max(boxTop, 290) - LOGO_TITLE_WIDTH / 2)];
+}
+
 export const SAFE = { left: 60, top: 220, right: 940, bottom: SCENE_BOX_BOTTOM };
 const SHOWN_WIDTH = 270; // the frame on screen, a quarter of its size
 const SCALE = SHOWN_WIDTH / FRAME_WIDTH;

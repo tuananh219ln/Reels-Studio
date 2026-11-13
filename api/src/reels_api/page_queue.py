@@ -13,6 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
+from . import brands
 from .analytics import VIETNAM
 from .models import Fanpage, Job, KnowledgeTopic, PageQueueItem, Publication, Video
 from .sessions import now
@@ -83,6 +84,8 @@ def problem(db: DbSession, video: Video, page: Fanpage | None = None) -> str | N
     title, scenes = split_scenes(db, video)
     if video.rendered_signature != render_signature(video, title, scenes):
         return "MP4 chưa cập nhật theo bản sửa, hãy render lại"
+    if page is not None and (wrong := brands.mismatch(db, video, page)):
+        return wrong
     if page is not None and page.id in posted_fanpage_ids(video, publications_of(db, video.id)):
         return f"Bản MP4 này đã có trên Fanpage “{page.name}”, hãy render bản mới"
     return None

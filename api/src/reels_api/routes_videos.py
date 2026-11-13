@@ -28,6 +28,7 @@ from . import (
     articles,
     auto_photos,
     autoedit,
+    brands,
     clips,
     edit_log,
     frames,
@@ -514,8 +515,10 @@ def patch_video(
     look = video_options.text_look(video), video_options.effective(video)["title_text_position"]
     pause = video_options.voice_pause(video)
     if body.options:
+        # The channel and its logo switch live in the options but are checked apart (brands.py).
+        rest = brands.apply_video_options(db, video, me.user_id, body.options)
         try:
-            changes = video_options.clean(body.options)
+            changes = video_options.clean(rest)
         except video_options.OptionError as err:
             raise invalid(str(err)) from None
         video.options = video_options.effective(video) | changes
@@ -789,6 +792,8 @@ def publish(
     if fanpage is None or not fanpage.active:
         raise invalid("Hãy chọn một Fanpage đang dùng")
     ensure_page_owner(fanpage, me.user_id)
+    if wrong := brands.mismatch(db, video, fanpage):
+        raise ApiError(409, "brand_mismatch", wrong)
     if fanpage.id in posted_fanpage_ids(video, publications_of(db, video.id)):
         raise ApiError(
             409, "already_published", "Bản MP4 này đang có trên Fanpage đó, hãy render bản mới hoặc xóa bài cũ"
