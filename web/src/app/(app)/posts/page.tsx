@@ -1,26 +1,27 @@
 "use client";
+import PostComment from "@/components/PostComment";
 
 import EmptyState from "@/components/EmptyState";
+import FilterSelect from "@/components/FilterSelect";
+import { useMe } from "@/components/MeContext";
+import PageHeader from "@/components/PageHeader";
+import PostCalendar from "@/components/PostCalendar";
+import PostKpis from "@/components/PostKpis";
+import PostMetrics, { formatCount, viewsOf } from "@/components/PostMetrics";
+import PostSuggestions from "@/components/PostSuggestions";
+import StatusText from "@/components/StatusText";
+import VideoTitleCell from "@/components/VideoTitleCell";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import PostActions from "@/components/video/PostActions";
+import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
+import { useFreshenOnOpen } from "@/lib/freshen";
+import { usePolling } from "@/lib/polling";
+import { SHOWN_STATUS, shownStatus, type ShownStatus } from "@/lib/postStatus";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import { CalendarOutlined, SearchOutlined, UnorderedListOutlined } from "@ant-design/icons";
 import { App, Card, Flex, Input, Segmented, Select, Spin, Table, Tabs, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type PostRow } from "@/lib/api";
-import { useUrlChoice, useUrlPage } from "@/lib/urlState";
-import { SHOWN_STATUS, shownStatus, type ShownStatus } from "@/lib/postStatus";
-import PageHeader from "@/components/PageHeader";
-import PostCalendar from "@/components/PostCalendar";
-import VideoTitleCell from "@/components/VideoTitleCell";
-import PostActions from "@/components/video/PostActions";
-import PostKpis from "@/components/PostKpis";
-import PostSuggestions from "@/components/PostSuggestions";
-import PostMetrics, { formatCount, viewsOf } from "@/components/PostMetrics";
-import { useFreshenOnOpen } from "@/lib/freshen";
-import { usePolling } from "@/lib/polling";
-import StatusText from "@/components/StatusText";
-import FilterSelect from "@/components/FilterSelect";
-import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
-import { useMe } from "@/components/MeContext";
 
 /** The order a video's status tags are listed in. */
 const STATUSES: ShownStatus[] = ["failed", "pending", "scheduled", "published", "cancelled", "deleted"];
@@ -88,7 +89,9 @@ function Posts() {
     () =>
       api<PostRow[]>("/posts")
         .then(setPosts)
-        .catch((err) => message.error(errorMessage(err))),
+        .catch((err) => {
+          message.error(errorMessage(err));
+        }),
     [message],
   );
 
@@ -204,7 +207,7 @@ function Posts() {
         actions={viewSwitch}
       />
       <PostKpis posts={posts} />
-      <PostSuggestions posts={posts} />
+      <PostSuggestions posts={posts} onChanged={load} />
       <Card styles={{ body: { padding: 0 } }} data-testid="post-list">
         {toolbar}
         {posts === null ? (
@@ -339,6 +342,12 @@ function GroupTable({ groups, onDone }: { groups: Group[]; onDone: () => void })
 /** The posts of one video: told apart by Page and time, each with its own numbers and actions. */
 function PostTable({ posts, onDone }: { posts: PostRow[]; onDone: () => void }) {
   const columns: ColumnsType<PostRow> = [
+    {
+      title: "Bình luận",
+      key: "comment",
+      width: 220,
+      render: (_, post) => <PostComment post={post} onChanged={onDone} />,
+    },
     {
       title: "Fanpage",
       key: "fanpage",

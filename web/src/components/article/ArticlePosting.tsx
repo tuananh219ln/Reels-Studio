@@ -1,12 +1,10 @@
 "use client";
+import { canTakeDownPost } from "@/lib/permissions";
 
-import { NO_PAGE_OF_MINE } from "@/lib/myPages";
+import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
+import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
-import { SendOutlined, VideoCameraAddOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Flex, Input, Popconfirm, Radio, Select, Typography } from "antd";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import StatusText, { type StatusTone } from "@/components/StatusText";
 import {
   ApiError,
   api,
@@ -18,9 +16,12 @@ import {
   type ArticleOptions,
   type ArticlePost,
 } from "@/lib/api";
-import FormDrawer from "@/components/FormDrawer";
-import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
-import StatusText, { type StatusTone } from "@/components/StatusText";
+import { NO_PAGE_OF_MINE } from "@/lib/myPages";
+import { SendOutlined, VideoCameraAddOutlined } from "@ant-design/icons";
+import { Alert, App, Button, Card, Flex, Input, Popconfirm, Radio, Select, Typography } from "antd";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 /** An article's status as a dot: a job running, waiting for its time, out, or failed. */
 export const ARTICLE_STATUS_TONES: Record<Article["status"], StatusTone> = {
@@ -110,12 +111,14 @@ export function PublishButton({
   disabled,
   onSaved,
   beforePublish,
+  label,
 }: {
   article: Article;
   options: ArticleOptions | null;
   disabled: boolean;
   onSaved: (article: Article) => void;
   beforePublish: () => Promise<void>;
+  label?: string;
 }) {
   const { message, modal } = App.useApp();
   const [open, setOpen] = useState(false);
@@ -123,7 +126,23 @@ export function PublishButton({
   const [mode, setMode] = useState<"now" | "later">("now");
   const [when, setWhen] = useState("");
   const [busy, setBusy] = useState(false);
-  const pages = options?.fanpages ?? [];
+  const [loadedOptions, setLoadedOptions] = useState<ArticleOptions | null>(null);
+  useEffect(() => {
+    if (!open || options !== null) return;
+    let live = true;
+    api<ArticleOptions>("/articles/options").then(
+      (found) => {
+        if (live) setLoadedOptions(found);
+      },
+      (err) => {
+        if (live) message.error(errorMessage(err));
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [open, options, message]);
+  const pages = (options ?? loadedOptions)?.fanpages ?? [];
   const fanpage = picked ?? (pages.length === 1 ? pages[0].id : null);
   const chosen = pages.find((page) => page.id === fanpage);
 
@@ -159,8 +178,14 @@ export function PublishButton({
   const blocking = article.checks.blocking;
   return (
     <>
-      <Button type="primary" icon={<SendOutlined />} disabled={disabled} onClick={() => setOpen(true)}>
-        Đăng
+      <Button
+        aria-label={label}
+        type="primary"
+        icon={<SendOutlined />}
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+      >
+        {label ?? "Đăng"}
       </Button>
       <FormDrawer
         title="Đăng bài viết"
@@ -296,7 +321,7 @@ export function PostsCard({
                     Kiểm tra
                   </Button>
                 )}
-                {post.can_take_down && post.created_by_id === me.id && (
+                {post.can_take_down && canTakeDownPost(post, me.id) && (
                   <Popconfirm
                     title={post.status === "published" ? "Gỡ bài này khỏi Facebook?" : "Hủy bài này?"}
                     okText={post.status === "published" ? "Gỡ bài" : "Hủy đăng"}

@@ -1,10 +1,11 @@
 "use client";
+import { canTakeDownPost } from "@/lib/permissions";
 
 import { useMe } from "@/components/MeContext";
+import { api, errorMessage, type Post, type VideoDetail } from "@/lib/api";
 import { CloseCircleOutlined, DeleteOutlined, ExportOutlined, RedoOutlined, SyncOutlined } from "@ant-design/icons";
 import { App, Button, Popconfirm, Space, Tooltip } from "antd";
 import { useState } from "react";
-import { api, errorMessage, type Post, type VideoDetail } from "@/lib/api";
 
 type Action = "check" | "take-down" | "retry";
 
@@ -29,7 +30,8 @@ export default function PostActions({
 }) {
   const { message } = App.useApp();
   // Only whoever posted it cancels or deletes it (the api refuses anyone else).
-  const mine = post.created_by_id === useMe().me.id;
+  const { me } = useMe();
+  const mine = canTakeDownPost(post, me.id);
   const [busy, setBusy] = useState<Action | null>(null);
   const closed = post.status === "cancelled" || post.status === "deleted";
   if (closed && !compact) return null;
@@ -71,7 +73,7 @@ export default function PostActions({
             closed
               ? "Bài đã hủy hoặc đã xóa"
               : !mine
-                ? "Chỉ người đăng bài này mới hủy hoặc xóa được"
+                ? "Chỉ người đăng hoặc chủ Page mới hủy hoặc xóa được"
                 : disabled
                   ? waiting
                   : published

@@ -71,7 +71,8 @@ app replaces CapCut, so the output is a finished MP4.
    until TikTok audits the app).
 7. **Job log (built):** every job with status, duration, AI call count, the model that wrote a
    script, and error; failed jobs
-   are retried from the video page, where the MP4 plays and downloads.
+   are retried from the job log or the video page, where the MP4 plays and downloads. Applicable entity actions
+   are shared across lists and detail pages (see [Shared entity actions](ux-guidelines.md#shared-entity-actions)).
 8. **Facebook posting (built):** members connect Fanpages by pasting a Page token, then post a
    rendered video as a Reel now or at a set time, post a new render again, cancel a post not yet
    public and delete a public one from Facebook. "Bài đăng" lists posts on their way, failed (with

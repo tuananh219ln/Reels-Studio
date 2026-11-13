@@ -26,6 +26,7 @@ from .models import (
     Fanpage,
     Job,
     KnowledgeTopic,
+    PageQueueItem,
     PostMetrics,
     Publication,
     Scene,
@@ -786,7 +787,8 @@ def publication_payload(post: Publication | None, by_page: dict[int | None, anal
         "at": live_at(post).isoformat(),
         "url": facebook.reel_url(post.remote_id) if published and post.remote_id else None,
         "created_by": post.created_by.name,
-        "created_by_id": post.created_by_id,  # only they take it down
+        "created_by_id": post.created_by_id,
+        "fanpage_owner_id": post.fanpage.owner_id if post.fanpage else None,
         "closed_at": post.closed_at.isoformat() if post.closed_at else None,
         "closed_by": post.closed_by.name if post.closed_by else None,
         "metrics": metrics.payload(post, by_page),
@@ -1059,6 +1061,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         **_with_post_stage(_status(db, video, job, failed), extras),
         **_labels(video, title, scenes, job, failed),
         "locked": job is not None,
+        "queue": extras.get("queue"),
+        "suggested_post_at": extras.get("suggested_post_at"),
         "active_job": _job_payload(job),
         "failed_job": _job_payload(failed) if job is None else None,
         "mp4": {
@@ -1178,10 +1182,21 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
     ids = [video.id for video in videos]
     if not ids:
         return {}
-    groups = dict(db.execute(select(KnowledgeTopic.id, KnowledgeTopic.name)).all())
-    days = dict(
-        db.execute(select(TopicPlanItem.video_id, TopicPlanItem.day).where(TopicPlanItem.video_id.in_(ids))).all()
-    )
+    queued = {
+        item.video_id: {"id": item.id, "fanpage": page, "error": item.error}
+        for item, page in db.execute(
+            select(PageQueueItem, Fanpage.name).join(Fanpage).where(PageQueueItem.video_id.in_(ids))
+        )
+    }
+    topics = {topic.id: topic for topic in db.scalars(select(KnowledgeTopic))}
+    groups = {topic.id: topic.name for topic in topics.values()}
+    ideas = list(db.scalars(select(TopicPlanItem).where(TopicPlanItem.video_id.in_(ids))))
+    days = {idea.video_id: idea.day for idea in ideas}
+    suggested = {}
+    for idea in ideas:
+        topic = topics.get(idea.knowledge_topic_id)
+        at = plans.suggested_post_at(topic, idea) if topic else None
+        suggested[idea.video_id] = at.isoformat() if at else None
     posts = db.execute(
         select(Publication, Fanpage.name)
         .outerjoin(Fanpage, Fanpage.id == Publication.fanpage_id)
@@ -1229,6 +1244,8 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
         extras[video.id] = {
             "knowledge_topic": groups.get(video.knowledge_topic_id),
             "plan_day": days.get(video.id),
+            "suggested_post_at": suggested.get(video.id),
+            "queue": queued.get(video.id),
             "post": _post_summary(live, later, readings, by_page),
             # A TikTok post of this video (its TikTok version's or its own MP4's): the card says "Đã đăng" for it.
             "tiktok_posted": video.id in on_tiktok,
@@ -1302,6 +1319,8 @@ def list_payload(
     extras = extras or {
         "knowledge_topic": None,
         "plan_day": None,
+        "suggested_post_at": None,
+        "queue": None,
         "post": None,
         "tiktok_posted": False,
         "posted_on": [],

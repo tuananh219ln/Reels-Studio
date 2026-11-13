@@ -1,30 +1,29 @@
 "use client";
+import ProductActions from "@/components/actions/ProductActions";
 
 import EmptyState from "@/components/EmptyState";
+import FilterSelect from "@/components/FilterSelect";
 import { useMe } from "@/components/MeContext";
+import StatusText from "@/components/StatusText";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
+import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import {
   CheckOutlined,
   DeleteOutlined,
   DownloadOutlined,
-  EditOutlined,
   LoadingOutlined,
   PlusOutlined,
-  ReloadOutlined,
   SearchOutlined,
   UploadOutlined,
 } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Popconfirm, Segmented, Space, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api, errorMessage, formatDateTime, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
-import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
 import AddProductDrawer, { type AddMode } from "./AddProductDrawer";
-import ProductModal from "./ProductModal";
 import PlacesChip from "./PlacesChip";
+import ProductModal from "./ProductModal";
 import QuickFill, { needsQuickFill } from "./QuickFill";
-import StatusText from "@/components/StatusText";
-import FilterSelect from "@/components/FilterSelect";
-import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 
 type Filters = { topicId?: number; platform?: string; q: string };
 
@@ -130,16 +129,6 @@ export default function Products() {
   }, []);
 
   useEffect(loadOptions, [loadOptions]);
-
-  async function act(run: () => Promise<unknown>, done: string) {
-    try {
-      await run();
-      message.success(done);
-    } catch (err) {
-      message.error(errorMessage(err));
-    }
-    await reload();
-  }
 
   const mineCount = products.filter((product) => product.created_by_id === me.id).length;
   const whose = whosePick ?? (mineCount > 0 ? "mine" : "all");
@@ -302,52 +291,7 @@ export default function Products() {
       title: "Thao tác",
       key: "actions",
       width: 230,
-      render: (_, product) => (
-        <Space wrap>
-          {product.status === "approved" ? (
-            <Button
-              onClick={() => act(() => api(`/affiliate-products/${product.id}/unapprove`, "POST"), "Đã bỏ duyệt")}
-            >
-              Bỏ duyệt
-            </Button>
-          ) : (
-            <Tooltip
-              title={product.problems.length > 0 ? "Chưa đạt tiêu chí duyệt" : "Xem lại trang sản phẩm trước khi duyệt"}
-            >
-              <Button
-                icon={<CheckOutlined />}
-                disabled={product.problems.length > 0 || product.lookup === "pending"}
-                onClick={() => act(() => api(`/affiliate-products/${product.id}/approve`, "POST"), "Đã duyệt")}
-              >
-                Duyệt
-              </Button>
-            </Tooltip>
-          )}
-          {product.lookup === "failed" && (
-            <Tooltip title="Lấy lại thông tin từ Shopee">
-              <Button
-                aria-label={`Lấy lại thông tin ${product.name}`}
-                icon={<ReloadOutlined />}
-                onClick={() =>
-                  act(() => api(`/affiliate-products/${product.id}/lookup`, "POST"), "Đang lấy lại thông tin")
-                }
-              />
-            </Tooltip>
-          )}
-          <Button aria-label={`Sửa ${product.name}`} icon={<EditOutlined />} onClick={() => setTarget(product)} />
-          {product.created_by_id === me.id && (
-            <Popconfirm
-              title="Xoá sản phẩm này?"
-              description="Sản phẩm cũng được gỡ khỏi các video đang gắn."
-              okText="Xoá"
-              cancelText="Huỷ"
-              onConfirm={() => act(() => api(`/affiliate-products/${product.id}`, "DELETE"), "Đã xoá sản phẩm")}
-            >
-              <Button aria-label={`Xoá ${product.name}`} danger icon={<DeleteOutlined />} />
-            </Popconfirm>
-          )}
-        </Space>
-      ),
+      render: (_, product) => <ProductActions product={product} onEdit={setTarget} onChanged={() => reload(true)} />,
     },
   ];
 

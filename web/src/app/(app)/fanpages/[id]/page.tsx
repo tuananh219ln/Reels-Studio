@@ -1,10 +1,6 @@
 "use client";
+import FanpageActions from "@/components/actions/FanpageActions";
 
-import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Result, Segmented, Spin, Switch, Tabs, Typography } from "antd";
-import Link from "next/link";
-import { useParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
 import PageHeader from "@/components/PageHeader";
 import PageQueueSection from "@/components/PageQueueSection";
 import StatusText from "@/components/StatusText";
@@ -16,6 +12,11 @@ import { ApiError, api, errorMessage, formatDateTime, type PageDashboard, type Q
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
 import { keepOnlyInAddress, useUrlChoice } from "@/lib/urlState";
+import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Result, Segmented, Spin, Switch, Tabs, Typography } from "antd";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 const PERIODS = [7, 28, 90] as const;
 type Days = (typeof PERIODS)[number];
@@ -482,6 +483,7 @@ function FanpageDashboard() {
                 options={PERIODS.map((value) => ({ value, label: `${value} ngày` }))}
               />
             )}
+            {data && <FanpageActions pageId={data.page.id} onChanged={load} />}
             <Button
               icon={<ReloadOutlined spin={pending} />}
               disabled={pending || data?.page.active === false}

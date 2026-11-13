@@ -1,6 +1,14 @@
 "use client";
+import VideoActions from "@/components/actions/VideoActions";
+import ManagedPostActions from "@/components/actions/ManagedPostActions";
 
 import EmptyState from "@/components/EmptyState";
+import StatusText from "@/components/StatusText";
+import VideoThumbnail from "@/components/VideoThumbnail";
+import { formatNumber, formatSeconds } from "@/components/page/Figures";
+import { api, errorMessage, formatDateTime, type PageContent, type PageContentPost } from "@/lib/api";
+import { usePolling } from "@/lib/polling";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
@@ -8,17 +16,11 @@ import {
   EllipsisOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Checkbox, Dropdown, Flex, Popover, Table, Tooltip, Typography, theme } from "antd";
 import type { TableColumnsType, TablePaginationConfig } from "antd";
+import { App, Button, Card, Checkbox, Dropdown, Flex, Popover, Table, Tooltip, Typography, theme } from "antd";
 import type { SorterResult } from "antd/es/table/interface";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import StatusText from "@/components/StatusText";
-import VideoThumbnail from "@/components/VideoThumbnail";
-import { formatNumber, formatSeconds } from "@/components/page/Figures";
-import { api, errorMessage, formatDateTime, type PageContent, type PageContentPost } from "@/lib/api";
-import { useUrlChoice, useUrlPage } from "@/lib/urlState";
-import { usePolling } from "@/lib/polling";
 
 const REFRESH_MS = 60_000;
 // Remembered in this browser, like the list or grid choice of other pages.
@@ -323,8 +325,14 @@ export default function ContentLibrary({ pageId, days }: { pageId: string; days:
     {
       key: "menu",
       fixed: "right",
-      width: 48,
-      render: (_, post) => <RowMenu post={post} onRefresh={refresh} />,
+      width: 170,
+      render: (_, post) => (
+        <Flex gap={4}>
+          <VideoActions video={{ ...post.video, topic: post.video.title }} onChanged={() => load(true)} />
+          <ManagedPostActions postId={post.id} onChanged={() => load(true)} />
+          <RowMenu post={post} onRefresh={refresh} />
+        </Flex>
+      ),
     },
   ];
 

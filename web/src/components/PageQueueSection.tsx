@@ -1,4 +1,5 @@
 "use client";
+import VideoActions from "@/components/actions/VideoActions";
 
 import { ArrowDownOutlined, ArrowUpOutlined, DeleteOutlined } from "@ant-design/icons";
 import { App, Button, Flex, Popconfirm, Select, Spin, Typography } from "antd";
@@ -142,6 +143,10 @@ export default function PageQueueSection({
                     </Typography.Text>
                   )}
                 </Flex>
+                <VideoActions
+                  video={{ ...item.video, topic: item.video.title }}
+                  onChanged={async () => onChanged(await api<QueueOverview>("/queue"))}
+                />
                 {page.mine && (
                   <>
                     <Button

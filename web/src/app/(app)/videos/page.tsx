@@ -1,44 +1,19 @@
 "use client";
+import VideoActions from "@/components/actions/VideoActions";
 
 import EmptyState from "@/components/EmptyState";
 import type { SelectProps } from "antd";
 
-import {
-  AppstoreOutlined,
-  ClockCircleOutlined,
-  EditOutlined,
-  EyeOutlined,
-  FilterOutlined,
-  PlusOutlined,
-  SearchOutlined,
-  UnorderedListOutlined,
-} from "@ant-design/icons";
-import {
-  Drawer,
-  Alert,
-  App,
-  Button,
-  Card,
-  Checkbox,
-  Col,
-  Flex,
-  Form,
-  Grid,
-  Input,
-  Row,
-  Segmented,
-  Select,
-  Spin,
-  Table,
-  theme,
-  Typography,
-} from "antd";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
+import { COLORS } from "@/app/theme";
+import FilterSelect from "@/components/FilterSelect";
+import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
-import VideoStatusTags from "@/components/VideoStatusTags";
+import PageHeader from "@/components/PageHeader";
+import StatusText from "@/components/StatusText";
+import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
+import { groupVideoModeLabel, VIDEO_MODES, videoModeLabel } from "@/components/video/videoModes";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
+import VideoStatusTags from "@/components/VideoStatusTags";
 import VideoThumbnail from "@/components/VideoThumbnail";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import {
@@ -58,19 +33,45 @@ import {
   type VideoRow,
   type VideoRowPost,
 } from "@/lib/api";
-import { VIDEO_MODES, groupVideoModeLabel, videoModeLabel } from "@/components/video/videoModes";
-import { COLORS } from "@/app/theme";
-import StatusText from "@/components/StatusText";
-import FilterSelect from "@/components/FilterSelect";
-import PageHeader from "@/components/PageHeader";
-import { usePolling } from "@/lib/polling";
-import { useRememberedView, type View } from "@/lib/view";
-import { useUrlChoice, useUrlParam, useUrlPage } from "@/lib/urlState";
 import { loadLastChoices, saveLastChoice } from "@/lib/lastChoices";
+import { usePolling } from "@/lib/polling";
 import { useGuardedClose } from "@/lib/unsaved";
-import FormDrawer from "@/components/FormDrawer";
-import SampleFields, { type SampleValues } from "@/components/video/SampleFields";
+import { useUrlChoice, useUrlPage, useUrlParam } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS, videoStatusTone, type VideoStatusFilter } from "@/lib/videoStatus";
+import { useRememberedView, type View } from "@/lib/view";
+import {
+  AppstoreOutlined,
+  ClockCircleOutlined,
+  EditOutlined,
+  EyeOutlined,
+  FilterOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  UnorderedListOutlined,
+} from "@ant-design/icons";
+import {
+  Alert,
+  App,
+  Button,
+  Card,
+  Checkbox,
+  Col,
+  Drawer,
+  Flex,
+  Form,
+  Grid,
+  Input,
+  Row,
+  Segmented,
+  Select,
+  Spin,
+  Table,
+  theme,
+  Typography,
+} from "antd";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Fragment, Suspense, useCallback, useEffect, useState } from "react";
 
 /** While a video is being made the list follows its stages closely; otherwise only teammates' new videos and the
  * numbers change, which a minute's wait shows soon enough. */
@@ -441,12 +442,12 @@ function Videos() {
         <Row gutter={[16, 16]}>
           {shown.map((row) => (
             <Col key={row.id} xs={24} md={12} xl={8} xxl={6} style={{ display: "flex" }}>
-              <VideoCard row={row} versions={versions.get(row.id) ?? []} />
+              <VideoCard row={row} versions={versions.get(row.id) ?? []} onChanged={() => reload(query, true)} />
             </Col>
           ))}
         </Row>
       ) : (
-        <VideoTable rows={shown} versions={versions} />
+        <VideoTable rows={shown} versions={versions} onChanged={() => reload(query, true)} />
       )}
       <NewVideoModal
         key={opened}
@@ -627,7 +628,16 @@ const cardTone = videoStatusTone;
 
 /** A card on its side. The thumbnail is left as it is but for its views, in the corner as on a profile grid; the
  * text reads top to bottom: what it is, where it went, how it did, and who made it. */
-function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
+function VideoCard({
+  row,
+  versions,
+  onChanged,
+}: {
+  row: VideoRow;
+  versions: VideoRow[];
+  onChanged: () => Promise<void>;
+}) {
+  const router = useRouter();
   const { token } = theme.useToken();
   const name = row.title || row.topic;
   const post = row.post;
@@ -636,9 +646,13 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
   const warning = row.rerender_failed ? "render lại lỗi" : row.mp4_outdated ? "MP4 chưa cập nhật theo bản sửa" : null;
   const small = { fontSize: 12, lineHeight: "18px" } as const;
   return (
-    <Link
-      prefetch={false}
-      href={`/videos/${row.id}`}
+    <div
+      role="group"
+      tabIndex={0}
+      onClick={() => router.push(`/videos/${row.id}`)}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget && event.key === "Enter") router.push(`/videos/${row.id}`);
+      }}
       aria-label={name}
       data-testid="video-card"
       style={{ display: "flex", flex: 1, minWidth: 0 }}
@@ -684,9 +698,18 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
           )}
         </div>
         <Flex vertical style={{ minWidth: 0, flex: 1 }}>
-          <Typography.Paragraph strong ellipsis={{ rows: 2, tooltip: name }} style={{ margin: 0, lineHeight: "20px" }}>
-            {name}
-          </Typography.Paragraph>
+          <Flex justify="space-between" gap={4}>
+            <Link href={`/videos/${row.id}`} prefetch={false}>
+              <Typography.Paragraph
+                strong
+                ellipsis={{ rows: 2, tooltip: name }}
+                style={{ margin: 0, lineHeight: "20px" }}
+              >
+                {name}
+              </Typography.Paragraph>
+            </Link>
+            <VideoActions video={row} onChanged={onChanged} />
+          </Flex>
           {/* Its kind on the left; where it is out on the right, every platform's icon in colour once posted there. */}
           <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
             <VideoKindTags video={row} />
@@ -772,12 +795,20 @@ function VideoCard({ row, versions }: { row: VideoRow; versions: VideoRow[] }) {
           )}
         </Flex>
       </Card>
-    </Link>
+    </div>
   );
 }
 
 /** "Dạng danh sách": one row per video, to scan many at once. */
-function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number, VideoRow[]> }) {
+function VideoTable({
+  rows,
+  versions,
+  onChanged,
+}: {
+  rows: VideoRow[];
+  versions: Map<number, VideoRow[]>;
+  onChanged: () => Promise<void>;
+}) {
   // The table's page is in the address too, back to 1 when a filter changes.
   const tablePage = useUrlPage();
   const router = useRouter();
@@ -794,6 +825,13 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
           "data-testid": "video-row",
         })}
         columns={[
+          {
+            key: "actions",
+            title: "Thao tác",
+            fixed: "right",
+            width: 120,
+            render: (_, row) => <VideoActions video={row} onChanged={onChanged} />,
+          },
           {
             title: "Video",
             key: "video",
@@ -825,6 +863,11 @@ function VideoTable({ rows, versions }: { rows: VideoRow[]; versions: Map<number
                   </StatusText>
                 )}
                 <VersionLinks versions={versions.get(row.id) ?? []} />
+                {wantsTikTok(row) && (
+                  <Link href={`/videos/${row.id}?clone=tiktok`} onClick={(event) => event.stopPropagation()}>
+                    Tạo bản TikTok
+                  </Link>
+                )}
               </Flex>
             ),
           },
