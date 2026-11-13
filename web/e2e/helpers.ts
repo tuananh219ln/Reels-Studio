@@ -96,3 +96,13 @@ export async function openPublishDrawer(page: Page) {
   if (await ask.isVisible()) await ask.getByRole("button", { name: "Vẫn đăng" }).click();
   await expect(drawer).toBeVisible();
 }
+
+/**
+ * Opens a scene card on the video page if it is closed. One card is open at a time, so opening this one closes the
+ * one that was open; a closed card keeps its fields, which can be read but not seen or clicked.
+ */
+export async function openScene(scene: Locator) {
+  const toggle = scene.getByTestId("scene-toggle");
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}

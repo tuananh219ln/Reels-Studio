@@ -417,21 +417,27 @@ Built:
     "đang xem". It updates within about 10 s, and a closed tab leaves at once. Pressing "Chỉnh
     sửa" while someone else is editing shows a warning naming them ("Bình đang chỉnh sửa video
     này…"), but still unlocks the page: nothing is locked, the last field saved wins;
-  - **scene cards that open and close.** A closed card's title row shows a 40×40 thumbnail of
-    the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, its text on one line (without the
-    `*` marks) and a status: red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng"; an open card
-    shows the name, seconds and tag. A click or Enter anywhere on the row opens or closes it;
-    the move and delete buttons beside it do not. When the page opens, a draft's scenes are all
-    open; in a rendered video only the scenes with a red reason are. "Mở tất cả" and "Thu gọn
-    tất cả" sit above the list. A closed card keeps its fields, so closing never loses text;
-  - inside an open card, two columns (stacked on a phone, the picture first): the 9:16 picture
-    with its tools on the left, the fields on the right: "Chữ trên màn hình" (a "?" beside it
-    explains `*từ*` and line breaks), "Lời đọc", "Số giây" and "Bắt đầu từ giây" (clip only) side
-    by side, "Từ khóa tìm ảnh", "Prompt ảnh AI" (every scene, the title included; its "?" says to
-    describe what is in the photo, in English, since the shared style is added), then the reasons and
-    warnings. Under the text and the voice text a counter shows the words as typed (the `*` not
-    counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
-    on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
+  - **above the scenes, one toolbar row** (2026-11-14): "Tiêu đề" with a button showing the title in use and "N gợi
+    ý", which opens the five options as radios with "Kịch bản viết bởi …" under them; then "Kiểu video" with its
+    switch, the explanation in a tooltip. Under it "Cảnh (N)" and "Mở tất cả" / "Thu gọn tất cả";
+  - **scene cards, one open at a time** (2026-11-14). Every card's title row is 44 px: the arrow, a small 9:16
+    thumbnail of the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, while closed its text on one line (without
+    the `*` marks), a status (red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). "Lên
+    trên", "Xuống dưới" and "Xóa cảnh" show only on hover, keyboard focus or while the card is open (always on a
+    touch screen). A click or Enter on the row opens the card and closes the one that was open, or closes it; only
+    "Mở tất cả" opens several. On a scene's row ↑ and ↓ open the scene above or below; Ctrl+Enter (⌘+Enter) in an open
+    card saves the field being typed in and opens the next scene. When the page opens, the first scene with a red
+    reason is open, else on a draft the first scene, else none. "Thêm cảnh" opens the new scene. A closed card keeps
+    its fields, so closing never loses text;
+  - inside an open card, two columns (stacked under 576 px, the picture first): the 150 px 9:16 frame on the left,
+    the fields on the right: "Chữ trên màn hình" (a "?" beside it explains `*từ*` and line breaks) and "Lời đọc" side
+    by side when there is room, the narration once made as one line under it (the player, then "Lời đọc 3,7s → cảnh
+    4,3s", amber when the narration lengthened the scene); "Số giây", "Bắt đầu từ giây" (clip only) and "Từ khóa tìm
+    ảnh" on one row; the reasons and warnings, one line each; then "Nâng cao: Prompt ảnh AI", folded (every scene, the
+    title included; its "?" says to describe what is in the photo, in English, since the shared style is added). On
+    the label's row of the text and the voice text a counter shows the words as typed (the `*` not counted), in yellow
+    outside the script's lengths ([content.md](content.md): at most 10 words on a scene, 12 on the title; voice text
+    8–15 words, 8–12 on the title); it never stops a save. The open card aims at 330 px;
   - **"Xem trước"** in the header, and "Xem từ cảnh này" (a play icon) on every scene card,
     play the video in the browser before any render, in a drawer from the right that leaves a strip
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
@@ -523,17 +529,20 @@ Built:
     video, up to 8×; the track then scrolls and follows the playhead while playing). The scene list
     under "Cảnh" (name, text, seconds) also jumps. A note says it is close to the MP4 but not the MP4 (captions and the audio mix come
     only with a render). It is available in view mode too;
-  - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
-    viết bởi …"); edit the title scene and every content scene (text with `*word*` in
+  - choose 1 of 5 titles (the toolbar's "Tiêu đề", which names the provider and model that wrote the script,
+    "Kịch bản viết bởi …"); edit the title scene and every content scene (text with `*word*` in
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
-  - per scene a preview of the frame, or the reason there is none, in red. Pointing at a picture
-    (always on a touch screen) dims it and stacks its tools in its middle, all the same width: "Xem"
+  - per scene a preview of the frame, or the reason there is none, in red; a scene with a clip has "Ảnh | Clip"
+    over the frame, on "Clip" until another is picked, the clip playing muted while pointed at. Pointing at the frame
+    (always on a touch screen, and while the scene has no picture) dims it and lays its tools over it from the top:
+    first a row of small icon buttons, each named in a tooltip, "Xem"
     (the only tool in view mode: a centred dialog with the scene large in its 9:16 frame, the photo
     as the render crops it or the clip looping the part the scene plays, muted, at its speed, and
     the exact text box where the render puts it, with a "Chữ trên màn hình" switch to hide it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Vị trí chữ" and, for a
-    clip, "Xoá video" (confirmed). Under the picture one row: a slim
-    dashed area, "Tải lên", beside three icon buttons, "Dán ảnh/link", "Tìm trên Google" and "Tìm
+    clip, "Xoá video" (✕, confirmed; "Làm mờ vùng" for a clip and "Sửa ảnh" for a photo sit in the same row). Then
+    the ways to put a picture in, which the studio's "Chỉnh cảnh N" shows under its picture instead: a slim
+    dashed area, "Tải lên", beside three icon buttons (wrapping in the narrow frame), "Dán ảnh/link", "Tìm trên Google" and "Tìm
     trên TikTok". The dashed area takes a photo
     (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM, 50 MB) dropped on it or chosen, and a photo
     dragged straight from another tab (its address is read from the drop); a photo in place of a
@@ -1170,8 +1179,7 @@ Phones (below 992 px wide; built):
   menu" to fold it back (widened, it stays so until folded or the page is reloaded). A menu hidden with "Ẩn menu"
   elsewhere is the rail here too.
 - In the video editor the actions wrap under the title in the fixed header, the tab panel is the drawer, and each
-  scene's preview is
-  a centred thumbnail at most 220 px wide.
+  scene's frame is a centred 150 px thumbnail above its fields.
 - Tables keep their columns and scroll sideways inside their card; the page itself never scrolls
   sideways.
 
@@ -1320,7 +1328,7 @@ relied on (samples in the PR that added them).
 ### Video Modes ("Kiểu video")
 
 A video is one of two kinds, chosen in "Tạo video" (except "Từ video mẫu", whose scenes are cut from the sample)
-and changed at any time on the video page's "Kiểu video" card, which asks first and says that every photo, clip
+and changed at any time on the video page's "Kiểu video" switch, above the scenes, which asks first and says that every photo, clip
 and "Ảnh món" is kept. "Tạo video" starts on the topic group's "Kiểu video" (Kho kiến thức, "Xen kẽ theo ngày"
 resolved for today in Vietnam) and says so under the strip ("Theo kiểu video của nhóm: …, hôm nay …"); picking the
 other kind makes it that video's only ("Chỉ video này; nhóm đang theo …"). A video made without the dialog (the
@@ -1346,8 +1354,8 @@ next scene; its start and length can be typed in "Chỉnh cảnh". It sits under
 layers; the text gets no shade of its own, so a box style keeps it readable over a busy photo. One photo layer per
 scene.
 
-A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 220 px left
-column and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
+A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 150 px left
+column (220 px until 2026-11-14) and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
 the scene's text box on top, as the render lays them) beside the text, narration, "Số giây", "Bắt đầu từ giây", "Từ
 khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part
 of the inset (never blocking). Row 2: **"Chỉnh vị trí chữ & ảnh chèn"** (the primary button, always there, with or
