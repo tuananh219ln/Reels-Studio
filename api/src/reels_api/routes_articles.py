@@ -447,8 +447,8 @@ def take_down(post_id: int, me: Session = Depends(current_member), db: DbSession
 def check_post(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     """ "Kiểm tra": read the post on Facebook and record what it says."""
     article, post = _post(db, post_id)
-    if post.status not in ("scheduled", "published") or post.remote_id is None:
-        raise ApiError(409, "post_not_checkable", "Chỉ kiểm tra được bài đã lên Facebook hoặc đã hẹn giờ")
+    if post.status not in ("scheduled", "published", "deleted") or post.remote_id is None:
+        raise ApiError(409, "post_not_checkable", "Chỉ kiểm tra được bài đã lên Facebook, đã hẹn giờ hoặc đã xóa")
     _queue(db, article, "check", me, publication_id=post.id)
     return _saved(db, article)
 

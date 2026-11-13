@@ -809,6 +809,10 @@ export default function VideoPage() {
                                       <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
                                         Tải MP4
                                       </Button>
+                                      {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+                                        <ApproveVideoButton videoId={video.id} onDone={load} />
+                                      )}
+                                      <PublishButton video={video} />
                                     </Flex>
                                   </Flex>
                                 </Card>
@@ -825,27 +829,6 @@ export default function VideoPage() {
                             )}
                           </Flex>
                         </div>
-                        {video.mp4 && (
-                          // Always in reach: the panel scrolls, the buttons stay at its foot.
-                          <Flex
-                            gap={8}
-                            justify="flex-end"
-                            align="center"
-                            style={{
-                              position: "sticky",
-                              bottom: 0,
-                              zIndex: 2,
-                              padding: "10px 12px",
-                              background: COLORS.surface,
-                              borderTop: `1px solid ${COLORS.border}`,
-                            }}
-                          >
-                            {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
-                              <ApproveVideoButton videoId={video.id} onDone={load} />
-                            )}
-                            <PublishButton video={video} />
-                          </Flex>
-                        )}
                       </Flex>
                     ),
                   },

@@ -9,8 +9,8 @@ import { useState } from "react";
 
 type Action = "check" | "take-down" | "retry";
 
-/** "Kiểm tra" re-reads a reel on Facebook, after a change made in Meta Business Suite. "Hủy đăng" for a post not
- * public yet, "Xóa" for a public one; nothing for one already cancelled or deleted.
+/** "Kiểm tra" re-reads a reel on Facebook, after a change made in Meta Business Suite, and for a post marked
+ * deleted too. "Hủy đăng" for a post not public yet, "Xóa" for a public one; no take-down for one already closed.
  *
  * `compact` ("Bài đăng") gives every post the same icon buttons in the same places, "Xem Reel" and "Thử lại" among
  * them, greyed out with the reason in their tooltip where they do not apply, so the rows line up. `retryJobId`: the
@@ -34,9 +34,10 @@ export default function PostActions({
   const mine = canTakeDownPost(post, me.id);
   const [busy, setBusy] = useState<Action | null>(null);
   const closed = post.status === "cancelled" || post.status === "deleted";
-  if (closed && !compact) return null;
+  // A deleted post still gets "Kiểm tra": Facebook may have it after all (the app read it wrong, or a new token).
+  const checkable = post.status !== "cancelled" && post.status !== "pending";
+  if (post.status === "cancelled" && !compact) return null;
   const published = post.status === "published";
-  const onFacebook = post.status !== "pending";
 
   async function run(action: Action) {
     setBusy(action);
@@ -52,7 +53,8 @@ export default function PostActions({
 
   // Why a button that applies is greyed out: one job at a time per video.
   const waiting = "Video đang chạy một việc khác (xem Nhật ký job), đợi xong rồi thao tác";
-  const checkTip = "Đọc lại trạng thái bài trên Facebook, khi đã hủy, đổi giờ hoặc xóa trong Meta Business Suite";
+  const checkTip =
+    "Đọc lại trạng thái bài trên Facebook — dùng khi bài đã lên nhưng tool ghi sai, hoặc sau khi dán token mới";
   const takeDown = (
     <Popconfirm
       title={published ? "Xóa bài này khỏi Facebook?" : "Hủy đăng bài này?"}
@@ -102,19 +104,18 @@ export default function PostActions({
   if (!compact) {
     return (
       <Space size={4}>
-        {onFacebook && (
+        {checkable && (
           <Tooltip title={checkTip}>
             <Button size="small" loading={busy === "check"} disabled={disabled} onClick={() => run("check")}>
               Kiểm tra
             </Button>
           </Tooltip>
         )}
-        {takeDown}
+        {!closed && takeDown}
       </Space>
     );
   }
 
-  const live = onFacebook && !closed;
   return (
     <Space size={2}>
       <Tooltip title={post.url ? "Xem Reel trên Facebook" : "Bài chưa công khai trên Facebook"}>
@@ -145,14 +146,18 @@ export default function PostActions({
           onClick={() => run("retry")}
         />
       </Tooltip>
-      <Tooltip title={!live ? "Chỉ kiểm tra được bài đã lên Facebook hoặc đã hẹn giờ" : disabled ? waiting : checkTip}>
+      <Tooltip
+        title={
+          !checkable ? "Chỉ kiểm tra được bài đã lên Facebook, đã hẹn giờ hoặc đã xóa" : disabled ? waiting : checkTip
+        }
+      >
         <Button
           size="small"
           type="text"
           aria-label="Kiểm tra"
           icon={<SyncOutlined />}
           loading={busy === "check"}
-          disabled={disabled || !live}
+          disabled={disabled || !checkable}
           onClick={() => run("check")}
         />
       </Tooltip>

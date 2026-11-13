@@ -33,18 +33,24 @@ REFUSED = "Facebook từ chối đăng video này"
 class FacebookError(Exception):
     """`message` is shown to members, `detail` is diagnostic."""
 
-    def __init__(self, message: str, detail: str = "", status: int = 0, code: int | None = None):
+    def __init__(
+        self, message: str, detail: str = "", status: int = 0, code: int | None = None, subcode: int | None = None
+    ):
         super().__init__(message)
         self.message = message
         self.detail = detail
         self.status = status
         self.code = code  # Facebook's error code, when its answer had one
+        self.subcode = subcode  # and its error_subcode
 
 
 @dataclass(frozen=True)
 class Page:
     id: str
     token: str = field(repr=False)
+    # Reels of this Page the app saw live: while the token still reads one of them, the answer for another reel is
+    # about that reel and not about the token (`_gone`).
+    witnesses: tuple[str, ...] = ()
 
 
 def reel_url(video_id: str) -> str:
@@ -83,7 +89,7 @@ def _http_error(status: int, body: str) -> FacebookError:
         message = f"Facebook đang lỗi (HTTP {status}), thử lại sau"
     else:
         message = REFUSED
-    return FacebookError(message, detail, status, code)
+    return FacebookError(message, detail, status, code, subcode)
 
 
 def _publish_call(page: Page, fields: dict[str, str]) -> dict:
@@ -512,19 +518,26 @@ def _time(value: object) -> datetime:
         return datetime.now(UTC)
 
 
-def _gone(page: Page, err: FacebookError) -> bool:
+def _gone(page: Page, err: FacebookError, object_id: str) -> bool:
     """Whether a failed read or delete of a reel means Facebook no longer has it. Facebook answers a reel it deleted
-    with a 400 (#100), the same as one this token may not read, so that answer counts only while the same token still
-    reads the Page; any failure there leaves it unknown."""
+    with a 400 (#100), the same as one this token may not read (it also lost the reels, but not the Page, on
+    2026-11-13), so that answer counts only while the same token still reads another reel of the Page that the app saw
+    live. With none to read, or none that reads, it stays unknown: a read that fails is never "deleted"."""
     if err.status == 404:
         return True
     if err.status != 400 or err.code != 100:
         return False
-    try:
-        page_info(page)
-    except FacebookError:
-        return False
-    return True
+    for witness in page.witnesses:
+        if witness == object_id:
+            continue
+        query = urllib.parse.urlencode({"fields": "status", "access_token": page.token})
+        url = f"{config.facebook_api_url()}/{urllib.parse.quote(witness, safe='')}?{query}"
+        try:
+            if _send(urllib.request.Request(url), REQUEST_TIMEOUT).get("status"):
+                return True
+        except FacebookError:
+            continue
+    return False
 
 
 def reel_status(page: Page, video_id: str) -> dict | None:
@@ -535,7 +548,7 @@ def reel_status(page: Page, video_id: str) -> dict | None:
     try:
         reply = _send(urllib.request.Request(url), REQUEST_TIMEOUT)
     except FacebookError as err:
-        if _gone(page, err):
+        if _gone(page, err, video_id):
             return None
         raise FacebookError(
             f"Không đọc được trạng thái reel, hãy xem Page trước khi thử lại: {err.message}", err.detail
@@ -552,7 +565,7 @@ def delete_reel(page: Page, video_id: str) -> None:
     try:
         reply = _send(urllib.request.Request(url, method="DELETE"), REQUEST_TIMEOUT)
     except FacebookError as err:
-        if _gone(page, err):
+        if _gone(page, err, video_id):
             return
         if 400 <= err.status < 500 and err.status != 429:
             raise FacebookError(
@@ -641,7 +654,7 @@ def post_status(page: Page, post_id: str) -> dict | None:
     try:
         reply = _send(urllib.request.Request(url), REQUEST_TIMEOUT)
     except FacebookError as err:
-        if _gone(page, err):
+        if _gone(page, err, post_id):
             return None
         raise FacebookError(
             f"Không đọc được trạng thái bài, hãy xem Page trước khi thử lại: {err.message}", err.detail

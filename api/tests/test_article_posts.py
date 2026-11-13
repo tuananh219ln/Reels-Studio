@@ -353,6 +353,19 @@ def test_unpublish_deletes_the_post_and_check_closes_one_gone_from_facebook(comm
             select(Publication).where(Publication.article_id == article_id, Publication.status == "published")
         )
     fakes.page_posts.clear()
+    with committed() as db:  # a reel of the Page the token still reads: what makes the lost answer mean deleted
+        db.add(
+            Publication(
+                video_id=make_video(db, storage, user, scene_count=1).id,
+                platform="facebook",
+                status="published",
+                remote_id="9001",
+                fanpage_id=post.fanpage_id,
+                created_by_id=user.id,
+            )
+        )
+        db.commit()
+    fakes.reels["9001"] = {"uploaded": True, "state": "published"}
     assert run(committed, storage, article_id, user.id, "check", live.id).status == "done"
     with committed() as db:
         assert db.get(Publication, live.id).status == "deleted"

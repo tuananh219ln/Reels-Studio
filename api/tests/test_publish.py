@@ -362,6 +362,27 @@ def only_reel(fakes) -> dict:
     return reel
 
 
+def live_sibling(committed, fakes, user, storage, ready) -> str:
+    """Another reel of the same Page that Facebook has live: what lets a lost answer for this reel mean "deleted"."""
+    _, _, video_id = ready
+    with committed() as db:
+        page_id = db.scalar(select(Publication.fanpage_id).where(Publication.video_id == video_id))
+        other = make_video(db, storage, user, scene_count=1)
+        db.add(
+            Publication(
+                video_id=other.id,
+                platform="facebook",
+                status="published",
+                remote_id="9001",
+                fanpage_id=page_id,
+                created_by_id=user.id,
+            )
+        )
+        db.commit()
+    fakes.reels["9001"] = {"uploaded": True, "bytes": 0, "finishes": 1, "state": "published"}
+    return "9001"
+
+
 def test_hashtags_already_in_the_caption_are_not_posted_twice(committed, ready, fakes):
     """Scripts often end the caption with the same hashtags the Hashtag field holds (issue #71's screenshot)."""
     user, storage, video_id = ready
@@ -523,9 +544,11 @@ def test_a_reel_facebook_really_lost_is_sent_again(committed, ready, fakes):
     user, storage, video_id = ready
     fakes.facebook_finish_fails = 1
     assert run_publish(committed, storage, video_id, user.id).status == "failed"
-    only_reel(fakes)["lost"] = True
+    # Lost only counts while the token still reads another reel of the Page (`facebook._gone`).
+    live_sibling(committed, fakes, user, storage, ready)
+    fakes.reels[post_of(committed, video_id).remote_id]["lost"] = True
     assert run_publish(committed, storage, video_id, user.id).status == "done"
-    assert [reel["state"] for reel in fakes.reels.values()] == ["draft", "published"]
+    assert [reel["state"] for reel in fakes.reels.values()] == ["draft", "published", "published"]
 
 
 def re_render(factory, storage, video_id, data=b"mp4 moi hon"):
@@ -862,7 +885,8 @@ def test_a_pending_post_that_reached_facebook_ends_as_deleted(committed, ready, 
 def test_a_reel_already_gone_from_facebook_still_closes_the_post(committed, ready, fakes):
     user, storage, video_id = ready
     run_publish(committed, storage, video_id, user.id)
-    fakes.reels.clear()
+    live_sibling(committed, fakes, user, storage, ready)
+    del fakes.reels[post_of(committed, video_id).remote_id]
     job = run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
     assert job.status == "done"
     assert post_of(committed, video_id).status == "deleted"
@@ -959,7 +983,8 @@ def test_a_scheduled_reel_cancelled_on_facebook_is_not_shown_as_posted_after_its
     """The bug: Facebook dropped the reel, but once its time passed the app showed "Đã đăng" with a dead link."""
     user, storage, video_id = ready
     post = scheduled_post(committed, storage, ready, -1)
-    fakes.reels.clear()
+    live_sibling(committed, fakes, user, storage, ready)
+    del fakes.reels[post.remote_id]
     (queued,) = queue_checks(committed)
     assert (queued.publication_id, queued.video_id, queued.status) == (post.id, video_id, "queued")
     with committed() as db:
@@ -1025,23 +1050,26 @@ def test_the_check_closes_a_reel_facebook_will_not_publish_before_its_time(commi
 
 
 def test_the_check_closes_a_live_reel_deleted_on_facebook(committed, ready, fakes):
-    """The bug: a reel deleted in Meta Business Suite answers 400 (#100), not 404, so "Kiểm tra" failed and the post
-    stayed "Đã đăng" for good."""
+    """A reel deleted in Meta Business Suite answers 400 (#100), not 404: it is deleted when the same token still reads
+    another reel of the Page."""
     user, storage, video_id = ready
     run_publish(committed, storage, video_id, user.id)
-    fakes.reels.clear()
+    live_sibling(committed, fakes, user, storage, ready)
+    del fakes.reels[post_of(committed, video_id).remote_id]
     job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
     assert job.status == "done", (job.error, job.error_detail)
     post = post_of(committed, video_id)
     assert (post.status, post.closed_by_id) == ("deleted", None)
 
 
-def test_a_reel_the_token_cannot_read_with_its_page_is_not_taken_for_deleted(committed, ready, fakes):
-    """Facebook answers the same 400 (#100) when the token lost the Page: then nothing proves the reel is gone."""
+def test_a_reel_the_token_cannot_read_is_not_taken_for_deleted(committed, ready, fakes):
+    """2026-11-13: the token still read the Page but no reel, and Facebook answered 400 (#100) for live reels, so both
+    posts were marked deleted. Not one reel of the Page reads: nothing proves this one is gone."""
     user, storage, video_id = ready
     run_publish(committed, storage, video_id, user.id)
-    fakes.reels.clear()
-    fakes.facebook_page_info_refused = True
+    live_sibling(committed, fakes, user, storage, ready)
+    for reel in fakes.reels.values():
+        reel["lost"] = True  # live, but this token is refused every reel
     job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
     assert job.status == "failed"
     assert job.error.startswith("Không đọc được trạng thái reel")
@@ -1049,6 +1077,53 @@ def test_a_reel_the_token_cannot_read_with_its_page_is_not_taken_for_deleted(com
     take_down = run_unpublish(committed, storage, post_of(committed, video_id).id, video_id, user.id)
     assert take_down.status == "failed"
     assert post_of(committed, video_id).status == "published"
+
+
+def test_a_reel_with_no_other_reel_to_compare_stays_unknown(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    fakes.reels.clear()
+    job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "failed"
+    assert post_of(committed, video_id).status == "published"
+
+
+def test_a_deleted_post_that_is_live_on_facebook_goes_back_to_published(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    with committed() as db:
+        post = db.scalar(select(Publication).where(Publication.video_id == video_id))
+        post.status, post.closed_at, post.published_at = "deleted", datetime.now(UTC), None
+        db.commit()
+    job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "done", (job.error, job.error_detail)
+    post = post_of(committed, video_id)
+    assert (post.status, post.closed_at, post.closed_by_id) == ("published", None, None)
+    assert post.published_at is not None
+
+
+def test_a_deleted_post_really_gone_from_facebook_stays_deleted(committed, ready, fakes):
+    user, storage, video_id = ready
+    run_publish(committed, storage, video_id, user.id)
+    live_sibling(committed, fakes, user, storage, ready)
+    del fakes.reels[post_of(committed, video_id).remote_id]
+    with committed() as db:
+        post = db.scalar(select(Publication).where(Publication.video_id == video_id))
+        post.status = "deleted"
+        db.commit()
+    job = run_check(committed, storage, post_of(committed, video_id).id, video_id, user.id)
+    assert job.status == "done"
+    assert post_of(committed, video_id).status == "deleted"
+
+
+def test_check_endpoint_accepts_a_deleted_post(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    post = add_post(db, video, me, fanpage_id(db, me))
+    post.status, post.remote_id = "deleted", "1000"
+    db.commit()
+    payload = an.post(f"/api/posts/{post.id}/check").json()
+    assert payload["active_job"]["kind"] == "check"
 
 
 def test_a_failed_check_leaves_the_post_as_it_was(committed, ready, fakes):

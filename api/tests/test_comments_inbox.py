@@ -114,6 +114,7 @@ def test_a_live_reel_whose_comments_cannot_be_read_blames_the_token_not_the_reel
 
 def test_a_reel_facebook_no_longer_has_is_named_gone(db, me, storage, fakes):
     post = add_post(db, storage, me, fakes)
+    add_post(db, storage, me, fakes)  # another reel the token still reads: what makes "lost" mean deleted
     fakes.reels[post.remote_id]["lost"] = True
     comments_inbox.read(db, post)
     assert post.comments_error == "Facebook không còn reel này"
