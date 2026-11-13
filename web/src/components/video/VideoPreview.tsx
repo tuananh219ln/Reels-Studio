@@ -65,16 +65,7 @@ import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
-import {
-  COVERED,
-  FRAME_HEIGHT,
-  FRAME_WIDTH,
-  LOGO_CORNER_WIDTH,
-  LOGO_TITLE_WIDTH,
-  SAFE,
-  logoCorner,
-  placeBox,
-} from "./TextPositionModal";
+import { COVERED, FRAME_HEIGHT, FRAME_WIDTH, LOGO_CORNER_WIDTH, SAFE, logoCorner, placeBox } from "./TextPositionModal";
 import { isBackdrop, previewScenes } from "./videoModes";
 import "./preview/editor.css";
 
@@ -1448,12 +1439,8 @@ export default function VideoPreview({
                       listen={listen}
                     />
                   )}
-                  {scene && video.logo_enabled && video.brand?.logo_badge_url && (
-                    <LogoBadge
-                      url={video.brand.logo_badge_url}
-                      isTitle={scene.is_title}
-                      boxTop={scene.is_title && boxCorner ? boxCorner[1] : null}
-                    />
+                  {scene && !scene.is_title && video.logo_enabled && video.brand?.logo_badge_url && (
+                    <LogoBadge url={video.brand.logo_badge_url} />
                   )}
                   {guide && <SafeZone />}
                 </div>
@@ -1849,10 +1836,10 @@ function SceneLayer({
   );
 }
 
-/** The channel's logo over the frame where the renderer lays it, still while the scene moves (css only: the
- * scene's preview picture holds no logo). */
-function LogoBadge({ url, isTitle, boxTop }: { url: string; isTitle: boolean; boxTop: number | null }) {
-  const [left, top] = logoCorner(isTitle, boxTop);
+/** The channel's logo in the corner where the renderer lays it, still while the scene moves (css only: the scene's
+ * preview picture holds no logo). The title scene has none. */
+function LogoBadge({ url }: { url: string }) {
+  const [left, top] = logoCorner();
   return (
     // eslint-disable-next-line @next/next/no-img-element -- the api's badge picture, laid by css
     <img
@@ -1863,7 +1850,7 @@ function LogoBadge({ url, isTitle, boxTop }: { url: string; isTitle: boolean; bo
         position: "absolute",
         left: percent(left, FRAME_WIDTH),
         top: percent(top, FRAME_HEIGHT),
-        width: percent(isTitle ? LOGO_TITLE_WIDTH : LOGO_CORNER_WIDTH, FRAME_WIDTH),
+        width: percent(LOGO_CORNER_WIDTH, FRAME_WIDTH),
         pointerEvents: "none",
       }}
     />

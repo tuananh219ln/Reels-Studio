@@ -18,13 +18,9 @@ PAD = 0.12  # room around the ring for the shadow
 SHADOW_OFFSET = 0.025
 SHADOW_BLUR = 0.04
 
-TITLE_DIAMETER = 170  # on the title scene
-CORNER_DIAMETER = 120  # on the other scenes
+CORNER_DIAMETER = 120  # the logo is on the content scenes only; the title scene (the cover) has none
 CORNER_RIGHT = 60  # gap from the right edge to the ring's outer edge
 CORNER_TOP = 200  # gap from the top edge to the ring's outer edge
-TITLE_NO_BOX_TOP = 200  # title without a box: the ring's outer top edge
-TITLE_NO_BOX_TEXT_TOP = 400  # ... and where its text may start
-TITLE_BOX_MIN_TOP = 290  # title with a box: the box's top edge at least
 TEXT_TOP_MIN = 370  # content scenes: where the text may start while the logo is on
 
 MIN_SOURCE_SIDE = 256  # the shorter side of an uploaded logo
@@ -74,16 +70,6 @@ def _scaled(diameter: int) -> tuple[int, float]:
 
 def _pad(scale: float) -> float:
     return round(BADGE_SIZE * PAD) * scale
-
-
-def title_placement(box_top: int | None) -> Placement:
-    """The title scene's badge: centred across, its centre on the text box's top edge (`box_top`), or, with no box,
-    its ring's top edge 200 px from the top."""
-    width, scale = _scaled(TITLE_DIAMETER)
-    x = (FRAME_WIDTH - width) // 2
-    if box_top is None:
-        return Placement(width, x, round(TITLE_NO_BOX_TOP - _pad(scale)))
-    return Placement(width, x, round(box_top - width / 2))
 
 
 def corner_placement() -> Placement:
