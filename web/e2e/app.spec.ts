@@ -858,7 +858,7 @@ test("the app's own motion stops when the system asks for less motion", async ({
     await dialog.getByLabel("Chủ đề", { exact: true }).fill("Món ăn sáng");
     await dialog.getByLabel("Kịch bản", { exact: true }).fill("Phở bò\nĐọc: Phở bò nóng hổi.");
     await dialog.getByRole("button", { name: "Tạo video" }).click();
-    const arrow = page.getByTestId("scene").first().locator(".anticon-right");
+    const arrow = page.getByTestId("scene").first().locator(".scene-card-arrow");
     await expect(arrow).toBeVisible();
     const own = await arrow.evaluate((element) => getComputedStyle(element).transitionDuration);
     await context.close();
