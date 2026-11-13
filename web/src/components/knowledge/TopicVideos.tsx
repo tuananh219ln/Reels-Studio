@@ -69,6 +69,26 @@ function otherTopic(row: VideoRow): string {
   return !topic || title.includes(topic) || topic.includes(title) ? "" : row.topic;
 }
 
+/** The line under a video's title: where and when it is out or set to go, else the Page queue it waits in or the time
+ * the plan suggests, then its content type and product count, so a row says more than its title. */
+function rowDetails(row: VideoRow): string {
+  const parts: string[] = [];
+  const post = row.post;
+  if (post) {
+    const pages = post.pages > 1 ? `${post.fanpage} +${post.pages - 1}` : post.fanpage;
+    parts.push(`${pages}, ${post.state === "posted" ? "đăng" : "hẹn"} ${formatDateTime(post.at)}`);
+  } else if (row.queue) {
+    parts.push(
+      row.queue.error ? `Hàng chờ ${row.queue.fanpage}: ${row.queue.error}` : `Trong hàng chờ ${row.queue.fanpage}`,
+    );
+  } else if (row.suggested_post_at) {
+    parts.push(`Gợi ý đăng ${formatDateTime(row.suggested_post_at)}`);
+  }
+  if (row.content_type) parts.push(row.content_type);
+  if (row.product_count) parts.push(`${row.product_count} sản phẩm`);
+  return parts.join(", ");
+}
+
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
 export default function TopicVideos({
   topicId,
@@ -273,6 +293,15 @@ export default function TopicVideos({
                         </Typography.Text>
                       )}
                     </Flex>
+                  )}
+                  {rowDetails(row) && (
+                    <Typography.Text
+                      type="secondary"
+                      ellipsis={{ tooltip: true }}
+                      style={{ fontSize: 13, maxWidth: 320 }}
+                    >
+                      {rowDetails(row)}
+                    </Typography.Text>
                   )}
                 </Flex>
               ),
