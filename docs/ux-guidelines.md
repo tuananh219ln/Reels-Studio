@@ -992,9 +992,12 @@ Built:
 - **Nhật ký job** (`/jobs`): every job, newest first, refreshed every 5 seconds. Filters over the loaded
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
-  Each row: the video title with its kind and job number under it, a status tag with an icon, who
-  started it, retry/cancel actions where applicable, start with the duration under it, AI call count with the model that wrote a script
-  ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
+  Columns: **Job và video** (the video's small thumbnail, its title on up to two lines, and under it the kind, the job
+  number, who started it and, for a retry, "thử lại job #N"), **Trạng thái** (the status with "chờ N giây trong hàng"
+  under it once the job waited a second or more), **Bắt đầu** (the time with the duration under it), **AI** (the call
+  count, with the model that wrote a script, "DeepSeek · deepseek-chat", under it), **Lỗi** (up to two lines), and a
+  last column with only a vertical "⋮" button. Its small menu holds "Mở video" (or "Mở bài viết", "Mở Kho kiến thức"),
+  "Thử lại" on a failed job and "Hủy job" on a waiting one; retry and cancel ask first. A row opens its video.
 - **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
   headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,
   Kết nối MCP) and **Chung cả nhóm** (cyan: Mô hình AI, Nguồn tư liệu, Mẫu dựng, Máy render). One tab

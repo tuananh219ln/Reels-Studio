@@ -154,6 +154,9 @@ test("shared actions: the job log retries and cancels eligible work in place", a
             llm: null,
             error: status === "failed" ? "Lỗi dịch vụ giả" : null,
             can_cancel: status === "queued",
+            retry_of_id: null,
+            waited_seconds: null,
+            thumbnail_url: null,
           },
         ],
       });
@@ -172,15 +175,22 @@ test("shared actions: the job log retries and cancels eligible work in place", a
   });
   await page.goto("/jobs");
   const row = page.getByRole("row").filter({ hasText: "Job kiểm tra thao tác" });
-  await row.getByRole("button", { name: "Thử lại", exact: true }).click();
-  await expect(page.getByText("Job sẽ chạy lại qua worker; các dịch vụ AI có thể phát sinh chi phí.")).toBeVisible();
-  await page.locator(".ant-popover").getByRole("button", { name: "Thử lại", exact: true }).click();
-  await expect(row.getByRole("button", { name: "Hủy job", exact: true })).toBeVisible();
+  const menu = row.getByRole("button", { name: "Thao tác job #98765" });
+  await menu.click();
+  await page.getByRole("menuitem", { name: "Thử lại", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByText("Job sẽ chạy lại qua worker; các dịch vụ AI có thể phát sinh chi phí.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Thử lại", exact: true }).click();
+  await expect(row).toContainText("Chờ");
   expect(retried).toBe(1);
-  await row.getByRole("button", { name: "Hủy job", exact: true }).click();
-  await page.locator(".ant-popover").getByRole("button", { name: "Hủy job", exact: true }).click();
+  await menu.click();
+  await expect(page.getByRole("menuitem", { name: "Thử lại", exact: true })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Hủy job", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Hủy job", exact: true }).click();
   await expect(row).toContainText("Đã hủy");
-  await expect(row.getByRole("button", { name: "Hủy job", exact: true })).toHaveCount(0);
+  await menu.click();
+  await expect(page.getByRole("menuitem", { name: "Hủy job", exact: true })).toHaveCount(0);
+  await page.keyboard.press("Escape");
   expect(cancelled).toBe(1);
   await expect(page).toHaveURL(/\/jobs$/);
 });

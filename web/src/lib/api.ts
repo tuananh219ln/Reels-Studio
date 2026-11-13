@@ -1439,6 +1439,11 @@ export type JobRow = {
   /** "DeepSeek · deepseek-chat" for a script or clone job; null for other jobs and older ones. */
   llm: string | null;
   error: string | null;
+  /** The job this one retries, if it is a retry. */
+  retry_of_id: number | null;
+  /** Seconds it waited in the queue before a worker took it; null while it still waits. */
+  waited_seconds: number | null;
+  thumbnail_url: string | null;
 };
 
 type Method = "GET" | "POST" | "PATCH" | "PUT" | "DELETE";

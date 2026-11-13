@@ -113,6 +113,7 @@ from .videos import (
     split_scenes,
     spoken,
     text_position,
+    thumbnail_url,
     title_of,
     video_not_found,
     video_payload,
@@ -1917,6 +1918,7 @@ def list_jobs(
         query = query.where(Job.created_by_id == me.user_id)
     jobs = db.scalars(query).all()
     titles = {}
+    thumbnails: dict[int | None, str | None] = {}
     rows = []
     for job in jobs:
         # A plan job has no video: it is named after its topic group; an article's job after the article.
@@ -1935,6 +1937,7 @@ def list_jobs(
                 video = db.get(Video, job.video_id)
                 title, _ = split_scenes(db, video)
                 titles[owner] = title_of(video, title) or video.topic
+                thumbnails[job.video_id] = thumbnail_url(video)
         ended = job.finished_at
         rows.append(
             {
@@ -1961,6 +1964,11 @@ def list_jobs(
                     job.image_provider or "", job.image_provider
                 ),
                 "error": job.error,
+                "retry_of_id": job.retry_of_id,
+                "waited_seconds": round((job.started_at - job.created_at).total_seconds(), 1)
+                if job.started_at
+                else None,
+                "thumbnail_url": thumbnails.get(job.video_id),
             }
         )
     return rows

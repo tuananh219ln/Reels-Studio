@@ -1,11 +1,11 @@
 "use client";
-import JobActions from "@/components/actions/JobActions";
+import JobMenu from "@/components/actions/JobMenu";
 
 import EmptyState from "@/components/EmptyState";
 import FilterSelect from "@/components/FilterSelect";
 import PageHeader from "@/components/PageHeader";
 import StatusText, { type StatusTone } from "@/components/StatusText";
-import UserAvatar from "@/components/UserAvatar";
+import VideoThumbnail from "@/components/VideoThumbnail";
 import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
@@ -56,6 +56,19 @@ function merge(fresh: JobRow[], rows: JobRow[]): JobRow[] {
     byId.set(row.id, row);
   }
   return [...byId.values()].sort((a, b) => b.id - a.id);
+}
+
+/** Where a job's row leads: a plan job has no video and opens Kho kiến thức, an article's job opens the article. */
+function jobHref(row: JobRow): string {
+  return row.article_id !== null
+    ? `/articles/${row.article_id}`
+    : row.video_id === null
+      ? "/knowledge"
+      : `/videos/${row.video_id}`;
+}
+
+function jobOpenLabel(row: JobRow): string {
+  return row.article_id !== null ? "Mở bài viết" : row.video_id === null ? "Mở Kho kiến thức" : "Mở video";
 }
 
 export default function JobsPage() {
@@ -157,56 +170,51 @@ function Jobs() {
 
   const columns: ColumnsType<JobRow> = [
     {
-      title: "Thao tác",
-      key: "actions",
-      fixed: "right",
-      width: 150,
-      render: (_, row) => <JobActions job={row} onDone={() => reload()} />,
-    },
-    {
-      title: "Job",
+      title: "Job và video",
       key: "job",
-      width: 300,
-      // A long title takes one line, in full on hover, instead of squeezing to a word per line.
+      width: 380,
+      // The title takes up to two lines, in full on hover, instead of one line cut short.
       render: (_, row) => (
-        <Flex vertical style={{ minWidth: 0 }}>
-          <Typography.Text strong ellipsis={{ tooltip: row.video_title }} style={{ maxWidth: 280 }}>
-            {row.video_title}
-          </Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-            {row.kind_label}, #{row.id}
-          </Typography.Text>
+        <Flex align="center" gap={12} style={{ minWidth: 0 }}>
+          <VideoThumbnail name={row.video_title} url={row.thumbnail_url} width={36} />
+          <Flex vertical style={{ minWidth: 0 }}>
+            <Typography.Paragraph strong ellipsis={{ rows: 2, tooltip: row.video_title }} style={{ margin: 0 }}>
+              {row.video_title}
+            </Typography.Paragraph>
+            <Typography.Text type="secondary" ellipsis style={{ fontSize: 12 }}>
+              {row.kind_label}, #{row.id}, {row.created_by}
+              {row.retry_of_id !== null && `, thử lại job #${row.retry_of_id}`}
+            </Typography.Text>
+          </Flex>
         </Flex>
       ),
     },
     {
       title: "Trạng thái",
       key: "status",
-      width: 130,
+      width: 140,
       render: (_, row) => {
         const status = STATUS[row.status] ?? { label: row.status, tone: "idle" as const };
-        return <StatusText tone={status.tone}>{status.label}</StatusText>;
+        return (
+          <Flex vertical>
+            <StatusText tone={status.tone}>{status.label}</StatusText>
+            {row.waited_seconds !== null && row.waited_seconds >= 1 && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                chờ {duration(row.waited_seconds)} trong hàng
+              </Typography.Text>
+            )}
+          </Flex>
+        );
       },
-    },
-    {
-      title: "Người bấm",
-      key: "created_by",
-      width: 170,
-      render: (_, row) => (
-        <Flex gap={8} align="center">
-          <UserAvatar initial={row.created_by.charAt(0).toUpperCase()} size={24} />
-          <Typography.Text ellipsis={{ tooltip: row.created_by }}>{row.created_by}</Typography.Text>
-        </Flex>
-      ),
     },
     {
       title: "Bắt đầu",
       key: "started",
-      width: 160,
+      width: 150,
       render: (_, row) => (
         <Flex vertical>
           <span>{row.started_at ? formatDateTime(row.started_at) : "—"}</span>
-          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             {duration(row.duration_seconds)}
           </Typography.Text>
         </Flex>
@@ -215,14 +223,14 @@ function Jobs() {
     {
       title: "AI",
       key: "ai",
-      width: 220,
+      width: 200,
       render: (_, row) => {
         const calls = row.kind === "image" ? row.image_calls : row.claude_calls;
         return (
           <Flex vertical style={{ minWidth: 0 }}>
             <span>{calls > 0 ? `${calls} lượt gọi` : "Không gọi AI"}</span>
             {row.llm && (
-              <Typography.Text type="secondary" ellipsis={{ tooltip: row.llm }} style={{ fontSize: 13, maxWidth: 200 }}>
+              <Typography.Text type="secondary" ellipsis={{ tooltip: row.llm }} style={{ fontSize: 12, maxWidth: 180 }}>
                 {row.llm}
               </Typography.Text>
             )}
@@ -245,6 +253,14 @@ function Jobs() {
         ) : (
           <Typography.Text type="secondary">—</Typography.Text>
         ),
+    },
+    {
+      key: "actions",
+      fixed: "right",
+      width: 56,
+      render: (_, row) => (
+        <JobMenu job={row} href={jobHref(row)} openLabel={jobOpenLabel(row)} onDone={() => reload()} />
+      ),
     },
   ];
 
@@ -301,18 +317,10 @@ function Jobs() {
             showSizeChanger: false,
             ...tablePage,
           }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1000 }}
           locale={{ emptyText: <EmptyState description={filtering ? "Không có job nào khớp" : "Chưa có job nào"} /> }}
           onRow={(row) => ({
-            // A plan job has no video: it opens Kho kiến thức, where the plan is; an article's job opens the article.
-            onClick: () =>
-              router.push(
-                row.article_id !== null
-                  ? `/articles/${row.article_id}`
-                  : row.video_id === null
-                    ? "/knowledge"
-                    : `/videos/${row.video_id}`,
-              ),
+            onClick: () => router.push(jobHref(row)),
             style: { cursor: "pointer" },
           })}
         />
