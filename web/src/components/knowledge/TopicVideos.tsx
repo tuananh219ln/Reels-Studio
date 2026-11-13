@@ -291,8 +291,9 @@ export default function TopicVideos({
             },
             {
               key: "actions",
-              width: 120,
-              // Pinned to the right: the table scrolls sideways, and the bin must show without scrolling.
+              // Room for "Duyệt" beside the ⋮ of a ready video, no more: the bin that filled the rest is gone.
+              width: 88,
+              // Pinned to the right: the table scrolls sideways, and the actions must show without scrolling.
               fixed: "right",
               render: (_, row) => (
                 <Flex>
