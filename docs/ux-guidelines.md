@@ -330,9 +330,11 @@ Built:
     about posting, 2026-11-12) and on
     the right the creator and the day it was made; under them, small, the topic group and its plan day.
     The kind tags sit under the title with the "Đã đăng" icons on their right;
-  - a list, one row per video: small thumbnail and title, "Loại" (the kind tags), the status (with "Đã
-    đăng" or "Đã lên lịch" under it), "Đã đăng" (the platform icons), "Đăng" (Page and time, or "Chưa đăng"), "View" (sortable), "48h" (the multiple or
-    "chưa đủ dữ liệu", the share/view under it) and "Tạo" (group, plan day, creator, day). Above the videos, one
+  - a list, one row per video, in four columns (2026-11-14): **Video** (small thumbnail, the title on up to two lines, and
+    under it the Page and time of its post, "hẹn" while scheduled, or "Chưa đăng"), **Trạng thái** (the status, "Đã đăng" or
+    "Đã lên lịch" and the platform icons on one line, the kind tags, TikTok versions and "Tạo bản TikTok" under it),
+    **Số liệu** (the views, sortable, with the 48h multiple or "chưa đủ dữ liệu" and the share rate under it; "—" before
+    the first reading) and **Tạo** (group, plan day, creator, day), then the "⋮" button. Above the videos, one
   banner per topic group of the member's own (the groups their Pages in use post) whose plan has a today:
   "Kế hoạch <nhóm>, ngày N: hôm nay còn X/Y video" with "Làm tiếp" (the next idea not made), or green once
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
