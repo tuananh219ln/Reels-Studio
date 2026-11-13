@@ -3,6 +3,7 @@ and from "Kết nối Fanpage"."""
 
 import json
 import logging
+import re
 import time
 import urllib.error
 import urllib.parse
@@ -55,6 +56,26 @@ class Page:
 
 def reel_url(video_id: str) -> str:
     return f"https://www.facebook.com/reel/{video_id}"
+
+
+def reel_id_from_link(text: str) -> str | None:
+    """The reel's id in a Facebook link (facebook.com/reel/<id>, /<page>/videos/<id>, watch?v=<id>) or a bare number;
+    None when there is none."""
+    text = text.strip()
+    if re.fullmatch(r"\d{8,25}", text):
+        return text
+    if "://" not in text:
+        text = "https://" + text
+    link = urllib.parse.urlparse(text)
+    host = (link.hostname or "").lower()
+    if host != "fb.com" and not host.endswith(("facebook.com", ".fb.com")):
+        return None
+    parts = [part for part in link.path.split("/") if part]
+    for index, part in enumerate(parts[:-1]):
+        if part in ("reel", "reels", "videos") and re.fullmatch(r"\d{8,25}", parts[index + 1]):
+            return parts[index + 1]
+    watched = urllib.parse.parse_qs(link.query).get("v", [""])[0]
+    return watched if re.fullmatch(r"\d{8,25}", watched) else None
 
 
 def _send(request: urllib.request.Request, timeout: float) -> dict:

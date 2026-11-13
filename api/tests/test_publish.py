@@ -1163,3 +1163,50 @@ def test_checking_needs_a_login_and_a_post(an, client):
     assert an.post("/api/posts/999/check").status_code == 404
     client.cookies.clear()
     assert client.post("/api/posts/999/check").status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("link", "expected"),
+    [
+        ("https://www.facebook.com/reel/1473902661331878", "1473902661331878"),
+        ("https://www.facebook.com/reel/1473902661331878?mibextid=abc", "1473902661331878"),
+        ("facebook.com/TiemDocComment/videos/1441436111474608/", "1441436111474608"),
+        ("https://www.facebook.com/watch/?v=1441436111474608", "1441436111474608"),
+        ("  1441436111474608 ", "1441436111474608"),
+        ("https://example.com/reel/1473902661331878", None),
+        ("https://www.facebook.com/TiemDocComment", None),
+        ("xin chào", None),
+    ],
+)
+def test_the_reel_id_is_read_from_a_facebook_link(link, expected):
+    assert facebook.reel_id_from_link(link) == expected
+
+
+def test_a_wrong_reel_id_is_set_right_from_a_link_and_the_check_revives_the_post(an, db, me, storage, fakes):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    post = add_post(db, video, me, fanpage_id(db, me), remote_id="1136735042166288", status="deleted")
+    bad = an.post(f"/api/posts/{post.id}/reel-link", json={"url": "https://example.com/x"})
+    assert (bad.status_code, bad.json()["code"]) == (422, "invalid_reel_link")
+    ok = an.post(f"/api/posts/{post.id}/reel-link", json={"url": "https://www.facebook.com/reel/1473902661331878"})
+    assert ok.status_code == 200
+    assert ok.json()["active_job"]["kind"] == "check"
+    db.refresh(post)
+    assert (post.remote_id, post.status) == ("1473902661331878", "deleted")
+
+
+def test_a_reel_link_is_refused_for_a_reel_of_another_post_and_for_another_member(an, db, me, storage):
+    video = make_video(db, storage, me)
+    add_mp4(db, storage, video)
+    page = fanpage_id(db, me)
+    other = make_video(db, storage, me)
+    add_post(db, other, me, page, remote_id="1473902661331878")
+    post = add_post(db, video, me, page, remote_id="1136735042166288", status="deleted")
+    taken = an.post(f"/api/posts/{post.id}/reel-link", json={"url": "facebook.com/reel/1473902661331878"})
+    assert (taken.status_code, taken.json()["code"]) == (409, "reel_in_use")
+    stranger = make_user(db, "khac@example.com", "Người khác")
+    post.created_by_id = stranger.id
+    db.get(Fanpage, page).owner_id = stranger.id  # neither the poster nor the Page's owner
+    db.commit()
+    refused = an.post(f"/api/posts/{post.id}/reel-link", json={"url": "facebook.com/reel/1441436111474608"})
+    assert refused.status_code == 403
