@@ -183,7 +183,7 @@ test("Tự viết: a pasted script becomes scenes at once, with no AI and a safe
   );
   await page.getByRole("button", { name: "Thêm cảnh" }).click();
   await expect(page.getByTestId("scene")).toHaveCount(3);
-  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
+  await page.getByRole("tab", { name: "Đăng bài" }).click();
   await expect(page.getByTestId("hand-written-review")).toBeVisible();
 });
 
@@ -248,9 +248,9 @@ test("the video page shows where the video stands, step by step, with its times"
   await expect(progress.getByTestId("progress-48h")).toHaveCount(0);
   // A step opens the side panel's tab where it is done.
   await progress.getByTestId("progress-affiliate").click();
-  await expect(page.getByRole("tab", { name: "Nội dung đăng" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Đăng bài" })).toHaveAttribute("aria-selected", "true");
   await progress.getByTestId("progress-render").click();
-  await expect(page.getByRole("tab", { name: "Xuất bản" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Đăng bài" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("only a thing's maker is offered to delete it: a teammate sees no Xóa on the video, scene or group", async ({

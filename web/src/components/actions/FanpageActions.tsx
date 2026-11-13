@@ -94,6 +94,25 @@ export function OwnerLine({
           Tài khoản TikTok chưa kết nối, hãy kết nối lại trong Cài đặt › Tài khoản affiliate
         </Typography.Text>
       )}
+      {row.tiktok_account && (
+        <>
+          <Select
+            size="small"
+            aria-label={`Tự đăng TikTok của ${row.name}`}
+            value={row.tiktok_auto_mode}
+            options={[
+              { value: "draft", label: "Tự đăng TikTok: đẩy nháp đúng giờ" },
+              { value: "direct", label: "Tự đăng TikTok: đăng thẳng công khai" },
+            ]}
+            onChange={(mode: "draft" | "direct") => call(`/fanpages/${row.id}/tiktok-auto-mode`, "PUT", { mode })}
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            {row.tiktok_auto_mode === "direct"
+              ? "Đăng thẳng chỉ chạy được sau khi TikTok duyệt xong ứng dụng (hiện đang chờ duyệt); chưa duyệt thì bài đăng TikTok sẽ báo lỗi."
+              : "Video lên Facebook lúc nào, bản nháp vào hộp thư TikTok của bạn trong khoảng 1 phút sau đó. Caption, giỏ hàng và nhãn AI bạn tự thêm trong app TikTok."}
+          </Typography.Text>
+        </>
+      )}
       <LogoLine row={row} onRows={onRows} />
     </Flex>
   );

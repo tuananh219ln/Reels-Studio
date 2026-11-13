@@ -593,6 +593,9 @@ class Fanpage(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
     # "HH:MM" in Vietnam, when its queue posts; None: the group's posting times.
     post_times: Mapped[list | None] = mapped_column(JSONB)
+    # What the worker sends to TikTok when a video of the Page goes live on Facebook (migration 0084, jobs.queue_tiktok_posts):
+    # "draft" into the owner's TikTok inbox, or "direct" (public).
+    tiktok_auto_mode: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft")
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])

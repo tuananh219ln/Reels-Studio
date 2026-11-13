@@ -89,14 +89,14 @@ test("30-day plan: the day's filter counts the day's ideas, not the month's", as
   await expect(page.getByTestId("plan-matches")).toHaveText("0/1 ý tưởng của ngày khớp");
 });
 
-test("phone width: Kho kiến thức's group list scrolls away with the page", async ({ page }) => {
+test("phone width: Kho kiến thức's groups are chips above the group, not a column beside it", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loginAsSeed(page);
   await page.goto("/knowledge");
   const list = page.getByTestId("topic-list");
   await expect(list).toBeVisible();
-  const position = await list.evaluate((node) => getComputedStyle(node.closest(".ant-col")!).position);
-  expect(position).not.toBe("sticky");
+  const box = await list.boundingBox();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
 });
 
 test("Video: a video that cannot be loaded says so and offers Thử lại", async ({ page }) => {

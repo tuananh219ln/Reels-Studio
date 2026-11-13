@@ -1,6 +1,8 @@
 """Connecting Facebook Pages. A token only ever goes in: no response carries it, and every token is checked with
 Facebook before it is kept."""
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -38,6 +40,10 @@ class ShopeeAccountBody(BaseModel):
 
 class TikTokAccountBody(BaseModel):
     account_id: int | None
+
+
+class TikTokAutoModeBody(BaseModel):
+    mode: Literal["draft", "direct"]
 
 
 def _clean_token(token: str) -> str:
@@ -130,6 +136,7 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "mine": row.owner_id == me.user_id,
             "shopee_account": _shopee_account(db, row, me),
             "tiktok_account": _tiktok_account(db, row, me),
+            "tiktok_auto_mode": row.tiktok_auto_mode,
             # The Page's brand ("Kênh") and its logo, laid on the videos made for it (brands.py).
             "brand": _brand(brand_of_page.get(row.id)),
             "check": checks[row.id],
@@ -246,6 +253,19 @@ def set_tiktok_account(
         if not account.active:
             raise invalid(f"Tài khoản “{account.name}” đang ngừng dùng")
     row.tiktok_account_id = body.account_id
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/tiktok-auto-mode")
+def set_tiktok_auto_mode(
+    fanpage_id: int, body: TikTokAutoModeBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """What the worker sends to TikTok when a video of the Page goes live on Facebook: a draft, or a public post."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới đổi được cách tự đăng TikTok")
+    row.tiktok_auto_mode = body.mode
     db.commit()
     return _rows(db, me)
 

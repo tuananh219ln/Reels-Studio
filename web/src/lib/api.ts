@@ -603,6 +603,8 @@ export type Fanpage = {
   shopee_account: { id: number; name: string; usable: boolean } | null;
   /** The TikTok account its videos open with on their Đăng TikTok card, shown only to its owner. */
   tiktok_account: { id: number; name: string; connected: boolean } | null;
+  /** What the worker sends to TikTok when a video of the Page goes live on Facebook: a draft, or a public post. */
+  tiktok_auto_mode: "draft" | "direct";
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
   brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
   /** The worker's last check of the token (api fanpages.check). */

@@ -10,7 +10,7 @@ import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
 import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Tag, Typography, theme } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -59,6 +59,14 @@ function numbers(row: VideoRow) {
     shares: post?.shares ?? null,
     rate: post?.share_rate ?? null,
   };
+}
+
+/** The topic a video was made from, only when its title does not already say it: a title that repeats the topic gave
+ * the list two near-identical lines. */
+function otherTopic(row: VideoRow): string {
+  const title = plain(row.title || "");
+  const topic = plain(row.topic);
+  return !topic || title.includes(topic) || topic.includes(title) ? "" : row.topic;
 }
 
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
@@ -125,6 +133,19 @@ export default function TopicVideos({
 
   return (
     <Flex vertical gap={12} data-testid="topic-videos">
+      <Tabs
+        size="small"
+        activeKey={status ?? "all"}
+        onChange={(key) => setStatus(key === "all" ? null : key)}
+        tabBarStyle={{ marginBottom: 0 }}
+        items={[
+          { key: "all", label: `Tất cả (${(rows ?? []).length})` },
+          ...VIDEO_STATUS_FILTERS.map(({ value, label, match }) => ({
+            key: value,
+            label: `${label} (${(rows ?? []).filter(match).length})`,
+          })),
+        ]}
+      />
       <Flex wrap gap={8} justify="space-between">
         <Flex wrap gap={8}>
           <Input
@@ -135,18 +156,6 @@ export default function TopicVideos({
             style={{ width: 260 }}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-          />
-          <Select
-            aria-label="Trạng thái"
-            placeholder="Mọi trạng thái"
-            allowClear
-            style={{ width: 180 }}
-            value={status}
-            onChange={(value) => setStatus(value ?? null)}
-            options={VIDEO_STATUS_FILTERS.map(({ value, label, match }) => ({
-              value,
-              label: `${label} (${(rows ?? []).filter(match).length})`,
-            }))}
           />
           <Segmented<View>
             aria-label="Chế độ hiển thị"
@@ -218,14 +227,24 @@ export default function TopicVideos({
               render: (_, row) => (
                 <Flex vertical style={{ minWidth: 0 }}>
                   <Link prefetch={false} href={`/videos/${row.id}`}>
-                    <Typography.Text strong ellipsis style={{ color: "inherit", maxWidth: 300 }}>
+                    <Typography.Text strong ellipsis={{ tooltip: true }} style={{ color: "inherit", maxWidth: 320 }}>
                       {row.title || row.topic}
                     </Typography.Text>
                   </Link>
-                  <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 300 }}>
-                    {row.topic}
-                    {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}
-                  </Typography.Text>
+                  {(row.plan_day || otherTopic(row)) && (
+                    <Flex gap={6} align="center" style={{ minWidth: 0 }}>
+                      {row.plan_day && (
+                        <Tag bordered={false} style={{ marginInlineEnd: 0 }}>
+                          Ngày {row.plan_day}
+                        </Tag>
+                      )}
+                      {otherTopic(row) && (
+                        <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 260 }}>
+                          {otherTopic(row)}
+                        </Typography.Text>
+                      )}
+                    </Flex>
+                  )}
                 </Flex>
               ),
             },
@@ -238,14 +257,14 @@ export default function TopicVideos({
             {
               key: "status",
               title: "Trạng thái",
-              width: 110,
-              render: (_, row) => <VideoStatusTags video={row} />,
-            },
-            {
-              key: "platforms",
-              title: "Đã đăng",
-              width: 110,
-              render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
+              width: 150,
+              // Where it is out sits beside "Đã đăng", not in a column of its own.
+              render: (_, row) => (
+                <Flex gap={8} align="center" wrap>
+                  <VideoStatusTags video={row} />
+                  <PostedPlatforms postedOn={row.posted_on} />
+                </Flex>
+              ),
             },
             {
               key: "views",
@@ -290,8 +309,9 @@ export default function TopicVideos({
             },
             {
               key: "actions",
-              width: 120,
-              // Pinned to the right: the table scrolls sideways, and the bin must show without scrolling.
+              // Room for "Duyệt" beside the ⋮ of a ready video, no more: the bin that filled the rest is gone.
+              width: 88,
+              // Pinned to the right: the table scrolls sideways, and the actions must show without scrolling.
               fixed: "right",
               render: (_, row) => (
                 <Flex>
@@ -360,9 +380,14 @@ function VideoCards({
                   </Flex>
                 </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {row.topic}
-                  {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}, {row.created_by},{" "}
-                  {formatDateTime(row.created_at)}
+                  {[
+                    otherTopic(row),
+                    row.plan_day ? `ngày ${row.plan_day}` : "",
+                    row.created_by,
+                    formatDateTime(row.created_at),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </Typography.Text>
                 <VideoKindTags video={row} />
                 <Flex wrap gap={8} align="center">

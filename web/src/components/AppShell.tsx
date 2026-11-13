@@ -7,7 +7,9 @@ import {
   CustomerServiceOutlined,
   KeyOutlined,
   LogoutOutlined,
+  MenuFoldOutlined,
   MenuOutlined,
+  MenuUnfoldOutlined,
   EditOutlined,
   FacebookOutlined,
   FileTextOutlined,
@@ -22,6 +24,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type Me } from "@/lib/api";
+import { useStoredChoice } from "@/lib/storedChoice";
 import { ChangePasswordModal, RenameModal } from "./AccountModals";
 import Logo from "./Logo";
 import { MeContext } from "./MeContext";
@@ -76,6 +79,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<Me | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // The computer's menu can be folded away to give a table the whole window; the choice stays on this browser.
+  const [menuState, setMenuState] = useStoredChoice<"shown" | "hidden">("menu-hidden", "shown");
+  const menuHidden = menuState === "hidden";
+  const hideMenu = (hidden: boolean) => setMenuState(hidden ? "hidden" : "shown");
+
   const [modal, setModal] = useState<"password" | "name" | null>(null);
 
   const load = useCallback(() => {
@@ -196,6 +204,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           // Sticky: on a long page (the video editor) the menu stays in reach while scrolling.
           <Layout.Sider
             width={240}
+            collapsed={menuHidden}
+            collapsedWidth={0}
+            trigger={null}
             style={{
               borderRight: `1px solid ${COLORS.border}`,
               position: "sticky",
@@ -205,9 +216,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             {/* The menu on top, the member's account at the foot: on a computer there is no header bar. */}
             <Flex vertical style={{ height: "100%" }}>
-              <div style={{ padding: "20px 20px 24px" }}>
+              <Flex justify="space-between" align="center" style={{ padding: "20px 12px 24px 20px" }}>
                 <Logo />
-              </div>
+                <Button type="text" aria-label="Ẩn menu" icon={<MenuFoldOutlined />} onClick={() => hideMenu(true)} />
+              </Flex>
               <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{menu}</div>
               <div style={{ padding: 8, borderTop: `1px solid ${COLORS.border}` }}>{account}</div>
             </Flex>
@@ -254,6 +266,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               boxSizing: "border-box",
             }}
           >
+            {desktop && menuHidden && (
+              <Button
+                aria-label="Hiện menu"
+                icon={<MenuUnfoldOutlined />}
+                onClick={() => hideMenu(false)}
+                style={{ position: "fixed", top: 12, left: 12, zIndex: 20 }}
+              />
+            )}
             {children}
           </Layout.Content>
         </Layout>

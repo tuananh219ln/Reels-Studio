@@ -89,8 +89,8 @@ const JOB_NAMES = {
   image_marks: "Tìm chữ/logo trên ảnh",
 } as const;
 
-/** The side panel's tabs: the MP4 and posting, the video's own settings, and the post texts. */
-type SideTab = "publish" | "setup" | "post";
+/** The side panel's tabs: "Đăng bài" (post texts, MP4 and posting together) and the video's own settings. */
+type SideTab = "publish" | "setup";
 
 // Side by side only on a computer, which has no header bar: just under the top, above the render bar.
 const SIDE_PANEL_STYLE = {
@@ -394,7 +394,7 @@ export default function VideoPage() {
             </Typography.Text>
             <PresenceAvatars others={others} />
           </Flex>
-          <VideoProgress video={video} onOpenTab={setSideTab} />
+          <VideoProgress video={video} onOpenTab={() => setSideTab("publish")} />
           <Flex wrap align="center" gap={8} style={{ marginTop: 6 }} data-testid="video-kind-line">
             <ContentTypeField
               key={video.content_type}
@@ -638,7 +638,7 @@ export default function VideoPage() {
         )
       ) : (
         <Row gutter={[16, 16]}>
-          <Col xs={24} xl={15}>
+          <Col xs={24} xl={15} xxl={11}>
             {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
             <Flex
               vertical
@@ -732,10 +732,10 @@ export default function VideoPage() {
                   editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(0)}
-                  expanded={expanded[video.title_scene.id] ?? true}
+                  expanded={expanded[video.title_scene.id] ?? !viewing}
                   onToggle={() => {
                     const titleId = video.title_scene!.id;
-                    setExpanded((current) => ({ ...current, [titleId]: !(current[titleId] ?? true) }));
+                    setExpanded((current) => ({ ...current, [titleId]: !(current[titleId] ?? !viewing) }));
                   }}
                 />
               )}
@@ -750,8 +750,10 @@ export default function VideoPage() {
                   editing={job?.kind === "image_edit" && job.scene_id === scene.id}
                   voiceEnabled={video.voice_enabled}
                   onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
-                  expanded={expanded[scene.id] ?? true}
-                  onToggle={() => setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? true) }))}
+                  expanded={expanded[scene.id] ?? !viewing}
+                  onToggle={() =>
+                    setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? !viewing) }))
+                  }
                   onMove={(step) => move(index, step)}
                   onDelete={
                     video.created_by_id === me.id
@@ -769,7 +771,7 @@ export default function VideoPage() {
               </Button>
             </Flex>
           </Col>
-          <Col xs={24} xl={9}>
+          <Col xs={24} xl={9} xxl={13}>
             {/* On a wide screen the side panel stays in view while the scenes scroll past it. */}
             <div style={sideBySide ? SIDE_PANEL_STYLE : undefined} data-side-panel>
               <Tabs
@@ -778,40 +780,71 @@ export default function VideoPage() {
                 items={[
                   {
                     key: "publish",
-                    label: "Xuất bản",
+                    label: "Đăng bài",
                     children: (
-                      <Flex vertical gap={16}>
-                        {video.mp4 ? (
-                          <>
-                            <Card title="MP4" size="small">
-                              {/* The player small beside its facts, so posting stays in view under it. */}
-                              <Flex gap={14} align="flex-start">
-                                <Mp4Player key={video.mp4.url} url={video.mp4.url} />
-                                <Flex vertical gap={10} style={{ minWidth: 0 }}>
-                                  <Typography.Text type="secondary" data-testid="render-time">
-                                    Dài {formatDecimal(video.mp4.seconds)} giây, render mất{" "}
-                                    {formatDecimal(video.mp4.render_seconds)} giây
-                                  </Typography.Text>
-                                  <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
-                                    Tải MP4
-                                  </Button>
-                                  <PublishButton video={video} />
-                                  {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
-                                    <ApproveVideoButton videoId={video.id} onDone={load} />
-                                  )}
-                                </Flex>
-                              </Flex>
-                            </Card>
-                            <QcCard qc={video.mp4.qc} />
-                            <PublishCard video={video} />
-                          </>
-                        ) : (
-                          <Card size="small">
-                            <Typography.Text type="secondary">
-                              Chưa có MP4. Bấm “Render” ở thanh dưới cùng khi các cảnh đã đủ ảnh; MP4 và nút “Đăng bài”
-                              (Facebook, TikTok, YouTube Shorts, Instagram Reels) sẽ hiện ở đây.
-                            </Typography.Text>
-                          </Card>
+                      <Flex vertical gap={12}>
+                        {/* Texts on the left to write and comment, the MP4 and where it goes on the right. */}
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+                            gap: 16,
+                            alignItems: "start",
+                          }}
+                        >
+                          <EditorContext.Provider value={postEditor}>
+                            <PostContent video={video} />
+                          </EditorContext.Provider>
+                          <Flex vertical gap={16} style={{ minWidth: 0 }}>
+                            {video.mp4 ? (
+                              <>
+                                <Card title="MP4" size="small">
+                                  <Flex gap={14} align="flex-start">
+                                    <Mp4Player key={video.mp4.url} url={video.mp4.url} />
+                                    <Flex vertical gap={10} style={{ minWidth: 0 }}>
+                                      <Typography.Text type="secondary" data-testid="render-time">
+                                        Dài {formatDecimal(video.mp4.seconds)} giây, render mất{" "}
+                                        {formatDecimal(video.mp4.render_seconds)} giây
+                                      </Typography.Text>
+                                      <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
+                                        Tải MP4
+                                      </Button>
+                                    </Flex>
+                                  </Flex>
+                                </Card>
+                                <QcCard qc={video.mp4.qc} />
+                                <PublishCard video={video} />
+                              </>
+                            ) : (
+                              <Card size="small">
+                                <Typography.Text type="secondary">
+                                  Chưa có MP4. Bấm “Render” ở thanh dưới cùng khi các cảnh đã đủ ảnh; MP4 và nút “Đăng
+                                  bài” (Facebook, TikTok, YouTube Shorts, Instagram Reels) sẽ hiện ở đây.
+                                </Typography.Text>
+                              </Card>
+                            )}
+                          </Flex>
+                        </div>
+                        {video.mp4 && (
+                          // Always in reach: the panel scrolls, the buttons stay at its foot.
+                          <Flex
+                            gap={8}
+                            justify="flex-end"
+                            align="center"
+                            style={{
+                              position: "sticky",
+                              bottom: 0,
+                              zIndex: 2,
+                              padding: "10px 12px",
+                              background: COLORS.surface,
+                              borderTop: `1px solid ${COLORS.border}`,
+                            }}
+                          >
+                            {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+                              <ApproveVideoButton videoId={video.id} onDone={load} />
+                            )}
+                            <PublishButton video={video} />
+                          </Flex>
                         )}
                       </Flex>
                     ),
@@ -820,15 +853,6 @@ export default function VideoPage() {
                     key: "setup",
                     label: "Thiết lập",
                     children: <SetupTab video={video} />,
-                  },
-                  {
-                    key: "post",
-                    label: "Nội dung đăng",
-                    children: (
-                      <EditorContext.Provider value={postEditor}>
-                        <PostContent video={video} />
-                      </EditorContext.Provider>
-                    ),
                   },
                 ]}
               />

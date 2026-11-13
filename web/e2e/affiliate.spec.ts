@@ -63,7 +63,7 @@ test("a new script finds Shopee products with the writer's account, and one is c
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
 
-  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
+  await page.getByRole("tab", { name: "Đăng bài" }).click();
   const suggestions = page.getByTestId("shopee-suggestions");
   const products = suggestions.getByTestId("suggested-product");
   // Two ideas from the script, two products meeting the rules each (the fake's third has 4.2 stars).
@@ -92,7 +92,7 @@ test("without an App ID, an affiliate link pasted on the video is filled in by h
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
 
-  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
+  await page.getByRole("tab", { name: "Đăng bài" }).click();
   const suggestions = page.getByTestId("shopee-suggestions");
   await suggestions.getByLabel("Dán link aff Shopee").fill("https://s.shopee.vn/4LKghKN3cR");
   await suggestions.getByRole("button", { name: "Thêm link" }).click();
@@ -238,6 +238,13 @@ test("a member's TikTok account: set on their Page, and shown there after a relo
   await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
   await page.reload();
   await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK (@anlanhsk)");
+
+  // The auto-post mode shows once an account is linked, starts on the draft, and "Đăng thẳng" stays after a reload.
+  const mode = page.getByTestId("fanpage-owner").getByLabel("Tự đăng TikTok của Trang Dưỡng Sinh");
+  await expect(page.getByTestId("fanpage-owner")).toContainText("đẩy nháp đúng giờ");
+  await chooseOption(page, mode, "Tự đăng TikTok: đăng thẳng công khai");
+  await page.reload();
+  await expect(page.getByTestId("fanpage-owner")).toContainText("đăng thẳng công khai");
 });
 
 test("an article's AI caption finds Shopee products with the writer's account, and one goes in its comment", async ({

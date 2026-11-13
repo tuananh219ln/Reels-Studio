@@ -918,6 +918,13 @@ group, the script checks have no warning and the MP4's QC passed; otherwise it o
 rows of `auto_approvals`, which the MCP tool "Xem kết quả tự duyệt" lists for Muse to relay on WhatsApp. Never raises
 into the job. See [the decision](decisions/2026-11-13-auto-approve.md).
 
+### TikTok at the Facebook slot
+
+`jobs.queue_tiktok_posts` (worker round, once a minute) sends a video whose Facebook post is scheduled or out and whose
+slot has passed (within 24 hours) to TikTok, through the same `tiktok_publish` job as the manual card, when its Page
+has an active TikTok account of its owner. `fanpages.tiktok_auto_mode` (migration 0084) says draft (default) or direct.
+See [the decision](decisions/2026-11-13-tiktok-auto-post.md).
+
 ### ChatGPT and Claude MCP connection
 
 The optional private MCP endpoint uses member-authorized OAuth delegation, stateless Streamable
