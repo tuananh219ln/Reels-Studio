@@ -104,8 +104,8 @@ def test_a_logo_makes_a_round_badge_and_a_version_that_changes_with_the_picture(
     ("files", "why"),
     [
         (logo_file(size=(200, 200)), "nhỏ"),
-        (logo_file(size=(6000, 6000), color=(1, 2, 3)), "5 MB"),
-        ({"file": ("a.png", b"not a picture", "image/png")}, "PNG, JPG"),
+        (None, "5 MB"),
+        ({"file": ("a.png", b"not a picture", "image/png")}, "JPG, PNG"),
     ],
 )
 def test_a_bad_logo_is_refused_with_a_reason_and_saves_nothing(an, files, why):
@@ -115,7 +115,7 @@ def test_a_bad_logo_is_refused_with_a_reason_and_saves_nothing(an, files, why):
         import os
 
         buffer = io.BytesIO()
-        Image.frombytes("RGB", (1200, 1200), os.urandom(1200 * 1200 * 3)).save(buffer, "PNG")
+        Image.frombytes("RGB", (1500, 1500), os.urandom(1500 * 1500 * 3)).save(buffer, "PNG")
         files = {"file": ("big.png", buffer.getvalue(), "image/png")}
     refused = an.post(f"{URL}/{brand_id}/logo", files=files)
     assert refused.status_code == 400 and why in refused.json()["message"]
