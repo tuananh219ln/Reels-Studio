@@ -405,7 +405,8 @@ test("knowledge topics: a group's Video tab lists its videos and makes a new one
   await expect(videos.getByTestId("video-content-type")).toHaveText("Hướng dẫn trồng");
   await expect(videos.getByTestId("posted-platforms")).toHaveCount(1);
   await expect(videos.getByRole("row")).toHaveCount(2); // the header and the one video
-  await expect(videos).toContainText("rau mầm trồng tại nhà");
+  // The video's title says its topic, so the row no longer repeats it on a second line.
+  await expect(videos).toContainText(/rau mầm trồng tại nhà/i);
   await videos.getByLabel("Tìm video của nhóm").fill("khong co");
   await expect(videos.getByText("Không có video nào khớp")).toBeVisible();
   await videos.getByLabel("Tìm video của nhóm").fill("rau mam");
