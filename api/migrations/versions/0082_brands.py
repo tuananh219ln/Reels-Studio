@@ -44,9 +44,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
     )
     connection = op.get_bind()
-    pages = connection.execute(
-        sa.text("SELECT id, name, owner_id, updated_by_id FROM fanpages ORDER BY id")
-    ).fetchall()
+    pages = connection.execute(sa.text("SELECT id, name, owner_id, updated_by_id FROM fanpages ORDER BY id")).fetchall()
     taken: set[str] = set()
     for page_id, name, owner_id, updated_by_id in pages:
         owner = owner_id or updated_by_id
