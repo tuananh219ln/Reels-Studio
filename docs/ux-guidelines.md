@@ -679,7 +679,7 @@ Built:
     one sent through the API is tagged "Nháp TikTok" or "Đăng thẳng" (and "Đang gửi" until TikTok has it), and
     once it is on TikTok its sender gets a box to paste its link. On a Facebook video the cart line instead says its
     products are Shopee's, the cart is set in TikTok's app, and "Tạo bản TikTok" gives TikTok its own script;
-  - "Đăng bài" in the MP4 card, on every video, opens one drawer whose tabs are the platforms the MP4 may go to, each
+  - "Đăng bài" in the bottom bar beside "Render", on every video with an MP4, opens one drawer whose tabs are the platforms the MP4 may go to, each
     with how many posts it has ("YouTube Shorts (1)"), opening on the video's own platform (on Facebook when a
     suggestion's "Đăng" opened it): Facebook (below, with "Thêm vào hàng chờ" under its form; the drawer's own "Đăng"
     button belongs to this tab only), TikTok (above), YouTube Shorts and Instagram Reels (the app has no connection
