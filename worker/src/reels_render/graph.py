@@ -10,6 +10,7 @@ from pathlib import Path
 from .blur import ffmpeg_blur
 from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .layers import ANIMATION_SECONDS, SLIDE_UP_PX
+from .logo import Placement
 from .options import DEFAULT_OPTIONS, RenderOptions
 from .sounds import MUSIC_LEVELS, SOUNDS
 from .textbox import FRAME_HEIGHT, FRAME_WIDTH
@@ -91,6 +92,29 @@ class LayerInput:
     start: float
     end: float
     animation: str = "fade"
+
+
+@dataclass(frozen=True)
+class LogoInput:
+    """The channel's badge (logo.py): `title` over the title scene until `switch` seconds, `corner` from then on;
+    each a Placement of the badge scaled to its own width."""
+
+    image: Path
+    title: Placement
+    corner: Placement
+    switch: float
+
+
+def _logo_chains(logo: LogoInput, source: int, previous: str) -> tuple[list[str], str]:
+    """The badge over everything else, still through transitions and zooms: it is laid on the joined video."""
+    switch = f"{logo.switch:.3f}"
+    return [
+        f"[{source}:v]format=rgba,split=2[lg1][lg2]",
+        f"[lg1]scale={logo.title.width}:-1[lgt]",
+        f"[lg2]scale={logo.corner.width}:-1[lgc]",
+        f"[{previous}][lgt]overlay=x={logo.title.x}:y={logo.title.y}:enable='lt(t,{switch})'[lo1]",
+        f"[lo1][lgc]overlay=x={logo.corner.x}:y={logo.corner.y}:enable='gte(t,{switch})'[lo2]",
+    ], "lo2"
 
 
 def _layer_chains(layers: list[LayerInput], first_input: int, previous: str) -> tuple[list[str], str]:
@@ -229,6 +253,7 @@ def build_filter_graph(
     spans: list[tuple[int, int] | None] | None = None,
     blurs: list[tuple] | None = None,
     insets: list[tuple[InsetInput, ...]] | None = None,
+    logo: LogoInput | None = None,
 ) -> str:
     """Inputs are ordered image 0, text box 0, image 1, text box 1, …, then the music if any, then the
     narration of each scene that has one (`voices` says which do), then the caption images, the layers' and last
@@ -302,6 +327,10 @@ def build_filter_graph(
         previous = label
     layer_chains, previous = _layer_chains(layers or [], first_caption + len(captions), previous)
     chains += layer_chains
+    if logo is not None:
+        # The last input: after every inset's picture.
+        logo_chains, previous = _logo_chains(logo, next_inset, previous)
+        chains += logo_chains
     chains.append(f"[{previous}]format=yuv420p[vout]")
 
     total = _seconds(timeline.total_frames)
@@ -445,6 +474,7 @@ def build_ffmpeg_args(
     layers: list[LayerInput] | None = None,
     sounds: list[SoundInput] | None = None,
     music_start: float = 0.0,
+    logo: LogoInput | None = None,
 ) -> list[str]:
     argv = [ffmpeg, "-hide_banner", "-nostdin", "-v", "error", "-y"]
     for scene, frames in zip(scenes, timeline.scene_frames):
@@ -473,6 +503,8 @@ def build_ffmpeg_args(
         for inset in scene.insets:
             # Looped up to where it leaves its scene's picture, which is drawn from its own second 0.
             argv += ["-loop", "1", "-framerate", str(FPS), "-t", f"{inset.end:.3f}", "-i", str(inset.image)]
+    if logo is not None:
+        argv += ["-i", str(logo.image)]
     graph = build_filter_graph(
         [(scene.box_x, scene.box_y) for scene in scenes],
         timeline,
@@ -491,6 +523,7 @@ def build_ffmpeg_args(
         [scene.motion_span for scene in scenes],
         [scene.blur for scene in scenes],
         [scene.insets for scene in scenes],
+        logo,
     )
     argv += [
         "-filter_complex",

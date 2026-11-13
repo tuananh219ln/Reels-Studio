@@ -80,7 +80,7 @@ def _ask_for_images(script_path: Path, script: Script, missing: list[Scene]) -> 
     def resolve(scene: Scene) -> Scene:
         return replace(scene, image=images[scene.number]) if scene.number in images else scene
 
-    return Script(title=resolve(script.title), scenes=[resolve(scene) for scene in script.scenes])
+    return Script(title=resolve(script.title), scenes=[resolve(scene) for scene in script.scenes], logo=script.logo)
 
 
 def _ask_for_image(script_path: Path, scene: Scene) -> Path:

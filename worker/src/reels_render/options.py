@@ -55,6 +55,9 @@ class RenderOptions:
     # render machine on older code, which would drop the boxes and show the logo, refuses the video (an option it
     # does not know) instead (api/src/reels_api/render_nodes.options_dict).
     clip_blur: bool = False
+    # The script carries a channel logo (`Script.logo`). Same reason: a machine on older code would render the video
+    # without it, so it refuses the option instead.
+    logo: bool = False
 
     def __post_init__(self) -> None:
         for name, value, allowed in (
