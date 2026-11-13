@@ -9,8 +9,8 @@ import VideoStatusTags from "@/components/VideoStatusTags";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
-import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Tag, Typography, theme } from "antd";
+import { AppstoreOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Tag, Tooltip, Typography, theme } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -115,11 +115,35 @@ export default function TopicVideos({
       live = false;
     };
   }, [topicId, message]);
+  // "Cập nhật view": the worker reads the numbers in its next rounds, so the list is read often for a while after.
+  const [refreshing, setRefreshing] = useState(false);
+  const [watching, setWatching] = useState(false);
+  useEffect(() => {
+    if (!watching) return;
+    const timer = window.setTimeout(() => setWatching(false), 120_000);
+    return () => window.clearTimeout(timer);
+  }, [watching]);
+  async function refreshViews() {
+    setRefreshing(true);
+    try {
+      const { asked } = await api<{ asked: number }>(`/posts/refresh?knowledge_topic_id=${topicId}`, "POST");
+      message.success(
+        asked
+          ? `Đã nhờ đọc lại view của ${asked} bài, số mới hiện sau ít phút`
+          : "Không có bài nào cần đọc thêm (chưa có bài đã đăng, hoặc đang chờ đọc view rồi)",
+      );
+      setWatching(true);
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setRefreshing(false);
+    }
+  }
   usePolling(
     async () => {
       if (visible) await load(true);
     },
-    rows?.some((row) => !["draft", "done", "failed"].includes(row.status)) ? 5000 : 60000,
+    watching || rows?.some((row) => !["draft", "done", "failed"].includes(row.status)) ? 5000 : 60000,
   );
 
   // Every choice, with how many of the group's videos are in it, so a group of finished videos still shows the rest.
@@ -168,6 +192,11 @@ export default function TopicVideos({
           />
         </Flex>
         <Flex wrap gap={16} align="center">
+          <Tooltip title="Đọc lại view, share của các bài đã đăng trong nhóm từ Facebook">
+            <Button icon={<ReloadOutlined />} loading={refreshing} onClick={refreshViews}>
+              Cập nhật view
+            </Button>
+          </Tooltip>
           <AutoApproveSwitch />
           {canCreate && (
             <Link prefetch={false} href={`/videos?group=${topicId}`}>

@@ -57,6 +57,7 @@ export default function KnowledgePage() {
 function Knowledge() {
   const { message } = App.useApp();
   const { token } = theme.useToken();
+  const { me } = useMe();
   const [data, setData] = useState<Knowledge | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -65,8 +66,8 @@ function Knowledge() {
   // Topics opened so far stay mounted (hidden when another is chosen): each box keeps its own unsaved text.
   const [opened, setOpened] = useState<number[]>([]);
   // The group list stays in view beside the group only when they sit side by side; stacked on a phone it scrolls away.
-  // "Của tôi" shows only the groups the member made; the choice stays on this browser, "Cả đội" until one is made.
-  const [scope, changeScope] = useStoredChoice<"mine" | "all">("knowledge-scope", "all");
+  // "Của tôi" (the groups of the member's Pages and the ones the member made) until "Cả đội" is chosen; it stays on this browser.
+  const [scope, changeScope] = useStoredChoice<"mine" | "all">("knowledge-scope", "mine");
 
   useEffect(() => {
     api<Knowledge>("/knowledge")
@@ -85,7 +86,9 @@ function Knowledge() {
   // The chosen topic, or the first one while none is chosen or the chosen one was deleted.
   const current = data.topics.find((topic) => topic.id === chosen) ?? data.topics[0] ?? null;
   // The group shown stays among the chips whatever the filter.
-  const listed = data.topics.filter((topic) => scope === "all" || topic.mine || topic.id === current?.id);
+  // "Của tôi": the groups of the member's Pages and the groups the member made.
+  const isMine = (topic: KnowledgeTopic) => topic.mine || topic.created_by_id === me.id;
+  const listed = data.topics.filter((topic) => scope === "all" || isMine(topic) || topic.id === current?.id);
   const mounted = data.topics.filter((topic) => topic.id === current?.id || opened.includes(topic.id));
 
   function choose(id: number) {
@@ -118,86 +121,117 @@ function Knowledge() {
         title="Kho kiến thức"
         description="Mỗi nhóm chủ đề có video, prompt, từ cấm và kế hoạch 30 ngày riêng. Nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
       />
-      {/* The groups sit above the group, as chips, so its table has the whole width. */}
-      <Flex wrap gap={8} align="center" style={{ marginBottom: 16 }}>
-        <Segmented<"mine" | "all">
-          aria-label="Lọc nhóm"
-          value={scope}
-          onChange={changeScope}
-          options={[
-            { value: "mine", label: "Của tôi" },
-            { value: "all", label: "Cả đội" },
-          ]}
-        />
-        <Flex wrap gap={6} data-testid="topic-list">
-          {listed.map((topic) => {
-            const active = topic.id === current?.id;
-            return (
-              <button
-                key={topic.id}
-                type="button"
-                aria-current={active ? "true" : undefined}
-                onClick={() => choose(topic.id)}
-                title={topic.script_prompt ? undefined : "Chưa có prompt"}
-                style={{
-                  border: `1px solid ${active ? token.colorPrimary : token.colorBorder}`,
-                  borderRadius: 999,
-                  font: "inherit",
-                  cursor: "pointer",
-                  padding: "4px 12px",
-                  whiteSpace: "nowrap",
-                  background: active ? token.colorPrimaryBg : "transparent",
-                  color: active ? token.colorPrimaryText : undefined,
-                }}
-              >
-                {topic.name}
-                <Typography.Text type={topic.script_prompt ? "secondary" : "warning"} style={{ marginLeft: 6 }}>
-                  {topic.video_count}
-                </Typography.Text>
-              </button>
-            );
-          })}
-        </Flex>
-        <Flex gap={6} align="center">
-          <Input
-            size="small"
-            style={{ width: 170 }}
-            aria-label="Tên nhóm chủ đề mới"
-            placeholder="Tên nhóm mới…"
-            maxLength={100}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            onPressEnter={() => name.trim() && add()}
-          />
-          <Tooltip title="Thêm nhóm">
-            <Button
-              size="small"
-              aria-label="Thêm nhóm"
-              icon={<PlusOutlined />}
-              loading={busy}
-              disabled={!name.trim()}
-              onClick={add}
+      {/* The groups sit above the group, so its table has the whole width: the filter and the actions to add a group on
+          one line, the groups as chips under them. */}
+      <Card size="small" style={{ marginBottom: 16 }} styles={{ body: { padding: 12 } }}>
+        <Flex vertical gap={12}>
+          <Flex wrap gap={12} align="center" justify="space-between">
+            <Segmented<"mine" | "all">
+              aria-label="Lọc nhóm"
+              value={scope}
+              onChange={changeScope}
+              options={[
+                { value: "mine", label: `Của tôi (${data.topics.filter(isMine).length})` },
+                { value: "all", label: `Cả đội (${data.topics.length})` },
+              ]}
             />
-          </Tooltip>
-          <EditHistory
-            entityType="knowledge_topic"
-            field="name"
-            title="Nhóm chủ đề"
-            kind="value"
-            trigger={(open) => (
-              <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
+            <Flex gap={6} align="center">
+              <Input
+                size="small"
+                style={{ width: 180 }}
+                aria-label="Tên nhóm chủ đề mới"
+                placeholder="Tên nhóm mới…"
+                maxLength={100}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                onPressEnter={() => name.trim() && add()}
+              />
+              <Tooltip title="Thêm nhóm">
                 <Button
                   size="small"
-                  type="text"
-                  aria-label="Lịch sử nhóm chủ đề"
-                  icon={<HistoryOutlined />}
-                  onClick={open}
+                  type="primary"
+                  ghost
+                  aria-label="Thêm nhóm"
+                  icon={<PlusOutlined />}
+                  loading={busy}
+                  disabled={!name.trim()}
+                  onClick={add}
                 />
               </Tooltip>
+              <EditHistory
+                entityType="knowledge_topic"
+                field="name"
+                title="Nhóm chủ đề"
+                kind="value"
+                trigger={(open) => (
+                  <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
+                    <Button
+                      size="small"
+                      type="text"
+                      aria-label="Lịch sử nhóm chủ đề"
+                      icon={<HistoryOutlined />}
+                      onClick={open}
+                    />
+                  </Tooltip>
+                )}
+              />
+            </Flex>
+          </Flex>
+          <Flex wrap gap={8} data-testid="topic-list">
+            {listed.length === 0 && (
+              <Typography.Text type="secondary">
+                Bạn chưa có nhóm nào. Chọn “Cả đội” để xem các nhóm của mọi người, hoặc thêm một nhóm mới.
+              </Typography.Text>
             )}
-          />
+            {listed.map((topic) => {
+              const active = topic.id === current?.id;
+              return (
+                <button
+                  key={topic.id}
+                  type="button"
+                  aria-current={active ? "true" : undefined}
+                  onClick={() => choose(topic.id)}
+                  title={topic.script_prompt ? undefined : "Chưa có prompt"}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 8,
+                    border: `1px solid ${active ? token.colorPrimary : token.colorBorderSecondary}`,
+                    borderRadius: 999,
+                    font: "inherit",
+                    cursor: "pointer",
+                    padding: "4px 6px 4px 14px",
+                    whiteSpace: "nowrap",
+                    background: active ? token.colorPrimaryBg : token.colorBgContainer,
+                    color: active ? token.colorPrimaryText : undefined,
+                    fontWeight: active ? 600 : 400,
+                  }}
+                >
+                  {topic.name}
+                  <span
+                    style={{
+                      minWidth: 22,
+                      padding: "0 6px",
+                      borderRadius: 999,
+                      textAlign: "center",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      background: active ? token.colorPrimary : token.colorFillSecondary,
+                      color: active
+                        ? token.colorWhite
+                        : topic.script_prompt
+                          ? token.colorTextSecondary
+                          : token.colorWarning,
+                    }}
+                  >
+                    {topic.video_count}
+                  </span>
+                </button>
+              );
+            })}
+          </Flex>
         </Flex>
-      </Flex>
+      </Card>
       <Row gutter={[16, 16]} align="top">
         <Col xs={24}>
           {current === null ? (

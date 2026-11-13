@@ -122,11 +122,15 @@ test("Kho kiến thức: groups are chips with a mine filter, the status is tabs
   await health.getByRole("tab", { name: /^Tất cả/ }).click();
   await expect(health.getByRole("link", { name: "Rau dền luộc" })).toBeVisible();
 
+  // "Cập nhật view" asks the worker to read the group's posts again (none is posted here, so nothing is asked).
+  await health.getByRole("button", { name: "Cập nhật view" }).click();
+  await expect(page.getByText(/Không có bài nào cần đọc thêm/)).toBeVisible();
+
   // "Của tôi" keeps the chosen group and the groups the member made; "Cả đội" brings every group back.
   const list = page.getByTestId("topic-list");
-  await page.getByText("Của tôi", { exact: true }).click();
+  await page.getByText(/^Của tôi/).click();
   await expect(list.getByRole("button", { name: /Sức khỏe/ })).toHaveAttribute("aria-current", "true");
-  await page.getByText("Cả đội", { exact: true }).click();
+  await page.getByText(/^Cả đội/).click();
   await expect(list.getByRole("button").first()).toBeVisible();
 
   // The menu folds away for a wider table and comes back, and a reload remembers it.

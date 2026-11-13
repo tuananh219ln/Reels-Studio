@@ -293,6 +293,11 @@ test("only a thing's maker is offered to delete it: a teammate sees no Xóa on t
   expect(refused.status()).toBe(403);
 
   await binh.goto("/knowledge");
+  // "Của tôi" is the start, and the group is An's.
+  await binh
+    .getByLabel("Lọc nhóm")
+    .getByText(/^Cả đội/)
+    .click();
   await binh.getByRole("button", { name: /Nhóm của An/ }).click();
   await binh.locator('[data-topic="Nhóm của An"]').getByRole("button", { name: "Thao tác khác với nhóm" }).click();
   await expect(binh.getByRole("menuitem", { name: "Xoá nhóm (chỉ người tạo nhóm)" })).toHaveAttribute(

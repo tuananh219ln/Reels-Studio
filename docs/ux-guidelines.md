@@ -1467,3 +1467,12 @@ Where something is edited, its history is shown there, not on a page of its own
 - **The groups' list** has a history button on "Nhóm chủ đề": the groups made, renamed and deleted, so a deleted
   group's name is still found.
 
+
+### Kho kiến thức: the groups bar and "Cập nhật view"
+
+The groups sit in one card above the group: the "Của tôi (n) / Cả đội (m)" switch and the new-group field on one line, the
+groups as pills with their video count under it. "Của tôi" is the start (kept on the browser once chosen) and means the
+groups of the member's Pages and the groups the member made; the group shown stays in the list whatever the switch. An
+empty "Của tôi" says so and points to "Cả đội". "Cập nhật view", before "Tự duyệt khi render xong" on the Video tab, asks
+the worker to read the numbers of every posted video of the group (`POST /api/posts/refresh?knowledge_topic_id=`), and
+the list reads itself every 5 seconds for two minutes after.
