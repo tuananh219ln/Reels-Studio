@@ -245,6 +245,12 @@ export default function TopicVideos({
           }}
           columns={[
             {
+              key: "id",
+              title: "ID",
+              width: 64,
+              render: (_, row) => <Typography.Text type="secondary">{row.id}</Typography.Text>,
+            },
+            {
               key: "thumbnail",
               width: 56,
               render: (_, row) =>

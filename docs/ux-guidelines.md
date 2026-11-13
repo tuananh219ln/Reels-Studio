@@ -1480,3 +1480,10 @@ the list reads itself every 5 seconds for two minutes after.
 The video table's title cell has a line under the title: the Page and when it was posted ("đăng") or is set ("hẹn"),
 else the Page queue it waits in, else the time the plan suggests, then its content type and product count, joined with
 commas; nothing when none applies.
+
+### Kho kiến thức: "Lịch đăng" and the video id
+
+A group has a "Lịch đăng" tab after "Backlog": the calendar of "Bài đăng" (day, week, month) limited to the group's posts,
+those on Facebook and those waiting for their time, whether a member scheduled them or a Page's queue did. The queue
+schedules a video only when its Page's next slot is within 48 hours, so a queued video shows there a day or two before
+it goes. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).

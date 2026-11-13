@@ -73,6 +73,12 @@ def test_cập_nhật_view_asks_for_the_numbers_of_the_posts_of_one_group_only(a
     assert an.post(f"/api/posts/refresh?knowledge_topic_id={topic_id}").json() == {"asked": 0}
 
 
+def test_a_post_names_the_topic_group_of_its_video(an, db, me, storage):
+    post = add_post(db, storage, me, status="pending")
+    (row,) = an.get("/api/posts").json()
+    assert row["knowledge_topic_id"] == db.get(Video, post.video_id).knowledge_topic_id is not None
+
+
 def test_a_post_whose_publish_failed_gives_the_reason_and_the_job_to_retry(an, db, me, storage):
     post = add_post(db, storage, me, status="pending", remote_id="1000")
     add_publish_job(db, post, me, "failed", "Token cũ")

@@ -1410,6 +1410,8 @@ export type PostRow = Post & {
   created_by_id: number;
   fanpage_owner_id: number | null;
   video_id: number;
+  /** The video's topic group. */
+  knowledge_topic_id: number | null;
   title: string;
   thumbnail_url: string | null;
   busy: boolean;

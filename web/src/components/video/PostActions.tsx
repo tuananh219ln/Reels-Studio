@@ -3,11 +3,18 @@ import { canTakeDownPost } from "@/lib/permissions";
 
 import { useMe } from "@/components/MeContext";
 import { api, errorMessage, type Post, type VideoDetail } from "@/lib/api";
-import { CloseCircleOutlined, DeleteOutlined, ExportOutlined, RedoOutlined, SyncOutlined } from "@ant-design/icons";
-import { App, Button, Popconfirm, Space, Tooltip } from "antd";
+import {
+  CloseCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  ExportOutlined,
+  RedoOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
+import { App, Button, Input, Modal, Popconfirm, Space, Tooltip, Typography } from "antd";
 import { useState } from "react";
 
-type Action = "check" | "take-down" | "retry";
+type Action = "check" | "take-down" | "retry" | "reel-link";
 
 /** "Kiểm tra" re-reads a reel on Facebook, after a change made in Meta Business Suite, and for a post marked
  * deleted too. "Hủy đăng" for a post not public yet, "Xóa" for a public one; no take-down for one already closed.
@@ -33,6 +40,8 @@ export default function PostActions({
   const { me } = useMe();
   const mine = canTakeDownPost(post, me.id);
   const [busy, setBusy] = useState<Action | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [link, setLink] = useState("");
   const closed = post.status === "cancelled" || post.status === "deleted";
   // A deleted post still gets "Kiểm tra": Facebook may have it after all (the app read it wrong, or a new token).
   const checkable = post.status !== "cancelled" && post.status !== "pending";
@@ -43,7 +52,12 @@ export default function PostActions({
     setBusy(action);
     try {
       const path = action === "retry" ? `/jobs/${retryJobId}/retry` : `/posts/${post.id}/${action}`;
-      onDone(await api<VideoDetail>(path, "POST"));
+      onDone(await api<VideoDetail>(path, "POST", action === "reel-link" ? { url: link } : undefined));
+      if (action === "reel-link") {
+        setLinking(false);
+        setLink("");
+        message.success("Đã lưu link reel, đang kiểm tra lại bài");
+      }
     } catch (err) {
       message.error(errorMessage(err));
     } finally {
@@ -55,6 +69,50 @@ export default function PostActions({
   const waiting = "Video đang chạy một việc khác (xem Nhật ký job), đợi xong rồi thao tác";
   const checkTip =
     "Đọc lại trạng thái bài trên Facebook — dùng khi bài đã lên nhưng tool ghi sai, hoặc sau khi dán token mới";
+  // The reel the app saved can differ from the one on Facebook: the member pastes the right link, a check follows.
+  const canRelink = checkable && mine;
+  const relink = (
+    <>
+      <Tooltip title={disabled ? waiting : "Dán lại link reel đúng trên Facebook khi app lưu sai reel"}>
+        {compact ? (
+          <Button
+            size="small"
+            type="text"
+            aria-label="Sửa link reel"
+            icon={<EditOutlined />}
+            disabled={disabled || !canRelink}
+            onClick={() => setLinking(true)}
+          />
+        ) : (
+          <Button size="small" disabled={disabled} onClick={() => setLinking(true)}>
+            Sửa link reel
+          </Button>
+        )}
+      </Tooltip>
+      <Modal
+        title="Sửa link reel"
+        open={linking}
+        okText="Lưu và kiểm tra"
+        cancelText="Huỷ"
+        confirmLoading={busy === "reel-link"}
+        okButtonProps={{ disabled: !link.trim() }}
+        onOk={() => run("reel-link")}
+        onCancel={() => setLinking(false)}
+      >
+        <Typography.Paragraph type="secondary">
+          Mở reel đang đăng trên Facebook, copy link (dạng facebook.com/reel/123456789) rồi dán vào đây. App lưu reel
+          này cho bài và đọc lại trạng thái từ Facebook.
+        </Typography.Paragraph>
+        <Input
+          aria-label="Link reel"
+          placeholder="https://www.facebook.com/reel/..."
+          value={link}
+          onChange={(event) => setLink(event.target.value)}
+          onPressEnter={() => link.trim() && run("reel-link")}
+        />
+      </Modal>
+    </>
+  );
   const takeDown = (
     <Popconfirm
       title={published ? "Xóa bài này khỏi Facebook?" : "Hủy đăng bài này?"}
@@ -111,6 +169,7 @@ export default function PostActions({
             </Button>
           </Tooltip>
         )}
+        {canRelink && relink}
         {!closed && takeDown}
       </Space>
     );
@@ -161,6 +220,7 @@ export default function PostActions({
           onClick={() => run("check")}
         />
       </Tooltip>
+      {relink}
       {takeDown}
     </Space>
   );
