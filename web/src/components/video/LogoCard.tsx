@@ -81,7 +81,7 @@ export default function LogoCard({
           </Typography.Text>
         )}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Cảnh tiêu đề: logo giữa, trên hộp chữ. Các cảnh sau: góc trên bên phải.
+          Logo nằm ở góc trên bên phải các cảnh nội dung; cảnh tiêu đề (ảnh bìa) không có logo.
         </Typography.Text>
         {!video.brand && (
           <Button size="small" type="link" style={{ padding: 0, alignSelf: "flex-start" }} href="/fanpages">
