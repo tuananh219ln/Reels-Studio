@@ -2733,6 +2733,8 @@ test("video settings: a member's defaults reach their new video, which then chan
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
   await page.getByRole("tab", { name: "Thiết lập" }).click();
+  // A closed panel's controls are left out of role queries: open "Hình ảnh" to read its choice.
+  await openPanel(page, "Hình ảnh");
   const motion = page.getByTestId("motion-settings");
   await expect(motion.getByLabel("Chuyển cảnh").getByRole("radio", { name: "Cắt thẳng" })).toBeChecked();
   // On the video's tab the speed is shown beside its slider, not in its label.
