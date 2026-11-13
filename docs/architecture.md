@@ -628,7 +628,7 @@ Planned:
     it is, and the check never changes anything on Facebook. The worker queues one check of each
     scheduled post 10 minutes after its time (`queue_post_checks`, looked for every minute), once per
     scheduled time even if it fails, and not while the video has a job; a member queues one any time
-    with "Kiểm tra", `POST /api/posts/{id}/check`, for a scheduled or published post.
+    with "Kiểm tra", `POST /api/posts/{id}/check`, for a scheduled, published or deleted post.
   - **Only a Page's owner posts to it**: `POST /api/videos/{id}/publish`, `POST /api/articles/{id}/publish` and
     `POST /api/queue` with a `fanpage_id` refuse any other member with 403 `not_page_owner`, naming the owner, and
     a Page with no owner with a pointer to "Nhận Page" (`ownership.ensure_page_owner`); `GET /api/articles/options`
@@ -640,8 +640,10 @@ Planned:
     with 409. The job reads the reel's status and deletes it (`DELETE /{video-id}`), and ends the post
     as deleted if the reel was ever public, else cancelled. A reel Facebook no longer has counts as
     gone: a 404, or the 400 (#100) Facebook really answers, which it also gives a token that lost the
-    Page, so that answer counts only while the same token still reads the Page (`facebook._gone`). The
-    "Kiểm tra" and "Thử lại" reads follow the same rule. A status read or delete that fails fails the job
+    reels, so that answer counts only while the same token still reads another reel of the Page the app saw
+    live (`facebook._gone`, `Page.witnesses`); otherwise the state is unknown. The "Kiểm tra" and "Thử lại"
+    reads follow the same rule, and "Kiểm tra" also re-reads a post marked deleted: one Facebook still has goes
+    back to published or scheduled. A status read or delete that fails fails the job
     and leaves the post as it was.
   - **Never a second post by accident.** The reel's id and its MP4 are saved before the upload, and the moment
     Facebook is asked to publish is saved before asking. A retry reads the reel's status first,

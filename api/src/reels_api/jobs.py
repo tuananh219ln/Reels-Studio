@@ -1072,9 +1072,11 @@ def queue_tiktok_posts(db: DbSession) -> None:
 
 def run_check_job(db: DbSession, job: Job) -> None:
     """Read the reel on Facebook and record what Facebook says. A member may have cancelled, moved or deleted it in
-    Meta Business Suite, or Facebook dropped it, and nothing else tells the app. Never changes anything on Facebook."""
+    Meta Business Suite, or Facebook dropped it, and nothing else tells the app. Never changes anything on Facebook.
+    A post marked deleted is read again too: one Facebook still has goes back to live. A read that does not settle it
+    fails the job and leaves the post as it was; "could not read" is never "deleted"."""
     post = db.get(Publication, job.publication_id)
-    if post is None or post.status not in LIVE_POST_STATUSES or post.remote_id is None:
+    if post is None or post.status not in (*LIVE_POST_STATUSES, "deleted") or post.remote_id is None:
         return
     try:
         page = fanpages.load_page(db, post.fanpage_id)
@@ -1085,15 +1087,22 @@ def run_check_job(db: DbSession, job: Job) -> None:
         else:
             status = facebook.reel_status(page, post.remote_id)
     except FacebookError as err:
+        log.warning(
+            "Job %s could not read reel %s, the post stays %s: %s", job.id, post.remote_id, post.status, err.detail
+        )
         raise JobFailure(err.message, err.detail) from None
     post.checked_at = now()
     if status is not None and facebook.is_live(status):
+        if post.status == "deleted":
+            # Facebook still has it: the app had it wrong.
+            post.closed_at, post.closed_by_id = None, None
+            post.published_at = post.published_at or now()
         if facebook.is_scheduled(status):
             post.status = "scheduled"
             post.scheduled_at = facebook.scheduled_time(status) or post.scheduled_at
         else:
             post.status = "published"
-    elif status is None or not facebook.is_busy(status):
+    elif post.status != "deleted" and (status is None or not facebook.is_busy(status)):
         _close(post, is_published(post), None)
     db.commit()
     log.info("Job %s found reel %s %s on Facebook", job.id, post.remote_id, post.status)

@@ -200,7 +200,7 @@ def post_payload(db: DbSession, post: Publication, by_page: dict | None = None) 
         "live_at": live_at(post).isoformat(),
         "url": post_url(post),
         "can_take_down": post.status in OPEN_POST_STATUSES,
-        "can_check": post.status in LIVE_POST_STATUSES and post.remote_id is not None,
+        "can_check": post.status in (*LIVE_POST_STATUSES, "deleted") and post.remote_id is not None,
         "comment": post_comments.payload(post),
         "numbers": numbers_payload(post, analytics.article_medians(db) if by_page is None else by_page),
         "can_measure": post.remote_id is not None and is_published(post),

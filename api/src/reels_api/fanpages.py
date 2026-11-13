@@ -64,7 +64,20 @@ def load_page(db: DbSession, fanpage_id: int | None) -> Page:
         raise FacebookError("Video chưa chọn Fanpage, hãy chọn Fanpage rồi đăng lại")
     if not row.active:
         raise FacebookError(f"Fanpage “{row.name}” đang ngừng dùng, hãy dùng lại trong Kết nối Fanpage")
-    return _page(row)
+    page = _page(row)
+    # The newest reels of this Page that the app saw live, for `facebook._gone`.
+    seen = db.scalars(
+        select(Publication.remote_id)
+        .where(
+            Publication.fanpage_id == row.id,
+            Publication.article_id.is_(None),
+            Publication.status == "published",
+            Publication.remote_id.is_not(None),
+        )
+        .order_by(Publication.id.desc())
+        .limit(3)
+    ).all()
+    return Page(page.id, page.token, tuple(seen))
 
 
 def _page(row: Fanpage) -> Page:
