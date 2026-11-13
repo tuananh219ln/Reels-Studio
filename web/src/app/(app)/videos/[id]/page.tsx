@@ -638,7 +638,7 @@ export default function VideoPage() {
         )
       ) : (
         <Row gutter={[16, 16]}>
-          <Col xs={24} xl={11}>
+          <Col xs={24} xl={15} xxl={11}>
             {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
             <Flex
               vertical
@@ -771,7 +771,7 @@ export default function VideoPage() {
               </Button>
             </Flex>
           </Col>
-          <Col xs={24} xl={13}>
+          <Col xs={24} xl={9} xxl={13}>
             {/* On a wide screen the side panel stays in view while the scenes scroll past it. */}
             <div style={sideBySide ? SIDE_PANEL_STYLE : undefined} data-side-panel>
               <Tabs
