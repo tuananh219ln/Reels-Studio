@@ -493,7 +493,7 @@ Built:
     The choice is remembered in the browser. The switch "Hiện vùng an toàn" (remembered in the browser) shades what the apps cover in
     translucent red (top 190 px, bottom from 1480 px, the button column x ≥ 900, y 850–1600) and adds the template's safe zone as a
     yellow dashed box. While the video's logo is on, the channel's badge is laid over each scene by css where the renderer
-    puts it (title: centred on the text box's top edge; other scenes: top right). The timeline has a ruler in whole seconds ("00:07"), one segment per scene as long
+    puts it (top right of the content scenes; the title scene has none). The timeline has a ruler in whole seconds ("00:07"), one segment per scene as long
     as the scene with its picture repeated along it and "Cảnh N, Xs" on it (the current one
     outlined), and a playhead that follows the preview. A click on a segment plays that scene; a
     press or drag on the ruler or the playhead goes to that second and pauses there (← → on the
