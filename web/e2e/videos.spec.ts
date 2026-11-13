@@ -1407,6 +1407,45 @@ test("Đăng bài: a Facebook video's MP4 goes to TikTok and YouTube Shorts from
   await expect(platforms.locator('[data-platform="instagram"]')).toHaveCount(0);
 });
 
+test("a video opens with its Page's TikTok account already chosen", async ({ page }) => {
+  test.setTimeout(300_000);
+  await loginAsSeed(page);
+  // TikTok's consent page, answered as TikTok does once the member allows the app (see affiliate.spec.ts).
+  await page.route("https://www.tiktok.com/**", (route) => {
+    const asked = new URL(route.request().url());
+    if (asked.pathname !== "/v2/auth/authorize/") {
+      return route.abort();
+    }
+    const back = `/api/tiktok/oauth/callback?code=fake-tiktok-code&state=${asked.searchParams.get("state")}`;
+    return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
+  });
+  await page.goto("/settings/affiliate-accounts");
+  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
+
+  await connectFacebook(page);
+  // The Page posts the "Sức khỏe" group, the group the new video will belong to.
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
+  await page.getByRole("tab", { name: "Lịch đăng" }).click();
+  const queue = page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");
+  await chooseOption(page, queue.getByLabel("Nhóm chủ đề của Trang Dưỡng Sinh"), "Sức khỏe");
+  await expect(queue).toContainText("Theo giờ đăng của nhóm chủ đề (giờ Việt Nam).");
+  // The Page's TikTok account, picked once on its card.
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
+  await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
+
+  await renderedVideo(page);
+  await openPublish(page);
+  const drawer = page.getByRole("dialog", { name: "Đăng bài" });
+  await drawer.getByRole("tab", { name: "TikTok" }).click();
+  // The Page's account is already chosen: no tap on the account picker.
+  await expect(
+    drawer.locator(".ant-select").filter({ has: page.getByLabel("Tài khoản TikTok đã kết nối") }),
+  ).toContainText("An Lành SK (@anlanhsk)");
+});
+
 test("a posted video appears in Bài đăng and its calendar", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);

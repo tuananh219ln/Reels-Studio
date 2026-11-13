@@ -7,10 +7,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, facebook, fanpages, page_dashboard
+from . import affiliate, facebook, fanpages, page_dashboard, tiktok_connections
 from .db import get_db
 from .errors import ApiError
-from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session
+from .models import AffiliateAccount, Fanpage, FanpageFollowers, Session, TikTokConnection
 from .ownership import ensure_owner
 from .routes_videos import invalid
 from .sessions import current_member
@@ -33,6 +33,10 @@ class ActiveBody(BaseModel):
 
 
 class ShopeeAccountBody(BaseModel):
+    account_id: int | None
+
+
+class TikTokAccountBody(BaseModel):
     account_id: int | None
 
 
@@ -69,6 +73,21 @@ def _shopee_account(db: DbSession, row: Fanpage, me: Session) -> dict | None:
     return {"id": account.id, "name": account.name, "usable": affiliate.credentials(account) is not None}
 
 
+def _tiktok_account(db: DbSession, row: Fanpage, me: Session) -> dict | None:
+    """The Page's TikTok account, shown only to the Page's owner: a member's affiliate accounts are their own."""
+    if row.owner_id != me.user_id or row.tiktok_account_id is None:
+        return None
+    account = db.get(AffiliateAccount, row.tiktok_account_id)
+    if account is None or account.owner_id != me.user_id:
+        return None
+    connection = db.scalar(select(TikTokConnection).where(TikTokConnection.affiliate_account_id == account.id))
+    return {
+        "id": account.id,
+        "name": account.name,
+        "connected": connection is not None and not tiktok_connections.needs_reconnect(connection),
+    }
+
+
 def _rows(db: DbSession, me: Session) -> list[dict]:
     rows = list(
         db.scalars(
@@ -95,6 +114,7 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "owner": {"id": row.owner.id, "name": row.owner.name} if row.owner else None,
             "mine": row.owner_id == me.user_id,
             "shopee_account": _shopee_account(db, row, me),
+            "tiktok_account": _tiktok_account(db, row, me),
             "check": checks[row.id],
             "insights": insights[row.id],
             "scheduled_posts": scheduled.get(row.id, 0),
@@ -190,6 +210,25 @@ def set_shopee_account(
         if not account.active:
             raise invalid(f"Tài khoản “{account.name}” đang ngừng dùng")
     row.shopee_account_id = body.account_id
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/tiktok-account")
+def set_tiktok_account(
+    fanpage_id: int, body: TikTokAccountBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """The TikTok account the Page's videos open with on their Đăng TikTok card: one of its owner's own."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới gắn được tài khoản TikTok")
+    if body.account_id is not None:
+        account = db.get(AffiliateAccount, body.account_id)
+        if account is None or account.owner_id != me.user_id or account.platform != "tiktok":
+            raise invalid("Hãy chọn một tài khoản TikTok của bạn")
+        if not account.active:
+            raise invalid(f"Tài khoản “{account.name}” đang ngừng dùng")
+    row.tiktok_account_id = body.account_id
     db.commit()
     return _rows(db, me)
 

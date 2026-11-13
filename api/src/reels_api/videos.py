@@ -1026,6 +1026,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "hashtags": video.hashtags,
         # What a post sends: the caption, then the hashtags it does not already hold.
         "post_text": hashtags.post_text(video.caption, video.hashtags),
+        # The caption for TikTok: the caption text without its Facebook hashtags, then the group's TikTok set.
+        "tiktok_caption": hashtags.tiktok_caption(video.caption, topic.name if topic else None),
         "affiliates": video.affiliates,
         "platform": video.platform,
         "variant_of": _video_link(db, db.get(Video, video.variant_of_id)) if video.variant_of_id else None,
@@ -1104,6 +1106,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
                 "owner_id": page.owner_id,
                 # The group it posts: the publish dialog starts on the viewer's own Page of the video's group (B3).
                 "knowledge_topic_id": page.knowledge_topic_id,
+                # The TikTok account picked for the Page on /fanpages: its videos' Đăng TikTok card opens with it.
+                "tiktok_account_id": page.tiktok_account_id,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)

@@ -77,6 +77,10 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
   (`postgres://…`); `config.database_url()` rewrites a driverless `postgres://`/`postgresql://`
   scheme to `postgresql+psycopg://`.
 - **Migrations** run in the api container on every start (`alembic upgrade head`), before uvicorn.
+  Keep revision ids unique and the history in one line (`api/tests/test_migrations.py` checks both).
+  The Page's TikTok account is migration 0081, after 0080's extra comments; the 0080 id in the
+  original TikTok decision was corrected before merge. After bringing in `main`, check that a new
+  migration still follows its latest revision without changing migrations already on `main`.
   Write migrations so the previous api and worker versions keep working until the whole deploy
   finishes. A new job kind is only understood once the new worker is up: one queued in between
   fails and needs "Thử lại".

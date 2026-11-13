@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from . import config
+from . import config, hashtags
 
 REQUEST_TIMEOUT = 30
 UPLOAD_TIMEOUT = 300
@@ -334,7 +334,7 @@ def publish_status(access_token: str, publish_id: str) -> dict:
     return _api("/v2/post/publish/status/fetch/", access_token, body={"publish_id": publish_id})
 
 
-def post_title(caption: str, hashtags: list[str]) -> str:
-    """A direct post's caption: the video's caption, then its hashtags, cut at TikTok's limit."""
-    tags = " ".join(tag for tag in hashtags if tag)
-    return " ".join(part for part in (caption.strip(), tags) if part)[:MAX_TITLE]
+def post_title(caption: str, topic_name: str | None) -> str:
+    """A direct post's title: the video's TikTok caption (its text, then its group's TikTok set), cut at TikTok's
+    limit. The video's hashtag field is never used: it holds the Facebook set."""
+    return hashtags.tiktok_caption(caption, topic_name)[:MAX_TITLE]

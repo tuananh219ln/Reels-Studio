@@ -581,9 +581,12 @@ class Fanpage(Base):
     picture_url: Mapped[str | None] = mapped_column(Text)
     # What went wrong reading the Page's daily numbers at the last check (fanpages.read_insights), None when it worked.
     insights_error: Mapped[str | None] = mapped_column(Text)
-    # The member whose Page it is: only they set its Shopee account, whose links its comments carry.
+    # The member whose Page it is: only they set its Shopee and TikTok accounts — the Shopee one whose links its
+    # comments carry, the TikTok one its videos open with on their Đăng TikTok card.
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     shopee_account_id: Mapped[int | None] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="SET NULL"))
+    # The TikTok account the Page's videos open with on their Đăng TikTok card (migration 0080).
+    tiktok_account_id: Mapped[int | None] = mapped_column(ForeignKey("affiliate_accounts.id", ondelete="SET NULL"))
     # The one topic group the Page posts; its queue takes its owner's videos of that group (page_queue.py).
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
     # "HH:MM" in Vietnam, when its queue posts; None: the group's posting times.
