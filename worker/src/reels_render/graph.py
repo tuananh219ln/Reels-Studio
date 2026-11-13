@@ -96,25 +96,20 @@ class LayerInput:
 
 @dataclass(frozen=True)
 class LogoInput:
-    """The channel's badge (logo.py): `title` over the title scene until `switch` seconds, `corner` from then on;
-    each a Placement of the badge scaled to its own width."""
+    """The channel's badge (logo.py) in the corner from `start` seconds, when the title scene ends: the title scene
+    (the cover) has no logo. `corner` is the badge scaled to its own width."""
 
     image: Path
-    title: Placement
     corner: Placement
-    switch: float
+    start: float
 
 
 def _logo_chains(logo: LogoInput, source: int, previous: str) -> tuple[list[str], str]:
     """The badge over everything else, still through transitions and zooms: it is laid on the joined video."""
-    switch = f"{logo.switch:.3f}"
     return [
-        f"[{source}:v]format=rgba,split=2[lg1][lg2]",
-        f"[lg1]scale={logo.title.width}:-1[lgt]",
-        f"[lg2]scale={logo.corner.width}:-1[lgc]",
-        f"[{previous}][lgt]overlay=x={logo.title.x}:y={logo.title.y}:enable='lt(t,{switch})'[lo1]",
-        f"[lo1][lgc]overlay=x={logo.corner.x}:y={logo.corner.y}:enable='gte(t,{switch})'[lo2]",
-    ], "lo2"
+        f"[{source}:v]format=rgba,scale={logo.corner.width}:-1[lgc]",
+        f"[{previous}][lgc]overlay=x={logo.corner.x}:y={logo.corner.y}:enable='gte(t,{logo.start:.3f})'[lo1]",
+    ], "lo1"
 
 
 def _layer_chains(layers: list[LayerInput], first_input: int, previous: str) -> tuple[list[str], str]:

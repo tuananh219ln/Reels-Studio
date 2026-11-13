@@ -17,25 +17,16 @@ export const COVERED = {
   rightColumn: { x: 900, y1: 850, y2: 1600 },
 };
 /** The channel badge as the renderer lays it (reels_render.logo): its stored picture is 686 px across with the
- * logo 512 px in it, scaled to 170 px (title) or 120 px (corner) of logo. */
+ * logo 512 px in it, scaled to 120 px of logo, in the corner of the content scenes (the title scene has none). */
 const BADGE_CANVAS = 686;
 const BADGE_LOGO = 512;
 const BADGE_PAD = 61;
 const badgeWidth = (diameter: number) => Math.round((BADGE_CANVAS * diameter) / BADGE_LOGO);
-export const LOGO_TITLE_WIDTH = badgeWidth(170);
 export const LOGO_CORNER_WIDTH = badgeWidth(120);
-/** Top-left of the badge on a scene: the title's is centred on its text box's top edge (`boxTop`; null: no box, the
- * ring 200 px from the top), the others' ring is 60 px from the right and 200 px from the top. */
-export function logoCorner(isTitle: boolean, boxTop: number | null): [number, number] {
-  if (!isTitle) {
-    const pad = (BADGE_PAD * 120) / BADGE_LOGO;
-    return [Math.round(FRAME_WIDTH - 60 + pad - LOGO_CORNER_WIDTH), Math.round(200 - pad)];
-  }
-  const x = Math.floor((FRAME_WIDTH - LOGO_TITLE_WIDTH) / 2);
-  if (boxTop === null) {
-    return [x, Math.round(200 - (BADGE_PAD * 170) / BADGE_LOGO)];
-  }
-  return [x, Math.round(Math.max(boxTop, 290) - LOGO_TITLE_WIDTH / 2)];
+/** Top-left of the badge on a content scene: its ring is 60 px from the right and 200 px from the top. */
+export function logoCorner(): [number, number] {
+  const pad = (BADGE_PAD * 120) / BADGE_LOGO;
+  return [Math.round(FRAME_WIDTH - 60 + pad - LOGO_CORNER_WIDTH), Math.round(200 - pad)];
 }
 
 export const SAFE = { left: 60, top: 220, right: 940, bottom: SCENE_BOX_BOTTOM };
