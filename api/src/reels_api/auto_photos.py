@@ -1,10 +1,13 @@
-""" "Tự tìm ảnh": after a script is written, every scene without a photo or clip gets one from the free stock libraries.
+""" "Tự tìm ảnh": after a script is written, fill scenes without media from the free stock libraries by default.
+
+With the opt-in auto_footage switch, first search for clips and select a segment using the active vision model;
+only scenes without a suitable clip continue to the photo search below.
 
 A job of its own (kind "photos"), queued when a script or clone job finishes, so a search problem never fails the
 script. It uses the picker's rules: tall photos big enough for the frame, never one another scene shows, sources in
 the video's topic group's order ("Thứ tự nguồn ảnh"; else the app's: Pexels, Unsplash, Pixabay, Wikimedia, Openverse)
 minus those turned off or without a key; a source that fails (Unsplash out of calls, say) is not asked again in the
-same job. A photo whose licence asks for credit keeps it on the scene, which then warns. It never makes AI photos (they cost calls). Each photo is stored with `image_auto`, shown
+same job. A photo whose licence asks for credit keeps it on the scene, which then warns. It never generates AI photos. Each photo is stored with `image_auto`, shown
 as "Tự chọn, kiểm tra lại" until a member changes it: stock libraries often show the wrong dish for Vietnamese food.
 The team can turn it off on Cài đặt › Nguồn tư liệu.
 """
@@ -15,6 +18,7 @@ import time
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from . import auto_footage
 from .models import AppSetting, Job, Scene, Video
 from .storage import DirectoryStorage
 from .videos import new_key, refresh_thumbnail, split_scenes
@@ -64,8 +68,11 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     )
     last_error = ""
     missing = 0
+    footage = auto_footage.Finder(db, job, storage, video, order, off, used) if auto_footage.enabled(db) else None
     for scene in [title, *scenes]:
         if scene.image_key or scene.video_key:
+            continue
+        if footage and footage.fill(scene):
             continue
         photo = None
         for source in list(alive):

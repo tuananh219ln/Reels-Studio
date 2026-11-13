@@ -165,6 +165,30 @@ is refused with `stock_photo` before any download, a clip with `not_a_photo`, an
 ("Tự chọn, kiểm tra lại") and its link as `image_source`. `target` names the scene the right-click menu "Gửi ảnh vào
 Reels Studio" sends to; the photo comes back to that page as `send-image` and is fetched like a pasted link.
 
+### Automatic scene footage
+
+`auto_footage.py` optionally runs inside the existing post-script `photos` job, before its photo search. Enable
+"Tự tìm và chọn clip theo kịch bản" once on Cài đặt › Nguồn tư liệu (`PUT /api/settings/auto-footage`,
+`{"enabled": true}`); this also enables the post-script job. `GET /api/settings/sources` returns `auto_footage`.
+The switch is shared, logged, and off by default because selecting footage uses the active image-capable LLM.
+
+The worker searches public YouTube videos using `youtube_footage.py` (bounded `yt-dlp` subprocesses), then Pexels
+and Pixabay Videos in the group's configured source order. No manual links or additional search key are needed
+for YouTube; stock sources still need their own keys. No TikTok/Facebook automatic search is implemented.
+One unused candidate per source, at most three per scene, is downloaded. Two frames per candidate window, centre
+cropped to the render's 9:16 frame, go to
+the LLM, which chooses one of six windows or rejects the clip. Every attempt increments the job's LLM call count
+before sending it. Invalid choices are rejected; provider failures stop further paid attempts in that job.
+
+Selected footage is cut to the scene's current duration plus 0.4 seconds for transitions, checked as an uploaded
+clip, stored silent, and marked `image_auto`, with its source in `image_source`. Existing media and script timing
+are preserved. A single-backdrop video's title alone gets footage; its content scenes keep photos for insets.
+No suitable clip means the existing photo search. YouTube blocking, missing models and absent stock keys do not
+break the script. This is selection assistance, not a guarantee the image is correct; review remains required.
+See [the decision](decisions/2026-11-13-automatic-scene-footage.md) for limits and failure behavior.
+
+![The shared automatic footage switch](images/automatic-footage.png)
+
 ### Media Library ("Kho tư liệu")
 
 Photos and clips gathered once and used in any scene ([routes_media.py](../api/src/reels_api/routes_media.py)).

@@ -54,6 +54,7 @@ type Sources = {
   ai_style?: { value: string; default: string; custom: boolean };
   /** "Tự tìm ảnh sau khi viết kịch bản": a stock photo for every scene once the script is written. */
   auto_photos?: boolean;
+  auto_footage?: boolean;
   ai_images: AiImages;
   ai_images_cloudflare?: AiImages & { account_id_set: boolean };
   voices?: { configured: boolean; key: Key };
@@ -216,6 +217,17 @@ export default function SourcesPage() {
     }
   }
 
+  async function setAutoFootage(enabled: boolean) {
+    setBusy("auto-footage");
+    try {
+      setData(await api<Sources>("/settings/auto-footage", "PUT", { enabled }));
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function saveStyle(style: string | null) {
     setBusy("ai-style");
     try {
@@ -279,6 +291,32 @@ export default function SourcesPage() {
                       Thứ tự tìm chung: {order.join(" → ")}
                     </Typography.Text>
                   )}
+                </Flex>
+              </Flex>
+            </Card>
+          )}
+          {data?.auto_footage !== undefined && (
+            <Card size="small" data-testid="auto-footage" style={{ background: token.colorFillQuaternary }}>
+              <Flex gap={12} align="flex-start">
+                <Switch
+                  aria-label="Tự tìm và chọn clip theo kịch bản"
+                  checked={data.auto_footage}
+                  loading={busy === "auto-footage"}
+                  disabled={busy !== null}
+                  onChange={(checked) => void setAutoFootage(checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <Flex vertical gap={4}>
+                  <Typography.Text strong>Tự tìm và chọn clip theo kịch bản</Typography.Text>
+                  <Typography.Text type="secondary">
+                    Không cần tìm link: sau khi viết kịch bản, app tìm video công khai trên YouTube và các kho Pexels,
+                    Pixabay đang bật. AI xem khung hình, chọn và cắt đoạn đúng nội dung; không có clip phù hợp thì tìm
+                    ảnh. Giữ nguyên tư liệu đã chọn. Video xuyên suốt chỉ tìm clip cho nền chung.
+                  </Typography.Text>
+                  <Typography.Text type="secondary">
+                    Cần model đọc được ảnh trong Mô hình AI; tối đa 3 lượt gọi AI mỗi cảnh, có tính phí theo model. Bật
+                    mục này cũng bật tự tìm ảnh. TikTok chưa được tự tìm kiếm.
+                  </Typography.Text>
                 </Flex>
               </Flex>
             </Card>
