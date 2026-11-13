@@ -643,7 +643,10 @@ Planned:
     reels, so that answer counts only while the same token still reads another reel of the Page the app saw
     live (`facebook._gone`, `Page.witnesses`); otherwise the state is unknown. The "Kiểm tra" and "Thử lại"
     reads follow the same rule, and "Kiểm tra" also re-reads a post marked deleted: one Facebook still has goes
-    back to published or scheduled. A status read or delete that fails fails the job
+    back to published or scheduled.
+    "Sửa link reel" (`POST /api/posts/{id}/reel-link`, by whoever posted it or the Page's owner) is for a post whose
+    saved `remote_id` is not the reel on Facebook: it saves the id read from a pasted reel link and queues a check
+    that reads that reel. Nothing is kept of the old id but a server log line. A status read or delete that fails fails the job
     and leaves the post as it was.
   - **Never a second post by accident.** The reel's id and its MP4 are saved before the upload, and the moment
     Facebook is asked to publish is saved before asking. A retry reads the reel's status first,

@@ -1476,3 +1476,11 @@ small dropdown, not a drawer. The video is read once, when the menu is first ope
 hàng chờ, job…" (opens a drawer with the posting dialog, "Duyệt", the queue and retry/cancel, which need their own
 forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Tạo bản TikTok" (a Facebook video), and, for the
 maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; both off while a job runs).
+
+
+### Kho kiến thức: "Lịch đăng" and the video id
+
+A group has a "Lịch đăng" tab after "Backlog": the calendar of "Bài đăng" (day, week, month) limited to the group's posts,
+those on Facebook and those waiting for their time, whether a member scheduled them or a Page's queue did. The queue
+schedules a video only when its Page's next slot is within 48 hours, so a queued video shows there a day or two before
+it goes. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).

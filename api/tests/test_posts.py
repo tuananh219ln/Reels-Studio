@@ -51,6 +51,12 @@ def test_a_post_on_its_way_to_facebook_is_listed_as_being_posted(an, db, me, sto
     assert row["attempt"] == {"state": "working", "job_id": None, "error": None}
 
 
+def test_a_post_names_the_topic_group_of_its_video(an, db, me, storage):
+    post = add_post(db, storage, me, status="pending")
+    (row,) = an.get("/api/posts").json()
+    assert row["knowledge_topic_id"] == db.get(Video, post.video_id).knowledge_topic_id is not None
+
+
 def test_a_post_whose_publish_failed_gives_the_reason_and_the_job_to_retry(an, db, me, storage):
     post = add_post(db, storage, me, status="pending", remote_id="1000")
     add_publish_job(db, post, me, "failed", "Token cũ")

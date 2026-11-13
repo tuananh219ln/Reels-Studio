@@ -1,4 +1,5 @@
 import io
+import logging
 import math
 import re
 import tempfile
@@ -31,6 +32,7 @@ from . import (
     brands,
     clips,
     edit_log,
+    facebook,
     frames,
     image_edit,
     image_providers,
@@ -203,6 +205,10 @@ class PublishBody(BaseModel):
     scheduled_at: datetime | None = None
     # "Tự bình luận": the worker writes the affiliate comment under the reel once it is live (post_comments.py).
     auto_comment: bool = True
+
+
+class ReelLinkBody(BaseModel):
+    url: str
 
 
 class SceneOrderBody(BaseModel):
@@ -848,6 +854,38 @@ def check_post(post_id: int, me: Session = Depends(current_member), db: DbSessio
         raise ApiError(409, "post_not_checkable", "Chỉ kiểm tra được bài đã lên Facebook, đã hẹn giờ hoặc đã xóa")
     if active_job(db, video.id) is not None:
         raise ApiError(409, "video_locked", "Video đang có job chạy, hãy đợi xong rồi kiểm tra bài")
+    _enqueue(db, video, "check", me, publication_id=post.id)
+    return _saved(db, video)
+
+
+@router.post("/posts/{post_id}/reel-link")
+def set_reel_link(
+    post_id: int, body: ReelLinkBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Sửa link reel": the reel the app saved for a post is not the one on Facebook (a post marked deleted while the
+    reel is live). Saves the id in the link and queues a check, which reads that reel and sets the post right."""
+    video_id = db.scalar(select(Publication.video_id).where(Publication.id == post_id))
+    if video_id is None:
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
+    video = lock_video(db, video_id)
+    post = db.scalar(select(Publication).where(Publication.id == post_id).execution_options(populate_existing=True))
+    ensure_can_take_down(db, post, me.user_id)
+    if post.platform != "facebook" or post.status not in (*LIVE_POST_STATUSES, "deleted") or post.remote_id is None:
+        raise ApiError(409, "post_not_checkable", "Chỉ sửa link được bài đã lên Facebook, đã hẹn giờ hoặc đã xóa")
+    reel_id = facebook.reel_id_from_link(body.url)
+    if reel_id is None:
+        raise ApiError(
+            422, "invalid_reel_link", "Link không đúng dạng, hãy dán link reel như facebook.com/reel/123456789"
+        )
+    if active_job(db, video.id) is not None:
+        raise ApiError(409, "video_locked", "Video đang có job chạy, hãy đợi xong rồi sửa link")
+    taken = db.scalar(select(Publication.id).where(Publication.remote_id == reel_id, Publication.id != post.id))
+    if taken is not None:
+        raise ApiError(409, "reel_in_use", "Reel này đã gắn với một bài đăng khác")
+    logging.getLogger(__name__).info(
+        "Member %s changed the reel of post %s from %s to %s", me.user_id, post.id, post.remote_id, reel_id
+    )
+    post.remote_id = reel_id
     _enqueue(db, video, "check", me, publication_id=post.id)
     return _saved(db, video)
 
