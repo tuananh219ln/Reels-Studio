@@ -1078,6 +1078,7 @@ def run_check_job(db: DbSession, job: Job) -> None:
     post = db.get(Publication, job.publication_id)
     if post is None or post.status not in (*LIVE_POST_STATUSES, "deleted") or post.remote_id is None:
         return
+    was_deleted = post.status == "deleted"
     try:
         page = fanpages.load_page(db, post.fanpage_id)
         if post.article_id is not None:
@@ -1105,6 +1106,17 @@ def run_check_job(db: DbSession, job: Job) -> None:
     elif post.status != "deleted" and (status is None or not facebook.is_busy(status)):
         _close(post, is_published(post), None)
     db.commit()
+    if was_deleted and post.status == "deleted":
+        # A deleted post that stays deleted says why, or the member sees a finished job and no change.
+        if status is None:
+            raise JobFailure(
+                "Facebook không trả reel này (không còn, hoặc token của Page không đọc được nó), bài vẫn ghi là đã xóa",
+                f"reel {post.remote_id}",
+            )
+        raise JobFailure(
+            "Facebook có reel này nhưng chưa công khai hay hẹn giờ, bài vẫn ghi là đã xóa",
+            f"{post.remote_id}: {status}",
+        )
     log.info("Job %s found reel %s %s on Facebook", job.id, post.remote_id, post.status)
 
 

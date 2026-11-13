@@ -17,3 +17,7 @@ Facebook confirms gone stays deleted. Nothing is posted or commented again by it
 
 The cost: a Page with a single posted reel cannot learn that this reel was deleted in Meta Business Suite; the check
 fails ("Không đọc được trạng thái reel") until the Page has another reel posted from the app.
+
+Added the same evening: a "Kiểm tra" of a post already marked deleted that leaves it deleted now fails its job with the
+reason (Facebook did not return the reel, or has it but not public), shown in Nhật ký job. Before, the job ended "Xong"
+and nothing changed, so a member could not tell why.
