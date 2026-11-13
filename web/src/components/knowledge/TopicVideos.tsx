@@ -10,7 +10,7 @@ import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
 import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Typography, theme } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Tag, Typography, theme } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -59,6 +59,14 @@ function numbers(row: VideoRow) {
     shares: post?.shares ?? null,
     rate: post?.share_rate ?? null,
   };
+}
+
+/** The topic a video was made from, only when its title does not already say it: a title that repeats the topic gave
+ * the list two near-identical lines. */
+function otherTopic(row: VideoRow): string {
+  const title = plain(row.title || "");
+  const topic = plain(row.topic);
+  return !topic || title.includes(topic) || topic.includes(title) ? "" : row.topic;
 }
 
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
@@ -219,14 +227,24 @@ export default function TopicVideos({
               render: (_, row) => (
                 <Flex vertical style={{ minWidth: 0 }}>
                   <Link prefetch={false} href={`/videos/${row.id}`}>
-                    <Typography.Text strong ellipsis style={{ color: "inherit", maxWidth: 300 }}>
+                    <Typography.Text strong ellipsis={{ tooltip: true }} style={{ color: "inherit", maxWidth: 320 }}>
                       {row.title || row.topic}
                     </Typography.Text>
                   </Link>
-                  <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 300 }}>
-                    {row.topic}
-                    {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}
-                  </Typography.Text>
+                  {(row.plan_day || otherTopic(row)) && (
+                    <Flex gap={6} align="center" style={{ minWidth: 0 }}>
+                      {row.plan_day && (
+                        <Tag bordered={false} style={{ marginInlineEnd: 0 }}>
+                          Ngày {row.plan_day}
+                        </Tag>
+                      )}
+                      {otherTopic(row) && (
+                        <Typography.Text type="secondary" ellipsis style={{ fontSize: 13, maxWidth: 260 }}>
+                          {otherTopic(row)}
+                        </Typography.Text>
+                      )}
+                    </Flex>
+                  )}
                 </Flex>
               ),
             },
@@ -362,9 +380,14 @@ function VideoCards({
                   </Flex>
                 </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                  {row.topic}
-                  {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}, {row.created_by},{" "}
-                  {formatDateTime(row.created_at)}
+                  {[
+                    otherTopic(row),
+                    row.plan_day ? `ngày ${row.plan_day}` : "",
+                    row.created_by,
+                    formatDateTime(row.created_at),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </Typography.Text>
                 <VideoKindTags video={row} />
                 <Flex wrap gap={8} align="center">
