@@ -205,11 +205,17 @@ test("30-day plan: a ready video is approved from its idea card", async ({ page 
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 
   // Back on the plan tab, the ready idea carries a "Duyệt" button.
+  // The idea's card lives in its day's drawer, so open day 1 first.
   await page.goto("/knowledge");
   await page.getByRole("button", { name: /Sức khỏe/ }).click();
   const health = page.locator('[data-topic="Sức khỏe"]');
   await health.getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
-  const card = page.getByTestId("plan-idea").filter({ hasText: "Uống nước ấm buổi sáng" });
+  const planTab = health.getByTestId("plan-tab");
+  await planTab.getByRole("button", { name: "Chọn ngày 1", exact: true }).click();
+  const card = page
+    .getByTestId("plan-day-panel")
+    .getByTestId("plan-idea")
+    .filter({ hasText: "Uống nước ấm buổi sáng" });
   await expect(card.getByTestId("plan-idea-approve")).toBeVisible();
   await card.getByTestId("plan-idea-approve").click();
   const confirm = page.locator(".ant-popover", { hasText: "Duyệt đăng lúc" });
@@ -1140,9 +1146,10 @@ test("inset photo: only on a backdrop video, the scene's photo as a rounded squa
   // Dragged straight from the text's tab up to the frame's top and sideways: the inset is picked, stays centred
   // across and stops flush with the top edge.
   const resting = dialog.getByTestId("place-inset");
-  await resting.hover();
+  // Measure and drag only once the zoom-in has finished (settledBox), or the
+  // pointer can land on the text instead of the inset and the inset is never picked.
+  const from = (await settledBox(page, resting))!;
   const frame = (await dialog.getByTestId("place-frame").boundingBox())!;
-  const from = (await resting.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(from.x + from.width / 2 + 40, frame.y + 2, { steps: 8 });
