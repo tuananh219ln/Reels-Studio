@@ -32,7 +32,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(title.getByTestId("scene-preview")).toBeVisible();
   // Before an MP4 the side panel opens on "Thiết lập"; the post texts have their own tab.
   await expect(page.getByRole("tab", { name: "Thiết lập" })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
+  await page.getByRole("tab", { name: "Đăng bài" }).click();
   await expect(page.getByTestId("self-review")).toBeVisible();
   await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
 
@@ -73,7 +73,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
-  await page.getByRole("tab", { name: "Xuất bản" }).click();
+  await page.getByRole("tab", { name: "Đăng bài" }).click();
   // The MP4 plays at the listener's volume, set under it: the player is too narrow for the browser's slider.
   const mp4 = page.getByTestId("mp4-player");
   await page.getByTestId("listen-volume").getByRole("button", { name: "Tắt tiếng" }).click();
@@ -143,7 +143,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
 
   // The post texts stay editable in view mode, and do not outdate the MP4.
-  await page.getByRole("tab", { name: "Nội dung đăng" }).click();
+  await page.getByRole("tab", { name: "Đăng bài" }).click();
   const caption = page.getByLabel("Caption");
   await caption.fill("Caption mới");
   await caption.blur();
