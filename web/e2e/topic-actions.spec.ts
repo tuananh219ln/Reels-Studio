@@ -104,3 +104,38 @@ test("a group's video list has the member's own auto-approve switch", async ({ p
   await page.reload();
   await expect(health.getByRole("switch", { name: "Tự duyệt khi render xong" })).toBeChecked();
 });
+
+test("Kho kiến thức: groups are chips with a mine filter, the status is tabs, and the menu folds away", async ({
+  page,
+}) => {
+  await loginAsSeed(page);
+  const group = await healthGroup(page);
+  await handWritten(page, group, "Rau dền luộc");
+  await page.goto(`/knowledge?group=${group}`);
+  const health = page.locator('[data-topic="Sức khỏe"]');
+
+  // The status is a tab with its count; "Đã đăng" holds none of the drafts.
+  await expect(health.getByRole("tab", { name: "Tất cả (1)" })).toBeVisible();
+  await health.getByRole("tab", { name: /^Đã đăng/ }).click();
+  await expect(health.getByRole("link", { name: "Rau dền luộc" })).toHaveCount(0);
+  await expect(page).toHaveURL(/status=posted/);
+  await health.getByRole("tab", { name: /^Tất cả/ }).click();
+  await expect(health.getByRole("link", { name: "Rau dền luộc" })).toBeVisible();
+
+  // "Của tôi" keeps the chosen group and the groups the member made; "Cả đội" brings every group back.
+  const list = page.getByTestId("topic-list");
+  await page.getByText("Của tôi", { exact: true }).click();
+  await expect(list.getByRole("button", { name: /Sức khỏe/ })).toHaveAttribute("aria-current", "true");
+  await page.getByText("Cả đội", { exact: true }).click();
+  await expect(list.getByRole("button").first()).toBeVisible();
+
+  // The menu folds away for a wider table and comes back, and a reload remembers it.
+  const menu = page.getByRole("link", { name: "Kho kiến thức" }).first();
+  await expect(menu).toBeVisible();
+  await page.getByRole("button", { name: "Ẩn menu" }).click();
+  await expect(page.getByRole("button", { name: "Hiện menu" })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Hiện menu" })).toBeVisible();
+  await page.getByRole("button", { name: "Hiện menu" }).click();
+  await expect(page.getByRole("button", { name: "Ẩn menu" })).toBeVisible();
+});

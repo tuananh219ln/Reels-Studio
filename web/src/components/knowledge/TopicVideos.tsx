@@ -10,7 +10,7 @@ import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
 import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
+import { App, Button, Card, Flex, Input, Segmented, Table, Tabs, Typography, theme } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -125,6 +125,19 @@ export default function TopicVideos({
 
   return (
     <Flex vertical gap={12} data-testid="topic-videos">
+      <Tabs
+        size="small"
+        activeKey={status ?? "all"}
+        onChange={(key) => setStatus(key === "all" ? null : key)}
+        tabBarStyle={{ marginBottom: 0 }}
+        items={[
+          { key: "all", label: `Tất cả (${(rows ?? []).length})` },
+          ...VIDEO_STATUS_FILTERS.map(({ value, label, match }) => ({
+            key: value,
+            label: `${label} (${(rows ?? []).filter(match).length})`,
+          })),
+        ]}
+      />
       <Flex wrap gap={8} justify="space-between">
         <Flex wrap gap={8}>
           <Input
@@ -135,18 +148,6 @@ export default function TopicVideos({
             style={{ width: 260 }}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-          />
-          <Select
-            aria-label="Trạng thái"
-            placeholder="Mọi trạng thái"
-            allowClear
-            style={{ width: 180 }}
-            value={status}
-            onChange={(value) => setStatus(value ?? null)}
-            options={VIDEO_STATUS_FILTERS.map(({ value, label, match }) => ({
-              value,
-              label: `${label} (${(rows ?? []).filter(match).length})`,
-            }))}
           />
           <Segmented<View>
             aria-label="Chế độ hiển thị"
@@ -238,14 +239,14 @@ export default function TopicVideos({
             {
               key: "status",
               title: "Trạng thái",
-              width: 110,
-              render: (_, row) => <VideoStatusTags video={row} />,
-            },
-            {
-              key: "platforms",
-              title: "Đã đăng",
-              width: 110,
-              render: (_, row) => <PostedPlatforms postedOn={row.posted_on} />,
+              width: 150,
+              // Where it is out sits beside "Đã đăng", not in a column of its own.
+              render: (_, row) => (
+                <Flex gap={8} align="center" wrap>
+                  <VideoStatusTags video={row} />
+                  <PostedPlatforms postedOn={row.posted_on} />
+                </Flex>
+              ),
             },
             {
               key: "views",

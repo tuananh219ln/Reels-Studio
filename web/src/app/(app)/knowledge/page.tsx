@@ -18,7 +18,7 @@ import {
   ConfigProvider,
   Dropdown,
   Flex,
-  Grid,
+  Segmented,
   Input,
   Row,
   Select,
@@ -32,6 +32,7 @@ import {
 } from "antd";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { api, errorMessage, type EditTemplates, type Knowledge, type KnowledgeTopic } from "@/lib/api";
+import { useStoredChoice } from "@/lib/storedChoice";
 import { useLeaveGuard } from "@/lib/unsaved";
 import { keepOnlyInAddress, useUrlChoiceIf, useUrlId } from "@/lib/urlState";
 import EditHistory, { lastEditText } from "@/components/EditHistory";
@@ -64,7 +65,8 @@ function Knowledge() {
   // Topics opened so far stay mounted (hidden when another is chosen): each box keeps its own unsaved text.
   const [opened, setOpened] = useState<number[]>([]);
   // The group list stays in view beside the group only when they sit side by side; stacked on a phone it scrolls away.
-  const sideBySide = Grid.useBreakpoint().lg ?? false;
+  // "Của tôi" shows only the groups the member made; the choice stays on this browser, "Cả đội" until one is made.
+  const [scope, changeScope] = useStoredChoice<"mine" | "all">("knowledge-scope", "all");
 
   useEffect(() => {
     api<Knowledge>("/knowledge")
@@ -82,6 +84,8 @@ function Knowledge() {
 
   // The chosen topic, or the first one while none is chosen or the chosen one was deleted.
   const current = data.topics.find((topic) => topic.id === chosen) ?? data.topics[0] ?? null;
+  // The group shown stays among the chips whatever the filter.
+  const listed = data.topics.filter((topic) => scope === "all" || topic.mine || topic.id === current?.id);
   const mounted = data.topics.filter((topic) => topic.id === current?.id || opened.includes(topic.id));
 
   function choose(id: number) {
@@ -114,105 +118,88 @@ function Knowledge() {
         title="Kho kiến thức"
         description="Mỗi nhóm chủ đề có video, prompt, từ cấm và kế hoạch 30 ngày riêng. Nhóm được chọn khi tạo video; bản nhân bản dùng nhóm của video gốc."
       />
-      <Row gutter={[16, 16]} align="top">
-        <Col xs={24} lg={6} xxl={5} style={sideBySide ? { position: "sticky", top: 16, zIndex: 1 } : undefined}>
-          <Card
+      {/* The groups sit above the group, as chips, so its table has the whole width. */}
+      <Flex wrap gap={8} align="center" style={{ marginBottom: 16 }}>
+        <Segmented<"mine" | "all">
+          aria-label="Lọc nhóm"
+          value={scope}
+          onChange={changeScope}
+          options={[
+            { value: "mine", label: "Của tôi" },
+            { value: "all", label: "Cả đội" },
+          ]}
+        />
+        <Flex wrap gap={6} data-testid="topic-list">
+          {listed.map((topic) => {
+            const active = topic.id === current?.id;
+            return (
+              <button
+                key={topic.id}
+                type="button"
+                aria-current={active ? "true" : undefined}
+                onClick={() => choose(topic.id)}
+                title={topic.script_prompt ? undefined : "Chưa có prompt"}
+                style={{
+                  border: `1px solid ${active ? token.colorPrimary : token.colorBorder}`,
+                  borderRadius: 999,
+                  font: "inherit",
+                  cursor: "pointer",
+                  padding: "4px 12px",
+                  whiteSpace: "nowrap",
+                  background: active ? token.colorPrimaryBg : "transparent",
+                  color: active ? token.colorPrimaryText : undefined,
+                }}
+              >
+                {topic.name}
+                <Typography.Text type={topic.script_prompt ? "secondary" : "warning"} style={{ marginLeft: 6 }}>
+                  {topic.video_count}
+                </Typography.Text>
+              </button>
+            );
+          })}
+        </Flex>
+        <Flex gap={6} align="center">
+          <Input
             size="small"
+            style={{ width: 170 }}
+            aria-label="Tên nhóm chủ đề mới"
+            placeholder="Tên nhóm mới…"
+            maxLength={100}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            onPressEnter={() => name.trim() && add()}
+          />
+          <Tooltip title="Thêm nhóm">
+            <Button
+              size="small"
+              aria-label="Thêm nhóm"
+              icon={<PlusOutlined />}
+              loading={busy}
+              disabled={!name.trim()}
+              onClick={add}
+            />
+          </Tooltip>
+          <EditHistory
+            entityType="knowledge_topic"
+            field="name"
             title="Nhóm chủ đề"
-            extra={
-              <Flex gap={8} align="center">
-                <Typography.Text type="secondary">{data.topics.length}</Typography.Text>
-                <EditHistory
-                  entityType="knowledge_topic"
-                  field="name"
-                  title="Nhóm chủ đề"
-                  kind="value"
-                  trigger={(open) => (
-                    <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
-                      <Button
-                        size="small"
-                        type="text"
-                        aria-label="Lịch sử nhóm chủ đề"
-                        icon={<HistoryOutlined />}
-                        onClick={open}
-                      />
-                    </Tooltip>
-                  )}
-                />
-              </Flex>
-            }
-            styles={{ body: { padding: 8 } }}
-          >
-            <Flex vertical gap={2} data-testid="topic-list">
-              {data.topics.map((topic) => {
-                const active = topic.id === current?.id;
-                return (
-                  <button
-                    key={topic.id}
-                    type="button"
-                    aria-current={active ? "true" : undefined}
-                    onClick={() => choose(topic.id)}
-                    style={{
-                      width: "100%",
-                      border: "none",
-                      borderLeft: `3px solid ${active ? token.colorPrimary : "transparent"}`,
-                      textAlign: "left",
-                      font: "inherit",
-                      cursor: "pointer",
-                      padding: "8px 10px",
-                      borderRadius: token.borderRadius,
-                      background: active ? token.colorPrimaryBg : "transparent",
-                    }}
-                  >
-                    <Flex vertical style={{ minWidth: 0 }}>
-                      <Typography.Text strong ellipsis style={{ color: active ? token.colorPrimaryText : undefined }}>
-                        {topic.name}
-                      </Typography.Text>
-                      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                        {topic.mine && (
-                          <Typography.Text style={{ fontSize: 12, color: token.colorPrimaryText }}>
-                            Của tôi,{" "}
-                          </Typography.Text>
-                        )}
-                        {topic.video_count} video
-                        {!topic.script_prompt && (
-                          <Typography.Text type="warning" style={{ fontSize: 12 }}>
-                            , chưa có prompt
-                          </Typography.Text>
-                        )}
-                      </Typography.Text>
-                    </Flex>
-                  </button>
-                );
-              })}
-            </Flex>
-            <Flex
-              gap={6}
-              style={{ padding: "8px 4px 4px", borderTop: `1px solid ${token.colorBorderSecondary}`, marginTop: 6 }}
-            >
-              <Input
-                size="small"
-                aria-label="Tên nhóm chủ đề mới"
-                placeholder="Tên nhóm mới…"
-                maxLength={100}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                onPressEnter={() => name.trim() && add()}
-              />
-              <Tooltip title="Thêm nhóm">
+            kind="value"
+            trigger={(open) => (
+              <Tooltip title="Nhóm đã tạo, đổi tên, xoá">
                 <Button
                   size="small"
-                  aria-label="Thêm nhóm"
-                  icon={<PlusOutlined />}
-                  loading={busy}
-                  disabled={!name.trim()}
-                  onClick={add}
+                  type="text"
+                  aria-label="Lịch sử nhóm chủ đề"
+                  icon={<HistoryOutlined />}
+                  onClick={open}
                 />
               </Tooltip>
-            </Flex>
-          </Card>
-        </Col>
-        <Col xs={24} lg={18} xxl={19}>
+            )}
+          />
+        </Flex>
+      </Flex>
+      <Row gutter={[16, 16]} align="top">
+        <Col xs={24}>
           {current === null ? (
             <Card>
               <EmptyState description="Chưa có nhóm chủ đề nào. Thêm một nhóm ở bên trái." />
