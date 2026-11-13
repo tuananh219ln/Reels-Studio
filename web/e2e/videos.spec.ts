@@ -204,6 +204,37 @@ test("30-day plan: a ready video is approved from its idea card", async ({ page 
   await page.getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 
+  // The same approval is available on the video and its list card.
+  await expect(page.getByRole("button", { name: "Duyệt", exact: true })).toBeVisible();
+  await page.goto("/videos");
+  const readyCard = page.getByTestId("video-card").filter({ hasText: "Uống nước ấm buổi sáng" });
+  await expect(readyCard.getByRole("button", { name: "Duyệt", exact: true })).toBeVisible();
+
+  // Today exposes the same approval; restore tomorrow before scheduling so the test works at any hour.
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+  expect(
+    (
+      await page.request.patch(`/api/plans/${group}`, { headers, data: { start_date: today, post_times: ["23:59"] } })
+    ).ok(),
+  ).toBe(true);
+  await page.goto("/knowledge");
+  await page.getByRole("button", { name: /Sức khỏe/ }).click();
+  await page.locator('[data-topic="Sức khỏe"]').getByRole("tab", { name: "Kế hoạch 30 ngày" }).click();
+  await expect(page.getByTestId("plan-today-strip").getByTestId("plan-idea-approve")).toBeVisible();
+  expect(
+    (
+      await page.request.patch(`/api/plans/${group}`, {
+        headers,
+        data: { start_date: tomorrow, post_times: ["23:00"] },
+      })
+    ).ok(),
+  ).toBe(true);
+
   // Back on the plan tab, the ready idea carries a "Duyệt" button.
   // The idea's card lives in its day's drawer, so open day 1 first.
   await page.goto("/knowledge");
@@ -2336,6 +2367,13 @@ test("add a track to the music library, then choose it for a video", async ({ pa
   const picker = page.getByRole("dialog", { name: "Chọn nhạc từ thư viện" });
   // The unfiltered list arrives first, so the empty result below really comes from the filter.
   await expect(picker.getByTestId("library-track")).toHaveCount(1);
+  await expect(picker.getByText("Chưa ghi nguồn / giấy phép")).toBeVisible();
+  await picker.getByRole("button", { name: "Sửa thông tin" }).click();
+  const quickEdit = page.getByRole("dialog", { name: "Sửa bài nhạc" });
+  await quickEdit.getByLabel("Nguồn / giấy phép").fill("Nhạc tự thu của nhóm");
+  await quickEdit.getByRole("button", { name: "Lưu", exact: true }).click();
+  await expect(quickEdit).toBeHidden();
+  await expect(picker.getByText("Nhạc tự thu của nhóm")).toBeVisible();
   await chooseOption(page, picker.getByLabel("Lọc theo mood"), "vui tươi");
   await expect(picker.getByTestId("library-track")).toHaveCount(0);
   await chooseOption(page, picker.getByLabel("Lọc theo mood"), "piano");

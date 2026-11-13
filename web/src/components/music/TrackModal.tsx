@@ -1,7 +1,7 @@
 "use client";
 
 import { App, Form, Input, Select, Typography } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { api, errorMessage, upload, type MusicTrack } from "@/lib/api";
 import { useMusicOptions } from "./useTracks";
 import FormDrawer from "@/components/FormDrawer";
@@ -30,6 +30,7 @@ export default function TrackModal({
   const { message } = App.useApp();
   const { topics, moods } = useMusicOptions();
   const [form] = Form.useForm<Fields>();
+  const formName = useId();
   const [busy, setBusy] = useState(false);
   const adding = target !== null && "file" in target;
 
@@ -74,7 +75,7 @@ export default function TrackModal({
       forceRender
     >
       {adding && <Typography.Paragraph type="secondary">File: {target.file.name}</Typography.Paragraph>}
-      <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>
+      <Form name={formName} form={form} layout="vertical" requiredMark={false} onFinish={submit}>
         <Form.Item
           label="Tên bài"
           name="name"

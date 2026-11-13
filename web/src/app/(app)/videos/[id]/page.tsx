@@ -1,5 +1,37 @@
 "use client";
+import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
+import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
 
+import { COLORS } from "@/app/theme";
+import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
+import { useMe } from "@/components/MeContext";
+import { EditorContext } from "@/components/video/AutoSaveField";
+import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
+import PostContent from "@/components/video/PostContent";
+import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
+import PublishCard, { PublishButton } from "@/components/video/PublishCard";
+import QcCard from "@/components/video/QcCard";
+import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
+import SampleCard from "@/components/video/SampleCard";
+import SceneCard from "@/components/video/SceneCard";
+import SetupTab from "@/components/video/SetupTab";
+import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
+import VideoPreview from "@/components/video/VideoPreview";
+import VideoProgress from "@/components/video/VideoProgress";
+import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
+import VideoStatusTags from "@/components/VideoStatusTags";
+import {
+  ApiError,
+  api,
+  errorMessage,
+  formatDateTime,
+  formatDecimal,
+  type SceneData,
+  type VideoDetail,
+  type VideoMode,
+} from "@/lib/api";
+import { usePolling } from "@/lib/polling";
+import { usePresence } from "@/lib/presence";
 import {
   ArrowLeftOutlined,
   CheckOutlined,
@@ -21,7 +53,6 @@ import {
   Dropdown,
   Flex,
   Grid,
-  Input,
   Radio,
   Result,
   Row,
@@ -33,39 +64,8 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useMe } from "@/components/MeContext";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
-import VideoProgress from "@/components/video/VideoProgress";
-import VideoStatusTags from "@/components/VideoStatusTags";
-import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
-import { EditorContext } from "@/components/video/AutoSaveField";
-import PostContent from "@/components/video/PostContent";
-import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
-import PublishCard, { PublishButton } from "@/components/video/PublishCard";
-import QcCard from "@/components/video/QcCard";
-import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
-import SampleCard from "@/components/video/SampleCard";
-import SceneCard from "@/components/video/SceneCard";
-import SetupTab from "@/components/video/SetupTab";
-import VideoPreview from "@/components/video/VideoPreview";
-import {
-  ApiError,
-  api,
-  errorMessage,
-  formatDateTime,
-  type SceneData,
-  type VideoDetail,
-  type VideoMode,
-  formatDecimal,
-} from "@/lib/api";
-import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
-import { usePolling } from "@/lib/polling";
-import { usePresence } from "@/lib/presence";
-import { COLORS } from "@/app/theme";
-import FormDrawer from "@/components/FormDrawer";
-import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket while a job runs,
 // someone edits or a teammate has it open. A video only looked at, alone and with nothing running, is read less often.
@@ -796,6 +796,9 @@ export default function VideoPage() {
                                     Tải MP4
                                   </Button>
                                   <PublishButton video={video} />
+                                  {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+                                    <ApproveVideoButton videoId={video.id} onDone={load} />
+                                  )}
                                 </Flex>
                               </Flex>
                             </Card>
@@ -860,87 +863,6 @@ export default function VideoPage() {
       <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
       <MoveGroupDrawer video={video} open={moving} onClose={() => setMoving(false)} onMoved={receive} />
     </EditorContext.Provider>
-  );
-}
-
-/** What "Tạo bản TikTok" asks the clone for, filled in for the member to change: a different file and a different
- * hook from the Facebook reel, so neither platform sees a copy (docs/specs/multi-platform/plan.md). */
-const TIKTOK_REQUEST =
-  "Viết lại cho TikTok: mở đầu bằng một câu hỏi khơi bình luận, caption ngắn, ít hashtag, đổi 1–2 cảnh và ảnh khác bản Facebook";
-/** What "Nhân bản cho Page khác" on "Bài đăng" asks for: a real variant, never the same file on a second Page. */
-const PAGE_REQUEST = "Viết biến thể cho Page khác: đổi câu mở đầu, đổi 1–2 cảnh và ảnh, giữ chủ đề";
-
-/** "same": "Nhân bản" with an empty request; "page": a variant for another Page; "tiktok": the TikTok version. */
-type CloneTarget = "same" | "page" | "tiktok";
-
-/** "Nhân bản": the team's LLM writes a new draft from this video as it is now, changed as the member asks.
- * "Tạo bản TikTok" is the same clone, made as the TikTok version of this video. */
-function CloneModal({
-  videoId,
-  target,
-  onClose,
-}: {
-  videoId: number;
-  target: CloneTarget | null;
-  onClose: () => void;
-}) {
-  const { message } = App.useApp();
-  const router = useRouter();
-  const [request, setRequest] = useState("");
-  const [busy, setBusy] = useState(false);
-  const open = target !== null;
-  const tiktok = target === "tiktok";
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- a suggested request is prefilled each time it opens
-    if (target === "tiktok" || target === "page") setRequest(target === "tiktok" ? TIKTOK_REQUEST : PAGE_REQUEST);
-  }, [target]);
-
-  async function submit() {
-    setBusy(true);
-    try {
-      const draft = await api<VideoDetail>(`/videos/${videoId}/clone`, "POST", {
-        request,
-        ...(tiktok ? { platform: "tiktok" } : {}),
-      });
-      message.success(tiktok ? "Đã tạo bản TikTok" : "Đã tạo bản nháp nhân bản");
-      onClose();
-      router.push(`/videos/${draft.id}`);
-    } catch (err) {
-      message.error(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <FormDrawer
-      title={tiktok ? "Tạo bản TikTok" : "Nhân bản video"}
-      open={open}
-      onClose={onClose}
-      onOk={submit}
-      okText={tiktok ? "Tạo bản TikTok" : "Tạo bản nhân bản"}
-      cancelText="Huỷ"
-      okButtonProps={{ disabled: !request.trim() }}
-      confirmLoading={busy}
-      destroyOnHidden
-      afterClose={() => setRequest("")}
-    >
-      <Typography.Paragraph type="secondary">
-        AI giữ công thức của video này (đúng bản đang lưu) và viết một kịch bản mới theo yêu cầu đổi. Bản mới là một
-        video nháp riêng, chưa có ảnh, có gợi ý nhạc mới, bản sao file MP3 và âm lượng; video này không bị khóa hay thay
-        đổi.
-      </Typography.Paragraph>
-      <Typography.Text strong>Yêu cầu đổi</Typography.Text>
-      <Input.TextArea
-        aria-label="Yêu cầu đổi"
-        value={request}
-        placeholder="VD: đổi sang mốc 45 tuổi, tim mạch…"
-        autoSize={{ minRows: 2, maxRows: 5 }}
-        maxLength={300}
-        onChange={(event) => setRequest(event.target.value)}
-      />
-    </FormDrawer>
   );
 }
 

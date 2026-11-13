@@ -1,12 +1,15 @@
 "use client";
+import ArticleActions from "@/components/actions/ArticleActions";
 
+import ArticleThumb from "@/components/ArticleThumb";
 import EmptyState from "@/components/EmptyState";
-import { PlusOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Form, Input, Select, Spin, Table, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import FilterSelect from "@/components/FilterSelect";
+import FormDrawer from "@/components/FormDrawer";
+import { useMe } from "@/components/MeContext";
+import PageHeader from "@/components/PageHeader";
+import StatusText from "@/components/StatusText";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import { ARTICLE_STATUS_TONES, numbersLine } from "@/components/article/ArticlePosting";
 import {
   api,
   errorMessage,
@@ -17,16 +20,14 @@ import {
   type Knowledge,
   type PageComments,
 } from "@/lib/api";
-import { useUrlChoice } from "@/lib/urlState";
-import ArticleThumb from "@/components/ArticleThumb";
-import PageHeader from "@/components/PageHeader";
-import FilterSelect from "@/components/FilterSelect";
-import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
-import { useMe } from "@/components/MeContext";
-import FormDrawer from "@/components/FormDrawer";
-import StatusText from "@/components/StatusText";
-import { ARTICLE_STATUS_TONES, numbersLine } from "@/components/article/ArticlePosting";
 import { usePolling } from "@/lib/polling";
+import { useUrlChoice } from "@/lib/urlState";
+import { PlusOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Form, Input, Select, Spin, Table, Typography } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 /** Often while an article is being written or posted, else now and then for teammates' new ones. */
 const REFRESH_MS = 10_000;
@@ -183,6 +184,13 @@ function Articles() {
   const groups = [...new Set((data?.articles ?? []).map((row) => row.group_name).filter(Boolean))] as string[];
 
   const columns: ColumnsType<Article> = [
+    {
+      key: "actions",
+      title: "Thao tác",
+      width: 280,
+      fixed: "right",
+      render: (_, row) => <ArticleActions article={row} onChanged={() => load(true)} />,
+    },
     {
       title: "Bài viết",
       key: "article",

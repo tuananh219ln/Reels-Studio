@@ -52,8 +52,8 @@ Every list's toolbar reads the same way: its search box first, then "Của tôi 
 On a phone the Video list's filters sit behind one "Bộ lọc (N)" button (a drawer from the bottom); search and sort stay. A filter
 is a [FilterSelect](../web/src/components/FilterSelect.tsx): typing searches its options (accents do not
 matter), × clears it, and while empty it shows what "all" means ("Mọi Fanpage", "Cả đội").
-"Xóa" (and "Hủy đăng"/"Xóa" of a post, "Ngừng dùng" of a Page) is shown only to whoever made the thing (a Page:
-its owner); a teammate sees none, or, where a row keeps its buttons in fixed places, a greyed one saying why
+"Xóa" is shown only to the maker; "Ngừng dùng" of a Page only to its owner. A post may be taken down
+by its author or its Page owner (the API enforces the same rule); a teammate sees none, or, where a row keeps its buttons in fixed places, a greyed one saying why
 ("Chỉ người đăng bài này mới hủy hoặc xóa được"). A topic group's "Xoá nhóm" reads "(chỉ người tạo nhóm)" for others.
 
 Every list of the team's work starts on the member's own: Video (its creator filter), Bài viết, Bài đăng (list and
@@ -78,6 +78,45 @@ plan idea, "Tạo video", "Nhân bản" / "Tạo bản TikTok", "Đăng", "Đổ
 Dialogs that need the whole screen or are not forms stay centred dialogs: the photo and clip
 editors, "Chọn từ kho ảnh/video", the text position, "Chọn nhạc từ thư viện", a plan's preview,
 "Dán ảnh", the numbers of a Page or a post, and every yes/no confirmation.
+
+## Shared entity actions
+
+The same entity has the same applicable actions across its lists, cards and detail page. Secondary
+actions may sit behind a compact menu or drawer, but permission and confirmation do not depend on
+where the member opened them. Existing backend checks remain authoritative; a refused action says
+why and does not report success.
+
+- **Videos:** lists (including the group's Video tab), plan ideas, posting suggestions, Page content,
+  queue items and affiliate follow-up expose a shared action drawer. It reads the current video
+  on opening, then offers publishing and queue management when there is an MP4, download, cloning,
+  TikTok variants, move and deletion as applicable. Only the maker moves/deletes, and a running job
+  disables those actions. The list names the Page whose queue holds the video and its queue warning.
+  The group list quietly refreshes every 5 seconds while busy, otherwise every minute while visible;
+  all its views keep kind labels and MP4 warnings. TikTok suggestions also appear in the main table.
+- **Approval:** the ready plan video's own page, list and plan cards (including Today) say "Duyệt".
+  Opening it reads fresh data before showing the time and Page in a confirmation. An absent/past
+  suggested time, missing/stale MP4, active job, unavailable own Page or duplicate MP4 refuses it
+  with a reason. Approval sends the existing publish request with automatic comments, then reloads
+  the surface. An ordinary video without a planned time uses "Đăng bài".
+- **Articles:** the list offers the detail page's publishing drawer, "Làm reel từ bài này" and the
+  maker's delete confirmation. Publishing loads Page options when opened; no request per list row.
+- **Pages:** the dashboard reuses the card's token replacement and stop confirmation, and exposes
+  the same account/owner controls through "Tài khoản và chủ Page". Token errors can be fixed in place.
+- **Posts:** the posts table exposes affiliate-comment actions; a Page's content library can open
+  the same metrics, insights, comments, check/take-down and failed-post retry controls. Affiliate
+  follow-up opens each reel's comment and post actions. The author or Page owner can take a post down.
+- **Media:** standalone and group libraries share the same manager, including search, kind/tag
+  filters, multi-selection, batch moves/tag edits and the maker's item deletion. A group locks the
+  root folder and keeps its own filters so they do not overwrite the Knowledge page's address.
+  Uploads in the group still go into its linked folder. Folder-wide unlinking stays on the group.
+- **Music:** every library picker shows source/license information (a warning when absent), and
+  offers the same track editor without leaving the picker. Each form instance has unique field ids.
+- **Products:** product lists, suggestions and attached-product follow-up share edit, approval,
+  failed-lookup recovery and maker-only deletion controls. Compact contexts fetch details on demand;
+  editing returns approval to draft as before. The form's ids are unique per instance.
+- **Jobs:** the log offers retry for a failed job and cancellation only when `can_cancel` says so
+  (queued, or running but still waiting for a render machine). Retry confirms possible provider cost;
+  the existing backend endpoints enqueue or cancel and the list refreshes in place.
 
 ## UI Rules
 
@@ -951,7 +990,7 @@ Built:
   jobs: a search by video title first, a status Segmented with counts ("Tất cả", "Đang chạy" (waiting or
   running), "Lỗi", "Xong"), "Mọi loại" and "Mọi người" ("Không có job nào khớp" when nothing matches).
   Each row: the video title with its kind and job number under it, a status tag with an icon, who
-  started it, start with the duration under it, AI call count with the model that wrote a script
+  started it, retry/cancel actions where applicable, start with the duration under it, AI call count with the model that wrote a script
   ("DeepSeek · deepseek-chat") under it, and the error on up to two lines. A row opens its video.
 - **Cài đặt** (`/settings`, opening its first tab), last in the sidebar, is one page titled "Cài đặt" whose tabs come in two groups, each
   headed by its name as a tag that cannot be chosen: **Của tôi** (blue: Thiết lập mặc định, Tài khoản affiliate,

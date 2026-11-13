@@ -1,16 +1,18 @@
 "use client";
+import VideoActions from "@/components/actions/VideoActions";
+import { usePolling } from "@/lib/polling";
 
 import EmptyState from "@/components/EmptyState";
+import { useMe } from "@/components/MeContext";
+import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
+import VideoStatusTags from "@/components/VideoStatusTags";
+import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
+import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
+import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
 import { AppstoreOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tooltip, Typography, theme } from "antd";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
-import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
-import VideoStatusTags from "@/components/VideoStatusTags";
-import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
-import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
-import { useMe } from "@/components/MeContext";
+import { useCallback, useEffect, useState } from "react";
 
 /** Accents and case ignored, so "rau mam" finds "Rau mầm". */
 function plain(text: string): string {
@@ -73,6 +75,7 @@ function DeleteVideoButton({ row, onDeleted }: { row: VideoRow; onDeleted: (id: 
         danger
         icon={<DeleteOutlined />}
         aria-label={`Xóa video ${title}`}
+        disabled={!["draft", "done", "failed"].includes(row.status)}
         onClick={() =>
           modal.confirm({
             title: `Xóa video “${title}”?`,
@@ -117,14 +120,39 @@ export default function TopicVideos({
   const tablePage = useUrlPageIf(visible);
   const [view, setView] = useView();
 
+  const load = useCallback(
+    async (quiet = false) => {
+      try {
+        setRows(await api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`));
+      } catch (err) {
+        if (!quiet) message.error(errorMessage(err));
+      }
+    },
+    [topicId, message],
+  );
   useEffect(() => {
-    api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`)
-      .then(setRows)
-      .catch((err) => {
-        setRows([]);
-        message.error(errorMessage(err));
-      });
+    let live = true;
+    api<VideoRow[]>(`/videos?knowledge_topic_id=${topicId}`).then(
+      (found) => {
+        if (live) setRows(found);
+      },
+      (err) => {
+        if (live) {
+          setRows([]);
+          message.error(errorMessage(err));
+        }
+      },
+    );
+    return () => {
+      live = false;
+    };
   }, [topicId, message]);
+  usePolling(
+    async () => {
+      if (visible) await load(true);
+    },
+    rows?.some((row) => !["draft", "done", "failed"].includes(row.status)) ? 5000 : 60000,
+  );
 
   const removeRow = (id: number) => setRows((current) => (current ?? []).filter((row) => row.id !== id));
   // Every choice, with how many of the group's videos are in it, so a group of finished videos still shows the rest.
@@ -180,7 +208,7 @@ export default function TopicVideos({
         )}
       </Flex>
       {view === "list" ? (
-        <VideoCards rows={rows} shown={shown} onDeleted={removeRow} />
+        <VideoCards rows={rows} shown={shown} onDeleted={removeRow} onChanged={() => load(true)} />
       ) : (
         <Table<VideoRow>
           size="small"
@@ -249,7 +277,7 @@ export default function TopicVideos({
               key: "status",
               title: "Trạng thái",
               width: 110,
-              render: (_, row) => <VideoStatusTags video={row} only="status" />,
+              render: (_, row) => <VideoStatusTags video={row} />,
             },
             {
               key: "platforms",
@@ -300,10 +328,15 @@ export default function TopicVideos({
             },
             {
               key: "actions",
-              width: 48,
+              width: 120,
               // Pinned to the right: the table scrolls sideways, and the bin must show without scrolling.
               fixed: "right",
-              render: (_, row) => <DeleteVideoButton row={row} onDeleted={removeRow} />,
+              render: (_, row) => (
+                <Flex>
+                  <VideoActions video={row} onChanged={() => load(true)} />
+                  <DeleteVideoButton row={row} onDeleted={removeRow} />
+                </Flex>
+              ),
             },
           ]}
         />
@@ -317,10 +350,12 @@ function VideoCards({
   rows,
   shown,
   onDeleted,
+  onChanged,
 }: {
   rows: VideoRow[] | null;
   shown: VideoRow[];
   onDeleted: (id: number) => void;
+  onChanged: () => Promise<void>;
 }) {
   const { token } = theme.useToken();
   if (rows !== null && shown.length === 0) {
@@ -361,15 +396,19 @@ function VideoCards({
                       {row.title || row.topic}
                     </Typography.Text>
                   </Link>
-                  <DeleteVideoButton row={row} onDeleted={onDeleted} />
+                  <Flex>
+                    <VideoActions video={row} onChanged={onChanged} />
+                    <DeleteVideoButton row={row} onDeleted={onDeleted} />
+                  </Flex>
                 </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>
                   {row.topic}
                   {row.plan_day ? `, kế hoạch ngày ${row.plan_day}` : ""}, {row.created_by},{" "}
                   {formatDateTime(row.created_at)}
                 </Typography.Text>
+                <VideoKindTags video={row} />
                 <Flex wrap gap={8} align="center">
-                  <VideoStatusTags video={row} only="status" />
+                  <VideoStatusTags video={row} />
                   <PostedPlatforms postedOn={row.posted_on} />
                 </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="topic-video-numbers">

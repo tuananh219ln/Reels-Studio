@@ -1,33 +1,12 @@
 "use client";
+import { FanpageMenu, OwnerLine, TokenInput, TokenModal } from "@/components/actions/FanpageActions";
 
+import { COLORS } from "@/app/theme";
 import EmptyState from "@/components/EmptyState";
+import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
-import {
-  DeleteOutlined,
-  FacebookOutlined,
-  MoreOutlined,
-  PlusOutlined,
-  ReloadOutlined,
-  StopOutlined,
-} from "@ant-design/icons";
-import {
-  App,
-  Avatar,
-  Button,
-  Card,
-  Checkbox,
-  Collapse,
-  Dropdown,
-  Flex,
-  Input,
-  Popconfirm,
-  Segmented,
-  Select,
-  Space,
-  Tooltip,
-  Typography,
-} from "antd";
-import { Suspense, useCallback, useEffect, useState } from "react";
+import PageHeader from "@/components/PageHeader";
+import StatusText from "@/components/StatusText";
 import {
   api,
   errorMessage,
@@ -38,20 +17,31 @@ import {
   type QueueOverview,
   type QueuePage,
 } from "@/lib/api";
+import { useFreshenOnOpen } from "@/lib/freshen";
+import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
+import { DeleteOutlined, FacebookOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import {
+  App,
+  Avatar,
+  Button,
+  Card,
+  Checkbox,
+  Collapse,
+  Flex,
+  Popconfirm,
+  Segmented,
+  Space,
+  Tooltip,
+  Typography,
+} from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePolling } from "@/lib/polling";
-import PageHeader from "@/components/PageHeader";
-import { COLORS } from "@/app/theme";
-import { useFreshenOnOpen } from "@/lib/freshen";
-import FormDrawer from "@/components/FormDrawer";
-import StatusText from "@/components/StatusText";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 const QUEUE_REFRESH_MS = 30_000;
 const number = (value: number) => value.toLocaleString("vi-VN");
 const count = (value: number | null) => (value === null ? "—" : number(value));
-const pageUrl = (row: Fanpage) => `https://www.facebook.com/${row.page_id}`;
 
 /** Broken Pages first, so the one that needs a member is at the top. */
 function byNeed(a: Fanpage, b: Fanpage): number {
@@ -95,98 +85,6 @@ function Gain({ gain }: { gain: number | null }) {
 
 /** Whose Page it is and, for its owner, the Shopee account whose links its comments carry and the TikTok account
  * its videos open with (each one of their own). A Page that belongs to nobody is taken with "Nhận Page này". */
-function OwnerLine({
-  row,
-  accounts,
-  onRows,
-}: {
-  row: Fanpage;
-  accounts: AffiliateAccount[];
-  onRows: (rows: Fanpage[]) => void;
-}) {
-  const { message } = App.useApp();
-
-  async function call(path: string, method: "POST" | "PUT", body?: object) {
-    try {
-      onRows(await api<Fanpage[]>(path, method, body));
-    } catch (err) {
-      message.error(errorMessage(err));
-    }
-  }
-
-  if (!row.owner) {
-    return (
-      <Flex justify="space-between" align="center" gap={8} data-testid="fanpage-owner">
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Chưa thuộc ai
-        </Typography.Text>
-        <Button size="small" onClick={() => call(`/fanpages/${row.id}/owner`, "POST")}>
-          Nhận Page này
-        </Button>
-      </Flex>
-    );
-  }
-  if (!row.mine) {
-    return (
-      <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="fanpage-owner">
-        Thuộc: {row.owner.name}
-      </Typography.Text>
-    );
-  }
-  const shopee = accounts.filter((account) => account.platform === "shopee" && account.active);
-  const tiktok = accounts.filter((account) => account.platform === "tiktok" && account.active);
-  return (
-    <Flex vertical gap={6} data-testid="fanpage-owner">
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        Thuộc: bạn
-      </Typography.Text>
-      <Select
-        size="small"
-        aria-label={`Tài khoản Shopee của ${row.name}`}
-        placeholder="Chưa gắn tài khoản Shopee (dùng link dán tay)"
-        allowClear
-        value={row.shopee_account?.id ?? null}
-        options={shopee.map((account) => ({ value: account.id, label: `Shopee: ${account.name}` }))}
-        onChange={(accountId: number | undefined) =>
-          call(`/fanpages/${row.id}/shopee-account`, "PUT", { account_id: accountId ?? null })
-        }
-        notFoundContent={
-          <Typography.Text type="secondary">Thêm tài khoản ở Cài đặt › Tài khoản affiliate</Typography.Text>
-        }
-      />
-      {row.shopee_account && !row.shopee_account.usable && (
-        <Typography.Text type="warning" style={{ fontSize: 12 }}>
-          Tài khoản Shopee thiếu App ID/Secret hoặc đang ngừng dùng: bình luận dùng link dán tay
-        </Typography.Text>
-      )}
-      <Select
-        size="small"
-        aria-label={`Tài khoản TikTok của ${row.name}`}
-        placeholder="Chưa gắn tài khoản TikTok (chọn tay ở từng video)"
-        allowClear
-        value={row.tiktok_account?.id ?? null}
-        options={tiktok.map((account) => ({
-          value: account.id,
-          label: `TikTok: ${account.name}${
-            account.tiktok_connection?.username ? ` (@${account.tiktok_connection.username})` : ""
-          }`,
-        }))}
-        onChange={(accountId: number | undefined) =>
-          call(`/fanpages/${row.id}/tiktok-account`, "PUT", { account_id: accountId ?? null })
-        }
-        notFoundContent={
-          <Typography.Text type="secondary">Kết nối TikTok ở Cài đặt › Tài khoản affiliate</Typography.Text>
-        }
-      />
-      {row.tiktok_account && !row.tiktok_account.connected && (
-        <Typography.Text type="warning" style={{ fontSize: 12 }}>
-          Tài khoản TikTok chưa kết nối, hãy kết nối lại trong Cài đặt › Tài khoản affiliate
-        </Typography.Text>
-      )}
-    </Flex>
-  );
-}
-
 /** One line on how the Page posts on a schedule; the whole of it is on the Page's "Lịch đăng" tab. */
 function ScheduleLine({ page }: { page: QueuePage }) {
   const parts = [
@@ -222,8 +120,7 @@ function PageCard({
   const scheduled = queue?.pages.find((page) => page.id === row.id);
   const router = useRouter();
   const dashboard = `/fanpages/${row.id}`;
-  const { message, modal } = App.useApp();
-  const { me } = useMe();
+  const { message } = App.useApp();
   const { check, insights } = row;
   const week = insights.last_7_days;
 
@@ -233,18 +130,6 @@ function PageCard({
     } catch (err) {
       message.error(errorMessage(err));
     }
-  }
-
-  function stop() {
-    modal.confirm({
-      title: `Ngừng dùng ${row.name}?`,
-      content:
-        "Page sẽ không còn trong hộp thoại Đăng, không được kiểm tra hay đọc số liệu nữa. Dùng lại được bất cứ lúc nào.",
-      okText: "Ngừng dùng",
-      okButtonProps: { danger: true },
-      cancelText: "Huỷ",
-      onOk: () => call(`/fanpages/${row.id}`, "PATCH", { active: false }),
-    });
   }
 
   return (
@@ -284,29 +169,11 @@ function PageCard({
             </Typography.Text>
           </Flex>
         </Flex>
-        <Dropdown
-          trigger={["click"]}
-          menu={{
-            items: [
-              {
-                key: "facebook",
-                label: (
-                  <a href={pageUrl(row)} target="_blank" rel="noreferrer">
-                    Mở trên Facebook
-                  </a>
-                ),
-                icon: <FacebookOutlined />,
-              },
-              { key: "token", label: "Dán token mới", onClick: () => onToken(row) },
-              // Stopping or removing a Page is its owner's call ("Nhận Page này" first for one nobody owns).
-              ...(row.owner?.id === me.id
-                ? [{ key: "stop", label: "Ngừng dùng", icon: <StopOutlined />, danger: true, onClick: stop }]
-                : []),
-            ],
-          }}
-        >
-          <Button type="text" size="small" icon={<MoreOutlined />} aria-label={`Thao tác với ${row.name}`} />
-        </Dropdown>
+        <FanpageMenu
+          row={row}
+          onToken={() => onToken(row)}
+          onChanged={async () => onRows(await api<Fanpage[]>("/fanpages"))}
+        />
       </Flex>
 
       {check.error && (
@@ -439,18 +306,6 @@ function StoppedPages({ rows, onRows }: { rows: Fanpage[]; onRows: (rows: Fanpag
   );
 }
 
-function TokenInput({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return (
-    <Input.Password
-      aria-label="Token"
-      value={value}
-      autoComplete="new-password"
-      placeholder="Dán token vào đây…"
-      onChange={(event) => onChange(event.target.value)}
-    />
-  );
-}
-
 /** Paste a token, see the Pages it manages, choose which to connect. */
 function AddModal({
   open,
@@ -538,49 +393,6 @@ function AddModal({
           />
         )}
       </Flex>
-    </FormDrawer>
-  );
-}
-
-function TokenModal({
-  row,
-  onClose,
-  onSaved,
-}: {
-  row: Fanpage | null;
-  onClose: () => void;
-  onSaved: (rows: Fanpage[]) => void;
-}) {
-  const { message } = App.useApp();
-  const [token, setToken] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    setBusy(true);
-    try {
-      onSaved(await api<Fanpage[]>(`/fanpages/${row?.id}/token`, "PUT", { token }));
-      onClose();
-    } catch (err) {
-      message.error(errorMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <FormDrawer
-      title={`Dán token mới cho ${row?.name ?? ""}`}
-      open={row !== null}
-      onClose={onClose}
-      destroyOnHidden
-      afterClose={() => setToken("")}
-      okText="Lưu"
-      cancelText="Huỷ"
-      confirmLoading={busy}
-      okButtonProps={{ disabled: !token.trim() }}
-      onOk={save}
-    >
-      <TokenInput value={token} onChange={setToken} />
     </FormDrawer>
   );
 }

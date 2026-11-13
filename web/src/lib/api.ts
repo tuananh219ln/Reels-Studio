@@ -77,6 +77,8 @@ export type VideoRow = {
   knowledge_topic: string | null;
   /** The 30-day plan day of the idea it was made from. */
   plan_day: number | null;
+  suggested_post_at: string | null;
+  queue: { id: number; fanpage: string; error: string | null } | null;
   /** Its Facebook posts in one line; null when none is out or set for later. */
   post: VideoRowPost | null;
   /** How its script came (api videos.made_via): the team's AI, "Tự viết", "Từ video mẫu", "Nhân bản" or a member's
@@ -1073,8 +1075,9 @@ export type ArticlePost = {
     };
   };
   created_by: string;
-  /** Only they take it down. */
+  /** The author or the Page owner may take it down. */
   created_by_id: number;
+  fanpage_owner_id: number | null;
 };
 
 export type ArticleOptions = {
@@ -1305,8 +1308,9 @@ export type Post = {
   at: string;
   url: string | null;
   created_by: string;
-  /** Only they take it down. */
+  /** The author or the Page owner may take it down. */
   created_by_id: number;
+  fanpage_owner_id: number | null;
   /** When and by whom it was cancelled or deleted; `closed_by` is null when a check found it so on Facebook. */
   closed_at: string | null;
   closed_by: string | null;
@@ -1417,6 +1421,7 @@ export type JobRow = {
   kind: JobInfo["kind"] | "plan" | "text_look" | "article_caption";
   kind_label: string;
   status: JobInfo["status"];
+  can_cancel: boolean;
   created_by: string;
   created_by_id: number;
   created_at: string;

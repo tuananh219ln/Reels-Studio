@@ -102,3 +102,12 @@ def refresh_metrics(post_id: int, me: Session = Depends(current_member), db: DbS
     post.metrics_requested_at = now()
     db.commit()
     return _payload(db, db.get(Video, post.video_id), post, analytics.medians(db))
+
+
+@router.get("/{post_id}")
+def get_post(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """Read one managed reel with the same actions and metrics as the posts list."""
+    post = db.get(Publication, post_id)
+    if post is None or post.video_id is None or post.platform != "facebook":
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
+    return _payload(db, db.get(Video, post.video_id), post, analytics.medians(db))
