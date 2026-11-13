@@ -127,9 +127,14 @@ def test_an_unknown_publish_id_is_named(fakes):
     assert caught.value.code == "invalid_publish_id"
 
 
-def test_post_title_is_the_caption_then_the_hashtags_cut_at_tiktoks_limit():
-    assert tiktok.post_title("Ba món tốt cho tim", ["#suckhoe", "#tim"]) == "Ba món tốt cho tim #suckhoe #tim"
-    assert len(tiktok.post_title("a" * 3000, ["#x"])) == 2200
+def test_post_title_is_the_tiktok_caption_cut_at_tiktoks_limit():
+    caption = "Ba món tốt cho tim. #suckhoe #songkhoe #xuhuong #videoviral #reels #trendingreels #fyp"
+    assert tiktok.post_title(caption, "Ăn Lành Sống Khỏe – Sức khỏe") == (
+        "Ba món tốt cho tim.\n\n#suckhoe #songkhoe #anlanh #meosuckhoe"
+    )
+    # A group without a TikTok set gets the bare text, never the Facebook hashtags.
+    assert tiktok.post_title(caption, "Già Mà Khỏe – Dưỡng sinh sau 50") == "Ba món tốt cho tim."
+    assert len(tiktok.post_title("a" * 3000, "Ăn Lành Sống Khỏe – Sức khỏe")) == 2200
 
 
 # --- Connecting a member's TikTok account ---

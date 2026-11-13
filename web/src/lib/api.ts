@@ -331,6 +331,8 @@ export type VideoDetail = VideoRow & {
   hashtags: string[];
   /** What a post sends: the caption, then the hashtags it does not already hold. */
   post_text: string;
+  /** The caption for TikTok: the caption text without its Facebook hashtags, then the group's TikTok set. */
+  tiktok_caption: string;
   affiliates: string[];
   /** The products attached to the video: Shopee links in the reel's comment, or TikTok Shop's cart. */
   affiliate_product_ids: number[];

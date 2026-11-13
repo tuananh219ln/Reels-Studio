@@ -133,7 +133,7 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
           hoặc tải MP4 về điện thoại rồi đăng tay.
         </Typography.Text>
         <Flex wrap gap={8}>
-          <Button icon={<CopyOutlined />} onClick={() => copy(video.post_text, "caption + hashtag")}>
+          <Button icon={<CopyOutlined />} onClick={() => copy(video.tiktok_caption, "caption + hashtag")}>
             Copy caption + hashtag
           </Button>
           {video.affiliates.length > 0 && (
@@ -142,6 +142,12 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
             </Button>
           )}
         </Flex>
+        <div>
+          <Typography.Text strong>Caption TikTok</Typography.Text>
+          <Typography.Paragraph type="secondary" style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+            {video.tiktok_caption}
+          </Typography.Paragraph>
+        </div>
         <div>
           <Typography.Text strong>Sản phẩm gắn giỏ</Typography.Text>
           {products.length ? (

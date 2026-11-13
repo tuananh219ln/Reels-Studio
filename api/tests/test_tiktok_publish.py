@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 from worker_helpers import add_job, add_user, committed, job_row  # noqa: F401  (fixtures)
 
 from reels_api import crypto, tiktok, tiktok_connections, tiktok_publish
-from reels_api.models import AffiliateAccount, Job, Publication, TikTokConnection, TikTokOAuthState, Video
+from reels_api.models import AffiliateAccount, Job, KnowledgeTopic, Publication, TikTokConnection, TikTokOAuthState, Video
 from reels_api.storage import DirectoryStorage
 
 MP4 = b"fake mp4 bytes " * 100
@@ -75,6 +75,8 @@ def test_publish_queues_a_draft_and_locks_the_video(an, db, me, storage):
     assert (job.kind, job.status, job.publication_id) == ("tiktok_publish", "queued", post.id)
     payload = response.json()
     assert payload["locked"] is True
+    # The video's group has no TikTok set, so its TikTok caption is the bare caption text.
+    assert payload["tiktok_caption"] == "Ăn vừng đen mỗi sáng"
     assert payload["tiktok_posts"][0]["mode"] == "draft" and payload["tiktok_posts"][0]["status"] == "pending"
 
 
@@ -275,12 +277,18 @@ def test_the_publish_id_is_saved_before_the_upload(committed, ready, fakes):
     assert post.status == "pending" and post.remote_id in fakes.tiktok_posts
 
 
-def test_a_direct_post_carries_the_caption_the_hashtags_and_the_ai_label(committed, ready, fakes):
+def test_a_direct_post_carries_the_tiktok_caption_and_the_ai_label(committed, ready, fakes):
+    # The video's group posts to TikTok: the title is its TikTok caption, not its Facebook hashtags.
+    _, _, video_id, _, _ = ready
+    with committed() as db:
+        video = db.get(Video, video_id)
+        db.get(KnowledgeTopic, video.knowledge_topic_id).name = "Ăn Lành Sống Khỏe – Sức khỏe"
+        db.commit()
     job, post = send(committed, ready, mode="direct", privacy="SELF_ONLY")
     assert job.status == "done", (job.error, job.error_detail)
     assert post.status == "published"
     assert fakes.tiktok_posts[post.remote_id]["post_info"] == {
-        "title": "Ăn vừng đen mỗi sáng #vungden #suckhoe",
+        "title": "Ăn vừng đen mỗi sáng\n\n#suckhoe #songkhoe #anlanh #meosuckhoe",
         "privacy_level": "SELF_ONLY",
         "disable_comment": False,
         "disable_duet": False,

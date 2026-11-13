@@ -13,7 +13,7 @@ import time
 from sqlalchemy.orm import Session as DbSession
 
 from . import tiktok, tiktok_connections
-from .models import Job, Publication, Video
+from .models import Job, KnowledgeTopic, Publication, Video
 from .sessions import now
 from .storage import DirectoryStorage
 
@@ -97,8 +97,9 @@ def _start(db: DbSession, token: str, video: Video, post: Publication, storage: 
                 f"TikTok không cho tài khoản này đăng ở mức riêng tư {level}; các mức được phép: {allowed}",
                 json.dumps({"privacy_level_options": info.privacy_level_options}),
             )
+        topic = db.get(KnowledgeTopic, video.knowledge_topic_id)
         post_info = {
-            "title": tiktok.post_title(video.caption, video.hashtags),
+            "title": tiktok.post_title(video.caption, topic.name if topic else None),
             "privacy_level": level,
             "disable_comment": False,
             "disable_duet": False,

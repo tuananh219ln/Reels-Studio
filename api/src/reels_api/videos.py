@@ -1026,6 +1026,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "hashtags": video.hashtags,
         # What a post sends: the caption, then the hashtags it does not already hold.
         "post_text": hashtags.post_text(video.caption, video.hashtags),
+        # The caption for TikTok: the caption text without its Facebook hashtags, then the group's TikTok set.
+        "tiktok_caption": hashtags.tiktok_caption(video.caption, topic.name if topic else None),
         "affiliates": video.affiliates,
         "platform": video.platform,
         "variant_of": _video_link(db, db.get(Video, video.variant_of_id)) if video.variant_of_id else None,
