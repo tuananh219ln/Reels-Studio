@@ -1467,3 +1467,10 @@ Where something is edited, its history is shown there, not on a page of its own
 - **The groups' list** has a history button on "Nhóm chủ đề": the groups made, renamed and deleted, so a deleted
   group's name is still found.
 
+
+### Kho kiến thức: "Lịch đăng" and the video id
+
+A group has a "Lịch đăng" tab after "Backlog": the calendar of "Bài đăng" (day, week, month) limited to the group's posts,
+those on Facebook and those waiting for their time, whether a member scheduled them or a Page's queue did. The queue
+schedules a video only when its Page's next slot is within 48 hours, so a queued video shows there a day or two before
+it goes. The video table starts with an "ID" column, the number in the video's address (`/videos/<id>`).

@@ -39,6 +39,7 @@ import EditHistory, { lastEditText } from "@/components/EditHistory";
 import PageHeader from "@/components/PageHeader";
 import TopicVideos from "@/components/knowledge/TopicVideos";
 import TopicMedia from "@/components/knowledge/TopicMedia";
+import TopicSchedule from "@/components/knowledge/TopicSchedule";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
@@ -538,6 +539,11 @@ function TopicBody({
             ),
           },
           ...planTabs,
+          {
+            key: "schedule",
+            label: "Lịch đăng",
+            children: <TopicSchedule topicId={topic.id} visible={visible && tab === "schedule"} />,
+          },
         ]}
       />
       {planDialogs}

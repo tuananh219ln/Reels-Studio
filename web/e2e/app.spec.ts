@@ -1016,6 +1016,11 @@ test("Kho kiến thức and a Page's dashboard keep the group, tab, period and f
   await health.getByLabel("Tìm trong Backlog", { exact: true }).fill("ngủ");
   await page.reload();
   await expect(health.getByLabel("Tìm trong Backlog", { exact: true })).toHaveValue("ngủ");
+  // "Lịch đăng" sits next to Backlog, and the video table starts with the video's id.
+  await health.getByRole("tab", { name: "Lịch đăng", exact: true }).click();
+  await expect(page).toHaveURL(/[?&]tab=schedule/);
+  await health.getByRole("tab", { name: /^Video/ }).click();
+  await expect(health.getByRole("columnheader", { name: "ID", exact: true })).toBeVisible();
 
   // A Page's dashboard: its period and tab.
   await connectFacebook(page);
