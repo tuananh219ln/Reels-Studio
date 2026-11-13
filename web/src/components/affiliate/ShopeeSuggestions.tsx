@@ -1,17 +1,10 @@
 "use client";
+import ProductActions from "@/components/actions/ProductActions";
 
+import { api, errorMessage, formatDateTime, type AffiliateSuggestions } from "@/lib/api";
 import { SearchOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Flex, Image, Input, Space, Tag, Typography } from "antd";
+import { Alert, App, Button, Flex, Image, Input, Space, Tag, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
-import ProductModal from "@/components/affiliate/ProductModal";
-import {
-  api,
-  errorMessage,
-  formatDateTime,
-  type AffiliateOptions,
-  type AffiliateProduct,
-  type AffiliateSuggestions,
-} from "@/lib/api";
 
 const lines = (text: string) =>
   text
@@ -46,9 +39,6 @@ export default function ShopeeSuggestions({
   const [data, setData] = useState<AffiliateSuggestions | null>(null);
   const [busy, setBusy] = useState(false);
   const [pasted, setPasted] = useState("");
-  // "Sửa thông tin" on a pasted product: the same form as on /affiliate, its choices asked for on first use.
-  const [editing, setEditing] = useState<AffiliateProduct | null>(null);
-  const [options, setOptions] = useState<AffiliateOptions | null>(null);
 
   async function copyKeyword(keyword: string) {
     try {
@@ -109,15 +99,6 @@ export default function ShopeeSuggestions({
     if (links.length === 0) return;
     await call(() => api(`${base}/links`, "POST", { links }));
     setPasted("");
-  }
-
-  async function edit(product: AffiliateProduct) {
-    try {
-      setOptions(options ?? (await api<AffiliateOptions>("/affiliate-products/options")));
-      setEditing(product);
-    } catch (err) {
-      message.error(errorMessage(err));
-    }
   }
 
   return (
@@ -196,13 +177,17 @@ export default function ShopeeSuggestions({
                   </Typography.Text>
                 )}
               </Flex>
+              <ProductActions
+                product={product}
+                editLabel="Sửa thông tin"
+                onChanged={async () => {
+                  await load();
+                  await onChanged();
+                }}
+              />
               {attached.has(product.id) ? (
                 <Tag color="success">Đã chọn</Tag>
-              ) : product.problems.length > 0 ? (
-                <Button size="small" disabled={busy || product.lookup === "pending"} onClick={() => void edit(product)}>
-                  Sửa thông tin
-                </Button>
-              ) : (
+              ) : product.problems.length > 0 ? null : (
                 <Button size="small" disabled={busy} onClick={() => choose(product.id)}>
                   Chọn
                 </Button>
@@ -245,18 +230,6 @@ export default function ShopeeSuggestions({
           Thêm link
         </Button>
       </Flex>
-      {options && (
-        <ProductModal
-          target={editing}
-          options={options}
-          onClose={() => setEditing(null)}
-          onDone={async () => {
-            message.success("Đã lưu");
-            setEditing(null);
-            await load();
-          }}
-        />
-      )}
     </Flex>
   );
 }

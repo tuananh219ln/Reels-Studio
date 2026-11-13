@@ -205,7 +205,8 @@ def post_payload(db: DbSession, post: Publication, by_page: dict | None = None) 
         "numbers": numbers_payload(post, analytics.article_medians(db) if by_page is None else by_page),
         "can_measure": post.remote_id is not None and is_published(post),
         "created_by": post.created_by.name,
-        "created_by_id": post.created_by_id,  # only they take it down
+        "created_by_id": post.created_by_id,
+        "fanpage_owner_id": page.owner_id if page else None,
     }
 
 
