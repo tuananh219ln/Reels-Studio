@@ -290,7 +290,10 @@ def test_a_direct_post_carries_the_tiktok_caption_and_the_ai_label(committed, re
     _, _, video_id, _, _ = ready
     with committed() as db:
         video = db.get(Video, video_id)
-        db.get(KnowledgeTopic, video.knowledge_topic_id).name = "Ăn Lành Sống Khỏe – Sức khỏe"
+        topic = KnowledgeTopic(name="Ăn Lành Sống Khỏe – Sức khỏe")
+        db.add(topic)
+        db.flush()
+        video.knowledge_topic_id = topic.id
         db.commit()
     job, post = send(committed, ready, mode="direct", privacy="SELF_ONLY")
     assert job.status == "done", (job.error, job.error_detail)

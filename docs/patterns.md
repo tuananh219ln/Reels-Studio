@@ -63,6 +63,8 @@ all of them pass.
   rolled-back transaction; worker tests commit for real and start real `python -m reels_api worker`
   processes, with fake Claude/Pixabay over HTTP and stand-in `ffmpeg` scripts for hangs and
   failures. They need `TEST_DATABASE_URL` and FFmpeg; CI fails if any of them is skipped.
+  A committed test that needs a named topic creates its own and assigns its video to it; it must
+  not rename the seeded `Sức khỏe` topic, which cleanup preserves by name for later tests.
   `pytest -n 4` (pytest-xdist) runs them in parallel on one machine: each process migrates its own
   database, `TEST_DATABASE_URL`'s name plus `_gw0`, `_gw1`..., created on first use.
   `PYTEST_SHARD=i/n` keeps every n-th test from the i-th; CI uses it to split the suite over four

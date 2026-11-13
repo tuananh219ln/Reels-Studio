@@ -1441,7 +1441,9 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
   const drawer = page.getByRole("dialog", { name: "Đăng bài" });
   await drawer.getByRole("tab", { name: "TikTok" }).click();
   // The Page's account is already chosen: no tap on the account picker.
-  await expect(drawer.getByLabel("Tài khoản TikTok đã kết nối")).toContainText("An Lành SK (@anlanhsk)");
+  await expect(
+    drawer.locator(".ant-select").filter({ has: page.getByLabel("Tài khoản TikTok đã kết nối") }),
+  ).toContainText("An Lành SK (@anlanhsk)");
 });
 
 test("a posted video appears in Bài đăng and its calendar", async ({ page }) => {

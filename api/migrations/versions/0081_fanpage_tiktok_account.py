@@ -3,16 +3,16 @@
 The column was dropped with semi-auto posting (0079); the choice is per Page, not per run, so it comes back
 on its own.
 
-Revision ID: 0080
-Revises: 0079
+Revision ID: 0081
+Revises: 0080
 Create Date: 2026-11-13
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0080"
-down_revision = "0079"
+revision = "0081"
+down_revision = "0080"
 branch_labels = None
 depends_on = None
 
