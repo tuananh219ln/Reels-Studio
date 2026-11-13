@@ -1509,3 +1509,9 @@ The same cell and merged columns as the Video list: a thumbnail and a title on u
 - **Bài đăng:** a video's row has **Số liệu** (its views added up, the latest post's time under it) in place of "Tổng view" and "Lần đăng gần nhất"; an opened video's posts have one **Bài đăng** column (Page, time and who posted, and who closed it) in place of "Fanpage" and "Giờ đăng".
 - **Page › Nội dung** and **Affiliate › Video đã đăng:** the title takes up to two lines.
 - **Nâng cấp lại:** a video shows its thumbnail, its topic on up to two lines and "#id, tạo <giờ>" under it.
+
+### Kho kiến thức: the groups bar and the platform icons (2026-11-14)
+
+The bar over a group is flat on the page, no card: a round switch "Của tôi / Cả đội" (an icon and a grey count each, and "N nhóm" beside it), the add-group box as a filled pill with a round tick button and the history button on the right, and the groups as pills under them: a quiet grey fill, the chosen one white with a brand outline and a soft shadow, each ending in its video count (amber when the group has no prompt).
+
+On every list of videos and on a video's page, the platform icons beside "Đã đăng" open that platform's post in a new tab when the post has a link (the newest live Facebook reel, or the link recorded for TikTok, YouTube Shorts or Instagram); their tooltip then reads "Mở bài trên <nền tảng>", else "Đã đăng <nền tảng>". The api sends the links as `posted_links` next to `posted_on`. A click on an icon does not open the row.

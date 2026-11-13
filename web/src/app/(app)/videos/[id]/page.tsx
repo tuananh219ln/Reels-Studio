@@ -404,7 +404,7 @@ export default function VideoPage() {
             />
             {/* The type is in the field already; the tags say how the video was made. */}
             <VideoKindTags video={{ ...video, content_type: "" }} />
-            <PostedPlatforms postedOn={video.posted_on ?? []} />
+            <PostedPlatforms postedOn={video.posted_on ?? []} links={video.posted_links} />
           </Flex>
           {video.clone_of && (
             <Typography.Paragraph type="secondary" style={{ margin: "4px 0 0", fontSize: 13 }} data-testid="clone-of">
