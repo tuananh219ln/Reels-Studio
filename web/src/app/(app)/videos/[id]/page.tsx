@@ -825,27 +825,6 @@ export default function VideoPage() {
                             )}
                           </Flex>
                         </div>
-                        {video.mp4 && (
-                          // Always in reach: the panel scrolls, the buttons stay at its foot.
-                          <Flex
-                            gap={8}
-                            justify="flex-end"
-                            align="center"
-                            style={{
-                              position: "sticky",
-                              bottom: 0,
-                              zIndex: 2,
-                              padding: "10px 12px",
-                              background: COLORS.surface,
-                              borderTop: `1px solid ${COLORS.border}`,
-                            }}
-                          >
-                            {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
-                              <ApproveVideoButton videoId={video.id} onDone={load} />
-                            )}
-                            <PublishButton video={video} />
-                          </Flex>
-                        )}
                       </Flex>
                     ),
                   },
@@ -869,6 +848,16 @@ export default function VideoPage() {
           onShowBlocking={showBlocking}
           jobName={job ? JOB_NAMES[job.kind] : undefined}
           onCancelJob={job ? () => act(() => api<VideoDetail>(`/jobs/${job.id}/cancel`, "POST")) : undefined}
+          after={
+            video.mp4 && (
+              <>
+                {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+                  <ApproveVideoButton videoId={video.id} onDone={load} />
+                )}
+                <PublishButton video={video} />
+              </>
+            )
+          }
           onPreview={async () => {
             // The preview shows the saved scenes: the field being typed in is saved first.
             await editor.flush();
