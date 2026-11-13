@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { expect, test } from "@playwright/test";
-import { loginAsSeed, resetDatabase } from "./helpers";
+import { loginAsSeed, openScene, resetDatabase } from "./helpers";
 
 /*
  * The team's Chrome extension (extension/ at the repo root, docs/decisions.md 2026-11-08). Playwright does not load
@@ -102,6 +102,7 @@ test("Lấy ảnh Google: shown only with the extension, skips stock sites, and 
   // "Tìm trên Google" tells the extension which scene "Gửi ảnh vào Reels Studio" sends to.
   await page.context().route("https://www.google.com/**", (route) => route.fulfill({ body: "Google Ảnh" }));
   const first = page.getByTestId("scene").first();
+  await openScene(first);
   await first.getByRole("button", { name: "Tìm trên Google" }).click();
   const opened = page.waitForEvent("popup");
   await page.locator(".ant-dropdown:visible").getByRole("menuitem").nth(1).click();

@@ -47,7 +47,7 @@ function WordCount({ text, min, max }: { text: string; min?: number; max: number
   return (
     <Typography.Text
       type={outside ? "warning" : "secondary"}
-      style={{ marginLeft: "auto", whiteSpace: "nowrap" }}
+      style={{ marginLeft: "auto", whiteSpace: "nowrap", fontSize: 12, fontWeight: "normal" }}
       data-testid="word-count"
     >
       {count} từ{outside ? `, nên ${range} từ` : ""}
@@ -167,14 +167,18 @@ export default function AutoSaveField({
 
   return (
     <div>
-      <Typography.Text strong style={{ display: "block", marginBottom: 4 }}>
-        {label}
-        {help && (
-          <Tooltip title={help}>
-            <QuestionCircleOutlined aria-label="Cách viết" style={{ marginLeft: 6, color: "#8c8c8c" }} />
-          </Tooltip>
-        )}
-      </Typography.Text>
+      {/* The word count sits on the label's row, so the line under the field stays for its save state. */}
+      <Flex align="baseline" gap={8} style={{ marginBottom: 4 }}>
+        <Typography.Text strong>
+          {label}
+          {help && (
+            <Tooltip title={help}>
+              <QuestionCircleOutlined aria-label="Cách viết" style={{ marginLeft: 6, color: "#8c8c8c" }} />
+            </Tooltip>
+          )}
+        </Typography.Text>
+        {words && <WordCount text={text} {...words} />}
+      </Flex>
       {multiline ? (
         <Input.TextArea
           {...common}
@@ -204,7 +208,6 @@ export default function AutoSaveField({
           </>
         )}
         {status.kind !== "error" && hint && !viewing && <Typography.Text type="secondary">{hint}</Typography.Text>}
-        {words && <WordCount text={text} {...words} />}
       </Flex>
     </div>
   );

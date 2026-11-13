@@ -22,7 +22,7 @@ import { placeBox } from "./TextPositionModal";
 
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
 /** The left column of a scene card on a screen from 576 px: the 9:16 frame stays a thumbnail. */
-const LEFT_WIDTH = 220;
+const LEFT_WIDTH = 150;
 
 type Size = { width: number; height: number };
 type Place = { y: number; height: number };

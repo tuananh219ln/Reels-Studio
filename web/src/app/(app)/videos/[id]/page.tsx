@@ -33,6 +33,7 @@ import {
   CheckOutlined,
   CopyOutlined,
   DeleteOutlined,
+  DownOutlined,
   EditOutlined,
   FolderOutlined,
   MoreOutlined,
@@ -54,6 +55,7 @@ import {
   Segmented,
   Spin,
   Tabs,
+  Tooltip,
   Typography,
 } from "antd";
 import Link from "next/link";
@@ -158,8 +160,8 @@ export default function VideoPage() {
   const others = usePresence(id, editing);
   // Fields whose last save was refused; "Xong" waits until there are none.
   const failedSaves = useRef(new Set<string>());
-  // Which scene cards are open, by scene id. A scene seen for the first time opens when the video is a draft or
-  // when the scene has something blocking the render; after that only the member opens or closes it.
+  // Which scene cards are open, by scene id: one at a time (opening one closes the others), all of them only through
+  // "Mở tất cả". When the page opens, the first scene that blocks the render opens, or on a draft the first scene.
   const [expanded, setExpanded] = useState<Record<number, boolean>>({});
   // "Xem trước" is open from this scene (0 is the title scene); null: closed.
   const [previewFrom, setPreviewFrom] = useState<number | null>(null);
@@ -175,9 +177,13 @@ export default function VideoPage() {
       if (unseen.length === 0) {
         return current;
       }
+      const first = Object.keys(current).length === 0;
+      const opened = first
+        ? (scenes.find((scene) => scene.blocking.length > 0) ?? (draft ? scenes[0] : undefined))
+        : undefined;
       return {
         ...current,
-        ...Object.fromEntries(unseen.map((scene) => [scene.id, draft || scene.blocking.length > 0])),
+        ...Object.fromEntries(unseen.map((scene) => [scene.id, scene === opened])),
       };
     });
   }, []);
@@ -299,15 +305,61 @@ export default function VideoPage() {
     setEditing(false);
   }
 
-  /** Opens every scene that has a red reason, then scrolls to the first one. */
+  /** Opens the first scene that has a red reason, alone, then scrolls to it. */
   function showBlocking() {
-    const blocked = [video?.title_scene, ...(video?.scenes ?? [])].filter(
+    const blocked = [video?.title_scene, ...(video?.scenes ?? [])].find(
       (scene): scene is SceneData => !!scene && scene.blocking.length > 0,
     );
-    flushSync(() =>
-      setExpanded((current) => ({ ...current, ...Object.fromEntries(blocked.map((scene) => [scene.id, true])) })),
-    );
+    if (blocked) flushSync(() => openOnly(blocked.id));
     showFirstBlocking();
+  }
+
+  /** The scene ids in the page's order, the title scene first. */
+  function sceneIds(): number[] {
+    return [video?.title_scene, ...(video?.scenes ?? [])].filter((scene) => !!scene).map((scene) => scene!.id);
+  }
+
+  /** Opens one scene and closes the others: a card at a time, so the open one fits on the screen. */
+  function openOnly(sceneId: number) {
+    setExpanded(Object.fromEntries(sceneIds().map((other) => [other, other === sceneId])));
+  }
+
+  /** A scene's header: closes it when open, else opens it alone. */
+  function toggle(sceneId: number) {
+    if (expanded[sceneId]) {
+      setExpanded((current) => ({ ...current, [sceneId]: false }));
+    } else {
+      openOnly(sceneId);
+    }
+  }
+
+  /**
+   * The keys of the scene list: ↑/↓ on a scene's header open the scene above or below; Ctrl+Enter (⌘+Enter) in a
+   * scene saves the field being typed in and opens the next scene.
+   */
+  function sceneKeys(event: React.KeyboardEvent) {
+    const target = event.target as HTMLElement;
+    const card = target.closest<HTMLElement>("[data-scene-id]");
+    if (!card) return;
+    const ids = sceneIds();
+    const index = ids.indexOf(Number(card.dataset.sceneId));
+    const go = (next: number) => {
+      if (next < 0 || next >= ids.length) return;
+      event.preventDefault();
+      // Leaving the field saves it, as a click elsewhere would.
+      (document.activeElement as HTMLElement | null)?.blur();
+      flushSync(() => openOnly(ids[next]));
+      const header = document.querySelector<HTMLElement>(`[data-scene-id="${ids[next]}"] [data-testid="scene-toggle"]`);
+      header?.focus();
+      header?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    };
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+      go(index + 1);
+    } else if (target.closest('[data-testid="scene-toggle"]') && event.key === "ArrowDown") {
+      go(index + 1);
+    } else if (target.closest('[data-testid="scene-toggle"]') && event.key === "ArrowUp") {
+      go(index - 1);
+    }
   }
 
   /** Shows the side panel, on `tab` when given: the drawer opens on a narrower screen. */
@@ -317,8 +369,31 @@ export default function VideoPage() {
   }
 
   function setAllExpanded(open: boolean) {
-    const ids = [video?.title_scene, ...(video?.scenes ?? [])].filter((scene) => !!scene).map((scene) => scene!.id);
-    setExpanded(Object.fromEntries(ids.map((sceneId) => [sceneId, open])));
+    setExpanded(Object.fromEntries(sceneIds().map((sceneId) => [sceneId, open])));
+  }
+
+  /** "Thêm cảnh": the new scene opens, alone, ready to fill. */
+  async function addScene() {
+    setBusy(true);
+    try {
+      const next = await api<VideoDetail>(`/videos/${id}/scenes`, "POST");
+      receive(next);
+      const added = next.scenes[next.scenes.length - 1];
+      if (added) {
+        setExpanded(
+          Object.fromEntries(
+            [next.title_scene, ...next.scenes]
+              .filter((scene) => !!scene)
+              .map((scene) => [scene!.id, scene!.id === added.id]),
+          ),
+        );
+      }
+    } catch (err) {
+      message.error(errorMessage(err));
+      void load();
+    } finally {
+      setBusy(false);
+    }
   }
 
   function remove() {
@@ -745,6 +820,7 @@ export default function VideoPage() {
             vertical
             gap={16}
             data-testid="editor-column"
+            onKeyDown={sceneKeys}
             style={
               viewing ? undefined : { outline: `1px solid ${COLORS.primaryBorder}`, outlineOffset: 8, borderRadius: 12 }
             }
@@ -757,70 +833,92 @@ export default function VideoPage() {
               .map((warning) => (
                 <Alert key={warning.message} type="warning" showIcon title={warning.message} />
               ))}
-            {video.title_scene && (
-              <Card title="Tiêu đề" size="small">
-                <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
-                <Radio.Group
-                  style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
-                  value={video.title_options.indexOf(video.title_scene.text)}
-                  disabled={video.locked || viewing}
-                  onChange={(event) => {
-                    const text = video.title_options[event.target.value as number];
-                    void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
-                  }}
-                  options={video.title_options.map((option, index) => ({ value: index, label: option }))}
-                />
-                {/* Under the options, not in the card's header, where on a phone it squeezed the title to "T…". */}
-                {/* A script typed through MCP was written by the member's Claude: script_by names it instead. */}
-                {video.hand_written && !video.script_by && (
-                  <Typography.Text
-                    type="secondary"
-                    style={{ display: "block", marginTop: 10, fontSize: 12 }}
-                    data-testid="script-by"
-                  >
-                    Kịch bản tự viết, không qua AI
+            {/* One row instead of two cards: the title picked from the script's options, and the video's kind. */}
+            <Flex wrap align="center" gap="8px 16px" style={{ minHeight: 48 }} data-testid="scenes-toolbar">
+              {video.title_scene && (
+                <Flex align="center" gap={8} style={{ flex: "1 1 280px", minWidth: 0 }}>
+                  <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
+                    Tiêu đề
                   </Typography.Text>
-                )}
-                {video.script_by && (
-                  <Typography.Text
-                    type="secondary"
-                    style={{ display: "block", marginTop: 10, fontSize: 12 }}
-                    data-testid="script-by"
+                  <Dropdown
+                    trigger={["click"]}
+                    // Drawn while closed too, so the script's author can be read without opening it.
+                    forceRender
+                    disabled={video.title_options.length === 0}
+                    popupRender={() => (
+                      <Card size="small" style={{ maxWidth: 440 }} data-testid="title-options">
+                        <Typography.Text type="secondary">Chọn 1 tiêu đề để chép vào chữ cảnh tiêu đề:</Typography.Text>
+                        <Radio.Group
+                          style={{ display: "flex", flexDirection: "column", gap: 6, margin: "8px 0 0" }}
+                          value={video.title_options.indexOf(video.title_scene!.text)}
+                          disabled={video.locked || viewing}
+                          onChange={(event) => {
+                            const text = video.title_options[event.target.value as number];
+                            void act(() => api<VideoDetail>(`/scenes/${video.title_scene!.id}`, "PATCH", { text }));
+                          }}
+                          options={video.title_options.map((option, index) => ({ value: index, label: option }))}
+                        />
+                        {/* A script typed through MCP was written by the member's Claude: script_by names it. */}
+                        {(video.script_by || video.hand_written) && (
+                          <Typography.Text
+                            type="secondary"
+                            style={{ display: "block", marginTop: 10, fontSize: 12 }}
+                            data-testid="script-by"
+                          >
+                            {video.script_by
+                              ? `Kịch bản viết bởi ${video.script_by}`
+                              : "Kịch bản tự viết, không qua AI"}
+                          </Typography.Text>
+                        )}
+                      </Card>
+                    )}
                   >
-                    Kịch bản viết bởi {video.script_by}
-                  </Typography.Text>
-                )}
-              </Card>
-            )}
-            {video.has_script && (
-              <Card title="Kiểu video" size="small" data-testid="video-mode">
-                <Segmented
-                  aria-label="Kiểu video"
-                  value={video.mode}
-                  disabled={video.locked || viewing}
-                  options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
-                  onChange={(value) =>
-                    modal.confirm({
-                      title: `Đổi sang “${VIDEO_MODES.find((item) => item.value === value)?.label}”?`,
-                      content: "Ảnh, clip và ảnh món đã chọn vẫn được giữ, đổi lại lúc nào cũng được.",
-                      okText: "Đổi",
-                      cancelText: "Huỷ",
-                      onOk: () => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { mode: value as VideoMode })),
-                    })
-                  }
-                />
-                <Typography.Text type="secondary" style={{ display: "block", marginTop: 8, fontSize: 12 }}>
-                  {VIDEO_MODES.find((item) => item.value === video.mode)?.hint}
+                    <Button style={{ flex: 1, minWidth: 0, justifyContent: "space-between" }} aria-label="Chọn tiêu đề">
+                      <Typography.Text ellipsis style={{ minWidth: 0 }}>
+                        {video.title_scene.text.replaceAll("*", "").replace(/\s+/g, " ").trim() || "(chưa có tiêu đề)"}
+                      </Typography.Text>
+                      <Typography.Text type="secondary" style={{ flex: "none", fontSize: 12 }}>
+                        {video.title_options.length} gợi ý <DownOutlined style={{ fontSize: 10 }} />
+                      </Typography.Text>
+                    </Button>
+                  </Dropdown>
+                </Flex>
+              )}
+              <Flex align="center" gap={8} data-testid="video-mode">
+                <Typography.Text type="secondary" style={{ flex: "none", fontSize: 13 }}>
+                  Kiểu video
                 </Typography.Text>
-              </Card>
-            )}
-            <Flex justify="flex-end" gap={4}>
-              <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
-                Mở tất cả
-              </Button>
-              <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
-                Thu gọn tất cả
-              </Button>
+                <Tooltip title={VIDEO_MODES.find((item) => item.value === video.mode)?.hint}>
+                  <Segmented
+                    aria-label="Kiểu video"
+                    value={video.mode}
+                    disabled={video.locked || viewing}
+                    options={VIDEO_MODES.map((item) => ({ value: item.value, label: item.label }))}
+                    onChange={(value) =>
+                      modal.confirm({
+                        title: `Đổi sang “${VIDEO_MODES.find((item) => item.value === value)?.label}”?`,
+                        content: "Ảnh, clip và ảnh món đã chọn vẫn được giữ, đổi lại lúc nào cũng được.",
+                        okText: "Đổi",
+                        cancelText: "Huỷ",
+                        onOk: () => act(() => api<VideoDetail>(`/videos/${id}`, "PATCH", { mode: value as VideoMode })),
+                      })
+                    }
+                  />
+                </Tooltip>
+              </Flex>
+            </Flex>
+            <Flex justify="space-between" align="center" gap={4}>
+              <Typography.Text strong data-testid="scene-count">
+                Cảnh ({scenes.length + (video.title_scene ? 1 : 0)})
+              </Typography.Text>
+              <Flex gap={4}>
+                <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
+                  Mở tất cả
+                </Button>
+                <Button size="small" type="link" onClick={() => setAllExpanded(false)}>
+                  Thu gọn tất cả
+                </Button>
+              </Flex>
             </Flex>
             {video.title_scene && (
               <SceneCard
@@ -831,11 +929,8 @@ export default function VideoPage() {
                 editing={job?.kind === "image_edit" && job.scene_id === video.title_scene.id}
                 voiceEnabled={video.voice_enabled}
                 onPreview={() => setPreviewFrom(0)}
-                expanded={expanded[video.title_scene.id] ?? !viewing}
-                onToggle={() => {
-                  const titleId = video.title_scene!.id;
-                  setExpanded((current) => ({ ...current, [titleId]: !(current[titleId] ?? !viewing) }));
-                }}
+                expanded={expanded[video.title_scene.id] ?? false}
+                onToggle={() => toggle(video.title_scene!.id)}
               />
             )}
             {scenes.map((scene, index) => (
@@ -849,10 +944,8 @@ export default function VideoPage() {
                 editing={job?.kind === "image_edit" && job.scene_id === scene.id}
                 voiceEnabled={video.voice_enabled}
                 onPreview={() => setPreviewFrom(index + (video.title_scene ? 1 : 0))}
-                expanded={expanded[scene.id] ?? !viewing}
-                onToggle={() =>
-                  setExpanded((current) => ({ ...current, [scene.id]: !(current[scene.id] ?? !viewing) }))
-                }
+                expanded={expanded[scene.id] ?? false}
+                onToggle={() => toggle(scene.id)}
                 onMove={(step) => move(index, step)}
                 onDelete={
                   video.created_by_id === me.id
@@ -861,11 +954,7 @@ export default function VideoPage() {
                 }
               />
             ))}
-            <Button
-              icon={<PlusOutlined />}
-              disabled={video.locked || viewing || busy}
-              onClick={() => act(() => api<VideoDetail>(`/videos/${id}/scenes`, "POST"))}
-            >
+            <Button icon={<PlusOutlined />} disabled={video.locked || viewing || busy} onClick={() => void addScene()}>
               Thêm cảnh
             </Button>
           </Flex>

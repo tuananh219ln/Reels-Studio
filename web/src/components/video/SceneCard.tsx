@@ -3,6 +3,8 @@
 import {
   ArrowDownOutlined,
   ArrowUpOutlined,
+  CaretRightOutlined,
+  CloseOutlined,
   DeleteOutlined,
   DownOutlined,
   DragOutlined,
@@ -14,7 +16,6 @@ import {
   HistoryOutlined,
   InboxOutlined,
   PictureOutlined,
-  PlayCircleOutlined,
   RightOutlined,
   RobotOutlined,
   ScissorOutlined,
@@ -28,13 +29,13 @@ import {
   Alert,
   Button,
   Card,
-  Col,
+  Collapse,
   Dropdown,
   Flex,
   Input,
   Modal,
   Popconfirm,
-  Row,
+  Segmented,
   Space,
   Spin,
   Tooltip,
@@ -166,11 +167,26 @@ export function ScenePromptField({ scene }: { scene: SceneData }) {
 export function SceneIssues({ scene }: { scene: SceneData }) {
   return (
     <>
+      {/* One line each, so the card stays short. */}
       {scene.blocking.map((reason) => (
-        <Alert key={reason} type="error" showIcon title={reason} data-testid="scene-blocking" />
+        <Alert
+          key={reason}
+          type="error"
+          showIcon
+          title={reason}
+          style={{ padding: "4px 10px" }}
+          data-testid="scene-blocking"
+        />
       ))}
       {scene.warnings.map((warning) => (
-        <Alert key={warning} type="warning" showIcon title={warning} data-testid="scene-warning" />
+        <Alert
+          key={warning}
+          type="warning"
+          showIcon
+          title={warning}
+          style={{ padding: "4px 10px" }}
+          data-testid="scene-warning"
+        />
       ))}
     </>
   );
@@ -220,35 +236,73 @@ export default function SceneCard({
     Boolean(photoLayer(scene.layers)) ||
     scene.layers.some((layer) => isHalf(layer) && layer.own_image === false);
 
+  // Seconds, a clip's start and the photo keywords: short fields on one row.
+  const numbers = (
+    <Flex wrap gap="0 12px">
+      <AutoSaveField
+        label="Số giây"
+        value={String(scene.seconds)}
+        inputMode="decimal"
+        width={90}
+        save={async (text) => patch({ seconds: parseSeconds(text) })}
+      />
+      {scene.video && ownPicture && (
+        <AutoSaveField
+          label="Bắt đầu từ giây"
+          value={String(scene.video.start)}
+          help={clipSpeedHelp(scene.video.speed)}
+          inputMode="decimal"
+          width={110}
+          save={async (text) => patch({ video_start: parseSeconds(text) })}
+        />
+      )}
+      {/* The scene's "Tìm ảnh" and "Tạo ảnh AI" read these, and turning the inset on shows them. */}
+      {(ownPicture || backdrop) && (
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+          <SceneKeywordsField scene={scene} />
+        </div>
+      )}
+    </Flex>
+  );
+  // The text and the narration side by side, then the numbers, what blocks or warns, and the AI prompt folded.
+  const fields = (
+    <Flex vertical gap={2}>
+      <div className="scene-texts">
+        <SceneTextField scene={scene} />
+        <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
+      </div>
+      {backdrop && !scene.is_title && <InsetOverlapWarning scene={scene} />}
+      {numbers}
+      <Flex vertical gap={6}>
+        <SceneIssues scene={scene} />
+      </Flex>
+      {(ownPicture || backdrop) && <AdvancedPrompt scene={scene} />}
+    </Flex>
+  );
+
   return (
     <Card
+      className="scene-card"
+      data-open={expanded}
+      data-scene-id={scene.id}
       data-testid={scene.is_title ? "title-scene" : "scene"}
       title={<SceneHeader scene={scene} label={label} expanded={expanded} onToggle={onToggle} />}
       size="small"
       // A closed card keeps its fields mounted, so text not yet saved is never lost by closing it.
-      styles={{ body: expanded ? undefined : { display: "none" } }}
+      styles={{
+        header: { minHeight: 44, padding: "0 10px" },
+        body: expanded ? { padding: 12 } : { display: "none" },
+      }}
       extra={
         <Space size={4}>
-          {onPreview && (
-            <Tooltip title="Xem từ cảnh này">
-              <Button
-                aria-label="Xem từ cảnh này"
-                size="small"
-                icon={<PlayCircleOutlined />}
-                onClick={async () => {
-                  // The preview shows the saved scene: the field being typed in is saved first.
-                  await editor.flush();
-                  onPreview();
-                }}
-              />
-            </Tooltip>
-          )}
           {!scene.is_title && (
-            <>
+            // Moving and deleting are rare: shown on hover, keyboard focus or while the card is open.
+            <Space size={4} className="scene-row-actions">
               <Tooltip title="Lên trên">
                 <Button
                   aria-label="Lên trên"
                   size="small"
+                  type="text"
                   icon={<ArrowUpOutlined />}
                   disabled={frozen || !onMove}
                   onClick={() => onMove?.(-1)}
@@ -258,6 +312,7 @@ export default function SceneCard({
                 <Button
                   aria-label="Xuống dưới"
                   size="small"
+                  type="text"
                   icon={<ArrowDownOutlined />}
                   disabled={frozen || !onMove}
                   onClick={() => onMove?.(1)}
@@ -272,10 +327,31 @@ export default function SceneCard({
                   onConfirm={onDelete}
                   disabled={frozen}
                 >
-                  <Button aria-label="Xóa cảnh" size="small" danger icon={<DeleteOutlined />} disabled={frozen} />
+                  <Button
+                    aria-label="Xóa cảnh"
+                    size="small"
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    disabled={frozen}
+                  />
                 </Popconfirm>
               )}
-            </>
+            </Space>
+          )}
+          {onPreview && (
+            <Tooltip title="Xem từ cảnh này">
+              <Button
+                aria-label="Xem từ cảnh này"
+                size="small"
+                icon={<CaretRightOutlined />}
+                onClick={async () => {
+                  // The preview shows the saved scene: the field being typed in is saved first.
+                  await editor.flush();
+                  onPreview();
+                }}
+              />
+            </Tooltip>
           )}
         </Space>
       }
@@ -284,42 +360,7 @@ export default function SceneCard({
         // A "Video xuyên suốt" scene: the preview beside the text, narration and fields, then "Chỉnh vị trí chữ & ảnh
         // chèn" and the scene's own picture tools (when its inset shows the scene's photo) beside the "Ảnh chèn" block.
         <div data-testid="scene-two-column">
-          <HalfPhotoPanel
-            scene={scene}
-            backdrop={backdropScene}
-            fields={
-              <Flex vertical gap={4}>
-                <SceneTextField scene={scene} />
-                <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
-                <InsetOverlapWarning scene={scene} />
-                <Flex wrap gap={16}>
-                  <AutoSaveField
-                    label="Số giây"
-                    value={String(scene.seconds)}
-                    inputMode="decimal"
-                    width={110}
-                    save={async (text) => patch({ seconds: parseSeconds(text) })}
-                  />
-                  {scene.video && ownPicture && (
-                    <AutoSaveField
-                      label="Bắt đầu từ giây"
-                      value={String(scene.video.start)}
-                      help={clipSpeedHelp(scene.video.speed)}
-                      inputMode="decimal"
-                      width={130}
-                      save={async (text) => patch({ video_start: parseSeconds(text) })}
-                    />
-                  )}
-                  {/* The scene's "Tìm ảnh" and "Tạo ảnh AI" read these, and turning the inset on shows them. */}
-                  <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                    <SceneKeywordsField scene={scene} />
-                  </div>
-                </Flex>
-                <ScenePromptField scene={scene} />
-                <SceneIssues scene={scene} />
-              </Flex>
-            }
-          >
+          <HalfPhotoPanel scene={scene} backdrop={backdropScene} fields={fields}>
             {ownPicture && (
               <ScenePicture
                 compact
@@ -332,60 +373,48 @@ export default function SceneCard({
           </HalfPhotoPanel>
         </div>
       ) : (
-        <Row gutter={[16, 12]}>
-          <Col xs={24} sm={9} md={8}>
-            {/* On a phone the column is the full width: keep the 9:16 frame a thumbnail, centred. */}
-            <Flex vertical gap={8} style={{ maxWidth: 220, margin: "0 auto" }}>
-              {backdrop && scene.is_title && (
-                <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="backdrop-note">
-                  Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
-                </Typography.Text>
-              )}
-              {ownPicture && (
-                <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
-              )}
-            </Flex>
-          </Col>
-          <Col xs={24} sm={15} md={16}>
-            <Flex vertical gap={4}>
-              <SceneTextField scene={scene} />
-              <SceneVoiceField scene={scene} voiceEnabled={voiceEnabled} />
-              {/* Seconds (and a clip's start) beside the keywords: short fields, one row. */}
-              <Flex wrap gap={16}>
-                <AutoSaveField
-                  label="Số giây"
-                  value={String(scene.seconds)}
-                  inputMode="decimal"
-                  width={110}
-                  save={async (text) => patch({ seconds: parseSeconds(text) })}
-                />
-                {scene.video && ownPicture && (
-                  <AutoSaveField
-                    label="Bắt đầu từ giây"
-                    value={String(scene.video.start)}
-                    help={clipSpeedHelp(scene.video.speed)}
-                    inputMode="decimal"
-                    width={130}
-                    save={async (text) => patch({ video_start: parseSeconds(text) })}
-                  />
-                )}
-                {ownPicture && (
-                  <div style={{ flex: "1 1 220px", minWidth: 0 }}>
-                    <SceneKeywordsField scene={scene} />
-                  </div>
-                )}
-              </Flex>
-              {ownPicture && <ScenePromptField scene={scene} />}
-              <SceneIssues scene={scene} />
-            </Flex>
-          </Col>
-        </Row>
+        <div className="scene-body">
+          <Flex vertical gap={8} style={{ minWidth: 0 }}>
+            {backdrop && scene.is_title && (
+              <Typography.Text type="secondary" style={{ fontSize: 12 }} data-testid="backdrop-note">
+                Ảnh hoặc video của cảnh này là nền chung, chạy suốt cả video.
+              </Typography.Text>
+            )}
+            {ownPicture && (
+              <ScenePicture scene={scene} voiceEnabled={voiceEnabled} generating={generating} editing={editing} />
+            )}
+          </Flex>
+          {fields}
+        </div>
       )}
     </Card>
   );
 }
 
-/** The card's title row; a click anywhere on it opens or closes the card. Closed, it sums the scene up. */
+/** "Nâng cao: Prompt ảnh AI", folded: rarely changed, and long. Kept mounted while folded, like every field. */
+function AdvancedPrompt({ scene }: { scene: SceneData }) {
+  return (
+    <Collapse
+      ghost
+      size="small"
+      items={[
+        {
+          key: "prompt",
+          forceRender: true,
+          label: (
+            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+              Nâng cao: Prompt ảnh AI
+            </Typography.Text>
+          ),
+          styles: { header: { padding: "2px 0" }, body: { padding: "4px 0 0" } },
+          children: <ScenePromptField scene={scene} />,
+        },
+      ]}
+    />
+  );
+}
+
+/** The card's title row, 44 px; a click anywhere on it opens or closes the card. Closed, it sums the scene up. */
 function SceneHeader({
   scene,
   label,
@@ -415,7 +444,7 @@ function SceneHeader({
       data-testid="scene-toggle"
       align="center"
       gap={10}
-      style={{ cursor: "pointer", minWidth: 0, padding: "6px 0" }}
+      style={{ cursor: "pointer", minWidth: 0, minHeight: 44 }}
       onClick={onToggle}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -427,39 +456,42 @@ function SceneHeader({
       <RightOutlined
         className="scene-card-arrow"
         style={{
-          fontSize: 12,
+          fontSize: 11,
           color: "#8c8c8c",
           transform: `rotate(${expanded ? 90 : 0}deg)`,
         }}
       />
-      {!expanded &&
-        (scene.preview_url ? (
-          // eslint-disable-next-line @next/next/no-img-element -- the api draws the preview; next/image adds nothing
-          <img
-            src={scene.preview_url}
-            alt=""
-            style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6, flex: "none" }}
-          />
-        ) : (
-          <div style={{ width: 40, height: 40, borderRadius: 6, background: "#f0f0f0", flex: "none" }} />
-        ))}
+      {scene.preview_url ? (
+        // eslint-disable-next-line @next/next/no-img-element -- the api draws the preview; next/image adds nothing
+        <img
+          src={scene.preview_url}
+          alt=""
+          loading="lazy"
+          style={{ width: 24, height: 32, objectFit: "cover", borderRadius: 4, flex: "none" }}
+        />
+      ) : (
+        <div style={{ width: 24, height: 32, borderRadius: 4, background: "#f0f0f0", flex: "none" }} />
+      )}
       <Typography.Text strong style={{ flex: "none" }}>
         {label}
       </Typography.Text>
-      <Typography.Text type="secondary" style={{ flex: "none", fontWeight: "normal" }}>
+      <Typography.Text type="secondary" style={{ flex: "none", fontWeight: "normal", fontSize: 13 }}>
         {scene.seconds.toLocaleString("vi-VN", { maximumFractionDigits: 1 })}s
       </Typography.Text>
-      {!expanded && (
+      {/* Closed, the scene's text sums it up; open, the text is in its field below. */}
+      {expanded ? (
+        <span style={{ flex: 1 }} />
+      ) : (
         <Typography.Text
           type="secondary"
           ellipsis
-          style={{ flex: 1, minWidth: 0, fontWeight: "normal" }}
+          style={{ flex: 1, minWidth: 0, fontWeight: "normal", fontSize: 13 }}
           data-testid="scene-summary"
         >
           {summary || "(không có chữ)"}
         </Typography.Text>
       )}
-      <span style={{ marginLeft: expanded ? "auto" : 0, flex: "none" }}>{status}</span>
+      <span style={{ flex: "none", fontWeight: "normal", fontSize: 13 }}>{status}</span>
     </Flex>
   );
 }
@@ -525,6 +557,8 @@ export function ScenePicture({
   // "Làm mờ vùng" (a clip) is open.
   const [blurring, setBlurring] = useState(false);
   const [viewing, setViewing] = useState(false);
+  // "Ảnh" or "Clip" in the frame; until the member picks, a scene with a clip shows the clip.
+  const [tab, setTab] = useState<"photo" | "clip" | null>(null);
   const [dragging, setDragging] = useState(false);
   const [pasting, setPasting] = useState(false);
   const [pastedLink, setPastedLink] = useState("");
@@ -700,6 +734,7 @@ export function ScenePicture({
 
   const frame = { width: "100%", aspectRatio: "9 / 16", borderRadius: 6 } as const;
   const hasPicture = scene.has_image || scene.video !== null;
+  const shown = tab === "clip" && !scene.video ? "photo" : (tab ?? (scene.video ? "clip" : "photo"));
   const reason = scene.text_problem && hasPicture ? scene.text_problem : null;
   const off = editor.locked || editor.readOnly || busy !== null;
   const which = scene.is_title ? "cảnh tiêu đề" : "cảnh";
@@ -713,6 +748,205 @@ export function ScenePicture({
     : scene.image_ai
       ? "Tạo ảnh AI mới thay ảnh hiện tại?"
       : "Ảnh AI sẽ thay ảnh hiện tại của cảnh này?";
+
+  // The ways to put a picture in: under the picture in the studio, over the frame on the card.
+  const tools = !editor.readOnly && (
+    <>
+      {/* Upload, paste and Google on one row: the picture column is narrow, and these are the quick ones. */}
+      <Flex gap={6} wrap>
+        <Flex
+          align="center"
+          gap={8}
+          role="button"
+          title="Kéo thả, dán hoặc bấm để tải ảnh/video lên"
+          tabIndex={off ? -1 : 0}
+          aria-disabled={off}
+          data-testid="scene-dropzone"
+          onClick={() => !off && input.current?.click()}
+          onKeyDown={(event) => {
+            if (!off && (event.key === "Enter" || event.key === " ")) {
+              event.preventDefault();
+              input.current?.click();
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setDragging(!off);
+          }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragging(false);
+            if (off) {
+              return;
+            }
+            const file = event.dataTransfer.files[0];
+            if (file) {
+              chosen(file);
+              return;
+            }
+            // A photo dragged from another tab (Google Ảnh, a shop) arrives as its address, not as a file.
+            const link = linkFromTransfer(event.dataTransfer);
+            if (link) {
+              void fromLink(link);
+            } else {
+              message.error("Không nhận ra ảnh vừa thả: hãy kéo chính tấm ảnh, hoặc sao chép ảnh rồi dán");
+            }
+          }}
+          style={{
+            // Room for "Tải lên" in full; the small buttons wrap below on a narrow column.
+            flex: "1 0 96px",
+            minWidth: 0,
+            height: 36,
+            padding: "0 14px",
+            borderRadius: 8,
+            border: `1px dashed ${dragging ? COLORS.primary : "#C9D0D5"}`,
+            background: dragging ? COLORS.primaryBg : COLORS.muted,
+            cursor: off ? "not-allowed" : "pointer",
+            opacity: off && !uploading ? 0.6 : 1,
+          }}
+        >
+          {uploading ? <Spin size="small" /> : <InboxOutlined style={{ fontSize: 14, color: COLORS.primary }} />}
+          <Typography.Text ellipsis style={{ fontSize: 13 }}>
+            {uploading ? "Đang tải lên…" : "Tải lên"}
+          </Typography.Text>
+        </Flex>
+        <Tooltip title="Dán ảnh, link ảnh, link video hoặc link TikTok đã sao chép">
+          <Button
+            aria-label="Dán ảnh/link"
+            icon={<SnippetsOutlined />}
+            disabled={off}
+            onClick={() => void pasteFromClipboard()}
+          />
+        </Tooltip>
+        <SiteSearch
+          label="Tìm trên Google"
+          icon={<GoogleOutlined />}
+          tip="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa bạn chọn; sao chép ảnh ưng ý rồi quay lại dán vào đây (có tiện ích Chrome của nhóm thì chuột phải vào ảnh, chọn “Gửi ảnh vào Reels Studio”)"
+          keywords={googleKeywords}
+          disabled={off}
+          onSearch={(keyword) => void search(googleImagesUrl, keyword)}
+        />
+        <SiteSearch
+          label="Tìm trên TikTok"
+          icon={<TikTokOutlined />}
+          tip="Tìm trên TikTok: mở video TikTok với từ khóa bạn chọn; sao chép link video ưng ý rồi quay lại dán vào đây"
+          keywords={tiktokKeywords}
+          disabled={off}
+          onSearch={(keyword) => void search(tiktokSearchUrl, keyword)}
+        />
+      </Flex>
+      {/* The three places a picture is picked from, under one button so the column stays short. */}
+      <Dropdown
+        trigger={["click"]}
+        disabled={off}
+        menu={{
+          items: [
+            { key: "stock", icon: <PictureOutlined />, label: "Kho ảnh/video miễn phí" },
+            { key: "group", icon: <HistoryOutlined />, label: "Đã dùng trong nhóm" },
+            { key: "library", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
+          ],
+          onClick: ({ key }) => {
+            if (key === "stock") {
+              const openPicker = async () => {
+                // The grid starts from the keywords on screen, so their save goes first.
+                await editor.flush();
+                setPicking(true);
+              };
+              if (scene.video !== null) {
+                modal.confirm({
+                  title: "Ảnh hoặc video chọn được sẽ thay video của cảnh này?",
+                  okText: "Chọn",
+                  cancelText: "Huỷ",
+                  onOk: () => void openPicker(),
+                });
+              } else {
+                void openPicker();
+              }
+            } else if (key === "group") {
+              // The list is ranked by the keywords on screen, so their save goes first.
+              void editor.flush().then(() => setReusing(true));
+            } else {
+              setFromLibrary(true);
+            }
+          },
+        }}
+      >
+        <Button className="scene-action" icon={<PictureOutlined />} disabled={off} block>
+          Chọn từ kho <DownOutlined style={{ fontSize: 10, marginInlineStart: "auto" }} />
+        </Button>
+      </Dropdown>
+      <Space.Compact block>
+        <Switching
+          show={scene.video !== null}
+          title="Ảnh tìm được sẽ thay video của cảnh này?"
+          disabled={off}
+          onConfirm={() =>
+            run("find", async () => {
+              // The api searches the saved keywords: the one being typed is saved first.
+              await editor.flush();
+              return api<VideoDetail>(`/scenes/${scene.id}/find-image?source=${findSource.id}`, "POST");
+            })
+          }
+        >
+          {/* The api walks on from the photo in use, so a scene that has one gets a different one. */}
+          <Button
+            className="scene-action"
+            icon={<SearchOutlined />}
+            loading={busy === "find"}
+            disabled={off}
+            style={{ flex: 1 }}
+          >
+            Tìm ảnh ({findSource.label})
+          </Button>
+        </Switching>
+        <Dropdown
+          trigger={["click"]}
+          disabled={off}
+          menu={{
+            selectable: true,
+            selectedKeys: [findSource.id],
+            items: (sources ?? [findSource]).map((item) => ({ key: item.id, label: item.label })),
+            onClick: ({ key }) => {
+              picked.current = true;
+              setFindSource(sources?.find((item) => item.id === key) ?? findSource);
+            },
+          }}
+        >
+          <Button aria-label="Đổi nguồn ảnh" icon={<DownOutlined />} disabled={off} />
+        </Dropdown>
+      </Space.Compact>
+      {/* A job, like the bar's "Tạo ảnh AI cho cảnh thiếu", but for this scene only and replacing what it has. */}
+      <Space.Compact block>
+        <Switching show={hasPicture} title={replaceQuestion} disabled={off} onConfirm={() => void generate()}>
+          <Button
+            className="scene-action"
+            icon={<RobotOutlined />}
+            loading={generating || busy === "ai"}
+            disabled={off}
+            style={{ flex: 1 }}
+          >
+            {generating ? "Đang tạo ảnh AI…" : scene.image_ai ? "Tạo lại ảnh AI" : "Tạo ảnh AI"}
+          </Button>
+        </Switching>
+        <ImageProviderMenu
+          disabled={off}
+          onPick={(provider) => {
+            if (!hasPicture) {
+              void generate(provider);
+              return;
+            }
+            modal.confirm({
+              title: replaceQuestion,
+              okText: "Đổi",
+              cancelText: "Huỷ",
+              onOk: () => void generate(provider),
+            });
+          }}
+        />
+      </Space.Compact>
+    </>
+  );
 
   return (
     <Flex
@@ -769,114 +1003,153 @@ export function ScenePicture({
           )}
         </Flex>
       )}
+      {!compact && scene.video && (
+        // A scene with a clip shows either the drawn preview or the clip itself, in the same frame.
+        <Segmented
+          size="small"
+          block
+          aria-label={`Khung của ${which}`}
+          value={shown}
+          onChange={(value) => setTab(value as "photo" | "clip")}
+          options={[
+            { value: "photo", label: "Ảnh" },
+            { value: "clip", label: "Clip" },
+          ]}
+        />
+      )}
       {!compact && (
-        <div className="scene-media">
-          {scene.preview_url && !reason ? (
-            // A plain <img>: the preview is drawn by the api with the renderer's own code.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={scene.preview_url}
-              alt={`Xem trước ${which}`}
-              style={{ ...frame, objectFit: "cover", display: "block" }}
-              data-testid="scene-preview"
+        <div className="scene-media" data-empty={!hasPicture && !editor.readOnly ? "true" : undefined}>
+          {scene.video && (
+            // The clip as uploaded, without sound (the render never uses its sound either); it plays while hovered.
+            <video
+              ref={silentVideo}
+              src={scene.video.url}
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-label={`Video của ${which}`}
+              data-testid="scene-video"
+              onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)}
+              onMouseLeave={(event) => event.currentTarget.pause()}
+              style={{ ...frame, display: shown === "clip" ? "block" : "none", objectFit: "cover", background: "#000" }}
             />
-          ) : (
-            <Flex
-              align="center"
-              justify="center"
-              data-testid="scene-no-preview"
-              style={{
-                ...frame,
-                padding: 12,
-                textAlign: "center",
-                boxSizing: "border-box",
-                background: hasPicture ? "#FFF7E6" : "#FFF1F0",
-                border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}`,
-              }}
-            >
-              <Typography.Text type="danger">{reason ?? scene.image_error ?? "Chưa có ảnh"}</Typography.Text>
-            </Flex>
           )}
-          {/* Over the picture on hover (always on touch screens), stacked in its middle: look at the scene large
-            ("Xem"), then edit it; only the look in view mode. */}
-          {hasPicture && (
-            <div className="scene-media__overlay" data-testid="scene-media-actions">
-              <Button size="small" icon={<EyeOutlined />} onClick={() => setViewing(true)}>
-                Xem
-              </Button>
-              {!editor.readOnly && (
-                <>
-                  <Button
-                    size="small"
-                    icon={<ScissorOutlined />}
-                    disabled={off}
-                    onClick={async () => {
-                      // The trim starts from the saved seconds and start: the one being typed is saved first.
-                      await editor.flush();
-                      setFraming(true);
-                    }}
-                  >
-                    {scene.video ? "Cắt video" : "Chỉnh khung"}
-                  </Button>
-                  {scene.video && (
-                    <Button
-                      size="small"
-                      icon={<EyeInvisibleOutlined />}
-                      disabled={off}
-                      onClick={() => setBlurring(true)}
-                    >
-                      Làm mờ vùng
-                    </Button>
-                  )}
-                  {!scene.video && (
-                    <Button
-                      size="small"
-                      icon={<HighlightOutlined />}
-                      disabled={off}
-                      onClick={() => setRetouching(true)}
-                    >
-                      Sửa ảnh
-                    </Button>
-                  )}
-                  {canPlace && (
-                    <Button
-                      size="small"
-                      icon={<DragOutlined />}
-                      disabled={off}
-                      onClick={async () => {
-                        // The box is drawn from the saved text: the text being typed is saved first.
-                        await editor.flush();
-                        setPlacing(true);
-                      }}
-                    >
-                      {scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
-                    </Button>
-                  )}
-                  {scene.video && (
-                    <Popconfirm
-                      title="Xoá video của cảnh này?"
-                      okText="Xoá"
-                      cancelText="Huỷ"
-                      okButtonProps={{ danger: true }}
-                      disabled={off}
-                      onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
-                    >
+          {/* The drawn preview stays in the page while the clip shows, hidden, so it is still current. */}
+          <div style={{ display: shown === "clip" ? "none" : undefined }}>
+            {scene.preview_url && !reason ? (
+              // A plain <img>: the preview is drawn by the api with the renderer's own code.
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={scene.preview_url}
+                alt={`Xem trước ${which}`}
+                style={{ ...frame, objectFit: "cover", display: "block" }}
+                data-testid="scene-preview"
+              />
+            ) : (
+              <Flex
+                align="flex-end"
+                justify="center"
+                data-testid="scene-no-preview"
+                style={{
+                  ...frame,
+                  padding: 10,
+                  textAlign: "center",
+                  boxSizing: "border-box",
+                  background: hasPicture ? "#FFF7E6" : "#FFF1F0",
+                  border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}`,
+                }}
+              >
+                <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                  {reason ?? scene.image_error ?? "Chưa có ảnh"}
+                </Typography.Text>
+              </Flex>
+            )}
+          </div>
+          {/* Over the frame on hover (always on touch screens, and while there is no picture): the picture's own
+            tools as icons on top, then the ways to put another one in. In view mode only "Xem". */}
+          <div className="scene-media__overlay" data-testid="scene-media-actions">
+            {hasPicture && (
+              <Flex wrap gap={4}>
+                <Tooltip title="Xem">
+                  <Button size="small" aria-label="Xem" icon={<EyeOutlined />} onClick={() => setViewing(true)} />
+                </Tooltip>
+                {!editor.readOnly && (
+                  <>
+                    <Tooltip title={scene.video ? "Cắt video" : "Chỉnh khung"}>
                       <Button
                         size="small"
-                        danger
-                        aria-label="Xoá video"
-                        icon={<DeleteOutlined />}
-                        loading={busy === "remove"}
+                        aria-label={scene.video ? "Cắt video" : "Chỉnh khung"}
+                        icon={<ScissorOutlined />}
                         disabled={off}
+                        onClick={async () => {
+                          // The trim starts from the saved seconds and start: the one being typed is saved first.
+                          await editor.flush();
+                          setFraming(true);
+                        }}
+                      />
+                    </Tooltip>
+                    {scene.video ? (
+                      <Tooltip title="Làm mờ vùng">
+                        <Button
+                          size="small"
+                          aria-label="Làm mờ vùng"
+                          icon={<EyeInvisibleOutlined />}
+                          disabled={off}
+                          onClick={() => setBlurring(true)}
+                        />
+                      </Tooltip>
+                    ) : (
+                      <Tooltip title="Sửa ảnh">
+                        <Button
+                          size="small"
+                          aria-label="Sửa ảnh"
+                          icon={<HighlightOutlined />}
+                          disabled={off}
+                          onClick={() => setRetouching(true)}
+                        />
+                      </Tooltip>
+                    )}
+                    {canPlace && (
+                      <Tooltip title={scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}>
+                        <Button
+                          size="small"
+                          aria-label={scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
+                          icon={<DragOutlined />}
+                          disabled={off}
+                          onClick={async () => {
+                            // The box is drawn from the saved text: the text being typed is saved first.
+                            await editor.flush();
+                            setPlacing(true);
+                          }}
+                        />
+                      </Tooltip>
+                    )}
+                    {scene.video && (
+                      <Popconfirm
+                        title="Xoá video của cảnh này?"
+                        okText="Xoá"
+                        cancelText="Huỷ"
+                        okButtonProps={{ danger: true }}
+                        disabled={off}
+                        onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
                       >
-                        Xoá video
-                      </Button>
-                    </Popconfirm>
-                  )}
-                </>
-              )}
-            </div>
-          )}
+                        <Button
+                          size="small"
+                          danger
+                          aria-label="Xoá video"
+                          icon={<CloseOutlined />}
+                          loading={busy === "remove"}
+                          disabled={off}
+                        />
+                      </Popconfirm>
+                    )}
+                  </>
+                )}
+              </Flex>
+            )}
+            {tools}
+          </div>
         </div>
       )}
       {scene.motion && (
@@ -948,21 +1221,6 @@ export function ScenePicture({
           )}
         </Flex>
       )}
-      {scene.video && !compact && (
-        // The clip as uploaded, without sound: the render never uses its sound either.
-        <video
-          ref={silentVideo}
-          src={scene.video.url}
-          muted
-          loop
-          playsInline
-          controls
-          preload="metadata"
-          aria-label={`Video của ${which}`}
-          data-testid="scene-video"
-          style={{ width: "100%", maxHeight: 200, borderRadius: 6, background: "#000" }}
-        />
-      )}
       <input
         ref={input}
         type="file"
@@ -971,203 +1229,7 @@ export function ScenePicture({
         aria-label={`Tải ảnh/video lên cho ${which}`}
         onChange={(event) => chosen(event.target.files?.[0])}
       />
-      {!editor.readOnly && (
-        <>
-          {/* Upload, paste and Google on one row: the picture column is narrow, and these are the quick ones. */}
-          <Flex gap={6}>
-            <Flex
-              align="center"
-              gap={8}
-              role="button"
-              title="Kéo thả, dán hoặc bấm để tải ảnh/video lên"
-              tabIndex={off ? -1 : 0}
-              aria-disabled={off}
-              data-testid="scene-dropzone"
-              onClick={() => !off && input.current?.click()}
-              onKeyDown={(event) => {
-                if (!off && (event.key === "Enter" || event.key === " ")) {
-                  event.preventDefault();
-                  input.current?.click();
-                }
-              }}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragging(!off);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(event) => {
-                event.preventDefault();
-                setDragging(false);
-                if (off) {
-                  return;
-                }
-                const file = event.dataTransfer.files[0];
-                if (file) {
-                  chosen(file);
-                  return;
-                }
-                // A photo dragged from another tab (Google Ảnh, a shop) arrives as its address, not as a file.
-                const link = linkFromTransfer(event.dataTransfer);
-                if (link) {
-                  void fromLink(link);
-                } else {
-                  message.error("Không nhận ra ảnh vừa thả: hãy kéo chính tấm ảnh, hoặc sao chép ảnh rồi dán");
-                }
-              }}
-              style={{
-                // Room for "Tải lên" in full; the small buttons wrap below on a narrow column.
-                flex: "1 0 96px",
-                minWidth: 0,
-                height: 36,
-                padding: "0 14px",
-                borderRadius: 8,
-                border: `1px dashed ${dragging ? COLORS.primary : "#C9D0D5"}`,
-                background: dragging ? COLORS.primaryBg : COLORS.muted,
-                cursor: off ? "not-allowed" : "pointer",
-                opacity: off && !uploading ? 0.6 : 1,
-              }}
-            >
-              {uploading ? <Spin size="small" /> : <InboxOutlined style={{ fontSize: 14, color: COLORS.primary }} />}
-              <Typography.Text ellipsis style={{ fontSize: 13 }}>
-                {uploading ? "Đang tải lên…" : "Tải lên"}
-              </Typography.Text>
-            </Flex>
-            <Tooltip title="Dán ảnh, link ảnh, link video hoặc link TikTok đã sao chép">
-              <Button
-                aria-label="Dán ảnh/link"
-                icon={<SnippetsOutlined />}
-                disabled={off}
-                onClick={() => void pasteFromClipboard()}
-              />
-            </Tooltip>
-            <SiteSearch
-              label="Tìm trên Google"
-              icon={<GoogleOutlined />}
-              tip="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa bạn chọn; sao chép ảnh ưng ý rồi quay lại dán vào đây (có tiện ích Chrome của nhóm thì chuột phải vào ảnh, chọn “Gửi ảnh vào Reels Studio”)"
-              keywords={googleKeywords}
-              disabled={off}
-              onSearch={(keyword) => void search(googleImagesUrl, keyword)}
-            />
-            <SiteSearch
-              label="Tìm trên TikTok"
-              icon={<TikTokOutlined />}
-              tip="Tìm trên TikTok: mở video TikTok với từ khóa bạn chọn; sao chép link video ưng ý rồi quay lại dán vào đây"
-              keywords={tiktokKeywords}
-              disabled={off}
-              onSearch={(keyword) => void search(tiktokSearchUrl, keyword)}
-            />
-          </Flex>
-          {/* The three places a picture is picked from, under one button so the column stays short. */}
-          <Dropdown
-            trigger={["click"]}
-            disabled={off}
-            menu={{
-              items: [
-                { key: "stock", icon: <PictureOutlined />, label: "Kho ảnh/video miễn phí" },
-                { key: "group", icon: <HistoryOutlined />, label: "Đã dùng trong nhóm" },
-                { key: "library", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
-              ],
-              onClick: ({ key }) => {
-                if (key === "stock") {
-                  const openPicker = async () => {
-                    // The grid starts from the keywords on screen, so their save goes first.
-                    await editor.flush();
-                    setPicking(true);
-                  };
-                  if (scene.video !== null) {
-                    modal.confirm({
-                      title: "Ảnh hoặc video chọn được sẽ thay video của cảnh này?",
-                      okText: "Chọn",
-                      cancelText: "Huỷ",
-                      onOk: () => void openPicker(),
-                    });
-                  } else {
-                    void openPicker();
-                  }
-                } else if (key === "group") {
-                  // The list is ranked by the keywords on screen, so their save goes first.
-                  void editor.flush().then(() => setReusing(true));
-                } else {
-                  setFromLibrary(true);
-                }
-              },
-            }}
-          >
-            <Button className="scene-action" icon={<PictureOutlined />} disabled={off} block>
-              Chọn từ kho <DownOutlined style={{ fontSize: 10, marginInlineStart: "auto" }} />
-            </Button>
-          </Dropdown>
-          <Space.Compact block>
-            <Switching
-              show={scene.video !== null}
-              title="Ảnh tìm được sẽ thay video của cảnh này?"
-              disabled={off}
-              onConfirm={() =>
-                run("find", async () => {
-                  // The api searches the saved keywords: the one being typed is saved first.
-                  await editor.flush();
-                  return api<VideoDetail>(`/scenes/${scene.id}/find-image?source=${findSource.id}`, "POST");
-                })
-              }
-            >
-              {/* The api walks on from the photo in use, so a scene that has one gets a different one. */}
-              <Button
-                className="scene-action"
-                icon={<SearchOutlined />}
-                loading={busy === "find"}
-                disabled={off}
-                style={{ flex: 1 }}
-              >
-                Tìm ảnh ({findSource.label})
-              </Button>
-            </Switching>
-            <Dropdown
-              trigger={["click"]}
-              disabled={off}
-              menu={{
-                selectable: true,
-                selectedKeys: [findSource.id],
-                items: (sources ?? [findSource]).map((item) => ({ key: item.id, label: item.label })),
-                onClick: ({ key }) => {
-                  picked.current = true;
-                  setFindSource(sources?.find((item) => item.id === key) ?? findSource);
-                },
-              }}
-            >
-              <Button aria-label="Đổi nguồn ảnh" icon={<DownOutlined />} disabled={off} />
-            </Dropdown>
-          </Space.Compact>
-          {/* A job, like the bar's "Tạo ảnh AI cho cảnh thiếu", but for this scene only and replacing what it has. */}
-          <Space.Compact block>
-            <Switching show={hasPicture} title={replaceQuestion} disabled={off} onConfirm={() => void generate()}>
-              <Button
-                className="scene-action"
-                icon={<RobotOutlined />}
-                loading={generating || busy === "ai"}
-                disabled={off}
-                style={{ flex: 1 }}
-              >
-                {generating ? "Đang tạo ảnh AI…" : scene.image_ai ? "Tạo lại ảnh AI" : "Tạo ảnh AI"}
-              </Button>
-            </Switching>
-            <ImageProviderMenu
-              disabled={off}
-              onPick={(provider) => {
-                if (!hasPicture) {
-                  void generate(provider);
-                  return;
-                }
-                modal.confirm({
-                  title: replaceQuestion,
-                  okText: "Đổi",
-                  cancelText: "Huỷ",
-                  onOk: () => void generate(provider),
-                });
-              }}
-            />
-          </Space.Compact>
-        </>
-      )}
+      {compact && tools}
       {error && (
         <Typography.Text type="danger" data-testid="image-error">
           {error.message}

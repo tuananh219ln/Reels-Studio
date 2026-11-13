@@ -12,6 +12,7 @@ import {
   loginAsSeed,
   openPanel,
   openPublishDrawer,
+  openScene,
   resetDatabase,
 } from "./helpers";
 
@@ -47,12 +48,14 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByTestId("self-review")).toBeVisible();
   await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
 
-  // The choice is saved first, then shown as selected.
+  // The choice is saved first, then shown as selected; the options open from the toolbar's "Tiêu đề".
+  await page.getByRole("button", { name: "Chọn tiêu đề" }).click();
   await page.getByRole("radio", { name: /^6 MÓN/ }).click();
   await expect(page.getByRole("radio", { name: /^6 MÓN/ })).toBeChecked();
   await expect(title.getByLabel("Chữ trên màn hình")).toHaveValue(/^6 MÓN/);
 
   const first = scenes.first();
+  await openScene(first);
   const text = first.getByLabel("Chữ trên màn hình");
   await text.fill("Cá nhỏ chiên\nGiàu *canxi*");
   await text.blur();
@@ -70,6 +73,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   // A scene with a voice text reads only that; emptied, it says it reads its on-screen text, cleaned for speech.
   await expect(first.getByText("Sẽ đọc chữ trên màn hình")).toHaveCount(0);
   const second = scenes.nth(1);
+  await openScene(second);
   const voice = second.getByLabel("Lời đọc");
   await voice.fill("");
   await voice.blur();
@@ -81,6 +85,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
   // the five scenes' 4 words 1.9 s each.
   await expect(page.getByTestId("render-time")).toContainText("Dài 12,0 giây");
+  await openScene(first);
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
@@ -607,6 +612,7 @@ test("a scene reuses a photo another video of its group already uses", async ({ 
   await newVideoWithScript(page, "canxi cho người lớn tuổi");
   await newVideoWithScript(page, "rau xanh cho người lớn tuổi");
 
+  await openScene(page.getByTestId("scene").first());
   await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Đã dùng trong nhóm" }).click();
   const picker = page.getByRole("dialog", { name: "Ảnh/video đã dùng trong nhóm" });
@@ -771,12 +777,22 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   const first = scenes.first();
   const toggle = first.getByTestId("scene-toggle");
 
-  // A draft opens with every scene open; a closed one sums itself up in its title row.
-  await expect(toggle).toHaveAttribute("aria-expanded", "true");
-  await toggle.click();
+  // A draft opens with one scene open, the first that blocked the render (the title, before its photo); a closed
+  // one sums itself up in its title row.
+  const titleToggle = page.getByTestId("title-scene").getByTestId("scene-toggle");
+  await expect(titleToggle).toHaveAttribute("aria-expanded", "true");
   await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await expect(first.getByTestId("scene-summary")).toBeVisible();
   await expect(first.getByLabel("Chữ trên màn hình")).toBeHidden();
+  // One at a time: opening a scene closes the one that was open.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  await expect(titleToggle).toHaveAttribute("aria-expanded", "false");
+  // ↓ on a scene's title row opens the next scene instead.
+  await toggle.focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(scenes.nth(1).getByTestId("scene-toggle")).toHaveAttribute("aria-expanded", "true");
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
   await page.getByRole("button", { name: "Mở tất cả" }).click();
   await expect(page.getByTestId("scene-toggle").and(page.locator('[aria-expanded="false"]'))).toHaveCount(0);
   await page.getByRole("button", { name: "Thu gọn tất cả" }).click();
@@ -807,6 +823,7 @@ test("Sửa ảnh: erase a drawn box, edit in words, then bring back the origina
   await loginAsSeed(page);
   await newVideoWithScript(page, "rau xanh cho người lớn tuổi");
   const first = page.getByTestId("scene").first();
+  await openScene(first);
   const preview = first.getByTestId("scene-preview");
   const original = await preview.getAttribute("src");
 
@@ -1142,6 +1159,7 @@ test("inset photo: only on a backdrop video, the scene's photo as a rounded squa
   await expect(card.getByTestId("half-photo-panel")).toHaveCount(0);
   await page.getByTestId("video-mode").getByText("Video xuyên suốt").click();
   await page.getByRole("button", { name: "Đổi", exact: true }).click();
+  await openScene(card);
 
   // Off: one line; the one place button is there all the same, and there is no inset-only one.
   const panel = card.getByTestId("half-photo-panel");
@@ -1867,7 +1885,7 @@ async function uploadPhotos(page: Page) {
   const scenes = page.getByTestId("scene");
   for (let index = 0; index < (await scenes.count()); index++) {
     await scenes.nth(index).getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(file);
-    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toHaveCount(1);
   }
 }
 
@@ -1937,6 +1955,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
   const first = scenes.nth(0);
+  await openScene(first);
   await first.getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
@@ -1957,6 +1976,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // "Tìm ảnh" takes the first photo for the saved keywords; pressed again it moves on to another one.
   const second = scenes.nth(1);
+  await openScene(second);
   await second.getByRole("button", { name: "Tìm ảnh" }).click();
   await expect(second.getByTestId("scene-preview")).toBeVisible();
   const before = await second.getByTestId("scene-preview").getAttribute("src");
@@ -1965,6 +1985,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // Without keywords the api's own message is shown, with a pointer to the keyword field.
   const third = scenes.nth(2);
+  await openScene(third);
   await third.getByLabel("Từ khóa tìm ảnh").fill("");
   await third.getByLabel("Từ khóa tìm ảnh").blur();
   await expect(third.getByText("Đã lưu")).toBeVisible();
@@ -1985,8 +2006,9 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // Once every scene has a photo the render is no longer blocked.
   for (let index = 2; index < 5; index++) {
+    await openScene(scenes.nth(index));
     await scenes.nth(index).getByRole("button", { name: "Tìm ảnh" }).click();
-    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toHaveCount(1);
   }
   await expect(page.getByTestId("scene-blocking")).toHaveCount(0);
   await expect(render).toBeEnabled();
@@ -1995,6 +2017,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
 
   // On a phone the grid fits the screen: no sideways scroll, thumbnails still large enough to tell apart.
   await page.setViewportSize({ width: 390, height: 844 });
+  await openScene(page.getByTestId("scene").first());
   await page.getByTestId("scene").first().getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
@@ -2026,6 +2049,7 @@ test("photos from other sites: paste a photo or its link, drag one from another 
 
   // "Tìm trên Google" lists the scene's keywords; the one picked opens Google Ảnh, tall photos only.
   await page.context().route("https://www.google.com/**", (route) => route.fulfill({ body: "Google Ảnh" }));
+  await openScene(scenes.nth(0));
   await scenes.nth(0).getByRole("button", { name: "Tìm trên Google" }).click();
   const second = page.locator(".ant-dropdown:visible").getByRole("menuitem").nth(1);
   const picked = (await second.innerText()).trim();
@@ -2058,6 +2082,7 @@ test("photos from other sites: paste a photo or its link, drag one from another 
   await expect(scenes.nth(0).getByTestId("scene-preview")).toBeVisible();
 
   // A link is fetched by the api, which only reaches the public internet: this machine's address is refused.
+  await openScene(scenes.nth(1));
   await scenes.nth(1).getByRole("button", { name: "Dán ảnh/link" }).click();
   paste = page.getByRole("dialog", { name: /Dán ảnh hoặc video cho/ });
   await paste.getByLabel("Link ảnh").fill("http://127.0.0.1:9/anh.jpg");
@@ -2070,6 +2095,7 @@ test("photos from other sites: paste a photo or its link, drag one from another 
     data.setData("text/html", `<img src="${src}" alt="">`);
     return data;
   }, PNG_DATA_URL);
+  await openScene(scenes.nth(2));
   await scenes.nth(2).getByTestId("scene-dropzone").dispatchEvent("drop", { dataTransfer: transfer });
   await expect(scenes.nth(2).getByTestId("scene-preview")).toBeVisible();
 });
@@ -2085,6 +2111,7 @@ test("picker filters: keyword chips, photo shape, and photos already in the vide
   const scenes = page.getByTestId("scene");
 
   // The first scene takes the first result; the second scene's picker, on the same keyword, no longer offers it.
+  await openScene(scenes.nth(0));
   await scenes.nth(0).getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   let picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
@@ -2093,6 +2120,7 @@ test("picker filters: keyword chips, photo shape, and photos already in the vide
   await picker.getByTestId("stock-hit").first().click();
   await expect(picker).toBeHidden();
 
+  await openScene(scenes.nth(1));
   await scenes.nth(1).getByRole("button", { name: "Chọn từ kho" }).click();
 
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
@@ -2121,6 +2149,7 @@ test("photos from Pexels and Openverse: switch sources inside the picker", async
   await loginAsSeed(page);
   await newVideoWithScript(page, "món ăn tốt cho xương");
   const scene = page.getByTestId("scene").first();
+  await openScene(scene);
   await scene.getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh" });
@@ -2185,6 +2214,7 @@ test("a topic group puts Wikimedia first: the picker and “Tìm ảnh” follow
 
   await newVideoWithScript(page, "canh chua cá");
   const scene = page.getByTestId("scene").first();
+  await openScene(scene);
   await expect(scene.getByRole("button", { name: "Tìm ảnh (Wikimedia Commons)" })).toBeVisible();
   await scene.getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
@@ -2223,7 +2253,7 @@ test("AI photos fill the scenes that have none, then the video can render", asyn
   await expect(page.getByTestId("title-scene").getByTestId("scene-preview")).toBeVisible({ timeout: 30_000 });
   const scenes = page.getByTestId("scene");
   for (let index = 0; index < (await scenes.count()); index++) {
-    await expect(scenes.nth(index).getByTestId("scene-preview")).toBeVisible();
+    await expect(scenes.nth(index).getByTestId("scene-preview")).toHaveCount(1);
   }
   // Every scene has a photo now: the button is gone and Render is unblocked.
   await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0);
@@ -2241,6 +2271,7 @@ test("an AI photo for one scene, then a new one in its place", async ({ page }) 
   const scenes = page.getByTestId("scene");
 
   // Only the chosen scene gets a photo; the others stay empty.
+  await openScene(scenes.nth(1));
   await scenes.nth(1).getByRole("button", { name: "Tạo ảnh AI" }).click();
   await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
   const preview = scenes.nth(1).getByTestId("scene-preview");
@@ -2290,6 +2321,7 @@ test("AI image provider: the team default on Nguồn tư liệu, another one for
   await expect(page.getByTestId("title-scene").getByLabel("Prompt ảnh AI")).toHaveValue(/Calcium-rich/);
 
   // One scene with Cloudflare, picked from the arrow; then the rest with the team's default (Gemini).
+  await openScene(page.getByTestId("scene").nth(0));
   await page.getByTestId("scene").nth(0).getByRole("button", { name: "Chọn nguồn ảnh AI" }).click();
   await page.getByRole("menuitem", { name: /Tạo bằng Cloudflare/ }).click();
   await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
@@ -2328,8 +2360,10 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
 
   // A member keeps a pick, or replaces it: either way its mark goes.
+  await openScene(page.getByTestId("scene").nth(0));
   await page.getByTestId("scene").nth(0).getByRole("button", { name: "Giữ ảnh này" }).click();
   await expect(page.getByTestId("image-auto")).toHaveCount(5);
+  await openScene(page.getByTestId("scene").nth(1));
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Tìm ảnh" }).click();
   await expect(page.getByTestId("image-auto")).toHaveCount(4);
 
@@ -2488,6 +2522,7 @@ test("Làm mờ vùng: a box drawn over a clip is saved, shown in the preview, t
   await loginAsSeed(page);
   await newVideoWithScript(page, "rau ngót cho người lớn tuổi");
   const first = page.getByTestId("scene").first();
+  await openScene(first);
   await first.getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(makeClip());
   await page
     .getByRole("dialog")
@@ -2795,6 +2830,7 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await jobFinished(page);
 
   const scene = page.getByTestId("scene").first();
+  await openScene(scene);
   await scene.getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   const picker = page.getByRole("dialog", { name: "Chọn từ kho ảnh/video" });
@@ -2839,6 +2875,7 @@ test("stock clips: pick a vertical clip for a scene, and a source turned off lea
   await expect(voiceKey.getByTestId("key-status")).toHaveText("Đã lưu, kết thúc bằng …-key");
   await expect(page.getByTestId("source-elevenlabs")).toContainText("Sẵn sàng");
   await page.goto(videoUrl);
+  await openScene(page.getByTestId("scene").nth(1));
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Chọn từ kho" }).click();
   await page.getByRole("menuitem", { name: "Kho ảnh/video miễn phí" }).click();
   await expect(picker.getByLabel("Nguồn ảnh")).not.toContainText("Pexels");
@@ -2949,6 +2986,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   const secondBefore = await secondPreview.getAttribute("src");
 
   // Dragged far up, the box stops at the top of the safe zone (y 220), clear of the platform's top bar.
+  await openScene(first);
   await first.getByRole("button", { name: "Vị trí chữ" }).click();
   const dialog = page.getByRole("dialog", { name: "Vị trí chữ của cảnh" });
   const box = dialog.getByTestId("position-box");
@@ -2970,6 +3008,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   await expect(first.getByRole("button", { name: "Vị trí chữ (riêng)" })).toBeVisible();
 
   // The arrow keys move it too; "Lưu cho mọi cảnh" moves the scenes without a place of their own.
+  await openScene(second);
   await second.getByRole("button", { name: "Vị trí chữ" }).click();
   const secondBox = page.getByRole("dialog", { name: "Vị trí chữ của cảnh" }).getByTestId("position-box");
   await expect(secondBox).toBeVisible();
@@ -2979,6 +3018,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   }
   await page.getByRole("button", { name: "Lưu cho mọi cảnh" }).click();
   await expect(secondPreview).not.toHaveAttribute("src", secondBefore ?? "");
+  await openScene(first);
   const firstOwn = await firstPreview.getAttribute("src");
   await expect(first.getByRole("button", { name: "Vị trí chữ (riêng)" })).toBeVisible();
   expect(await firstPreview.getAttribute("src")).toBe(firstOwn);
@@ -2991,6 +3031,7 @@ test("drag a scene's text box inside the safe zone, for that scene or every scen
   // The title moves only up and down.
   const title = page.getByTestId("title-scene");
   const titleBefore = await title.getByTestId("scene-preview").getAttribute("src");
+  await openScene(title);
   await title.getByRole("button", { name: "Vị trí chữ" }).click();
   const titleBox = page.getByRole("dialog", { name: "Vị trí chữ cảnh tiêu đề" }).getByTestId("position-box");
   await expect(titleBox).toBeVisible();
