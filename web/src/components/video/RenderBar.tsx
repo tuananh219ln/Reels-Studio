@@ -48,7 +48,6 @@ export default function RenderBar({
   onShowBlocking = showFirstBlocking,
   onPreview,
   onCancelJob,
-  after,
 }: {
   video: VideoDetail;
   busy: boolean;
@@ -63,8 +62,6 @@ export default function RenderBar({
   onPreview?: () => void;
   /** Cancels the queued job, which has not started yet. */
   onCancelJob?: () => void;
-  /** After "Render": "Đăng bài" and what goes with it, so posting is at the foot of the screen too. */
-  after?: React.ReactNode;
 }) {
   // Under 576 px: the summary line is left out and the bar is tighter.
   const phone = !(Grid.useBreakpoint().sm ?? true);
@@ -174,7 +171,6 @@ export default function RenderBar({
           >
             {video.mp4 ? "Render lại" : "Render"}
           </Button>
-          {after}
         </Flex>
       </Flex>
     </div>

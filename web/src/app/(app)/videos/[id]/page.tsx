@@ -809,6 +809,10 @@ export default function VideoPage() {
                                       <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
                                         Tải MP4
                                       </Button>
+                                      {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+                                        <ApproveVideoButton videoId={video.id} onDone={load} />
+                                      )}
+                                      <PublishButton video={video} />
                                     </Flex>
                                   </Flex>
                                 </Card>
@@ -848,16 +852,6 @@ export default function VideoPage() {
           onShowBlocking={showBlocking}
           jobName={job ? JOB_NAMES[job.kind] : undefined}
           onCancelJob={job ? () => act(() => api<VideoDetail>(`/jobs/${job.id}/cancel`, "POST")) : undefined}
-          after={
-            video.mp4 && (
-              <>
-                {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
-                  <ApproveVideoButton videoId={video.id} onDone={load} />
-                )}
-                <PublishButton video={video} />
-              </>
-            )
-          }
           onPreview={async () => {
             // The preview shows the saved scenes: the field being typed in is saved first.
             await editor.flush();
