@@ -863,6 +863,15 @@ Planned:
   503 `database_unavailable`. Login failures use one generic message, and "account disabled" is
   shown only after a correct password.
 
+### Tự duyệt
+
+`users.auto_approve` (migration 0083) is a member's own switch. When a render job ends (`jobs.run_job` for the worker,
+`routes_render_nodes.done` for a render machine), `auto_approve.settle` approves the maker's video with the same
+`routes_videos.publish` the "Duyệt" button calls, when the plan gives a future time, the maker has a Page for the
+group, the script checks have no warning and the MP4's QC passed; otherwise it only records why. Both outcomes are
+rows of `auto_approvals`, which the MCP tool "Xem kết quả tự duyệt" lists for Muse to relay on WhatsApp. Never raises
+into the job. See [the decision](decisions/2026-11-13-auto-approve.md).
+
 ### ChatGPT and Claude MCP connection
 
 The optional private MCP endpoint uses member-authorized OAuth delegation, stateless Streamable

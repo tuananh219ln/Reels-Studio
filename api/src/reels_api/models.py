@@ -51,6 +51,8 @@ class User(Base):
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The member's own "Mẫu cho video mới" (autoedit.chosen_template): "app" or an edit_templates id; None for none.
     edit_template_default: Mapped[object | None] = mapped_column(JSONB(none_as_null=True))
+    # "Tự duyệt" (migration 0083): their finished renders are approved by the app (auto_approve.py).
+    auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
@@ -706,6 +708,22 @@ class UserVideoDefaults(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class AutoApproval(Base):
+    """What "Tự duyệt" did with a video after its render: scheduled it ("approved") or left it for its maker ("held",
+    with why). Muse reads these (MCP "Xem kết quả tự duyệt") and tells the member on WhatsApp."""
+
+    __tablename__ = "auto_approvals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("videos.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    outcome: Mapped[str] = mapped_column(String(10))
+    reason: Mapped[str] = mapped_column(Text, default="", server_default="")
+    fanpage_name: Mapped[str] = mapped_column(String(200), default="", server_default="")
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class UserLastChoices(Base):

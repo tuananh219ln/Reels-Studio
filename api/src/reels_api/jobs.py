@@ -24,6 +24,7 @@ from . import (
     affiliate_rounds,
     article_posts,
     articles,
+    auto_approve,
     auto_photos,
     autoedit,
     brands,
@@ -207,6 +208,8 @@ def run_job(
             return
         _finish(db, job_id, "done")
         log.info("Job %s done", job_id)
+        if job.kind == "render":
+            auto_approve.settle(db, job.video_id)
         if job.kind in ("script", "clone") or (job.kind == "learn" and _has_script(db, job)):
             _queue_photos(db, job)
 

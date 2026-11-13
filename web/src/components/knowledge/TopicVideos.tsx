@@ -1,16 +1,16 @@
 "use client";
+import AutoApproveSwitch from "@/components/actions/AutoApproveSwitch";
 import VideoActions from "@/components/actions/VideoActions";
 import { usePolling } from "@/lib/polling";
 
 import EmptyState from "@/components/EmptyState";
-import { useMe } from "@/components/MeContext";
 import { PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
 import { api, errorMessage, formatDateTime, type VideoRow } from "@/lib/api";
 import { useUrlChoiceIf, useUrlPageIf } from "@/lib/urlState";
 import { VIDEO_STATUS_FILTERS } from "@/lib/videoStatus";
-import { AppstoreOutlined, DeleteOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tooltip, Typography, theme } from "antd";
+import { AppstoreOutlined, PlusOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Typography, theme } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -59,46 +59,6 @@ function numbers(row: VideoRow) {
     shares: post?.shares ?? null,
     rate: post?.share_rate ?? null,
   };
-}
-
-/** "Xóa" on a row, for the video's maker only (the api refuses anyone else), asked first as on the video page. */
-function DeleteVideoButton({ row, onDeleted }: { row: VideoRow; onDeleted: (id: number) => void }) {
-  const { message, modal } = App.useApp();
-  const { me } = useMe();
-  if (row.created_by_id !== me.id) return null;
-  const title = row.title || row.topic;
-  return (
-    <Tooltip title="Xóa video">
-      <Button
-        type="text"
-        size="small"
-        danger
-        icon={<DeleteOutlined />}
-        aria-label={`Xóa video ${title}`}
-        disabled={!["draft", "done", "failed"].includes(row.status)}
-        onClick={() =>
-          modal.confirm({
-            title: `Xóa video “${title}”?`,
-            content:
-              "Xóa hẳn video, các cảnh, job và mọi file (ảnh, MP4, ảnh thu nhỏ). Không khôi phục được. " +
-              "Bài đã đăng hoặc đã hẹn giờ trên Facebook vẫn còn.",
-            okText: "Xóa",
-            cancelText: "Huỷ",
-            okButtonProps: { danger: true },
-            onOk: async () => {
-              try {
-                await api(`/videos/${row.id}`, "DELETE");
-                message.success("Đã xóa video");
-                onDeleted(row.id);
-              } catch (err) {
-                message.error(errorMessage(err));
-              }
-            },
-          })
-        }
-      />
-    </Tooltip>
-  );
 }
 
 /** "Video" in Kho kiến thức: the videos of one topic group, newest first, each opening its video page. */
@@ -154,7 +114,6 @@ export default function TopicVideos({
     rows?.some((row) => !["draft", "done", "failed"].includes(row.status)) ? 5000 : 60000,
   );
 
-  const removeRow = (id: number) => setRows((current) => (current ?? []).filter((row) => row.id !== id));
   // Every choice, with how many of the group's videos are in it, so a group of finished videos still shows the rest.
   const choice = VIDEO_STATUS_FILTERS.find((item) => item.value === status);
   const wanted = plain(search.trim());
@@ -199,16 +158,19 @@ export default function TopicVideos({
             ]}
           />
         </Flex>
-        {canCreate && (
-          <Link prefetch={false} href={`/videos?group=${topicId}`}>
-            <Button type="primary" icon={<PlusOutlined />}>
-              Tạo video
-            </Button>
-          </Link>
-        )}
+        <Flex wrap gap={16} align="center">
+          <AutoApproveSwitch />
+          {canCreate && (
+            <Link prefetch={false} href={`/videos?group=${topicId}`}>
+              <Button type="primary" icon={<PlusOutlined />}>
+                Tạo video
+              </Button>
+            </Link>
+          )}
+        </Flex>
       </Flex>
       {view === "list" ? (
-        <VideoCards rows={rows} shown={shown} onDeleted={removeRow} onChanged={() => load(true)} />
+        <VideoCards rows={rows} shown={shown} onChanged={() => load(true)} />
       ) : (
         <Table<VideoRow>
           size="small"
@@ -334,7 +296,6 @@ export default function TopicVideos({
               render: (_, row) => (
                 <Flex>
                   <VideoActions video={row} onChanged={() => load(true)} />
-                  <DeleteVideoButton row={row} onDeleted={removeRow} />
                 </Flex>
               ),
             },
@@ -349,12 +310,10 @@ export default function TopicVideos({
 function VideoCards({
   rows,
   shown,
-  onDeleted,
   onChanged,
 }: {
   rows: VideoRow[] | null;
   shown: VideoRow[];
-  onDeleted: (id: number) => void;
   onChanged: () => Promise<void>;
 }) {
   const { token } = theme.useToken();
@@ -398,7 +357,6 @@ function VideoCards({
                   </Link>
                   <Flex>
                     <VideoActions video={row} onChanged={onChanged} />
-                    <DeleteVideoButton row={row} onDeleted={onDeleted} />
                   </Flex>
                 </Flex>
                 <Typography.Text type="secondary" style={{ fontSize: 13 }}>

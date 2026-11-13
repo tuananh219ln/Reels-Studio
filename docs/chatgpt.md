@@ -259,3 +259,10 @@ PKCE, expiration, revocation, scopes, session invalidation, resource binding and
 tool discovery and revocation. Its callback is intercepted locally and never reaches ChatGPT;
 AI calls use the project's fake services. A real workspace connection after deployment remains
 an owner check; agents do not access production or trigger real jobs to test it.
+
+## Tự duyệt (Muse)
+
+"Xem kết quả tự duyệt" (read-only) lists the signed-in member's new results of "Tự duyệt": which video was just
+scheduled (Page, time) and which waits for a manual "Duyệt" (reason). An assistant that is always on, like Muse on
+WhatsApp, calls it every few minutes with `after_id` set to the largest `id` it has already reported and messages the
+member one line per result. See [the decision](decisions/2026-11-13-auto-approve.md).

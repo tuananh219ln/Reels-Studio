@@ -26,9 +26,14 @@ test("a group's list deletes the maker's video after asking", async ({ page }) =
   await handWritten(page, group, "Canh mồng tơi");
   await page.goto(`/knowledge?group=${group}`);
   const health = page.locator('[data-topic="Sức khỏe"]');
-  await expect(health.getByRole("button", { name: "Xóa video Rau dền luộc" })).toBeVisible();
+  // No bin beside the row: "Xóa video" is in the row's actions, as for everything else done to a video.
+  await expect(health.getByRole("button", { name: "Xóa video Rau dền luộc" })).toHaveCount(0);
 
-  await health.getByRole("button", { name: "Xóa video Rau dền luộc" }).click();
+  await health.getByRole("button", { name: "Thao tác với video Rau dền luộc" }).click();
+  await page
+    .getByRole("dialog", { name: "Thao tác video" })
+    .getByRole("button", { name: "Xóa video", exact: true })
+    .click();
   const confirm = page.getByRole("dialog", { name: "Xóa video “Rau dền luộc”?" });
   await confirm.getByRole("button", { name: "Xóa" }).click();
   await expect(page.getByText("Đã xóa video")).toBeVisible();
@@ -85,4 +90,17 @@ test("30-day plan: ideas are ticked by day and deleted together", async ({ page 
   await expect(drawer).toBeHidden();
   const plan = await (await page.request.get(`/api/plans/${group}`)).json();
   expect(plan.items.map((item: { topic: string }) => item.topic)).toEqual(["Đi bộ sau bữa tối"]);
+});
+
+test("a group's video list has the member's own auto-approve switch", async ({ page }) => {
+  await loginAsSeed(page);
+  const group = await healthGroup(page);
+  await page.goto(`/knowledge?group=${group}`);
+  const health = page.locator('[data-topic="Sức khỏe"]');
+  const switcher = health.getByRole("switch", { name: "Tự duyệt khi render xong" });
+  await expect(switcher).not.toBeChecked();
+  await switcher.click();
+  await expect(page.getByText("Đã bật tự duyệt")).toBeVisible();
+  await page.reload();
+  await expect(health.getByRole("switch", { name: "Tự duyệt khi render xong" })).toBeChecked();
 });

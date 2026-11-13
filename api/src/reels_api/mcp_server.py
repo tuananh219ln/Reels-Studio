@@ -30,7 +30,7 @@ from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 
-from . import clips, jobs, motion, remote_media, video_options
+from . import auto_approve, clips, jobs, motion, remote_media, video_options
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -247,6 +247,17 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             return {"videos": [video_link(row) for row in rows[offset : offset + limit]], "total": len(rows)}
 
         return await run_in_threadpool(invoke, operation)
+
+    @tool("Xem kết quả tự duyệt", read=True)
+    async def list_auto_approvals(
+        after_id: Annotated[int, Field(ge=0)] = 0, limit: Annotated[int, Field(ge=1, le=50)] = 20
+    ) -> dict:
+        """Kết quả "Tự duyệt" của thành viên: video nào vừa được hẹn đăng (kèm Page, giờ) và video nào còn chờ duyệt
+        tay (kèm lý do). Gọi đều đặn, nhớ `id` lớn nhất đã báo và truyền lại làm after_id để chỉ lấy kết quả mới, rồi
+        nhắn thành viên qua WhatsApp."""
+        return await run_in_threadpool(
+            invoke, lambda db, me: {"results": auto_approve.recent(db, me.user_id, after_id, limit)}
+        )
 
     @tool("Đọc video", read=True)
     async def get_video(video_id: int) -> dict:
