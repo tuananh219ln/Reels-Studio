@@ -65,7 +65,16 @@ import { useEditor } from "./AutoSaveField";
 import { VoicePicker } from "./VideoSettings";
 import { Phone } from "./phone/Phone";
 import PlatformFrame, { PLATFORM_LABELS, type Platform } from "./PlatformFrame";
-import { FRAME_HEIGHT, FRAME_WIDTH, SAFE, placeBox } from "./TextPositionModal";
+import {
+  COVERED,
+  FRAME_HEIGHT,
+  FRAME_WIDTH,
+  LOGO_CORNER_WIDTH,
+  LOGO_TITLE_WIDTH,
+  SAFE,
+  logoCorner,
+  placeBox,
+} from "./TextPositionModal";
 import { isBackdrop, previewScenes } from "./videoModes";
 import "./preview/editor.css";
 
@@ -209,7 +218,14 @@ export default function VideoPreview({
       return "reels";
     }
   });
-  const [guide, setGuide] = useState(false);
+  // "Hiện vùng an toàn": remembered in the browser.
+  const [guide, setGuide] = useState(() => {
+    try {
+      return window.localStorage.getItem(GUIDE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
   const [tool, setTool] = useState<Tool>("scene");
   const [width, setWidth] = useState(phoneWidth);
   const [statusTime] = useState(clockNow);
@@ -1159,8 +1175,20 @@ export default function VideoPreview({
                 </Typography.Text>
               </div>
               <Flex align="center" gap={8}>
-                <Switch checked={guide} onChange={setGuide} aria-label="Vùng an toàn" size="small" />
-                <Typography.Text>Đường vùng an toàn của mẫu</Typography.Text>
+                <Switch
+                  checked={guide}
+                  onChange={(on) => {
+                    setGuide(on);
+                    try {
+                      window.localStorage.setItem(GUIDE_KEY, on ? "1" : "0");
+                    } catch {
+                      // The choice is only not remembered.
+                    }
+                  }}
+                  aria-label="Vùng an toàn"
+                  size="small"
+                />
+                <Typography.Text>Hiện vùng an toàn (đỏ: nơi app che)</Typography.Text>
               </Flex>
             </>
           )}
@@ -1418,6 +1446,13 @@ export default function VideoPreview({
                       elapsed={() => position() - startOf(phase.index)}
                       playing={playing && !ended}
                       listen={listen}
+                    />
+                  )}
+                  {scene && video.logo_enabled && video.brand?.logo_badge_url && (
+                    <LogoBadge
+                      url={video.brand.logo_badge_url}
+                      isTitle={scene.is_title}
+                      boxTop={scene.is_title && boxCorner ? boxCorner[1] : null}
                     />
                   )}
                   {guide && <SafeZone />}
@@ -1814,8 +1849,64 @@ function SceneLayer({
   );
 }
 
-/** The template's safe zone (reels_render.textbox), dashed: the text box always stays inside it. */
+/** The channel's logo over the frame where the renderer lays it, still while the scene moves (css only: the
+ * scene's preview picture holds no logo). */
+function LogoBadge({ url, isTitle, boxTop }: { url: string; isTitle: boolean; boxTop: number | null }) {
+  const [left, top] = logoCorner(isTitle, boxTop);
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- the api's badge picture, laid by css
+    <img
+      src={url}
+      alt="Logo kênh"
+      data-testid="preview-logo"
+      style={{
+        position: "absolute",
+        left: percent(left, FRAME_WIDTH),
+        top: percent(top, FRAME_HEIGHT),
+        width: percent(isTitle ? LOGO_TITLE_WIDTH : LOGO_CORNER_WIDTH, FRAME_WIDTH),
+        pointerEvents: "none",
+      }}
+    />
+  );
+}
+
+const GUIDE_KEY = "reels.preview.safeZone";
+const COVER = "rgba(225, 6, 0, 0.3)";
+
+/** Where the apps cover the video, in red (top bar, caption and music, the button column), and the template's safe
+ * zone for the text box, dashed. */
 function SafeZone() {
+  const area = (left: number, top: number, width: number, height: number): React.CSSProperties => ({
+    position: "absolute",
+    left: percent(left, FRAME_WIDTH),
+    top: percent(top, FRAME_HEIGHT),
+    width: percent(width, FRAME_WIDTH),
+    height: percent(height, FRAME_HEIGHT),
+    background: COVER,
+    pointerEvents: "none",
+  });
+  return (
+    <>
+      <div data-testid="preview-covered-top" style={area(0, 0, FRAME_WIDTH, COVERED.top)} />
+      <div
+        data-testid="preview-covered-bottom"
+        style={area(0, COVERED.bottom, FRAME_WIDTH, FRAME_HEIGHT - COVERED.bottom)}
+      />
+      <div
+        data-testid="preview-covered-right"
+        style={area(
+          COVERED.rightColumn.x,
+          COVERED.rightColumn.y1,
+          FRAME_WIDTH - COVERED.rightColumn.x,
+          COVERED.rightColumn.y2 - COVERED.rightColumn.y1,
+        )}
+      />
+      <TemplateZone />
+    </>
+  );
+}
+
+function TemplateZone() {
   return (
     <div
       data-testid="preview-safe-zone"

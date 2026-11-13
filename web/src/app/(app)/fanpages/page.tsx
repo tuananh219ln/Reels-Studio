@@ -24,6 +24,7 @@ import {
   Segmented,
   Select,
   Space,
+  Switch,
   Tooltip,
   Typography,
 } from "antd";
@@ -32,7 +33,9 @@ import {
   api,
   errorMessage,
   formatDateTime,
+  upload,
   type AffiliateAccount,
+  type BrandLogoResult,
   type Fanpage,
   type FanpageChoice,
   type QueueOverview,
@@ -182,6 +185,108 @@ function OwnerLine({
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
           Tài khoản TikTok chưa kết nối, hãy kết nối lại trong Cài đặt › Tài khoản affiliate
         </Typography.Text>
+      )}
+      <LogoLine row={row} onRows={onRows} />
+    </Flex>
+  );
+}
+
+/** The Page's logo ("Kênh"): laid on the MP4 of every video made for the Page, inside the platforms' safe zone. Its
+ * owner uploads it or takes the Page's own picture; the brand is made on the first logo. */
+function LogoLine({ row, onRows }: { row: Fanpage; onRows: (rows: Fanpage[]) => void }) {
+  const { message } = App.useApp();
+  const [busy, setBusy] = useState(false);
+  const brand = row.brand;
+
+  async function change(work: (brandId: number) => Promise<BrandLogoResult | null>) {
+    setBusy(true);
+    try {
+      let brandId = brand?.id;
+      if (brandId === undefined) {
+        brandId = (await api<{ id: number }>("/brands", "POST", { name: row.name, fanpage_id: row.id })).id;
+      }
+      const result = await work(brandId);
+      onRows(await api<Fanpage[]>("/fanpages"));
+      if (result && result.videos_outdated > 0) {
+        message.info(`${result.videos_outdated} video chưa đăng sẽ cần render lại để có logo mới`);
+      }
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Flex vertical gap={6} data-testid="fanpage-logo">
+      <Flex gap={8} align="center">
+        {brand?.logo_badge_url ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a small badge served by the api, no optimisation needed
+          <img src={brand.logo_badge_url} alt={`Logo ${row.name}`} width={40} height={40} />
+        ) : (
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Chưa có logo (gắn vào video của Page này)
+          </Typography.Text>
+        )}
+        <label>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            aria-label={`Tải logo của ${row.name}`}
+            disabled={busy}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (file) void change((id) => upload<BrandLogoResult>(`/brands/${id}/logo`, file));
+            }}
+          />
+          <Button
+            size="small"
+            loading={busy}
+            onClick={(event) => event.currentTarget.parentElement?.querySelector("input")?.click()}
+          >
+            {brand?.logo_badge_url ? "Đổi logo" : "Tải logo"}
+          </Button>
+        </label>
+        {row.picture && (
+          <Button
+            size="small"
+            disabled={busy}
+            onClick={() => change((id) => api<BrandLogoResult>(`/brands/${id}/logo/from-fanpage`, "POST"))}
+          >
+            Dùng ảnh Fanpage
+          </Button>
+        )}
+        {brand?.logo_badge_url && (
+          <Popconfirm
+            title="Xoá logo của Page?"
+            okText="Xoá"
+            cancelText="Huỷ"
+            onConfirm={() => change((id) => api<BrandLogoResult>(`/brands/${id}/logo`, "DELETE"))}
+          >
+            <Button size="small" danger type="text" icon={<DeleteOutlined />} aria-label="Xoá logo" />
+          </Popconfirm>
+        )}
+      </Flex>
+      {brand?.logo_badge_url && (
+        <Flex gap={8} align="center">
+          <Switch
+            size="small"
+            checked={brand.logo_default_on}
+            disabled={busy}
+            aria-label="Video mới của Page tự gắn logo"
+            onChange={(on) =>
+              change(async (id) => {
+                await api(`/brands/${id}`, "PATCH", { logo_default_on: on });
+                return null;
+              })
+            }
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Video của Page tự gắn logo
+          </Typography.Text>
+        </Flex>
       )}
     </Flex>
   );

@@ -26,6 +26,7 @@ from . import (
     articles,
     auto_photos,
     autoedit,
+    brands,
     config,
     facebook,
     fanpages,
@@ -60,6 +61,7 @@ from .frames import jpeg_bytes
 from .imagegen import ImageGenError, generate_image
 from .models import (
     Article,
+    Fanpage,
     Job,
     KnowledgeTopic,
     Publication,
@@ -725,6 +727,9 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
         signature = render_signature(video, title, scenes)
         options = render_options(video)
+        if brands.badge_path(db, storage, video) is not None:
+            data["logo"] = storage.copy_to(brands.brand_of(db, video).logo_badge_path, folder / "logo.png").name
+            options = replace(options, logo=True)
         if any("video_blur" in item for item in [data["title"], *data["scenes"]]):
             options = replace(options, clip_blur=True)
         music = _checked_music(video, storage, folder)
@@ -1043,6 +1048,8 @@ def _check_publishable(db: DbSession, video: Video, post: Publication, storage: 
     title, scenes = split_scenes(db, video)
     if video.rendered_signature != render_signature(video, title, scenes):
         raise JobFailure("MP4 chưa cập nhật theo bản sửa, hãy render lại rồi đăng")
+    if (page := db.get(Fanpage, post.fanpage_id)) is not None and (wrong := brands.mismatch(db, video, page)):
+        raise JobFailure(wrong)
     if post.scheduled_at is not None and post.scheduled_at < now() + MIN_SCHEDULE_LEAD:
         raise JobFailure("Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại")
     if not video.mp4_key or not storage.exists(video.mp4_key):

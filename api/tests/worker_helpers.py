@@ -14,6 +14,7 @@ from sqlalchemy.orm import sessionmaker
 from reels_api.models import (
     AppSetting,
     Article,
+    Brand,
     Fanpage,
     Job,
     KnowledgeTopic,
@@ -38,6 +39,7 @@ def committed(engine):
             TopicPlanItem,
             Job,
             Article,
+            Brand,
             Scene,
             Video,
             Fanpage,
