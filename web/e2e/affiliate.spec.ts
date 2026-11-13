@@ -216,6 +216,30 @@ test("a member connects their TikTok account through TikTok's consent page, then
   await expect(page.getByTestId("tiktok-connection")).toHaveText("Chưa kết nối TikTok: chỉ ghi được bài đăng tay");
 });
 
+test("a member's TikTok account: set on their Page, and shown there after a reload", async ({ page }) => {
+  await loginAsSeed(page);
+  // TikTok's consent page, answered as TikTok does once the member allows the app.
+  await page.route("https://www.tiktok.com/**", (route) => {
+    const asked = new URL(route.request().url());
+    if (asked.pathname !== "/v2/auth/authorize/") {
+      return route.abort();
+    }
+    const back = `/api/tiktok/oauth/callback?code=fake-tiktok-code&state=${asked.searchParams.get("state")}`;
+    return route.fulfill({ status: 302, headers: { location: `http://localhost:3100${back}` } });
+  });
+  await page.goto("/settings/affiliate-accounts");
+  await page.getByRole("button", { name: "Kết nối TikTok" }).first().click();
+  await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
+
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
+  await expect(owner).toContainText("Thuộc: bạn");
+  await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
+  await page.reload();
+  await expect(page.getByTestId("fanpage-owner")).toContainText("TikTok: An Lành SK (@anlanhsk)");
+});
+
 test("an article's AI caption finds Shopee products with the writer's account, and one goes in its comment", async ({
   page,
 }) => {

@@ -210,7 +210,7 @@ export function PublishButton({ video }: { video: VideoDetail }) {
             {
               key: "tiktok",
               label: label("TikTok", posted.tiktok),
-              children: <TikTokCard video={video} />,
+              children: <TikTokCard video={video} fanpageId={fanpage} />,
             },
             {
               key: "youtube",

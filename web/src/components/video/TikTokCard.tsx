@@ -17,8 +17,9 @@ import {
   Typography,
 } from "antd";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, errorMessage, formatDateTime, type AffiliateAccount, type TikTokPost, type VideoDetail } from "@/lib/api";
+import { myPageOfGroup } from "@/lib/lastChoices";
 import { useMe } from "@/components/MeContext";
 import { useEditor } from "./AutoSaveField";
 
@@ -44,9 +45,10 @@ const CHECKLIST = [
  * for the cart, a checklist, then either
  * "Đăng lên TikTok" (sent through TikTok's API with the member's own connection: a draft to their TikTok inbox, or
  * posted directly) or "Đã đăng tay", which records a post made in TikTok's app, on one of their own accounts. */
-export default function TikTokCard({ video }: { video: VideoDetail }) {
+export default function TikTokCard({ video, fanpageId }: { video: VideoDetail; fanpageId?: number | null }) {
   const { message } = App.useApp();
   const { onSaved } = useEditor();
+  const { me } = useMe();
   const [accounts, setAccounts] = useState<AffiliateAccount[] | null>(null);
   const [products, setProducts] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -57,6 +59,10 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
   const connected = (accounts ?? []).filter(
     (account) => account.tiktok_connection && !account.tiktok_connection.needs_reconnect,
   );
+  // The Page the video is posted from (the drawer's pick, else the member's own Page of its group) and the TikTok
+  // account that Page picked on /fanpages: the card opens with it already chosen.
+  const pageId = fanpageId ?? myPageOfGroup(video, me.id);
+  const suggestedId = video.fanpages.find((page) => page.id === pageId)?.tiktok_account_id ?? null;
 
   useEffect(() => {
     let live = true;
@@ -76,6 +82,23 @@ export default function TikTokCard({ video }: { video: VideoDetail }) {
       live = false;
     };
   }, [video.affiliate_product_ids]);
+
+  // Once per video (and per picked Page): start both account fields on the Page's TikTok account. A manual pick is
+  // never overwritten: the accounts reload when the video's products change, and the key has not.
+  const syncedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (accounts === null) return;
+    const key = `${video.id}:${pageId ?? ""}`;
+    if (syncedFor.current === key) return;
+    syncedFor.current = key;
+    // "Đăng lên TikTok" needs a live connection; "Đã đăng tay" takes any of the member's accounts.
+    const publishSuggested =
+      suggestedId !== null && connected.some((account) => account.id === suggestedId) ? suggestedId : undefined;
+    const recordSuggested =
+      suggestedId !== null && accounts.some((account) => account.id === suggestedId) ? suggestedId : undefined;
+    publishForm.setFieldsValue({ account_id: publishSuggested });
+    form.setFieldsValue({ account_id: recordSuggested });
+  }, [accounts, connected, video.id, pageId, suggestedId, publishForm, form]);
 
   async function copy(text: string, what: string) {
     try {

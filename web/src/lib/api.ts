@@ -383,6 +383,8 @@ export type VideoDetail = VideoRow & {
     owner_id: number | null;
     /** The topic group the Page posts. */
     knowledge_topic_id: number | null;
+    /** The TikTok account picked for the Page on /fanpages; null until one is picked. */
+    tiktok_account_id: number | null;
     error: string | null;
   }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
@@ -594,6 +596,8 @@ export type Fanpage = {
   mine: boolean;
   /** The Shopee account whose links its comments carry, shown only to its owner. */
   shopee_account: { id: number; name: string; usable: boolean } | null;
+  /** The TikTok account its videos open with on their Đăng TikTok card, shown only to its owner. */
+  tiktok_account: { id: number; name: string; connected: boolean } | null;
   /** The worker's last check of the token (api fanpages.check). */
   check: {
     checked_at: string | null;

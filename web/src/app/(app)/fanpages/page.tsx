@@ -93,8 +93,8 @@ function Gain({ gain }: { gain: number | null }) {
   );
 }
 
-/** Whose Page it is and, for its owner, the Shopee account whose links its comments carry (one of their own). A Page
- * that belongs to nobody is taken with "Nhận Page này". */
+/** Whose Page it is and, for its owner, the Shopee account whose links its comments carry and the TikTok account
+ * its videos open with (each one of their own). A Page that belongs to nobody is taken with "Nhận Page này". */
 function OwnerLine({
   row,
   accounts,
@@ -134,6 +134,7 @@ function OwnerLine({
     );
   }
   const shopee = accounts.filter((account) => account.platform === "shopee" && account.active);
+  const tiktok = accounts.filter((account) => account.platform === "tiktok" && account.active);
   return (
     <Flex vertical gap={6} data-testid="fanpage-owner">
       <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -156,6 +157,30 @@ function OwnerLine({
       {row.shopee_account && !row.shopee_account.usable && (
         <Typography.Text type="warning" style={{ fontSize: 12 }}>
           Tài khoản Shopee thiếu App ID/Secret hoặc đang ngừng dùng: bình luận dùng link dán tay
+        </Typography.Text>
+      )}
+      <Select
+        size="small"
+        aria-label={`Tài khoản TikTok của ${row.name}`}
+        placeholder="Chưa gắn tài khoản TikTok (chọn tay ở từng video)"
+        allowClear
+        value={row.tiktok_account?.id ?? null}
+        options={tiktok.map((account) => ({
+          value: account.id,
+          label: `TikTok: ${account.name}${
+            account.tiktok_connection?.username ? ` (@${account.tiktok_connection.username})` : ""
+          }`,
+        }))}
+        onChange={(accountId: number | undefined) =>
+          call(`/fanpages/${row.id}/tiktok-account`, "PUT", { account_id: accountId ?? null })
+        }
+        notFoundContent={
+          <Typography.Text type="secondary">Kết nối TikTok ở Cài đặt › Tài khoản affiliate</Typography.Text>
+        }
+      />
+      {row.tiktok_account && !row.tiktok_account.connected && (
+        <Typography.Text type="warning" style={{ fontSize: 12 }}>
+          Tài khoản TikTok chưa kết nối, hãy kết nối lại trong Cài đặt › Tài khoản affiliate
         </Typography.Text>
       )}
     </Flex>
@@ -631,7 +656,7 @@ function Fanpages() {
             Thêm Fanpage
           </Button>
         }
-        description="Các Fanpage đội dùng để đăng: số liệu 7 ngày, chủ Page, tài khoản Shopee và lịch đăng của từng Page. Tool tự kiểm tra token mỗi 12 giờ."
+        description="Các Fanpage đội dùng để đăng: số liệu 7 ngày, chủ Page, tài khoản Shopee và TikTok, lịch đăng của từng Page. Tool tự kiểm tra token mỗi 12 giờ."
       />
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (

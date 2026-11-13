@@ -1106,6 +1106,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
                 "owner_id": page.owner_id,
                 # The group it posts: the publish dialog starts on the viewer's own Page of the video's group (B3).
                 "knowledge_topic_id": page.knowledge_topic_id,
+                # The TikTok account picked for the Page on /fanpages: its videos' Đăng TikTok card opens with it.
+                "tiktok_account_id": page.tiktok_account_id,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)

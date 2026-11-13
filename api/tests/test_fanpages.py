@@ -1,11 +1,20 @@
+from datetime import UTC, datetime, timedelta
+
 import pytest
-from conftest import login, make_user, make_video
+from conftest import first_topic, login, make_user, make_video
 from fake_services import FACEBOOK_PAGE, FACEBOOK_TOKEN, FACEBOOK_USER_TOKEN
 from sqlalchemy import select
 
 from reels_api import config, crypto, fanpages
 from reels_api.facebook import FacebookError
-from reels_api.models import Fanpage, FanpageFollowers, FanpageInsights, Publication
+from reels_api.models import (
+    AffiliateAccount,
+    Fanpage,
+    FanpageFollowers,
+    FanpageInsights,
+    Publication,
+    TikTokConnection,
+)
 
 URL = "/api/fanpages"
 PAGE = {"id": FACEBOOK_PAGE, "name": "Trang Dưỡng Sinh"}
@@ -205,3 +214,110 @@ def test_a_page_with_posts_is_kept_for_their_history(an, db, me, storage, fakes)
 
 def test_deleting_an_unknown_page(an):
     assert an.delete(f"{URL}/999").status_code == 404
+
+
+# The Page's TikTok account
+
+
+def tiktok_account(db, me, name="TikTok của An", platform="tiktok", active=True):
+    account = AffiliateAccount(platform=platform, owner_id=me.id, name=name, active=active)
+    db.add(account)
+    db.commit()
+    return account
+
+
+def connect_tiktok(db, account, me):
+    moment = datetime.now(UTC)
+    db.add(
+        TikTokConnection(
+            owner_id=me.id,
+            affiliate_account_id=account.id,
+            open_id="tiktok-open-id",
+            username="anlanhsk",
+            display_name="An Lành SK",
+            access_token_encrypted=crypto.encrypt("fake-access"),
+            refresh_token_encrypted=crypto.encrypt("fake-refresh"),
+            access_expires_at=moment + timedelta(hours=2),
+            refresh_expires_at=moment + timedelta(days=365),
+            scopes="user.info.basic,video.upload,video.publish",
+        )
+    )
+    db.commit()
+
+
+def test_a_pages_owner_sets_its_tiktok_account(an, db, me, fakes):
+    (row,) = connect(an).json()
+    account = tiktok_account(db, me)
+    (updated,) = an.put(f"{URL}/{row['id']}/tiktok-account", json={"account_id": account.id}).json()
+    assert updated["tiktok_account"] == {"id": account.id, "name": "TikTok của An", "connected": False}
+    assert db.get(Fanpage, row["id"]).tiktok_account_id == account.id
+
+
+def test_a_connected_tiktok_account_shows_connected_on_the_page(an, db, me, fakes):
+    (row,) = connect(an).json()
+    account = tiktok_account(db, me)
+    connect_tiktok(db, account, me)
+    (updated,) = an.put(f"{URL}/{row['id']}/tiktok-account", json={"account_id": account.id}).json()
+    assert updated["tiktok_account"]["connected"] is True
+
+
+def test_clearing_a_pages_tiktok_account(an, db, me, fakes):
+    (row,) = connect(an).json()
+    account = tiktok_account(db, me)
+    an.put(f"{URL}/{row['id']}/tiktok-account", json={"account_id": account.id})
+    (updated,) = an.put(f"{URL}/{row['id']}/tiktok-account", json={"account_id": None}).json()
+    assert updated["tiktok_account"] is None
+    assert db.get(Fanpage, row["id"]).tiktok_account_id is None
+
+
+def test_a_shopee_account_cannot_be_the_pages_tiktok_account(an, db, me, fakes):
+    (row,) = connect(an).json()
+    account = tiktok_account(db, me, name="Shopee của An", platform="shopee")
+    refused = an.put(f"{URL}/{row['id']}/tiktok-account", json={"account_id": account.id})
+    assert (refused.status_code, refused.json()["message"]) == (422, "Hãy chọn một tài khoản TikTok của bạn")
+    assert db.get(Fanpage, row["id"]).tiktok_account_id is None
+
+
+def test_an_inactive_tiktok_account_is_refused(an, db, me, fakes):
+    (row,) = connect(an).json()
+    account = tiktok_account(db, me, active=False)
+    refused = an.put(f"{URL}/{row['id']}/tiktok-account", json={"account_id": account.id})
+    assert (refused.status_code, refused.json()["message"]) == (422, "Tài khoản “TikTok của An” đang ngừng dùng")
+
+
+def test_only_the_pages_owner_sets_its_tiktok_account(an, client, db, me, fakes):
+    (row,) = connect(an).json()
+    other = make_user(db, email="binh@doi.vn", name="Trần Bình")
+    login(client, "binh@doi.vn")
+    account = tiktok_account(db, other)
+    refused = client.put(f"{URL}/{row['id']}/tiktok-account", json={"account_id": account.id})
+    assert (refused.status_code, refused.json()["message"]) == (
+        403,
+        "Chỉ chủ của Fanpage mới gắn được tài khoản TikTok",
+    )
+
+
+def test_an_unknown_fanpage_has_no_tiktok_account(an):
+    assert an.put(f"{URL}/999/tiktok-account", json={"account_id": None}).status_code == 404
+
+
+def test_a_video_carries_its_pages_tiktok_account(an, db, me, storage, fakes):
+    (row,) = connect(an).json()
+    account = tiktok_account(db, me)
+    page = db.get(Fanpage, row["id"])
+    page.knowledge_topic_id = first_topic(db).id
+    page.tiktok_account_id = account.id
+    db.commit()
+    video = make_video(db, storage, me)
+    (listed,) = an.get(f"/api/videos/{video.id}").json()["fanpages"]
+    assert listed["tiktok_account_id"] == account.id
+
+
+def test_a_video_whose_page_picked_no_tiktok_account_has_none(an, db, me, storage, fakes):
+    (row,) = connect(an).json()
+    page = db.get(Fanpage, row["id"])
+    page.knowledge_topic_id = first_topic(db).id
+    db.commit()
+    video = make_video(db, storage, me)
+    (listed,) = an.get(f"/api/videos/{video.id}").json()["fanpages"]
+    assert listed["tiktok_account_id"] is None
