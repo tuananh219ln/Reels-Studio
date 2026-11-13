@@ -37,6 +37,8 @@ def _payload(db: DbSession, video: Video, post: Publication, by_page: dict) -> d
         "created_by_id": post.created_by_id,
         "fanpage_owner_id": post.fanpage.owner_id if post.fanpage else None,
         "video_id": video.id,
+        # The video's topic group, for "Lịch đăng" of Kho kiến thức.
+        "knowledge_topic_id": video.knowledge_topic_id,
         "title": title_of(video, title) or video.topic,
         "thumbnail_url": thumbnail_url(video),
         "busy": active_job(db, video.id) is not None,
