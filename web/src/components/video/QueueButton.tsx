@@ -14,7 +14,13 @@ const OWN_PAGE = 0;
 
 /** "Thêm vào hàng chờ" beside "Đăng": once a member has watched the MP4, it waits for its Page's next free posting
  * time, and the worker schedules it there. By default it goes to the member's own Page of the video's topic group. */
-export default function QueueButton({ video }: { video: VideoDetail }) {
+export default function QueueButton({
+  video,
+  onChanged,
+}: {
+  video: VideoDetail;
+  onChanged?: () => void | Promise<void>;
+}) {
   const { message } = App.useApp();
   const { me } = useMe();
   const [item, setItem] = useState<QueueItem | null>(null);
@@ -55,6 +61,7 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
       if (page !== OWN_PAGE) await saveLastChoice({ fanpage_id: page });
       setItem(answer.item);
       setOpen(false);
+      await onChanged?.();
       message.success(`Đã thêm vào hàng chờ của “${answer.item.fanpage}”`);
     } catch (err) {
       message.error(errorMessage(err));
@@ -67,6 +74,7 @@ export default function QueueButton({ video }: { video: VideoDetail }) {
     try {
       await api(`/queue/items/${queued.id}`, "DELETE");
       setItem(null);
+      await onChanged?.();
     } catch (err) {
       message.error(errorMessage(err));
       load();

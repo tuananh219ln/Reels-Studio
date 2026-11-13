@@ -1,11 +1,14 @@
 "use client";
+import { DeleteArticleButton } from "@/components/actions/ArticleActions";
 
-import { useMe } from "@/components/MeContext";
-import { ArrowLeftOutlined, DeleteOutlined, LinkOutlined, RobotOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Col, Flex, Input, Popconfirm, Result, Row, Select, Spin, Typography } from "antd";
-import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import StatusText from "@/components/StatusText";
+import {
+  ARTICLE_STATUS_TONES,
+  CommentCard,
+  MakeReelButton,
+  PostsCard,
+  PublishButton,
+} from "@/components/article/ArticlePosting";
 import {
   ApiError,
   api,
@@ -15,15 +18,12 @@ import {
   type Knowledge,
   type PageComments,
 } from "@/lib/api";
-import StatusText from "@/components/StatusText";
-import {
-  ARTICLE_STATUS_TONES,
-  MakeReelButton,
-  PostsCard,
-  CommentCard,
-  PublishButton,
-} from "@/components/article/ArticlePosting";
 import { usePolling } from "@/lib/polling";
+import { ArrowLeftOutlined, LinkOutlined, RobotOutlined } from "@ant-design/icons";
+import { Alert, App, Button, Card, Col, Flex, Input, Result, Row, Select, Spin, Typography } from "antd";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // While a job runs or the worker owes an answer, the page asks every 2.5 s; otherwise it waits for the member.
 const BUSY_REFRESH_MS = 2500;
@@ -93,7 +93,6 @@ export default function ArticlePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const { message, modal } = App.useApp();
-  const { me } = useMe();
   const [article, setArticle] = useState<Article | null>(null);
   const [missing, setMissing] = useState(false);
   const [options, setOptions] = useState<ArticleOptions | null>(null);
@@ -241,26 +240,7 @@ export default function ArticlePage() {
             onSaved={show}
             beforePublish={() => saveTyped("caption", caption)}
           />
-          {article.created_by_id === me.id && (
-            <Popconfirm
-              title="Xoá bài viết này?"
-              okText="Xoá"
-              cancelText="Không"
-              okButtonProps={{ danger: true }}
-              onConfirm={async () => {
-                try {
-                  await api(`/articles/${id}`, "DELETE");
-                  router.push("/articles");
-                } catch (err) {
-                  message.error(errorMessage(err));
-                }
-              }}
-            >
-              <Button danger icon={<DeleteOutlined />} disabled={writing}>
-                Xoá
-              </Button>
-            </Popconfirm>
-          )}
+          <DeleteArticleButton article={article} onDeleted={() => router.push("/articles")} />
         </Flex>
       </Flex>
 

@@ -1,19 +1,20 @@
 "use client";
+import JobActions from "@/components/actions/JobActions";
 
 import EmptyState from "@/components/EmptyState";
+import FilterSelect from "@/components/FilterSelect";
+import PageHeader from "@/components/PageHeader";
+import StatusText, { type StatusTone } from "@/components/StatusText";
+import UserAvatar from "@/components/UserAvatar";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
+import { usePolling } from "@/lib/polling";
+import { useUrlChoice, useUrlPage } from "@/lib/urlState";
 import { SearchOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, Segmented, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, errorMessage, formatDateTime, type JobRow } from "@/lib/api";
-import { useUrlChoice, useUrlPage } from "@/lib/urlState";
-import PageHeader from "@/components/PageHeader";
-import UserAvatar from "@/components/UserAvatar";
-import { usePolling } from "@/lib/polling";
-import StatusText, { type StatusTone } from "@/components/StatusText";
-import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
-import FilterSelect from "@/components/FilterSelect";
 
 const REFRESH_MS = 5000;
 const PAGE_SIZE = 300; // JOB_LIST_LIMIT in the api
@@ -155,6 +156,13 @@ function Jobs() {
   const filtering = whose === "mine" || view !== "all" || kind !== null || person !== null || search.trim() !== "";
 
   const columns: ColumnsType<JobRow> = [
+    {
+      title: "Thao tác",
+      key: "actions",
+      fixed: "right",
+      width: 150,
+      render: (_, row) => <JobActions job={row} onDone={() => reload()} />,
+    },
     {
       title: "Job",
       key: "job",

@@ -1,11 +1,13 @@
 "use client";
+import ProductActions from "@/components/actions/ProductActions";
+import VideoActions from "@/components/actions/VideoActions";
+import VideoPostsButton from "@/components/actions/VideoPostsButton";
 
 import EmptyState from "@/components/EmptyState";
-import { AppstoreOutlined, CloseOutlined, ProfileOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tag, Tooltip, Typography } from "antd";
-import type { ColumnsType } from "antd/es/table";
-import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import FilterSelect from "@/components/FilterSelect";
+import { useMe } from "@/components/MeContext";
+import VideoThumbnail from "@/components/VideoThumbnail";
+import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import {
   api,
   errorMessage,
@@ -15,10 +17,11 @@ import {
   type AffiliateVideo,
 } from "@/lib/api";
 import { useUrlChoice, useUrlId, useUrlPage } from "@/lib/urlState";
-import FilterSelect from "@/components/FilterSelect";
-import { useMe } from "@/components/MeContext";
-import VideoThumbnail from "@/components/VideoThumbnail";
-import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
+import { AppstoreOutlined, CloseOutlined, ProfileOutlined, SearchOutlined, TableOutlined } from "@ant-design/icons";
+import { App, Button, Card, Flex, Input, Segmented, Select, Table, Tag, Tooltip, Typography } from "antd";
+import type { ColumnsType } from "antd/es/table";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import PlacesChip from "./PlacesChip";
 
 type Product = AffiliateVideo["products"][number];
@@ -293,6 +296,11 @@ export default function PostedVideos() {
             style={{ width: 160 }}
           />
         </Flex>
+        <Flex wrap gap={4}>
+          {video.products.map((product) => (
+            <ProductActions key={product.id} productId={product.id} name={product.name} onChanged={reload} />
+          ))}
+        </Flex>
         {video.products
           .filter((product) => !usable(product))
           .map((product) => (
@@ -340,6 +348,7 @@ export default function PostedVideos() {
             Sao chép
           </Typography.Text>
         )}
+        {onFacebook && <VideoPostsButton videoId={video.id} onChanged={reload} />}
         {onFacebook && (
           <Tooltip
             title={
@@ -423,7 +432,10 @@ export default function PostedVideos() {
         <Flex gap={12} align="flex-start">
           <VideoThumbnail name={video.title} url={video.thumbnail_url} width={40} />
           <Flex vertical gap={4} style={{ minWidth: 0 }}>
-            {title(video)}
+            <Flex gap={4}>
+              {title(video)}
+              <VideoActions video={{ id: video.id, title: video.title, topic: video.title }} onChanged={reload} />
+            </Flex>
             {where(video)}
           </Flex>
         </Flex>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, App, Form, Input, InputNumber, Select } from "antd";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { api, errorMessage, type AffiliateOptions, type AffiliateProduct } from "@/lib/api";
 import FormDrawer from "@/components/FormDrawer";
 
@@ -33,6 +33,7 @@ export default function ProductModal({
 }) {
   const { message } = App.useApp();
   const [form] = Form.useForm<Fields>();
+  const formName = useId();
   const [busy, setBusy] = useState(false);
   const adding = target === "new";
   const platform = Form.useWatch("platform", form) ?? "shopee";
@@ -81,9 +82,9 @@ export default function ProductModal({
           style={{ marginBottom: 16 }}
         />
       )}
-      {/* Its own name prefixes the field ids (product_name...): bare ids such as "name" clash with the account form
+      {/* A unique form name prefixes the field ids: bare ids such as "name" clash with the account form
           every page holds, and a label then points at the other form's box. */}
-      <Form form={form} name="product" layout="vertical" requiredMark={false} onFinish={submit}>
+      <Form name={formName} form={form} layout="vertical" requiredMark={false} onFinish={submit}>
         <Form.Item label="Nền tảng" name="platform" rules={[{ required: true, message: "Chọn nền tảng" }]}>
           <Select
             aria-label="Nền tảng"

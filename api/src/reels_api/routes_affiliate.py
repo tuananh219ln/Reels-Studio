@@ -1153,3 +1153,11 @@ def delete_product(product_id: int, me: Session = Depends(current_member), db: D
     db.delete(product)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/{product_id}")
+def get_product(product_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    product = db.get(AffiliateProduct, product_id)
+    if product is None:
+        raise ApiError(404, "product_not_found", "Không tìm thấy sản phẩm")
+    return _payload(product, _video_count(db, [product_id]).get(product_id, 0))

@@ -943,3 +943,17 @@ or account-management tools are exposed. Setup, boundaries and verification: [ch
   one. Losing the key file only means pasting the tokens again.
 - Passwords are stored hashed.
 - The only personal data is team members' emails.
+
+## Shared action read models
+
+Lists and compact action drawers reuse the existing mutation endpoints; handlers still enqueue long
+work and never make a provider call for a shared action. `GET /api/posts/{id}` returns the same
+post read model as the posts list, for a Page's content drawer. `GET /api/affiliate-products/{id}`
+returns one product read model for compact product controls. Both require the normal member session.
+Post payloads (reel and article) include `fanpage_owner_id` alongside `created_by_id`, allowing the
+web to expose take-down to the author or the Page owner as `ensure_can_take_down` already permits.
+The jobs list includes `can_cancel` for queued jobs or a running job whose `node_stage` is `ready`.
+Video list extras read queue membership in one batch for the whole list and expose `queue`
+(`id`, `fanpage`, `error`, else null). `suggested_post_at` is computed from the linked plan idea
+and its group in the same batch; no start date means no quick-approval button. Video detail carries
+the same summaries. No schema change.

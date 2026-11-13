@@ -1,4 +1,5 @@
 "use client";
+import VideoActions from "@/components/actions/VideoActions";
 
 import { CopyOutlined, DownOutlined, SendOutlined } from "@ant-design/icons";
 import { Button, Card, Col, Dropdown, Flex, Row, Typography } from "antd";
@@ -80,7 +81,13 @@ export function cloneOptions(winner: Winner, working: string[]): { options: Clon
  * Never the same MP4 on a second Page: Facebook shows a copy less and can stop paying a Page that repeats content
  * (docs/specs/multi-platform/plan.md). `posts` (every post) changes when the list is reloaded, so the videos and Pages
  * are read again with it. A failure leaves the lists out: the table below still works. */
-export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) {
+export default function PostSuggestions({
+  posts,
+  onChanged,
+}: {
+  posts: PostRow[] | null;
+  onChanged: () => void | Promise<void>;
+}) {
   const [videos, setVideos] = useState<VideoRow[] | null>(null);
   const [pages, setPages] = useState<Fanpage[] | null>(null);
 
@@ -105,6 +112,7 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
     <Row gutter={[12, 12]} style={{ marginBottom: 16 }}>
       <Col xs={24} lg={12} style={{ display: "flex" }}>
         <SuggestionCard
+          onChanged={onChanged}
           testId="ready-to-post"
           title="Sẵn sàng đăng"
           help="Video đã render xong nhưng chưa có bài nào đang đăng hoặc hẹn lịch, video cũ nhất trước."
@@ -120,6 +128,7 @@ export default function PostSuggestions({ posts }: { posts: PostRow[] | null }) 
       </Col>
       <Col xs={24} lg={12} style={{ display: "flex" }}>
         <SuggestionCard
+          onChanged={onChanged}
           testId="clone-suggestions"
           title="Nhân bản"
           help="Video chạy tốt trên Facebook (từ mức view phổ biến của Page trở lên): AI viết một bản mới cho TikTok hoặc cho Page khác chưa có, không đăng lại cùng file."
@@ -192,12 +201,14 @@ function SuggestionCard({
   help,
   empty,
   items,
+  onChanged,
 }: {
   testId: string;
   title: string;
   help: string;
   empty: string;
   items: Suggestion[];
+  onChanged: () => void | Promise<void>;
 }) {
   const [all, setAll] = useState(false);
   const shown = all ? items : items.slice(0, SHORT);
@@ -235,7 +246,10 @@ function SuggestionCard({
                   maxWidth={360}
                 />
               </div>
-              <SuggestionAction item={item} />
+              <Flex gap={4}>
+                <SuggestionAction item={item} />
+                <VideoActions video={item.video} onChanged={onChanged} />
+              </Flex>
             </Flex>
           ))}
           {items.length > SHORT && (

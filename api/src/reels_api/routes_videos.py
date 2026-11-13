@@ -1945,6 +1945,7 @@ def list_jobs(
                 "video_title": titles[owner],
                 "kind": job.kind,
                 "kind_label": JOB_KINDS.get(job.kind, job.kind) + (" (1 cảnh)" if job.scene_id is not None else ""),
+                "can_cancel": job.status == "queued" or (job.status == "running" and job.node_stage == "ready"),
                 "status": job.status,
                 "created_by": job.created_by.name,
                 "created_by_id": job.created_by_id,
