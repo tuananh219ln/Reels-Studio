@@ -13,7 +13,9 @@ body {
   white-space: nowrap;
 }
 
-/* Scene card: the picture's tools stacked in its middle, shown on hover or keyboard focus, always on touch screens. */
+/* Scene card: the picture's tools over its 9:16 frame, from the top so a clip still shows under them; shown on hover
+   or keyboard focus, always on touch screens and while the scene has no picture. The overlay lets clicks through
+   between its buttons. */
 .scene-media {
   position: relative;
 }
@@ -23,29 +25,87 @@ body {
   inset: 0;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 12px;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 8px;
   border-radius: 6px;
   background: rgba(0, 0, 0, 0.45);
   opacity: 0;
   transition: opacity 0.15s;
+  pointer-events: none;
+}
+
+.scene-media__overlay > * {
+  pointer-events: auto;
 }
 
 .scene-media__overlay .ant-btn {
-  width: min(85%, 180px);
+  max-width: 100%;
+}
+
+.scene-media__overlay .ant-btn > span:not(.ant-btn-icon) {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .scene-media:hover .scene-media__overlay,
-.scene-media:focus-within .scene-media__overlay {
+.scene-media:focus-within .scene-media__overlay,
+.scene-media[data-empty="true"] .scene-media__overlay {
   opacity: 1;
+}
+
+.scene-media[data-empty="true"] .scene-media__overlay {
+  background: transparent;
 }
 
 @media (hover: none) {
   .scene-media__overlay {
     opacity: 1;
     background: rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* Scene card: its body, the picture's 150 px column beside the fields from 576 px, one column below. */
+.scene-body {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 575px) {
+  .scene-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .scene-body > :first-child {
+    width: 150px;
+    justify-self: center;
+  }
+}
+
+/* Scene card: the text and the narration side by side when there is room. */
+.scene-texts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  column-gap: 12px;
+}
+
+/* Scene card: up, down and delete show on hover, keyboard focus or while the card is open, and on touch screens. */
+.scene-row-actions {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.scene-card:hover .scene-row-actions,
+.scene-card:focus-within .scene-row-actions,
+.scene-card[data-open="true"] .scene-row-actions {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .scene-row-actions {
+    opacity: 1;
   }
 }
 

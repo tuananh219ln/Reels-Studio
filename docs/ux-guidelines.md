@@ -340,6 +340,13 @@ Built:
   all of today's ideas have a video. "Tạo video" lets any group be picked but suggests the plan's ideas only
   for the member's own groups.
 - **Video editor** (`/videos/[id]`), updating itself while a job runs and while teammates edit.
+  A **header fixed at the top** (2026-11-14) holds, on its first row, "← Danh sách video", the title on one line (cut
+  with "…", whole in a tooltip), the status, "Đang chỉnh sửa" and who else is here, then the actions: "Chỉnh sửa" or
+  "Xong", "⋯", the photo helpers while a scene has no picture, "Xem trước" and "Render"/"Render lại" (the main
+  button). Its second row is the progress line, a **QC chip** once the MP4 has QC ("QC: đạt" in green, "QC: N mục chưa
+  đạt" in red or yellow; pressing it opens "Đăng bài"), and, at its end, the render's state and summary (below).
+  Under the header, scrolling away with the page: the topic, group and maker, "Loại nội dung" with the kind tags,
+  and the clone, TikTok-version and 30-day-plan notes.
   The status line ends "tạo bởi <member> lúc dd/mm/yyyy hh:mm". Under it, the **progress line** (2026-11-10):
   where the video stands, one step after another, each with a green tick (done), an orange mark (needs a look), a grey
   clock (not yet) or a spinner (a job on it), and its time: **Kịch bản** (when written), **Ảnh** ("5/7 cảnh" with a
@@ -348,7 +355,7 @@ Built:
   suggested time), **Affiliate** ("N sản phẩm", or "Chưa gắn sản phẩm" in orange) and, once a Facebook post is out,
   **48 giờ** (when its 48-hour numbers are read, then their views). A time within a day reads "12 phút trước" or
   "sau 3 giờ", otherwise dd/mm/yyyy hh:mm, all in Vietnam time, the full time on hover. Render, Đăng and 48 giờ open
-  the "Xuất bản" tab, Affiliate opens "Nội dung đăng".
+  the "Đăng bài" tab, and so does Affiliate (its products are under "Sản phẩm Shopee" there).
   Under the progress line, "Loại nội dung": filled by the AI that writes the script (one of the team's types when
   one fits, 2026-11-10), empty for a script written by hand; a small field typed freely or picked from the types the
   team's videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
@@ -362,33 +369,42 @@ Built:
   meanwhile) and "Lưu phân tích". The card's header has "Tạo thêm video từ mẫu này" once the sample is
   analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
   scripts and clips; the card then says the sample was deleted).
-  The scenes fill the left column. The right column is a panel with three tabs, "Xuất bản" (the MP4
-  as a small player beside its length, with the listening volume under it, "Tải MP4", "Đăng" and "Thêm vào hàng chờ", then the video's posts), "Thiết lập" (the video's own settings: narration and music) and "Nội dung
-  đăng" (the post texts; under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page writes them under
+  The scenes fill the left column. The right column is a panel with two tabs. "Đăng bài" goes in the order a member
+  posts: "Sẵn sàng đăng?" first (the QC tiles, below; "Tải MP4" beside "Đăng bài" on one row; "Duyệt" for a planned
+  video; the MP4 as a small player with the listening volume under it, beside its length and render time); then
+  "Nội dung đăng" (Caption, three lines growing as typed, and Hashtag, with "Copy caption + hashtag" in its title);
+  then four blocks that start closed, each a title with its current state in grey beside it while closed: "Bình
+  luận" ("1 ghim, 2 thêm", "Copy ghim" in its title), "Sản phẩm Shopee" or "Sản phẩm TikTok Shop" ("Chưa gắn" or
+  "Đã gắn N"; the AI's product ideas, the Shopee suggestions and the approved products), "Gợi ý nhạc" ("Copy" in its
+  title) and "Rà soát an toàn của AI" ("N điểm đã sửa"); then "Bài đăng của video". A block's fields stay mounted
+  while it is closed, and a "Copy" in a title copies without opening it. "Thiết lập" holds the video's own settings
+  (below). Under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page writes them under
   the reel after the pinned one, in order, and that Facebook does not let an app tag @ people, then each saved one
   as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which opens
   a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
-  bình luận"); until a member picks a tab it shows "Thiết lập" while there is no MP4
-  and "Xuất bản" once there is. On a wide screen the panel stays in view while the scenes scroll.
+  bình luận". Until a member picks a tab it shows "Thiết lập" while there is no MP4
+  and "Đăng bài" once there is. From 1100 px wide the panel is 440 px beside the scenes, stuck under the header and
+  scrolling on its own; narrower, it is a drawer from the right, opened by "Thiết lập / Đăng bài" in the header (the
+  progress line and the QC chip open it too).
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
   Page in use) and "Tự bình luận"; once queued, the button
   becomes "Trong hàng chờ của “Page”" (linking to Quản lý Page), with the reason when it could not be
   scheduled and "Bỏ khỏi hàng chờ"; it comes back once the worker has scheduled the post.
-  "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in a bar stuck to the bottom of the screen, which
+  "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in the fixed header (there is no bar at the bottom), whose second row
   counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
-  one when clicked, opening the scene that holds it. While a job runs, the bar says which one with
+  one when clicked, opening the scene that holds it. While a job runs, it says which one with
   a spinner and its running time ("Đang render video… 0:42 / khoảng 1:15", the estimate being the
   last render's time), or that it is queued, with "Hủy"; a render seen to finish says "Đã render
   xong MP4". With nothing running, it says how the MP4 stands ("Sẵn sàng render." before the first
   one, "Bản sửa chưa có trong MP4" in orange after an edit, else "MP4 đã theo bản mới nhất."), and
-  under that a summary: content scenes, the length the scenes add up to, narration on or off, and
+  beside that a summary (left out on a phone): content scenes, the length the scenes add up to, narration on or off, and
   the current MP4's length. Once there is an MP4 the button reads "Render lại". The editor has:
   - **View and edit mode**, for the whole page. A video already rendered or posted opens in view
     mode ("Xem"), so a stray click cannot change it: every scene field reads as plain text, and
     the title choice, scene move/delete/add, every photo and clip action, "Vị trí chữ", music
     and the "Thiết lập" tab are disabled. Still available: opening and closing scenes, playing
-    previews and the MP4, "Tải MP4", "Nhân bản", "Chuyển sang nhóm khác", "Xóa", "Render", the "Xuất bản" tab and the
+    previews and the MP4, "Tải MP4", "Nhân bản", "Chuyển sang nhóm khác", "Xóa", "Render", the "Đăng bài" tab and the
     post texts under "Nội dung đăng" (they are not part of the video). "Chỉnh sửa" beside
     "Nhân bản" unlocks the page, shown by "Đang chỉnh sửa" in grey by the title and a light
     orange outline round the scenes; fields still save one by one when left, so there is no "Huỷ".
@@ -401,22 +417,28 @@ Built:
     "đang xem". It updates within about 10 s, and a closed tab leaves at once. Pressing "Chỉnh
     sửa" while someone else is editing shows a warning naming them ("Bình đang chỉnh sửa video
     này…"), but still unlocks the page: nothing is locked, the last field saved wins;
-  - **scene cards that open and close.** A closed card's title row shows a 40×40 thumbnail of
-    the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, its text on one line (without the
-    `*` marks) and a status: red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng"; an open card
-    shows the name, seconds and tag. A click or Enter anywhere on the row opens or closes it;
-    the move and delete buttons beside it do not. When the page opens, a draft's scenes are all
-    open; in a rendered video only the scenes with a red reason are. "Mở tất cả" and "Thu gọn
-    tất cả" sit above the list. A closed card keeps its fields, so closing never loses text;
-  - inside an open card, two columns (stacked on a phone, the picture first): the 9:16 picture
-    with its tools on the left, the fields on the right: "Chữ trên màn hình" (a "?" beside it
-    explains `*từ*` and line breaks), "Lời đọc", "Số giây" and "Bắt đầu từ giây" (clip only) side
-    by side, "Từ khóa tìm ảnh", "Prompt ảnh AI" (every scene, the title included; its "?" says to
-    describe what is in the photo, in English, since the shared style is added), then the reasons and
-    warnings. Under the text and the voice text a counter shows the words as typed (the `*` not
-    counted), in yellow outside the script's lengths ([content.md](content.md): at most 10 words
-    on a scene, 12 on the title; voice text 8–15 words, 8–12 on the title); it never stops a save;
-  - **"Xem trước"** in the render bar, and "Xem từ cảnh này" (a play icon) on every scene card,
+  - **above the scenes, one toolbar row** (2026-11-14): "Tiêu đề" with a button showing the title in use and "N gợi
+    ý", which opens the five options as radios with "Kịch bản viết bởi …" under them; then "Kiểu video" with its
+    switch, the explanation in a tooltip. Under it "Cảnh (N)" and "Mở tất cả" / "Thu gọn tất cả";
+  - **scene cards, one open at a time** (2026-11-14). Every card's title row is 44 px: the arrow, a small 9:16
+    thumbnail of the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, while closed its text on one line (without
+    the `*` marks), a status (red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). "Lên
+    trên", "Xuống dưới" and "Xóa cảnh" show only on hover, keyboard focus or while the card is open (always on a
+    touch screen). A click or Enter on the row opens the card and closes the one that was open, or closes it; only
+    "Mở tất cả" opens several. On a scene's row ↑ and ↓ open the scene above or below; Ctrl+Enter (⌘+Enter) in an open
+    card saves the field being typed in and opens the next scene. When the page opens, the first scene with a red
+    reason is open, else on a draft the first scene, else none. "Thêm cảnh" opens the new scene. A closed card keeps
+    its fields, so closing never loses text;
+  - inside an open card, two columns (stacked under 576 px, the picture first): the 150 px 9:16 frame on the left,
+    the fields on the right: "Chữ trên màn hình" (a "?" beside it explains `*từ*` and line breaks) and "Lời đọc" side
+    by side when there is room, the narration once made as one line under it (the player, then "Lời đọc 3,7s → cảnh
+    4,3s", amber when the narration lengthened the scene); "Số giây", "Bắt đầu từ giây" (clip only) and "Từ khóa tìm
+    ảnh" on one row; the reasons and warnings, one line each; then "Nâng cao: Prompt ảnh AI", folded (every scene, the
+    title included; its "?" says to describe what is in the photo, in English, since the shared style is added). On
+    the label's row of the text and the voice text a counter shows the words as typed (the `*` not counted), in yellow
+    outside the script's lengths ([content.md](content.md): at most 10 words on a scene, 12 on the title; voice text
+    8–15 words, 8–12 on the title); it never stops a save. The open card aims at 330 px;
+  - **"Xem trước"** in the header, and "Xem từ cảnh này" (a play icon) on every scene card,
     play the video in the browser before any render, in a drawer from the right that leaves a strip
     of the page in sight and is laid out like a video editor: a tools column on the left ("Cảnh":
     the scene list; "Chữ & sticker": "Thêm chữ" and the stickers, each added to the scene shown from the
@@ -507,17 +529,20 @@ Built:
     video, up to 8×; the track then scrolls and follows the playhead while playing). The scene list
     under "Cảnh" (name, text, seconds) also jumps. A note says it is close to the MP4 but not the MP4 (captions and the audio mix come
     only with a render). It is available in view mode too;
-  - choose 1 of 5 titles (the card names the provider and model that wrote the script, "Kịch bản
-    viết bởi …"); edit the title scene and every content scene (text with `*word*` in
+  - choose 1 of 5 titles (the toolbar's "Tiêu đề", which names the provider and model that wrote the script,
+    "Kịch bản viết bởi …"); edit the title scene and every content scene (text with `*word*` in
     red, voice text, seconds, image prompt), add, delete, reorder; each field saves when left and
     shows "Đã lưu";
-  - per scene a preview of the frame, or the reason there is none, in red. Pointing at a picture
-    (always on a touch screen) dims it and stacks its tools in its middle, all the same width: "Xem"
+  - per scene a preview of the frame, or the reason there is none, in red; a scene with a clip has "Ảnh | Clip"
+    over the frame, on "Clip" until another is picked, the clip playing muted while pointed at. Pointing at the frame
+    (always on a touch screen, and while the scene has no picture) dims it and lays its tools over it from the top:
+    first a row of small icon buttons, each named in a tooltip, "Xem"
     (the only tool in view mode: a centred dialog with the scene large in its 9:16 frame, the photo
     as the render crops it or the clip looping the part the scene plays, muted, at its speed, and
     the exact text box where the render puts it, with a "Chữ trên màn hình" switch to hide it), "Chỉnh khung" for a photo or "Cắt video" for a clip, "Vị trí chữ" and, for a
-    clip, "Xoá video" (confirmed). Under the picture one row: a slim
-    dashed area, "Tải lên", beside three icon buttons, "Dán ảnh/link", "Tìm trên Google" and "Tìm
+    clip, "Xoá video" (✕, confirmed; "Làm mờ vùng" for a clip and "Sửa ảnh" for a photo sit in the same row). Then
+    the ways to put a picture in, which the studio's "Chỉnh cảnh N" shows under its picture instead: a slim
+    dashed area, "Tải lên", beside three icon buttons (wrapping in the narrow frame), "Dán ảnh/link", "Tìm trên Google" and "Tìm
     trên TikTok". The dashed area takes a photo
     (JPG, PNG, WebP, 15 MB) or a clip (MP4, MOV, WebM, 50 MB) dropped on it or chosen, and a photo
     dragged straight from another tab (its address is read from the drop); a photo in place of a
@@ -531,7 +556,7 @@ Built:
     the Vietnamese then the English ones, TikTok the Vietnamese ones) and opens on the one picked. With the team's
     Chrome extension ("Reels Studio – Google Ảnh", `extension/`), "Tìm trên Google" also makes that scene the target
     of "Gửi ảnh vào Reels Studio: <cảnh>" on any image's right-click menu, which puts the photo on it like a pasted
-    link; and the render bar shows "Lấy ảnh Google cho cảnh thiếu ảnh" beside "Tạo ảnh AI cho cảnh thiếu", which
+    link; and the header shows "Lấy ảnh Google cho cảnh thiếu ảnh" beside "Tạo ảnh AI cho cảnh thiếu", which
     searches Google Ảnh for every scene without a photo or clip (its first two keywords) and puts the first usable
     result on each, marked "Tự chọn, kiểm tra lại", then says how many it filled; a CAPTCHA stops it with a dialog
     saying to solve it in the Google tab and press again. Without the extension neither shows. Then
@@ -562,7 +587,7 @@ Built:
   - a photo pasted from a stock site's link (Shutterstock, Getty, iStock, Adobe Stock, 123RF, Dreamstime…) is kept,
     with a warning that its preview carries a watermark and needs a licence;
   - **listening volume** ("Âm lượng nghe"): a speaker button that mutes ("Tắt tiếng" / "Bật tiếng")
-    and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Xuất bản",
+    and a slider from 0 to 100 %, beside the preview's play buttons, under the MP4 in "Đăng bài",
     and in "Cắt video" once "Nghe tiếng gốc" is on. It is how loud this browser plays, never part of
     the video: it multiplies the video's own mix (music, narration, ducking keep their proportions),
     changes nothing rendered or posted, and is remembered per browser, the same level for every
@@ -598,9 +623,11 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
-  - under the MP4 on "Xuất bản", "Kiểm tra chất lượng" lists the automatic QC, failed checks first, each a
-    status dot with its label and measure; the title says "Đạt chuẩn đăng", "Đăng được, nên xem lại" or "Chưa đạt,
-    nên sửa rồi render lại". It is advice: posting is never blocked by it;
+  - at the top of "Đăng bài", "Sẵn sàng đăng?" shows the automatic QC as a grid of tiles, three to a row, worst
+    first: each check's label and measure on a red, yellow or green tile; pressing one shows the whole measure and
+    what to do ("Nên sửa rồi render lại trước khi đăng." / "Đăng được, nhưng nên xem lại."). The title's badge says
+    "N mục cần sửa" (the checks not passed) or "Đạt chuẩn đăng". It is advice: with a red check "Đăng bài" still
+    works, after a confirmation ("MP4 chưa đạt kiểm tra chất lượng", "Vẫn đăng");
   - a "Cảnh động" shows its status under the picture: "Đang dựng cảnh động" while its job runs, then
     "Cảnh động, N giây". It is changed through the assistant; another photo or clip replaces it as usual;
   - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture
@@ -627,8 +654,19 @@ Built:
     keywords (a script can leave them out) warns "Cảnh chưa có từ khóa tìm ảnh"; "Render" is disabled until nothing
     blocks;
   - once a render has made a scene's narration, its player, length, and the lengthened scene;
-  - the "Thiết lập" tab, every change saved at once, with a row of buttons on top (Âm thanh, Nhạc
-    nền, Hình ảnh, Chữ & phụ đề, Logo) that scrolls the panel to that group ("Logo", last: the video's channel among the member's own, and "Gắn logo vào video", greyed until the channel has a logo, with a link to Quản lý Page; the channel is locked once the video is posted): "Âm thanh" (narration on/off, the
+  - the "Thiết lập" tab, every change saved at once. "Logo" comes first and is always open, on a light brand tint:
+    "Kênh" (the video's channel among the member's own, locked once the video is posted), "Gắn" with the "Gắn logo vào
+    video" switch (greyed until the channel has a logo; "Chọn kênh để gắn logo" until a channel is chosen, "Góc trên
+    phải, trừ cảnh tiêu đề" after), "Quản lý Page →", "Đang gắn"/"Chưa gắn" in its title, and a small 9:16 frame of
+    a content scene with the badge where the render puts it. The other groups are panels that open and close, several
+    at once, remembered per member in the browser ("Âm thanh" open the first time); a closed one shows its values in
+    grey beside its name ("Có giọng đọc, 100%", "Wind hill, 25%", "Mờ dần, Zoom vào, Mạnh", "Không hộp, Cỡ nhỏ, Phụ
+    đề tắt"). At the panel's foot, kept in view: "Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký
+    tự)." and the link to Cài đặt › Thiết lập mặc định. "Âm thanh" puts one control per row, its label on the left
+    (92 px) and any explanation behind an ⓘ: "Đọc lời" (the switch beside the voice and "Nghe thử"), "Tốc độ" (the
+    slider with its value beside it), "Âm lượng giọng", "Nghỉ sau lời" (0,4 / 0,7 / 1 giây); Cài đặt › Thiết lập mặc
+    định keeps the stacked card. In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
+    The groups: "Âm thanh" (narration on/off, the
     voice picked from the ElevenLabs account's voices, and VieNeu's once its key is set, grouped "ElevenLabs" and "VieNeu"
     when both have voices, with "Nghe thử" playing ElevenLabs' free sample (VieNeu voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
@@ -659,7 +697,7 @@ Built:
     Phụ đề theo giọng đọc: Tắt, Từng cụm, Từng từ, greyed out while narration is off); and a line linking
     to the member's defaults ("Video mới lấy mặc định của người tạo…"). There is no button to take the
     defaults back (removed 2026-11-08). A new video starts with its maker's defaults (their own, or the
-    app's built-in ones while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Xuất bản";
+    app's built-in ones while they have none); a clone with its source's. MP4 player, "Tải MP4", and the render time are on "Đăng bài";
   - post content (caption, hashtags, affiliates, pinned comment, music suggestions) with copy
     buttons, and Claude's self-review list. On a Facebook video, "Sản phẩm gợi ý từ Shopee" lists
     Shopee's products for each product idea (photo, price, stars, sales, shop type, commission and
@@ -1136,10 +1174,12 @@ Phones (below 992 px wide; built):
   only. On a wider screen there is no header: the sidebar stays in place while the page scrolls,
   with the member's name and account menu (Đổi mật khẩu, Sửa tên, Đăng xuất) at its foot. The page
   beside it has no maximum width: on a large screen tables and cards fill the window, and only
-  paragraphs of grey explanation stop at about 820 px so they stay readable.
-- In the video editor the actions ("Nhân bản", "Xóa") wrap under the title, the tab panel sits
-  under the scenes, the render bar stays at the bottom of the screen, and each scene's preview is
-  a centred thumbnail at most 220 px wide.
+  paragraphs of grey explanation stop at about 820 px so they stay readable. On a video's page the sidebar folds to
+  a 56 px rail of icons (each a link, its name in a tooltip), with "Mở rộng menu" on top to widen it and "Thu gọn
+  menu" to fold it back (widened, it stays so until folded or the page is reloaded). A menu hidden with "Ẩn menu"
+  elsewhere is the rail here too.
+- In the video editor the actions wrap under the title in the fixed header, the tab panel is the drawer, and each
+  scene's frame is a centred 150 px thumbnail above its fields.
 - Tables keep their columns and scroll sideways inside their card; the page itself never scrolls
   sideways.
 
@@ -1288,7 +1328,7 @@ relied on (samples in the PR that added them).
 ### Video Modes ("Kiểu video")
 
 A video is one of two kinds, chosen in "Tạo video" (except "Từ video mẫu", whose scenes are cut from the sample)
-and changed at any time on the video page's "Kiểu video" card, which asks first and says that every photo, clip
+and changed at any time on the video page's "Kiểu video" switch, above the scenes, which asks first and says that every photo, clip
 and "Ảnh món" is kept. "Tạo video" starts on the topic group's "Kiểu video" (Kho kiến thức, "Xen kẽ theo ngày"
 resolved for today in Vietnam) and says so under the strip ("Theo kiểu video của nhóm: …, hôm nay …"); picking the
 other kind makes it that video's only ("Chỉ video này; nhóm đang theo …"). A video made without the dialog (the
@@ -1314,8 +1354,8 @@ next scene; its start and length can be typed in "Chỉnh cảnh". It sits under
 layers; the text gets no shade of its own, so a box style keeps it readable over a busy photo. One photo layer per
 scene.
 
-A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 220 px left
-column and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
+A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 150 px left
+column (220 px until 2026-11-14) and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
 the scene's text box on top, as the render lays them) beside the text, narration, "Số giây", "Bắt đầu từ giây", "Từ
 khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part
 of the inset (never blocking). Row 2: **"Chỉnh vị trí chữ & ảnh chèn"** (the primary button, always there, with or

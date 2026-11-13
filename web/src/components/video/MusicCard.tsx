@@ -1,7 +1,7 @@
 "use client";
 
 import { CustomerServiceOutlined, DeleteOutlined, UploadOutlined } from "@ant-design/icons";
-import { App, Button, Card, Checkbox, Flex, Popconfirm, Slider, Typography } from "antd";
+import { App, Button, Checkbox, Flex, Popconfirm, Slider, Typography } from "antd";
 import { useEffect, useRef, useState } from "react";
 import LibraryPicker from "@/components/music/LibraryPicker";
 import TrackModal, { MAX_MUSIC_BYTES, type TrackTarget } from "@/components/music/TrackModal";
@@ -9,7 +9,7 @@ import { api, errorMessage, upload, type MusicTrack, type VideoDetail } from "@/
 import { useEditor } from "./AutoSaveField";
 
 /** Optional background music: one MP3 per video, uploaded or copied from the team library, and its volume;
- * without it the video is silent. */
+ * without it the video is silent. The "Nhạc nền" panel of the video's "Thiết lập" tab names it. */
 export default function MusicCard({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
   const editor = useEditor();
@@ -122,7 +122,7 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
   );
 
   return (
-    <Card title="Nhạc nền" size="small">
+    <div data-testid="music-settings">
       <input
         ref={input}
         type="file"
@@ -181,6 +181,6 @@ export default function MusicCard({ video }: { video: VideoDetail }) {
           await applyTrack(track);
         }}
       />
-    </Card>
+    </div>
   );
 }

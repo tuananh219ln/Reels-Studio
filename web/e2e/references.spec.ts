@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { chooseOption, loginAsSeed, resetDatabase } from "./helpers";
+import { chooseOption, loginAsSeed, openScene, resetDatabase } from "./helpers";
 
 // "Từ video mẫu": the real worker downloads nothing (the sample is uploaded), takes stills with FFmpeg, and reaches
 // ElevenLabs Speech-to-Text and the LLM only through the fake services (api/scripts/fake_services.py).
@@ -107,6 +107,7 @@ test("Edit từ footage: the footage is cut by its words into scenes that keep t
 
   // "Cắt video" shows the clip's sound kept for the MP4, captions following its words.
   const scene = page.getByTestId("scene").first();
+  await openScene(scene);
   await scene.getByRole("button", { name: "Cắt video" }).click();
   const trim = page.getByRole("dialog", { name: "Cắt video cảnh" });
   await expect(trim.getByRole("switch", { name: "Giữ tiếng gốc khi xuất video" })).toBeChecked();

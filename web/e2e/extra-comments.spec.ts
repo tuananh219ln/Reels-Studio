@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { loginAsSeed, resetDatabase } from "./helpers";
+import { loginAsSeed, openPanel, resetDatabase } from "./helpers";
 
 // "Bình luận thêm" under "Bình luận ghim" on a video's "Nội dung đăng": added, kept, edited and removed.
 test.beforeEach(() => resetDatabase());
@@ -20,6 +20,7 @@ test("a video's extra comments are added one by one, kept and removed", async ({
 
   await page.goto(`/videos/${id}`);
   await page.getByRole("tab", { name: "Đăng bài" }).click();
+  await openPanel(page, "Bình luận");
   const extra = page.getByTestId("extra-comments");
   for (const text of ["Nhà bạn hay nấu bí đỏ thế nào?", "Lưu lại cho cuối tuần nhé!"]) {
     await extra.getByRole("button", { name: "Thêm bình luận" }).click();
@@ -32,6 +33,7 @@ test("a video's extra comments are added one by one, kept and removed", async ({
 
   await page.reload();
   await page.getByRole("tab", { name: "Đăng bài" }).click();
+  await openPanel(page, "Bình luận");
   await extra.getByRole("button", { name: "Bỏ bình luận 2" }).click();
   await expect(extra.getByRole("textbox", { name: "Bình luận 2" })).toHaveValue("Lưu lại cho cuối tuần nhé!");
   await expect(extra.getByRole("textbox", { name: "Bình luận 3" })).toHaveCount(0);

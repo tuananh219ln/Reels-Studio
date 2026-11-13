@@ -1,10 +1,11 @@
 "use client";
 
-import { PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
+import { InfoCircleOutlined, PauseCircleOutlined, PlayCircleOutlined } from "@ant-design/icons";
 import { Button, Card, Checkbox, Flex, Segmented, Select, Slider, Switch, Tooltip, Typography } from "antd";
 import type { SelectProps, SliderSingleProps } from "antd";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import { COLORS } from "@/app/theme";
 import {
   api,
   errorMessage,
@@ -26,7 +27,34 @@ type Props = {
   values: SettingsValues;
   onChange: (changes: Partial<VideoDefaults>) => void;
   disabled?: boolean;
+  /** Without its card: the video's "Thiết lập" tab puts each group in a panel of its own that names it. */
+  bare?: boolean;
 };
+
+/** A group of settings: a card of its own, or (`bare`) just its fields inside a panel that already names it. */
+function Group({
+  title,
+  testId,
+  bare,
+  children,
+}: {
+  title: string;
+  testId: string;
+  bare?: boolean;
+  children: React.ReactNode;
+}) {
+  return bare ? (
+    <div data-testid={testId}>{children}</div>
+  ) : (
+    <Card title={title} size="small" data-testid={testId}>
+      {children}
+    </Card>
+  );
+}
+
+/** Fields laid out as rows: the label on the left, the control beside it, the explanation behind an ⓘ. */
+const RowFields = createContext(false);
+const ROW_LABEL_WIDTH = 92;
 
 // The reading speed slider (api tts.MIN_SPEED, MAX_SPEED, SPEED_STEP).
 const SPEED_MIN = 0.7;
@@ -94,7 +122,37 @@ const VOICE_GROUPS: { service: Voice["service"]; label: string }[] = [
   { service: "vieneu", label: "VieNeu" },
 ];
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Field({
+  label,
+  children,
+  hint,
+  after,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: string;
+  /** In a row, what follows the control (a slider's value); stacked, the caller puts it in the label. */
+  after?: React.ReactNode;
+}) {
+  const row = useContext(RowFields);
+  if (row) {
+    return (
+      <Flex gap={8} align="center">
+        <Flex gap={4} align="center" style={{ width: ROW_LABEL_WIDTH, flex: "none" }}>
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            {label}
+          </Typography.Text>
+          {hint && (
+            <Tooltip title={hint}>
+              <InfoCircleOutlined aria-label={hint} style={{ fontSize: 12, color: COLORS.textSecondary }} />
+            </Tooltip>
+          )}
+        </Flex>
+        <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+        {after}
+      </Flex>
+    );
+  }
   return (
     <div>
       <Typography.Text strong style={{ display: "block", marginBottom: 4 }}>
@@ -199,78 +257,121 @@ export function VoicePicker({
 }
 
 /** Narration: on or off, the voice, its speed and level, and whether the music steps back for it. */
-export function AudioSettings({ values, onChange, disabled, showMusicVolume }: Props & { showMusicVolume?: boolean }) {
+export function AudioSettings({
+  values,
+  onChange,
+  disabled,
+  showMusicVolume,
+  bare,
+}: Props & { showMusicVolume?: boolean }) {
   const off = !values.voice_enabled;
+  const voiceSwitch = (
+    <Switch
+      aria-label="Đọc lời từng cảnh"
+      checked={values.voice_enabled}
+      disabled={disabled}
+      onChange={(voice_enabled) => onChange({ voice_enabled })}
+    />
+  );
   return (
-    <Card title="Âm thanh" size="small" data-testid="audio-settings">
-      <Flex vertical gap={14}>
-        <Flex gap={8} align="center">
-          <Switch
-            aria-label="Đọc lời từng cảnh"
-            checked={values.voice_enabled}
-            disabled={disabled}
-            onChange={(voice_enabled) => onChange({ voice_enabled })}
-          />
-          <Typography.Text>Đọc lời từng cảnh (ElevenLabs hoặc VieNeu)</Typography.Text>
+    <Group title="Âm thanh" testId="audio-settings" bare={bare}>
+      {/* Bare (the video's tab): one row per control, the switch beside the voice it turns on. */}
+      <RowFields.Provider value={Boolean(bare)}>
+        <Flex vertical gap={bare ? 10 : 14}>
+          {bare ? (
+            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs hoặc VieNeu.">
+              <Flex gap={8} align="flex-start">
+                <div style={{ paddingTop: 6 }}>{voiceSwitch}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
+                </div>
+              </Flex>
+            </Field>
+          ) : (
+            <>
+              <Flex gap={8} align="center">
+                {voiceSwitch}
+                <Typography.Text>Đọc lời từng cảnh (ElevenLabs hoặc VieNeu)</Typography.Text>
+              </Flex>
+              <Field label="Giọng">
+                <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
+              </Field>
+            </>
+          )}
+          <AudioRest values={values} onChange={onChange} disabled={disabled} showMusicVolume={showMusicVolume} />
         </Flex>
-        <Field label="Giọng">
-          <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />
-        </Field>
-        <SliderField
-          label="Tốc độ đọc"
-          format={speedText}
-          hint="Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự)."
-          min={SPEED_MIN}
-          max={SPEED_MAX}
-          step={SPEED_STEP}
-          marks={SPEED_MARKS}
-          value={values.voice_speed}
+      </RowFields.Provider>
+    </Group>
+  );
+}
+
+/** The narration's speed, level and pause, and the music's level and ducking: the same in a card or in rows. */
+function AudioRest({ values, onChange, disabled, showMusicVolume }: Props & { showMusicVolume?: boolean }) {
+  const off = !values.voice_enabled;
+  const row = useContext(RowFields);
+  return (
+    <>
+      <SliderField
+        label={row ? "Tốc độ" : "Tốc độ đọc"}
+        name="Tốc độ đọc"
+        format={speedText}
+        // In rows the note sits once at the panel's foot instead.
+        hint={row ? undefined : "Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự)."}
+        min={SPEED_MIN}
+        max={SPEED_MAX}
+        step={SPEED_STEP}
+        marks={row ? undefined : SPEED_MARKS}
+        value={values.voice_speed}
+        disabled={disabled || off}
+        onSave={(speed) => onChange({ voice_speed: Math.round(speed * 100) / 100 })}
+      />
+      <SliderField
+        label="Âm lượng giọng"
+        format={percentText}
+        min={0}
+        max={100}
+        step={5}
+        value={values.voice_volume}
+        disabled={disabled || off}
+        onSave={(voice_volume) => onChange({ voice_volume })}
+      />
+      <Field
+        label={row ? "Nghỉ sau lời" : "Nghỉ sau lời đọc"}
+        hint="Khoảng lặng ở cuối mỗi cảnh có số giây tự khớp lời đọc; đổi thì các cảnh đó dài ngắn theo."
+      >
+        <Segmented
+          aria-label="Nghỉ sau lời đọc"
+          value={values.voice_pause}
           disabled={disabled || off}
-          onSave={(speed) => onChange({ voice_speed: Math.round(speed * 100) / 100 })}
+          // In a row the three lengths are shown short, so they fit beside the label.
+          options={
+            row
+              ? VOICE_PAUSES.map(({ value }) => ({ value, label: `${value.toLocaleString("vi-VN")} giây` }))
+              : VOICE_PAUSES
+          }
+          onChange={(voice_pause) => onChange({ voice_pause: voice_pause as VideoOptions["voice_pause"] })}
         />
+      </Field>
+      {showMusicVolume && values.music_volume !== undefined && (
         <SliderField
-          label="Âm lượng giọng"
+          label="Âm lượng nhạc"
           format={percentText}
           min={0}
           max={100}
           step={5}
-          value={values.voice_volume}
-          disabled={disabled || off}
-          onSave={(voice_volume) => onChange({ voice_volume })}
+          value={values.music_volume}
+          disabled={disabled}
+          onSave={(music_volume) => onChange({ music_volume })}
         />
-        <Field
-          label="Nghỉ sau lời đọc"
-          hint="Khoảng lặng ở cuối mỗi cảnh có số giây tự khớp lời đọc; đổi thì các cảnh đó dài ngắn theo."
-        >
-          <Segmented
-            aria-label="Nghỉ sau lời đọc"
-            value={values.voice_pause}
-            disabled={disabled || off}
-            options={VOICE_PAUSES}
-            onChange={(voice_pause) => onChange({ voice_pause: voice_pause as VideoOptions["voice_pause"] })}
-          />
-        </Field>
-        {showMusicVolume && values.music_volume !== undefined && (
-          <SliderField
-            label="Âm lượng nhạc"
-            format={percentText}
-            min={0}
-            max={100}
-            step={5}
-            value={values.music_volume}
-            disabled={disabled}
-            onSave={(music_volume) => onChange({ music_volume })}
-          />
-        )}
-        <Checkbox
-          checked={values.ducking}
-          disabled={disabled || off}
-          onChange={(event) => onChange({ ducking: event.target.checked })}
-        >
-          Nhỏ nhạc khi có giọng đọc
-        </Checkbox>
-      </Flex>
-    </Card>
+      )}
+      <Checkbox
+        checked={values.ducking}
+        disabled={disabled || off}
+        onChange={(event) => onChange({ ducking: event.target.checked })}
+      >
+        Nhỏ nhạc khi có giọng đọc
+      </Checkbox>
+    </>
   );
 }
 
@@ -280,6 +381,7 @@ const percentText = (value: number) => `${value}%`;
  * so a drag makes one save. */
 function SliderField({
   label,
+  name = label,
   format,
   hint,
   min,
@@ -291,6 +393,8 @@ function SliderField({
   onSave,
 }: {
   label: string;
+  /** The handle's accessible name, when the label is shortened for a row. */
+  name?: string;
   format: (value: number) => string;
   hint?: string;
   min: number;
@@ -303,10 +407,21 @@ function SliderField({
 }) {
   const [moving, setMoving] = useState<number | null>(null);
   const shown = moving ?? value;
+  const row = useContext(RowFields);
   return (
-    <Field label={`${label}: ${format(shown)}`} hint={hint}>
+    <Field
+      label={row ? label : `${label}: ${format(shown)}`}
+      hint={hint}
+      after={
+        row && (
+          <Typography.Text style={{ width: 48, flex: "none", textAlign: "right" }} data-testid="slider-value">
+            {format(shown)}
+          </Typography.Text>
+        )
+      }
+    >
       <Slider
-        ariaLabelForHandle={label}
+        ariaLabelForHandle={name}
         min={min}
         max={max}
         step={step}
@@ -325,9 +440,9 @@ function SliderField({
 }
 
 /** How photo scenes move and how scenes are joined. */
-export function MotionSettings({ values, onChange, disabled }: Props) {
+export function MotionSettings({ values, onChange, disabled, bare }: Props) {
   return (
-    <Card title="Hình ảnh" size="small" data-testid="motion-settings">
+    <Group title="Hình ảnh" testId="motion-settings" bare={bare}>
       <Flex vertical gap={14}>
         <Field label="Chuyển cảnh">
           <Segmented
@@ -357,8 +472,32 @@ export function MotionSettings({ values, onChange, disabled }: Props) {
           />
         </Field>
       </Flex>
-    </Card>
+    </Group>
   );
+}
+
+const labelOf = (list: { value: string; label: string }[], value: string) =>
+  list.find((item) => item.value === value)?.label;
+
+/** The "Hình ảnh" panel's line while closed: "Mờ dần, Zoom vào, Mạnh". */
+export function motionSummary(values: Pick<VideoOptions, "transition" | "motion" | "zoom">): string {
+  return [
+    labelOf(TRANSITIONS, values.transition),
+    labelOf(MOTIONS, values.motion),
+    values.motion === "static" ? undefined : labelOf(ZOOMS, values.zoom),
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+/** The "Chữ & phụ đề" panel's line while closed: the box style, the size and the captions. */
+export function textSummary(values: SettingsValues, styleName: string): string {
+  const size = labelOf(TEXT_SIZES, values.text_size ?? "large");
+  const captions =
+    values.captions === "off" || !values.voice_enabled
+      ? "Phụ đề tắt"
+      : `Phụ đề ${labelOf(CAPTIONS, values.captions)?.toLowerCase()}`;
+  return [styleName, `Cỡ ${size?.toLowerCase()}`, captions].join(", ");
 }
 
 /** The text box style, chosen from small previews, its colours, and the narration captions. */
@@ -415,10 +554,13 @@ function LookControls({
   look,
   onChange,
   disabled,
+  compact,
 }: {
   look: Look;
   onChange: (changes: Partial<Look>) => void;
   disabled?: boolean;
+  /** The style tiles small, in one row that scrolls sideways. */
+  compact?: boolean;
 }) {
   const hasBox = look.text_style !== "none" && look.box_opacity !== "none";
   const problems = warnings(
@@ -428,7 +570,7 @@ function LookControls({
   return (
     <>
       <Field label="Kiểu hộp chữ" hint="Kiểu dùng chung cả đội. Chỉnh màu bên dưới không làm đổi kiểu.">
-        <TextStyleCards values={look} onChange={onChange} disabled={disabled} />
+        <TextStyleCards values={look} onChange={onChange} disabled={disabled} compact={compact} />
       </Field>
       <Field label="Màu chữ">
         <ColorChoice
@@ -543,13 +685,13 @@ function CaseField({
   );
 }
 
-export function TextSettings({ values, onChange, disabled }: Props) {
+export function TextSettings({ values, onChange, disabled, bare }: Props) {
   const [target, setTarget] = useState<"scenes" | "title">("scenes");
   const title = titleLook(values);
   const followsScenes =
     (!values.title_text_style || values.title_text_style === "same") && values.title_style !== "yellow";
   return (
-    <Card title="Chữ & phụ đề" size="small" data-testid="text-settings">
+    <Group title="Chữ & phụ đề" testId="text-settings" bare={bare}>
       <Flex vertical gap={14}>
         <Segmented
           aria-label="Chỉnh chữ cho"
@@ -563,7 +705,7 @@ export function TextSettings({ values, onChange, disabled }: Props) {
         />
         {target === "scenes" ? (
           <>
-            <LookControls look={sceneLook(values)} onChange={onChange} disabled={disabled} />
+            <LookControls look={sceneLook(values)} onChange={onChange} disabled={disabled} compact={bare} />
             <SizeField
               label="Cỡ chữ"
               value={values.text_size}
@@ -611,6 +753,7 @@ export function TextSettings({ values, onChange, disabled }: Props) {
                 look={title}
                 onChange={(changes) => onChange(asTitle({ ...title, ...changes }))}
                 disabled={disabled}
+                compact={bare}
               />
             )}
             <SizeField
@@ -632,6 +775,6 @@ export function TextSettings({ values, onChange, disabled }: Props) {
           </>
         )}
       </Flex>
-    </Card>
+    </Group>
   );
 }

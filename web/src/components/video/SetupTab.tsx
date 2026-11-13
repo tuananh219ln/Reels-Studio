@@ -1,46 +1,55 @@
 "use client";
 
-import { App, Button, Flex, Typography } from "antd";
+import { App, Collapse, Flex, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { COLORS } from "@/app/theme";
+import { useMe } from "@/components/MeContext";
 import { api, errorMessage, type VideoDefaults, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 import LogoCard from "./LogoCard";
 import MusicCard from "./MusicCard";
-import { AudioSettings, MotionSettings, TextSettings } from "./VideoSettings";
+import { useTextStyleName } from "./TextStyleCards";
+import { AudioSettings, MotionSettings, TextSettings, motionSummary, textSummary } from "./VideoSettings";
 
-const SECTIONS = [
-  { key: "audio", label: "Âm thanh" },
-  { key: "music", label: "Nhạc nền" },
-  { key: "motion", label: "Hình ảnh" },
-  { key: "text", label: "Chữ & phụ đề" },
-  { key: "logo", label: "Logo" },
-] as const;
-type Section = (typeof SECTIONS)[number]["key"];
+type Section = "audio" | "music" | "motion" | "text";
+// "Âm thanh" is open the first time; the member's own choice is remembered after that.
+const FIRST_OPEN: Section[] = ["audio"];
+const storageKey = (memberId: number) => `video-setup-open:${memberId}`;
 
-/** The video's own settings ("Thiết lập" tab). Each change saves at once; later defaults never replace them. */
+/** The sections the member left open last time, in this browser; the first-time set when nothing is stored. */
+function readOpen(memberId: number): Section[] {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(storageKey(memberId)) ?? "null") as unknown;
+    return Array.isArray(stored) ? (stored.filter((key) => typeof key === "string") as Section[]) : FIRST_OPEN;
+  } catch {
+    return FIRST_OPEN;
+  }
+}
+
+function writeOpen(memberId: number, open: Section[]) {
+  try {
+    window.localStorage.setItem(storageKey(memberId), JSON.stringify(open));
+  } catch {
+    // Private windows and blocked storage: the panels still open and close, just not remembered.
+  }
+}
+
+/**
+ * The video's own settings ("Thiết lập" tab). Each change saves at once; later defaults never replace them. "Logo"
+ * comes first and stays open; the other groups open and close, each showing its current values in one line while
+ * closed, so they are read without opening.
+ */
 export default function SetupTab({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
+  const { me } = useMe();
   const editor = useEditor();
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState<Section[]>(() => (typeof window === "undefined" ? FIRST_OPEN : readOpen(me.id)));
   const values = { ...video.options, voice_enabled: video.voice_enabled };
-  const anchor = (key: Section) => `setup-${key}-${video.id}`;
-
-  /** Scrolls the side panel alone to a group (the scenes stay where they are); a phone scrolls the page. */
-  function jump(key: Section) {
-    const target = document.getElementById(anchor(key));
-    const panel = target?.closest<HTMLElement>("[data-side-panel]");
-    if (!target) {
-      return;
-    }
-    if (panel && panel.scrollHeight > panel.clientHeight) {
-      const offset = target.getBoundingClientRect().top - panel.getBoundingClientRect().top - 44;
-      panel.scrollBy({ top: offset, behavior: "smooth" });
-    } else {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  }
+  const styleName = useTextStyleName(values);
+  // The logo's small frame shows a content scene, where the logo goes (never the title scene).
+  const preview = video.scenes.find((scene) => scene.preview_url)?.preview_url ?? null;
 
   async function save(body: object) {
     setBusy(true);
@@ -62,41 +71,80 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
   }
 
   const disabled = editor.locked || editor.readOnly || busy;
-  return (
-    <Flex vertical gap={16}>
-      {/* The four groups are long together: a row that jumps to one, kept in view while the panel scrolls. */}
-      <Flex
-        wrap
-        gap={6}
-        data-testid="setup-sections"
-        style={{ position: "sticky", top: 0, zIndex: 2, padding: "4px 0 8px", background: COLORS.layout }}
-      >
-        {/* Links that scroll to a group below, not tabs: every group stays on the page. */}
-        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-          Đi tới:
+  const audioSummary = video.voice_enabled ? `Có giọng đọc, ${video.options.voice_volume}%` : "Không giọng đọc";
+  const musicSummary = video.music ? `${video.music.name ?? "Nhạc tải lên"}, ${video.music_volume}%` : "Chưa có nhạc";
+  const panel = (key: Section, title: string, summary: string, children: React.ReactNode) => ({
+    key,
+    // Every panel stays mounted once drawn, so a closed one keeps what is being typed and its file inputs.
+    forceRender: true,
+    label: (
+      <Flex gap={8} align="baseline" style={{ minWidth: 0 }}>
+        <Typography.Text strong style={{ flex: "none" }}>
+          {title}
         </Typography.Text>
-        {SECTIONS.map((section) => (
-          <Button key={section.key} type="link" size="small" style={{ padding: 0 }} onClick={() => jump(section.key)}>
-            {section.label}
-          </Button>
-        ))}
+        {/* The current values, so a closed group is read without opening it. */}
+        {!open.includes(key) && (
+          <Typography.Text type="secondary" ellipsis style={{ fontSize: 12, minWidth: 0 }} data-testid="setup-summary">
+            {summary}
+          </Typography.Text>
+        )}
       </Flex>
-      <div id={anchor("audio")} style={{ scrollMarginTop: 44 }}>
-        <AudioSettings values={values} onChange={change} disabled={disabled} />
-      </div>
-      <div id={anchor("music")} style={{ scrollMarginTop: 44 }}>
-        <MusicCard video={video} />
-      </div>
-      <div id={anchor("motion")} style={{ scrollMarginTop: 44 }}>
-        <MotionSettings values={values} onChange={change} disabled={disabled} />
-      </div>
-      <div id={anchor("text")} style={{ scrollMarginTop: 44 }}>
-        <TextSettings values={values} onChange={change} disabled={disabled} />
-      </div>
-      <div id={anchor("logo")} style={{ scrollMarginTop: 44 }}>
-        <LogoCard video={video} disabled={disabled} onSave={(options) => void save({ options })} />
-      </div>
-      <Flex wrap gap={8} align="center">
+    ),
+    children,
+  });
+
+  return (
+    <Flex vertical gap={12} data-testid="setup-tab">
+      <LogoCard video={video} disabled={disabled} previewUrl={preview} onSave={(options) => void save({ options })} />
+      <Collapse
+        size="small"
+        expandIconPlacement="end"
+        activeKey={open}
+        onChange={(keys) => {
+          const next = (Array.isArray(keys) ? keys : [keys]) as Section[];
+          setOpen(next);
+          writeOpen(me.id, next);
+        }}
+        style={{ background: COLORS.surface }}
+        items={[
+          panel(
+            "audio",
+            "Âm thanh",
+            audioSummary,
+            <AudioSettings values={values} onChange={change} disabled={disabled} bare />,
+          ),
+          panel("music", "Nhạc nền", musicSummary, <MusicCard video={video} />),
+          panel(
+            "motion",
+            "Hình ảnh",
+            motionSummary(video.options),
+            <MotionSettings values={values} onChange={change} disabled={disabled} bare />,
+          ),
+          panel(
+            "text",
+            "Chữ & phụ đề",
+            textSummary(values, styleName),
+            <TextSettings values={values} onChange={change} disabled={disabled} bare />,
+          ),
+        ]}
+      />
+      {/* At the foot of the panel, in view however far its groups are scrolled. */}
+      <Flex
+        vertical
+        gap={2}
+        data-testid="setup-notes"
+        style={{
+          position: "sticky",
+          bottom: 0,
+          zIndex: 1,
+          padding: "8px 0 4px",
+          background: COLORS.layout,
+          borderTop: `1px solid ${COLORS.border}`,
+        }}
+      >
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          Đổi giọng hoặc tốc độ thì lần render sau tạo lại lời đọc (tốn ký tự).
+        </Typography.Text>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Video mới lấy mặc định của người tạo. Sửa mặc định của bạn ở{" "}
           <Link prefetch={false} href="/settings/defaults">

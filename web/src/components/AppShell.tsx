@@ -72,6 +72,9 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
   },
 ];
 
+// The width of the menu folded to its icons, on a video's page.
+const RAIL_WIDTH = 56;
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -83,6 +86,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [menuState, setMenuState] = useStoredChoice<"shown" | "hidden">("menu-hidden", "shown");
   const menuHidden = menuState === "hidden";
   const hideMenu = (hidden: boolean) => setMenuState(hidden ? "hidden" : "shown");
+  // A video's editor wants the width: there the menu folds to a rail of icons, widened again with its button.
+  const onVideo = /^\/videos\/\d+/.test(pathname);
+  const [railOpen, setRailOpen] = useState(false);
 
   const [modal, setModal] = useState<"password" | "name" | null>(null);
 
@@ -139,6 +145,10 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </Link>
     ),
   });
+  const desktop = screens.lg ?? true;
+  // A menu hidden elsewhere is a rail here: the editor's header starts where "Hiện menu" would float.
+  const hidden = menuHidden && !onVideo;
+  const rail = desktop && onVideo && !railOpen;
   const selected =
     NAV.flatMap((group) => group.children).find((item) => pathname.startsWith(item.key))?.key ?? "/videos";
   const menu = (
@@ -147,10 +157,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       selectedKeys={[selected]}
       style={{ border: "none", padding: "0 6px" }}
       items={NAV.map((group) => ({ type: "group" as const, ...group, children: group.children.map(pageItem) }))}
-      onClick={() => setDrawerOpen(false)}
+      onClick={({ key }) => {
+        setDrawerOpen(false);
+        // A rail shows only the icons: the click on one is the link.
+        if (rail) router.push(key);
+      }}
     />
   );
-  const desktop = screens.lg ?? true;
   const account = (
     <Dropdown
       trigger={["click"]}
@@ -179,13 +192,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           alignItems: "center",
           gap: 10,
           width: desktop ? "100%" : undefined,
-          justifyContent: "flex-start",
-          paddingInline: desktop ? 12 : 8,
+          paddingInline: rail ? 0 : desktop ? 12 : 8,
+          justifyContent: rail ? "center" : "flex-start",
         }}
       >
         <UserAvatar initial={me.initial} />
         {/* A phone keeps only the avatar, so the logo and the menu button fit beside it. */}
-        {screens.sm !== false && (
+        {screens.sm !== false && !rail && (
           <span
             data-testid="header-name"
             style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
@@ -204,8 +217,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           // Sticky: on a long page (the video editor) the menu stays in reach while scrolling.
           <Layout.Sider
             width={240}
-            collapsed={menuHidden}
-            collapsedWidth={0}
+            collapsed={hidden || rail}
+            collapsedWidth={hidden ? 0 : RAIL_WIDTH}
             trigger={null}
             style={{
               borderRight: `1px solid ${COLORS.border}`,
@@ -216,10 +229,36 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           >
             {/* The menu on top, the member's account at the foot: on a computer there is no header bar. */}
             <Flex vertical style={{ height: "100%" }}>
-              <Flex justify="space-between" align="center" style={{ padding: "20px 12px 24px 20px" }}>
-                <Logo />
-                <Button type="text" aria-label="Ẩn menu" icon={<MenuFoldOutlined />} onClick={() => hideMenu(true)} />
-              </Flex>
+              {rail ? (
+                <Flex justify="center" style={{ padding: "20px 0 24px" }}>
+                  <Button
+                    type="text"
+                    aria-label="Mở rộng menu"
+                    icon={<MenuUnfoldOutlined />}
+                    onClick={() => setRailOpen(true)}
+                  />
+                </Flex>
+              ) : (
+                <Flex justify="space-between" align="center" style={{ padding: "20px 12px 24px 20px" }}>
+                  <Logo />
+                  {/* On a video's page the menu folds back to its rail; elsewhere it hides away. */}
+                  {onVideo ? (
+                    <Button
+                      type="text"
+                      aria-label="Thu gọn menu"
+                      icon={<MenuFoldOutlined />}
+                      onClick={() => setRailOpen(false)}
+                    />
+                  ) : (
+                    <Button
+                      type="text"
+                      aria-label="Ẩn menu"
+                      icon={<MenuFoldOutlined />}
+                      onClick={() => hideMenu(true)}
+                    />
+                  )}
+                </Flex>
+              )}
               <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>{menu}</div>
               <div style={{ padding: 8, borderTop: `1px solid ${COLORS.border}` }}>{account}</div>
             </Flex>
@@ -266,7 +305,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               boxSizing: "border-box",
             }}
           >
-            {desktop && menuHidden && (
+            {desktop && hidden && (
               <Button
                 aria-label="Hiện menu"
                 icon={<MenuUnfoldOutlined />}

@@ -9,6 +9,7 @@ import {
   login,
   loginAsSeed,
   openAccountMenu,
+  openPanel,
   resetDatabase,
   row,
 } from "./helpers";
@@ -184,6 +185,7 @@ test("Tự viết: a pasted script becomes scenes at once, with no AI and a safe
   await page.getByRole("button", { name: "Thêm cảnh" }).click();
   await expect(page.getByTestId("scene")).toHaveCount(3);
   await page.getByRole("tab", { name: "Đăng bài" }).click();
+  await openPanel(page, "Rà soát an toàn của AI");
   await expect(page.getByTestId("hand-written-review")).toBeVisible();
 });
 
@@ -856,7 +858,7 @@ test("the app's own motion stops when the system asks for less motion", async ({
     await dialog.getByLabel("Chủ đề", { exact: true }).fill("Món ăn sáng");
     await dialog.getByLabel("Kịch bản", { exact: true }).fill("Phở bò\nĐọc: Phở bò nóng hổi.");
     await dialog.getByRole("button", { name: "Tạo video" }).click();
-    const arrow = page.getByTestId("scene").first().locator(".anticon-right");
+    const arrow = page.getByTestId("scene").first().locator(".scene-card-arrow");
     await expect(arrow).toBeVisible();
     const own = await arrow.evaluate((element) => getComputedStyle(element).transitionDuration);
     await context.close();

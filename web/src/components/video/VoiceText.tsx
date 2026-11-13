@@ -32,18 +32,22 @@ export default function VoiceText({ scene, save }: { scene: SceneData; save: (te
         words={words}
       />
       {scene.voice_url && scene.voice_seconds !== null && (
-        <Flex vertical gap={4} style={{ marginBottom: 8 }}>
+        // One line: the player, then how long the narration is against the scene ("Lời đọc 3,7s → cảnh 4,3s").
+        <Flex wrap gap="4px 10px" align="center" style={{ marginBottom: 8 }}>
           <audio
             key={scene.voice_url}
             src={scene.voice_url}
             controls
             preload="none"
             data-testid="voice-player"
-            style={{ width: "100%", maxWidth: 360 }}
+            style={{ flex: "1 1 200px", maxWidth: 300, height: 32 }}
           />
-          <Typography.Text type="secondary" data-testid="voice-length">
-            Lời đọc dài {seconds(scene.voice_seconds)} giây
-            {lengthened && `, cảnh kéo dài thành ${seconds(scene.fitted_seconds)} giây`}
+          <Typography.Text
+            type={lengthened ? "warning" : "secondary"}
+            style={{ fontSize: 12, whiteSpace: "nowrap" }}
+            data-testid="voice-length"
+          >
+            Lời đọc {seconds(scene.voice_seconds)}s → cảnh {seconds(lengthened ? scene.fitted_seconds : scene.seconds)}s
           </Typography.Text>
         </Flex>
       )}

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { addUser, chooseOption, connectFacebook, login, loginAsSeed, resetDatabase } from "./helpers";
+import { addUser, chooseOption, connectFacebook, login, loginAsSeed, openPanel, resetDatabase } from "./helpers";
 
 // Issue #47. Shopee is the fake one (api/scripts/fake_services.py), which knows this App ID and Secret.
 const APP_ID = "1000001";
@@ -64,6 +64,7 @@ test("a new script finds Shopee products with the writer's account, and one is c
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
 
   await page.getByRole("tab", { name: "Đăng bài" }).click();
+  await openPanel(page, "Sản phẩm Shopee");
   const suggestions = page.getByTestId("shopee-suggestions");
   const products = suggestions.getByTestId("suggested-product");
   // Two ideas from the script, two products meeting the rules each (the fake's third has 4.2 stars).
@@ -93,6 +94,7 @@ test("without an App ID, an affiliate link pasted on the video is filled in by h
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
 
   await page.getByRole("tab", { name: "Đăng bài" }).click();
+  await openPanel(page, "Sản phẩm Shopee");
   const suggestions = page.getByTestId("shopee-suggestions");
   await suggestions.getByLabel("Dán link aff Shopee").fill("https://s.shopee.vn/4LKghKN3cR");
   await suggestions.getByRole("button", { name: "Thêm link" }).click();

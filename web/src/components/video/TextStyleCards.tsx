@@ -45,11 +45,23 @@ function useTextStyles() {
   return { styles, error, reload };
 }
 
+/** The name of the box a look uses, for a one-line summary: "Không hộp", a team style's name, or "Hộp màu riêng". */
+export function useTextStyleName(values: Look): string {
+  const { styles } = useTextStyles();
+  if (values.text_style === "none") return "Không hộp";
+  const chosen = styles?.find((style) => isChosen(style, values));
+  return chosen?.name ?? (styles === null ? "Có hộp" : "Hộp màu riêng");
+}
+
 // Every tile is the same width, with its preview on top and a one-line name under it, so the row lines up.
 const CARD_WIDTH = 72;
 
-const cardStyle = (checked: boolean, disabled?: boolean) => ({
-  width: CARD_WIDTH,
+// In the video's "Thiết lập" tab the tiles are smaller and stay on one row.
+const COMPACT_WIDTH = 56;
+
+const cardStyle = (checked: boolean, disabled?: boolean, compact?: boolean) => ({
+  width: compact ? COMPACT_WIDTH : CARD_WIDTH,
+  flex: "none",
   padding: 3,
   border: `2px solid ${checked ? COLORS.primary : "transparent"}`,
   borderRadius: 10,
@@ -206,10 +218,13 @@ export function TextStyleCards({
   values,
   onChange,
   disabled,
+  compact,
 }: {
   values: Look;
   onChange: (changes: Partial<Look>) => void;
   disabled?: boolean;
+  /** 56 px tiles in one row that scrolls sideways, instead of 72 px tiles that wrap. */
+  compact?: boolean;
 }) {
   const { message } = App.useApp();
   const { styles, error, reload } = useTextStyles();
@@ -232,7 +247,14 @@ export function TextStyleCards({
 
   return (
     <Flex vertical gap={8}>
-      <Flex wrap gap={8} align="flex-start" role="radiogroup" aria-label="Kiểu hộp chữ">
+      <Flex
+        wrap={!compact}
+        gap={8}
+        align="flex-start"
+        role="radiogroup"
+        aria-label="Kiểu hộp chữ"
+        style={compact ? { overflowX: "auto", paddingBottom: 4 } : undefined}
+      >
         <button
           type="button"
           role="radio"
@@ -241,7 +263,7 @@ export function TextStyleCards({
           disabled={disabled}
           // No box brings its own outline; the text colours stay.
           onClick={() => onChange({ text_style: "none", box_color: "auto", box_opacity: "auto" })}
-          style={cardStyle(noBox, disabled)}
+          style={cardStyle(noBox, disabled, compact)}
         >
           <Sample drawn={palette("none", values.text_color, "auto", values.accent_color)} />
           <CardName>Không hộp</CardName>
@@ -253,7 +275,7 @@ export function TextStyleCards({
             aria-checked
             aria-label="Kiểu đang dùng"
             disabled={disabled}
-            style={cardStyle(true, disabled)}
+            style={cardStyle(true, disabled, compact)}
           >
             <Sample
               drawn={palette(
@@ -278,7 +300,7 @@ export function TextStyleCards({
               aria-label={`Kiểu ${style.name}`}
               disabled={disabled}
               onClick={() => onChange(styleLook(style))}
-              style={cardStyle(checked, disabled)}
+              style={cardStyle(checked, disabled, compact)}
             >
               <Sample
                 drawn={palette("box", style.text_color, style.box_color, style.accent_color, style.box_opacity)}
@@ -292,7 +314,7 @@ export function TextStyleCards({
           aria-label="Thêm kiểu"
           disabled={disabled}
           onClick={() => setEditing("new")}
-          style={cardStyle(false, disabled)}
+          style={cardStyle(false, disabled, compact)}
         >
           <div
             style={{

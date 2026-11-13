@@ -1,10 +1,12 @@
 "use client";
 
 import { CopyOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Card, Flex, Select, Typography } from "antd";
+import { App, Alert, Button, Card, Collapse, Flex, Select, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { COLORS } from "@/app/theme";
 import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
+import StatusText from "@/components/StatusText";
 import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import ExtraComments from "./ExtraComments";
@@ -20,6 +22,7 @@ const words = (text: string) => text.split(/\s+/).filter(Boolean);
 
 export default function PostContent({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
+  const [open, setOpen] = useState<string[]>([]);
   const patch = (body: Partial<PostFields>) => api<VideoDetail>(`/videos/${video.id}`, "PATCH", body);
   const warningsFor = (field: string) =>
     video.video_warnings.filter((warning) => warning.field === field).map((warning) => warning.message);
@@ -33,81 +36,174 @@ export default function PostContent({ video }: { video: VideoDetail }) {
     }
   }
 
+  /** A "Copy" in a block's title: it copies without opening or closing the block. */
+  const copyButton = (label: string, text: string, what: string) => (
+    <Button
+      size="small"
+      icon={<CopyOutlined />}
+      onClick={(event) => {
+        event.stopPropagation();
+        void copy(text, what);
+      }}
+    >
+      {label}
+    </Button>
+  );
+
+  const pinnedWarnings = warningsFor("pinned_comment");
+  const extraCount = video.extra_comments.length;
+  const commentSummary = [
+    video.pinned_comment.trim() ? "1 ghim" : "Chưa có bình luận ghim",
+    extraCount ? `${extraCount} thêm` : null,
+    pinnedWarnings.length ? `${pinnedWarnings.length} cảnh báo` : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const products = video.affiliate_product_ids.length;
+  const shop = video.platform === "tiktok" ? "Sản phẩm TikTok Shop" : "Sản phẩm Shopee";
+  const reviewSummary = video.hand_written
+    ? "Chưa rà soát (kịch bản tự viết)"
+    : video.self_review.length
+      ? `${video.self_review.length} điểm đã sửa`
+      : "Không có câu nào phải sửa";
+  // A block's name and, while it is closed, its one-line summary.
+  const label = (key: string, title: string, summary: React.ReactNode) => (
+    <Flex gap={8} align="baseline" style={{ minWidth: 0 }}>
+      <Typography.Text strong style={{ flex: "none" }}>
+        {title}
+      </Typography.Text>
+      {!open.includes(key) && (
+        <Typography.Text type="secondary" ellipsis style={{ fontSize: 12, minWidth: 0 }}>
+          {summary}
+        </Typography.Text>
+      )}
+    </Flex>
+  );
+
   return (
-    <Card title="Nội dung đăng" size="small">
-      <Flex vertical gap={4}>
-        <AutoSaveField
-          label="Caption"
-          value={video.caption}
-          multiline
-          rows={5}
-          save={(caption) => patch({ caption })}
-        />
-        <Warnings messages={warningsFor("caption")} />
-        <AutoSaveField
-          label="Hashtag"
-          value={video.hashtags.join(" ")}
-          placeholder="#xuongkhop #duongsinh"
-          save={(text) => patch({ hashtags: words(text) })}
-        />
-        <AutoSaveField
-          label="Gợi ý sản phẩm (AI)"
-          value={video.affiliates.join("\n")}
-          multiline
-          hint={
-            video.platform === "tiktok"
-              ? "Từ khoá để tìm sản phẩm trong mục “Thêm sản phẩm” của app TikTok; mỗi dòng một sản phẩm"
-              : "Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
-          }
-          save={(text) => patch({ affiliates: lines(text) })}
-        />
-        {video.platform === "facebook" && <VideoSuggestions video={video} />}
-        <AttachedProducts video={video} />
-        <AutoSaveField
-          label="Bình luận ghim"
-          value={video.pinned_comment}
-          multiline
-          save={(pinned_comment) => patch({ pinned_comment })}
-        />
-        <Warnings messages={warningsFor("pinned_comment")} />
-        <ExtraComments video={video} />
-        <AutoSaveField
-          label="Gợi ý nhạc"
-          value={video.music_suggestions.join("\n")}
-          multiline
-          hint="Tìm tên nhạc này trong TikTok hoặc Facebook khi đăng; mỗi dòng một bản"
-          save={(text) => patch({ music_suggestions: lines(text) })}
-        />
-        <Flex wrap gap={8} style={{ marginBottom: 12 }}>
-          <Button icon={<CopyOutlined />} onClick={() => copy(video.post_text, "caption + hashtag")}>
-            Copy caption + hashtag
-          </Button>
-          <Button icon={<CopyOutlined />} onClick={() => copy(video.pinned_comment, "bình luận ghim")}>
-            Copy bình luận ghim
-          </Button>
-          <Button icon={<CopyOutlined />} onClick={() => copy(video.music_suggestions.join("\n"), "gợi ý nhạc")}>
-            Copy gợi ý nhạc
-          </Button>
-        </Flex>
-        <Typography.Text strong>Tự rà soát an toàn của AI</Typography.Text>
-        {video.hand_written ? (
-          <Alert
-            type="warning"
-            showIcon
-            data-testid="hand-written-review"
-            title="Video tự viết nên chưa được AI rà soát an toàn. Hãy tự kiểm tra nội dung theo luật an toàn của kênh trước khi đăng."
+    <Flex vertical gap={12}>
+      <Card
+        title="Nội dung đăng"
+        size="small"
+        extra={copyButton("Copy caption + hashtag", video.post_text, "caption + hashtag")}
+      >
+        <Flex vertical gap={4}>
+          <AutoSaveField
+            label="Caption"
+            value={video.caption}
+            multiline
+            rows={3}
+            save={(caption) => patch({ caption })}
           />
-        ) : video.self_review.length ? (
-          <ul style={{ margin: "4px 0 0", paddingLeft: 20 }} data-testid="self-review">
-            {video.self_review.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        ) : (
-          <Typography.Text type="secondary">Không có câu nào phải sửa</Typography.Text>
-        )}
-      </Flex>
-    </Card>
+          <Warnings messages={warningsFor("caption")} />
+          <AutoSaveField
+            label="Hashtag"
+            value={video.hashtags.join(" ")}
+            placeholder="#xuongkhop #duongsinh"
+            save={(text) => patch({ hashtags: words(text) })}
+          />
+        </Flex>
+      </Card>
+      {/* The rarer blocks start closed; each keeps its fields mounted, so text not yet saved survives a close. */}
+      <Collapse
+        size="small"
+        expandIconPlacement="end"
+        activeKey={open}
+        onChange={(keys) => setOpen(Array.isArray(keys) ? keys : [keys])}
+        style={{ background: COLORS.surface }}
+        data-testid="post-blocks"
+        items={[
+          {
+            key: "comments",
+            forceRender: true,
+            label: label("comments", "Bình luận", commentSummary),
+            extra: copyButton("Copy ghim", video.pinned_comment, "bình luận ghim"),
+            children: (
+              <Flex vertical gap={4}>
+                <AutoSaveField
+                  label="Bình luận ghim"
+                  value={video.pinned_comment}
+                  multiline
+                  save={(pinned_comment) => patch({ pinned_comment })}
+                />
+                <Warnings messages={pinnedWarnings} />
+                <ExtraComments video={video} />
+              </Flex>
+            ),
+          },
+          {
+            key: "products",
+            forceRender: true,
+            label: label(
+              "products",
+              shop,
+              products ? (
+                <StatusText tone="success">Đã gắn {products}</StatusText>
+              ) : (
+                <StatusText tone="warning">Chưa gắn</StatusText>
+              ),
+            ),
+            children: (
+              <Flex vertical gap={4}>
+                <AutoSaveField
+                  label="Gợi ý sản phẩm (AI)"
+                  value={video.affiliates.join("\n")}
+                  multiline
+                  hint={
+                    video.platform === "tiktok"
+                      ? "Từ khoá để tìm sản phẩm trong mục “Thêm sản phẩm” của app TikTok; mỗi dòng một sản phẩm"
+                      : "Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
+                  }
+                  save={(text) => patch({ affiliates: lines(text) })}
+                />
+                {video.platform === "facebook" && <VideoSuggestions video={video} />}
+                <AttachedProducts video={video} />
+              </Flex>
+            ),
+          },
+          {
+            key: "music",
+            forceRender: true,
+            label: label("music", "Gợi ý nhạc", video.music_suggestions.join(", ") || "Chưa có"),
+            extra: copyButton("Copy", video.music_suggestions.join("\n"), "gợi ý nhạc"),
+            children: (
+              <AutoSaveField
+                label="Gợi ý nhạc"
+                value={video.music_suggestions.join("\n")}
+                multiline
+                hint="Tìm tên nhạc này trong TikTok hoặc Facebook khi đăng; mỗi dòng một bản"
+                save={(text) => patch({ music_suggestions: lines(text) })}
+              />
+            ),
+          },
+          {
+            key: "review",
+            forceRender: true,
+            label: label(
+              "review",
+              "Rà soát an toàn của AI",
+              video.hand_written ? <StatusText tone="warning">{reviewSummary}</StatusText> : reviewSummary,
+            ),
+            children: video.hand_written ? (
+              <Alert
+                type="warning"
+                showIcon
+                data-testid="hand-written-review"
+                title="Video tự viết nên chưa được AI rà soát an toàn. Hãy tự kiểm tra nội dung theo luật an toàn của kênh trước khi đăng."
+              />
+            ) : video.self_review.length ? (
+              <ul style={{ margin: 0, paddingLeft: 20 }} data-testid="self-review">
+                {video.self_review.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            ) : (
+              <Typography.Text type="secondary">Không có câu nào phải sửa</Typography.Text>
+            ),
+          },
+        ]}
+      />
+    </Flex>
   );
 }
 

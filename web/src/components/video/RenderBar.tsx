@@ -1,12 +1,11 @@
 "use client";
 
 import { PlayCircleOutlined, RobotOutlined, VideoCameraOutlined } from "@ant-design/icons";
-import { Button, Flex, Grid, Space, Spin, Typography } from "antd";
+import { Button, Flex, Space, Spin, Typography } from "antd";
 import { useEffect, useState } from "react";
 import type { VideoDetail } from "@/lib/api";
 import GooglePhotosButton from "./GooglePhotosButton";
 import ImageProviderMenu from "./ImageProviderMenu";
-import { COLORS } from "@/app/theme";
 import { formatDecimal } from "@/lib/api";
 
 /** Scrolls to the first red reason on the page: a whole-video one, else a scene's. */
@@ -34,40 +33,33 @@ function useElapsed(startedAt: string | null) {
   return startedAt ? Math.max(0, (now - Date.parse(startedAt)) / 1000) : 0;
 }
 
+const scenesOf = (video: VideoDetail) => [video.title_scene, ...video.scenes].filter((scene) => scene !== null);
+
 /**
- * The editor's action bar, stuck to the bottom of the screen so "Render" is in reach however far the member has
- * scrolled down the scenes. It says what still blocks the render and jumps to it, which job is running and for how
- * long, and how the MP4 stands against the scenes.
+ * How the video stands against a render, in the page's fixed header: what still blocks it (and a jump to it), which
+ * job is running and for how long, or how the MP4 stands against the scenes; then a short summary of the video.
  */
-export default function RenderBar({
+export function RenderStatus({
   video,
   busy,
   jobName,
-  onRender,
-  onGenerateImages,
   onShowBlocking = showFirstBlocking,
-  onPreview,
   onCancelJob,
+  compact = false,
 }: {
   video: VideoDetail;
   busy: boolean;
   /** The running or queued job's name ("Tạo ảnh AI"), for the line that says what the video waits for. */
   jobName?: string;
-  onRender: () => void;
-  /** Without a provider: the team's default; with one: picked from the button's arrow for this press. */
-  onGenerateImages: (provider?: "cloudflare" | "gemini") => void;
   /** Opens what hides the first reason (a collapsed scene) before scrolling to it. */
   onShowBlocking?: () => void;
-  /** "Xem trước": the video played in the browser, before any render. */
-  onPreview?: () => void;
   /** Cancels the queued job, which has not started yet. */
   onCancelJob?: () => void;
+  /** A phone: the summary is left out. */
+  compact?: boolean;
 }) {
-  // Under 576 px: the summary line is left out and the bar is tighter.
-  const phone = !(Grid.useBreakpoint().sm ?? true);
-  const scenes = [video.title_scene, ...video.scenes].filter((scene) => scene !== null);
+  const scenes = scenesOf(video);
   const blocking = video.video_blocking.length + scenes.reduce((sum, scene) => sum + scene.blocking.length, 0);
-  const missingPhotos = scenes.some((scene) => !scene.has_image && !scene.video);
   const job = video.active_job;
   const rendering = job?.kind === "render";
   const elapsed = useElapsed(job?.status === "running" ? job.started_at : null);
@@ -80,7 +72,7 @@ export default function RenderBar({
     status = (
       <Flex gap={8} align="center" wrap data-testid="render-bar-job">
         <Spin size="small" />
-        <Typography.Text>
+        <Typography.Text style={{ fontSize: 13 }}>
           {running ? (
             <>
               {label}… {clock(elapsed)}
@@ -91,7 +83,11 @@ export default function RenderBar({
             `Đang chờ tới lượt: ${rendering ? "Render" : (jobName ?? "job")}`
           )}
         </Typography.Text>
-        {!rendering && <Typography.Text type="secondary">Xong mới render được.</Typography.Text>}
+        {!rendering && (
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            Xong mới render được.
+          </Typography.Text>
+        )}
         {!running && onCancelJob && (
           <Button size="small" disabled={busy} onClick={onCancelJob}>
             Hủy
@@ -101,78 +97,85 @@ export default function RenderBar({
     );
   } else if (blocking > 0) {
     status = (
-      <Button type="link" danger style={{ padding: 0 }} onClick={onShowBlocking}>
+      <Button type="link" danger size="small" style={{ padding: 0 }} onClick={onShowBlocking}>
         Còn {blocking} lỗi cần sửa, xem lỗi đầu tiên
       </Button>
     );
   } else if (!video.mp4) {
-    status = <Typography.Text>Sẵn sàng render.</Typography.Text>;
+    status = <Typography.Text style={{ fontSize: 13 }}>Sẵn sàng render.</Typography.Text>;
   } else if (video.mp4_outdated) {
     status = (
-      <Typography.Text type="warning" data-testid="render-bar-outdated">
+      <Typography.Text type="warning" style={{ fontSize: 13 }} data-testid="render-bar-outdated">
         Bản sửa chưa có trong MP4, bấm “Render lại”.
       </Typography.Text>
     );
   } else {
-    status = <Typography.Text type="secondary">MP4 đã theo bản mới nhất.</Typography.Text>;
+    status = (
+      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+        MP4 đã theo bản mới nhất.
+      </Typography.Text>
+    );
   }
 
   return (
-    <div
-      data-testid="render-bar"
-      data-compact={phone ? "true" : undefined}
-      style={{
-        position: "sticky",
-        bottom: 0,
-        zIndex: 5,
-        marginTop: 16,
-        padding: phone ? "6px 10px" : "10px 16px",
-        background: "#fff",
-        border: `1px solid ${COLORS.border}`,
-        borderRadius: 8,
-        boxShadow: "0 -4px 12px rgba(0, 0, 0, 0.06)",
-      }}
-    >
-      <Flex wrap gap={8} align="center" justify="space-between">
-        <Flex vertical gap={2} style={{ minWidth: 0 }}>
-          {status}
-          {/* On a phone the bar keeps to its status and buttons, so it covers less of the scenes. */}
-          <Typography.Text
-            type="secondary"
-            style={{ fontSize: 12, display: phone ? "none" : undefined }}
-            data-testid="render-bar-summary"
-          >
-            {video.scenes.length} cảnh, dài khoảng {Math.round(seconds)} giây,{" "}
-            {video.voice_enabled ? "có giọng đọc" : "không giọng đọc"}
-            {video.mp4 ? `, MP4 hiện tại ${formatDecimal(video.mp4.seconds)} giây` : ", chưa có MP4"}
-          </Typography.Text>
-        </Flex>
-        <Flex wrap gap={8}>
-          {missingPhotos && <GooglePhotosButton video={video} disabled={busy || video.locked} />}
-          {missingPhotos && (
-            <Space.Compact>
-              <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={() => onGenerateImages()}>
-                Tạo ảnh AI cho cảnh thiếu
-              </Button>
-              <ImageProviderMenu disabled={busy || video.locked} onPick={onGenerateImages} />
-            </Space.Compact>
-          )}
-          {onPreview && (
-            <Button icon={<PlayCircleOutlined />} onClick={onPreview}>
-              Xem trước
-            </Button>
-          )}
-          <Button
-            type="primary"
-            icon={<VideoCameraOutlined />}
-            loading={rendering}
-            disabled={!video.can_render || busy}
-            onClick={onRender}
-          >
-            {video.mp4 ? "Render lại" : "Render"}
+    <Flex wrap gap={8} align="center" style={{ minWidth: 0 }}>
+      {status}
+      <Typography.Text
+        type="secondary"
+        style={{ fontSize: 12, display: compact ? "none" : undefined }}
+        data-testid="render-bar-summary"
+      >
+        {video.scenes.length} cảnh, dài khoảng {Math.round(seconds)} giây,{" "}
+        {video.voice_enabled ? "có giọng đọc" : "không giọng đọc"}
+        {video.mp4 ? `, MP4 hiện tại ${formatDecimal(video.mp4.seconds)} giây` : ", chưa có MP4"}
+      </Typography.Text>
+    </Flex>
+  );
+}
+
+/** The header's actions on the render: the photo helpers while a scene has none, "Xem trước", then "Render". */
+export function RenderButtons({
+  video,
+  busy,
+  onRender,
+  onGenerateImages,
+  onPreview,
+}: {
+  video: VideoDetail;
+  busy: boolean;
+  onRender: () => void;
+  /** Without a provider: the team's default; with one: picked from the button's arrow for this press. */
+  onGenerateImages: (provider?: "cloudflare" | "gemini") => void;
+  /** "Xem trước": the video played in the browser, before any render. */
+  onPreview?: () => void;
+}) {
+  const missingPhotos = scenesOf(video).some((scene) => !scene.has_image && !scene.video);
+  const rendering = video.active_job?.kind === "render";
+  return (
+    <>
+      {missingPhotos && <GooglePhotosButton video={video} disabled={busy || video.locked} />}
+      {missingPhotos && (
+        <Space.Compact>
+          <Button icon={<RobotOutlined />} disabled={busy || video.locked} onClick={() => onGenerateImages()}>
+            Tạo ảnh AI cho cảnh thiếu
           </Button>
-        </Flex>
-      </Flex>
-    </div>
+          <ImageProviderMenu disabled={busy || video.locked} onPick={onGenerateImages} />
+        </Space.Compact>
+      )}
+      {onPreview && (
+        <Button icon={<PlayCircleOutlined />} onClick={onPreview}>
+          Xem trước
+        </Button>
+      )}
+      <Button
+        type="primary"
+        icon={<VideoCameraOutlined />}
+        loading={rendering}
+        disabled={!video.can_render || busy}
+        onClick={onRender}
+      >
+        {video.mp4 ? "Render lại" : "Render"}
+      </Button>
+    </>
   );
 }
