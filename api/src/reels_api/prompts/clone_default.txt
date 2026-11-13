@@ -5,3 +5,7 @@ Kịch bản gốc:
 Phân tích yếu tố làm video này hấp dẫn, rồi viết 1 biến thể: giữ công thức,
 đổi thực phẩm / mốc tuổi / nhóm bệnh theo yêu cầu sau:
 [yêu cầu đổi]
+
+Mỗi cảnh tập trung một đối tượng chính. Từ khóa đầu mô tả đúng đối tượng và hành động/trạng thái thấy được để tìm
+clip thật; từ sau giữ tên đối tượng để tìm ảnh dự phòng. Viết tiếng Anh tương ứng, không đổi món. Lời đọc gọn,
+giữ ý và điều kiện an toàn; không biến lợi ích sức khỏe thành từ khóa tìm ảnh. Chỉ xuất JSON theo định dạng cuối.

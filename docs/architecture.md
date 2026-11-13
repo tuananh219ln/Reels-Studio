@@ -165,6 +165,52 @@ is refused with `stock_photo` before any download, a clip with `not_a_photo`, an
 ("Tự chọn, kiểm tra lại") and its link as `image_source`. `target` names the scene the right-click menu "Gửi ảnh vào
 Reels Studio" sends to; the photo comes back to that page as `send-image` and is fetched like a pasted link.
 
+### Automatic scene footage
+
+`auto_footage.py` optionally runs inside the existing post-script `photos` job, before its photo search. Enable
+"Tự tìm và chọn clip theo kịch bản" once on Cài đặt › Nguồn tư liệu (`PUT /api/settings/auto-footage`,
+`{"enabled": true}`); this also enables the post-script job. `GET /api/settings/sources` returns `auto_footage`.
+The switch is shared, logged, and off by default because selecting footage uses the active image-capable LLM.
+
+The worker searches public YouTube videos using `youtube_footage.py` (bounded `yt-dlp` subprocesses), then Pexels
+and Pixabay Videos in the group's configured source order. No manual links or additional search key are needed
+for YouTube; stock sources still need their own keys. No TikTok/Facebook automatic search is implemented.
+One unused candidate per source, at most three per scene, is downloaded. Two frames per candidate window, centre
+cropped to the render's 9:16 frame, go to
+the LLM, which chooses one of six windows or rejects the clip. Every attempt increments the job's LLM call count
+before sending it. Invalid choices are rejected; provider failures stop further paid attempts in that job.
+
+When footage selection can run, the job first makes the scenes' narration (the same voices a render reuses), so
+selected footage is cut to the scene's real length (`fit_seconds` of the narration and pauses) plus 0.4 seconds for
+transitions instead of the script's estimate; a clip the narration would outlast is no longer frozen on its last
+frame. It is checked as an uploaded clip, stored silent, and marked `image_auto`, with its source in
+`image_source`. Existing media is preserved. A single-backdrop video's title alone gets footage; its content scenes keep photos for insets.
+No suitable clip means the existing photo search. YouTube blocking, missing models and absent stock keys do not
+break the script. This is selection assistance, not a guarantee the image is correct; review remains required.
+See [the decision](decisions/2026-11-13-automatic-scene-footage.md) for limits and failure behavior.
+
+![The shared automatic footage switch](images/automatic-footage.png)
+
+### Reworking unpublished videos
+
+"Nâng cấp video chưa đăng" (`/videos/rework`, linked from the footage switch) lets the maker pick up to 50 of
+their own videos and queue one `rework` job each (`POST /api/rework/videos` `{ids, replace_manual, render_after}`;
+`GET /api/rework/videos` lists their latest 500 videos with why each is or is not eligible and its last rework).
+The handler only checks and enqueues: the whole batch is refused (409) when any video was posted, is being posted,
+is scheduled or deleted on a Page (`publications` pending/scheduled/published/deleted), has no script, keeps a
+clip's own sound, or already has a job; a teammate's video is 403. Queued posting approvals
+(`page_queue_items`) of the batch are withdrawn, so a reworked MP4 is never auto-posted on the old approval.
+
+The worker ([rework.py](../api/src/reels_api/rework.py)) asks the active LLM once
+([rework_default.txt](../api/src/reels_api/prompts/rework_default.txt), with the group's photo hint and banned
+words as data) for each scene's new text, voice and keywords, same ids and order; any invalid scene rejects the
+whole answer and nothing changes. Then it makes the narration and runs the footage search (preferring footage
+whatever the shared switch says) for the automatic scenes and those without media, or for every scene when
+`replace_manual` is set; a scene where nothing new is found keeps its old media. Finally it queues a render; it
+never posts. Progress is checkpointed in the job's `edit_prompt` (`stage` script → voice → media → done,
+`replaced`, `kept`) so a retry resumes without a second script call, and a retry refuses to run when the video was
+edited after the failed attempt (a signature of the scenes' text, voice, keywords, timing and media).
+
 ### Media Library ("Kho tư liệu")
 
 Photos and clips gathered once and used in any scene ([routes_media.py](../api/src/reels_api/routes_media.py)).

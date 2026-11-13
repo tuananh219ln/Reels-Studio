@@ -40,6 +40,12 @@ three. The compose project is named `reels-studio`, so moving the repo keeps the
 - **Images build from the repo root** ([.dockerignore](../.dockerignore)), because both
   install `worker/` (`reels_render`) next to `api/`. Both run as uid 10001.
 
+- **Automatic footage** uses the worker's existing Node 22 and `yt-dlp[default]` (including its bundled YouTube
+  JS solver), installed from `api/pyproject.toml`. It does not fetch solver code at runtime. Local workers need
+  Node 22 on PATH as well as FFmpeg. Enable the shared switch on Nguồn tư liệu once after deployment; the active
+  LLM must accept images. Public YouTube downloads may still be blocked, in which case video stock/photo fallback
+  runs automatically. No new environment variables are required.
+
 - **Why Workers, not Pages:** the web app needs a server runtime for `proxy.ts` and the `/api/*`
   rewrite. Cloudflare runs full Next.js through OpenNext on Workers; the old Pages adapter is
   deprecated. Next.js 16's `proxy.ts` is Node middleware, which OpenNext Cloudflare supports only

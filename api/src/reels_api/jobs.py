@@ -43,6 +43,7 @@ from . import (
     reference,
     render_nodes,
     revise,
+    rework,
     source_keys,
     text_looks,
     tiktok_publish,
@@ -176,6 +177,13 @@ def run_job(
                 auto_photos.run(db, job, storage)
             elif job.kind == "revise":
                 run_revise_job(db, job, call)
+            elif job.kind == rework.KIND:
+                try:
+                    rework.run(db, job, storage, call)
+                    rework.finish(db, job)
+                except (rework.ReworkError, ClaudeError) as err:
+                    raise JobFailure(str(err)) from None
+                return
             elif job.kind == "motion":
                 try:
                     motion.run(db, job, storage)

@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import auto_photos, edit_log, image_providers, image_style, llm, routes_videos, source_keys
+from . import auto_footage, auto_photos, edit_log, image_providers, image_style, llm, routes_videos, source_keys
 from .models import LlmProvider
 
 # Card ids within each page's history, and the names the history shows for them.
@@ -42,7 +42,7 @@ def _llm_card(db: DbSession) -> dict[str, Any]:
 
 def snapshot(db: DbSession) -> dict[tuple[str, int], dict[str, Any]]:
     """Every card of both pages, as JSON values: (entity type, card id) → {field: value}."""
-    stock: dict[str, Any] = {"auto_photos": auto_photos.enabled(db)}
+    stock: dict[str, Any] = {"auto_photos": auto_photos.enabled(db), "auto_footage": auto_footage.enabled(db)}
     off = routes_videos.stock_turned_off(db)
     for source in routes_videos.STOCK_SOURCES:
         stock[f"{source}.enabled"] = source not in off

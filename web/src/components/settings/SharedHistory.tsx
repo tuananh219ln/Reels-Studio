@@ -21,6 +21,7 @@ const FIELD_NAMES: Record<string, string> = {
   ai_provider: "Nguồn ảnh AI mặc định",
   ai_style: "Phong cách ảnh AI",
   auto_photos: "Tự tìm ảnh sau khi viết kịch bản",
+  auto_footage: "Tự tìm và chọn clip theo kịch bản",
   machine: "Máy render",
   name: "Tên mẫu",
 };

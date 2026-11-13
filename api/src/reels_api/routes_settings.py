@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from . import (
+    auto_footage,
     auto_photos,
     config,
     crypto,
@@ -336,6 +337,7 @@ def _sources(db: DbSession) -> dict:
         "ai_style": image_style.payload(db),
         # "Tự tìm ảnh sau khi viết kịch bản" (auto_photos.py), on unless the team turned it off.
         "auto_photos": auto_photos.enabled(db),
+        "auto_footage": auto_footage.enabled(db),
         "ai_images": {
             "configured": bool(source_keys.get(db, "gemini")),
             "model": config.image_gen_model(),
@@ -378,6 +380,17 @@ def set_image_provider(
 def set_auto_photos(body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
     before = settings_log.snapshot(db)
     auto_photos.save(db, body.enabled, me.user_id)
+    settings_log.record(db, before, me.user_id)
+    db.commit()
+    return _sources(db)
+
+
+@router.put("/auto-footage")
+def set_auto_footage(body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    before = settings_log.snapshot(db)
+    auto_footage.save(db, body.enabled, me.user_id)
+    if body.enabled:
+        auto_photos.save(db, True, me.user_id)
     settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)
