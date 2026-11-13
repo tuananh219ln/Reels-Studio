@@ -62,6 +62,7 @@ from .facebook import FacebookError
 from .frames import jpeg_bytes
 from .imagegen import ImageGenError, generate_image
 from .models import (
+    AffiliateAccount,
     Article,
     Fanpage,
     Job,
@@ -1002,6 +1003,71 @@ def queue_post_checks(db: DbSession) -> None:
         except IntegrityError:
             continue
         log.info("Queued a check of post %s on Facebook", post.id)
+
+
+TIKTOK_SWEEP_WINDOW = timedelta(hours=24)
+
+
+def queue_tiktok_posts(db: DbSession) -> None:
+    """Send each video whose Facebook post has reached its slot to TikTok: a draft into the Page owner's TikTok inbox,
+    or a public post when the Page's mode is "direct". TikTok has no scheduled time, so this round, which runs about
+    once a minute, is the clock. Only a reel that is scheduled or out counts (a pending one is not yet on Facebook, a
+    cancelled one was stopped), once per video, and only through a TikTok account of the Page's owner."""
+    due = db.scalars(
+        select(Publication).where(
+            Publication.video_id.is_not(None),
+            Publication.platform == "facebook",
+            Publication.status.in_(("scheduled", "published")),
+            Publication.scheduled_at <= now(),
+            # Only a slot of the last day: videos posted long ago (before this existed) are never sent in a flood.
+            Publication.scheduled_at >= now() - TIKTOK_SWEEP_WINDOW,
+        )
+    ).all()
+    for post in due:
+        video = db.get(Video, post.video_id)
+        page = db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None
+        if video is None or not video.mp4_key or page is None or page.owner_id is None or not page.tiktok_account_id:
+            continue
+        account = db.get(AffiliateAccount, page.tiktok_account_id)
+        if account is None or not account.active or account.platform != "tiktok" or account.owner_id != page.owner_id:
+            continue
+        if active_job(db, video.id) is not None:
+            continue  # the next round tries again
+        already = db.scalar(
+            select(Publication.id).where(
+                Publication.video_id == video.id,
+                Publication.platform == "tiktok",
+                Publication.status.in_(("pending", "scheduled", "published")),
+            )
+        )
+        if already is not None:
+            continue
+        mode = page.tiktok_auto_mode or "draft"
+        try:
+            with db.begin_nested():
+                made = Publication(
+                    video_id=video.id,
+                    platform="tiktok",
+                    status="pending",
+                    created_by_id=page.owner_id,
+                    affiliate_account_id=account.id,
+                    publish_mode=mode,
+                    privacy_level="PUBLIC_TO_EVERYONE" if mode == "direct" else None,
+                )
+                db.add(made)
+                db.flush()
+                db.add(
+                    Job(
+                        video_id=video.id,
+                        kind="tiktok_publish",
+                        status="queued",
+                        created_by_id=page.owner_id,
+                        publication_id=made.id,
+                    )
+                )
+        except IntegrityError:
+            continue
+        log.info("Queued a TikTok %s post of video %s for Page %s", mode, video.id, page.name)
 
 
 def run_check_job(db: DbSession, job: Job) -> None:

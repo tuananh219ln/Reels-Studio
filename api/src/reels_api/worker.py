@@ -20,7 +20,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from . import affiliate_rounds, comments_inbox, config, fanpages, metrics, page_queue, post_comments
-from .jobs import queue_post_checks, work_dir
+from .jobs import queue_post_checks, queue_tiktok_posts, work_dir
 from .models import Job
 from .sessions import now
 
@@ -123,6 +123,7 @@ def queue_checks(factory: sessionmaker) -> None:
     try:
         with factory() as db:
             queue_post_checks(db)
+            queue_tiktok_posts(db)
             db.commit()
     except Exception:
         log.exception("Could not queue the post checks")
