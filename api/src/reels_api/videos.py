@@ -140,6 +140,7 @@ JOB_KINDS = {
     "text_look": "AI gợi ý kiểu chữ",
     "learn": "Học từ video mẫu",
     "revise": "AI sửa theo góp ý",
+    "rework": "Nâng cấp kịch bản và tư liệu",
     "article_caption": "Viết bài viết",
     "motion": "Cảnh động",
     "tiktok_publish": "Đăng TikTok",

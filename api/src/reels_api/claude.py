@@ -34,9 +34,11 @@ Các trường:
   nguyên văn tiêu đề nào), 8–12 từ.
   Khi đọc, cảnh có lời đọc chỉ đọc lời đọc, không đọc chữ trên màn hình: chữ là nhãn ngắn, lời đọc là phần diễn giải.
   Tổng số từ của "title_voice" và mọi "voice" không quá 150 từ.
-- "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh tiêu đề, tả đúng thứ chính hiện trong khung
+- "title_keywords": 2–4 từ khóa tiếng Việt để tìm ảnh hoặc clip cho cảnh tiêu đề, tả đúng thứ chính hiện trong khung
   hình (món ăn, cây, đồ vật hay việc đang làm, kèm trạng thái nếu cần, vd "cây cải đang mọc" chứ không chỉ "cải"),
-  xếp từ cụ thể đến chung (thứ tiêu biểu nhất của chủ đề trước, nhóm chung sau).
+  xếp từ cụ thể đến chung. Từ đầu là đối tượng tiêu biểu + hành động/trạng thái nhìn thấy được (vd "múc canh bí đỏ"),
+  dùng làm truy vấn tìm clip; từ sau giữ tên đối tượng để tìm ảnh dự phòng. Không tìm bằng lợi ích, tên bệnh hay
+  yêu cầu ghép mọi món trong một khung hình.
 - "title_keywords_en": 2–4 từ khóa tiếng Anh tương ứng để tìm ở các kho ảnh phương Tây (Pixabay, Pexels —
   hai kho này đánh chỉ mục bằng tiếng Anh): dịch sang tiếng Anh phổ thông, giữ trạng thái và bối cảnh, xếp từ
   cụ thể đến chung, không để tên riêng tiếng Việt.
@@ -56,9 +58,11 @@ Các trường:
   - "image_prompt": prompt tạo ảnh AI cho cảnh, viết bằng tiếng Anh, 1 câu tả đúng thứ trong ảnh (món/nguyên liệu
     cụ thể của cảnh, cách bày, góc chụp); không ghi ánh sáng, khung hình hay "không có chữ" vì app tự thêm phong cách
     chung;
-  - "keywords": 2–4 từ khóa tiếng Việt để tìm ảnh chụp cho cảnh, tả đúng thứ chính hiện trong khung hình của
+  - "keywords": 2–4 từ khóa tiếng Việt để tìm ảnh hoặc clip cho cảnh, tả đúng thứ chính hiện trong khung hình của
     cảnh (món ăn, cây, đồ vật hay việc đang làm, kèm trạng thái nếu cần), xếp từ cụ thể đến chung (thứ cụ thể
-    của cảnh trước, nhóm chung sau).
+    của cảnh trước, nhóm chung sau). Từ đầu là đối tượng + hành động/trạng thái thực tế dễ tìm cảnh quay;
+    từ sau là tên đối tượng cho ảnh dự phòng. Một cảnh chỉ có một đối tượng chính, không dùng lợi ích trừu tượng
+    ("sống thọ", "tốt cho gan") làm từ khóa. Hành động minh họa không buộc lời đọc phải kể cách chế biến.
   - "keywords_en": 2–4 từ khóa tiếng Anh tương ứng cho các kho ảnh phương Tây: dịch sang tiếng Anh phổ thông,
     giữ trạng thái và bối cảnh, xếp từ cụ thể đến chung, không để tên riêng tiếng Việt.
 - "caption": caption theo yêu cầu trong prompt; không có yêu cầu thì viết ngắn gọn; không ghi hashtag trong caption.
@@ -80,35 +84,35 @@ Ví dụ đầy đủ:
     "5 THỰC PHẨM GIÀU CANXI DỄ TÌM CHO NGƯỜI 50+"
   ],
   "title_voice": "Xương yếu dần theo năm tháng, bữa cơm đã đủ chưa?",
-  "title_keywords": ["cá cơm chiên giòn", "món ăn giàu canxi"],
-  "title_keywords_en": ["fried whitebait", "calcium rich food"],
+  "title_keywords": ["gắp cá cơm chiên giòn", "cá cơm chiên giòn"],
+  "title_keywords_en": ["serving fried whitebait", "fried whitebait"],
   "title_image_prompt": "Five calcium-rich Vietnamese dishes on one wooden table: fried anchovies, tofu, greens, yogurt and black sesame, top-down view",
   "scenes": [
     {"text": "Cá nhỏ\\nĂn cả xương, giàu *canxi*", "seconds": 4,
      "voice": "Cá nhỏ, có canxi ngay trong phần xương, hỗ trợ xương chắc, nhớ nhai kỹ.",
      "image_prompt": "A plate of crispy fried anchovies on a wooden table, close-up from a 45-degree angle",
-     "keywords": ["cá cơm chiên giòn", "cá nhỏ", "món cá"],
-     "keywords_en": ["fried whitebait", "small fish", "fish dish"]},
+     "keywords": ["gắp cá cơm chiên giòn", "cá cơm chiên giòn", "cá nhỏ"],
+     "keywords_en": ["serving fried whitebait", "fried whitebait", "small fish"]},
     {"text": "Sữa chua\\nBổ sung *canxi* và đạm", "seconds": 4,
      "voice": "Sữa chua, có canxi và lợi khuẩn, tốt cho tiêu hóa, mỗi ngày một hũ.",
      "image_prompt": "A small glass jar of plain white yogurt with a spoon on a wooden table, eye-level close-up",
-     "keywords": ["hũ sữa chua", "sữa chua"],
-     "keywords_en": ["yogurt cup", "yogurt"]},
+     "keywords": ["múc sữa chua", "hũ sữa chua"],
+     "keywords_en": ["spooning yogurt", "yogurt cup"]},
     {"text": "Đậu phụ\\nCanxi và *đạm thực vật*", "seconds": 4,
      "voice": "Đậu phụ, có đạm và canxi, mềm dễ nhai, hợp với người răng yếu.",
      "image_prompt": "A plate of golden pan-fried tofu cubes on a wooden table, top-down view",
-     "keywords": ["đậu phụ rán", "đậu phụ", "món đậu"],
-     "keywords_en": ["fried tofu", "tofu", "tofu dish"]},
+     "keywords": ["gắp đậu phụ rán", "đậu phụ rán", "đậu phụ"],
+     "keywords_en": ["serving fried tofu", "fried tofu", "tofu"]},
     {"text": "Rau cải xanh\\nCó canxi và *vitamin K*", "seconds": 4,
      "voice": "Rau cải xanh, có vitamin K, giúp cơ thể giữ canxi cho xương chắc hơn.",
      "image_prompt": "A bunch of fresh Vietnamese mustard greens on a wooden table, top-down view",
-     "keywords": ["rau cải xanh", "rau xanh"],
-     "keywords_en": ["green vegetables", "leafy greens"]},
+     "keywords": ["rửa rau cải xanh", "rau cải xanh"],
+     "keywords_en": ["washing mustard greens", "mustard greens"]},
     {"text": "Vừng đen\\nRắc vào cháo, *sữa hạt* mỗi sáng", "seconds": 4,
      "voice": "Vừng đen, giàu canxi và chất béo tốt, mỗi sáng một thìa nhỏ là đủ.",
      "image_prompt": "A small bowl of roasted black sesame seeds on a wooden table, close-up",
-     "keywords": ["vừng đen rang", "vừng đen"],
-     "keywords_en": ["black sesame seeds", "black sesame"]}
+     "keywords": ["rắc vừng đen rang", "vừng đen rang"],
+     "keywords_en": ["sprinkling black sesame seeds", "roasted black sesame seeds"]}
   ],
   "caption": "5 món giúp xương chắc khỏe sau tuổi 50! Nhà bạn hay ăn món nào nhất?",
   "hashtags": ["#xuongkhop", "#duongsinh", "#dinhduong", "#nguoicaotuoi", "#canxi"],

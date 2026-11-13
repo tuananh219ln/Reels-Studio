@@ -132,6 +132,17 @@ How the prompt is built (built, compact version):
   after the banned words, before the format, of both its script and clone prompts, telling the AI to
   write the keywords and AI image prompts by it; empty adds nothing. Only scripts written after a
   change follow it.
+  For automatic footage (Cài đặt › Nguồn tư liệu) the **first** keyword of each list is the clip search query,
+  so the format asks for the object plus a visible action or state ("múc canh bí đỏ", "serving pumpkin soup"),
+  then the object's name for the photo fallback; never a benefit or a disease name, one main object per scene.
+  The action only illustrates: the voice text still speaks of the dish, not of cooking steps. The default script
+  and clone prompts ask for footage-friendly scenes, short labels and 8–12-word voices; the scene seconds are an
+  estimate, matched to the real narration later.
+- **Rework ("Nâng cấp video chưa đăng"):** [rework_default.txt](../api/src/reels_api/prompts/rework_default.txt)
+  (not editable per group yet) keeps each video's topic, ideas, things named, scene count and order, and rewrites
+  only the on-screen text, voice and the keywords above; it adds no health claims and no cooking instructions. The
+  group's photo hint and banned words go with the scenes as data. The answer's format and limits are code
+  ([rework.py](../api/src/reels_api/rework.py)); an invalid answer changes nothing.
 - **Repairs:** an unusable answer (broken JSON, no title, no scene) is asked once more, then the
   job fails with Claude's raw answer in its detail. Small slips are repaired: seconds below 1
   become 4, keywords are cut to 100 characters, missing parts stay empty. Everything then goes

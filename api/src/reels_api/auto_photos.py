@@ -1,23 +1,28 @@
-""" "Tự tìm ảnh": after a script is written, every scene without a photo or clip gets one from the free stock libraries.
+""" "Tự tìm ảnh": after a script is written, fill scenes without media from the free stock libraries by default.
+
+With the opt-in auto_footage switch, first search for clips and select a segment using the active vision model;
+only scenes without a suitable clip continue to the photo search below.
 
 A job of its own (kind "photos"), queued when a script or clone job finishes, so a search problem never fails the
 script. It uses the picker's rules: tall photos big enough for the frame, never one another scene shows, sources in
 the video's topic group's order ("Thứ tự nguồn ảnh"; else the app's: Pexels, Unsplash, Pixabay, Wikimedia, Openverse)
 minus those turned off or without a key; a source that fails (Unsplash out of calls, say) is not asked again in the
-same job. A photo whose licence asks for credit keeps it on the scene, which then warns. It never makes AI photos (they cost calls). Each photo is stored with `image_auto`, shown
+same job. A photo whose licence asks for credit keeps it on the scene, which then warns. It never generates AI photos. Each photo is stored with `image_auto`, shown
 as "Tự chọn, kiểm tra lại" until a member changes it: stock libraries often show the wrong dish for Vietnamese food.
 The team can turn it off on Cài đặt › Nguồn tư liệu.
 """
 
 import logging
 import time
+from collections.abc import Callable
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from . import auto_footage, llm
 from .models import AppSetting, Job, Scene, Video
 from .storage import DirectoryStorage
-from .videos import new_key, refresh_thumbnail, split_scenes
+from .videos import drop_original, new_key, refresh_thumbnail, split_scenes
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +53,15 @@ def queue_after_script(db: DbSession, job: Job) -> None:
         db.add(Job(video_id=job.video_id, kind="photos", status="queued", created_by_id=job.created_by_id))
 
 
-def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+def run(
+    db: DbSession,
+    job: Job,
+    storage: DirectoryStorage,
+    *,
+    replace_ids: set[int] | None = None,
+    prefer_footage: bool | None = None,
+    on_saved: Callable[[Scene, bool], None] | None = None,
+) -> None:
     # The picker's clients and rules live with its routes; imported here to keep jobs free of the web layer at load.
     from . import routes_videos
 
@@ -64,8 +77,20 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
     )
     last_error = ""
     missing = 0
-    for scene in [title, *scenes]:
-        if scene.image_key or scene.video_key:
+    use_footage = auto_footage.enabled(db) if prefer_footage is None else prefer_footage
+    footage = auto_footage.Finder(db, job, storage, video, order, off, used, on_saved) if use_footage else None
+    targets = [
+        scene
+        for scene in [title, *scenes]
+        if (replace_ids is not None and scene.id in replace_ids)
+        or (replace_ids is None and not (scene.image_key or scene.video_key))
+    ]
+    if footage and not llm.problem(footage.target):
+        from .jobs import make_voices
+
+        make_voices(db, video, targets, storage)
+    for scene in targets:
+        if footage and footage.fill(scene, replace=replace_ids is not None):
             continue
         photo = None
         for source in list(alive):
@@ -87,14 +112,24 @@ def run(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 break
         if photo is None:
             missing += 1
+            if on_saved and (scene.image_key or scene.video_key) and (alive or not last_error):
+                on_saved(scene, False)
+                db.commit()
             continue
+        old = [scene.image_key, scene.video_key, drop_original(scene)]
         key = new_key(video.id, f"scene-{scene.id}", photo.extension)
         storage.save_bytes(key, photo.data)
         scene.image_key, scene.image_source, scene.image_error, scene.image_auto = key, photo.url, None, True
+        scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
+        scene.video_sound, scene.words = False, None
         scene.image_credit = {"url": photo.url, **photo.credit} if photo.credit else None
         used.add(photo.url)
         if scene.is_title:
             refresh_thumbnail(db, storage, video, scene)
+        if on_saved:
+            on_saved(scene, True)
         db.commit()
+        for old_key in old:
+            storage.delete(old_key)
     if missing and not alive and last_error:
         raise AutoPhotosFailed(f"Không tự tìm được ảnh: {last_error}")

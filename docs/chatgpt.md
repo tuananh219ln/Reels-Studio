@@ -122,6 +122,15 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   `use_stock_photo` stores the one chosen (only a result of that same search). The server's instructions say to try
   these first, to search the web only when the member asks or the libraries have nothing, preferring Creative Commons
   photos, attached with `set_scene_media_from_link`, and to stop and tell the member at a CAPTCHA.
+- **Filling scenes with footage, no links and no LLM of the team's** ([footage_tools.py](../api/src/reels_api/footage_tools.py)):
+  `list_scenes_missing_media` lists the member's scenes with no photo or clip (and, with `upgrade_photos`, those
+  holding only an automatic photo) with their text, voice and keywords; `find_scene_footage` searches YouTube, Pexels
+  or Pixabay for a keyword, downloads up to two unused clips into a one-hour cache of the api host and returns their
+  source links with one 9:16 frame per possible window (0–5, each as long as the scene's narration needs); the
+  assistant looks and `use_scene_footage` cuts the chosen window into a silent clip with its source link and the
+  "check again" mark, like the automatic job. A candidate fits only its own scene; a "Video xuyên suốt" content scene
+  takes photos, not clips. It never renders or posts. The ready-to-paste routine for an always-on assistant is in
+  [muse-footage.md](muse-footage.md).
 - **Cleaning a photo or clip**: `view_scene_photo` returns the photo as stored with its size (and the writing "Tìm
   chữ/logo tự động" found); `edit_scene_image` queues "Sửa ảnh" (`lama`, free, or `cloudflare` with boxes; `gemini`
   with words, paid), `restore_scene_image` brings back the original, and `set_scene_clip_blur` blurs boxes on a clip.

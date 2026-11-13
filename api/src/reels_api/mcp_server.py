@@ -30,7 +30,7 @@ from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 
-from . import auto_approve, clips, jobs, motion, remote_media, video_options
+from . import auto_approve, clips, footage_tools, jobs, motion, remote_media, video_options
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -171,6 +171,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             "logo không: ảnh xem trước của trang ảnh stock (Shutterstock, Getty, iStock, Adobe Stock…) thì bỏ, chọn ảnh "
             'khác; chữ hay logo trên ảnh nhóm được dùng thì khoanh và xóa bằng "Sửa ảnh của cảnh" (lama, miễn phí), '
             'logo dính trên clip thì "Làm mờ vùng trên video của cảnh". '
+            'Lấp tư liệu tự động (không cần link, không tốn phí AI của nhóm): gọi "Liệt kê cảnh thiếu tư liệu", với '
+            'mỗi cảnh gọi "Tìm clip cho cảnh" bằng từ khóa đầu của cảnh (youtube trước, rồi pexels, pixabay), xem '
+            'các đoạn, chọn đoạn đúng đối tượng và hành động rồi "Dùng clip đã chọn cho cảnh"; không có clip hợp '
+            'thì dùng "Tìm ảnh kho miễn phí". Không tự render hay đăng; báo kết quả cho người dùng. '
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
             "Link video mở trong Reels Studio và cần đăng nhập. " + QUALITY
         ),
@@ -1149,6 +1153,53 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             lambda db, me: video_link(media_routes.use_in_scene(db, get_storage(), media_id, scene_id)),
             write=True,
         )
+
+    @tool("Liệt kê cảnh thiếu tư liệu", read=True)
+    async def list_scenes_missing_media(video_id: int | None = None, upgrade_photos: bool = False) -> dict:
+        """Cảnh chưa có ảnh hay clip trong các video của người dùng (hoặc một video_id), kèm chữ, lời đọc và từ khóa
+        để tìm tư liệu. upgrade_photos=true thêm cảnh chỉ có ảnh tự tìm của app, để thay bằng clip. Video xuyên suốt
+        chỉ liệt kê cảnh tiêu đề (nền chung)."""
+        return await run_in_threadpool(invoke, lambda db, me: footage_tools.missing(db, me, video_id, upgrade_photos))
+
+    @tool("Tìm clip cho cảnh", read=True, external=True, images=True)
+    async def find_scene_footage(
+        scene_id: int,
+        keyword: Annotated[str, Field(min_length=1, max_length=100)],
+        source: Literal["youtube", "pexels", "pixabay"] = "youtube",
+    ) -> list:
+        """Tìm và tải tối đa 2 clip công khai cho cảnh từ một nguồn (không cần link, không tốn phí AI của nhóm): trả
+        mã ứng viên, link nguồn và mỗi ứng viên các ảnh nhỏ 9:16 đánh số đoạn 0–5, mỗi đoạn dài đúng thời lượng lời
+        đọc của cảnh. Từ khóa nên là đối tượng + hành động nhìn thấy được ("múc canh bí đỏ"); Pexels và Pixabay tìm
+        bằng tiếng Anh. Có thể mất vài chục giây. Xem ảnh, chọn đoạn đúng món, đúng hành động, không watermark, không
+        chỉ có người nói; không có đoạn nào đúng thì thử từ khóa hoặc nguồn khác. Chọn xong gọi "Dùng clip đã chọn
+        cho cảnh". Ứng viên hết hạn sau khoảng một giờ."""
+
+        def operation(db, me):
+            found, frames = footage_tools.find(db, scene_id, keyword, source)
+            if not found:
+                return [
+                    f"Không có clip {source} dùng được cho “{keyword}”: thử từ khóa khác hoặc nguồn khác "
+                    "(clip quá ngắn, quá dài, trùng cảnh khác hoặc không tải được)."
+                ]
+            content: list = [json.dumps({"candidates": found}, ensure_ascii=False)]
+            for label, frame in frames:
+                content += [label, Image(data=frame, format="jpeg")]
+            return content
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Dùng clip đã chọn cho cảnh", read=False)
+    async def use_scene_footage(scene_id: int, candidate: str, window: Annotated[int, Field(ge=0, le=5)]) -> dict:
+        """Cắt đoạn đã chọn (window, số trên ảnh) của ứng viên từ "Tìm clip cho cảnh" thành clip im tiếng của cảnh,
+        thay ảnh hoặc clip đang có; giữ link nguồn và đánh dấu cần kiểm tra lại. Sau đó gọi "Xem khung hình của
+        cảnh" để chắc chắn."""
+
+        def operation(db, me):
+            footage_tools.use(db, get_storage(), scene_id, candidate, window)
+            scene = db.get(Scene, scene_id)
+            return video_link(videos.video_payload(db, db.get(Video, scene.video_id)))
+
+        return await run_in_threadpool(invoke, operation, write=True)
 
     @tool("Yêu cầu render", read=False, external=True)
     async def render_video(video_id: int) -> dict:
