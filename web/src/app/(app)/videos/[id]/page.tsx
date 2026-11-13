@@ -1,16 +1,12 @@
 "use client";
-import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
 import CloneModal, { type CloneTarget } from "@/components/video/CloneModal";
 
 import { COLORS } from "@/app/theme";
-import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
 import { useMe } from "@/components/MeContext";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
-import PostContent from "@/components/video/PostContent";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
-import PublishCard, { PublishButton } from "@/components/video/PublishCard";
-import QcCard from "@/components/video/QcCard";
+import PublishTab from "@/components/video/PublishTab";
 import RenderBar, { showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
@@ -25,7 +21,6 @@ import {
   api,
   errorMessage,
   formatDateTime,
-  formatDecimal,
   type SceneData,
   type VideoDetail,
   type VideoMode,
@@ -37,7 +32,6 @@ import {
   CheckOutlined,
   CopyOutlined,
   DeleteOutlined,
-  DownloadOutlined,
   EditOutlined,
   FolderOutlined,
   MoreOutlined,
@@ -781,56 +775,7 @@ export default function VideoPage() {
                   {
                     key: "publish",
                     label: "Đăng bài",
-                    children: (
-                      <Flex vertical gap={12}>
-                        {/* Texts on the left to write and comment, the MP4 and where it goes on the right. */}
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-                            gap: 16,
-                            alignItems: "start",
-                          }}
-                        >
-                          <EditorContext.Provider value={postEditor}>
-                            <PostContent video={video} />
-                          </EditorContext.Provider>
-                          <Flex vertical gap={16} style={{ minWidth: 0 }}>
-                            {video.mp4 ? (
-                              <>
-                                <Card title="MP4" size="small">
-                                  <Flex gap={14} align="flex-start">
-                                    <Mp4Player key={video.mp4.url} url={video.mp4.url} />
-                                    <Flex vertical gap={10} style={{ minWidth: 0 }}>
-                                      <Typography.Text type="secondary" data-testid="render-time">
-                                        Dài {formatDecimal(video.mp4.seconds)} giây, render mất{" "}
-                                        {formatDecimal(video.mp4.render_seconds)} giây
-                                      </Typography.Text>
-                                      <Button icon={<DownloadOutlined />} href={video.mp4.download_url}>
-                                        Tải MP4
-                                      </Button>
-                                      {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
-                                        <ApproveVideoButton videoId={video.id} onDone={load} />
-                                      )}
-                                      <PublishButton video={video} />
-                                    </Flex>
-                                  </Flex>
-                                </Card>
-                                <QcCard qc={video.mp4.qc} />
-                                <PublishCard video={video} />
-                              </>
-                            ) : (
-                              <Card size="small">
-                                <Typography.Text type="secondary">
-                                  Chưa có MP4. Bấm “Render” ở thanh dưới cùng khi các cảnh đã đủ ảnh; MP4 và nút “Đăng
-                                  bài” (Facebook, TikTok, YouTube Shorts, Instagram Reels) sẽ hiện ở đây.
-                                </Typography.Text>
-                              </Card>
-                            )}
-                          </Flex>
-                        </div>
-                      </Flex>
-                    ),
+                    children: <PublishTab video={video} postEditor={postEditor} onApproved={load} />,
                   },
                   {
                     key: "setup",
@@ -870,36 +815,5 @@ export default function VideoPage() {
       <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
       <MoveGroupDrawer video={video} open={moving} onClose={() => setMoving(false)} onMoved={receive} />
     </EditorContext.Provider>
-  );
-}
-
-/** The MP4 small beside its facts, with the listener's volume under it: at this width the browser's own controls
- * keep only a mute button. */
-function Mp4Player({ url }: { url: string }) {
-  const player = useRef<HTMLVideoElement>(null);
-  const { level, muted } = useListen();
-  useEffect(() => {
-    if (!player.current) return;
-    player.current.volume = level;
-    player.current.muted = muted;
-  }, [level, muted]);
-  return (
-    <Flex vertical gap={4} style={{ flex: "none", width: 150 }}>
-      <video
-        ref={player}
-        src={url}
-        controls
-        preload="metadata"
-        data-testid="mp4-player"
-        // The browser's own mute button moves the shared level too, so every player stays in step.
-        onVolumeChange={(event) => {
-          const { volume, muted: silent } = event.currentTarget;
-          const now = listenNow();
-          if (Math.abs(volume - now.level) > 0.001 || silent !== now.muted) setListen({ level: volume, muted: silent });
-        }}
-        style={{ width: 150, aspectRatio: "9 / 16", background: "#000", borderRadius: 8 }}
-      />
-      <ListenVolume width={90} />
-    </Flex>
   );
 }

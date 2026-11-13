@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { chooseOption, connectFacebook, loginAsSeed, resetDatabase } from "./helpers";
+import { chooseOption, connectFacebook, loginAsSeed, openPublishDrawer, resetDatabase } from "./helpers";
 
 // The api, a real worker with FFmpeg, and the fake Facebook (api/scripts/fake_services.py) all run.
 test.beforeEach(() => resetDatabase());
@@ -105,7 +105,7 @@ test("a rendered video added to its Page's queue is scheduled there by the worke
 
   await renderedVideo(page);
   // The queue is in "Đăng bài" › Facebook; the buttons' names include their icon's label.
-  await page.getByRole("button", { name: "send Đăng bài", exact: true }).click();
+  await openPublishDrawer(page);
   await page.getByRole("button", { name: "unordered-list Thêm vào hàng chờ" }).click();
   const drawer = page.getByRole("dialog", { name: "Thêm vào hàng chờ" });
   await expect(drawer.getByLabel("Fanpage")).toBeVisible();
