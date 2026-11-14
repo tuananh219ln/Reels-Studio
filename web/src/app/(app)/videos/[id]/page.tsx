@@ -6,13 +6,14 @@ import { useMe } from "@/components/MeContext";
 import { EditorContext } from "@/components/video/AutoSaveField";
 import MoveGroupDrawer from "@/components/video/MoveGroupDrawer";
 import PresenceAvatars, { editorNames } from "@/components/video/PresenceAvatars";
-import PublishTab from "@/components/video/PublishTab";
+import PostToast from "@/components/video/PostToast";
+import PublishTab, { type SideTab } from "@/components/video/PublishTab";
+import { usePostRound, type PostOutcome } from "@/components/video/postRound";
 import { QcChip } from "@/components/video/QcCard";
 import { RenderButtons, RenderStatus, showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
-import SetupTab from "@/components/video/SetupTab";
-import type { PostTabKey } from "@/components/video/PostContent";
+import type { PostBlockKey } from "@/components/video/PostContent";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import VideoPreview from "@/components/video/VideoPreview";
 import VideoProgress from "@/components/video/VideoProgress";
@@ -40,7 +41,6 @@ import {
   MoreOutlined,
   PlusOutlined,
   SendOutlined,
-  SettingOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -86,12 +86,10 @@ const JOB_NAMES = {
   image_marks: "Tìm chữ/logo trên ảnh",
 } as const;
 
-// The side panel's least width beside the scenes (they split the page half and half) and the drawer's width; below
-// WIDE_FROM it becomes a drawer opened from the header.
+// The side panel's drawer width; below WIDE_FROM the panel is a drawer opened from the header, from it a column of
+// 40% beside the scenes' 60% (docs/decisions/2026-11-14-video-editor-spec.md).
 const SIDE_WIDTH = 440;
 const WIDE_FROM = 1100;
-// From here the scenes and the panel are two tiles, each scrolling inside itself, so the page fits the screen.
-const TILES_FROM = 1400;
 // The phone's own header bar (AppShell), under which the page's header sticks.
 const PHONE_HEADER = 60;
 
@@ -133,14 +131,13 @@ export default function VideoPage() {
   useEffect(() => {
     if (askedClone !== null) router.replace(`/videos/${id}`);
   }, [askedClone, id, router]);
-  // The tab of the post texts a step of the progress line points at; until one does, the member's own pick holds.
-  const [postTab, setPostTab] = useState<PostTabKey | undefined>(undefined);
-  // The video's own settings: a drawer opened from the header's "Thiết lập".
-  const [setupOpen, setSetupOpen] = useState(false);
+  // The side panel's tab: "Đăng bài" or "Thiết lập".
+  const [sideTab, setSideTab] = useState<SideTab>("post");
   // From 1100 px the side panel sits beside the scenes; narrower, it is a drawer, open or not.
   const sideBySide = useWiderThan(WIDE_FROM);
-  const tiles = useWiderThan(TILES_FROM);
   const [sideOpen, setSideOpen] = useState(false);
+  // How each platform of the last "Đăng lên N nền tảng" ended, shown in the note at the top right until closed.
+  const [outcomes, setOutcomes] = useState<PostOutcome[] | null>(null);
   const screens = Grid.useBreakpoint();
   // A computer has no header bar of its own (AppShell's lg); a phone leaves out the header's summary line.
   const desktop = screens.lg ?? true;
@@ -257,6 +254,8 @@ export default function VideoPage() {
   );
   // The post texts are not part of the video itself: they stay editable in "Xem" too.
   const postEditor = useMemo(() => ({ ...editor, readOnly: false }), [editor]);
+  const postRound = usePostRound(video, receive, setOutcomes);
+  const closeOutcomes = useCallback(() => setOutcomes(null), []);
 
   /** Run an action that returns the video; refusals show the api's message. */
   async function act(action: () => Promise<VideoDetail>) {
@@ -369,10 +368,28 @@ export default function VideoPage() {
     }
   }
 
-  /** Shows the side panel, on the post texts' `tab` when given: the drawer opens on a narrower screen. */
-  function openSide(tab?: PostTabKey) {
-    if (tab) setPostTab(tab);
-    if (!sideBySide) setSideOpen(true);
+  /**
+   * Shows the side panel's "Đăng bài" tab (the drawer opens on a narrower screen) and scrolls to one of its blocks:
+   * the status card, or a block of the post texts.
+   */
+  function openSide(block: "ready" | PostBlockKey = "ready") {
+    flushSync(() => {
+      setSideTab("post");
+      if (!sideBySide) setSideOpen(true);
+    });
+    const selector = block === "ready" ? '[data-testid="ready-card"]' : `[data-post-block="${block}"]`;
+    // The drawer's panel is drawn while it opens: one frame later it can be scrolled to.
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-side-panel] ${selector}`)?.scrollIntoView({ block: "start", behavior: "smooth" }),
+    );
+  }
+
+  /** "Thử lại" on the note: the failed platform's job again; the note goes, the rows show how it went. */
+  async function retryPost(outcome: PostOutcome) {
+    setOutcomes(null);
+    if (outcome.retryJobId !== null) {
+      await act(() => api<VideoDetail>(`/jobs/${outcome.retryJobId}/retry`, "POST"));
+    }
   }
 
   function setAllExpanded(open: boolean) {
@@ -601,11 +618,6 @@ export default function VideoPage() {
               </Dropdown>
             )}
             {video.has_script && (
-              <Button icon={<SettingOutlined />} onClick={() => setSetupOpen(true)} data-testid="open-setup">
-                Thiết lập
-              </Button>
-            )}
-            {video.has_script && (
               <RenderButtons
                 video={video}
                 busy={busy}
@@ -620,14 +632,14 @@ export default function VideoPage() {
             )}
             {video.has_script && !sideBySide && (
               <Button icon={<SendOutlined />} onClick={() => openSide()} data-testid="open-side-panel">
-                Đăng bài
+                Đăng bài / Thiết lập
               </Button>
             )}
           </Flex>
         </Flex>
         <Flex wrap gap="4px 12px" align="center" justify="space-between" style={{ marginTop: 6 }}>
           <Flex wrap gap="4px 8px" align="center" style={{ minWidth: 0 }}>
-            <VideoProgress video={video} onOpenTab={(tab) => openSide(tab === "post" ? "comments" : undefined)} />
+            <VideoProgress video={video} onOpenTab={(tab) => openSide(tab === "post" ? "products" : "ready")} />
             {video.mp4?.qc && <QcChip qc={video.mp4.qc} />}
           </Flex>
           {video.has_script && (
@@ -828,7 +840,6 @@ export default function VideoPage() {
       ) : (
         <SideLayout
           wide={sideBySide}
-          tiles={tiles}
           top={headerHeight}
           open={sideOpen}
           onClose={() => setSideOpen(false)}
@@ -837,9 +848,11 @@ export default function VideoPage() {
               video={video}
               postEditor={postEditor}
               onApproved={load}
-              tab={postTab}
-              onTab={setPostTab}
-              fit={tiles}
+              tab={sideTab}
+              onTab={setSideTab}
+              posting={postRound.running}
+              onPost={postRound.start}
+              onRender={() => void render()}
             />
           }
         >
@@ -1017,30 +1030,29 @@ export default function VideoPage() {
       )}
       <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
       <MoveGroupDrawer video={video} open={moving} onClose={() => setMoving(false)} onMoved={receive} />
-      {/* The video's own settings, rarely changed: a drawer, so the page keeps the room for posting. */}
-      <Drawer
-        open={setupOpen}
-        onClose={() => setSetupOpen(false)}
-        placement="right"
-        size={SIDE_WIDTH + 80}
-        forceRender
-        mask={false}
-        title="Thiết lập video"
-        styles={{ body: { paddingTop: 0 } }}
-      >
-        <SetupTab video={video} />
-      </Drawer>
+      {outcomes && (
+        <PostToast
+          outcomes={outcomes}
+          right={desktop ? 32 : 16}
+          onOpen={() => {
+            setOutcomes(null);
+            openSide();
+          }}
+          onRetry={(outcome) => void retryPost(outcome)}
+          onClose={closeOutcomes}
+        />
+      )}
     </EditorContext.Provider>
   );
 }
 
 /**
- * The scenes and the side panel: side by side on a wide screen, half and half, the panel stuck under the
- * header, scrolling on its own; on a narrower one the scenes take the width and the panel is a drawer.
+ * The scenes and the side panel: from 1100 px side by side, 60% and 40%, the panel stuck under the header and
+ * scrolling on its own while the scenes scroll with the page; on a narrower screen the scenes take the width and the
+ * panel is a drawer.
  */
 function SideLayout({
   wide,
-  tiles,
   top,
   open,
   onClose,
@@ -1048,8 +1060,6 @@ function SideLayout({
   children,
 }: {
   wide: boolean;
-  /** Both columns scroll inside themselves under the header. */
-  tiles: boolean;
   /** The fixed header's height. */
   top: number;
   open: boolean;
@@ -1068,10 +1078,12 @@ function SideLayout({
           placement="right"
           size={SIDE_WIDTH}
           forceRender
-          title="Đăng bài"
+          title="Đăng bài / Thiết lập"
           styles={{ body: { paddingTop: 0 } }}
         >
-          <div data-side-panel>{panel}</div>
+          <div data-side-panel className="side-panel">
+            {panel}
+          </div>
         </Drawer>
       </>
     );
@@ -1080,36 +1092,20 @@ function SideLayout({
     <div
       style={{
         display: "grid",
-        // Half and half, the panel never narrower than the drawer it becomes on a smaller screen.
-        gridTemplateColumns: `minmax(0, 1fr) minmax(${SIDE_WIDTH}px, 1fr)`,
+        gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)",
         gap: 16,
         alignItems: "start",
       }}
     >
-      <div
-        data-scenes-tile={tiles ? "" : undefined}
-        style={
-          tiles
-            ? {
-                position: "sticky",
-                top: top + 12,
-                maxHeight: `calc(100vh - ${top + 24}px)`,
-                overflowY: "auto",
-                paddingRight: 4,
-              }
-            : undefined
-        }
-      >
-        {children}
-      </div>
+      <div style={{ minWidth: 0 }}>{children}</div>
       <div
         data-side-panel
+        className="side-panel"
         style={{
           position: "sticky",
           top: top + 12,
-          ...(tiles
-            ? { height: `calc(100vh - ${top + 24}px)` }
-            : { maxHeight: `calc(100vh - ${top + 24}px)`, overflowY: "auto" as const }),
+          maxHeight: `calc(100vh - ${top + 22}px)`,
+          overflowY: "auto",
           paddingRight: 4,
         }}
       >

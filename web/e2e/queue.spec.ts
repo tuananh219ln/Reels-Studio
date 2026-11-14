@@ -45,7 +45,7 @@ async function renderedVideo(page: Page) {
     await scenes.nth(index).getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(file);
     await expect(scenes.nth(index).getByTestId("scene-preview")).toHaveCount(1);
   }
-  await page.getByRole("button", { name: "Render" }).click();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 }
 
@@ -113,7 +113,7 @@ test("a rendered video added to its Page's queue is scheduled there by the worke
   await expect(page.getByTestId("video-queue")).toContainText("của “Trang Dưỡng Sinh”");
 
   // The worker fills the queue once a minute and the publish job schedules the reel on Facebook.
-  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 150_000 });
+  await expect(page.getByTestId("publication-status")).toContainText("Hẹn đăng lúc", { timeout: 150_000 });
   await expect(page.getByTestId("video-queue")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "unordered-list Thêm vào hàng chờ" })).toBeVisible();
   // "Đăng bài" is still open over the page.

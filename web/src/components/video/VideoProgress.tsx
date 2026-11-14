@@ -9,9 +9,11 @@ import {
 } from "@ant-design/icons";
 import { Flex, Tooltip, Typography, theme } from "antd";
 import { useEffect, useState } from "react";
-import { formatDateTime, type VideoDetail } from "@/lib/api";
+import { formatDateTime, formatTime, type VideoDetail } from "@/lib/api";
+import { platformResults, postCount } from "@/lib/postResults";
 
-type State = "done" | "warn" | "todo" | "busy";
+// "posted": the post step once out somewhere, its words in green too.
+type State = "done" | "posted" | "warn" | "todo" | "busy";
 
 type Step = {
   key: string;
@@ -77,25 +79,22 @@ function steps(video: VideoDetail, now: number): Step[] {
           ? { key: "render", label: "Render", state: "done", detail: when(mp4.rendered_at), tab: "publish" }
           : { key: "render", label: "Render", state: "todo", detail: "Chưa có MP4", tab: "publish" };
 
-  // Every place it is out or due: Facebook posts, TikTok and the ones posted by hand.
-  const live = [
-    ...video.publications.filter((post) => post.status === "published").map((post) => post.at),
-    ...video.tiktok_posts.filter((post) => post.status === "published").map((post) => post.at),
-    ...video.manual_posts.map((post) => post.at),
-  ].sort();
+  // "X/Y nền tảng · hh:mm": the platforms it is out on, of those tried, and when the newest went out; in green.
+  const results = platformResults(video);
+  const count = postCount(results);
   const scheduled = video.publications
     .filter((post) => post.status === "scheduled" && post.scheduled_at)
     .map((post) => post.scheduled_at!)
     .sort();
   const suggested = video.plan_idea?.suggested_post_at;
-  const post: Step = live.length
+  const post: Step = count.out
     ? {
         key: "post",
         label: "Đăng",
-        state: "done",
+        state: "posted",
         detail: (
           <>
-            {live.length} nơi, gần nhất {when(live[live.length - 1])}
+            {count.out}/{count.tried} nền tảng{count.last ? ` · ${formatTime(count.last)}` : ""}
             {scheduled.length > 0 && <>, hẹn {when(scheduled[0])}</>}
           </>
         ),
@@ -106,7 +105,7 @@ function steps(video: VideoDetail, now: number): Step[] {
       : {
           key: "post",
           label: "Đăng",
-          state: "todo",
+          state: results.some((result) => result.state === "err") ? "warn" : "todo",
           detail: suggested ? <>Chưa đăng, kế hoạch gợi ý {when(suggested)}</> : "Chưa đăng",
           tab: "publish",
         };
@@ -171,6 +170,7 @@ export default function VideoProgress({
 
   const icon: Record<State, React.ReactNode> = {
     done: <CheckCircleFilled style={{ color: token.colorSuccess }} />,
+    posted: <CheckCircleFilled style={{ color: token.colorSuccess }} />,
     warn: <ExclamationCircleFilled style={{ color: token.colorWarning }} />,
     todo: <ClockCircleOutlined style={{ color: token.colorTextTertiary }} />,
     busy: <LoadingOutlined style={{ color: token.colorInfo }} />,
@@ -198,7 +198,7 @@ export default function VideoProgress({
               {step.label}
             </Typography.Text>
             <Typography.Text
-              type={step.state === "warn" ? "warning" : "secondary"}
+              type={step.state === "warn" ? "warning" : step.state === "posted" ? "success" : "secondary"}
               style={{ fontSize: 13, whiteSpace: "nowrap" }}
             >
               {step.detail}

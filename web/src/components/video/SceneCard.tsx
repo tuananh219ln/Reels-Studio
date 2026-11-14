@@ -872,7 +872,6 @@ export function ScenePicture({
     });
   }
 
-  const frame = { width: "100%", aspectRatio: "9 / 16", borderRadius: 6 } as const;
   const hasPicture = scene.has_image || scene.video !== null;
   const shown = tab === "clip" && !scene.video ? "photo" : (tab ?? (scene.video ? "clip" : "photo"));
   const reason = scene.text_problem && hasPicture ? scene.text_problem : null;
@@ -889,203 +888,245 @@ export function ScenePicture({
       ? "Tạo ảnh AI mới thay ảnh hiện tại?"
       : "Ảnh AI sẽ thay ảnh hiện tại của cảnh này?";
 
-  // The ways to put a picture in: under the picture in the studio, over the frame on the card.
-  const tools = !editor.readOnly && (
-    <>
-      {/* Upload, paste and Google on one row: the picture column is narrow, and these are the quick ones. */}
-      <Flex gap={6} wrap>
-        <Flex
-          align="center"
-          gap={8}
-          role="button"
-          title="Kéo thả, dán hoặc bấm để tải ảnh/video lên"
-          tabIndex={off ? -1 : 0}
-          aria-disabled={off}
-          data-testid="scene-dropzone"
-          onClick={() => !off && input.current?.click()}
-          onKeyDown={(event) => {
-            if (!off && (event.key === "Enter" || event.key === " ")) {
-              event.preventDefault();
-              input.current?.click();
-            }
-          }}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setDragging(!off);
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault();
-            setDragging(false);
-            if (off) {
-              return;
-            }
-            const file = event.dataTransfer.files[0];
-            if (file) {
-              chosen(file);
-              return;
-            }
-            // A photo dragged from another tab (Google Ảnh, a shop) arrives as its address, not as a file.
-            const link = linkFromTransfer(event.dataTransfer);
-            if (link) {
-              void fromLink(link);
+  // The ways to put a picture in, built once: in the studio under its picture as before, on the card in a column of
+  // their own beside the frame, always shown, in three groups (Lấy ảnh, Tìm ảnh, Tạo mới).
+  const dropzone = (
+    <Flex
+      align="center"
+      gap={8}
+      role="button"
+      title="Kéo thả, dán hoặc bấm để tải ảnh/video lên"
+      tabIndex={off ? -1 : 0}
+      aria-disabled={off}
+      data-testid="scene-dropzone"
+      onClick={() => !off && input.current?.click()}
+      onKeyDown={(event) => {
+        if (!off && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          input.current?.click();
+        }
+      }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        setDragging(!off);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (off) {
+          return;
+        }
+        const file = event.dataTransfer.files[0];
+        if (file) {
+          chosen(file);
+          return;
+        }
+        // A photo dragged from another tab (Google Ảnh, a shop) arrives as its address, not as a file.
+        const link = linkFromTransfer(event.dataTransfer);
+        if (link) {
+          void fromLink(link);
+        } else {
+          message.error("Không nhận ra ảnh vừa thả: hãy kéo chính tấm ảnh, hoặc sao chép ảnh rồi dán");
+        }
+      }}
+      style={{
+        // Room for "Tải lên" in full; in the studio the small buttons wrap below on a narrow column.
+        flex: compact ? "1 0 96px" : undefined,
+        minWidth: 0,
+        height: 36,
+        padding: compact ? "0 14px" : "0 10px",
+        boxSizing: "border-box",
+        borderRadius: 8,
+        border: `1px dashed ${dragging ? COLORS.primary : "#C9D0D5"}`,
+        background: dragging ? COLORS.primaryBg : compact ? COLORS.muted : "#fff",
+        cursor: off ? "not-allowed" : "pointer",
+        opacity: off && !uploading ? 0.6 : 1,
+      }}
+    >
+      {uploading ? <Spin size="small" /> : <InboxOutlined style={{ fontSize: 14, color: COLORS.primary }} />}
+      <Typography.Text ellipsis style={{ fontSize: 13 }}>
+        {uploading ? "Đang tải lên…" : "Tải lên"}
+      </Typography.Text>
+    </Flex>
+  );
+  const paste = (
+    <Tooltip title="Dán ảnh, link ảnh, link video hoặc link TikTok đã sao chép">
+      <Button
+        aria-label="Dán ảnh/link"
+        icon={<SnippetsOutlined />}
+        disabled={off}
+        onClick={() => void pasteFromClipboard()}
+      >
+        {compact ? null : "Dán link"}
+      </Button>
+    </Tooltip>
+  );
+  const google = (
+    <SiteSearch
+      label="Tìm trên Google"
+      text={compact ? undefined : "Google"}
+      icon={<GoogleOutlined />}
+      tip="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa bạn chọn; sao chép ảnh ưng ý rồi quay lại dán vào đây (có tiện ích Chrome của nhóm thì chuột phải vào ảnh, chọn “Gửi ảnh vào Reels Studio”)"
+      keywords={googleKeywords}
+      disabled={off}
+      onSearch={(keyword) => void search(googleImagesUrl, keyword)}
+    />
+  );
+  const tiktok = (
+    <SiteSearch
+      label="Tìm trên TikTok"
+      text={compact ? undefined : "TikTok"}
+      icon={<TikTokOutlined />}
+      tip="Tìm trên TikTok: mở video TikTok với từ khóa bạn chọn; sao chép link video ưng ý rồi quay lại dán vào đây"
+      keywords={tiktokKeywords}
+      disabled={off}
+      onSearch={(keyword) => void search(tiktokSearchUrl, keyword)}
+    />
+  );
+  // The three places a picture is picked from, under one button so the column stays short.
+  const library = (
+    <Dropdown
+      trigger={["click"]}
+      disabled={off}
+      menu={{
+        items: [
+          { key: "stock", icon: <PictureOutlined />, label: "Kho ảnh/video miễn phí" },
+          { key: "group", icon: <HistoryOutlined />, label: "Đã dùng trong nhóm" },
+          { key: "library", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
+        ],
+        onClick: ({ key }) => {
+          if (key === "stock") {
+            const openPicker = async () => {
+              // The grid starts from the keywords on screen, so their save goes first.
+              await editor.flush();
+              setPicking(true);
+            };
+            if (scene.video !== null) {
+              modal.confirm({
+                title: "Ảnh hoặc video chọn được sẽ thay video của cảnh này?",
+                okText: "Chọn",
+                cancelText: "Huỷ",
+                onOk: () => void openPicker(),
+              });
             } else {
-              message.error("Không nhận ra ảnh vừa thả: hãy kéo chính tấm ảnh, hoặc sao chép ảnh rồi dán");
+              void openPicker();
             }
-          }}
-          style={{
-            // Room for "Tải lên" in full; the small buttons wrap below on a narrow column.
-            flex: "1 0 96px",
-            minWidth: 0,
-            height: 36,
-            padding: "0 14px",
-            borderRadius: 8,
-            border: `1px dashed ${dragging ? COLORS.primary : "#C9D0D5"}`,
-            background: dragging ? COLORS.primaryBg : COLORS.muted,
-            cursor: off ? "not-allowed" : "pointer",
-            opacity: off && !uploading ? 0.6 : 1,
-          }}
+          } else if (key === "group") {
+            // The list is ranked by the keywords on screen, so their save goes first.
+            void editor.flush().then(() => setReusing(true));
+          } else {
+            setFromLibrary(true);
+          }
+        },
+      }}
+    >
+      <Button className="scene-action" icon={<PictureOutlined />} disabled={off} block>
+        Chọn từ kho <DownOutlined style={{ fontSize: 10, marginInlineStart: "auto" }} />
+      </Button>
+    </Dropdown>
+  );
+  const find = (
+    <Space.Compact block>
+      <Switching
+        show={scene.video !== null}
+        title="Ảnh tìm được sẽ thay video của cảnh này?"
+        disabled={off}
+        onConfirm={() =>
+          run("find", async () => {
+            // The api searches the saved keywords: the one being typed is saved first.
+            await editor.flush();
+            return api<VideoDetail>(`/scenes/${scene.id}/find-image?source=${findSource.id}`, "POST");
+          })
+        }
+      >
+        {/* The api walks on from the photo in use, so a scene that has one gets a different one. On the card the
+          button shows the source alone, under "Tìm ảnh"; its name keeps the whole action. */}
+        <Button
+          className="scene-action"
+          aria-label={`Tìm ảnh (${findSource.label})`}
+          icon={<SearchOutlined />}
+          loading={busy === "find"}
+          disabled={off}
+          style={{ flex: 1 }}
         >
-          {uploading ? <Spin size="small" /> : <InboxOutlined style={{ fontSize: 14, color: COLORS.primary }} />}
-          <Typography.Text ellipsis style={{ fontSize: 13 }}>
-            {uploading ? "Đang tải lên…" : "Tải lên"}
-          </Typography.Text>
-        </Flex>
-        <Tooltip title="Dán ảnh, link ảnh, link video hoặc link TikTok đã sao chép">
-          <Button
-            aria-label="Dán ảnh/link"
-            icon={<SnippetsOutlined />}
-            disabled={off}
-            onClick={() => void pasteFromClipboard()}
-          />
-        </Tooltip>
-        <SiteSearch
-          label="Tìm trên Google"
-          icon={<GoogleOutlined />}
-          tip="Tìm trên Google: mở Google Ảnh (ảnh dọc) với từ khóa bạn chọn; sao chép ảnh ưng ý rồi quay lại dán vào đây (có tiện ích Chrome của nhóm thì chuột phải vào ảnh, chọn “Gửi ảnh vào Reels Studio”)"
-          keywords={googleKeywords}
-          disabled={off}
-          onSearch={(keyword) => void search(googleImagesUrl, keyword)}
-        />
-        <SiteSearch
-          label="Tìm trên TikTok"
-          icon={<TikTokOutlined />}
-          tip="Tìm trên TikTok: mở video TikTok với từ khóa bạn chọn; sao chép link video ưng ý rồi quay lại dán vào đây"
-          keywords={tiktokKeywords}
-          disabled={off}
-          onSearch={(keyword) => void search(tiktokSearchUrl, keyword)}
-        />
-      </Flex>
-      {/* The three places a picture is picked from, under one button so the column stays short. */}
+          {compact ? `Tìm ảnh (${findSource.label})` : findSource.label}
+        </Button>
+      </Switching>
       <Dropdown
         trigger={["click"]}
         disabled={off}
         menu={{
-          items: [
-            { key: "stock", icon: <PictureOutlined />, label: "Kho ảnh/video miễn phí" },
-            { key: "group", icon: <HistoryOutlined />, label: "Đã dùng trong nhóm" },
-            { key: "library", icon: <FolderOpenOutlined />, label: "Kho tư liệu" },
-          ],
+          selectable: true,
+          selectedKeys: [findSource.id],
+          items: (sources ?? [findSource]).map((item) => ({ key: item.id, label: item.label })),
           onClick: ({ key }) => {
-            if (key === "stock") {
-              const openPicker = async () => {
-                // The grid starts from the keywords on screen, so their save goes first.
-                await editor.flush();
-                setPicking(true);
-              };
-              if (scene.video !== null) {
-                modal.confirm({
-                  title: "Ảnh hoặc video chọn được sẽ thay video của cảnh này?",
-                  okText: "Chọn",
-                  cancelText: "Huỷ",
-                  onOk: () => void openPicker(),
-                });
-              } else {
-                void openPicker();
-              }
-            } else if (key === "group") {
-              // The list is ranked by the keywords on screen, so their save goes first.
-              void editor.flush().then(() => setReusing(true));
-            } else {
-              setFromLibrary(true);
-            }
+            picked.current = true;
+            setFindSource(sources?.find((item) => item.id === key) ?? findSource);
           },
         }}
       >
-        <Button className="scene-action" icon={<PictureOutlined />} disabled={off} block>
-          Chọn từ kho <DownOutlined style={{ fontSize: 10, marginInlineStart: "auto" }} />
-        </Button>
+        <Button aria-label="Đổi nguồn ảnh" icon={<DownOutlined />} disabled={off} />
       </Dropdown>
-      <Space.Compact block>
-        <Switching
-          show={scene.video !== null}
-          title="Ảnh tìm được sẽ thay video của cảnh này?"
+    </Space.Compact>
+  );
+  // A job, like the bar's "Tạo ảnh AI cho cảnh thiếu", but for this scene only and replacing what it has.
+  const ai = (
+    <Space.Compact block>
+      <Switching show={hasPicture} title={replaceQuestion} disabled={off} onConfirm={() => void generate()}>
+        <Button
+          className="scene-action"
+          icon={<RobotOutlined />}
+          loading={generating || busy === "ai"}
           disabled={off}
-          onConfirm={() =>
-            run("find", async () => {
-              // The api searches the saved keywords: the one being typed is saved first.
-              await editor.flush();
-              return api<VideoDetail>(`/scenes/${scene.id}/find-image?source=${findSource.id}`, "POST");
-            })
+          style={{ flex: 1 }}
+        >
+          {generating ? "Đang tạo ảnh AI…" : scene.image_ai ? "Tạo lại ảnh AI" : "Tạo ảnh AI"}
+        </Button>
+      </Switching>
+      <ImageProviderMenu
+        disabled={off}
+        onPick={(provider) => {
+          if (!hasPicture) {
+            void generate(provider);
+            return;
           }
-        >
-          {/* The api walks on from the photo in use, so a scene that has one gets a different one. */}
-          <Button
-            className="scene-action"
-            icon={<SearchOutlined />}
-            loading={busy === "find"}
-            disabled={off}
-            style={{ flex: 1 }}
-          >
-            Tìm ảnh ({findSource.label})
-          </Button>
-        </Switching>
-        <Dropdown
-          trigger={["click"]}
-          disabled={off}
-          menu={{
-            selectable: true,
-            selectedKeys: [findSource.id],
-            items: (sources ?? [findSource]).map((item) => ({ key: item.id, label: item.label })),
-            onClick: ({ key }) => {
-              picked.current = true;
-              setFindSource(sources?.find((item) => item.id === key) ?? findSource);
-            },
-          }}
-        >
-          <Button aria-label="Đổi nguồn ảnh" icon={<DownOutlined />} disabled={off} />
-        </Dropdown>
-      </Space.Compact>
-      {/* A job, like the bar's "Tạo ảnh AI cho cảnh thiếu", but for this scene only and replacing what it has. */}
-      <Space.Compact block>
-        <Switching show={hasPicture} title={replaceQuestion} disabled={off} onConfirm={() => void generate()}>
-          <Button
-            className="scene-action"
-            icon={<RobotOutlined />}
-            loading={generating || busy === "ai"}
-            disabled={off}
-            style={{ flex: 1 }}
-          >
-            {generating ? "Đang tạo ảnh AI…" : scene.image_ai ? "Tạo lại ảnh AI" : "Tạo ảnh AI"}
-          </Button>
-        </Switching>
-        <ImageProviderMenu
-          disabled={off}
-          onPick={(provider) => {
-            if (!hasPicture) {
-              void generate(provider);
-              return;
-            }
-            modal.confirm({
-              title: replaceQuestion,
-              okText: "Đổi",
-              cancelText: "Huỷ",
-              onOk: () => void generate(provider),
-            });
-          }}
-        />
-      </Space.Compact>
+          modal.confirm({
+            title: replaceQuestion,
+            okText: "Đổi",
+            cancelText: "Huỷ",
+            onOk: () => void generate(provider),
+          });
+        }}
+      />
+    </Space.Compact>
+  );
+  const tools = editor.readOnly ? null : compact ? (
+    <>
+      {/* Upload, paste and Google on one row: the studio's picture column is narrow, and these are the quick ones. */}
+      <Flex gap={6} wrap>
+        {dropzone}
+        {paste}
+        {google}
+        {tiktok}
+      </Flex>
+      {library}
+      {find}
+      {ai}
     </>
+  ) : (
+    <div className="scene-media__tools" data-testid="scene-media-tools">
+      <span className="group-label">Lấy ảnh</span>
+      {dropzone}
+      {paste}
+      <div className="full">{library}</div>
+      <span className="group-label">Tìm ảnh</span>
+      <div className="full">{find}</div>
+      {google}
+      {tiktok}
+      <span className="group-label">Tạo mới</span>
+      <div className="full ai">{ai}</div>
+    </div>
   );
 
   return (
@@ -1143,153 +1184,152 @@ export function ScenePicture({
           )}
         </Flex>
       )}
-      {!compact && scene.video && (
-        // A scene with a clip shows either the drawn preview or the clip itself, in the same frame.
-        <Segmented
-          size="small"
-          block
-          aria-label={`Khung của ${which}`}
-          value={shown}
-          onChange={(value) => setTab(value as "photo" | "clip")}
-          options={[
-            { value: "photo", label: "Ảnh" },
-            { value: "clip", label: "Clip" },
-          ]}
-        />
-      )}
       {!compact && (
-        <div className="scene-media" data-empty={!hasPicture && !editor.readOnly ? "true" : undefined}>
-          {scene.video && (
-            // The clip as uploaded, without sound (the render never uses its sound either); it plays while hovered.
-            <video
-              ref={silentVideo}
-              src={scene.video.url}
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              aria-label={`Video của ${which}`}
-              data-testid="scene-video"
-              onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)}
-              onMouseLeave={(event) => event.currentTarget.pause()}
-              style={{ ...frame, display: shown === "clip" ? "block" : "none", objectFit: "cover", background: "#000" }}
-            />
-          )}
-          {/* The drawn preview stays in the page while the clip shows, hidden, so it is still current. */}
-          <div style={{ display: shown === "clip" ? "none" : undefined }}>
-            {scene.preview_url && !reason ? (
-              // A plain <img>: the preview is drawn by the api with the renderer's own code.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={scene.preview_url}
-                alt={`Xem trước ${which}`}
-                style={{ ...frame, objectFit: "cover", display: "block" }}
-                data-testid="scene-preview"
+        // The 182 × 324 frame and, beside it, the column of tools, always shown while editing.
+        <div className="scene-media">
+          <Flex vertical gap={6} style={{ flex: "none", width: 182 }}>
+            {scene.video && (
+              // A scene with a clip shows either the drawn preview or the clip itself, in the same frame.
+              <Segmented
+                size="small"
+                block
+                aria-label={`Khung của ${which}`}
+                value={shown}
+                onChange={(value) => setTab(value as "photo" | "clip")}
+                options={[
+                  { value: "photo", label: "Ảnh" },
+                  { value: "clip", label: "Clip" },
+                ]}
               />
-            ) : (
-              <Flex
-                align="flex-end"
-                justify="center"
-                data-testid="scene-no-preview"
-                style={{
-                  ...frame,
-                  padding: 10,
-                  textAlign: "center",
-                  boxSizing: "border-box",
-                  background: hasPicture ? "#FFF7E6" : "#FFF1F0",
-                  border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}`,
-                }}
-              >
-                <Typography.Text type="danger" style={{ fontSize: 12 }}>
-                  {reason ?? scene.image_error ?? "Chưa có ảnh"}
-                </Typography.Text>
-              </Flex>
             )}
-          </div>
-          {/* Over the frame on hover (always on touch screens, and while there is no picture): the picture's own
-            tools as icons on top, then the ways to put another one in. In view mode only "Xem". */}
-          <div className="scene-media__overlay" data-testid="scene-media-actions">
-            {hasPicture && (
-              <Flex wrap gap={4}>
-                <Tooltip title="Xem">
-                  <Button size="small" aria-label="Xem" icon={<EyeOutlined />} onClick={() => setViewing(true)} />
-                </Tooltip>
-                {!editor.readOnly && (
-                  <>
-                    <Tooltip title={scene.video ? "Cắt video" : "Chỉnh khung"}>
-                      <Button
-                        size="small"
-                        aria-label={scene.video ? "Cắt video" : "Chỉnh khung"}
-                        icon={<ScissorOutlined />}
-                        disabled={off}
-                        onClick={async () => {
-                          // The trim starts from the saved seconds and start: the one being typed is saved first.
-                          await editor.flush();
-                          setFraming(true);
-                        }}
-                      />
-                    </Tooltip>
-                    {scene.video ? (
-                      <Tooltip title="Làm mờ vùng">
+            <div className="scene-media__image">
+              {scene.video && (
+                // The clip as uploaded, without sound (the render never uses its sound either); it plays while hovered.
+                <video
+                  ref={silentVideo}
+                  src={scene.video.url}
+                  muted
+                  loop
+                  playsInline
+                  preload="metadata"
+                  aria-label={`Video của ${which}`}
+                  data-testid="scene-video"
+                  onMouseEnter={(event) => void event.currentTarget.play().catch(() => undefined)}
+                  onMouseLeave={(event) => event.currentTarget.pause()}
+                  style={{ display: shown === "clip" ? "block" : "none", background: "#000" }}
+                />
+              )}
+              {/* The drawn preview stays in the page while the clip shows, hidden, so it is still current. */}
+              {scene.preview_url && !reason ? (
+                // A plain <img>: the preview is drawn by the api with the renderer's own code.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={scene.preview_url}
+                  alt={`Xem trước ${which}`}
+                  style={{ display: shown === "clip" ? "none" : "block" }}
+                  data-testid="scene-preview"
+                />
+              ) : (
+                <Flex
+                  align="flex-end"
+                  justify="center"
+                  data-testid="scene-no-preview"
+                  style={{
+                    display: shown === "clip" ? "none" : undefined,
+                    width: "100%",
+                    height: "100%",
+                    padding: 10,
+                    textAlign: "center",
+                    boxSizing: "border-box",
+                    borderRadius: 10,
+                    background: hasPicture ? "#FFF7E6" : "#FFF1F0",
+                    border: `1px solid ${hasPicture ? "#FFD591" : "#FFA39E"}`,
+                  }}
+                >
+                  <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                    {reason ?? scene.image_error ?? "Chưa có ảnh"}
+                  </Typography.Text>
+                </Flex>
+              )}
+              {/* Inside the picture, down its right edge, shown while it is pointed at (or tapped, or a button in it
+                has the keyboard): Xem, Cắt, Sửa, Di chuyển. In view mode only "Xem". */}
+              {hasPicture && (
+                <div className="scene-media__quick" data-testid="scene-media-actions">
+                  <Tooltip title="Xem" placement="left">
+                    <Button aria-label="Xem" icon={<EyeOutlined />} onClick={() => setViewing(true)} />
+                  </Tooltip>
+                  {!editor.readOnly && (
+                    <>
+                      <Tooltip title={scene.video ? "Cắt video" : "Chỉnh khung"} placement="left">
                         <Button
-                          size="small"
-                          aria-label="Làm mờ vùng"
-                          icon={<EyeInvisibleOutlined />}
-                          disabled={off}
-                          onClick={() => setBlurring(true)}
-                        />
-                      </Tooltip>
-                    ) : (
-                      <Tooltip title="Sửa ảnh">
-                        <Button
-                          size="small"
-                          aria-label="Sửa ảnh"
-                          icon={<HighlightOutlined />}
-                          disabled={off}
-                          onClick={() => setRetouching(true)}
-                        />
-                      </Tooltip>
-                    )}
-                    {canPlace && (
-                      <Tooltip title={scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}>
-                        <Button
-                          size="small"
-                          aria-label={scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
-                          icon={<DragOutlined />}
+                          aria-label={scene.video ? "Cắt video" : "Chỉnh khung"}
+                          icon={<ScissorOutlined />}
                           disabled={off}
                           onClick={async () => {
-                            // The box is drawn from the saved text: the text being typed is saved first.
+                            // The trim starts from the saved seconds and start: the one being typed is saved first.
                             await editor.flush();
-                            setPlacing(true);
+                            setFraming(true);
                           }}
                         />
                       </Tooltip>
-                    )}
-                    {scene.video && (
-                      <Popconfirm
-                        title="Xoá video của cảnh này?"
-                        okText="Xoá"
-                        cancelText="Huỷ"
-                        okButtonProps={{ danger: true }}
-                        disabled={off}
-                        onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
-                      >
-                        <Button
-                          size="small"
-                          danger
-                          aria-label="Xoá video"
-                          icon={<CloseOutlined />}
-                          loading={busy === "remove"}
+                      {scene.video ? (
+                        <Tooltip title="Làm mờ vùng" placement="left">
+                          <Button
+                            aria-label="Làm mờ vùng"
+                            icon={<EyeInvisibleOutlined />}
+                            disabled={off}
+                            onClick={() => setBlurring(true)}
+                          />
+                        </Tooltip>
+                      ) : (
+                        <Tooltip title="Sửa ảnh" placement="left">
+                          <Button
+                            aria-label="Sửa ảnh"
+                            icon={<HighlightOutlined />}
+                            disabled={off}
+                            onClick={() => setRetouching(true)}
+                          />
+                        </Tooltip>
+                      )}
+                      {canPlace && (
+                        <Tooltip title={scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"} placement="left">
+                          <Button
+                            aria-label={scene.text_position ? "Vị trí chữ (riêng)" : "Vị trí chữ"}
+                            icon={<DragOutlined />}
+                            disabled={off}
+                            onClick={async () => {
+                              // The box is drawn from the saved text: the text being typed is saved first.
+                              await editor.flush();
+                              setPlacing(true);
+                            }}
+                          />
+                        </Tooltip>
+                      )}
+                      {scene.video && (
+                        <Popconfirm
+                          title="Xoá video của cảnh này?"
+                          okText="Xoá"
+                          cancelText="Huỷ"
+                          okButtonProps={{ danger: true }}
                           disabled={off}
-                        />
-                      </Popconfirm>
-                    )}
-                  </>
-                )}
-              </Flex>
-            )}
-            {tools}
-          </div>
+                          onConfirm={() => run("remove", () => api<VideoDetail>(`/scenes/${scene.id}/video`, "DELETE"))}
+                        >
+                          <Button
+                            danger
+                            aria-label="Xoá video"
+                            icon={<CloseOutlined />}
+                            loading={busy === "remove"}
+                            disabled={off}
+                          />
+                        </Popconfirm>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </Flex>
+          {tools}
         </div>
       )}
       {scene.motion && (
@@ -1339,26 +1379,6 @@ export function ScenePicture({
                 Khôi phục ảnh gốc
               </Button>
             </Popconfirm>
-          )}
-        </Flex>
-      )}
-      {scene.image_auto && (
-        // "Tự tìm ảnh" picked this photo from a stock library after the script: often the wrong dish for
-        // Vietnamese food, so a member looks before rendering. Never blocks the render.
-        <Flex wrap align="center" gap={4} data-testid="image-auto">
-          <StatusText tone="warning">Tự chọn, kiểm tra lại</StatusText>
-          {!editor.readOnly && (
-            <Button
-              size="small"
-              type="link"
-              loading={busy === "keep"}
-              disabled={off}
-              onClick={() =>
-                run("keep", () => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { image_checked: true }))
-              }
-            >
-              Giữ ảnh này
-            </Button>
           )}
         </Flex>
       )}
@@ -1463,13 +1483,17 @@ export function ScenePicture({
  */
 function SiteSearch({
   label,
+  text,
   icon,
   tip,
   keywords,
   disabled,
   onSearch,
 }: {
+  /** The button's name, kept in full when it shows `text` instead. */
   label: string;
+  /** A short word beside the icon (the scene card's tool column); the studio shows the icon alone. */
+  text?: string;
   icon: React.ReactNode;
   tip: string;
   keywords: string[];
@@ -1482,7 +1506,9 @@ function SiteSearch({
       icon={icon}
       disabled={disabled}
       onClick={keywords.length > 1 ? undefined : () => onSearch(keywords[0] ?? "")}
-    />
+    >
+      {text}
+    </Button>
   );
   if (keywords.length <= 1) {
     return <Tooltip title={tip}>{button}</Tooltip>;

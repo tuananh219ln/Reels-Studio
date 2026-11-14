@@ -162,7 +162,7 @@ the content script on that tab reads each result's original address from the pag
 closed. A `/sorry/` page (CAPTCHA) stops the search and is brought to the front. The page then posts each candidate to
 `POST /api/scenes/{id}/media-from-url` with `auto: true`: a stock photo site ([stock_sites.py](../api/src/reels_api/stock_sites.py))
 is refused with `stock_photo` before any download, a clip with `not_a_photo`, and a stored photo gets `image_auto`
-("Tự chọn, kiểm tra lại") and its link as `image_source`. `target` names the scene the right-click menu "Gửi ảnh vào
+(no longer shown on the scene card since 2026-11-14) and its link as `image_source`. `target` names the scene the right-click menu "Gửi ảnh vào
 Reels Studio" sends to; the photo comes back to that page as `send-image` and is fetched like a pasted link.
 
 ### Automatic scene footage

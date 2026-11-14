@@ -13,82 +13,210 @@ body {
   white-space: nowrap;
 }
 
-/* Scene card: the picture's tools over its 9:16 frame, from the top so a clip still shows under them; shown on hover
-   or keyboard focus, always on touch screens and while the scene has no picture. The overlay lets clicks through
-   between its buttons. */
+/* Scene card (docs/decisions/2026-11-14-video-editor-spec.md): the 182 × 324 frame and, beside it, the picture's
+   tools in a column of their own, always shown while editing. The frame's own four tools lie inside it, down its
+   right edge, shown while it is pointed at, tapped or reached from the keyboard. */
 .scene-media {
-  position: relative;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
 }
 
-.scene-media__overlay {
+.scene-media__image {
+  position: relative;
+  width: 182px;
+  height: 324px;
+  flex: none;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.scene-media__image > img,
+.scene-media__image > video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.scene-media__quick {
   position: absolute;
-  inset: 0;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  gap: 6px;
-  padding: 8px;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.45);
+  gap: 8px;
   opacity: 0;
   transition: opacity 0.15s;
-  pointer-events: none;
 }
 
-.scene-media__overlay > * {
-  pointer-events: auto;
-}
-
-.scene-media__overlay .ant-btn {
-  max-width: 100%;
-}
-
-.scene-media__overlay .ant-btn > span:not(.ant-btn-icon) {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.scene-media:hover .scene-media__overlay,
-.scene-media:focus-within .scene-media__overlay,
-.scene-media[data-empty="true"] .scene-media__overlay {
+/* A tap on a touch screen hovers the picture too, so the icons show there the same way. */
+.scene-media__image:hover .scene-media__quick,
+.scene-media__quick:focus-within {
   opacity: 1;
 }
 
-.scene-media[data-empty="true"] .scene-media__overlay {
-  background: transparent;
+.scene-media__quick .ant-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: none;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  font-size: 18px;
 }
 
-@media (hover: none) {
-  .scene-media__overlay {
-    opacity: 1;
-    background: rgba(0, 0, 0, 0.25);
-  }
+.scene-media__tools {
+  width: 222px;
+  flex: none;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 7px;
+  padding: 10px;
+  background: #fcfbfa;
+  border: 1px solid #e7e5e2;
+  border-radius: 10px;
 }
 
-/* Scene card: its body, the picture's 150 px column beside the fields from 576 px, one column below. */
+.scene-media__tools .ant-btn {
+  height: 36px;
+  min-width: 0;
+  border-style: solid;
+}
+
+/* The two-in-a-row buttons fill their cell; a split button's arrow keeps its own width. */
+.scene-media__tools > .ant-btn {
+  width: 100%;
+}
+
+.scene-media__tools .ant-btn > span:not(.ant-btn-icon) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scene-media__tools .full {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.scene-media__tools .group-label {
+  grid-column: 1 / -1;
+  /* With these the column is about as tall as the 324 px frame beside it. */
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  color: #8a8784;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.scene-media__tools .group-label:first-child {
+  margin-top: 0;
+}
+
+.scene-media__tools .ai .ant-btn {
+  background: #fff1ea;
+  border-color: #f3b89c;
+  color: #c2410c;
+  font-weight: 600;
+}
+
+/* Scene card: its body, the picture's column (frame + tools, 416 px; the frame alone in view mode) beside the
+   fields; one column when the card is too narrow for both. */
+.scene-card .ant-card-body {
+  container-type: inline-size;
+}
+
 .scene-body {
   display: grid;
-  grid-template-columns: 150px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
 
-@media (max-width: 575px) {
+@container (max-width: 700px) {
   .scene-body {
     grid-template-columns: minmax(0, 1fr);
   }
-  .scene-body > :first-child {
-    width: 150px;
-    justify-self: center;
+}
+
+@container (max-width: 440px) {
+  .scene-media {
+    flex-direction: column;
   }
 }
 
-/* Scene card: the text and the narration side by side when there is room. */
+/* Scene card: "Chữ trên màn hình" and "Lời đọc" one under the other, each a row of its own. */
 .scene-texts {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   column-gap: 12px;
+}
+
+/* Video page: the side panel's tabs ("Đăng bài", "Thiết lập") stay at its top while it scrolls. */
+.side-panel .side-tabs > .ant-tabs-nav {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  /* theme.ts COLORS.layout */
+  background: #f6f6f7;
+}
+
+/* Thiết lập › Logo: two rows, the channel's select taking the room left beside its label and "Quản lý Page". */
+.logo-card .ant-card-body {
+  padding: 8px 12px 10px;
+}
+
+.logo-card__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.logo-card__row .ant-select {
+  flex: 1;
+  min-width: 0;
+}
+
+.logo-card__row a {
+  white-space: nowrap;
+}
+
+/* Đăng bài: a platform's result, one line, green when out, red when it failed. */
+.post-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid #e7e5e2;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.post-row--ok {
+  background: #f0faf3;
+  border-color: #bbe5c8;
+}
+
+.post-row--err {
+  background: #fff4f0;
+  border-color: #f5c2b5;
+}
+
+.post-row--wait {
+  background: #fffaeb;
+  border-color: #f5dfa3;
+}
+
+.post-row__status {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 /* Scene card: up, down and delete show on hover, keyboard focus or while the card is open, and on touch screens. */
