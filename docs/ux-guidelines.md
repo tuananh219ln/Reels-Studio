@@ -374,19 +374,23 @@ Built:
 with one status card (2026-11-14, publish panel spec; radius 12, a 1 px border, no shadow): a header (12 × 16 px
 padding, a line under it) with where the video stands, a dot and a word, "Sẵn sàng đăng" green, a spinner and "Đang
 đăng…" orange, "Đã đăng" green, "Đã đăng một phần" orange, "Đăng thất bại" red, "Đã hẹn giờ" green, each but the first
-followed by "· dd/mm, hh:mm" in grey; without an MP4 "Sẵn sàng đăng?" and how to get one. Under it, the MP4 small
-(112 × 199, radius 10, its first frame, a white 32 px ▶ in its middle that opens it in a "Xem MP4" window with the
+followed by "· dd/mm, hh:mm" in grey; without an MP4 "Sẵn sàng đăng?" and how to get one. Under it, the MP4 (2 parts of
+the card's width to its facts' 3, with a 16 px gap, filling its column at 9:16, radius 12, its first frame, a white
+44 px ▶ in its middle that opens it in a "Xem MP4" window with the
 browser's controls and the listening volume, its length in a corner) beside "Video đã render xong" and "MP4 · N giây ·
 1080×1920 · N MB · Tải MP4 · Render lại" ("Render lại" asks first; while it renders the platforms give way to a line
-saying posting waits for the new MP4); in a card narrower than 420 px the MP4 (96 × 171) goes above. Then the platforms
-as rows (38 px, radius 8, a 20 px square badge, the name, a grey hint, a checkbox at the end; the whole row toggles; a
-picked row has a 1.5 px orange border on #fff2eb): Facebook and TikTok ("Nháp vào hộp thư") are posted by the app, one
+saying posting waits for the new MP4); in a card narrower than 400 px the MP4 (at most 200 px wide, centred) goes above. Then the platforms
+as rows 6 px apart (34 px, radius 10, a 20 px square badge, the name and a ring at the end, nothing else; the row's hint
+is its tooltip and its control's description; the whole row toggles its checkbox, kept in the DOM under the ring; a
+picked row has a 2 px orange border on #fff2eb and a filled orange ring with a white ✓; Tab shows a 2 px orange
+outline): Facebook and TikTok ("Nháp vào hộp thư") are posted by the app, one
 after the other (one job per video at a time): Facebook to the member's Page (a "Fanpage" select when they have several)
 with the comment written when the reel is live, TikTok as a draft to the inbox of the member's connected account (a
 select when several); TikTok cannot be scheduled, so with "Hẹn giờ" its row is off ("Không hẹn giờ được"). The YouTube
-Shorts and Instagram rows say "Đăng tay" and have no checkbox: they open "Tùy chọn khác" on their tab, where a post
-made by hand is recorded with its link; "Tùy chọn khác" is the drawer with every platform's own options (a Page's
-queue, TikTok posted directly, "Đã đăng tay"). The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
+Shorts and Instagram rows are dashed on #fafaf9, with a grey export mark instead of a ring ("Đăng tay" as tooltip): they
+open the posting drawer on their tab, where a post made by hand is recorded with its link. That drawer, with every
+platform's own options (a Page's queue, TikTok posted directly, "Đã đăng tay"), has no button on the card: it is
+"Tùy chọn đăng khác" at the foot of the "Thiết lập" tab, which goes back to "Đăng bài" and opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
 then a 40 px button "Đăng lên N nền tảng" ("Hẹn đăng lên N nền tảng", "Chọn nền tảng để đăng" and off with none) and
 a grey note: the newest MP4 goes with the saved caption and hashtags, Facebook comments when the post is up (when
 Facebook is picked and there is a pinned comment), several platforms go one by one with the page left open. Once
@@ -394,7 +398,7 @@ tried, the card says "Đã đăng lên X/Y nền tảng", "MP4 · N giây · T�
 hh:mm", "Xem bài ↗", or "✓ Đã gửi nháp" for a TikTok draft; red #fef3f3: "✕ <why>" and "Thử lại"; a spinner and
 "Đang đăng…" on its way; "Hẹn đăng lúc …" when scheduled; a Facebook row keeps "Kiểm tra", "Sửa link reel" and
 "Hủy đăng"/"Xóa"), "Bình luận ghim:" with "đang chờ…", "✓ đã đăng, nhớ ghim trên Facebook" (an app cannot pin it) or
-"✕ không đăng được · Thử lại", "+ Đăng thêm" and "Tùy chọn khác". Every Facebook post, cancelled and deleted ones
+"✕ không đăng được · Thử lại" and "+ Đăng thêm". Every Facebook post, cancelled and deleted ones
 included, is under "Lịch sử bài Facebook (N)", folded. A red QC check asks before posting ("MP4 chưa đạt kiểm tra
 chất lượng", "Vẫn đăng"); the checks themselves are in the header's **QC chip** popover. Under the card, each a block of its
 own: "Nội dung đăng" (Caption, with "Copy caption + hashtag" in its title, which copies both wherever the hashtags

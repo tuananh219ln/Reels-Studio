@@ -107,17 +107,22 @@ export async function openSetup(page: Page) {
 }
 
 /**
- * "Tùy chọn khác" under the side panel's posting: the drawer with every platform's own options (a Page's queue,
- * TikTok posted directly, a post made by hand). A red QC check asks first (the e2e MP4s have silent narration); the
- * test goes on to the drawer either way.
+ * "Tùy chọn đăng khác" in the side panel's "Thiết lập" tab: the drawer with every platform's own options (a Page's
+ * queue, TikTok posted directly, a post made by hand), opened over the "Đăng bài" tab. A red QC check asks first (the
+ * e2e MP4s have silent narration); the test goes on to the drawer either way.
  */
 export async function openPublishDrawer(page: Page) {
-  await page.getByTestId("ready-card").getByRole("button", { name: "Tùy chọn khác", exact: true }).click();
+  await openSetup(page);
+  await page.getByTestId("setup-publish").getByRole("button", { name: "Tùy chọn đăng khác", exact: true }).click();
   const ask = page.locator(".ant-modal-confirm").filter({ hasText: "MP4 chưa đạt kiểm tra chất lượng" });
   const drawer = page.getByRole("dialog", { name: "Đăng bài" });
   await expect(ask.or(drawer).first()).toBeVisible();
   if (await ask.isVisible()) await ask.getByRole("button", { name: "Vẫn đăng" }).click();
   await expect(drawer).toBeVisible();
+  await expect(page.locator("[data-side-panel]").getByRole("tab", { name: "Đăng bài", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 }
 
 /**

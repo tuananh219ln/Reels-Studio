@@ -55,14 +55,17 @@ export function PublishButton({
   label = "Đăng bài",
   type = "primary",
   request = null,
+  trigger = true,
 }: {
   video: VideoDetail;
   block?: boolean;
-  /** The trigger's words; "Đăng bài" in the lists, "Tùy chọn khác" under the side panel's own posting. */
+  /** The trigger's words; "Đăng bài" in the lists, none on the side panel's status card. */
   label?: string;
   type?: ButtonProps["type"];
   /** Opens the drawer on that platform's tab each time `at` changes: a YouTube Shorts or Instagram tile. */
   request?: { platform: Platform; at: number } | null;
+  /** false: no button, only the drawer, opened by `request` or the address (the "Đăng bài" tab's status card). */
+  trigger?: boolean;
 }) {
   const { message, modal } = App.useApp();
   const { me } = useMe();
@@ -219,28 +222,30 @@ export function PublishButton({
   const tabName = (name: string, count: number) => (count ? `${name} (${count})` : name);
   return (
     <>
-      <Button
-        type={type}
-        block={block}
-        icon={type === "primary" ? <SendOutlined /> : undefined}
-        disabled={video.locked}
-        onClick={() => {
-          // A red QC check does not stop posting, but the member says so first.
-          if (video.mp4?.qc?.status !== "fail") {
-            setOpen(true);
-            return;
-          }
-          modal.confirm({
-            title: "MP4 chưa đạt kiểm tra chất lượng",
-            content: "Còn mục đỏ ở “Sẵn sàng đăng?”. Nên sửa rồi render lại; vẫn đăng bản này?",
-            okText: "Vẫn đăng",
-            cancelText: "Huỷ",
-            onOk: () => setOpen(true),
-          });
-        }}
-      >
-        {label}
-      </Button>
+      {trigger && (
+        <Button
+          type={type}
+          block={block}
+          icon={type === "primary" ? <SendOutlined /> : undefined}
+          disabled={video.locked}
+          onClick={() => {
+            // A red QC check does not stop posting, but the member says so first.
+            if (video.mp4?.qc?.status !== "fail") {
+              setOpen(true);
+              return;
+            }
+            modal.confirm({
+              title: "MP4 chưa đạt kiểm tra chất lượng",
+              content: "Còn mục đỏ ở “Sẵn sàng đăng?”. Nên sửa rồi render lại; vẫn đăng bản này?",
+              okText: "Vẫn đăng",
+              cancelText: "Huỷ",
+              onOk: () => setOpen(true),
+            });
+          }}
+        >
+          {label}
+        </Button>
+      )}
       <FormDrawer
         title="Đăng bài"
         open={open}
