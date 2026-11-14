@@ -247,13 +247,13 @@ test("the video page shows where the video stands, step by step, with its times"
   await expect(progress.getByTestId("progress-affiliate")).toHaveAttribute("data-state", "warn");
   await expect(progress.getByTestId("progress-48h")).toHaveCount(0);
   // A step opens the side panel's tab where it is done.
+  // Affiliate: the products, on "Bình luận & Sản phẩm"; Render: the status card, on "Đăng bài".
+  const sideTab = (name: string) => page.locator("[data-side-panel]").getByRole("tab", { name, exact: true });
   await progress.getByTestId("progress-affiliate").click();
-  await expect(page.locator("[data-side-panel]").getByRole("tab", { name: "Đăng bài", exact: true })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  await expect(sideTab("Bình luận & Sản phẩm")).toHaveAttribute("aria-selected", "true");
   await expect(page.locator('[data-post-block="products"]')).toBeInViewport();
   await progress.getByTestId("progress-render").click();
+  await expect(sideTab("Đăng bài")).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("Sẵn sàng đăng?")).toBeVisible();
 });
 
