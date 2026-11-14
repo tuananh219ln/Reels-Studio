@@ -2657,7 +2657,7 @@ test("clone a video with a change request, then see every job in the job log", a
   await closeSetup(page);
 
   await page.getByRole("button", { name: "Thao tác khác với video" }).click();
-  await page.getByRole("menuitem", { name: "Nhân bản" }).click();
+  await page.getByRole("menuitem", { name: "Nhân bản", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Nhân bản video" });
   await expect(dialog.getByRole("button", { name: "Tạo bản nhân bản" })).toBeDisabled();
   await dialog.getByLabel("Yêu cầu đổi").fill("đổi sang mốc 45 tuổi, tim mạch");

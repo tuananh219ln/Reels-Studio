@@ -167,7 +167,7 @@ test("a TikTok version is its own video, linked both ways, with TikTok's posting
   await expect(async () => {
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Thao tác khác với video" }).click();
-    await expect(page.getByRole("menuitem", { name: "Nhân bản" })).toBeVisible({ timeout: 2_000 });
+    await expect(page.getByRole("menuitem", { name: "Nhân bản", exact: true })).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 60_000 });
   await expect(page.getByRole("menuitem", { name: "Tạo bản TikTok" })).toHaveCount(0);
   await page.keyboard.press("Escape");
