@@ -148,9 +148,8 @@ def unmatched_post(db, page, me, **fields) -> Publication:
         external_id=fields.pop("external_id", "777"),
         caption="Một reel đăng ngoài app",
         published_at=datetime.now(UTC) - timedelta(hours=3),
-        match_status="unmatched",
         created_by_id=me.id,
-        **fields,
+        **({"match_status": "unmatched"} | fields),
     )
     db.add(post)
     db.commit()
