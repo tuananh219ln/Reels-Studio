@@ -41,6 +41,7 @@ class SceneInput:
     text_size: str = "large"  # the size its text box is drawn at (reels_render.textbox.TEXT_SIZES)
     text_case: str = "upper"  # the letter case its text is drawn in (reels_render.markup.TEXT_CASES)
     photo_credit: dict | None = None  # the shown photo's licence asks for credit (videos.photo_credit)
+    clip_loop: bool = False  # "Lặp clip": a short clip starts again instead of holding its last frame
 
 
 @dataclass(frozen=True)
@@ -122,7 +123,8 @@ def check_script(
             block(Issue(f"Số giây phải từ {MIN_SECONDS} đến {MAX_SECONDS}", scene.id, "seconds"))
         neighbours = (index > 0) + (index < len(every) - 1)
         played = fit_seconds(scene.seconds, scene.voice_seconds) + neighbours * CROSSFADE_SIDE_SECONDS
-        if scene.clip_seconds is not None and played * scene.clip_speed > scene.clip_seconds + 0.01:
+        too_short = scene.clip_seconds is not None and played * scene.clip_speed > scene.clip_seconds + 0.01
+        if too_short and not scene.clip_loop:
             speed = f"{scene.clip_speed:g}".replace(".", ",")
             at_speed = "Video" if scene.clip_speed == 1 else f"Ở tốc độ {speed}× video"
             warn(Issue(f"{at_speed} ngắn hơn cảnh, khung cuối sẽ đứng yên", scene.id, "video"))

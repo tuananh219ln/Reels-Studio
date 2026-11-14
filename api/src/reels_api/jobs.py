@@ -692,6 +692,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                     "video_start": scene.video_start,
                     "video_speed": scene.video_speed,
                 }
+                if scene.video_loop:
+                    data["video_loop"] = True
                 if scene.video_sound:
                     data["video_sound"] = True
                     if scene.words:
@@ -744,6 +746,8 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             options = replace(options, logo=True)
         if any("video_blur" in item for item in [data["title"], *data["scenes"]]):
             options = replace(options, clip_blur=True)
+        if any(item.get("video_loop") for item in [data["title"], *data["scenes"]]):
+            options = replace(options, clip_loop=True)
         music = _checked_music(video, storage, folder)
         if render_nodes.enabled(db):
             # The heavy part runs on a member's render machine; the api finishes the job with save_render.
@@ -1222,6 +1226,7 @@ def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
         scene.image_auto = False
         # A photo replaces the scene's clip: a scene shows one or the other.
         scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
+        scene.video_loop = False
         # A new or removed clip has no sound of its own heard, nor words ("Edit từ footage").
         scene.video_sound, scene.words = False, None
         if scene.is_title:

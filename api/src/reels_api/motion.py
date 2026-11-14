@@ -262,6 +262,7 @@ def attach(db: DbSession, storage: DirectoryStorage, job: Job, target: Path) -> 
     key = new_key(video.id, f"motion-{scene.id}", clip.extension)
     storage.save_file(key, target)
     scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = key, round(clip.seconds, 3), 0, 1
+    scene.video_loop = False
     # A new or removed clip has no sound of its own heard, nor words ("Edit từ footage").
     scene.video_sound, scene.words = False, None
     scene.image_key, scene.image_source, scene.image_error, scene.image_auto = None, None, None, False
