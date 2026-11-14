@@ -1557,13 +1557,13 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   expect(thumb!.width / (body!.width - 16)).toBeCloseTo(0.4, 1);
   expect(thumb!.height / thumb!.width).toBeCloseTo(16 / 9, 1);
   // TikTok's API cannot schedule: with "Hẹn giờ" its tile is off and only Facebook is counted.
-  await card.getByRole("checkbox", { name: "TikTok" }).click();
+  await card.getByTestId("platform-option-tiktok").click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 2 nền tảng");
   await card.getByRole("radio", { name: "Hẹn giờ" }).check();
   await expect(card.getByRole("checkbox", { name: "TikTok" })).toBeDisabled();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 1 nền tảng");
   await card.getByRole("radio", { name: "Đăng ngay" }).check();
-  await card.getByRole("checkbox", { name: "TikTok" }).click();
+  await card.getByTestId("platform-option-tiktok").click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 1 nền tảng");
 
   // A red QC check asks first (the e2e MP4s have silent narration).
