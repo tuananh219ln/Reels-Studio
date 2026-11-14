@@ -91,7 +91,10 @@ def list_channels(me: Session = Depends(current_member), db: DbSession = Depends
                 "owner_id": account.owner_id,
                 "owner": names.get(account.owner_id),
                 # Connected through TikTok's API ("Kết nối TikTok" in Cài đặt); the views come with part 4.
-                "connected": tiktok_connections.of_account(db, account.id) is not None,
+                "connected": (connection := tiktok_connections.of_account(db, account.id)) is not None,
+                # "Đã kết nối" reading views (video.list), or "Token hết hạn".
+                "reads_views": tiktok_connections.reads_views(connection),
+                "expired": connection is not None and tiktok_connections.needs_reconnect(connection),
                 "post_count": tiktok_posts.get(account.id, 0),
             }
             for account, handle in post_links.tiktok_accounts(db)

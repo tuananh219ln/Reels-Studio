@@ -597,7 +597,12 @@ a recorded link or time, take a recorded post out). [post_links.py](../api/src/r
 (`TIKTOK_OEMBED_URL`, `YOUTUBE_OEMBED_URL`, no key, 8 s, in the request: a member waits for the preview) and matches
 the video: text 0.6 (token-set ratio on text without marks, hashtags or emoji), length 0.3 (left out when unknown, as
 oEmbed gives none), time from render 0.1; chosen at 0.85 and 0.10 ahead of the next, suggested from 0.50. Part 1 of
-the spec; the readings' schedule, YouTube and TikTok views, the Meta Suite import and "Chưa khớp" come next.
+the spec. **TikTok views** (part 4, [decision](decisions/2026-11-14-tiktok-views.md)): a TikTok post on an account
+whose connection was granted `video.list` (asked for only with `TIKTOK_VIDEO_LIST=1`) is read like a YouTube one,
+through `/v2/video/query/` 20 ids at a time with its owner's token (`metrics.measure_tiktok`; its `create_time` is the
+posting time unless typed; missing twice an hour apart, removed); the board labels its numbers "OAuth". Any other
+TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`, optional likes, comments, shares and
+`captured_at`), a reading with `raw = {"manual": true}` that settles the marks it passed.
 
 ## Video Pipeline
 

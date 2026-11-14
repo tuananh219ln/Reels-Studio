@@ -115,6 +115,11 @@ def of_account(db: DbSession, account_id: int) -> TikTokConnection | None:
     return db.scalar(select(TikTokConnection).where(TikTokConnection.affiliate_account_id == account_id))
 
 
+def reads_views(connection: TikTokConnection | None) -> bool:
+    """TikTok granted this connection `video.list`, so its videos' views are read (metrics.measure_tiktok)."""
+    return connection is not None and tiktok.VIDEO_LIST in (connection.scopes or "").split(",")
+
+
 def needs_reconnect(connection: TikTokConnection) -> bool:
     return connection.last_error is not None or connection.refresh_expires_at <= now()
 

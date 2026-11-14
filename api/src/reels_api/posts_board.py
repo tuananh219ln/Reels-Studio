@@ -11,9 +11,9 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import hashtags, knowledge
+from . import hashtags, knowledge, tiktok_connections
 from .analytics import VIETNAM
-from .models import Job, PostMetrics, PostMetricSnapshot, Publication, Scene, User, Video
+from .models import Job, PostMetrics, PostMetricSnapshot, Publication, Scene, TikTokConnection, User, Video
 from .post_links import normalize, video_ref
 from .script_rules import plain_title
 from .sessions import now
@@ -46,6 +46,9 @@ class PostView:
     retry_job_id: int | None = None
     # A reading was asked for ("Cập nhật view") and has not run yet.
     refreshing: bool = False
+    # A TikTok post's account: read through its connection ("oauth"), the connection lost ("reconnect"), or not
+    # connected with video.list ("manual": "Nhập view"); None for other platforms.
+    tiktok_reader: str | None = None
 
 
 @dataclass
@@ -129,8 +132,22 @@ def _readings(db: DbSession, post_ids: list[int]) -> tuple[dict[int, PostMetricS
     return latest, marks
 
 
+def _tiktok_readers(db: DbSession, posts: list[Publication]) -> dict[int, str]:
+    accounts = {post.affiliate_account_id for post in posts if post.platform == "tiktok" and post.affiliate_account_id}
+    if not accounts:
+        return {}
+    readers = {}
+    for connection in db.scalars(select(TikTokConnection).where(TikTokConnection.affiliate_account_id.in_(accounts))):
+        if tiktok_connections.reads_views(connection):
+            readers[connection.affiliate_account_id] = (
+                "reconnect" if tiktok_connections.needs_reconnect(connection) else "oauth"
+            )
+    return readers
+
+
 def post_views(db: DbSession, posts: list[Publication]) -> list[PostView]:
     failed = _failed_jobs(db, sorted({post.video_id for post in posts if post.status == "pending"}))
+    readers = _tiktok_readers(db, posts)
     latest, marks = _readings(db, [post.id for post in posts])
     views = []
     for post in posts:
@@ -143,6 +160,7 @@ def post_views(db: DbSession, posts: list[Publication]) -> list[PostView]:
                 channel=channel_of(post),
                 views=reading.views if reading else None,
                 views_48h=post.views_48h if post.views_48h is not None else marks.get(post.id),
+                tiktok_reader=readers.get(post.affiliate_account_id, "manual") if post.platform == "tiktok" else None,
                 refreshing=post.metrics_requested_at is not None
                 and (post.metrics_tried_at is None or post.metrics_tried_at < post.metrics_requested_at),
                 measured_at=reading.captured_at if reading else None,
@@ -245,7 +263,7 @@ def cell(views: list[PostView], platform: str) -> dict | None:
         "views_48h": sum(view.views_48h for view in marked) if top == "published" and marked else None,
         "post_count": len(chosen),
         "channel_label": _channel_label(chosen, platform),
-        "source": loudest.post.source,
+        "source": shown_source(loudest),
         "published_at": _iso(max((live_at(view.post) for view in chosen), default=None))
         if top == "published"
         else None,
@@ -257,7 +275,21 @@ def cell(views: list[PostView], platform: str) -> dict | None:
         "closed_at": _iso(max((view.post.closed_at for view in chosen if view.post.closed_at), default=None)),
         "metrics_updated_at": _iso(max((view.measured_at for view in chosen if view.measured_at), default=None)),
         "refreshing": any(view.refreshing for view in chosen),
+        "hint": _hint(chosen) if top == "published" else None,
     }
+
+
+TIKTOK_HINTS = {"manual": "Kết nối TikTok để tự cập nhật view", "reconnect": "Cần kết nối lại TikTok"}
+
+
+def _hint(views: list[PostView]) -> str | None:
+    """Why a TikTok cell's views are not read by themselves."""
+    return next((TIKTOK_HINTS[view.tiktok_reader] for view in views if view.tiktok_reader in TIKTOK_HINTS), None)
+
+
+def shown_source(view: PostView) -> str:
+    """The label beside a post's numbers: a TikTok video read through its connection is "oauth"."""
+    return "oauth" if view.tiktok_reader == "oauth" else view.post.source
 
 
 def total_views(row: Row, platform: str | None = None) -> int | None:
@@ -530,7 +562,10 @@ def video_posts(db: DbSession, video: Video, fb_payload) -> dict:
                 "id": view.post.id,
                 "platform": view.post.platform,
                 "state": view.state,
-                "source": view.post.source,
+                "source": shown_source(view),
+                "recorded_by": view.post.source,
+                "hint": _hint([view]) if view.state == "published" else None,
+                "can_enter_views": view.post.platform == "tiktok" and view.state == "published",
                 "channel": view.channel,
                 "url": view.post.post_url,
                 "published_at": _iso(live_at(view.post)) if view.state in ("published", "removed") else None,

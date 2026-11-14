@@ -140,7 +140,7 @@ export default function PlatformCell({
   const updated = cell.metrics_updated_at ? `Cập nhật lần cuối ${formatDayTime(cell.metrics_updated_at)}` : undefined;
   return (
     <Flex vertical gap={2}>
-      <Tooltip title={updated}>
+      <Tooltip title={cell.views === null && cell.hint ? cell.hint : updated}>
         <span>
           <StatusText tone="success">{cell.views === null ? "— view" : `${formatCount(cell.views)} view`}</StatusText>
           {cell.refreshing && <Spin size="small" style={{ marginLeft: 6 }} aria-label="Đang cập nhật view" />}

@@ -144,8 +144,14 @@ export default function ChannelsCard() {
                       Mở kênh ↗
                     </a>
                   )}
-                  <StatusText tone={account.connected ? "success" : "idle"}>
-                    {account.connected ? "Đã kết nối" : "Chưa kết nối"}
+                  <StatusText tone={account.expired ? "danger" : account.connected ? "success" : "idle"}>
+                    {account.expired
+                      ? "Token hết hạn"
+                      : account.connected
+                        ? account.reads_views
+                          ? "Đã kết nối, tự cập nhật view"
+                          : "Đã kết nối"
+                        : "Chưa kết nối"}
                   </StatusText>
                   <Typography.Text type="secondary">
                     {account.owner ?? "—"} · {account.post_count} bài

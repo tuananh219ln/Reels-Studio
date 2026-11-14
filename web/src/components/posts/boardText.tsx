@@ -35,6 +35,7 @@ const SOURCES: Record<PostSource, { label: string; color: string }> = {
   app_api: { label: "API", color: "blue" },
   meta_suite: { label: "Meta Suite", color: "cyan" },
   manual_link: { label: "Link tay", color: "purple" },
+  oauth: { label: "OAuth", color: "blue" },
 };
 
 /** The small label saying where a post's numbers come from. */

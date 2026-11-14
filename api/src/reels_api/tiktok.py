@@ -21,8 +21,12 @@ UPLOAD_TIMEOUT = 300
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
 # Must match the Redirect URI registered on the developer app exactly: https, no query string.
 REDIRECT_URI = "https://reels.quangdang.xyz/api/tiktok/oauth/callback"
-# Exactly the three scopes the developer app was approved for; no reading of videos or numbers.
+# Exactly the three scopes the developer app was approved for; `video.list` (reading the account's videos and
+# their numbers) only once TikTok approved it too, with TIKTOK_VIDEO_LIST (config.tiktok_video_list).
 SCOPES = ("user.info.basic", "video.upload", "video.publish")
+VIDEO_LIST = "video.list"
+VIDEO_FIELDS = "id,create_time,view_count,like_count,comment_count,share_count"
+VIDEO_BATCH = 20
 # Only what user.info.basic reads: asking for one more field (username needs user.info.profile) fails the whole call
 # with scope_not_authorized. The username comes from creator_info, which video.publish reads.
 USER_FIELDS = "open_id,union_id,avatar_url,display_name"
@@ -119,7 +123,7 @@ def credentials() -> Credentials:
 def authorize_url(state: str) -> str:
     query = {
         "client_key": credentials().client_key,
-        "scope": ",".join(SCOPES),
+        "scope": ",".join((*SCOPES, VIDEO_LIST) if config.tiktok_video_list() else SCOPES),
         "response_type": "code",
         "redirect_uri": REDIRECT_URI,
         "state": state,
@@ -264,6 +268,20 @@ def user_info(access_token: str) -> User:
         display_name=str(user.get("display_name") or username or "TikTok")[:200],
         avatar_url=user.get("avatar_url") or None,
     )
+
+
+def query_videos(access_token: str, ids: list[str]) -> dict[str, dict]:
+    """The account's videos among `ids` (at most VIDEO_BATCH) with their numbers, by id; one missing is deleted,
+    private or not the account's. Needs `video.list`."""
+    data = _api(
+        "/v2/video/query/",
+        access_token,
+        body={"filters": {"video_ids": ids[:VIDEO_BATCH]}},
+        query=f"fields={VIDEO_FIELDS}",
+    )
+    return {
+        str(video["id"]): video for video in data.get("videos") or [] if isinstance(video, dict) and video.get("id")
+    }
 
 
 def creator_info(access_token: str) -> CreatorInfo:

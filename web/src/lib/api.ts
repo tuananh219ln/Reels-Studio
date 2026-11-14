@@ -1639,7 +1639,7 @@ export type BrandRow = {
 export type BoardPlatform = "facebook" | "tiktok" | "youtube";
 export type PostState = "published" | "scheduled" | "publishing" | "pending_link" | "failed" | "removed" | "cancelled";
 /** Where a post came from: sent by the app, recorded with its link, or found on the Page (later). */
-export type PostSource = "app_api" | "manual_link" | "meta_suite";
+export type PostSource = "app_api" | "manual_link" | "meta_suite" | "oauth";
 
 export type BoardCell = {
   state: Exclude<PostState, "cancelled">;
@@ -1660,6 +1660,8 @@ export type BoardCell = {
   metrics_updated_at: string | null;
   /** "Cập nhật view" asked for a reading that has not run yet. */
   refreshing: boolean;
+  /** Why a TikTok cell's views are not read by themselves ("Kết nối TikTok để tự cập nhật view"). */
+  hint: string | null;
 };
 
 export type BoardItem = {
@@ -1728,6 +1730,11 @@ export type VideoPost = {
   views_24h: number | null;
   views_48h: number | null;
   views_7d: number | null;
+  /** How the post was recorded (`source` says where its numbers come from: "oauth" for TikTok's API). */
+  recorded_by: Exclude<PostSource, "oauth">;
+  hint: string | null;
+  /** "Nhập view": a TikTok post out on the platform. */
+  can_enter_views: boolean;
   /** Marks taken between two readings ("ước tính"). */
   marks_estimated: string[];
   /** Marks the post is past with no value ("n/a"). */
@@ -1795,6 +1802,10 @@ export type Channels = {
     owner_id: number;
     owner: string | null;
     connected: boolean;
+    /** Connected with video.list: its videos' views are read. */
+    reads_views: boolean;
+    /** The connection failed: "Token hết hạn", connect again. */
+    expired: boolean;
     post_count: number;
   }[];
   youtube: {
