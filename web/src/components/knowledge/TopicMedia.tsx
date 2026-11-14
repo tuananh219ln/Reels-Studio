@@ -43,7 +43,7 @@ export default function TopicMedia({
     // Unlinked: only the folders matter, for "Liên kết thư mục".
     async () => {
       const found = await api<MediaList>(folder ? `/media?folder=${encodeURIComponent(folder)}` : "/media");
-      return folder ? found : { items: [], folders: found.folders, tags: found.tags };
+      return folder ? found : { items: [], folders: found.folders, tags: found.tags, total: found.total };
     },
     [folder],
   );
