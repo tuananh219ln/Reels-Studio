@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import crypto, shopee
+from . import crypto, pinned, shopee
 from .models import (
     AffiliateAccount,
     AffiliateLink,
@@ -160,15 +160,16 @@ def article_products(db: DbSession, article_id: int) -> list[AffiliateProduct]:
 
 
 def comment_text(db: DbSession, post: Publication) -> str:
-    """The comment under the post: the video's pinned comment, then "name: link" per usable attached Shopee product
-    that has a link for the post's Page. Raises ShopeeError when a link cannot be made."""
+    """The comment under the post: the video's pinned comment as it renders now (pinned.py), then "name: link" per
+    usable attached Shopee product that has a link for the post's Page. Raises ShopeeError when a link cannot be
+    made."""
     account = page_account(db, db.get(Fanpage, post.fanpage_id) if post.fanpage_id else None)
     if post.article_id is not None:
         article = db.get(Article, post.article_id)
         products, opening = article_products(db, article.id), article.pinned_comment.strip()
     else:
         video = db.get(Video, post.video_id)
-        products, opening = products_of(db, video.id), video.pinned_comment.strip()
+        products, opening = products_of(db, video.id), pinned.text_of(db, video)
     lines = []
     for product in products:
         if product.platform != "shopee" or not usable(product):
