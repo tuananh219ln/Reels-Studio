@@ -384,9 +384,22 @@ def save_links(body: SaveLinksBody, me: Session = Depends(current_member), db: D
     if len(body.items) > post_links.MAX_LINKS:
         raise invalid(f"Mỗi lần lưu tối đa {post_links.MAX_LINKS} link")
     at = now()
+    try:
+        saved = _save_lines(db, body.items, at, me)
+        db.commit()
+    except ApiError:
+        db.rollback()  # a wrong line saves nothing, not even the lines before it
+        raise
+    except IntegrityError:
+        db.rollback()
+        raise ApiError(409, "post_exists", "Có link vừa được người khác lưu, hãy dán lại") from None
+    return {"saved": len(saved), "post_ids": [post.id for post in saved]}
+
+
+def _save_lines(db: DbSession, items: list[LinkItem], at: datetime, me: Session) -> list[Publication]:
     saved: list[Publication] = []
     seen: set[tuple[str, str]] = set()
-    for number, item in enumerate(body.items, start=1):
+    for number, item in enumerate(items, start=1):
         try:
             link = post_links.parse(item.url)
         except post_links.LinkError as err:
@@ -426,12 +439,7 @@ def save_links(body: SaveLinksBody, me: Session = Depends(current_member), db: D
             post.metrics_requested_at = at
         db.flush()
         saved.append(post)
-    try:
-        db.commit()
-    except IntegrityError:
-        db.rollback()
-        raise ApiError(409, "post_exists", "Có link vừa được người khác lưu, hãy dán lại") from None
-    return {"saved": len(saved), "post_ids": [post.id for post in saved]}
+    return saved
 
 
 class PostChange(BaseModel):

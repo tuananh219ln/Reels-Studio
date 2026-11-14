@@ -1720,9 +1720,9 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await tabs.getByText("Tất cả (1)").click();
   await expect(groups).toHaveCount(1);
   // "Chưa có trên: TikTok" keeps it, "Chưa có trên: Facebook" does not.
-  await chooseOption(page, page.getByLabel("Chưa có trên"), "Chưa có trên TikTok");
+  await chooseOption(page, page.getByLabel("Chưa có trên", { exact: true }), "Chưa có trên TikTok");
   await expect(groups).toHaveCount(1);
-  await chooseOption(page, page.getByLabel("Chưa có trên"), "Chưa có trên Facebook");
+  await chooseOption(page, page.getByLabel("Chưa có trên", { exact: true }), "Chưa có trên Facebook");
   await expect(groups).toHaveCount(0);
   await expect(page).toHaveURL(/[?&]missing=facebook/);
   await page.goto("/posts?sort=views");
@@ -1976,7 +1976,8 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   // Who took each down and when, under its channel; their action buttons are all greyed out.
   await expect(posts.getByText(new RegExp(`^Xóa: ${SEED.name}, `))).toBeVisible();
   await expect(posts.getByText(new RegExp(`^Hủy: ${SEED.name}, `))).toBeVisible();
-  await expect(posts.getByRole("button", { name: "Kiểm tra" }).first()).toBeDisabled();
+  // The cancelled post (listed last, the oldest) is greyed out; a deleted one may still be checked (2026-11-13).
+  await expect(posts.getByRole("button", { name: "Kiểm tra" }).last()).toBeDisabled();
   await expect(tabs.getByText("Đã gỡ/hủy (1)")).toBeVisible();
   await expect(tabs.getByText("Chưa đăng (1)")).toBeVisible();
 });
