@@ -1018,12 +1018,20 @@ steps open the status card or the products block on its tab, the QC chip its pop
       ("Xem Reel", "Thử lại", "Kiểm tra", "Hủy đăng"/"Xóa"); a post recorded by link "Sửa link" and "Gỡ" (out of the
       app only, by whoever recorded it); one waiting "Dán link" and "Hủy chờ"; a platform with none "Chưa đăng" with
       "Tải MP4" and "Copy caption" (the TikTok caption for TikTok).
+    - **"Chưa khớp"** (a tab, its count in posts): reels posted on a Page outside the app (Meta Business Suite),
+      imported hourly with no video yet. A row each: the reel (cover, caption on one line, Page, time, views, "Xem bài
+      ↗"), "Gợi ý video" (cover, name, %) and "Xác nhận", "Chọn video khác" (a searchable video picker), "Video ngoài"
+      (followed without a video: a row of its own on the board, with the platform's cover, its caption and the tag
+      "Video ngoài", not opened) and "Bỏ qua" (hidden, no longer read; asks first). Rows are ticked for "Xác nhận tất
+      cả gợi ý (N)". An imported reel once matched shows "Meta Suite" on its cell; its opened line has "Đổi video
+      khớp" and "Bỏ khớp" (back to "Chưa khớp") instead of the app's buttons.
     - **"Dán link bài đã đăng"**: 1–50 links, one per line, read 400 ms after typing stops. A row per link: the link,
       "Nền tảng · Kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
       at 85 % and 10 points ahead, else "? Cần chọn tay" with suggestions and every video to search), the posting time
       (now by default, editable, Vietnam time) and the result ("✕ Kênh chưa khai báo" with "Thêm kênh", "✕ Link không
       hợp lệ", "✕ Không truy cập được", "✕ Đã có trong hệ thống" with the video it is on). From a cell the video is
-      fixed. "Lưu N link" saves the lines ready; "Đã lưu N link".
+      fixed. The video picker also offers "Video ngoài (không gắn video)". "Lưu N link" saves the lines ready;
+      "Đã lưu N link".
   - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there), after the content calendar of
     Meta's creator dashboard: a title naming the range ("2–8 tháng 11, 2026", "Tháng 11, 2026",
     "Thứ tư, 4 tháng 11, 2026") over "Giờ Việt Nam" and the legend (a dot for "Đã hẹn lịch" and
@@ -1103,7 +1111,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
   - **Quản lý kênh** (`/fanpages`, under "Đăng và kiếm tiền" in the menu; "Quản lý Page" before 2026-11-14). Under the
-    Pages, "Kênh TikTok và YouTube": "Link kênh TikTok hoặc YouTube" and "Thêm kênh" (a TikTok channel becomes the
+    Pages, "Kênh TikTok, YouTube và đồng bộ Facebook": first each Page with the switch "Đồng bộ bài ngoài app" (on by
+    default, its owner's), "Lần đồng bộ cuối …" or "Chưa đồng bộ", the last error in red and "Đồng bộ ngay"; then "Link kênh TikTok hoặc YouTube" and "Thêm kênh" (a TikTok channel becomes the
     member's TikTok account; a YouTube one a channel, removed by whoever added it), each listed with its link, who
     added it, its posts and, for TikTok, "Đã kết nối"/"Chưa kết nối". "Trang nào" chooses
     "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on

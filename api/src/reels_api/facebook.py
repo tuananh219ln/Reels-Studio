@@ -710,6 +710,39 @@ def find_post(page: Page, message: str) -> str | None:
     return None
 
 
+PAGE_REEL_FIELDS = "id,description,created_time,length,picture,published"
+MAX_PAGES = 20
+
+
+def page_reels(page: Page, since: datetime) -> list[dict]:
+    """The Page's reels and videos created since `since`, however they were posted (the app, Meta Business Suite),
+    newest first: {id, description, created_time, length, picture}. One not published (scheduled, a draft) is left out.
+    Pages through Graph's `paging.next`, never to another host, at most MAX_PAGES pages per edge."""
+    found: dict[str, dict] = {}
+    base = config.facebook_api_url()
+    for edge in ("video_reels", "videos"):
+        query = urllib.parse.urlencode(
+            {
+                "fields": PAGE_REEL_FIELDS,
+                "since": str(int(since.timestamp())),
+                "limit": "50",
+                "access_token": page.token,
+            }
+        )
+        url: str | None = f"{base}/{urllib.parse.quote(page.id, safe='')}/{edge}?{query}"
+        for _ in range(MAX_PAGES):
+            if url is None or not url.startswith(base + "/"):
+                break
+            reply = _send(urllib.request.Request(url), REQUEST_TIMEOUT)
+            for row in reply.get("data") or []:
+                if isinstance(row, dict) and row.get("id") and row.get("published", True) is not False:
+                    created = _time(row.get("created_time"))
+                    if created >= since:
+                        found.setdefault(str(row["id"]), {**row, "id": str(row["id"]), "created_time": created})
+            url = (reply.get("paging") or {}).get("next")
+    return sorted(found.values(), key=lambda row: row["created_time"], reverse=True)
+
+
 # The post's reach: people who saw it. Meta's v25 changelog retires `post_impressions_unique` and names this one instead.
 ARTICLE_REACH = "post_total_media_view_unique"
 ARTICLE_COUNTS = "shares,reactions.summary(total_count).limit(0),comments.summary(total_count).limit(0)"

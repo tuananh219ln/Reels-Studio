@@ -571,6 +571,20 @@ Planned:
 
 ### "Bài đăng" board
 
+**Reels posted outside the app** ([meta_sync.py](../api/src/reels_api/meta_sync.py),
+[decision](decisions/2026-11-14-meta-suite-sync.md)): between jobs, the worker imports each Page in use with
+`sync_external_posts` on, hourly (`sync_tried_at`) or when "Đồng bộ ngay" asked (`POST
+/api/channels/fanpage/{id}/sync-now`, `sync_requested_at`): `facebook.page_reels` reads `/video_reels` and `/videos`
+since `last_synced_at` less 2 hours (30 days back the first time), published only, following `paging.next` only on
+Graph's host. A reel the app has (by `external_id` or `remote_id`) is skipped; a new one is a `meta_suite` post,
+published, recorded under the Page's owner, with its caption, length, cover and time (`api`), matched as a pasted link
+is: `confirmed` with its video, else `suggested` (`suggested_video_id`, `match_score`) or `unmatched` with none. It is
+read at once like any reel. `GET /api/posts/unmatched` lists those with no video, `POST /api/posts/unmatched/confirm`
+takes the suggestions, `PATCH /api/posts/{id}` sets `video_id` (null: back to "Chưa khớp") or `match_status`
+`external` ("Video ngoài": a board row of its own) or `ignored` (hidden, never read again). A post may have neither a
+video nor an article only as `meta_suite` or `manual_link` (the `one_target` check, migration 0089); readings of
+comments and the Page's dashboard keep to posts with one.
+
 [posts_board.py](../api/src/reels_api/posts_board.py) builds `GET /api/posts/board` (tab, platform, channel, missing_on,
 owner, date range, sort, q, cursor, limit) from every rendered video and its posts on Facebook, TikTok and YouTube:
 a post's board state is its status, `pending` read as `publishing` (or `failed` when the video's last `publish` or

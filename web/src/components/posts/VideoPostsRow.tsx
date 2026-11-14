@@ -3,8 +3,16 @@
 import PostMetrics, { formatCount } from "@/components/PostMetrics";
 import StatusText from "@/components/StatusText";
 import PostActions from "@/components/video/PostActions";
-import { api, errorMessage, formatDateTime, type BoardPlatform, type VideoPost, type VideoPosts } from "@/lib/api";
-import { App, Button, Flex, Input, Modal, Popconfirm, Spin, Table, Tag, Tooltip, Typography } from "antd";
+import {
+  api,
+  errorMessage,
+  formatDateTime,
+  type BoardPlatform,
+  type VideoPost,
+  type VideoPosts,
+  type VideoRow,
+} from "@/lib/api";
+import { App, Button, Flex, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { usePolling } from "@/lib/polling";
 import { useCallback, useEffect, useState } from "react";
@@ -72,6 +80,15 @@ export default function VideoPostsRow({
   const [data, setData] = useState<VideoPosts | null>(null);
   const [editing, setEditing] = useState<VideoPost | null>(null);
   const [link, setLink] = useState("");
+  const [rematching, setRematching] = useState<VideoPost | null>(null);
+  const [videos, setVideos] = useState<{ value: number; label: string }[]>([]);
+  useEffect(() => {
+    if (rematching === null || videos.length > 0) return;
+    api<VideoRow[]>("/videos").then(
+      (list) => setVideos(list.map((video) => ({ value: video.id, label: video.name || video.title || video.topic }))),
+      () => undefined,
+    );
+  }, [rematching, videos.length]);
 
   const load = useCallback(
     () =>
@@ -141,6 +158,24 @@ export default function VideoPostsRow({
           >
             Copy caption
           </Button>
+        </Flex>
+      );
+    }
+    if (post.source === "meta_suite") {
+      return (
+        <Flex gap={4} wrap>
+          <Button size="small" onClick={() => setRematching(post)}>
+            Đổi video khớp
+          </Button>
+          <Popconfirm
+            title="Bỏ khớp bài này?"
+            description="Bài về lại tab Chưa khớp."
+            okText="Bỏ khớp"
+            cancelText="Không"
+            onConfirm={() => send(`/posts/${post.id}`, "PATCH", { video_id: null }, "Đã bỏ khớp")}
+          >
+            <Button size="small">Bỏ khớp</Button>
+          </Popconfirm>
         </Flex>
       );
     }
@@ -306,6 +341,21 @@ export default function VideoPostsRow({
         }}
       >
         <Input aria-label="Link bài" value={link} onChange={(event) => setLink(event.target.value)} />
+      </Modal>
+      <Modal open={rematching !== null} title="Đổi video khớp" footer={null} onCancel={() => setRematching(null)}>
+        <Select
+          showSearch
+          aria-label="Chọn video"
+          placeholder="Tìm video theo tiêu đề"
+          optionFilterProp="label"
+          options={videos}
+          style={{ width: "100%" }}
+          onChange={async (value: number) => {
+            if (rematching && (await send(`/posts/${rematching.id}`, "PATCH", { video_id: value }, "Đã đổi video"))) {
+              setRematching(null);
+            }
+          }}
+        />
       </Modal>
     </div>
   );

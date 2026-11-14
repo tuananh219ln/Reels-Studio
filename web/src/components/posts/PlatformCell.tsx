@@ -30,7 +30,9 @@ export default function PlatformCell({
   const { message } = App.useApp();
   const [retrying, setRetrying] = useState(false);
 
+  const videoId = video.id;
   if (cell === null) {
+    if (videoId === null) return <Typography.Text type="secondary">—</Typography.Text>;
     if (!video.has_mp4) {
       return (
         <Typography.Text type="secondary" style={SMALL}>
@@ -40,17 +42,17 @@ export default function PlatformCell({
     }
     if (platform === "facebook") {
       return (
-        <Button type="primary" size="small" href={`/videos/${video.id}?publish=`}>
+        <Button type="primary" size="small" href={`/videos/${videoId}?publish=`}>
           Đăng / Hẹn giờ
         </Button>
       );
     }
     return (
       <Flex gap={4} wrap>
-        <Button size="small" icon={<DownloadOutlined />} onClick={() => onDownload(video.id, platform)}>
+        <Button size="small" icon={<DownloadOutlined />} onClick={() => onDownload(videoId, platform)}>
           Tải MP4
         </Button>
-        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={() => onPaste(video.id, platform)}>
+        <Button size="small" type="dashed" icon={<PlusOutlined />} onClick={() => onPaste(videoId, platform)}>
           Dán link
         </Button>
       </Flex>
@@ -63,7 +65,7 @@ export default function PlatformCell({
       return (
         <button
           type="button"
-          onClick={() => onPaste(video.id, platform)}
+          onClick={() => videoId !== null && onPaste(videoId, platform)}
           aria-label={`Dán link ${platform === "tiktok" ? "TikTok" : "YouTube"} cho video ${video.name}`}
           style={{
             all: "unset",

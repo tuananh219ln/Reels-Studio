@@ -346,7 +346,9 @@ def preview_links(body: PreviewBody, me: Session = Depends(current_member), db: 
 
 class LinkItem(BaseModel):
     url: str
-    video_id: int
+    # None with `external`: "Video ngoài", followed without a video.
+    video_id: int | None = None
+    external: bool = False
     # The post's channel: a Page for Facebook, a TikTok account, a YouTube channel (`channels`).
     channel_id: int
     published_at: datetime | None = None
@@ -409,8 +411,8 @@ def _save_lines(db: DbSession, items: list[LinkItem], at: datetime, me: Session)
         if (link.platform, link.external_id) in seen or post_links.existing_post(db, link) is not None:
             raise ApiError(409, "post_exists", f"Dòng {number}: link đã có trong hệ thống")
         seen.add((link.platform, link.external_id))
-        video = db.get(Video, item.video_id)
-        if video is None:
+        video = db.get(Video, item.video_id) if item.video_id is not None else None
+        if video is None and not item.external:
             raise ApiError(404, "video_not_found", f"Dòng {number}: không tìm thấy video")
         published_at = item.published_at or at
         if published_at.tzinfo is None or published_at > at + timedelta(minutes=5):
@@ -419,23 +421,33 @@ def _save_lines(db: DbSession, items: list[LinkItem], at: datetime, me: Session)
             fields = _channel_fields(db, link, item.channel_id, me)
         except ApiError as err:
             raise invalid(f"Dòng {number}: {err.message}") from None
-        post = db.scalar(
-            select(Publication)
-            .where(
-                Publication.video_id == video.id,
-                Publication.platform == link.platform,
-                Publication.status == "pending_link",
+        post = (
+            db.scalar(
+                select(Publication)
+                .where(
+                    Publication.video_id == video.id,
+                    Publication.platform == link.platform,
+                    Publication.status == "pending_link",
+                )
+                .with_for_update()
             )
-            .with_for_update()
+            if video is not None
+            else None
         )
         if post is None:
-            post = Publication(video_id=video.id, platform=link.platform, created_by_id=me.user_id)
+            post = Publication(
+                video_id=video.id if video else None,
+                platform=link.platform,
+                source="manual_link",
+                created_by_id=me.user_id,
+            )
             db.add(post)
         post.status, post.source = "published", "manual_link"
+        post.match_status = "confirmed" if video is not None else "external"
         post.external_id, post.post_url = link.external_id, link.url
         post.published_at = published_at
         post.published_at_source = "user" if item.published_at_edited else None
-        post.remote_mp4_key = video.mp4_key
+        post.remote_mp4_key = video.mp4_key if video else None
         for name, value in fields.items():
             setattr(post, name, value)
         if link.platform in ("facebook", "youtube"):
@@ -446,10 +458,49 @@ def _save_lines(db: DbSession, items: list[LinkItem], at: datetime, me: Session)
     return saved
 
 
+@router.get("/unmatched")
+def list_unmatched(
+    platform: str | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """ "Chưa khớp": reels imported from a Page with no video yet, each with its best guess."""
+    if platform is not None and platform not in posts_board.PLATFORMS:
+        raise invalid("Nền tảng không hợp lệ")
+    return posts_board.unmatched_posts(db, platform)
+
+
+class ConfirmBody(BaseModel):
+    post_ids: list[int]
+
+
+@router.post("/unmatched/confirm")
+def confirm_unmatched(
+    body: ConfirmBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Xác nhận tất cả gợi ý": each chosen post takes its suggested video; one with none is left as it is."""
+    posts = db.scalars(
+        select(Publication)
+        .where(
+            Publication.id.in_(body.post_ids[:500]),
+            Publication.video_id.is_(None),
+            Publication.article_id.is_(None),
+            Publication.suggested_video_id.is_not(None),
+        )
+        .with_for_update()
+    ).all()
+    for post in posts:
+        post.video_id, post.match_status = post.suggested_video_id, "confirmed"
+    db.commit()
+    return {"confirmed": len(posts)}
+
+
 class PostChange(BaseModel):
     status: str | None = None  # "cancelled": "Hủy chờ" on a post waiting for its link
     url: str | None = None  # "Sửa link" on a post recorded with its link
     published_at: datetime | None = None
+    # "Xác nhận", "Chọn video khác", "Đổi video khớp" (a video), "Bỏ khớp" (null) on a post the app did not send.
+    video_id: int | None = None
+    # "Video ngoài" (external), "Bỏ qua" (ignored) on a post with no video.
+    match_status: str | None = None
 
 
 @router.patch("/{post_id}")
@@ -457,12 +508,16 @@ def change_post(
     post_id: int, body: PostChange, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
     post = db.get(Publication, post_id, with_for_update=True)
-    if post is None or post.video_id is None:
+    if post is None or post.article_id is not None or (post.video_id is None and post.source == "app_api"):
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     if body.status is not None:
         if body.status != "cancelled" or post.status != "pending_link":
             raise invalid("Chỉ hủy được bài đang chờ dán link")
         post.status, post.closed_at, post.closed_by_id = "cancelled", now(), me.user_id
+    if "video_id" in body.model_fields_set:
+        _change_video(db, post, body.video_id)
+    if body.match_status is not None:
+        _change_match(post, body.match_status)
     if (body.url is not None or body.published_at is not None) and (
         post.source != "manual_link" or post.status != "published"
     ):
@@ -489,6 +544,28 @@ def change_post(
             snapshot.hours_since_publish = metrics.hours_since(body.published_at, snapshot.captured_at)
     db.commit()
     return {"ok": True}
+
+
+def _change_video(db: DbSession, post: Publication, video_id: int | None) -> None:
+    """Which video a post the app did not send is: a video confirms it; None ("Bỏ khớp") sends an imported reel back to
+    "Chưa khớp", a post recorded by link to "Video ngoài"."""
+    if post.source not in ("meta_suite", "manual_link"):
+        raise invalid("Chỉ đổi video được cho bài đăng ngoài app")
+    if video_id is None:
+        post.video_id = None
+        post.match_status = "unmatched" if post.source == "meta_suite" else "external"
+        return
+    if db.get(Video, video_id) is None:
+        raise ApiError(404, "video_not_found", "Không tìm thấy video")
+    post.video_id, post.match_status = video_id, "confirmed"
+
+
+def _change_match(post: Publication, status: str) -> None:
+    if status not in ("external", "ignored") or post.video_id is not None:
+        raise invalid("Chỉ đánh dấu được bài chưa gắn video")
+    post.match_status = status
+    if status == "ignored":
+        post.next_snapshot_at = None  # hidden and no longer read
 
 
 REFRESH_EVERY = timedelta(minutes=5)
@@ -531,12 +608,13 @@ def refresh_views(body: RefreshBody, me: Session = Depends(current_member), db: 
 
 @router.delete("/{post_id}")
 def remove_post(post_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "Gỡ": a post recorded with its link (or waiting for it) leaves the app; the post on the platform stays."""
+    """ "Gỡ": a post recorded with its link (or waiting for it), or imported from a Page, leaves the app; the post on the
+    platform stays. An imported one is its Page owner's to remove (it is recorded under them)."""
     post = db.get(Publication, post_id)
-    if post is None or post.video_id is None:
+    if post is None or post.article_id is not None:
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
-    if post.source != "manual_link":
-        raise invalid("Chỉ gỡ được bài ghi bằng link")
+    if post.source not in ("manual_link", "meta_suite"):
+        raise invalid("Chỉ gỡ được bài ghi bằng link hoặc đồng bộ từ Page")
     if post.created_by_id != me.user_id:
         raise ApiError(403, "not_post_author", "Chỉ người ghi bài này mới gỡ được")
     db.delete(post)
