@@ -857,7 +857,11 @@ def test_a_script_written_from_the_group_prompt_is_saved_like_a_job_and_named_as
     assert video.has_script and not video.hand_written and video.written_via == "assistant"
     assert video.created_by_id == user.id
     assert video.title_options == GROUP_SCRIPT["titles"]
-    assert (video.caption, video.pinned_comment) == ("Nhà bạn hay ăn rau gì?", "Bạn thích rau nào nhất?")
+    # The AI's question follows the title and the scenes, filled in from the video (pinned.py).
+    assert (video.caption, video.pinned_comment) == (
+        "Nhà bạn hay ăn rau gì?",
+        "{title}\n{items}\nBạn thích rau nào nhất?",
+    )
     assert video.self_review == GROUP_SCRIPT["self_review"]
     scenes = db.scalars(select(Scene).where(Scene.video_id == video.id).order_by(Scene.position)).all()
     assert [(s.is_title, s.text, s.voice_text) for s in scenes] == [

@@ -68,7 +68,8 @@ Các trường:
 - "caption": caption theo yêu cầu trong prompt; không có yêu cầu thì viết ngắn gọn; không ghi hashtag trong caption.
 - "hashtags": đúng 5 hashtag, mỗi hashtag bắt đầu bằng #.
 - "affiliates": 2 sản phẩm affiliate phù hợp, mỗi sản phẩm một chuỗi.
-- "pinned_comment": câu bình luận ghim.
+- "pinned_comment": 1 câu hỏi mời người xem bình luận, ≤ 100 ký tự. App tự đặt tiêu đề và danh sách các cảnh lên
+  trước câu này, nên không lặp lại tiêu đề hay liệt kê món; chỉ nhắc tới link khi video có sản phẩm affiliate.
 - "self_review": danh sách các câu đã sửa khi tự rà soát an toàn (mỗi mục ghi câu cũ → câu mới); để [] nếu không sửa gì.
 - "music_suggestions": 2–3 tên bản nhạc không lời hợp chủ đề, có thể tìm trong thư viện nhạc TikTok/Facebook.
 - "content_type": loại nội dung của video, 1–4 từ (vd "Danh sách món", "Mẹo", "Cảnh báo", "Hỏi đáp"): chọn đúng một
@@ -117,7 +118,7 @@ Ví dụ đầy đủ:
   "caption": "5 món giúp xương chắc khỏe sau tuổi 50! Nhà bạn hay ăn món nào nhất?",
   "hashtags": ["#xuongkhop", "#duongsinh", "#dinhduong", "#nguoicaotuoi", "#canxi"],
   "affiliates": ["Sữa hạt bổ sung canxi cho người lớn tuổi", "Vừng đen rang sẵn đóng hũ"],
-  "pinned_comment": "Món nào nhà bạn hay ăn nhất? Link sản phẩm trong bình luận ghim nhé!",
+  "pinned_comment": "Nhà bạn hay ăn món nào nhất? Bình luận số thứ tự nhé!",
   "self_review": ["\\"chữa khỏi loãng xương\\" → \\"tốt cho xương chắc khỏe\\""],
   "music_suggestions": ["Windy Hill", "Morning Coffee (piano)", "Nhạc không lời thư giãn"],
   "content_type": "Danh sách món"
