@@ -9,7 +9,7 @@ import {
   TikTokOutlined,
   YoutubeFilled,
 } from "@ant-design/icons";
-import { App, Button, Card, Collapse, Flex, Input, Radio, Select, Tabs, Typography } from "antd";
+import { App, Badge, Button, Card, Collapse, Flex, Input, Radio, Select, Tabs, Typography } from "antd";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ContextType } from "react";
 import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
@@ -38,13 +38,13 @@ import {
   type PlatformResult,
 } from "@/lib/postResults";
 import { EditorContext, useEditor } from "./AutoSaveField";
-import PostContent from "./PostContent";
+import PostContent, { EngageContent } from "./PostContent";
 import PostActions from "./PostActions";
 import { PostRows, PublishButton } from "./PublishCard";
 import type { PostStep } from "./postRound";
 import SetupTab from "./SetupTab";
 
-export type SideTab = "post" | "setup";
+export type SideTab = "post" | "engage" | "setup";
 
 const ICONS: Record<PlatformKey, React.ReactNode> = {
   facebook: <FacebookFilled style={{ color: "#1877f2" }} />,
@@ -54,9 +54,10 @@ const ICONS: Record<PlatformKey, React.ReactNode> = {
 };
 
 /**
- * The side panel beside the scenes: "Đăng bài" (where the video stands on posting, then the post's texts) and
+ * The side panel beside the scenes: "Đăng bài" (where the video stands on posting, the caption and the hashtags),
+ * "Bình luận & Sản phẩm" (the comments and the products, an orange dot on its name while no product is attached) and
  * "Thiết lập" (the video's own settings), the tabs kept at its top while it scrolls
- * (docs/decisions/2026-11-14-video-editor-spec.md).
+ * (docs/decisions/2026-11-14-video-editor-spec.md, docs/decisions/2026-11-14-video-engage-tab.md).
  */
 export default function PublishTab({
   video,
@@ -100,6 +101,26 @@ export default function PublishTab({
           ),
         },
         // Kept mounted while hidden, so a file input or a field being typed in keeps working.
+        {
+          key: "engage",
+          label: (
+            // The badge resets its text to the default colour: the label keeps the tab's own (orange when picked).
+            <Badge
+              dot={video.affiliate_product_ids.length === 0}
+              color="orange"
+              offset={[6, 0]}
+              styles={{ root: { color: "inherit", fontSize: "inherit", lineHeight: "inherit" } }}
+            >
+              Bình luận & Sản phẩm
+            </Badge>
+          ),
+          forceRender: true,
+          children: (
+            <EditorContext.Provider value={postEditor}>
+              <EngageContent video={video} />
+            </EditorContext.Provider>
+          ),
+        },
         { key: "setup", label: "Thiết lập", forceRender: true, children: <SetupTab video={video} /> },
       ]}
     />

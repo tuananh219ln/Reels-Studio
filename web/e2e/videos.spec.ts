@@ -16,6 +16,7 @@ import {
   openPublishDrawer,
   openScene,
   resetDatabase,
+  sideTab,
 } from "./helpers";
 
 // The api, a real worker with FFmpeg, and fake Claude/stock sources (api/scripts/fake_services.py) all run.
@@ -1571,7 +1572,9 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   await expect(page.getByTestId("progress-post")).toContainText(/1\/1 nền tảng · \d{2}:\d{2}/);
 });
 
-test("the side panel: tabs at its top, the post's blocks in order, the Logo block in two rows", async ({ page }) => {
+test("the side panel: three tabs at its top, the blocks in order on each, the Logo block in two rows", async ({
+  page,
+}) => {
   test.setTimeout(180_000);
   await renderedVideo(page);
   const panel = page.locator("[data-side-panel]");
@@ -1580,14 +1583,41 @@ test("the side panel: tabs at its top, the post's blocks in order, the Logo bloc
   const side = await panel.boundingBox();
   expect(side!.width / (scenes!.width + side!.width)).toBeGreaterThan(0.36);
   expect(side!.width / (scenes!.width + side!.width)).toBeLessThan(0.44);
-  // Đăng bài: status, caption, comments, products, hashtags, in that order; no music, no AI review.
-  const blocks = panel.locator('[data-testid="ready-card"], [data-post-block], [data-testid="hashtag-block"]');
-  await expect(blocks).toHaveCount(5);
-  const order = await blocks.evaluateAll((elements) =>
-    elements.map((element) => element.getAttribute("data-post-block") ?? element.getAttribute("data-testid")),
-  );
-  expect(order).toEqual(["ready-card", "caption", "comments", "products", "hashtag-block"]);
+  // Three tabs, in this order.
+  await expect(panel.getByRole("tab")).toHaveText(["Đăng bài", "Bình luận & Sản phẩm", "Thiết lập"]);
+  // Đăng bài: status, caption, hashtags, in that order; no comments, no products, no music, no AI review.
+  const blockOrder = (selector: string) =>
+    panel
+      .locator(selector)
+      .evaluateAll((elements) =>
+        elements.map((element) => element.getAttribute("data-post-block") ?? element.getAttribute("data-testid")),
+      );
+  const blocks = '[data-testid="ready-card"], [data-post-block], [data-testid="hashtag-block"]';
+  expect(await blockOrder(`[data-testid="publish-tab"] :is(${blocks})`)).toEqual([
+    "ready-card",
+    "caption",
+    "hashtag-block",
+  ]);
   await expect(panel.getByText("Rà soát an toàn của AI")).toHaveCount(0);
+  // Bình luận & Sản phẩm: the comments, then the products; an orange dot on its name while no product is attached.
+  expect(await blockOrder(`[data-testid="engage-blocks"] :is(${blocks})`)).toEqual(["comments", "products"]);
+  const engage = panel.getByRole("tab", { name: "Bình luận & Sản phẩm", exact: true });
+  await expect(engage.locator(".ant-badge-dot")).toBeVisible();
+  // The progress line's "Affiliate" opens that tab on the products.
+  await page.getByTestId("progress-affiliate").click();
+  await expect(engage).toHaveAttribute("aria-selected", "true");
+  await expect(panel.locator('[data-post-block="products"]')).toBeInViewport();
+  // A comment typed there stays when the member goes to another tab and back, and is saved.
+  const pinned = panel.getByLabel("Bình luận ghim");
+  await pinned.fill("Ghim thử khi đổi tab");
+  await sideTab(page, "Đăng bài");
+  await sideTab(page, "Bình luận & Sản phẩm");
+  await expect(pinned).toHaveValue("Ghim thử khi đổi tab");
+  const id = page.url().split("/videos/")[1];
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment)
+    .toBe("Ghim thử khi đổi tab");
+  await sideTab(page, "Đăng bài");
   // The panel scrolls on its own; its tabs stay in view at its top.
   await panel.evaluate((element) => element.scrollTo(0, element.scrollHeight));
   await expect(panel.getByRole("tab", { name: "Thiết lập", exact: true })).toBeInViewport();

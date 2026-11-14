@@ -355,7 +355,7 @@ Built:
   suggested time), **Affiliate** ("N sản phẩm", or "Chưa gắn sản phẩm" in orange) and, once a Facebook post is out,
   **48 giờ** (when its 48-hour numbers are read, then their views). A time within a day reads "12 phút trước" or
   "sau 3 giờ", otherwise dd/mm/yyyy hh:mm, all in Vietnam time, the full time on hover. Render, Đăng and 48 giờ open
-  the "Đăng bài" tab, and so does Affiliate (its products are under "Sản phẩm Shopee" there).
+  the "Đăng bài" tab; Affiliate opens the "Bình luận & Sản phẩm" tab, scrolled to "Sản phẩm Shopee".
   Under the progress line, "Loại nội dung": filled by the AI that writes the script (one of the team's types when
   one fits, 2026-11-10), empty for a script written by hand; a small field typed freely or picked from the types the
   team's videos already use (`GET /api/video-content-types`), saved on Enter, on picking or on leaving it, up to 40
@@ -369,8 +369,8 @@ Built:
   meanwhile) and "Lưu phân tích". The card's header has "Tạo thêm video từ mẫu này" once the sample is
   analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
   scripts and clips; the card then says the sample was deleted).
-  The scenes fill the left column (60%). The right column (40%) is the side panel with two tabs, "Đăng bài" and
-"Thiết lập" (2026-11-14, video editor spec), the tab row kept at the panel's top while it scrolls. "Đăng bài" starts
+  The scenes fill the left column (60%). The right column (40%) is the side panel with three tabs, "Đăng bài",
+"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the tab row kept at the panel's top while it scrolls. "Đăng bài" starts
 with one status card that changes with the video: without an MP4 "Sẵn sàng đăng?" and how to get one; rendered and
 not out "Sẵn sàng đăng ✓": the MP4 small (120 × 213, ▶ in its middle, its length in a corner, the listening volume
 under it) beside "Video đã render xong", "MP4 · 1080×1920 · N giây · N MB", "Tải MP4" and "Render lại", then a 2×2
@@ -386,12 +386,13 @@ platform (green: icon, name, "✓ hh:mm", "Xem bài ↗"; red: "✕ <why>" in #c
 sent or scheduled, "Hẹn đăng lúc …"; a Facebook row keeps "Kiểm tra", "Sửa link reel" and "Hủy đăng"/"Xóa"), the
 pinned comment's state, "Đăng thêm nền tảng" and "Tùy chọn khác". Every Facebook post, cancelled and deleted ones
 included, is under "Lịch sử bài Facebook (N)", folded. A red QC check asks before posting ("MP4 chưa đạt kiểm tra
-chất lượng", "Vẫn đăng"); the checks themselves are in the header's **QC chip** popover. Under the card, in a fixed
-order, each a block of its own: "Nội dung đăng" (Caption, with "Copy caption + hashtag" in its title, which copies
-both wherever the hashtags are typed; a hand-written video's "not reviewed by the AI" warning), "Bình luận"
-("Bình luận ghim" with "Copy ghim", "Bình luận thêm", then the comment's posting state with "Bình luận ngay"),
-"Sản phẩm Shopee" (the AI's product ideas, the Shopee suggestions and the approved products, whose links go after the
-pinned comment), and "Hashtag" last. "Gợi ý nhạc" and "Rà soát an toàn của AI" are not shown. When "Đăng lên N nền
+chất lượng", "Vẫn đăng"); the checks themselves are in the header's **QC chip** popover. Under the card, each a block of its
+own: "Nội dung đăng" (Caption, with "Copy caption + hashtag" in its title, which copies both wherever the hashtags
+are typed; a hand-written video's "not reviewed by the AI" warning), then "Hashtag". The "Bình luận & Sản phẩm" tab
+holds, in the same kind of blocks 12 px apart: "Bình luận" ("Bình luận ghim" with "Copy ghim", "Bình luận thêm",
+then the comment's posting state with "Bình luận ngay") and "Sản phẩm Shopee" (the AI's product ideas, the Shopee
+suggestions and the approved products, whose links go after the pinned comment). While no product is attached, the
+tab's name carries an orange dot. Every tab stays mounted while hidden, so what is typed survives a tab change. "Gợi ý nhạc" and "Rà soát an toàn của AI" are not shown. When "Đăng lên N nền
 tảng" has gone through every platform a note shows at the top right, its right edge on the header's "Render" button
 and its bottom 8 px above the tab row's line: a 4 px green left edge, "✓ Đã đăng lên <platforms>" and, per failure,
 "<platform> lỗi: <why> · Thử lại" in #c2410c; a click on it opens the status card, ✕ closes it, it goes by itself
@@ -402,7 +403,7 @@ tag @ people, then each saved one as its own field "Bình luận 2", "Bình lu�
 comment line adds ", thêm N bình luận". From 1100 px wide the panel is beside the scenes, stuck under the header
 (its height measured, since it wraps) and scrolling on its own, while the scenes scroll with the page. Narrower than
 1100 px the panel is a drawer from the right, opened by "Đăng bài / Thiết lập" in the header (the progress line's
-steps open the status card or the products block, the QC chip its popover).
+steps open the status card or the products block on its tab, the QC chip its popover).
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
   Page in use) and "Tự bình luận"; once queued, the button

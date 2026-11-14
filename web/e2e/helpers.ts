@@ -73,12 +73,12 @@ export async function chooseOption(page: Page, select: Locator, option: string) 
 
 /**
  * Opens a block of the video page's side panel by its title. "Bình luận" and "Sản phẩm Shopee" are blocks of the
- * "Đăng bài" tab, always open; the rest are groups of the "Thiết lập" tab, which start closed (but for "Âm thanh") and
- * stay mounted, so a hidden field can be read but not seen or clicked.
+ * "Bình luận & Sản phẩm" tab, always open; the rest are groups of the "Thiết lập" tab, which start closed (but for
+ * "Âm thanh") and stay mounted, so a hidden field can be read but not seen or clicked.
  */
 export async function openPanel(page: Page, title: string) {
   if (title === "Bình luận" || title === "Sản phẩm Shopee") {
-    await sideTab(page, "Đăng bài");
+    await sideTab(page, "Bình luận & Sản phẩm");
     return;
   }
   await openSetup(page);
@@ -89,8 +89,8 @@ export async function openPanel(page: Page, title: string) {
   await expect(header).toHaveAttribute("aria-expanded", "true");
 }
 
-/** Picks a tab of the video page's side panel ("Đăng bài" or "Thiết lập"). */
-async function sideTab(page: Page, name: "Đăng bài" | "Thiết lập") {
+/** Picks a tab of the video page's side panel. */
+export async function sideTab(page: Page, name: "Đăng bài" | "Bình luận & Sản phẩm" | "Thiết lập") {
   const tab = page.locator("[data-side-panel]").getByRole("tab", { name, exact: true });
   await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");

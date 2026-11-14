@@ -131,7 +131,7 @@ export default function VideoPage() {
   useEffect(() => {
     if (askedClone !== null) router.replace(`/videos/${id}`);
   }, [askedClone, id, router]);
-  // The side panel's tab: "Đăng bài" or "Thiết lập".
+  // The side panel's tab: "Đăng bài", "Bình luận & Sản phẩm" or "Thiết lập".
   const [sideTab, setSideTab] = useState<SideTab>("post");
   // From 1100 px the side panel sits beside the scenes; narrower, it is a drawer, open or not.
   const sideBySide = useWiderThan(WIDE_FROM);
@@ -369,12 +369,12 @@ export default function VideoPage() {
   }
 
   /**
-   * Shows the side panel's "Đăng bài" tab (the drawer opens on a narrower screen) and scrolls to one of its blocks:
-   * the status card, or a block of the post texts.
+   * Shows the side panel (the drawer opens on a narrower screen) on the tab that holds a block and scrolls to it: the
+   * status card or the caption on "Đăng bài", the comments or the products on "Bình luận & Sản phẩm".
    */
   function openSide(block: "ready" | PostBlockKey = "ready") {
     flushSync(() => {
-      setSideTab("post");
+      setSideTab(block === "comments" || block === "products" ? "engage" : "post");
       if (!sideBySide) setSideOpen(true);
     });
     const selector = block === "ready" ? '[data-testid="ready-card"]' : `[data-post-block="${block}"]`;
