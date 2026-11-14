@@ -261,6 +261,8 @@ def list_media(
         query = query.where(or_(*matches))
     return {
         "items": [payload(item, storage) for item in db.scalars(query)],
+        # The whole library's count, whatever the filters: the page's "N tư liệu".
+        "total": db.scalar(select(func.count()).select_from(MediaItem)),
         "folders": folder_list(db),
         "tags": tag_list(db),
     }

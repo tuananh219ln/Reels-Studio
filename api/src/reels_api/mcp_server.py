@@ -1098,7 +1098,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         Xem hình bằng "Xem tư liệu" trước khi chọn cho cảnh."""
 
         def operation(db, me):
-            found = media_routes.list_media(folder or None, kind, query or None, me, db, tags=tags or None)
+            found = media_routes.list_media(
+                folder or None, kind, query or None, me, db, get_storage(), tags=tags or None
+            )
             keep = ("id", "kind", "name", "folder", "tags", "seconds", "source_url")
             items = [{key: item[key] for key in keep} for item in found["items"]]
             return {
