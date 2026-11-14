@@ -11,6 +11,7 @@ import {
   login,
   loginAsSeed,
   openPanel,
+  closeSetup,
   openSetup,
   openPublishDrawer,
   openScene,
@@ -2488,6 +2489,7 @@ test("clone a video with a change request, then see every job in the job log", a
   await page.getByLabel("Tải nhạc MP3 lên").setInputFiles(makeMp3());
   await expect(page.getByTestId("music-name")).toBeVisible();
   const sourceUrl = page.url();
+  await closeSetup(page);
 
   await page.getByRole("button", { name: "Thao tác khác với video" }).click();
   await page.getByRole("menuitem", { name: "Nhân bản" }).click();
@@ -2499,7 +2501,9 @@ test("clone a video with a change request, then see every job in the job log", a
   await expect(page).not.toHaveURL(sourceUrl);
   await expect(page.getByTestId("clone-of")).toContainText("đổi sang mốc 45 tuổi, tim mạch");
   await jobFinished(page);
+  await openPanel(page, "Nhạc nền");
   await expect(page.getByTestId("music-name")).toBeVisible();
+  await closeSetup(page);
 
   await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page).toHaveURL(/\/jobs$/);

@@ -94,6 +94,13 @@ export async function openPanel(page: Page, title: string) {
   await expect(header).toHaveAttribute("aria-expanded", "true");
 }
 
+/** Closes the "Thiết lập" drawer again: it sits over the right of the page, with the header's buttons. */
+export async function closeSetup(page: Page) {
+  const drawer = page.getByRole("dialog", { name: "Thiết lập video" });
+  if (await drawer.isVisible()) await drawer.getByRole("button", { name: "Đóng" }).click();
+  await expect(drawer).toBeHidden();
+}
+
 /** The "Thiết lập" drawer of the video page, opened from its header button if it is closed. */
 export async function openSetup(page: Page) {
   const drawer = page.getByRole("dialog", { name: "Thiết lập video" });
