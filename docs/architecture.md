@@ -242,6 +242,13 @@ Photos and clips gathered once and used in any scene ([routes_media.py](../api/s
   takes from a batch, uploads and links take tags for all they add. The Già Mà Khỏe photos are tagged once by name with
   `python -m reels_api seed-media-tags` ([media_tag_seed.py](../api/src/reels_api/media_tag_seed.py), run by hand;
   [decision](decisions/2026-11-11-media-tags.md)).
+- **Numbers** (`size_bytes`, `width`, `height` in each item of `GET /api/media`, and `total`, the whole library's
+  count): read from the stored file, not kept in the table (a photo's pixels from its header, a clip's size only, its
+  length is `seconds`), and cached in the api process as stored files never change. A file that is gone gives nulls.
+- **The page** ([MediaLibrary.tsx](../web/src/components/media/MediaLibrary.tsx), [decision](decisions/2026-11-14-media-library-layout.md)):
+  the folder tree beside the grid (a tile dropped on a folder moves it, `POST /api/media/move`), "Thêm tư liệu" in a
+  drawer, small tiles (size S/M/L, per browser) laid out as one section per folder or as one grid, and a drawer with an
+  item's numbers and actions. A scene's picker and a group's tab keep one grid without the sidebar.
 - **MCP:** `list_media` (by folder, kind, tags and a search over names, folders and tags; each item with its tags),
   `view_media` (the pictures of up to eight items, so the assistant chooses by looking),
   `add_media_from_links` and `set_scene_media_from_library`.

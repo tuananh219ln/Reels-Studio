@@ -127,6 +127,10 @@ export type MediaItem = {
   folder: string;
   source_url: string | null;
   seconds: number | null;
+  /** The stored file's size, and a photo's pixels (a clip's are not read); null when the file is gone. */
+  size_bytes: number | null;
+  width: number | null;
+  height: number | null;
   /** What it shows, lowercase without accents and joined with "-" ("xoay-co"); the api cleans what is typed. */
   tags: string[];
   file_url: string;
@@ -144,7 +148,8 @@ export type MediaFolder = { folder: string; count: number; topic_id: number | nu
 /** A tag of the library with how many items carry it. */
 export type MediaTag = { tag: string; count: number };
 
-export type MediaList = { items: MediaItem[]; folders: MediaFolder[]; tags: MediaTag[] };
+/** `total`: every item of the library, whatever the filters leave in `items`. */
+export type MediaList = { items: MediaItem[]; folders: MediaFolder[]; tags: MediaTag[]; total: number };
 
 /** What pasting links into the library did: the items added, and each link that failed with why. */
 export type MediaLinksResult = { added: MediaItem[]; failed: { url: string; error: string }[] };

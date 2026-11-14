@@ -196,3 +196,13 @@ def test_renaming_a_parent_with_no_item_of_its_own_renames_its_whole_branch(an, 
     renamed = an.post("/api/media/folders/rename", json={"folder": "Gia", "to": "Già"})
     assert renamed.status_code == 200 and renamed.json()["moved"] == 2
     assert counts(an) == {"Già/Lung": 1, "Già/Goi khop/Sang": 1, "Gian": 1}
+
+
+def test_listing_gives_a_photos_pixels_and_size(an, db, storage):
+    photo = send_photo(an, "a.jpg")
+    listed = an.get("/api/media").json()["items"][0]
+    assert listed["id"] == photo["id"]
+    assert (listed["width"], listed["height"]) == (720, 1280)
+    send_photo(an, "b.jpg", "Thư mục")
+    assert an.get("/api/media", params={"folder": "Thư mục"}).json()["total"] == 2
+    assert listed["size_bytes"] == storage.path(db.get(MediaItem, photo["id"]).storage_key).stat().st_size > 0
