@@ -371,20 +371,30 @@ Built:
   scripts and clips; the card then says the sample was deleted).
   The scenes fill the left column (60%). The right column (40%) is the side panel with three tabs, "Đăng bài",
 "Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the tab row kept at the panel's top while it scrolls. "Đăng bài" starts
-with one status card that changes with the video: without an MP4 "Sẵn sàng đăng?" and how to get one; rendered and
-not out "Sẵn sàng đăng ✓": the MP4 small (120 × 213, ▶ in its middle, its length in a corner, the listening volume
-under it) beside "Video đã render xong", "MP4 · 1080×1920 · N giây · N MB", "Tải MP4" and "Render lại", then a 2×2
-grid of platforms (Facebook, TikTok, YouTube Shorts, Instagram; a picked one has an orange border on #fff1ea),
-"Đăng ngay" / "Hẹn giờ" and "Đăng lên N nền tảng". Facebook and TikTok are posted by the app, one after the other
-(one job per video at a time): Facebook to the member's Page (a "Fanpage" select when they have several) with the
-comment written when the reel is live, TikTok as a draft to the inbox of the member's connected account (a select
-when several); TikTok cannot be scheduled, so with "Hẹn giờ" its tile is off. The YouTube Shorts and Instagram tiles
-open "Tùy chọn khác" on their tab, where a post made by hand is recorded with its link; "Tùy chọn khác" is the
-drawer with every platform's own options (a Page's queue, TikTok posted directly, "Đã đăng tay"). Once out, the card
-is "● Đã đăng · date, time" (a green dot): the MP4, "Đã đăng lên X/Y nền tảng", the MP4's line, one row per
-platform (green: icon, name, "✓ hh:mm", "Xem bài ↗"; red: "✕ <why>" in #c2410c and "Thử lại"; amber while being
-sent or scheduled, "Hẹn đăng lúc …"; a Facebook row keeps "Kiểm tra", "Sửa link reel" and "Hủy đăng"/"Xóa"), the
-pinned comment's state, "Đăng thêm nền tảng" and "Tùy chọn khác". Every Facebook post, cancelled and deleted ones
+with one status card (2026-11-14, publish panel spec; radius 12, a 1 px border, no shadow): a header (12 × 16 px
+padding, a line under it) with where the video stands, a dot and a word, "Sẵn sàng đăng" green, a spinner and "Đang
+đăng…" orange, "Đã đăng" green, "Đã đăng một phần" orange, "Đăng thất bại" red, "Đã hẹn giờ" green, each but the first
+followed by "· dd/mm, hh:mm" in grey; without an MP4 "Sẵn sàng đăng?" and how to get one. Under it, the MP4 small
+(112 × 199, radius 10, its first frame, a white 32 px ▶ in its middle that opens it in a "Xem MP4" window with the
+browser's controls and the listening volume, its length in a corner) beside "Video đã render xong" and "MP4 · N giây ·
+1080×1920 · N MB · Tải MP4 · Render lại" ("Render lại" asks first; while it renders the platforms give way to a line
+saying posting waits for the new MP4); in a card narrower than 420 px the MP4 (96 × 171) goes above. Then the platforms
+as rows (38 px, radius 8, a 20 px square badge, the name, a grey hint, a checkbox at the end; the whole row toggles; a
+picked row has a 1.5 px orange border on #fff2eb): Facebook and TikTok ("Nháp vào hộp thư") are posted by the app, one
+after the other (one job per video at a time): Facebook to the member's Page (a "Fanpage" select when they have several)
+with the comment written when the reel is live, TikTok as a draft to the inbox of the member's connected account (a
+select when several); TikTok cannot be scheduled, so with "Hẹn giờ" its row is off ("Không hẹn giờ được"). The YouTube
+Shorts and Instagram rows say "Đăng tay" and have no checkbox: they open "Tùy chọn khác" on their tab, where a post
+made by hand is recorded with its link; "Tùy chọn khác" is the drawer with every platform's own options (a Page's
+queue, TikTok posted directly, "Đã đăng tay"). The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
+then a 40 px button "Đăng lên N nền tảng" ("Hẹn đăng lên N nền tảng", "Chọn nền tảng để đăng" and off with none) and
+a grey note: the newest MP4 goes with the saved caption and hashtags, Facebook comments when the post is up (when
+Facebook is picked and there is a pinned comment), several platforms go one by one with the page left open. Once
+tried, the card says "Đã đăng lên X/Y nền tảng", "MP4 · N giây · Tải MP4", one row per platform (green #f1faf4: "✓
+hh:mm", "Xem bài ↗", or "✓ Đã gửi nháp" for a TikTok draft; red #fef3f3: "✕ <why>" and "Thử lại"; a spinner and
+"Đang đăng…" on its way; "Hẹn đăng lúc …" when scheduled; a Facebook row keeps "Kiểm tra", "Sửa link reel" and
+"Hủy đăng"/"Xóa"), "Bình luận ghim:" with "đang chờ…", "✓ đã đăng, nhớ ghim trên Facebook" (an app cannot pin it) or
+"✕ không đăng được · Thử lại", "+ Đăng thêm" and "Tùy chọn khác". Every Facebook post, cancelled and deleted ones
 included, is under "Lịch sử bài Facebook (N)", folded. A red QC check asks before posting ("MP4 chưa đạt kiểm tra
 chất lượng", "Vẫn đăng"); the checks themselves are in the header's **QC chip** popover. Under the card, each a block of its
 own: "Nội dung đăng" (Caption, with "Copy caption + hashtag" in its title, which copies both wherever the hashtags
@@ -393,10 +403,11 @@ holds, in the same kind of blocks 12 px apart: "Bình luận" ("Bình luận ghi
 then the comment's posting state with "Bình luận ngay") and "Sản phẩm Shopee" (the AI's product ideas, the Shopee
 suggestions and the approved products, whose links go after the pinned comment). While no product is attached, the
 tab's name carries an orange dot. Every tab stays mounted while hidden, so what is typed survives a tab change. "Gợi ý nhạc" and "Rà soát an toàn của AI" are not shown. When "Đăng lên N nền
-tảng" has gone through every platform a note shows at the top right, its right edge on the header's "Render" button
-and its bottom 8 px above the tab row's line: a 4 px green left edge, "✓ Đã đăng lên <platforms>" and, per failure,
-"<platform> lỗi: <why> · Thử lại" in #c2410c; a click on it opens the status card, ✕ closes it, it goes by itself
-after 7 seconds when all went out and stays while something failed. Under "Bình luận ghim", "Bình luận thêm": a grey
+tảng" has gone through every platform a note shows fixed 16 px from the window's top right, 380 px wide (narrower on a
+phone), radius 12, a soft shadow: a 4 px left edge, green when something went out and red when nothing did, "✓ Đã
+đăng lên <platforms>" and, per failure, "<platform> lỗi: <why> · Thử lại" in orange, then "Xem chi tiết →" (to the
+status card) and ✕ "Đóng"; it is a `status` when all went out, an `alert` otherwise, goes by itself after 8 seconds
+when all went out and stays while something failed. Under "Bình luận ghim", "Bình luận thêm": a grey
 line saying the Page writes them under the reel after the pinned one, in order, and that Facebook does not let an app
 tag @ people, then each saved one as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and
 "Thêm bình luận", which opens a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's

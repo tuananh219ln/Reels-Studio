@@ -1033,11 +1033,7 @@ export default function VideoPage() {
       {outcomes && (
         <PostToast
           outcomes={outcomes}
-          right={desktop ? 32 : 16}
-          onOpen={() => {
-            setOutcomes(null);
-            openSide();
-          }}
+          onOpen={() => openSide()}
           onRetry={(outcome) => void retryPost(outcome)}
           onClose={closeOutcomes}
         />

@@ -1,51 +1,32 @@
 "use client";
 
 import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
-import { Button, Typography } from "antd";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { Button } from "antd";
+import { useEffect } from "react";
+import { COLORS } from "@/app/theme";
 import { PLATFORM_LABELS } from "@/lib/postResults";
 import type { PostOutcome } from "./postRound";
 
 // All out: it goes by itself after this long; with a failure it stays until closed.
-const HIDE_MS = 7000;
+const HIDE_MS = 8000;
 
 /**
- * The note after "Đăng lên N nền tảng" ends, top right beside the side panel's tabs: its right edge on the header's
- * "Render" button, its bottom 8 px above the tabs' line, so it covers no word of either. A click on it opens the
- * "Đăng bài" tab's status card; "Thử lại" sends a failed platform again.
+ * The note after "Đăng lên N nền tảng" ends, fixed at the window's top right (docs/decisions/2026-11-14-publish-panel.md):
+ * where it went, one line per failure with "Thử lại", and "Xem chi tiết →" to the "Đăng bài" tab's status card.
  */
 export default function PostToast({
   outcomes,
-  right,
   onOpen,
   onRetry,
   onClose,
 }: {
   outcomes: PostOutcome[];
-  /** The page's own right padding, where the header's buttons end. */
-  right: number;
   onOpen: () => void;
   onRetry: (outcome: PostOutcome) => void;
   onClose: () => void;
 }) {
   const failed = outcomes.filter((outcome) => !outcome.ok);
   const out = outcomes.filter((outcome) => outcome.ok);
-  // Where the tabs' line is, read when the note shows and again on scroll and resize.
-  const [line, setLine] = useState<number | null>(null);
-  useLayoutEffect(() => {
-    const measure = () => {
-      const nav = document.querySelector(".side-panel .side-tabs > .ant-tabs-nav");
-      const rect = nav?.getBoundingClientRect();
-      setLine(rect && rect.height > 0 ? rect.bottom : null);
-    };
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
-    };
-  }, []);
   useEffect(() => {
     if (failed.length > 0) return;
     const timer = setTimeout(onClose, HIDE_MS);
@@ -54,42 +35,45 @@ export default function PostToast({
 
   const names = (list: PostOutcome[]) => list.map((outcome) => PLATFORM_LABELS[outcome.platform]).join(", ");
   const scheduled = out.length > 0 && out.every((outcome) => outcome.scheduled);
+  const link = { padding: 0, height: "auto", fontSize: 13, color: COLORS.primary } as const;
   return (
     <div
-      role="status"
+      role={failed.length > 0 ? "alert" : "status"}
       data-testid="post-toast"
-      onClick={onOpen}
       style={{
         position: "fixed",
-        right,
-        // Without the tabs (the panel is a closed drawer), under the top of the window.
-        ...(line !== null ? { top: line - 8, transform: "translateY(-100%)" } : { top: 72 }),
+        top: 16,
+        right: 16,
         zIndex: 1010,
+        width: 380,
+        maxWidth: "calc(100vw - 32px)",
         display: "flex",
         alignItems: "flex-start",
         gap: 10,
-        maxWidth: "min(480px, calc(100vw - 32px))",
-        padding: "7px 12px",
+        padding: "12px 16px 12px 14px",
         background: "#fff",
-        borderLeft: `4px solid ${failed.length && !out.length ? "#c2410c" : "#16a34a"}`,
-        borderRadius: 10,
-        boxShadow: "0 8px 24px rgba(0,0,0,.13)",
-        cursor: "pointer",
+        borderLeft: `4px solid ${out.length > 0 ? "#16A34A" : "#E5484D"}`,
+        borderRadius: 12,
+        boxShadow: "0 4px 16px rgba(0,0,0,.08)",
       }}
     >
-      <div style={{ minWidth: 0 }}>
-        {out.length > 0 ? (
-          <Typography.Text strong style={{ fontSize: 13, display: "block" }}>
-            <CheckOutlined style={{ color: "#16a34a", marginRight: 6 }} />
-            {scheduled ? "Đã hẹn giờ trên" : "Đã đăng lên"} {names(out)}
-          </Typography.Text>
-        ) : (
-          <Typography.Text strong style={{ fontSize: 13, display: "block" }}>
-            Chưa đăng được
-          </Typography.Text>
-        )}
+      <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, lineHeight: "20px", color: COLORS.text }}>
+          {out.length > 0 ? (
+            <>
+              <CheckOutlined style={{ color: "#16A34A", marginRight: 6 }} />
+              {scheduled ? "Đã hẹn giờ trên" : "Đã đăng lên"} {names(out)}
+            </>
+          ) : (
+            "Chưa đăng được"
+          )}
+        </div>
         {failed.map((outcome) => (
-          <div key={outcome.platform} style={{ fontSize: 12, color: "#c2410c" }} data-testid="post-toast-error">
+          <div
+            key={outcome.platform}
+            style={{ fontSize: 13, lineHeight: "18px", color: COLORS.primary }}
+            data-testid="post-toast-error"
+          >
             {PLATFORM_LABELS[outcome.platform]} lỗi: {outcome.error ?? "không rõ lý do"}
             {outcome.retryJobId !== null && (
               <>
@@ -97,11 +81,8 @@ export default function PostToast({
                 <Button
                   type="link"
                   size="small"
-                  style={{ padding: 0, height: "auto", fontSize: 12, color: "#c2410c", fontWeight: 600 }}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onRetry(outcome);
-                  }}
+                  style={{ ...link, textDecoration: "underline" }}
+                  onClick={() => onRetry(outcome)}
                 >
                   Thử lại
                 </Button>
@@ -109,16 +90,17 @@ export default function PostToast({
             )}
           </div>
         ))}
+        <Button type="link" size="small" style={{ ...link, alignSelf: "flex-start" }} onClick={onOpen}>
+          Xem chi tiết →
+        </Button>
       </div>
       <Button
         type="text"
         size="small"
-        aria-label="Đóng thông báo"
-        icon={<CloseOutlined />}
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose();
-        }}
+        aria-label="Đóng"
+        icon={<CloseOutlined style={{ fontSize: 12, color: COLORS.textSecondary }} />}
+        onClick={onClose}
+        style={{ width: 16, height: 16, minWidth: 16, padding: 0 }}
       />
     </div>
   );
