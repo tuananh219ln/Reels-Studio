@@ -146,77 +146,62 @@ function ReadyCard({
     />
   );
 
-  if (!mp4) {
-    return (
-      <Card size="small" title="Sẵn sàng đăng?" data-testid="ready-card" data-state="no-mp4">
+  const state = !mp4 ? "no-mp4" : count.out > 0 ? "posted" : "ready";
+  // The newest Facebook post that is out or due carries the comment line.
+  const open = video.publications.find((post) => post.status === "published" || post.status === "scheduled");
+  const title =
+    state === "no-mp4" ? (
+      "Sẵn sàng đăng?"
+    ) : state === "ready" ? (
+      "Sẵn sàng đăng ✓"
+    ) : (
+      <Flex align="center" gap={6}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a", flex: "none" }} />
+        Đã đăng{count.last ? ` · ${formatDateTime(count.last)}` : ""}
+      </Flex>
+    );
+
+  // One card whatever the state, "Tùy chọn khác" always in the same place: a post recorded in its drawer turns the
+  // card to "Đã đăng" without closing the drawer.
+  return (
+    <Card size="small" title={title} data-testid="ready-card" data-state={state}>
+      {!mp4 ? (
         <Flex vertical gap={8}>
           <Typography.Text type="secondary">
             Chưa có MP4. Bấm “Render” khi các cảnh đã đủ ảnh; MP4 và các nền tảng để đăng (Facebook, TikTok, YouTube
             Shorts, Instagram) sẽ hiện ở đây.
           </Typography.Text>
           {results.length > 0 && <ResultRows video={video} results={results} />}
-          {history}
         </Flex>
-      </Card>
-    );
-  }
-
-  const posted = count.out > 0;
-  const facts = <Mp4Facts video={video} onRender={onRender} />;
-  if (posted) {
-    // The newest Facebook post that is out or due carries the comment line.
-    const open = video.publications.find((post) => post.status === "published" || post.status === "scheduled");
-    return (
-      <Card
-        size="small"
-        data-testid="ready-card"
-        data-state="posted"
-        title={
-          <Flex align="center" gap={6}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#16a34a", flex: "none" }} />
-            Đã đăng{count.last ? ` · ${formatDateTime(count.last)}` : ""}
-          </Flex>
-        }
-      >
-        <Flex gap={12} align="flex-start">
-          <Mp4Frame key={mp4.url} url={mp4.url} seconds={mp4.seconds} />
-          <Flex vertical gap={8} style={{ flex: 1, minWidth: 0 }}>
-            <Typography.Text strong>
-              Đã đăng lên {count.out}/{count.tried} nền tảng
-            </Typography.Text>
-            {facts}
-            <ResultRows video={video} results={results} />
-            {open && (
-              <div data-testid="post-comment-state">
-                <PostComment post={open} onChanged={() => undefined} readOnly />
-              </div>
-            )}
-            <Flex gap={8} wrap align="center">
-              <Platforms video={video} posting={posting} onPost={onPost} onManual={setRequest} compact />
+      ) : (
+        <Flex vertical gap={12}>
+          <Flex gap={12} align="flex-start">
+            <Mp4Frame key={mp4.url} url={mp4.url} seconds={mp4.seconds} />
+            <Flex vertical gap={8} style={{ flex: 1, minWidth: 0 }}>
+              <Typography.Text strong>
+                {state === "posted" ? `Đã đăng lên ${count.out}/${count.tried} nền tảng` : "Video đã render xong"}
+              </Typography.Text>
+              <Mp4Facts video={video} onRender={onRender} />
+              {results.length > 0 && <ResultRows video={video} results={results} />}
+              {state === "posted" && open && (
+                <div data-testid="post-comment-state">
+                  <PostComment post={open} onChanged={() => undefined} readOnly />
+                </div>
+              )}
             </Flex>
-            {more}
           </Flex>
+          <Platforms
+            key={state}
+            video={video}
+            posting={posting}
+            onPost={onPost}
+            onManual={setRequest}
+            compact={state === "posted"}
+          />
         </Flex>
-        {history}
-      </Card>
-    );
-  }
-
-  return (
-    <Card size="small" title="Sẵn sàng đăng ✓" data-testid="ready-card" data-state="ready">
-      <Flex gap={12} align="flex-start">
-        <Mp4Frame key={mp4.url} url={mp4.url} seconds={mp4.seconds} />
-        <Flex vertical gap={8} style={{ flex: 1, minWidth: 0 }}>
-          <Typography.Text strong>Video đã render xong</Typography.Text>
-          {facts}
-          {results.length > 0 && <ResultRows video={video} results={results} />}
-        </Flex>
-      </Flex>
-      <div style={{ marginTop: 12 }}>
-        <Platforms video={video} posting={posting} onPost={onPost} onManual={setRequest} />
-      </div>
+      )}
       <Flex justify="space-between" align="center" wrap style={{ marginTop: 4 }}>
-        {more}
+        {mp4 ? more : null}
         {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
           <ApproveVideoButton videoId={video.id} onDone={onApproved} />
         )}

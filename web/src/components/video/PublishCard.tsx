@@ -349,7 +349,7 @@ export function PostRows({ video }: { video: VideoDetail }) {
           </Typography.Paragraph>
         </div>
       ))}
-      {video.publications.map((post, index) => (
+      {video.publications.map((post) => (
         <Flex
           key={post.id}
           justify="space-between"
@@ -363,9 +363,7 @@ export function PostRows({ video }: { video: VideoDetail }) {
             <StatusText tone={POST_STATUS[post.status].tone} style={{ marginRight: 8 }}>
               {POST_STATUS[post.status].label}
             </StatusText>
-            <Typography.Text data-testid={index === 0 ? "publication-status" : undefined}>
-              {statusText(post)}
-            </Typography.Text>{" "}
+            <Typography.Text>{statusText(post)}</Typography.Text>{" "}
             {post.url && (
               <a href={post.url} target="_blank" rel="noreferrer">
                 Xem Reel
