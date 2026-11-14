@@ -1012,7 +1012,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     - **An opened row** lists each post: platform, state with its source chip, channel and "Xem bài ↗", who cancelled
       or deleted a Facebook post ("Hủy: …"/"Xóa: …"), posting time ("tự lấy" when read from the platform), 24h, 48h
       and 7 days ("—" before the mark, "n/a" past it with no reading around it, "~N" with the tooltip "ước tính" when
-      taken between two readings), "Xu hướng" (a small line of its last 30 readings), its views (a Facebook post keeps
+      taken between two readings), its views with their trend under them (a small line of its last 30 readings, in
+      the same column so the opened row stays as narrow as the board) (a Facebook post keeps
       "Cập nhật view", the tooltip of numbers and "Phân tích bài đăng"; a spinner while a reading asked has not run),
       and its actions: a Facebook post the four icon buttons
       ("Xem Reel", "Thử lại", "Kiểm tra", "Hủy đăng"/"Xóa"); a post recorded by link "Sửa link" and "Gỡ" (out of the
