@@ -90,6 +90,8 @@ const JOB_NAMES = {
 // WIDE_FROM it becomes a drawer opened from the header.
 const SIDE_WIDTH = 440;
 const WIDE_FROM = 1100;
+// From here the scenes and the panel are two tiles, each scrolling inside itself, so the page fits the screen.
+const TILES_FROM = 1400;
 // The phone's own header bar (AppShell), under which the page's header sticks.
 const PHONE_HEADER = 60;
 
@@ -137,6 +139,7 @@ export default function VideoPage() {
   const [setupOpen, setSetupOpen] = useState(false);
   // From 1100 px the side panel sits beside the scenes; narrower, it is a drawer, open or not.
   const sideBySide = useWiderThan(WIDE_FROM);
+  const tiles = useWiderThan(TILES_FROM);
   const [sideOpen, setSideOpen] = useState(false);
   const screens = Grid.useBreakpoint();
   // A computer has no header bar of its own (AppShell's lg); a phone leaves out the header's summary line.
@@ -813,6 +816,7 @@ export default function VideoPage() {
       ) : (
         <SideLayout
           wide={sideBySide}
+          tiles={tiles}
           top={headerHeight}
           open={sideOpen}
           onClose={() => setSideOpen(false)}
@@ -1017,6 +1021,7 @@ export default function VideoPage() {
  */
 function SideLayout({
   wide,
+  tiles,
   top,
   open,
   onClose,
@@ -1024,6 +1029,8 @@ function SideLayout({
   children,
 }: {
   wide: boolean;
+  /** Both columns scroll inside themselves under the header. */
+  tiles: boolean;
   /** The fixed header's height. */
   top: number;
   open: boolean;
@@ -1060,7 +1067,22 @@ function SideLayout({
         alignItems: "start",
       }}
     >
-      {children}
+      <div
+        data-scenes-tile={tiles ? "" : undefined}
+        style={
+          tiles
+            ? {
+                position: "sticky",
+                top: top + 12,
+                maxHeight: `calc(100vh - ${top + 24}px)`,
+                overflowY: "auto",
+                paddingRight: 4,
+              }
+            : undefined
+        }
+      >
+        {children}
+      </div>
       <div
         data-side-panel
         style={{

@@ -251,7 +251,7 @@ test("the video page shows where the video stands, step by step, with its times"
   await progress.getByTestId("progress-affiliate").click();
   await expect(page.getByRole("tab", { name: "Bình luận & sản phẩm" })).toHaveAttribute("aria-selected", "true");
   await progress.getByTestId("progress-render").click();
-  await expect(page.getByTestId("ready-card")).toBeVisible();
+  await expect(page.getByText("Sẵn sàng đăng?")).toBeVisible();
 });
 
 test("only a thing's maker is offered to delete it: a teammate sees no Xóa on the video, scene or group", async ({

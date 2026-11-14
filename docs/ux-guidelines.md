@@ -344,7 +344,7 @@ Built:
   with "…", whole in a tooltip), the status, "Đang chỉnh sửa" and who else is here, then the actions: "Chỉnh sửa" or
   "Xong", "⋯", the photo helpers while a scene has no picture, "Xem trước" and "Render"/"Render lại" (the main
   button). Its second row is the progress line, a **QC chip** once the MP4 has QC ("QC: đạt" in green, "QC: N mục chưa
-  đạt" in red or yellow; pressing it opens "Đăng bài"), and, at its end, the render's state and summary (below).
+  đạt" in red or yellow; pressing it opens its popover), and, at its end, the render's state and summary (below).
   Under the header, scrolling away with the page: the topic, group and maker, "Loại nội dung" with the kind tags,
   and the clone, TikTok-version and 30-day-plan notes.
   The status line ends "tạo bởi <member> lúc dd/mm/yyyy hh:mm". Under it, the **progress line** (2026-11-10):
@@ -369,23 +369,25 @@ Built:
   meanwhile) and "Lưu phân tích". The card's header has "Tạo thêm video từ mẫu này" once the sample is
   analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
   scripts and clips; the card then says the sample was deleted).
-  The scenes fill the left column. The right column is a panel with two tabs. "Đăng bài" goes in the order a member
-  posts: "Sẵn sàng đăng?" first (the QC tiles, below; "Tải MP4" beside "Đăng bài" on one row; "Duyệt" for a planned
-  video; the MP4 as a small player with the listening volume under it, beside its length and render time); then
-  "Nội dung đăng" (Caption, three lines growing as typed, and Hashtag, with "Copy caption + hashtag" in its title);
-  then four blocks that start closed, each a title with its current state in grey beside it while closed: "Bình
-  luận" ("1 ghim, 2 thêm", "Copy ghim" in its title), "Sản phẩm Shopee" or "Sản phẩm TikTok Shop" ("Chưa gắn" or
-  "Đã gắn N"; the AI's product ideas, the Shopee suggestions and the approved products), "Gợi ý nhạc" ("Copy" in its
-  title) and "Rà soát an toàn của AI" ("N điểm đã sửa"); then "Bài đăng của video". A block's fields stay mounted
-  while it is closed, and a "Copy" in a title copies without opening it. "Thiết lập" holds the video's own settings
-  (below). Under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page writes them under
-  the reel after the pinned one, in order, and that Facebook does not let an app tag @ people, then each saved one
-  as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which opens
-  a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
-  bình luận". Until a member picks a tab it shows "Thiết lập" while there is no MP4
-  and "Đăng bài" once there is. From 1100 px wide the panel is half the width beside the scenes (never under 440 px; 2026-11-14, back to the split the owner asked for), stuck under the header and
-  scrolling on its own; narrower, it is a drawer from the right, opened by "Thiết lập / Đăng bài" in the header (the
-  progress line and the QC chip open it too).
+  The scenes fill the left column. The right column is the side panel (2026-11-14, one panel instead of two tabs),
+in the order a member posts: "Sẵn sàng đăng?" first, a small card with the MP4 as a player (the listening volume under
+it) beside its length and render time, "Tải MP4", "Đăng bài" and "Duyệt" for a planned video; the automatic QC is not
+in it but in the header's **QC chip**, which opens a popover "Kiểm tra MP4" with every check (label, measure, what to
+do) and is advice only: with a red check "Đăng bài" still works, after a confirmation ("MP4 chưa đạt kiểm tra chất
+lượng", "Vẫn đăng"). Then one tile with three tabs, each with its current state in grey beside its name and its own
+"Copy": "Caption & hashtag"; "Bình luận & sản phẩm" (the products first, as their links go into the pinned comment:
+the AI's product ideas, the Shopee suggestions and the approved products; then "Bình luận ghim" and "Bình luận thêm",
+see below); "Nhạc & an toàn" ("Gợi ý nhạc" and "Rà soát an toàn của AI", "N điểm đã sửa"). A tab's fields stay mounted
+while it is not shown, so unsaved text survives a change of tab. Then "Bài đăng của video", which shows where each post
+stands and keeps its buttons; a comment is edited only in its tab. The video's own settings ("Thiết lập") are in a
+drawer opened by "Thiết lập" in the header. Under "Bình luận ghim", "Bình luận thêm": a grey line saying the Page
+writes them under the reel after the pinned one, in order, and that Facebook does not let an app tag @ people, then each
+saved one as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which
+opens a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
+bình luận". From 1100 px wide the panel is half the width beside the scenes (never under 440 px; 2026-11-14, back to
+the split the owner asked for), stuck under the header and scrolling on its own; from 1400 px the scenes are a tile
+that scrolls on its own too, so the page fits the screen. Narrower than 1100 px the panel is a drawer from the right,
+opened by "Đăng bài" in the header (the progress line's steps and the QC chip open the right tab or popover).
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
   Page in use) and "Tự bình luận"; once queued, the button
@@ -625,11 +627,10 @@ Built:
     its own), "Bỏ vị trí riêng của cảnh này" and "Đưa vị trí chung về gốc". The title scene's dialog
     moves only up and down and has "Lưu"; it is also the thumbnail. Captions sit above a moved box,
     or under it when they would reach past the top of the safe zone;
-  - at the top of "Đăng bài", "Sẵn sàng đăng?" shows the automatic QC as a grid of tiles, three to a row, worst
-    first: each check's label and measure on a red, yellow or green tile; pressing one shows the whole measure and
-    what to do ("Nên sửa rồi render lại trước khi đăng." / "Đăng được, nhưng nên xem lại."). The title's badge says
-    "N mục cần sửa" (the checks not passed) or "Đạt chuẩn đăng". It is advice: with a red check "Đăng bài" still
-    works, after a confirmation ("MP4 chưa đạt kiểm tra chất lượng", "Vẫn đăng");
+  - the header's QC chip ("QC: đạt" or "QC: N mục chưa đạt") opens a popover with the automatic QC, each check's label
+    and measure in green, yellow or red and what to do ("Nên sửa rồi render lại trước khi đăng." / "Đăng được, nhưng
+    nên xem lại."). It is advice: with a red check "Đăng bài" still works, after a confirmation ("MP4 chưa đạt kiểm
+    tra chất lượng", "Vẫn đăng");
   - a "Cảnh động" shows its status under the picture: "Đang dựng cảnh động" while its job runs, then
     "Cảnh động, N giây". It is changed through the assistant; another photo or clip replaces it as usual;
   - a photo picked by "Tự tìm ảnh" carries an amber "Tự chọn, kiểm tra lại" status under the picture
