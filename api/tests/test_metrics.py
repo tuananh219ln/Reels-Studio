@@ -211,9 +211,10 @@ def test_a_new_reading_rewrites_latest(db, me, storage, fakes):
 
 def test_the_first_reading_after_48_hours_is_kept_as_the_48_hour_mark(db, me, storage, fakes):
     post = add_post(db, storage, me, 49)
-    post.metrics_tried_at = hours_ago(10)  # read at 39 hours: not due as a daily reading yet
+    # Read at 47 hours, the schedule put the next reading on the 48-hour mark.
+    post.metrics_tried_at, post.next_snapshot_at = hours_ago(2), hours_ago(1)
     db.commit()
-    assert due(db) == [post.id], "the 48-hour mark does not wait for the daily reading"
+    assert due(db) == [post.id], "the 48-hour mark is read on the dot"
     fakes.facebook_insights["1000"] = {"views": 800, "shares": 2, "comments": 0, "reactions": 10}
     metrics.measure(db, post)
     assert windows(post)["48h"].views == 800
