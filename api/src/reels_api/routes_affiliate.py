@@ -446,7 +446,7 @@ def _video_payload(db: DbSession, video: Video, posts: list[Publication], user_i
 def list_videos(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
     rows = db.execute(
         select(Video, Publication)
-        .join(Publication)
+        .join(Publication, Publication.video_id == Video.id)
         .where(Publication.platform.in_(("facebook", "tiktok")), Publication.status != "pending_link")
         .order_by(Publication.id)
     )

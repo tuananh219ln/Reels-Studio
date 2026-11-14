@@ -110,15 +110,23 @@ def _readings(db: DbSession, post_ids: list[int]) -> tuple[dict[int, PostMetricS
     """The latest snapshot of each post, and each Facebook post's 48-hour mark."""
     if not post_ids:
         return {}, {}
-    latest = {
-        row.publication_id: row
-        for row in db.scalars(
-            select(PostMetricSnapshot)
-            .where(PostMetricSnapshot.publication_id.in_(post_ids))
-            .distinct(PostMetricSnapshot.publication_id)
-            .order_by(PostMetricSnapshot.publication_id, PostMetricSnapshot.captured_at.desc())
+    newest = (
+        select(PostMetricSnapshot.publication_id, func.max(PostMetricSnapshot.captured_at).label("at"))
+        .where(PostMetricSnapshot.publication_id.in_(post_ids))
+        .group_by(PostMetricSnapshot.publication_id)
+        .subquery()
+    )
+    latest: dict[int, PostMetricSnapshot] = {}
+    for row in db.scalars(
+        select(PostMetricSnapshot)
+        .join(
+            newest,
+            (newest.c.publication_id == PostMetricSnapshot.publication_id)
+            & (newest.c.at == PostMetricSnapshot.captured_at),
         )
-    }
+        .order_by(PostMetricSnapshot.id)
+    ):
+        latest[row.publication_id] = row  # two readings at the same time: the one saved last
     marks = dict(
         db.execute(
             select(PostMetrics.publication_id, PostMetrics.views).where(
