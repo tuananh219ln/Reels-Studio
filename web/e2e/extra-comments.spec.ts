@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { loginAsSeed, openPanel, resetDatabase } from "./helpers";
 
-// "Bình luận thêm" under "Bình luận ghim" on a video's "Nội dung đăng": added, kept, edited and removed.
+// "Bình luận thêm" under "Bình luận ghim" on a video's "Bình luận & Sản phẩm" tab: added, kept, edited and removed.
 test.beforeEach(() => resetDatabase());
 
 test("a video's extra comments are added one by one, kept and removed", async ({ page }) => {

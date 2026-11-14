@@ -23,13 +23,10 @@ const words = (text: string) => text.split(/\s+/).filter(Boolean);
 /** The blocks of the post texts a step of the progress line can point at (`data-post-block`). */
 export type PostBlockKey = "caption" | "comments" | "products";
 
-/**
- * The post's texts under "Sẵn sàng đăng?", in a fixed order: the caption, the comments, the products, and the
- * hashtags last, each a block of its own. "Copy caption + hashtag" stays at the top of the first: it copies both,
- * wherever the hashtags are typed. The music suggestions and the AI's safety review are not shown any more
- * (docs/decisions/2026-11-14-video-editor-spec.md); a hand-written video still says it was not reviewed.
- */
-export default function PostContent({ video }: { video: VideoDetail }) {
+const block = { borderRadius: 10 } as const;
+
+/** What the post blocks share: saving a field of the video, its warnings, and a "Copy" for a block's title. */
+function usePostFields(video: VideoDetail) {
   const { message } = App.useApp();
   const patch = (body: Partial<PostFields>) => api<VideoDetail>(`/videos/${video.id}`, "PATCH", body);
   const warningsFor = (field: string) =>
@@ -44,16 +41,24 @@ export default function PostContent({ video }: { video: VideoDetail }) {
     }
   }
 
-  /** A "Copy" in a block's title. */
   const copyButton = (label: string, text: string, what: string) => (
     <Button size="small" icon={<CopyOutlined />} onClick={() => void copy(text, what)}>
       {label}
     </Button>
   );
 
-  const products = video.affiliate_product_ids.length;
-  const shop = video.platform === "tiktok" ? "Sản phẩm TikTok Shop" : "Sản phẩm Shopee";
-  const block = { borderRadius: 10 } as const;
+  return { patch, warningsFor, copyButton };
+}
+
+/**
+ * The post's texts on the "Đăng bài" tab, under "Sẵn sàng đăng?": the caption, then the hashtags, each a block of its
+ * own. "Copy caption + hashtag" stays at the top of the first: it copies both, wherever the hashtags are typed. The
+ * comments and the products are the "Bình luận & Sản phẩm" tab's (`EngageContent`,
+ * docs/decisions/2026-11-14-video-engage-tab.md). The music suggestions and the AI's safety review are not shown
+ * (docs/decisions/2026-11-14-video-editor-spec.md); a hand-written video still says it was not reviewed.
+ */
+export default function PostContent({ video }: { video: VideoDetail }) {
+  const { patch, warningsFor, copyButton } = usePostFields(video);
 
   return (
     <Flex vertical gap={12} data-testid="post-blocks">
@@ -84,6 +89,32 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           <Warnings messages={warningsFor("caption")} />
         </Flex>
       </Card>
+      <div
+        data-testid="hashtag-block"
+        style={{ border: "1px solid #e7e5e2", borderRadius: 10, padding: 12, background: "#fff" }}
+      >
+        <AutoSaveField
+          label="Hashtag"
+          value={video.hashtags.join(" ")}
+          placeholder="#xuongkhop #duongsinh"
+          save={(text) => patch({ hashtags: words(text) })}
+        />
+      </div>
+    </Flex>
+  );
+}
+
+/**
+ * The "Bình luận & Sản phẩm" tab: the comments ("Bình luận ghim", "Bình luận thêm", the comment's posting state) and
+ * the products (the AI's ideas, the Shopee suggestions, the approved products attached), each a block of its own.
+ */
+export function EngageContent({ video }: { video: VideoDetail }) {
+  const { patch, warningsFor, copyButton } = usePostFields(video);
+  const products = video.affiliate_product_ids.length;
+  const shop = video.platform === "tiktok" ? "Sản phẩm TikTok Shop" : "Sản phẩm Shopee";
+
+  return (
+    <Flex vertical gap={12} data-testid="engage-blocks">
       <Card
         size="small"
         title="Bình luận"
@@ -134,18 +165,6 @@ export default function PostContent({ video }: { video: VideoDetail }) {
           <AttachedProducts video={video} />
         </Flex>
       </Card>
-      {/* Last, a block of its own: the label and the field. */}
-      <div
-        data-testid="hashtag-block"
-        style={{ border: "1px solid #e7e5e2", borderRadius: 10, padding: 12, background: "#fff" }}
-      >
-        <AutoSaveField
-          label="Hashtag"
-          value={video.hashtags.join(" ")}
-          placeholder="#xuongkhop #duongsinh"
-          save={(text) => patch({ hashtags: words(text) })}
-        />
-      </div>
     </Flex>
   );
 }
