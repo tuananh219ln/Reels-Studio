@@ -552,11 +552,16 @@ def move_video(
     are (a group's settings are taken when a video is made); the old group's plan idea made from it is freed, so that
     plan shows the idea as still to make."""
     video = lock_video(db, video_id)
-    ensure_owner(video.created_by_id, me.user_id, "video này", "chuyển nhóm được")
     ensure_unlocked(db, video)
     group = db.get(KnowledgeTopic, body.knowledge_topic_id)
     if group is None:
         raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    if video.created_by_id != me.user_id:
+        # The maker of the group a teammate's video sits in may send it back to a group of the video's maker, so
+        # that their own group can be emptied and deleted without anyone deleting the teammate's work.
+        current = db.get(KnowledgeTopic, video.knowledge_topic_id) if video.knowledge_topic_id else None
+        if current is None or current.created_by_id != me.user_id or group.created_by_id != video.created_by_id:
+            ensure_owner(video.created_by_id, me.user_id, "video này", "chuyển nhóm được")
     if group.id == video.knowledge_topic_id:
         raise invalid(f"Video đã ở nhóm “{group.name}”")
     for idea in db.scalars(select(TopicPlanItem).where(TopicPlanItem.video_id == video.id)):
