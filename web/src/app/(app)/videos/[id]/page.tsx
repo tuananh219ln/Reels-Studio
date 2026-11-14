@@ -88,7 +88,8 @@ const JOB_NAMES = {
 /** The side panel's tabs: "Đăng bài" (post texts, MP4 and posting together) and the video's own settings. */
 type SideTab = "publish" | "setup";
 
-// The side panel's width beside the scenes; below WIDE_FROM it becomes a drawer opened from the header.
+// The side panel's least width beside the scenes (they split the page half and half) and the drawer's width; below
+// WIDE_FROM it becomes a drawer opened from the header.
 const SIDE_WIDTH = 440;
 const WIDE_FROM = 1100;
 // The phone's own header bar (AppShell), under which the page's header sticks.
@@ -1008,7 +1009,7 @@ export default function VideoPage() {
 }
 
 /**
- * The scenes and the side panel: side by side on a wide screen, the panel at a fixed width and stuck under the
+ * The scenes and the side panel: side by side on a wide screen, half and half, the panel stuck under the
  * header, scrolling on its own; on a narrower one the scenes take the width and the panel is a drawer.
  */
 function SideLayout({
@@ -1048,7 +1049,13 @@ function SideLayout({
   }
   return (
     <div
-      style={{ display: "grid", gridTemplateColumns: `minmax(0, 1fr) ${SIDE_WIDTH}px`, gap: 16, alignItems: "start" }}
+      style={{
+        display: "grid",
+        // Half and half, the panel never narrower than the drawer it becomes on a smaller screen.
+        gridTemplateColumns: `minmax(0, 1fr) minmax(${SIDE_WIDTH}px, 1fr)`,
+        gap: 16,
+        alignItems: "start",
+      }}
     >
       {children}
       <div
