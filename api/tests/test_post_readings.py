@@ -154,7 +154,7 @@ def test_a_failed_reading_is_tried_again_in_an_hour_and_never_removes_the_reel(d
 # --- YouTube ---
 
 
-def youtube_post(db, storage, user, external_id="dQw4w9WgXcQ", **fields) -> Publication:
+def youtube_post(db, storage, user, external_id="dQw4w9WgXcQ", **extra) -> Publication:
     channel = db.scalar(select(Channel)) or Channel(
         platform="youtube",
         handle="@anngon",
@@ -172,10 +172,8 @@ def youtube_post(db, storage, user, external_id="dQw4w9WgXcQ", **fields) -> Publ
         external_id=external_id,
         post_url=f"https://www.youtube.com/shorts/{external_id}",
         channel_id=channel.id,
-        status="published",
-        published_at=hours_ago(2),
         created_by_id=user.id,
-        **fields,
+        **({"status": "published", "published_at": hours_ago(2)} | extra),
     )
     db.add(post)
     db.commit()

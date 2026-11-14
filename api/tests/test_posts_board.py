@@ -242,7 +242,7 @@ def test_saving_fills_the_wait_then_the_same_link_is_already_there(an, db, me, s
         "7301234567890123456",
         account.id,
     )
-    assert post.published_at_source == "user"
+    assert post.published_at_source is None, "a time not typed: the platform's replaces it once read"
     cell = row_of(board(an), video)["cells"]["tiktok"]
     assert (cell["state"], cell["source"], cell["channel_label"]) == ("published", "manual_link", "@anngon")
     # Pasted again: refused on saving, and said so in the preview with the video it is on.
