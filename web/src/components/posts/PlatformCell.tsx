@@ -4,7 +4,7 @@ import { formatCount } from "@/components/PostMetrics";
 import StatusText from "@/components/StatusText";
 import { api, errorMessage, formatDayTime, type BoardCell, type BoardItem, type BoardPlatform } from "@/lib/api";
 import { DownloadOutlined, PlusOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Tooltip, Typography, theme } from "antd";
+import { App, Button, Flex, Spin, Tooltip, Typography, theme } from "antd";
 import { useState } from "react";
 import { formatDayMonth, hoursAgo, SourceChip, STATE_LABEL, STATE_TONE } from "./boardText";
 
@@ -133,13 +133,15 @@ export default function PlatformCell({
       );
   }
 
-  // Published: the views of every post out there, with what they add up to and where they come from.
+  // Published: the views of every post out there, with what they add up to and where they come from; a spinner
+  // while "Cập nhật view" waits for the worker.
   const updated = cell.metrics_updated_at ? `Cập nhật lần cuối ${formatDayTime(cell.metrics_updated_at)}` : undefined;
   return (
     <Flex vertical gap={2}>
       <Tooltip title={updated}>
         <span>
           <StatusText tone="success">{cell.views === null ? "— view" : `${formatCount(cell.views)} view`}</StatusText>
+          {cell.refreshing && <Spin size="small" style={{ marginLeft: 6 }} aria-label="Đang cập nhật view" />}
         </span>
       </Tooltip>
       <Flex gap={6} align="center" wrap>

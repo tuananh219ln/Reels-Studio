@@ -241,6 +241,7 @@ test("shared actions: a Page owner can take down a teammate's reel from the post
     retry_job_id: null,
     closed_at: null,
     metrics_updated_at: null,
+    refreshing: false,
   };
   const board = {
     items: [
@@ -284,6 +285,10 @@ test("shared actions: a Page owner can take down a teammate's reel from the post
         views_24h: null,
         views_48h: null,
         views_7d: null,
+        marks_estimated: [],
+        marks_missed: [],
+        sparkline: [],
+        refreshing: false,
         metrics_updated_at: null,
         error: null,
         retry_job_id: null,

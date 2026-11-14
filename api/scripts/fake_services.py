@@ -57,6 +57,7 @@ GONE = (
 FACEBOOK_USER_TOKEN = "fake-facebook-user-token"  # manages the Page, gets the Page's token from /me/accounts
 SHOPEE_APP_ID = "1000001"
 SHOPEE_SECRET = "fake-shopee-secret"
+YOUTUBE_KEY = "fake-youtube-key"
 TIKTOK_CLIENT_KEY = "fake-tiktok-client-key"
 TIKTOK_CLIENT_SECRET = "fake-tiktok-client-secret"
 TIKTOK_CODE = "fake-tiktok-code"  # the code TikTok's authorize page sends back for TIKTOK_OPEN_ID
@@ -401,6 +402,12 @@ class FakeServices:
         # TikTok account in the link (YouTube: @anngon); a link in `oembed_gone` answers 404, as a removed post.
         self.oembed: dict[str, dict] = {}
         self.oembed_gone: set[str] = set()
+        # YouTube Data API videos by id: numbers set here, else 321 views; an id in `youtube_gone` is left out of the
+        # answer, as a deleted or private Short. `youtube_error` answers every call with that HTTP status.
+        self.youtube_videos: dict[str, dict] = {}
+        self.youtube_gone: set[str] = set()
+        self.youtube_error: int | None = None
+        self.youtube_calls: list[list[str]] = []
         self.oembed_calls: list[str] = []
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
@@ -445,6 +452,8 @@ class FakeServices:
             "SHOPEE_SHORT_LINK_URL": f"{self.url}/shopee-short",
             "TIKTOK_API_URL": f"{self.url}/tiktok",
             "TIKTOK_OEMBED_URL": f"{self.url}/oembed/tiktok",
+            "YOUTUBE_API_URL": f"{self.url}/youtube/v3",
+            "YOUTUBE_API_KEY": YOUTUBE_KEY,
             "YOUTUBE_OEMBED_URL": f"{self.url}/oembed/youtube",
             "TIKTOK_CLIENT_KEY": TIKTOK_CLIENT_KEY,
             "TIKTOK_CLIENT_SECRET": TIKTOK_CLIENT_SECRET,
@@ -1408,6 +1417,40 @@ class FakeServices:
 
     # --- TikTok ---
 
+    def _youtube_videos(self, query: dict) -> tuple[int, dict]:
+        if query.get("key") != YOUTUBE_KEY:
+            return 400, {"error": {"code": 400, "errors": [{"reason": "keyInvalid"}]}}
+        ids = [one for one in query.get("id", "").split(",") if one]
+        with self.lock:
+            self.youtube_calls.append(ids)
+            if self.youtube_error is not None:
+                return self.youtube_error, {
+                    "error": {"code": self.youtube_error, "errors": [{"reason": "quotaExceeded"}]}
+                }
+            items = []
+            for one in ids:
+                if one in self.youtube_gone:
+                    continue
+                video = {"views": 321, "likes": 12, "comments": 3, "published_at": "2026-11-14T03:00:00Z"}
+                video |= self.youtube_videos.get(one, {})
+                items.append(
+                    {
+                        "id": one,
+                        "snippet": {
+                            "publishedAt": video["published_at"],
+                            "channelId": video.get("channel_id", "UCabcdefghijklmnopqrstuv"),
+                            "title": video.get("title", "Video"),
+                        },
+                        "statistics": {
+                            "viewCount": str(video["views"]),
+                            "likeCount": str(video["likes"]),
+                            "commentCount": str(video["comments"]),
+                        },
+                        "contentDetails": {"duration": video.get("duration", "PT30S")},
+                    }
+                )
+        return 200, {"items": items}
+
     @staticmethod
     def _oembed_default(url: str) -> dict:
         path = urllib.parse.urlsplit(url).path
@@ -1735,6 +1778,8 @@ class FakeServices:
                         self._send(*fake._reel_insights(target.removesuffix("/video_insights"), query))
                     else:
                         self._send(*fake._reel_status(target, query))
+                elif parts.path == "/youtube/v3/videos":
+                    self._send(*fake._youtube_videos(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path in ("/oembed/tiktok", "/oembed/youtube"):
                     url = dict(urllib.parse.parse_qsl(parts.query)).get("url", "")
                     with fake.lock:

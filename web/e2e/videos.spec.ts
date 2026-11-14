@@ -1729,8 +1729,8 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   // Every post has the same action buttons; those that do not apply are greyed out.
   await expect(posts.getByRole("button", { name: "Thử lại" })).toBeDisabled();
   await expect(posts.getByRole("button", { name: "Kiểm tra" })).toBeEnabled();
-  // Numbers come from the worker: a fresh reel has none until "Cập nhật view" asks for them.
-  await expect(posts.getByText("Chưa có view", { exact: true })).toBeVisible();
+  // Numbers come from the worker, which reads a reel as soon as it is live; "Cập nhật view" asks again.
+  await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await posts.getByRole("button", { name: "Cập nhật view" }).click();
   await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await expect(groups.getByTestId("cell-facebook")).toContainText("1.200 view", { timeout: 30_000 });

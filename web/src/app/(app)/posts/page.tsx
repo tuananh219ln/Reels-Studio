@@ -24,6 +24,7 @@ import {
   type PostRow,
 } from "@/lib/api";
 import { useFreshenOnOpen } from "@/lib/freshen";
+import { usePolling } from "@/lib/polling";
 import { useUrlChoice, useUrlPage, useUrlParam } from "@/lib/urlState";
 import {
   CalendarOutlined,
@@ -139,6 +140,9 @@ function Posts() {
   }, [view, message]);
   // Followed Facebook posts not read lately are read again on opening.
   useFreshenOnOpen("/posts/freshen", load);
+  // While the worker reads the posts asked for, the cells spin and the board is read again.
+  const refreshingAny = (board?.items ?? []).some((item) => Object.values(item.cells).some((cell) => cell?.refreshing));
+  usePolling(() => (refreshingAny && view === "list" ? load() : Promise.resolve()), 5000);
 
   const openPaste = useCallback(
     (videoId: number | null, platformOf: BoardPlatform | null) => {
@@ -174,11 +178,15 @@ function Posts() {
   async function refreshViews() {
     setRefreshing(true);
     try {
-      const result = await api<{ asked: number }>("/posts/freshen", "POST");
+      const result = await api<{ asked: number }>("/posts/metrics/refresh", "POST", {
+        video_ids: (board?.items ?? []).map((item) => item.video.id),
+      });
       message.success(
-        result.asked > 0 ? `Đang cập nhật view ${result.asked} bài, số liệu sẽ hiện sau ít phút` : "View đã mới",
+        result.asked > 0
+          ? `Đang cập nhật view ${result.asked} bài, số liệu sẽ hiện sau ít phút`
+          : "Không có bài nào để cập nhật",
       );
-      setTimeout(load, 5000);
+      await load();
     } catch (err) {
       message.error(errorMessage(err));
     } finally {

@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import analytics, metrics, post_links, posts_board
 from .db import get_db
 from .errors import ApiError
-from .models import Channel, Job, Publication, Session, Video
+from .models import Channel, Job, PostMetricSnapshot, Publication, Session, User, Video
 from .routes_videos import invalid
 from .sessions import current_member, now
 from .videos import (
@@ -262,8 +262,8 @@ def _preview_row(db: DbSession, raw: str, fetched: tuple, context: dict) -> dict
         "channel_options": [],
         "title": meta.title if meta else None,
         "thumbnail_url": meta.thumbnail_url if meta else None,
-        "published_at": at.isoformat(),
-        "published_at_source": "user",
+        "published_at": (meta.published_at if meta and meta.published_at else at).isoformat(),
+        "published_at_source": "api" if meta and meta.published_at else "user",
         "video": None,
         "score": None,
         "suggestions": [],
@@ -307,7 +307,7 @@ def _preview_row(db: DbSession, raw: str, fetched: tuple, context: dict) -> dict
     if context["video"] is not None:
         row["video"] = post_links.video_ref(db, context["video"])
     elif meta is not None:
-        match = post_links.match_video(db, meta.title, at)
+        match = post_links.match_video(db, meta.title, meta.published_at or at, meta.duration)
         row["score"] = round(match.score * 100) if match.score is not None else None
         row["suggestions"] = [post_links.video_ref(db, video, value) for video, value in match.suggestions]
         if match.video is not None:
@@ -350,6 +350,8 @@ class LinkItem(BaseModel):
     # The post's channel: a Page for Facebook, a TikTok account, a YouTube channel (`channels`).
     channel_id: int
     published_at: datetime | None = None
+    # The member typed the time: a reading never replaces it with the platform's.
+    published_at_edited: bool = False
 
 
 class SaveLinksBody(BaseModel):
@@ -431,11 +433,13 @@ def _save_lines(db: DbSession, items: list[LinkItem], at: datetime, me: Session)
             db.add(post)
         post.status, post.source = "published", "manual_link"
         post.external_id, post.post_url = link.external_id, link.url
-        post.published_at, post.published_at_source = published_at, "user"
+        post.published_at = published_at
+        post.published_at_source = "user" if item.published_at_edited else None
         post.remote_mp4_key = video.mp4_key
         for name, value in fields.items():
             setattr(post, name, value)
-        if link.platform == "facebook":
+        if link.platform in ("facebook", "youtube"):
+            # The first reading at once (§3.1); a YouTube one only runs with the team's key.
             post.metrics_requested_at = at
         db.flush()
         saved.append(post)
@@ -480,8 +484,49 @@ def change_post(
         if body.published_at.tzinfo is None or body.published_at > now() + timedelta(minutes=5):
             raise invalid("Giờ đăng không hợp lệ")
         post.published_at, post.published_at_source = body.published_at, "user"
+        # The readings' ages follow the new time; marks already set stay (§7).
+        for snapshot in db.scalars(select(PostMetricSnapshot).where(PostMetricSnapshot.publication_id == post.id)):
+            snapshot.hours_since_publish = metrics.hours_since(body.published_at, snapshot.captured_at)
     db.commit()
     return {"ok": True}
+
+
+REFRESH_EVERY = timedelta(minutes=5)
+MAX_REFRESH = 200
+
+
+class RefreshBody(BaseModel):
+    video_ids: list[int]
+
+
+@router.post("/metrics/refresh")
+def refresh_views(body: RefreshBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Cập nhật view" on the board: the worker reads the out posts of the videos shown (at most 200), in its next
+    rounds. Once per 5 minutes per member. The request never calls a platform."""
+    user = db.get(User, me.user_id, with_for_update=True)
+    at = now()
+    if user.views_refreshed_at is not None and at - user.views_refreshed_at < REFRESH_EVERY:
+        wait = REFRESH_EVERY - (at - user.views_refreshed_at)
+        minutes = max(1, -(-int(wait.total_seconds()) // 60))
+        raise ApiError(429, "refresh_too_soon", f"Vừa cập nhật view, thử lại sau {minutes} phút")
+    posts = (
+        db.scalars(
+            select(Publication)
+            .where(
+                Publication.video_id.in_(body.video_ids[:MAX_REFRESH]),
+                metrics.readable(at),
+            )
+            .order_by(Publication.id.desc())
+            .limit(MAX_REFRESH)
+        ).all()
+        if body.video_ids
+        else []
+    )
+    for post in posts:
+        post.metrics_requested_at = at
+    user.views_refreshed_at = at
+    db.commit()
+    return {"asked": len(posts)}
 
 
 @router.delete("/{post_id}")

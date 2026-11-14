@@ -19,7 +19,8 @@ import { PLATFORM_LABEL } from "./boardText";
 /** Opened from a cell: the video and platform are fixed, the links are only checked against them. */
 export type PasteTarget = { videoId: number; platform: BoardPlatform; videoName: string };
 
-type Choice = { videoId: number | null; channelId: number | null; publishedAt: string };
+/** `edited`: the member typed the time, so a reading never replaces it with the platform's. */
+type Choice = { videoId: number | null; channelId: number | null; publishedAt: string; edited: boolean };
 
 const RESULT_COLOR: Record<LinkPreview["result"], string> = {
   matched: "green",
@@ -90,6 +91,7 @@ export default function PasteLinksModal({
                 videoId: row.video?.id ?? null,
                 channelId: row.channel?.id ?? null,
                 publishedAt: row.published_at,
+                edited: false,
               },
             ]),
           ),
@@ -125,6 +127,7 @@ export default function PasteLinksModal({
           video_id: choice.videoId,
           channel_id: choice.channelId,
           published_at: choice.publishedAt,
+          published_at_edited: choice.edited,
         })),
       });
       message.success(`Đã lưu ${result.saved} link`);
@@ -223,7 +226,7 @@ export default function PasteLinksModal({
             aria-label="Giờ đăng"
             value={choices[index] ? vietnamInputValue(choices[index].publishedAt) : ""}
             onChange={(event) =>
-              event.target.value && choose(index, { publishedAt: fromVietnamInput(event.target.value) })
+              event.target.value && choose(index, { publishedAt: fromVietnamInput(event.target.value), edited: true })
             }
           />
         ) : null,

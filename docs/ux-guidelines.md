@@ -994,8 +994,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
   visitors' comments as the Page, went on 2026-11-10.)
   - **Bài đăng** (`/posts`), the multi-platform board ([decision](decisions/2026-11-14-posts-board.md)): every
     rendered video and where it stands on Facebook, TikTok and YouTube Shorts. Under the title "Video đã render và
-    trạng thái đăng trên từng nền tảng…"; at its right "Cập nhật view" (asks the worker for the followed Facebook posts
-    not read in 15 minutes, as opening the page does), "Dán link bài đã đăng" and "Danh sách | Lịch". No weekly KPIs,
+    trạng thái đăng trên từng nền tảng…"; at its right "Cập nhật view" (asks the worker for the out Facebook and
+    YouTube posts of the videos shown, at most 200, once per 5 minutes per member; the cells being read spin until
+    their numbers come), "Dán link bài đã đăng" and "Danh sách | Lịch". No weekly KPIs,
     no "Sẵn sàng đăng" and no "Nhân bản" card any more (their api stays): the "Chưa đăng" tab is where a video waits,
     and "Nhân bản" / "Nhân bản y hệt" sit in each row's "⋮" menu.
     - **Tabs**, one count each (videos, under the other filters): "Chưa đăng" (no post on its way, scheduled, waiting
@@ -1016,8 +1017,11 @@ steps open the status card or the products block on its tab, the QC chip its pop
       dashed "+ Dán link". Dots: green out, orange waiting, red failed or gone, grey cancelled.
     - **An opened row** lists each post: platform, state with its source chip, channel and "Xem bài ↗", who cancelled
       or deleted a Facebook post ("Hủy: …"/"Xóa: …"), posting time ("tự lấy" when read from the platform), 24h, 48h
-      and 7 days ("—" until the schedule of readings fills them, part 2), its views (a Facebook post keeps "Cập nhật
-      view", the tooltip of numbers and "Phân tích bài đăng"), and its actions: a Facebook post the four icon buttons
+      and 7 days ("—" before the mark, "n/a" past it with no reading around it, "~N" with the tooltip "ước tính" when
+      taken between two readings), its views with their trend under them (a small line of its last 30 readings, in
+      the same column so the opened row stays as narrow as the board) (a Facebook post keeps
+      "Cập nhật view", the tooltip of numbers and "Phân tích bài đăng"; a spinner while a reading asked has not run),
+      and its actions: a Facebook post the four icon buttons
       ("Xem Reel", "Thử lại", "Kiểm tra", "Hủy đăng"/"Xóa"); a post recorded by link "Sửa link" and "Gỡ" (out of the
       app only, by whoever recorded it); one waiting "Dán link" and "Hủy chờ"; a platform with none "Chưa đăng" with
       "Tải MP4" and "Copy caption" (the TikTok caption for TikTok).

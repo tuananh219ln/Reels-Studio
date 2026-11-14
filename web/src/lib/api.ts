@@ -1663,6 +1663,8 @@ export type BoardCell = {
   retry_job_id: number | null;
   closed_at: string | null;
   metrics_updated_at: string | null;
+  /** "Cập nhật view" asked for a reading that has not run yet. */
+  refreshing: boolean;
 };
 
 export type BoardItem = {
@@ -1711,6 +1713,13 @@ export type VideoPost = {
   views_24h: number | null;
   views_48h: number | null;
   views_7d: number | null;
+  /** Marks taken between two readings ("ước tính"). */
+  marks_estimated: string[];
+  /** Marks the post is past with no value ("n/a"). */
+  marks_missed: string[];
+  /** Its views over time, the last 30 readings, oldest first. */
+  sparkline: number[];
+  refreshing: boolean;
   metrics_updated_at: string | null;
   error: string | null;
   retry_job_id: number | null;
