@@ -397,6 +397,11 @@ class FakeServices:
         self.tiktok_post_fails = False  # the final status is FAILED
         self.tiktok_posts: dict[str, dict] = {}
         self.tiktok_calls: list[str] = []  # the path of every TikTok call, in order
+        # oEmbed answers by the post's link ("Dán link bài đã đăng"): one set here, else a plain answer naming the
+        # TikTok account in the link (YouTube: @anngon); a link in `oembed_gone` answers 404, as a removed post.
+        self.oembed: dict[str, dict] = {}
+        self.oembed_gone: set[str] = set()
+        self.oembed_calls: list[str] = []
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
         self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
@@ -439,6 +444,8 @@ class FakeServices:
             "SHOPEE_AFFILIATE_API_URL": f"{self.url}/shopee/graphql",
             "SHOPEE_SHORT_LINK_URL": f"{self.url}/shopee-short",
             "TIKTOK_API_URL": f"{self.url}/tiktok",
+            "TIKTOK_OEMBED_URL": f"{self.url}/oembed/tiktok",
+            "YOUTUBE_OEMBED_URL": f"{self.url}/oembed/youtube",
             "TIKTOK_CLIENT_KEY": TIKTOK_CLIENT_KEY,
             "TIKTOK_CLIENT_SECRET": TIKTOK_CLIENT_SECRET,
         }
@@ -1402,6 +1409,13 @@ class FakeServices:
     # --- TikTok ---
 
     @staticmethod
+    def _oembed_default(url: str) -> dict:
+        path = urllib.parse.urlsplit(url).path
+        if path.startswith("/@") and "/video/" in path:
+            return {"title": "Video", "author_unique_id": path[2:].split("/", 1)[0].lower()}
+        return {"title": "Video", "author_url": "https://www.youtube.com/@anngon"}
+
+    @staticmethod
     def _tiktok_failed(status: int, code: str, message: str) -> tuple[int, dict]:
         return status, {"error": {"code": code, "message": message, "log_id": "fake-log"}}
 
@@ -1721,6 +1735,12 @@ class FakeServices:
                         self._send(*fake._reel_insights(target.removesuffix("/video_insights"), query))
                     else:
                         self._send(*fake._reel_status(target, query))
+                elif parts.path in ("/oembed/tiktok", "/oembed/youtube"):
+                    url = dict(urllib.parse.parse_qsl(parts.query)).get("url", "")
+                    with fake.lock:
+                        fake.oembed_calls.append(url)
+                        answer = None if url in fake.oembed_gone else fake.oembed.get(url) or fake._oembed_default(url)
+                    self._send(200, answer) if answer is not None else self._send(404, {"error": "not found"})
                 elif parts.path == "/api/videos/":
                     self._send(*fake._pixabay_videos(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path == "/pexels/videos/search":

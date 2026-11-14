@@ -16,4 +16,4 @@ export function pageOptions(pages: Page[], meId: number | undefined): NonNullabl
 
 /** Said where a member has no Page of their own to post to. */
 export const NO_PAGE_OF_MINE =
-  "Bạn chưa có Fanpage nào. Chỉ chủ Page mới đăng lên Page đó: vào Quản lý Page để thêm Page của bạn, hoặc bấm “Nhận Page” với Page chưa có chủ.";
+  "Bạn chưa có Fanpage nào. Chỉ chủ Page mới đăng lên Page đó: vào Quản lý kênh để thêm Page của bạn, hoặc bấm “Nhận Page” với Page chưa có chủ.";

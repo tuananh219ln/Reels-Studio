@@ -614,7 +614,7 @@ def _schedule_fields(scheduled_at: datetime | None) -> dict[str, str]:
 def _article_error(err: FacebookError) -> FacebookError:
     if err.code in PERMISSION_ERRORS:
         return FacebookError(
-            "Token Facebook chưa có quyền đăng bài lên Page (pages_manage_posts), hãy dán token mới trong Quản lý Page",
+            "Token Facebook chưa có quyền đăng bài lên Page (pages_manage_posts), hãy dán token mới trong Quản lý kênh",
             err.detail,
             err.status,
             err.code,

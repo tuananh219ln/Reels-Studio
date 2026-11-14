@@ -10,7 +10,7 @@ import { api, type BrandRow, type VideoDetail } from "@/lib/api";
 
 /**
  * "Logo", first on a video's Thiết lập tab, in two rows: the switch with where the logo goes and whether it is on,
- * then the channel with "Quản lý Page". The logo sits in the platforms' safe zone, so one file serves Facebook,
+ * then the channel with "Quản lý kênh". The logo sits in the platforms' safe zone, so one file serves Facebook,
  * TikTok and YouTube (docs/decisions/2026-11-13-brand-logo.md). A posted video keeps its channel.
  */
 export default function LogoCard({
@@ -86,10 +86,10 @@ export default function LogoCard({
             value={video.brand?.id ?? null}
             options={options}
             onChange={(brandId: number | undefined) => onSave({ brand_id: brandId ?? null })}
-            notFoundContent={<Typography.Text type="secondary">Chưa có kênh: thêm logo ở Quản lý Page</Typography.Text>}
+            notFoundContent={<Typography.Text type="secondary">Chưa có kênh: thêm logo ở Quản lý kênh</Typography.Text>}
           />
           <Link prefetch={false} href="/fanpages" style={{ fontSize: 13 }}>
-            Quản lý Page <ArrowRightOutlined style={{ fontSize: 11 }} />
+            Quản lý kênh <ArrowRightOutlined style={{ fontSize: 11 }} />
           </Link>
         </div>
         {posted && (

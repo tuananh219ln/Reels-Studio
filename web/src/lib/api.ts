@@ -1639,3 +1639,138 @@ export type BrandRow = {
   logo_default_on: boolean;
   mine: boolean;
 };
+
+/** "Bài đăng"'s board (api posts_board.py): a platform a video may be on, and where it stands there. */
+export type BoardPlatform = "facebook" | "tiktok" | "youtube";
+export type PostState = "published" | "scheduled" | "publishing" | "pending_link" | "failed" | "removed" | "cancelled";
+/** Where a post came from: sent by the app, recorded with its link, or found on the Page (later). */
+export type PostSource = "app_api" | "manual_link" | "meta_suite";
+
+export type BoardCell = {
+  state: Exclude<PostState, "cancelled">;
+  views: number | null;
+  views_48h: number | null;
+  post_count: number;
+  /** "2 Page", "2 kênh", or the one post's channel. */
+  channel_label: string | null;
+  source: PostSource;
+  published_at: string | null;
+  scheduled_at: string | null;
+  pending_since: string | null;
+  /** Waiting for its link for more than a day. */
+  pending_stale: boolean;
+  error: string | null;
+  retry_job_id: number | null;
+  closed_at: string | null;
+  metrics_updated_at: string | null;
+};
+
+export type BoardItem = {
+  video: {
+    id: number;
+    name: string;
+    topic: string;
+    thumbnail_url: string | null;
+    created_by: string;
+    created_by_id: number;
+    rendered_at: string | null;
+    has_mp4: boolean;
+    /** Days since its render when it is still unposted after more than 3; null otherwise. */
+    unposted_days: number | null;
+  };
+  cells: Record<BoardPlatform, BoardCell | null>;
+  total_views: number | null;
+  views_48h: number | null;
+  latest_at: string | null;
+};
+
+export type BoardTab = "unposted" | "pending_link" | "scheduled" | "published" | "failed" | "closed" | "all";
+export type BoardSort = "latest" | "views" | "views_48h" | "oldest_render";
+
+export type Board = {
+  items: BoardItem[];
+  counts: Record<BoardTab, number>;
+  total: number;
+  next_cursor: string | null;
+  sort: BoardSort;
+};
+
+/** One post of a video, in its opened row on the board. */
+export type VideoPost = {
+  id: number;
+  platform: BoardPlatform;
+  state: PostState;
+  source: PostSource;
+  channel: string | null;
+  url: string | null;
+  published_at: string | null;
+  published_at_source: "api" | "user" | null;
+  scheduled_at: string | null;
+  pending_since: string | null;
+  views: number | null;
+  views_24h: number | null;
+  views_48h: number | null;
+  views_7d: number | null;
+  metrics_updated_at: string | null;
+  error: string | null;
+  retry_job_id: number | null;
+  created_by: string;
+  created_by_id: number;
+  /** A Facebook post's "Bài đăng" row, for its own actions (check, cancel, take down, comment). */
+  fb: PostRow | null;
+};
+
+export type VideoPosts = {
+  posts: VideoPost[];
+  /** Platforms with no post on its way, waiting or out. */
+  missing: BoardPlatform[];
+  captions: Record<BoardPlatform, string>;
+  mp4_download_url: string | null;
+};
+
+export type ChannelRef = { kind: "fanpage" | "tiktok" | "youtube"; id: number; name: string };
+export type LinkVideo = { id: number; name: string; thumbnail_url: string | null; score?: number };
+
+/** A pasted link as the api reads it, before anything is saved. */
+export type LinkPreview = {
+  input: string;
+  url: string | null;
+  platform: BoardPlatform | null;
+  external_id: string | null;
+  channel: ChannelRef | null;
+  /** The member's own Pages, for a Facebook link. */
+  channel_options: ChannelRef[];
+  title: string | null;
+  thumbnail_url: string | null;
+  published_at: string;
+  published_at_source: "api" | "user";
+  video: LinkVideo | null;
+  score: number | null;
+  suggestions: LinkVideo[];
+  existing_video: LinkVideo | null;
+  result: "matched" | "choose" | "unknown_channel" | "invalid" | "unreachable" | "duplicate";
+  message: string;
+};
+
+export type Channels = {
+  facebook: { id: number; name: string; owner_id: number | null }[];
+  tiktok: {
+    id: number;
+    name: string;
+    handle: string | null;
+    url: string | null;
+    owner_id: number;
+    owner: string | null;
+    connected: boolean;
+    post_count: number;
+  }[];
+  youtube: {
+    id: number;
+    name: string;
+    handle: string;
+    url: string;
+    created_by_id: number;
+    created_by: string;
+    post_count: number;
+  }[];
+};

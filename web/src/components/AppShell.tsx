@@ -47,7 +47,7 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
     label: "Đăng và kiếm tiền",
     children: [
       { key: "/posts", icon: <UnorderedListOutlined />, label: "Bài đăng" },
-      { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý Page" },
+      { key: "/fanpages", icon: <FacebookOutlined />, label: "Quản lý kênh" },
       { key: "/affiliate", icon: <ShoppingOutlined />, label: "Affiliate" },
     ],
   },

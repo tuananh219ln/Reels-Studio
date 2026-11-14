@@ -59,7 +59,7 @@ function TokenStatus({ data }: { data: PageDashboard }) {
         )}
         {check.error && (
           <Typography.Text type="danger" style={{ fontSize: 12 }}>
-            {check.error}. Dán token mới ở Quản lý Page.
+            {check.error}. Dán token mới ở Quản lý kênh.
           </Typography.Text>
         )}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
@@ -453,7 +453,7 @@ function FanpageDashboard() {
         title="Không tìm thấy Fanpage"
         extra={
           <Link prefetch={false} href="/fanpages">
-            Về Quản lý Page
+            Về Quản lý kênh
           </Link>
         }
       />
@@ -465,10 +465,10 @@ function FanpageDashboard() {
       <Link
         prefetch={false}
         href="/fanpages"
-        aria-label="Quay lại Quản lý Page"
+        aria-label="Quay lại Quản lý kênh"
         style={{ display: "inline-block", marginBottom: 8, fontSize: 13 }}
       >
-        <ArrowLeftOutlined /> Quản lý Page
+        <ArrowLeftOutlined /> Quản lý kênh
       </Link>
       <PageHeader
         title={data?.page.name ?? "Fanpage"}

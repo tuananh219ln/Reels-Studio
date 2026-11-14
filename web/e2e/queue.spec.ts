@@ -12,7 +12,7 @@ const GROUP = "Sức khỏe";
 
 /** The Page's "Đăng theo lịch", on its dashboard's "Lịch đăng" tab. */
 async function openPage(page: Page) {
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await page.getByRole("tab", { name: "Lịch đăng" }).click();
   return page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");
@@ -76,7 +76,7 @@ test("a Page's owner gives it a topic group and its own posting times on Quản 
   await expect(card.locator(".ant-select-selection-item", { hasText: "21:30" })).toHaveCount(1);
 
   // The member's own Pages are shown first on Quản lý Page, and their group is "của tôi" everywhere a group is picked.
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const whose = page.getByLabel("Trang nào");
   await expect(whose.getByRole("radio", { name: "Trang của tôi (1)" })).toBeChecked();
   await whose.getByText("Tất cả (1)").click();

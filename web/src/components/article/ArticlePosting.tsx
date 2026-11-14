@@ -200,7 +200,7 @@ export function PublishButton({
           <Flex vertical gap={4} align="flex-start">
             <Typography.Text data-testid="no-page-of-mine">{NO_PAGE_OF_MINE}</Typography.Text>
             <Link prefetch={false} href="/fanpages">
-              Mở Quản lý Page
+              Mở Quản lý kênh
             </Link>
           </Flex>
         ) : (

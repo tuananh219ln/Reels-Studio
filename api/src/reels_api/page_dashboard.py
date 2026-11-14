@@ -1,4 +1,4 @@
-"""One Page's dashboard on "Quản lý Page" (`/fanpages/{id}`), shaped like Facebook's Professional Dashboard but built only
+"""One Page's dashboard on "Quản lý kênh" (`/fanpages/{id}`), shaped like Facebook's Professional Dashboard but built only
 from what the app already keeps: the daily Page Insights (`fanpage_insights`), the daily followers (`fanpage_followers`)
 and the numbers of the posts the app made (`post_metrics`). Nothing here calls Facebook or is stored.
 

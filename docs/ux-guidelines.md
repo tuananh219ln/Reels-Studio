@@ -58,7 +58,7 @@ by its author or its Page owner (the API enforces the same rule); a teammate see
 
 Every list of the team's work starts on the member's own: Video (its creator filter), Bài viết, Bài đăng (list and
 calendar) and Jobs have "Của tôi / Cả đội" ([WhoseFilter](../web/src/components/WhoseFilter.tsx), with
-counts where the whole list is loaded), and Quản lý Page has "Trang của tôi / Tất cả". "Của tôi" is what the
+counts where the whole list is loaded), and Quản lý kênh has "Trang của tôi / Tất cả". "Của tôi" is what the
 member made; for a post or a comment, what is under a post they made or on a Page they own; for a job, what they
 started. The loaded lists start on "Của tôi" once the member has a row there and on "Cả đội" before, so a newcomer
 never opens an empty list; Jobs, read from the api a page at a time, starts on "Của tôi". "Cả đội"
@@ -140,7 +140,7 @@ two attributes per row.
   phẩm", "Tải MP4", never "OK", "Tiếp tục" or "Xác nhận" alone.
 - Sentence case everywhere ("Tạo video mới", not "Tạo Video Mới"); no all-caps.
 - An error says what went wrong and what to do next: "Token Fanpage đã hết hạn. Dán token mới trong
-  Quản lý Page.", not "Có lỗi xảy ra".
+  Quản lý kênh.", not "Có lỗi xảy ra".
 - Counts in numerals ("3 video"), the ellipsis is one character (`…`, never `...`), and a running
   state ends with it: "Đang tải…", "Đang render…".
 - A text box's placeholder is a search hint, a short instruction or an example and ends with `…`
@@ -232,7 +232,7 @@ are at least 36 px.
 
 **State in the URL.** A list page's search, filters, sort and tab are in the query string
 (`?q=…&status=…`), so a link to a filtered list or a reload shows the same thing: Video, Bài viết,
-Bài đăng (with "Danh sách | Lịch"), Jobs, Thành viên, Kho tư liệu, Thư viện nhạc, Quản lý Page and
+Bài đăng (with "Danh sách | Lịch"), Jobs, Thành viên, Kho tư liệu, Thư viện nhạc, Quản lý kênh and
 Affiliate (its tab too; changing tab clears the last tab's filters). A default is left out of the
 address, and "Của tôi / Cả đội" is written only once picked, so the list still starts on the
 member's own work. They are read with [useUrlChoice](../web/src/lib/urlState.ts), which replaces
@@ -263,7 +263,7 @@ Built:
   starts on the group the member last made a video in, else on one of their own); below it the topic. Wherever a Page
   is picked to post or queue a video or an article, only the member's own Pages are offered (a teammate's Page is
   not: only a Page's owner posts to it); with none, the picker gives way to a line on how to get one ("Bạn chưa có
-  Fanpage nào. Chỉ chủ Page mới đăng lên Page đó…", with "Mở Quản lý Page"). "Đăng bài" starts on the member's own
+  Fanpage nào. Chỉ chủ Page mới đăng lên Page đó…", with "Mở Quản lý kênh"). "Đăng bài" starts on the member's own
   Page of the video's group, else on the Page of theirs they last posted to. The last group and Page are kept on the server by account, so they follow the member to
   any device and never come from a teammate. The footer has a
   line naming the provider and model that will write the script ("Viết bằng: <nhà cung cấp>, <model>.
@@ -428,7 +428,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
   ("Page của tôi cho nhóm “…”" by default, the Page last chosen when the member has no Page of that group, or any
   Page in use) and "Tự bình luận"; once queued, the button
-  becomes "Trong hàng chờ của “Page”" (linking to Quản lý Page), with the reason when it could not be
+  becomes "Trong hàng chờ của “Page”" (linking to Quản lý kênh), with the reason when it could not be
   scheduled and "Bỏ khỏi hàng chờ"; it comes back once the worker has scheduled the post.
   "Render" and "Tạo ảnh AI cho cảnh thiếu" sit in the fixed header (there is no bar at the bottom), whose second row
   counts the red reasons still blocking the render ("Còn N lỗi cần sửa") and scrolls to the first
@@ -699,7 +699,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - the "Thiết lập" tab, every change saved at once. "Logo" comes first, two rows on a light brand tint: "Logo", the
     "Gắn logo vào video" switch (greyed until the channel has a logo), "Góc trên phải, trừ cảnh tiêu đề" in grey
     ("Chọn kênh để gắn logo" until a channel is chosen) and "Đang gắn"/"Chưa gắn" at the right; then "Kênh" (the
-    video's channel among the member's own, locked once the video is posted) with "Quản lý Page →" on the same row.
+    video's channel among the member's own, locked once the video is posted) with "Quản lý kênh →" on the same row.
     The other groups are panels that open and close, several
     at once, remembered per member in the browser ("Âm thanh" open the first time); a closed one shows its values in
     grey beside its name ("Có giọng đọc, 100%", "Wind hill, 25%", "Mờ dần, Zoom vào, Mạnh", "Không hộp, Cỡ nhỏ, Phụ
@@ -985,79 +985,48 @@ steps open the status card or the products block on its tab, the QC chip its pop
   refused a refresh), with "Đang dùng", "Sửa" (an empty Secret keeps the saved one) and "Xoá";
   "Kết nối TikTok" (TikTok's consent page, then back here with a message; the account is found by
   the TikTok username or made from it) and "Thêm tài khoản" are in the tab's header.
-- **Quản lý Page**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
+- **Quản lý kênh**: each Page card says whose it is ("Thuộc: <member>"). Its owner sees "Thuộc: bạn"
   and the Page's Shopee account, picked from their own; a Page that belongs to nobody has "Nhận Page
   này". A Page is not handed to another member from the app. Only the owner sets the Page's topic
   group and posting times and reorders its queue; others read them as a line.
 - **Bài đăng** and posting. Nothing is posted or approved here: a member reviews and posts a
   video from "Đăng" on its page; "Bài đăng" only retries a failed post. (The "Bình luận" page, which answered
   visitors' comments as the Page, went on 2026-11-10.)
-  - **Bài đăng** (`/posts`): a table with one row per video, so a video posted to two Pages or
-    posted again shows its title once. The row has the video's thumbnail (the title scene, or the
-    pale tile) and title, which open the video, "N bài đăng" with its Pages, one status tag per
-    status among its posts ("Đã đăng 2" for more than one), its total views and its latest time. Clicking the row opens its posts: the Fanpage with "Người đăng" under it; the time in Vietnam time, with who cancelled or
-    deleted it and when under it ("Hủy: …" or "Xóa: …", "Trên Facebook" when a check found it so);
-    "Đang đăng" (its publish job is still to run), "Thất bại" (red, with the job's reason under it in
-    red, cut to one line with the whole reason in a tooltip), "Đã hẹn lịch", "Đã đăng", "Đã hủy" or
-    "Đã xóa"; the views; then the same four icon buttons on every post, each with a tooltip: "Xem
-    Reel" (opens the reel once public), "Thử lại" (sends a failed post's job again), "Kiểm tra", and
-    "Hủy đăng" or "Xóa" with a confirmation. A button that does not apply to the post is greyed out,
-    its tooltip saying why ("Video đang chạy một việc khác (xem Nhật ký job)…" while its video has a job),
-    so the buttons line up from row to row. There is no grid here: posts are read
-    as numbers, and "Video" keeps the grid for working on videos.
-    A post's views stay on one line so rows stay short: the views (or "Chưa có view"), a yellow
-    warning icon when the last reading failed, and an icon-only "Cập nhật view" button, which asks
-    for a new reading and spins until the numbers arrive. Opening the page asks the same by itself for
-    the posts of the last 14 days not read in 15 minutes, so their buttons spin without a click. Shares, comments and reactions ("—" for
-    one Facebook does not give), when they were read ("Đo lúc", Vietnam time), the 48-hour views
-    with "Gấp N× trung vị Page (…)" or "Chưa đủ dữ liệu để so trung vị" and the share/view, the
-    "Chưa có số view, app tự đo sau khi đăng 1 giờ" note and the failed reading's reason sit in
-    tooltips, with "Xem TB N giây (N %), tiếp cận N" when Facebook gives them. A cancelled or deleted
-    post's last reading is history, not bold: "Lúc xóa: N view (đo lúc …)" (or "Lúc hủy"), its failed
-    reading said in words ("Lần đo cuối lỗi: …"), and its views add nothing to the video's "Tổng view"
-    and sort after every live post's. The video's page
-    shows the same numbers in full, with share/view green at 0,2 % or more, yellow under it. A post
-    with numbers has "Phân tích" (an icon button on "Bài đăng", a button on the video's page). It
-    opens "Phân tích bài đăng": views, average watch with its share of the posted length, reach,
-    first plays, replays, total watch time, follows, shares, comments and reactions ("—" for one
-    Facebook does not give); the retention curve ("Giữ chân người xem") over the reel, with a band
-    and label per scene of the posted MP4; and a table per scene (time, share still watching when
-    it starts, share lost during it), the scene losing most marked "mất nhiều nhất" in red. A post
-    made before scene marks were kept shows the curve without the table, saying why. A reel with no
-    curve yet says Facebook has none yet. Above the table, "Hiệu quả tuần này (từ T2 dd/mm)" (weeks start on Monday, Vietnam
-    time) with an ⓘ whose tooltip says every figure is taken 48 hours after posting, so posts are
-    compared at the same age. Then three cards with a light border and shadow (stacked on a
-    phone), each with an icon in a pale orange square, its name and a grey line saying what it
-    means, the figure large, and "Tuần trước: …" at the bottom with a green ↑ or red ↓ when this
-    week is above or below: "Bài đã đủ 48 giờ" (posts of the week with their 48-hour numbers), "View
-    phổ biến / bài" (the median: what an ordinary post reaches) and "Bài được chia sẻ tốt" ("N bài", with the share of posts at ≥ 2
-    shares per 1.000 views beside it). No figure is a bare "—": an orange line under it says why ("N
-    bài đang chờ đủ 48 giờ, sớm nhất …", "Chưa có bài nào đủ 48 giờ"), and the first card adds the posts still on their way. Under the cards, while a
-    Page has fewer than 5 measured posts in 60 days, a line per such Page with a 5-step bar ("2/5
-    bài") says how far it is from a median its posts can be compared with ("Gấp N× trung vị Page").
-    Between the KPIs and the table, two cards side by side (stacked on a phone), each listing up
-    to 5 videos with "Xem thêm": "Sẵn sàng đăng (N)", rendered videos whose MP4 is current and that
-    have no live or scheduled post, oldest first, each with "Đăng", which opens the video with its
-    "Đăng video" dialog already open (`?publish=`); and "Nhân bản (N)", Facebook videos that did well
-    (a post reached its Page's usual 48-hour views, or the Page has too few measured posts to say)
-    and can still be made again, most viewed first, with what each lacks ("chưa có bản TikTok",
-    "chưa có trên <Pages>"). Its "Nhân bản ▾" button opens a menu of what is left: "Bản TikTok" when
-    there is no TikTok version (`?clone=tiktok`), "Bản cho Page khác" when there is no Facebook clone
-    yet and a working Page lacks it (`?clone=page`, the clone drawer with a variant request filled
-    in). The request is dropped from the address at once. The same MP4 is never suggested for
-    another Page. An empty card says so, and that a variant for another Page needs at least two Pages
-    in use. A post updates
-    by itself once the worker has done it. The list's filters sit on its own card, under the KPIs and
-    the suggestions, which they do not filter (the one page whose filters are not under its title): status
-    tabs with counts across the card's top, "Đang hoạt động" (the default: on its way, failed, scheduled
-    and published), "Đã đăng", "Đã hẹn lịch", "Thất bại", "Đã hủy/xóa" and "Tất cả"; under them "Tìm
-    theo tiêu đề", the Fanpage filter ("Mọi Fanpage") and, at the right, "Sắp xếp" ("Giờ đăng mới nhất",
-    the default, or "Nhiều view nhất", posts not read yet last; videos follow their first post). The
-    counts follow the search and Fanpage filters. They filter the posts and keep the videos that still
-    have one. A tab leaves the other posts out
-    of the rows and their tags. "Không có bài đăng nào khớp" when nothing matches a filter, "Không
-    có bài nào đang hoạt động" when only cancelled or deleted posts are left. "Danh sách" and "Lịch",
-    at the right of the title, switch between the table and the calendar on the same page.
+  - **Bài đăng** (`/posts`), the multi-platform board ([decision](decisions/2026-11-14-posts-board.md)): every
+    rendered video and where it stands on Facebook, TikTok and YouTube Shorts. Under the title "Video đã render và
+    trạng thái đăng trên từng nền tảng…"; at its right "Cập nhật view" (asks the worker for the followed Facebook posts
+    not read in 15 minutes, as opening the page does), "Dán link bài đã đăng" and "Danh sách | Lịch". No weekly KPIs,
+    no "Sẵn sàng đăng" and no "Nhân bản" card any more (their api stays): the "Chưa đăng" tab is where a video waits,
+    and "Nhân bản" / "Nhân bản y hệt" sit in each row's "⋮" menu.
+    - **Tabs**, one count each (videos, under the other filters): "Chưa đăng" (no post on its way, scheduled, waiting
+      for its link or out; oldest render first), "Chờ dán link", "Đã hẹn lịch", "Đã đăng", "Thất bại", "Đã gỡ/hủy" and
+      "Tất cả" (the default). A video may be in several. **Filters** under them: "Tìm theo tiêu đề", "Của tôi / Cả
+      đội" (the video's maker; "Cả đội" by default), "Nền tảng" (the tabs and counts then read that platform's posts
+      only), "Chưa có trên …" (no post out, scheduled or waiting on that platform), "Kênh" (Pages, TikTok accounts,
+      YouTube channels, several at once), a date range (posting date; render date on "Chưa đăng") and at the right
+      "Sắp xếp" ("Mới nhất", "Tổng view", "View 48h", "Render cũ nhất"). The tab, filters and page are in the address.
+    - **Rows**: "Video" (thumbnail, name opening the video, "maker · render dd/MM", in red "· chưa đăng N ngày" past 3
+      days), then a cell per platform, "Tổng view" and the "⋮" menu. A cell shows the first of: out ("N view", under it
+      "N Page"/"N kênh" or the channel and "48h: N", with a source chip "API" blue, "Meta Suite" light blue, "Link tay"
+      purple; "— view · Đăng dd/MM hh:mm · chờ số liệu" before a reading; the last reading's time in a tooltip),
+      "Hẹn lịch" (time · channel), "Đang đăng…", "Chờ dán link" (a yellow box, "Tải MP4 dd/MM · Nh trước", in red
+      "quá 24h" after a day; it opens the paste window for that video and platform), "Thất bại" (red, its reason in a
+      tooltip, "Thử lại"), "Đã gỡ" ("Link không còn truy cập · dd/MM"). With no post: Facebook "Đăng / Hẹn giờ" (opens
+      the video with "Đăng bài" open), TikTok and YouTube "Tải MP4" (marks it "Chờ dán link", then downloads) and a
+      dashed "+ Dán link". Dots: green out, orange waiting, red failed or gone, grey cancelled.
+    - **An opened row** lists each post: platform, state with its source chip, channel and "Xem bài ↗", who cancelled
+      or deleted a Facebook post ("Hủy: …"/"Xóa: …"), posting time ("tự lấy" when read from the platform), 24h, 48h
+      and 7 days ("—" until the schedule of readings fills them, part 2), its views (a Facebook post keeps "Cập nhật
+      view", the tooltip of numbers and "Phân tích bài đăng"), and its actions: a Facebook post the four icon buttons
+      ("Xem Reel", "Thử lại", "Kiểm tra", "Hủy đăng"/"Xóa"); a post recorded by link "Sửa link" and "Gỡ" (out of the
+      app only, by whoever recorded it); one waiting "Dán link" and "Hủy chờ"; a platform with none "Chưa đăng" with
+      "Tải MP4" and "Copy caption" (the TikTok caption for TikTok).
+    - **"Dán link bài đã đăng"**: 1–50 links, one per line, read 400 ms after typing stops. A row per link: the link,
+      "Nền tảng · Kênh" (a Page picker for Facebook: the member's own Pages), the video ("✓ Khớp N%" picked by itself
+      at 85 % and 10 points ahead, else "? Cần chọn tay" with suggestions and every video to search), the posting time
+      (now by default, editable, Vietnam time) and the result ("✕ Kênh chưa khai báo" with "Thêm kênh", "✕ Link không
+      hợp lệ", "✕ Không truy cập được", "✕ Đã có trong hệ thống" with the video it is on). From a cell the video is
+      fixed. "Lưu N link" saves the lines ready; "Đã lưu N link".
   - **Lịch** (`/posts?view=calendar`; `/calendar` redirects there), after the content calendar of
     Meta's creator dashboard: a title naming the range ("2–8 tháng 11, 2026", "Tháng 11, 2026",
     "Thứ tư, 4 tháng 11, 2026") over "Giờ Việt Nam" and the legend (a dot for "Đã hẹn lịch" and
@@ -1136,7 +1105,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
     side (three across from 1600 px): Cloudflare (a Workers AI API token) and Gemini, each with its
     model and "Mặc định" on the default one, and ElevenLabs, the narration key. A
     missing or rejected ElevenLabs key is shown on the voice picker with a link "Mở Nguồn tư liệu".
-  - **Quản lý Page** (`/fanpages`, under "Đăng và kiếm tiền" in the menu): "Trang nào" chooses
+  - **Quản lý kênh** (`/fanpages`, under "Đăng và kiếm tiền" in the menu; "Quản lý Page" before 2026-11-14). Under the
+    Pages, "Kênh TikTok và YouTube": "Link kênh TikTok hoặc YouTube" and "Thêm kênh" (a TikTok channel becomes the
+    member's TikTok account; a YouTube one a channel, removed by whoever added it), each listed with its link, who
+    added it, its posts and, for TikTok, "Đã kết nối"/"Chưa kết nối". "Trang nào" chooses
     "Trang của tôi (N)" (the member's own Pages; the default once they own one in use) or "Tất cả (N)"; on
     "Trang của tôi" without one, the empty card has "Xem tất cả Page", to take one. With no Page at all, it says
     "Chưa kết nối Fanpage nào" with "Kết nối Page đầu tiên", named apart from the header's "Thêm Fanpage". Then a line of counts (đang
@@ -1159,7 +1131,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     Pages it manages (a sole Page is ticked, one it cannot post to is greyed out), and "Lưu" keeps
     the chosen ones. A stopped Page cannot be posted to.
   - **A Page's dashboard** (`/fanpages/[id]`, modelled on Facebook's Professional Dashboard, built from what the
-    app already reads): "← Quản lý Page" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
+    app already reads): "← Quản lý kênh" above the Page's name; at the title's right "7 ngày / 28 ngày / 90 ngày"
     (28 at first, hidden on "Lịch đăng", which looks ahead) and "Kiểm tra ngay"; on "Lịch đăng" the grey line says
     that a queued video is scheduled at the nearest free posting time within 48 hours and moves to "Đã lên lịch";
     elsewhere a grey line naming the period (Vietnam time, today included) and that each
@@ -1206,7 +1178,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     sources, unfollows, 3-second and 1-minute views). An unknown Page shows "Không tìm thấy Fanpage".
 
 The menu (built, 2026-11-10) is four groups, each under a small grey heading that cannot be folded, in the order of
-the work: **Tạo nội dung** (Video, Bài viết), **Đăng và kiếm tiền** (Bài đăng, Quản lý Page, Affiliate), **Tài
+the work: **Tạo nội dung** (Video, Bài viết), **Đăng và kiếm tiền** (Bài đăng, Quản lý kênh, Affiliate), **Tài
 nguyên** (Kho kiến thức, Kho tư liệu, Thư viện nhạc) and **Quản trị** (Quản lý người dùng, Nhật ký job, Cài đặt).
 No menu item opens a sub-menu.
 
