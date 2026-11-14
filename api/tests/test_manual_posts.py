@@ -102,3 +102,26 @@ def test_the_video_list_says_every_platform_the_video_is_out_on(an, db, me, stor
     an.post(f"{POSTS}/videos/{video.id}", json={"platform": "youtube", "url": "https://youtu.be/AbCdEf12345"})
     row = next(row for row in an.get("/api/videos").json() if row["id"] == video.id)
     assert row["posted_on"] == ["youtube"]
+
+
+def test_the_video_list_links_each_platform_to_its_post(an, db, me, storage):
+    from reels_api.models import Publication
+
+    video = rendered(db, storage, me)
+    an.post(f"{POSTS}/videos/{video.id}", json={"platform": "youtube", "url": "https://youtu.be/AbCdEf12345"})
+    db.add(
+        Publication(
+            video_id=video.id,
+            platform="facebook",
+            status="published",
+            remote_id="123456789012",
+            created_by_id=me.id,
+        )
+    )
+    db.commit()
+    row = next(row for row in an.get("/api/videos").json() if row["id"] == video.id)
+    assert row["posted_links"] == {
+        "facebook": "https://www.facebook.com/reel/123456789012",
+        "youtube": "https://youtu.be/AbCdEf12345",
+    }
+    assert an.get(f"/api/videos/{video.id}").json()["posted_links"] == row["posted_links"]

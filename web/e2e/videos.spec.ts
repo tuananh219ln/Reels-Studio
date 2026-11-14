@@ -1464,6 +1464,8 @@ test("Đăng bài: a Facebook video's MP4 goes to TikTok and YouTube Shorts from
   await page.getByRole("menuitem", { name: "Video" }).click();
   const platforms = page.getByTestId("video-card").first().getByTestId("posted-platforms");
   await expect(platforms.locator('[data-platform="youtube"]')).toHaveAttribute("data-posted", "true");
+  // The icon opens that post: the link the member recorded.
+  await expect(platforms.getByRole("link", { name: "Mở bài trên YouTube" })).toHaveAttribute("href", /^https:\/\//);
   // Only the platforms it is out on are shown.
   await expect(platforms.locator('[data-platform="instagram"]')).toHaveCount(0);
 });

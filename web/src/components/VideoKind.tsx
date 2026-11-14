@@ -72,7 +72,16 @@ const PLATFORMS = [
 ] as const;
 
 /** "Đã đăng": one icon per platform, in its colour where the video is out, grey where it is not. */
-export function PostedPlatforms({ postedOn, size = 16 }: { postedOn: VideoRow["posted_on"]; size?: number }) {
+export function PostedPlatforms({
+  postedOn,
+  links,
+  size = 16,
+}: {
+  postedOn: VideoRow["posted_on"];
+  /** Each platform's post link: the icon then opens that post in a new tab (its tooltip says so). */
+  links?: VideoRow["posted_links"];
+  size?: number;
+}) {
   const out = new Set(postedOn);
   const shown = PLATFORMS.filter((platform) => out.has(platform.key));
   // Only where it is out: grey icons for the others read as posted, or as buttons (screen review 2026-11-12).
@@ -90,11 +99,29 @@ export function PostedPlatforms({ postedOn, size = 16 }: { postedOn: VideoRow["p
       data-testid="posted-platforms"
       aria-label={`Đã đăng: ${shown.map((platform) => platform.name).join(", ")}`}
     >
-      {shown.map(({ key, name, Icon, color }) => (
-        <Tooltip key={key} title={`Đã đăng ${name}`}>
-          <Icon data-platform={key} data-posted="true" style={{ fontSize: size, color }} />
-        </Tooltip>
-      ))}
+      {shown.map(({ key, name, Icon, color }) => {
+        const url = links?.[key];
+        const icon = <Icon data-platform={key} data-posted="true" style={{ fontSize: size, color }} />;
+        return (
+          <Tooltip key={key} title={url ? `Mở bài trên ${name}` : `Đã đăng ${name}`}>
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Mở bài trên ${name}`}
+                // A row that opens on click must not open too.
+                onClick={(event) => event.stopPropagation()}
+                style={{ display: "inline-flex", lineHeight: 1 }}
+              >
+                {icon}
+              </a>
+            ) : (
+              icon
+            )}
+          </Tooltip>
+        );
+      })}
     </Flex>
   );
 }

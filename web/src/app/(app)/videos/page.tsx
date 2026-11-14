@@ -714,7 +714,7 @@ function VideoCard({
           <Flex justify="space-between" align="flex-start" gap={8} style={{ marginTop: 6 }}>
             <VideoKindTags video={row} />
             <div style={{ flex: "none", paddingTop: 2 }}>
-              <PostedPlatforms postedOn={row.posted_on} size={13} />
+              <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} size={13} />
             </div>
           </Flex>
           {post ? (
@@ -867,7 +867,7 @@ function VideoTable({
                       {row.post.state === "posted" ? "Đã đăng" : "Đã lên lịch"}
                     </StatusText>
                   )}
-                  <PostedPlatforms postedOn={row.posted_on} />
+                  <PostedPlatforms postedOn={row.posted_on} links={row.posted_links} />
                 </Flex>
                 <VideoKindTags video={row} />
                 <VersionLinks versions={versions.get(row.id) ?? []} />
