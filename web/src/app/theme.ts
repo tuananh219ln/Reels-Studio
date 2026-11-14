@@ -93,7 +93,7 @@ export const theme: ThemeConfig = {
       defaultHoverBorderColor: COLORS.primary,
       defaultActiveColor: COLORS.primary,
       defaultActiveBorderColor: COLORS.primary,
-      // Link buttons ("Mở tất cả", "Tùy chọn khác") are text: the deep orange.
+      // Link buttons ("Mở tất cả", "Render lại") are text: the deep orange.
       colorLink: COLORS.primary,
     },
     Card: { headerFontSize: 15, headerHeight: 52 },

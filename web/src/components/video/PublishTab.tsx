@@ -1,13 +1,13 @@
 "use client";
 
 import { Badge, Flex, Tabs } from "antd";
-import type { ContextType } from "react";
+import { useState, type ContextType } from "react";
 import type { VideoDetail } from "@/lib/api";
 import { EditorContext } from "./AutoSaveField";
 import PostContent, { EngageContent } from "./PostContent";
 import type { PostStep } from "./postRound";
 import SetupTab from "./SetupTab";
-import StatusCard from "./StatusCard";
+import StatusCard, { type DrawerRequest } from "./StatusCard";
 
 export type SideTab = "post" | "engage" | "setup";
 
@@ -39,6 +39,8 @@ export default function PublishTab({
   /** "Render lại", as the header's button. */
   onRender: () => void;
 }) {
+  // "Tùy chọn đăng khác" in "Thiết lập": back on "Đăng bài", its card's drawer opens on the video's platform.
+  const [drawerRequest, setDrawerRequest] = useState<DrawerRequest | null>(null);
   return (
     <Tabs
       className="side-tabs"
@@ -51,7 +53,14 @@ export default function PublishTab({
           forceRender: true,
           children: (
             <Flex vertical gap={12} data-testid="publish-tab">
-              <StatusCard video={video} onApproved={onApproved} posting={posting} onPost={onPost} onRender={onRender} />
+              <StatusCard
+                video={video}
+                onApproved={onApproved}
+                posting={posting}
+                onPost={onPost}
+                onRender={onRender}
+                drawerRequest={drawerRequest}
+              />
               <EditorContext.Provider value={postEditor}>
                 <PostContent video={video} />
               </EditorContext.Provider>
@@ -79,7 +88,20 @@ export default function PublishTab({
             </EditorContext.Provider>
           ),
         },
-        { key: "setup", label: "Thiết lập", forceRender: true, children: <SetupTab video={video} /> },
+        {
+          key: "setup",
+          label: "Thiết lập",
+          forceRender: true,
+          children: (
+            <SetupTab
+              video={video}
+              onMoreOptions={() => {
+                onTab("post");
+                setDrawerRequest({ platform: video.platform, at: Date.now() });
+              }}
+            />
+          ),
+        },
       ]}
     />
   );

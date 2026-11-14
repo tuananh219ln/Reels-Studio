@@ -8,9 +8,9 @@ import {
   LoadingOutlined,
   TikTokOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, Collapse, Flex, Input, Modal, Radio, Select, Typography } from "antd";
+import { App, Button, Card, Collapse, Flex, Input, Modal, Radio, Select, Tooltip, Typography } from "antd";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
 import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
 import { useMe } from "@/components/MeContext";
@@ -79,8 +79,8 @@ const STATUS: Record<Exclude<PanelState, "no-mp4">, { text: string; color: strin
 function PlatformBadge({ platform }: { platform: PlatformKey }) {
   const glyph = {
     facebook: <span style={{ fontWeight: 700, fontSize: 13, fontFamily: "Arial, sans-serif" }}>f</span>,
-    tiktok: <TikTokOutlined style={{ fontSize: 11 }} />,
-    youtube: <CaretRightFilled style={{ fontSize: 11 }} />,
+    tiktok: <TikTokOutlined style={{ fontSize: 12 }} />,
+    youtube: <CaretRightFilled style={{ fontSize: 12 }} />,
     instagram: <InstagramOutlined style={{ fontSize: 12 }} />,
   }[platform];
   return (
@@ -89,6 +89,9 @@ function PlatformBadge({ platform }: { platform: PlatformKey }) {
     </span>
   );
 }
+
+/** Opens the status card's posting drawer on a platform's tab, again each time `at` changes. */
+export type DrawerRequest = { platform: PlatformKey; at: number };
 
 /**
  * The "Đăng bài" tab's first card (docs/decisions/2026-11-14-publish-panel.md): a header with where the video stands,
@@ -101,20 +104,24 @@ export default function StatusCard({
   posting,
   onPost,
   onRender,
+  drawerRequest = null,
 }: {
   video: VideoDetail;
   onApproved: () => void;
   posting: boolean;
   onPost: (steps: PostStep[]) => void;
   onRender: () => void;
+  /** "Tùy chọn đăng khác" in the "Thiết lập" tab: opens the drawer each time `at` changes. */
+  drawerRequest?: DrawerRequest | null;
 }) {
   const mp4 = video.mp4;
   const results = platformResults(video);
   const count = postCount(results);
   const state = panelState(video, results, posting);
-  // A YouTube Shorts or Instagram row opens "Tùy chọn khác" on its tab, where a post made by hand is recorded.
-  const [request, setRequest] = useState<{ platform: PlatformKey; at: number } | null>(null);
-  const more = <PublishButton video={video} label="Tùy chọn khác" type="link" request={request} />;
+  // A YouTube Shorts or Instagram row opens the posting drawer on its tab, where a post made by hand is recorded. The
+  // drawer has no button on this card: "Tùy chọn đăng khác" is in the "Thiết lập" tab. The newer request opens it.
+  const [rowRequest, setRequest] = useState<DrawerRequest | null>(null);
+  const request = (rowRequest?.at ?? 0) >= (drawerRequest?.at ?? 0) ? rowRequest : drawerRequest;
   const rendering = video.active_job?.kind === "render";
   // The newest Facebook post that is out or due carries the pinned comment's state.
   const open = video.publications.find((post) => post.status === "published" || post.status === "scheduled");
@@ -154,8 +161,7 @@ export default function StatusCard({
     />
   );
 
-  // One card whatever the state, "Tùy chọn khác" always in the same place: a post recorded in its drawer changes the
-  // card without closing the drawer.
+  // One card whatever the state: a post recorded in the drawer changes the card without closing the drawer.
   return (
     <Card
       size="small"
@@ -205,12 +211,12 @@ export default function StatusCard({
           </Flex>
         </div>
       )}
-      <Flex justify="space-between" align="center" wrap style={{ marginTop: 4 }}>
-        {mp4 ? more : null}
-        {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+      {mp4 && <PublishButton video={video} request={request} trigger={false} />}
+      {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+        <Flex justify="flex-end" style={{ marginTop: 8 }}>
           <ApproveVideoButton videoId={video.id} onDone={onApproved} />
-        )}
-      </Flex>
+        </Flex>
+      )}
       {history}
     </Card>
   );
@@ -454,7 +460,7 @@ function storedPlatforms(key: string): PlatformKey[] | null {
 /**
  * The platforms as rows, "Đăng ngay" or "Hẹn giờ", and "Đăng lên N nền tảng". Facebook and TikTok are posted by the
  * app (Facebook to the member's Page, TikTok as a draft to the member's connected account's inbox), one after the
- * other; YouTube Shorts and Instagram are posted by hand, so their rows open "Tùy chọn khác" to record the link.
+ * other; YouTube Shorts and Instagram are posted by hand, so their rows open the posting drawer to record the link.
  * `compact`: a video already tried offers only "+ Đăng thêm", for another platform.
  */
 function Platforms({
@@ -473,6 +479,7 @@ function Platforms({
   const { modal } = App.useApp();
   const { me } = useMe();
   const editor = useEditor();
+  const hintId = useId();
   const results = platformResults(video);
   const tried = new Set(results.filter((result) => result.state !== "err").map((result) => result.platform));
   const storeKey = `reels:publish-platforms:${me.id}`;
@@ -588,21 +595,26 @@ function Platforms({
   const option = (platform: PlatformKey) => {
     const label = PLATFORM_LABELS[platform];
     if (!AUTO_PLATFORMS.includes(platform)) {
-      // Posted by hand: the row opens "Tùy chọn khác" on its tab to record the post's link.
+      // Posted by hand: the row opens the posting drawer on its tab to record the post's link.
       return (
-        <button
-          key={platform}
-          type="button"
-          className="platform-option"
-          data-testid={`platform-option-${platform}`}
-          disabled={video.locked}
-          onClick={() => onManual({ platform, at: Date.now() })}
-        >
-          <PlatformBadge platform={platform} />
-          <span className="platform-option__name">{label}</span>
-          <span className="platform-option__hint">· Đăng tay</span>
-          <ExportOutlined className="platform-option__end" aria-hidden />
-        </button>
+        <Tooltip key={platform} title="Đăng tay">
+          <button
+            type="button"
+            className="platform-option platform-option--manual"
+            data-testid={`platform-option-${platform}`}
+            aria-label={`${label}, đăng tay, mở ô ghi link bài`}
+            aria-describedby={`${hintId}-${platform}`}
+            disabled={video.locked}
+            onClick={() => onManual({ platform, at: Date.now() })}
+          >
+            <PlatformBadge platform={platform} />
+            <span className="platform-option__name">{label}</span>
+            <span id={`${hintId}-${platform}`} hidden>
+              Đăng tay
+            </span>
+            <ExportOutlined className="platform-option__end" aria-hidden />
+          </button>
+        </Tooltip>
       );
     }
     const done = tried.has(platform);
@@ -615,27 +627,34 @@ function Platforms({
         : platform === "tiktok"
           ? "Nháp vào hộp thư"
           : null;
+    // Only the badge and the name show; the hint is the row's tooltip and the checkbox's description.
     return (
-      <label
-        key={platform}
-        className="platform-option"
-        data-testid={`platform-option-${platform}`}
-        data-checked={checked}
-        data-disabled={disabled}
-      >
-        <PlatformBadge platform={platform} />
-        <span className="platform-option__name">{label}</span>
-        {hint && <span className="platform-option__hint">· {hint}</span>}
-        <input
-          type="checkbox"
-          className="platform-option__check platform-option__end"
-          checked={checked}
-          disabled={disabled}
-          onChange={() =>
-            setChosen(chosen.includes(platform) ? chosen.filter((item) => item !== platform) : [...chosen, platform])
-          }
-        />
-      </label>
+      <Tooltip key={platform} title={hint}>
+        <label
+          className="platform-option"
+          data-testid={`platform-option-${platform}`}
+          data-checked={checked}
+          data-disabled={disabled}
+        >
+          <PlatformBadge platform={platform} />
+          <span className="platform-option__name">{label}</span>
+          {hint && (
+            <span id={`${hintId}-${platform}`} hidden>
+              {hint}
+            </span>
+          )}
+          <input
+            type="checkbox"
+            className="platform-option__check"
+            aria-describedby={hint ? `${hintId}-${platform}` : undefined}
+            checked={checked}
+            disabled={disabled}
+            onChange={() =>
+              setChosen(chosen.includes(platform) ? chosen.filter((item) => item !== platform) : [...chosen, platform])
+            }
+          />
+        </label>
+      </Tooltip>
     );
   };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { App, Collapse, Flex, Typography } from "antd";
+import { App, Button, Collapse, Flex, Typography } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 import { COLORS } from "@/app/theme";
@@ -40,8 +40,8 @@ function writeOpen(memberId: number, open: Section[]) {
  * comes first, in two rows; the other groups open and close, each showing its current values in one line while
  * closed, so they are read without opening.
  */
-export default function SetupTab({ video }: { video: VideoDetail }) {
-  const { message } = App.useApp();
+export default function SetupTab({ video, onMoreOptions }: { video: VideoDetail; onMoreOptions: () => void }) {
+  const { message, modal } = App.useApp();
   const { me } = useMe();
   const editor = useEditor();
   const [busy, setBusy] = useState(false);
@@ -126,6 +126,35 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
           ),
         ]}
       />
+      {/* The posting drawer with every platform's own options (a Page's queue, TikTok posted directly, a post made by
+          hand): it opens over the "Đăng bài" tab, so what was posted shows on its card once the drawer closes. */}
+      {video.mp4 && (
+        <Flex vertical gap={4} align="flex-start" data-testid="setup-publish">
+          <Typography.Text strong>Đăng bài</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Hàng chờ của Page, đăng thẳng lên TikTok, ghi lại bài đã đăng tay.
+          </Typography.Text>
+          <Button
+            disabled={video.locked}
+            onClick={() => {
+              // A red QC check does not stop posting, but the member says so first.
+              if (video.mp4?.qc?.status !== "fail") {
+                onMoreOptions();
+                return;
+              }
+              modal.confirm({
+                title: "MP4 chưa đạt kiểm tra chất lượng",
+                content: "Còn mục đỏ trong QC ở đầu trang. Nên sửa rồi render lại; vẫn đăng bản này?",
+                okText: "Vẫn đăng",
+                cancelText: "Huỷ",
+                onOk: onMoreOptions,
+              });
+            }}
+          >
+            Tùy chọn đăng khác
+          </Button>
+        </Flex>
+      )}
       {/* At the foot of the panel, in view however far its groups are scrolled. */}
       <Flex
         vertical
