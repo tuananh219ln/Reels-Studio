@@ -111,7 +111,7 @@ export default function StatusCard({
   posting: boolean;
   onPost: (steps: PostStep[]) => void;
   onRender: () => void;
-  /** "Tùy chọn đăng khác" in the "Thiết lập" tab: opens the drawer each time `at` changes. */
+  /** "Tùy chọn đăng khác" under this card on "Đăng bài": opens the drawer each time `at` changes. */
   drawerRequest?: DrawerRequest | null;
 }) {
   const mp4 = video.mp4;
@@ -119,7 +119,7 @@ export default function StatusCard({
   const count = postCount(results);
   const state = panelState(video, results, posting);
   // A YouTube Shorts or Instagram row opens the posting drawer on its tab, where a post made by hand is recorded. The
-  // drawer has no button on this card: "Tùy chọn đăng khác" is in the "Thiết lập" tab. The newer request opens it.
+  // drawer has no button on this card: "Tùy chọn đăng khác" sits under it. The newer request opens it.
   const [rowRequest, setRequest] = useState<DrawerRequest | null>(null);
   const request = (rowRequest?.at ?? 0) >= (drawerRequest?.at ?? 0) ? rowRequest : drawerRequest;
   const rendering = video.active_job?.kind === "render";

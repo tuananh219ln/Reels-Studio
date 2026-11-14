@@ -189,3 +189,17 @@ def test_a_half_frame_photo_shows_for_its_seconds_over_the_top_half_on_a_slide_v
     assert top[0] > 180 and top[2] < 100 and bottom[2] > 150 and side[2] > 150
     for at in (1.5, 3.6):
         assert extract_frame(output, at, tmp_path / "other.png").getpixel((540, 480))[2] > 150
+
+
+def test_the_kitchen_stickers_are_offered_with_the_others():
+    from reels_render.layers import KITCHEN_STICKERS
+
+    assert set(KITCHEN_STICKERS) <= set(STICKERS)
+    assert [STICKERS[name].label for name in KITCHEN_STICKERS] == [
+        "Lá xanh",
+        "Bát canh",
+        "Đôi đũa",
+        "Chén trà",
+        "Quả táo",
+        "Bông hoa",
+    ]

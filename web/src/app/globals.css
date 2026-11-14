@@ -157,10 +157,10 @@ body {
   column-gap: 12px;
 }
 
-/* Video page: the side panel's tabs ("Đăng bài", "Thiết lập") stay at its top while it scrolls. */
+/* Video page: the side panel's tabs ("Đăng bài", "Thiết lập") stay just under the page header while the page scrolls. */
 .side-panel .side-tabs > .ant-tabs-nav {
   position: sticky;
-  top: 0;
+  top: var(--side-top, 0);
   z-index: 5;
   /* theme.ts COLORS.layout */
   background: #f6f6f7;

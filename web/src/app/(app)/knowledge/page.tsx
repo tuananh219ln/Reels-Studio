@@ -44,6 +44,7 @@ import TopicMedia from "@/components/knowledge/TopicMedia";
 import TopicSchedule from "@/components/knowledge/TopicSchedule";
 import StockOrderCard from "@/components/knowledge/StockOrderCard";
 import GroupVideoModeCard from "@/components/knowledge/GroupVideoModeCard";
+import GroupNoPeopleCard from "@/components/knowledge/GroupNoPeopleCard";
 import GroupTextLookCard from "@/components/knowledge/GroupTextLookCard";
 import { usePlanTabs } from "@/components/plan/PlanTab";
 import { VoicePicker } from "@/components/video/VideoSettings";
@@ -584,6 +585,7 @@ function TopicBody({
                     <Col xs={24} xl={12}>
                       <Flex vertical gap={16}>
                         <GroupVideoModeCard topic={topic} update={update} />
+                        <GroupNoPeopleCard topic={topic} update={update} />
                         <GroupVoiceCard topicId={topic.id} initial={topic.voice_id} update={update} reload={reload} />
                         <GroupTemplatesCard topic={topic} update={update} />
                       </Flex>

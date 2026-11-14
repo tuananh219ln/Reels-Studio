@@ -26,3 +26,28 @@ Nhiệm vụ: bổ sung ảnh/clip cho các cảnh còn thiếu trong video củ
 Notes: clips and photos are other people's, so the member is responsible for rights (the same as pasting a link);
 scenes the assistant fills keep their source link and the "check again" mark. YouTube may refuse downloads from the
 server; the assistant then falls back to Pexels, Pixabay and photos.
+
+## The clip flow with TikTok (owner, 2026-11-15)
+
+Run by message ("lấy clip TikTok cho video 170") or inside a building job, by an assistant that has a browser. The
+common part, then the page's own appendix.
+
+```text
+LUỒNG GẮN CLIP (chung mọi nhóm)
+1. Đọc video ("Đọc video"): no_people cho biết nhóm có bật "Không dùng cảnh có người".
+2. Tìm link TikTok bằng trình duyệt: https://www.tiktok.com/search/video?q=<từ khóa>, lấy khoảng 8 link /video/.
+   CAPTCHA thì dừng phần TikTok và báo, không vượt chặn.
+3. "Thêm vào kho từ link" (urls, tối đa 10 mỗi lần); link lỗi thì bỏ.
+4. "Xem nhiều khung hình của clip" (media_id, start, seconds = thời lượng cảnh): soát CẢ ĐOẠN, chọn đoạn đúng đối
+   tượng và hành động, không chữ to của tác giả; no_people=true thì không có mặt hay thân người (bàn tay thì được).
+5. "Gắn clip cho cảnh" (scene_id, media_id, video_start, blur = vùng @tên kênh hay chữ dính): app giữ thời lượng
+   cảnh, dời chữ của cảnh lên chỗ mờ và tự thêm sticker che phần còn lộ; xem ảnh trả về.
+6. Render khi đã được phép; xem khung MP4 ở giữa mỗi cảnh. Còn lỗi thì sửa rồi render lại.
+
+PHỤ LỤC ĂN LÀNH: mỗi cảnh nội dung và cảnh tiêu đề một clip đúng món (ngày slides; ngày single giữ ảnh tĩnh);
+no_people bật: không người; từ khóa = keywords[0] tiếng Việt của cảnh.
+
+PHỤ LỤC THREADS: chỉ clip nền ở cảnh tiêu đề, theo vibe (V1 lưới tối, V2 ấm cúng, V3 minecraft parkour không chữ,
+V4 mukbang; V5, V6 dùng ảnh tĩnh); không áp luật người; cảnh không chữ nên không dời chữ, không sticker; sau
+"Sửa nội dung đăng" đọc lại caption và hashtag bằng "Đọc video".
+```

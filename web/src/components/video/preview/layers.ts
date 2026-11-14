@@ -16,6 +16,12 @@ export const STICKERS: { value: string; label: string }[] = [
   { value: "new", label: "Nhãn MỚI" },
   { value: "hot", label: "Nhãn HOT" },
   { value: "sale", label: "Nhãn SALE" },
+  { value: "leaf", label: "Lá xanh" },
+  { value: "bowl", label: "Bát canh" },
+  { value: "chopsticks", label: "Đôi đũa" },
+  { value: "tea", label: "Chén trà" },
+  { value: "apple", label: "Quả táo" },
+  { value: "flower", label: "Bông hoa" },
 ];
 
 export const TEXT_STYLES = [
