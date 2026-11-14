@@ -399,6 +399,11 @@ class FakeServices:
         self.tiktok_post_fails = False  # the final status is FAILED
         self.tiktok_posts: dict[str, dict] = {}
         self.tiktok_calls: list[str] = []  # the path of every TikTok call, in order
+        # The scopes a token is granted; add ",video.list" for the app once TikTok approved it.
+        self.tiktok_scope = "user.info.basic,video.upload,video.publish"
+        # video.query: numbers by video id (else 500 views); an id in `tiktok_videos_gone` is left out.
+        self.tiktok_videos: dict[str, dict] = {}
+        self.tiktok_videos_gone: set[str] = set()
         # oEmbed answers by the post's link ("Dán link bài đã đăng"): one set here, else a plain answer naming the
         # TikTok account in the link (YouTube: @anngon); a link in `oembed_gone` answers 404, as a removed post.
         self.oembed: dict[str, dict] = {}
@@ -1492,7 +1497,7 @@ class FakeServices:
             self.tiktok_refresh[refresh] = open_id
         return {
             "open_id": open_id,
-            "scope": "user.info.basic,video.upload,video.publish",
+            "scope": self.tiktok_scope,
             "access_token": access,
             "expires_in": self.tiktok_expires_in,
             "refresh_token": refresh,
@@ -1531,6 +1536,25 @@ class FakeServices:
         if open_id is None:
             return self._tiktok_failed(401, "access_token_invalid", "The access token is invalid or not found.")
         ok = {"code": "ok", "message": "", "log_id": "fake-log"}
+        if path == "/v2/video/query/":
+            if "video.list" not in self.tiktok_scope.split(","):
+                return self._tiktok_failed(401, "scope_not_authorized", "The user did not authorize video.list")
+            ids = (body.get("filters") or {}).get("video_ids") or []
+            with self.lock:
+                videos = [
+                    {
+                        "id": one,
+                        "create_time": 1763089200,
+                        "view_count": 500,
+                        "like_count": 40,
+                        "comment_count": 6,
+                        "share_count": 2,
+                    }
+                    | self.tiktok_videos.get(one, {})
+                    for one in ids[:20]
+                    if one not in self.tiktok_videos_gone
+                ]
+            return 200, {"data": {"videos": videos, "cursor": 0, "has_more": False}, "error": ok}
         if path == "/v2/post/publish/creator_info/query/":
             user = self.tiktok_users[open_id]
             return 200, {

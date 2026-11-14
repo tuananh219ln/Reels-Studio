@@ -572,6 +572,36 @@ def _change_match(post: Publication, status: str) -> None:
         post.next_snapshot_at = None  # hidden and no longer read
 
 
+class ManualNumbers(BaseModel):
+    views: int
+    likes: int | None = None
+    comments: int | None = None
+    shares: int | None = None
+    captured_at: datetime | None = None
+
+
+@router.post("/{post_id}/metrics/manual")
+def enter_views(
+    post_id: int, body: ManualNumbers, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Nhập view": a TikTok post's numbers read by a member on TikTok, for an account not connected with video.list.
+    Kept as a reading at `captured_at` (now by default)."""
+    post = db.get(Publication, post_id, with_for_update=True)
+    if post is None or post.platform != "tiktok" or post.status != "published":
+        raise ApiError(404, "post_not_found", "Không tìm thấy bài TikTok đã đăng")
+    numbers = body.model_dump(exclude={"captured_at"})
+    if any(value is not None and value < 0 for value in numbers.values()):
+        raise invalid("Số view, thích, bình luận, chia sẻ không được âm")
+    at = now()
+    captured = body.captured_at or at
+    if captured.tzinfo is None or captured > at + timedelta(minutes=5):
+        raise invalid("Thời điểm đo không hợp lệ")
+    if post.published_at and captured < post.published_at:
+        raise invalid("Thời điểm đo trước giờ đăng")
+    metrics.record_manual(db, post, numbers, captured)
+    return {"ok": True}
+
+
 REFRESH_EVERY = timedelta(minutes=5)
 MAX_REFRESH = 200
 

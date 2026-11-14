@@ -14,15 +14,15 @@ A failed reading is recorded on the post and tried again an hour later, never in
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import sessionmaker
 
-from . import analytics, facebook, fanpages, youtube
+from . import analytics, facebook, fanpages, tiktok, tiktok_connections, youtube
 from .facebook import FacebookError
-from .models import PostMetrics, PostMetricSnapshot, Publication, Video
+from .models import PostMetrics, PostMetricSnapshot, Publication, TikTokConnection, Video
 from .sessions import now
 
 log = logging.getLogger("reels_api.metrics")
@@ -117,6 +117,18 @@ def readable(at: datetime, youtube_on: bool | None = None):
         # "Bỏ qua" on "Chưa khớp": hidden and no longer read.
         Publication.match_status != "ignored",
     )
+    # A TikTok video on an account connected with `video.list` (tiktok_connections.reads_views).
+    tiktok_post = and_(
+        Publication.platform == "tiktok",
+        Publication.external_id.is_not(None),
+        Publication.match_status != "ignored",
+        or_(Publication.status == "published", Publication.status == "deleted"),
+        exists().where(
+            TikTokConnection.affiliate_account_id == Publication.affiliate_account_id,
+            TikTokConnection.scopes.contains(tiktok.VIDEO_LIST),
+        ),
+    )
+    facebook_post = or_(facebook_post, tiktok_post)
     if not youtube_on:
         return facebook_post
     youtube_post = and_(
@@ -159,6 +171,8 @@ def due_posts(db: DbSession, limit: int = BATCH, platform: str = "facebook") -> 
 # --- The schedule (spec §3.1) and the marks (§3.5) ---
 
 MAX_AGE = timedelta(days=90)
+# TikTok posts read per round: two calls of 20 at most for one account.
+TIKTOK_PER_ROUND = 40
 TRENDING_EVERY = timedelta(minutes=15)
 TRENDING_GROWTH = 1.5
 TRENDING_VIEWS = 2000
@@ -229,6 +243,25 @@ def settle_marks(db: DbSession, post: Publication, at: datetime) -> None:
             setattr(post, f"views_{name}", round(v0 + (v1 - v0) * (hours - h0) / (h1 - h0)))
             estimated.append(name)
     post.marks_estimated = estimated
+
+
+def record_manual(db: DbSession, post: Publication, numbers: dict, captured_at: datetime) -> None:
+    """ "Nhập view": numbers a member read on TikTok, kept as a reading of that time (raw `manual`). Commits."""
+    db.add(
+        PostMetricSnapshot(
+            publication_id=post.id,
+            captured_at=captured_at,
+            hours_since_publish=hours_since(_live(post), captured_at),
+            views=numbers["views"],
+            likes=numbers.get("likes"),
+            comments=numbers.get("comments"),
+            shares=numbers.get("shares"),
+            raw={"manual": True},
+        )
+    )
+    db.flush()
+    settle_marks(db, post, now())
+    db.commit()
 
 
 def _record(db: DbSession, post: Publication, numbers: dict, at: datetime, source: str) -> None:
@@ -316,7 +349,52 @@ def measure_youtube(db: DbSession, posts: list[Publication]) -> None:
     db.commit()
 
 
-def _missing(post: Publication, at: datetime) -> None:
+def measure_tiktok(db: DbSession, posts: list[Publication]) -> None:
+    """Read TikTok videos through each account's connection, 20 per call. A video missing twice, an hour apart, is
+    removed, as on YouTube; a connection that fails (expired, rate limit, network) reads nothing and waits an hour.
+    Commits."""
+    at = now()
+    by_account: dict[int, list[Publication]] = {}
+    for post in posts:
+        post.metrics_tried_at = at
+        by_account.setdefault(post.affiliate_account_id, []).append(post)
+    for account_id, group in by_account.items():
+        connection = tiktok_connections.of_account(db, account_id)
+        try:
+            if connection is None:
+                raise tiktok.TikTokError("Tài khoản TikTok chưa kết nối")
+            token = tiktok_connections.access_token(db, connection)
+            items: dict[str, dict] = {}
+            for start in range(0, len(group), tiktok.VIDEO_BATCH):
+                chunk = group[start : start + tiktok.VIDEO_BATCH]
+                items |= tiktok.query_videos(token, [post.external_id for post in chunk])
+        except tiktok.TikTokError as err:
+            for post in group:
+                post.metrics_error, post.next_snapshot_at = err.message, at + RETRY_LATER
+            log.warning("Could not read TikTok account %s: %s", account_id, err.message)
+            continue
+        for post in group:
+            item = items.get(post.external_id)
+            if item is None:
+                _missing(post, at, "TikTok không còn hiện video (đã xóa hoặc để riêng tư)")
+                continue
+            post.metrics_error, post.gone_since = None, None
+            if post.status == "deleted" and post.closed_by_id is None:
+                post.status, post.closed_at = "published", None
+            created = item.get("create_time")
+            if isinstance(created, int | float) and post.published_at_source != "user":
+                post.published_at, post.published_at_source = datetime.fromtimestamp(created, UTC), "api"
+            numbers = {
+                "views": item.get("view_count"),
+                "likes": item.get("like_count"),
+                "comments": item.get("comment_count"),
+                "shares": item.get("share_count"),
+            }
+            _record(db, post, numbers, at, "tiktok")
+    db.commit()
+
+
+def _missing(post: Publication, at: datetime, reason: str = "") -> None:
     if post.status == "deleted":
         follow = post.closed_at is not None and at - post.closed_at < REMOVED_FOLLOW
         post.next_snapshot_at = at + REMOVED_EVERY if follow else None
@@ -328,7 +406,7 @@ def _missing(post: Publication, at: datetime) -> None:
         post.next_snapshot_at = post.gone_since + GONE_CONFIRM
         return
     post.status, post.closed_at, post.closed_by_id = "deleted", at, None
-    post.metrics_error = "YouTube không còn hiện video (đã xóa hoặc để riêng tư)"
+    post.metrics_error = reason or "YouTube không còn hiện video (đã xóa hoặc để riêng tư)"
     post.next_snapshot_at = at + REMOVED_EVERY
 
 
@@ -358,6 +436,7 @@ def measure_due(factory: sessionmaker) -> None:
         with factory() as db:
             ids = [post.id for post in due_posts(db)]
             shorts = [post.id for post in due_posts(db, youtube.BATCH, "youtube")] if youtube.enabled() else []
+            clips = [post.id for post in due_posts(db, TIKTOK_PER_ROUND, "tiktok")]
     except Exception:
         log.exception("Could not look for posts to read the numbers of")
         return
@@ -375,6 +454,12 @@ def measure_due(factory: sessionmaker) -> None:
                 measure_youtube(db, [db.get(Publication, post_id) for post_id in shorts])
         except Exception:
             log.exception("Could not read the numbers of YouTube posts %s", shorts)
+    if clips:
+        try:
+            with factory() as db:
+                measure_tiktok(db, [db.get(Publication, post_id) for post_id in clips])
+        except Exception:
+            log.exception("Could not read the numbers of TikTok posts %s", clips)
 
 
 def payload(post: Publication, by_page: dict[int | None, analytics.Median]) -> dict:

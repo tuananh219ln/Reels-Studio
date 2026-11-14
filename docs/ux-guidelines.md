@@ -1009,7 +1009,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
     - **Rows**: "Video" (thumbnail, name opening the video, "maker · render dd/MM", in red "· chưa đăng N ngày" past 3
       days), then a cell per platform, "Tổng view" and the "⋮" menu. A cell shows the first of: out ("N view", under it
       "N Page"/"N kênh" or the channel and "48h: N", with a source chip "API" blue, "Meta Suite" light blue, "Link tay"
-      purple; "— view · Đăng dd/MM hh:mm · chờ số liệu" before a reading; the last reading's time in a tooltip),
+      purple, "OAuth" blue for TikTok read through its connection; "— view · Đăng dd/MM hh:mm · chờ số liệu" before a
+      reading, with the tooltip "Kết nối TikTok để tự cập nhật view" or "Cần kết nối lại TikTok" on TikTok; the last reading's time in a tooltip),
       "Hẹn lịch" (time · channel), "Đang đăng…", "Chờ dán link" (a yellow box, "Tải MP4 dd/MM · Nh trước", in red
       "quá 24h" after a day; it opens the paste window for that video and platform), "Thất bại" (red, its reason in a
       tooltip, "Thử lại"), "Đã gỡ" ("Link không còn truy cập · dd/MM"). With no post: Facebook "Đăng / Hẹn giờ" (opens
@@ -1023,7 +1024,8 @@ steps open the status card or the products block on its tab, the QC chip its pop
       "Cập nhật view", the tooltip of numbers and "Phân tích bài đăng"; a spinner while a reading asked has not run),
       and its actions: a Facebook post the four icon buttons
       ("Xem Reel", "Thử lại", "Kiểm tra", "Hủy đăng"/"Xóa"); a post recorded by link "Sửa link" and "Gỡ" (out of the
-      app only, by whoever recorded it); one waiting "Dán link" and "Hủy chờ"; a platform with none "Chưa đăng" with
+      app only, by whoever recorded it); a TikTok post out also "Nhập view" (views, then optionally when they were
+      read, Vietnam time; now by default); one waiting "Dán link" and "Hủy chờ"; a platform with none "Chưa đăng" with
       "Tải MP4" and "Copy caption" (the TikTok caption for TikTok).
     - **"Chưa khớp"** (a tab, its count in posts): reels posted on a Page outside the app (Meta Business Suite),
       imported hourly with no video yet. A row each: the reel (cover, caption on one line, Page, time, views, "Xem bài

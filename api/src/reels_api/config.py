@@ -172,6 +172,12 @@ def shopee_short_link_url() -> str:
     return (read_env("SHOPEE_SHORT_LINK_URL") or "https://s.shopee.vn").rstrip("/")
 
 
+def tiktok_video_list() -> bool:
+    """TIKTOK_VIDEO_LIST=1 once TikTok has approved the app's `video.list` scope: "Kết nối TikTok" asks for it, so a
+    connected account's views are read. Asking for a scope not approved fails every connection."""
+    return (read_env("TIKTOK_VIDEO_LIST") or "").strip().lower() in ("1", "true", "yes")
+
+
 def youtube_api_key() -> str | None:
     """The YouTube Data API key: YouTube posts' views and times are read with it; without it they are not read."""
     return read_env("YOUTUBE_API_KEY") or None

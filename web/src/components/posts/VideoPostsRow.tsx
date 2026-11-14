@@ -7,12 +7,27 @@ import {
   api,
   errorMessage,
   formatDateTime,
+  fromVietnamInput,
   type BoardPlatform,
   type VideoPost,
   type VideoPosts,
   type VideoRow,
 } from "@/lib/api";
-import { App, Button, Flex, Input, Modal, Popconfirm, Select, Spin, Table, Tag, Tooltip, Typography } from "antd";
+import {
+  App,
+  Button,
+  Flex,
+  Input,
+  InputNumber,
+  Modal,
+  Popconfirm,
+  Select,
+  Spin,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { usePolling } from "@/lib/polling";
 import { useCallback, useEffect, useState } from "react";
@@ -81,6 +96,8 @@ export default function VideoPostsRow({
   const [editing, setEditing] = useState<VideoPost | null>(null);
   const [link, setLink] = useState("");
   const [rematching, setRematching] = useState<VideoPost | null>(null);
+  const [entering, setEntering] = useState<VideoPost | null>(null);
+  const [entered, setEntered] = useState<{ views: number | null; at: string }>({ views: null, at: "" });
   const [videos, setVideos] = useState<{ value: number; label: string }[]>([]);
   useEffect(() => {
     if (rematching === null || videos.length > 0) return;
@@ -111,7 +128,7 @@ export default function VideoPostsRow({
     await load();
     onChanged();
   }
-  async function send(path: string, method: "PATCH" | "DELETE", body?: unknown, done?: string) {
+  async function send(path: string, method: "PATCH" | "DELETE" | "POST", body?: unknown, done?: string) {
     try {
       await api(path, method, body);
       if (done) message.success(done);
@@ -161,7 +178,7 @@ export default function VideoPostsRow({
         </Flex>
       );
     }
-    if (post.source === "meta_suite") {
+    if (post.recorded_by === "meta_suite") {
       return (
         <Flex gap={4} wrap>
           <Button size="small" onClick={() => setRematching(post)}>
@@ -190,7 +207,12 @@ export default function VideoPostsRow({
         />
       );
     }
-    if (post.source !== "manual_link") return null;
+    const enter = post.can_enter_views && (
+      <Button size="small" onClick={() => setEntering(post)}>
+        Nhập view
+      </Button>
+    );
+    if (post.recorded_by !== "manual_link") return enter || null;
     if (post.state === "pending_link") {
       return (
         <Flex gap={4} wrap>
@@ -210,6 +232,7 @@ export default function VideoPostsRow({
     }
     return (
       <Flex gap={4} wrap>
+        {enter}
         <Button
           size="small"
           onClick={() => {
@@ -341,6 +364,44 @@ export default function VideoPostsRow({
         }}
       >
         <Input aria-label="Link bài" value={link} onChange={(event) => setLink(event.target.value)} />
+      </Modal>
+      <Modal
+        open={entering !== null}
+        title="Nhập view TikTok"
+        okText="Lưu"
+        cancelText="Hủy"
+        okButtonProps={{ disabled: entered.views === null }}
+        onCancel={() => setEntering(null)}
+        afterOpenChange={(open) => open && setEntered({ views: null, at: "" })}
+        onOk={async () => {
+          if (!entering || entered.views === null) return;
+          const body = { views: entered.views, ...(entered.at ? { captured_at: fromVietnamInput(entered.at) } : {}) };
+          if (await send(`/posts/${entering.id}/metrics/manual`, "POST", body, "Đã lưu view")) setEntering(null);
+        }}
+      >
+        <Flex vertical gap={8}>
+          <Typography.Text type="secondary">
+            Đọc số view trên TikTok rồi nhập vào đây. Kết nối TikTok (có quyền đọc video) thì view tự cập nhật.
+          </Typography.Text>
+          <InputNumber
+            aria-label="Số view"
+            min={0}
+            precision={0}
+            placeholder="Số view"
+            value={entered.views}
+            onChange={(value) => setEntered((current) => ({ ...current, views: value }))}
+            style={{ width: "100%" }}
+          />
+          <Input
+            type="datetime-local"
+            aria-label="Thời điểm đo"
+            value={entered.at}
+            onChange={(event) => setEntered((current) => ({ ...current, at: event.target.value }))}
+          />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Bỏ trống thời điểm đo là lúc này (giờ Việt Nam).
+          </Typography.Text>
+        </Flex>
       </Modal>
       <Modal open={rematching !== null} title="Đổi video khớp" footer={null} onCancel={() => setRematching(null)}>
         <Select
