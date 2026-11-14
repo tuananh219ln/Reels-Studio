@@ -23,7 +23,7 @@ export default function VideoActions({
   onChanged,
 }: {
   video: Pick<VideoRow, "id" | "title" | "topic"> &
-    Partial<Pick<VideoRow, "plan_day" | "post_stage" | "queue" | "suggested_post_at">>;
+    Partial<Pick<VideoRow, "name" | "plan_day" | "post_stage" | "queue" | "suggested_post_at">>;
   onChanged?: () => void | Promise<void>;
 }) {
   const { me } = useMe();
@@ -49,7 +49,7 @@ export default function VideoActions({
   }
   function remove() {
     modal.confirm({
-      title: `Xóa video “${video.title || video.topic}”?`,
+      title: `Xóa video “${video.name || video.title || video.topic}”?`,
       content:
         "Xóa hẳn video, cảnh, job và mọi file. Không khôi phục được. Bài đã đăng hoặc hẹn giờ trên Facebook vẫn còn.",
       okText: "Xóa",
@@ -67,6 +67,17 @@ export default function VideoActions({
         }
       },
     });
+  }
+  /** "Nhân bản y hệt": an exact copy named "… (copy)", no AI call; it opens so the member renders it. */
+  async function duplicate() {
+    try {
+      const copy = await api<VideoDetail>(`/videos/${video.id}/duplicate`, "POST");
+      message.success("Đã nhân bản y hệt, hãy render lại MP4 trước khi đăng");
+      await onChanged?.();
+      router.push(`/videos/${copy.id}`);
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
   }
   /** The "⋮" menu: quick actions at once; posting and the queue open a drawer, as they need their own forms. */
   function menuItems(): MenuProps["items"] {
@@ -86,6 +97,7 @@ export default function VideoActions({
       ...(detail.has_script
         ? [
             { key: "clone", label: "Nhân bản", onClick: () => setClone("same") },
+            { key: "duplicate", label: "Nhân bản y hệt", onClick: () => void duplicate() },
             ...(detail.platform === "facebook"
               ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setClone("tiktok") }]
               : []),
@@ -112,7 +124,7 @@ export default function VideoActions({
         : []),
     ];
   }
-  const name = video.title || video.topic;
+  const name = video.name || video.title || video.topic;
   return (
     <div
       onClick={(event) => {

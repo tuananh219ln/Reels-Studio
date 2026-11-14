@@ -22,7 +22,7 @@ from .ownership import ensure_owner
 from .routes_videos import MAX_TOPIC_LENGTH, _enqueue, _inline, _saved, apply_default_music, invalid
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
-from .videos import REFERENCE_MODE_LABELS, reference_frames, split_scenes, title_of
+from .videos import REFERENCE_MODE_LABELS, reference_frames, split_scenes, video_name
 
 router = APIRouter(prefix="/api/references")
 
@@ -157,7 +157,7 @@ def get_sample(reference_id: int, me: Session = Depends(current_member), db: DbS
         "videos": [
             {
                 "id": video.id,
-                "title": title_of(video, split_scenes(db, video)[0]) or video.topic,
+                "title": video_name(video, split_scenes(db, video)[0]),
                 "mode": video.reference_mode,
             }
             for video in videos

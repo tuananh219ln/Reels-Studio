@@ -420,6 +420,16 @@ export default function VideoPage() {
     }
   }
 
+  /** "Nhân bản y hệt": an exact copy named "… (copy)", no AI call; it opens so the member renders it. */
+  async function duplicate() {
+    try {
+      const copy = await api<VideoDetail>(`/videos/${id}/duplicate`, "POST");
+      message.success("Đã nhân bản y hệt, hãy render lại MP4 trước khi đăng");
+      router.push(`/videos/${copy.id}`);
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
   function remove() {
     modal.confirm({
       title: "Xóa video này?",
@@ -528,11 +538,11 @@ export default function VideoPage() {
             {/* At least 300 px: on a phone it takes a row of its own rather than squeezing to a few letters. */}
             <Typography.Title
               level={4}
-              ellipsis={{ tooltip: video.title || video.topic }}
+              ellipsis={{ tooltip: video.name || video.title || video.topic }}
               style={{ margin: 0, fontWeight: 600, flex: "1 1 300px", minWidth: 0 }}
               data-testid="video-title"
             >
-              {video.title || video.topic}
+              {video.name || video.title || video.topic}
             </Typography.Title>
             <Flex gap={10} align="center" wrap style={{ flex: "none" }}>
               <VideoStatusTags video={video} />
@@ -573,7 +583,15 @@ export default function VideoPage() {
                 menu={{
                   items: [
                     ...(video.has_script
-                      ? [{ key: "clone", icon: <CopyOutlined />, label: "Nhân bản", onClick: () => setCloning("same") }]
+                      ? [
+                          {
+                            key: "clone",
+                            icon: <CopyOutlined />,
+                            label: "Nhân bản",
+                            onClick: () => setCloning("same"),
+                          },
+                          { key: "duplicate", label: "Nhân bản y hệt", onClick: () => void duplicate() },
+                        ]
                       : []),
                     ...(video.has_script && video.platform === "facebook"
                       ? [{ key: "tiktok", label: "Tạo bản TikTok", onClick: () => setCloning("tiktok") }]

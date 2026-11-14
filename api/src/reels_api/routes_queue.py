@@ -17,7 +17,7 @@ from .models import Fanpage, KnowledgeTopic, PageQueueItem, Session, Video
 from .ownership import ensure_page_owner
 from .routes_videos import invalid
 from .sessions import current_member, now
-from .videos import lock_video, split_scenes, thumbnail_url, title_of
+from .videos import lock_video, split_scenes, thumbnail_url, video_name
 
 router = APIRouter(prefix="/api/queue")
 
@@ -49,7 +49,7 @@ def _item_payload(db: DbSession, item: PageQueueItem) -> dict:
         "fanpage": item.fanpage.name,
         "video": {
             "id": item.video.id,
-            "title": title_of(item.video, title) or item.video.topic,
+            "title": video_name(item.video, title),
             "thumbnail_url": thumbnail_url(item.video),
         },
         "auto_comment": item.auto_comment,

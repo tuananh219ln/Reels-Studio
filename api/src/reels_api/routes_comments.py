@@ -13,7 +13,7 @@ from . import articles, comments_inbox, facebook
 from .db import get_db
 from .models import Article, Fanpage, PageComment, Publication, Session, Video
 from .sessions import current_member
-from .videos import split_scenes, title_of
+from .videos import split_scenes, video_name
 
 router = APIRouter(prefix="/api/comments")
 
@@ -32,7 +32,7 @@ def _payload(db: DbSession, comment: PageComment, titles: dict[int, str]) -> dic
         else:
             video = db.get(Video, post.video_id)
             title, _ = split_scenes(db, video)
-            titles[owner] = title_of(video, title) or video.topic
+            titles[owner] = video_name(video, title)
     return {
         "id": comment.id,
         "state": comments_inbox.state(comment),

@@ -20,7 +20,7 @@ from .errors import ApiError
 from .models import AffiliateAccount, AffiliateConversion, Fanpage, Publication, Session, Video
 from .routes_videos import invalid
 from .sessions import current_member
-from .videos import split_scenes, title_of
+from .videos import split_scenes, video_name
 
 router = APIRouter(prefix="/api/affiliate-accounts")
 
@@ -200,7 +200,7 @@ def revenue(days: int = 30, me: Session = Depends(current_member), db: DbSession
     for (video_id, fanpage_id), totals in groups.items():
         video = db.get(Video, video_id) if video_id else None
         page = db.get(Fanpage, fanpage_id) if fanpage_id else None
-        title = (title_of(video, split_scenes(db, video)[0]) or video.topic) if video else None
+        title = video_name(video, split_scenes(db, video)[0]) if video else None
         lines.append(
             {
                 "video_id": video_id,

@@ -11,7 +11,15 @@ from .db import get_db
 from .errors import ApiError
 from .models import Job, Publication, Session, Video
 from .sessions import current_member, now
-from .videos import active_job, is_published, live_at, publication_payload, split_scenes, thumbnail_url, title_of
+from .videos import (
+    active_job,
+    is_published,
+    live_at,
+    publication_payload,
+    split_scenes,
+    thumbnail_url,
+    video_name,
+)
 
 router = APIRouter(prefix="/api/posts")
 
@@ -39,7 +47,7 @@ def _payload(db: DbSession, video: Video, post: Publication, by_page: dict) -> d
         "video_id": video.id,
         # The video's topic group, for "Lịch đăng" of Kho kiến thức.
         "knowledge_topic_id": video.knowledge_topic_id,
-        "title": title_of(video, title) or video.topic,
+        "title": video_name(video, title),
         "thumbnail_url": thumbnail_url(video),
         "busy": active_job(db, video.id) is not None,
         "attempt": _attempt(db, post),
