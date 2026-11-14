@@ -64,7 +64,11 @@ def _payload(db: DbSession, video: Video, post: Publication, by_page: dict) -> d
 
 @router.get("")
 def list_posts(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> list[dict]:
-    rows = db.execute(select(Video, Publication).join(Publication).where(Publication.platform == "facebook"))
+    rows = db.execute(
+        select(Video, Publication)
+        .join(Publication, Publication.video_id == Video.id)
+        .where(Publication.platform == "facebook")
+    )
     by_page = analytics.medians(db)
     return [
         _payload(db, video, post, by_page)
