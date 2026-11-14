@@ -658,7 +658,7 @@ function Platforms({
     );
   };
 
-  const fromFacebook = picked.includes("facebook") && video.pinned_comment.trim() !== "";
+  const fromFacebook = picked.includes("facebook") && video.pinned_comment_text !== "";
   return (
     <Flex vertical gap={12} style={{ width: "100%" }} data-testid="post-platforms">
       <fieldset className="platform-list">

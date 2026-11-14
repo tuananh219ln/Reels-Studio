@@ -9,7 +9,7 @@ from sqlalchemy import select
 from worker_helpers import add_user, committed  # noqa: F401  (fixtures)
 
 from reels_api import fanpages, post_comments
-from reels_api.models import AffiliateProduct, Fanpage, Publication, Video, VideoAffiliateProduct
+from reels_api.models import AffiliateProduct, Fanpage, Publication, Scene, Video, VideoAffiliateProduct
 
 
 @pytest.fixture
@@ -126,6 +126,18 @@ def test_the_comment_holds_the_pinned_comment_and_the_usable_products_links(db, 
     )
     assert post.commented_at is not None
     assert due(db) == [], "one comment per post"
+
+
+def test_the_comment_opens_with_the_pinned_template_filled_from_the_scenes_as_they_are_now(db, me, storage, fakes):
+    post = add_post(db, storage, me, fakes)
+    video = db.get(Video, post.video_id)
+    video.pinned_comment = "{items}\nMón nào nhà bạn hay nấu nhất?"
+    scene = db.scalar(select(Scene).where(Scene.video_id == video.id, Scene.is_title.is_(False)))
+    scene.text = "Canh *hến*\nTốt cho tim"
+    db.commit()
+    post_comments.write(db, post)
+    (comment,) = comments_on(fakes, post)
+    assert comment["message"] == "1. Canh hến – Tốt cho tim\nMón nào nhà bạn hay nấu nhất?"
 
 
 def test_nothing_to_say_is_recorded_without_calling_facebook(db, me, storage, fakes):

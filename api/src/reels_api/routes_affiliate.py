@@ -15,7 +15,7 @@ from sqlalchemy import case, delete, func, or_, select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import object_session
 
-from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, post_comments, shopee
+from . import affiliate, affiliate_rounds, article_posts, facebook, knowledge, pinned, post_comments, shopee
 from .db import get_db
 from .errors import ApiError
 from .models import (
@@ -424,7 +424,7 @@ def _video_payload(db: DbSession, video: Video, posts: list[Publication], user_i
         "mine": any(one.created_by_id == user_id for one in posts) or any(one["owner_id"] == user_id for one in where),
         "posts": where,
         "suggestions": video.affiliates,
-        "pinned_comment": video.pinned_comment,
+        "pinned_comment": pinned.text_of(db, video),
         "products": [
             {
                 "id": product.id,
