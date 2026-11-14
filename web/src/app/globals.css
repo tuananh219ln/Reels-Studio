@@ -166,7 +166,7 @@ body {
   background: #f6f6f7;
 }
 
-/* Thiết lập › Logo: two rows, the channel's select taking the room left beside its label and "Quản lý Page". */
+/* Thiết lập › Logo: two rows, the channel's select taking the room left beside its label and "Quản lý kênh". */
 .logo-card .ant-card-body {
   padding: 8px 12px 10px;
 }

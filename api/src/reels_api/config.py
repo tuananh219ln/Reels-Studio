@@ -172,6 +172,16 @@ def shopee_short_link_url() -> str:
     return (read_env("SHOPEE_SHORT_LINK_URL") or "https://s.shopee.vn").rstrip("/")
 
 
+def tiktok_oembed_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return read_env("TIKTOK_OEMBED_URL") or "https://www.tiktok.com/oembed"
+
+
+def youtube_oembed_url() -> str:
+    # Overridable only so tests and E2E can point at a local fake; production uses the default.
+    return read_env("YOUTUBE_OEMBED_URL") or "https://www.youtube.com/oembed"
+
+
 def tiktok_api_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return (read_env("TIKTOK_API_URL") or "https://open.tiktokapis.com").rstrip("/")

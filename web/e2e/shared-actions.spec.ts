@@ -226,14 +226,84 @@ test("shared actions: a Page owner can take down a teammate's reel from the post
     busy: false,
     attempt: null,
   };
-  await page.route("**/api/posts", (route) => route.fulfill({ json: [post] }));
+  const cell = {
+    state: "published",
+    views: null,
+    views_48h: null,
+    post_count: 1,
+    channel_label: "Page của tôi",
+    source: "app_api",
+    published_at: post.at,
+    scheduled_at: null,
+    pending_since: null,
+    pending_stale: false,
+    error: null,
+    retry_job_id: null,
+    closed_at: null,
+    metrics_updated_at: null,
+  };
+  const board = {
+    items: [
+      {
+        video: {
+          id: 98764,
+          name: post.title,
+          topic: post.title,
+          thumbnail_url: null,
+          created_by: "Đồng đội",
+          created_by_id: me.id + 100,
+          rendered_at: post.at,
+          has_mp4: true,
+          unposted_days: null,
+        },
+        cells: { facebook: cell, tiktok: null, youtube: null },
+        total_views: null,
+        views_48h: null,
+        latest_at: post.at,
+      },
+    ],
+    counts: { unposted: 0, pending_link: 0, scheduled: 0, published: 1, failed: 0, closed: 0, all: 1 },
+    total: 1,
+    next_cursor: null,
+    sort: "latest",
+  };
+  const videoPosts = {
+    posts: [
+      {
+        id: 98764,
+        platform: "facebook",
+        state: "published",
+        source: "app_api",
+        channel: "Page của tôi",
+        url: null,
+        published_at: post.at,
+        published_at_source: null,
+        scheduled_at: null,
+        pending_since: null,
+        views: null,
+        views_24h: null,
+        views_48h: null,
+        views_7d: null,
+        metrics_updated_at: null,
+        error: null,
+        retry_job_id: null,
+        created_by: "Đồng đội",
+        created_by_id: me.id + 100,
+        fb: post,
+      },
+    ],
+    missing: ["tiktok", "youtube"],
+    captions: { facebook: "", tiktok: "", youtube: "" },
+    mp4_download_url: null,
+  };
+  await page.route("**/api/posts/board?*", (route) => route.fulfill({ json: board }));
+  await page.route("**/api/posts/videos/98764", (route) => route.fulfill({ json: videoPosts }));
   await page.route("**/api/posts/98764/take-down", (route) => {
     takeDown += 1;
     return route.fulfill({ json: {} });
   });
   await page.goto("/posts");
-  // The last cell: the middle of the row now lands on the video title, which opens the video.
-  await page.getByTestId("post-group").getByRole("cell").last().click();
+  await page.getByTestId("post-group").locator(".ant-table-row-expand-icon").click();
   const posts = page.getByTestId("post-rows");
   await expect(posts.getByRole("button", { name: "Xóa", exact: true })).toBeEnabled();
   await posts.getByRole("button", { name: "Xóa", exact: true }).click();

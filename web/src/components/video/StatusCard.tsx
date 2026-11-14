@@ -672,7 +672,7 @@ function Platforms({
           </Typography.Text>
           {mine.length === 0 ? (
             <Link prefetch={false} href="/fanpages" style={{ fontSize: 13 }}>
-              Bạn chưa có Page nào, mở Quản lý Page
+              Bạn chưa có Page nào, mở Quản lý kênh
             </Link>
           ) : (
             <Select

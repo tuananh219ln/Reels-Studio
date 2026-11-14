@@ -38,10 +38,10 @@ def ensure_group_editor(db, topic: KnowledgeTopic, user_id: int) -> None:
 
 def ensure_page_owner(page: Fanpage, user_id: int) -> None:
     """Only a Page's owner posts to it, as a post's commission is its Page's owner's (2026-11-09, option A). A Page
-    with no owner is claimed first ("Nhận Page" on Quản lý Page)."""
+    with no owner is claimed first ("Nhận Page" on Quản lý kênh)."""
     if page.owner_id is None:
         raise ApiError(
-            403, "not_page_owner", f"Page “{page.name}” chưa có chủ: hãy bấm “Nhận Page” ở Quản lý Page rồi đăng"
+            403, "not_page_owner", f"Page “{page.name}” chưa có chủ: hãy bấm “Nhận Page” ở Quản lý kênh rồi đăng"
         )
     if page.owner_id != user_id:
         owner = page.owner.name if page.owner else "chủ Page"

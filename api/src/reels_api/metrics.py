@@ -21,7 +21,7 @@ from sqlalchemy.orm import sessionmaker
 
 from . import analytics, facebook, fanpages
 from .facebook import FacebookError
-from .models import PostMetrics, Publication, Video
+from .models import PostMetrics, PostMetricSnapshot, Publication, Video
 from .sessions import now
 
 log = logging.getLogger("reels_api.metrics")
@@ -156,8 +156,28 @@ def measure(db: DbSession, post: Publication) -> None:
     live = post.scheduled_at or post.published_at or post.created_at
     if "48h" not in windows and live + SNAPSHOT <= at <= live + SNAPSHOT + SNAPSHOT_GRACE:
         _save(post, None, "48h", numbers, at)
+    # Every reading also joins the post's time series ("Bài đăng"'s marks and trend, docs/decisions).
+    db.add(
+        PostMetricSnapshot(
+            publication_id=post.id,
+            captured_at=at,
+            hours_since_publish=hours_since(live, at),
+            views=numbers["views"],
+            likes=numbers["reactions"],
+            comments=numbers["comments"],
+            shares=numbers["shares"],
+            raw={"source": "facebook"},
+        )
+    )
     db.commit()
     log.info("Read the numbers of post %s: %s", post.id, numbers)
+
+
+def hours_since(live: datetime | None, at: datetime) -> float | None:
+    """How old the post was at a reading, in hours, two decimals; None before it has a time."""
+    if live is None:
+        return None
+    return round(max(0.0, (at - live).total_seconds() / 3600), 2)
 
 
 def _save(post: Publication, row: PostMetrics | None, window: str, numbers: dict, at: datetime) -> None:

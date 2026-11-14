@@ -338,7 +338,7 @@ test("each list starts on the member's own work, and Cả đội shows everyone'
   await whose.getByText("Của tôi (0)").click();
   await expect(binh.getByText("ngâm chân nước gừng")).toHaveCount(0);
   await binh.goto("/posts");
-  await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Cả đội (0)" })).toBeChecked();
+  await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Cả đội" })).toBeChecked();
   // Jobs are read from the api a page at a time, so they start on the member's own.
   await binh.goto("/jobs");
   await expect(binh.getByLabel("Của ai").getByRole("radio", { name: "Của tôi" })).toBeChecked();
@@ -372,7 +372,7 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
     "Video",
     "Bài viết",
     "Bài đăng",
-    "Quản lý Page",
+    "Quản lý kênh",
     "Affiliate",
     "Kho kiến thức",
     "Kho tư liệu",
@@ -381,9 +381,9 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
     "Nhật ký job",
     "Cài đặt",
   ]);
-  const fanpages = page.getByRole("menuitem", { name: "Quản lý Page" });
+  const fanpages = page.getByRole("menuitem", { name: "Quản lý kênh" });
   await fanpages.click();
-  await expect(page.getByRole("heading", { name: "Quản lý Page" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Quản lý kênh" })).toBeVisible();
   await expect(page).toHaveURL(/\/fanpages$/);
   // Once the list has loaded with no Page yet, the empty state offers its own, differently named button.
   await expect(page.getByText("Chưa kết nối Fanpage nào")).toBeVisible();
@@ -394,7 +394,7 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
 test("the worker checks a connected Page's token and shows its followers", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const card = page.getByTestId("fanpage-card");
   // The worker checks a newly connected Page within seconds; the page asks again until it has.
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
@@ -406,7 +406,7 @@ test("the worker checks a connected Page's token and shows its followers", async
 test("a Page's card opens its dashboard, with a period and six tabs", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
   await expect(card.getByText("Hoạt động", { exact: true })).toBeVisible({ timeout: 20_000 });
   // The card keeps one line on posting; the whole of it is on the dashboard.
@@ -419,7 +419,7 @@ test("a Page's card opens its dashboard, with a period and six tabs", async ({ p
   await expect(page).toHaveURL(/\/fanpages\/\d+$/);
   await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();
   // The menu still shows where the member is.
-  await expect(page.getByRole("menuitem", { name: "Quản lý Page" })).toHaveClass(/ant-menu-item-selected/);
+  await expect(page.getByRole("menuitem", { name: "Quản lý kênh" })).toHaveClass(/ant-menu-item-selected/);
 
   // Tổng quan: four figures, each against the period before, the views chart, the latest post and the token.
   await expect(page.getByTestId("figure-tile")).toHaveCount(4);
@@ -466,14 +466,14 @@ test("a Page's card opens its dashboard, with a period and six tabs", async ({ p
   await expect(schedule.getByTestId("page-queue")).toContainText("Hàng chờ trống.");
   await expect(schedule.getByTestId("scheduled-strip")).toContainText("Page chưa có giờ đăng");
 
-  await page.getByRole("link", { name: "Quay lại Quản lý Page" }).click();
+  await page.getByRole("link", { name: "Quay lại Quản lý kênh" }).click();
   await expect(page).toHaveURL(/\/fanpages$/);
 });
 
 test("a Page stopped and never posted to can be deleted", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   await page.getByRole("button", { name: "Thao tác với Trang Dưỡng Sinh" }).click();
   await page.getByRole("menuitem", { name: "Ngừng dùng" }).click();
   await page.getByRole("dialog").getByRole("button", { name: "Ngừng dùng" }).click();
@@ -938,7 +938,7 @@ test("a list's search, filters and tab are in the address, so a reload shows the
   await expect(page.getByRole("combobox", { name: "Lọc theo trạng thái" }).locator("..").locator("..")).toContainText(
     "Lỗi",
   );
-  // "Của tôi / Cả đội" too: with no post of the member's it starts on "Cả đội", and a pick of "Của tôi" stays.
+  // "Của tôi / Cả đội" too: "Bài đăng" starts on "Cả đội", and a pick of "Của tôi" stays.
   await page.goto("/posts");
   const whose = page.getByRole("radiogroup", { name: "Của ai" });
   await expect(whose.getByRole("radio", { name: /^Cả đội/ })).toBeChecked();
@@ -1033,7 +1033,7 @@ test("Kho kiến thức and a Page's dashboard keep the group, tab, period and f
 
   // A Page's dashboard: its period and tab.
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const card = page.getByTestId("fanpage-card").filter({ hasText: "Trang Dưỡng Sinh" });
   await card.getByText("Số liệu 7 ngày", { exact: false }).click();
   await expect(page.getByRole("heading", { name: "Trang Dưỡng Sinh" })).toBeVisible();

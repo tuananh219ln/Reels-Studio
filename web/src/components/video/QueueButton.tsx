@@ -138,7 +138,7 @@ export default function QueueButton({
           <Typography.Text type="secondary">
             Khung giờ của mỗi Page đặt ở{" "}
             <Link prefetch={false} href="/fanpages">
-              Quản lý Page
+              Quản lý kênh
             </Link>
             .
           </Typography.Text>

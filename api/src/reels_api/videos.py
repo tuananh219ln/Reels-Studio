@@ -657,7 +657,12 @@ def tiktok_posts_of(db: DbSession, video_id: int) -> list[Publication]:
     return list(
         db.scalars(
             select(Publication)
-            .where(Publication.video_id == video_id, Publication.platform == "tiktok")
+            .where(
+                Publication.video_id == video_id,
+                Publication.platform == "tiktok",
+                # A post waiting for its link ("Bài đăng"'s "Tải MP4") is not out yet.
+                Publication.status != "pending_link",
+            )
             .order_by(Publication.id.desc())
         )
     )
@@ -676,7 +681,11 @@ def manual_posts_of(db: DbSession, video_id: int) -> list[Publication]:
     return list(
         db.scalars(
             select(Publication)
-            .where(Publication.video_id == video_id, Publication.platform.in_(MANUAL_PLATFORMS))
+            .where(
+                Publication.video_id == video_id,
+                Publication.platform.in_(MANUAL_PLATFORMS),
+                Publication.status != "pending_link",
+            )
             .order_by(Publication.id.desc())
         )
     )
@@ -1232,7 +1241,11 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
             readings[(row.publication_id, row.window)] = row
     by_page = analytics.medians(db) if posts else {}
     on_tiktok = set(
-        db.scalars(select(Publication.video_id).where(Publication.video_id.in_(ids), Publication.platform == "tiktok"))
+        db.scalars(
+            select(Publication.video_id).where(
+                Publication.video_id.in_(ids), Publication.platform == "tiktok", Publication.status != "pending_link"
+            )
+        )
     )
     products = dict(
         db.execute(

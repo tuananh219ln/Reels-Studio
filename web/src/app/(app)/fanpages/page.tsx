@@ -2,6 +2,7 @@
 import { FanpageMenu, OwnerLine, TokenInput, TokenModal } from "@/components/actions/FanpageActions";
 
 import { COLORS } from "@/app/theme";
+import ChannelsCard from "@/components/ChannelsCard";
 import EmptyState from "@/components/EmptyState";
 import FormDrawer from "@/components/FormDrawer";
 import { useMe } from "@/components/MeContext";
@@ -462,13 +463,13 @@ function Fanpages() {
   return (
     <>
       <PageHeader
-        title="Quản lý Page"
+        title="Quản lý kênh"
         actions={
           <Button type="primary" icon={<PlusOutlined />} onClick={() => setAdding(true)}>
             Thêm Fanpage
           </Button>
         }
-        description="Các Fanpage đội dùng để đăng: số liệu 7 ngày, chủ Page, tài khoản Shopee và TikTok, lịch đăng của từng Page. Tool tự kiểm tra token mỗi 12 giờ."
+        description="Các kênh đội đăng bài: Fanpage (số liệu 7 ngày, chủ Page, tài khoản Shopee và TikTok, lịch đăng; tool tự kiểm tra token mỗi 12 giờ), kênh TikTok và YouTube."
       />
       <Flex vertical gap={16}>
         {rows !== null && rows.length > 0 && (
@@ -529,6 +530,7 @@ function Fanpages() {
           </div>
         )}
         <StoppedPages rows={stopped} onRows={setRows} />
+        <ChannelsCard />
       </Flex>
       <AddModal open={adding} onClose={() => setAdding(false)} onSaved={setRows} />
       <TokenModal row={replacing} onClose={() => setReplacing(null)} onSaved={setRows} />

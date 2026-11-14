@@ -39,7 +39,7 @@ def not_page_owner(response, message: str) -> None:
 
 
 TEAMMATES_PAGE = "Chỉ chủ Page “Trang Dưỡng Sinh” (Nguyễn Văn An) mới đăng được lên Page này"
-NO_OWNER = "Page “Trang Dưỡng Sinh” chưa có chủ: hãy bấm “Nhận Page” ở Quản lý Page rồi đăng"
+NO_OWNER = "Page “Trang Dưỡng Sinh” chưa có chủ: hãy bấm “Nhận Page” ở Quản lý kênh rồi đăng"
 
 
 def test_a_video_is_posted_only_to_a_page_its_poster_owns(an, binh, db, an_user, binh_user, storage):

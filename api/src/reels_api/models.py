@@ -12,6 +12,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    Numeric,
     String,
     Table,
     Text,
@@ -780,6 +781,20 @@ class Publication(Base):
         ),
         Index("ix_publications_article_id", "article_id"),
         CheckConstraint("(video_id IS NULL) <> (article_id IS NULL)", name="one_target"),
+        Index(
+            "uq_publications_platform_external_id",
+            "platform",
+            "external_id",
+            unique=True,
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_publications_pending_link",
+            "video_id",
+            "platform",
+            unique=True,
+            postgresql_where=text("status = 'pending_link'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -836,12 +851,62 @@ class Publication(Base):
     publish_mode: Mapped[str | None] = mapped_column(String(16))
     # A direct post's privacy level, as TikTok names it (SELF_ONLY...); None for a draft and any other post.
     privacy_level: Mapped[str | None] = mapped_column(String(32))
+    # Where the post came from: "app_api" (sent by the app), "manual_link" (posted by hand, recorded with its link)
+    # or "meta_suite" (found on the Page, later). Shown as the label beside its numbers on "Bài đăng".
+    source: Mapped[str] = mapped_column(String(16), default="app_api", server_default="app_api")
+    # The platform's id of the post (Facebook video id, TikTok video id, YouTube id), unique per platform, so the
+    # same link is never recorded twice (post_links.py). None for a post not on the platform yet.
+    external_id: Mapped[str | None] = mapped_column(String(64))
+    # The YouTube channel a YouTube post is on (TikTok posts have `affiliate_account_id`, Facebook `fanpage_id`).
+    channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
+    # "Tải MP4" for TikTok or YouTube on "Bài đăng": the post waits for its link (status `pending_link`) since then.
+    mp4_downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Whether `published_at` was read from the platform ("api") or typed or defaulted by the member ("user").
+    published_at_source: Mapped[str | None] = mapped_column(String(8))
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
     closed_by: Mapped[User | None] = relationship(foreign_keys=[closed_by_id])
     affiliate_account: Mapped["AffiliateAccount | None"] = relationship()
+    channel: Mapped["Channel | None"] = relationship()
     metrics: Mapped[list["PostMetrics"]] = relationship(lazy="selectin", passive_deletes=True)
+
+
+class Channel(Base):
+    """A YouTube channel the team posts Shorts to, added on "Quản lý kênh" from its link. TikTok accounts are
+    `affiliate_accounts` and Facebook Pages `fanpages`; this holds what neither has."""
+
+    __tablename__ = "channels"
+    __table_args__ = (Index("uq_channels_platform_handle", "platform", text("lower(handle)"), unique=True),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    platform: Mapped[str] = mapped_column(String(16))  # youtube
+    handle: Mapped[str] = mapped_column(String(100))  # "@anngonsongkhoe", or the channel id "UC…" when it has none
+    external_id: Mapped[str | None] = mapped_column(String(64))  # YouTube's channel id, when known
+    name: Mapped[str] = mapped_column(String(200))
+    url: Mapped[str] = mapped_column(Text)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    created_by: Mapped[User] = relationship()
+
+
+class PostMetricSnapshot(Base):
+    """One reading of a post's numbers, kept as a time series: the board's marks and trend are read from these.
+    `raw` says where it came from."""
+
+    __tablename__ = "post_metric_snapshots"
+    __table_args__ = (Index("ix_post_metric_snapshots_publication_captured", "publication_id", "captured_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    publication_id: Mapped[int] = mapped_column(ForeignKey("publications.id", ondelete="CASCADE"))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    hours_since_publish: Mapped[float | None] = mapped_column(Numeric(8, 2, asdecimal=False))
+    views: Mapped[int | None] = mapped_column(BigInteger)
+    likes: Mapped[int | None] = mapped_column(BigInteger)
+    comments: Mapped[int | None] = mapped_column(BigInteger)
+    shares: Mapped[int | None] = mapped_column(BigInteger)
+    raw: Mapped[dict | None] = mapped_column(JSONB)
 
 
 class PostMetrics(Base):

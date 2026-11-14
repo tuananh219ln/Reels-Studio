@@ -28,7 +28,7 @@ test("a member's Shopee account: added, checked, set on their Page, and hidden f
   await expect(page.getByText("Shopee nhận App ID và Secret này")).toBeVisible();
 
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await expect(owner).toContainText("Thuộc: bạn");
   await chooseOption(page, owner.getByLabel("Tài khoản Shopee của Trang Dưỡng Sinh"), "Shopee: Shopee của An");
@@ -232,7 +232,7 @@ test("a member's TikTok account: set on their Page, and shown there after a relo
   await expect(page.getByText("Đã kết nối tài khoản TikTok")).toBeVisible();
 
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await expect(owner).toContainText("Thuộc: bạn");
   await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
@@ -422,7 +422,7 @@ test("Video đã đăng starts on the member's own and says whose commission eac
 test("Sản phẩm: my groups first, who added each product, and stars or sales fixed on the row", async ({ page }) => {
   await loginAsSeed(page);
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await page.getByRole("tab", { name: "Lịch đăng" }).click();
   const card = page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");

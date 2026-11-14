@@ -78,13 +78,13 @@ app replaces CapCut, so the output is a finished MP4.
    public and delete a public one from Facebook. "Bài đăng" lists posts on their way, failed (with
    "Thử lại"), posted, scheduled, cancelled and deleted under status tabs, and its "Lịch" view shows
    the posted and scheduled ones in a month, both in Vietnam time. The worker checks each Page's token twice a day (and on "Kiểm tra ngay"), so a
-   broken one shows on "Quản lý Page" and in "Đăng" before a post fails, and keeps the Page's
+   broken one shows on "Quản lý kênh" and in "Đăng" before a post fails, and keeps the Page's
    followers with this week's gain, and its views, reach and engagements by day from Page Insights.
    The worker also reads visitors' comments under the app's reels and articles, so an article can answer one
-   ("Trả lời bình luận"); the "Bình luận" page that answered them went on 2026-11-10. Opening "Quản lý Page" or
+   ("Trả lời bình luận"); the "Bình luận" page that answered them went on 2026-11-10. Opening "Quản lý kênh" or
    "Bài đăng" asks the worker
    to read again what it has not read in 15 minutes, so nobody has to press a button first.
-   **Posting queues on "Quản lý Page"** (built): each Page posts one topic group at its own posting times, or the group's.
+   **Posting queues on "Quản lý kênh"** (built): each Page posts one topic group at its own posting times, or the group's.
    A member adds a rendered video they have watched with "Thêm vào hàng chờ"; it goes to their own
    Page of the video's group, and the worker schedules the first video of each queue at the Page's
    next free time within 48 hours, through the usual publish job.

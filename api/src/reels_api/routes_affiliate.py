@@ -447,7 +447,7 @@ def list_videos(me: Session = Depends(current_member), db: DbSession = Depends(g
     rows = db.execute(
         select(Video, Publication)
         .join(Publication)
-        .where(Publication.platform.in_(("facebook", "tiktok")))
+        .where(Publication.platform.in_(("facebook", "tiktok")), Publication.status != "pending_link")
         .order_by(Publication.id)
     )
     # A video posted again has one comment to pin per reel in time, so it shows once, with its newest live post.

@@ -1511,14 +1511,14 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
 
   await connectFacebook(page);
   // The Page posts the "Sức khỏe" group, the group the new video will belong to.
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await page.getByRole("tab", { name: "Lịch đăng" }).click();
   const queue = page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");
   await chooseOption(page, queue.getByLabel("Nhóm chủ đề của Trang Dưỡng Sinh"), "Sức khỏe");
   await expect(queue).toContainText("Theo giờ đăng của nhóm chủ đề (giờ Việt Nam).");
   // The Page's TikTok account, picked once on its card.
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   const owner = page.getByTestId("fanpage-card").getByTestId("fanpage-owner");
   await chooseOption(page, owner.getByLabel("Tài khoản TikTok của Trang Dưỡng Sinh"), "TikTok: An Lành SK (@anlanhsk)");
 
@@ -1653,7 +1653,7 @@ test("the side panel: three tabs at its top, the blocks in order on each, the Lo
   const logo = page.getByTestId("logo-settings");
   await expect(logo.getByRole("switch", { name: "Gắn logo vào video" })).toBeVisible();
   await expect(logo.getByLabel("Kênh của video")).toBeVisible();
-  await expect(logo.getByRole("link", { name: /Quản lý Page/ })).toBeVisible();
+  await expect(logo.getByRole("link", { name: /Quản lý kênh/ })).toBeVisible();
   await expect(page.getByTestId("logo-frame")).toHaveCount(0);
   expect((await logo.boundingBox())!.height).toBeLessThan(110);
 });
@@ -1669,15 +1669,19 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await expect(page).toHaveURL(/\/posts$/);
-  // A row per video, with its thumbnail and what its posts add up to; opening it lists each post.
+  // A row per rendered video and a cell per platform: Facebook says it is out (sent by the app), TikTok and YouTube
+  // offer the MP4 and a link to paste.
   const groups = page.getByTestId("post-group");
   await expect(groups).toHaveCount(1);
   await expect(groups.locator("img")).toHaveAttribute("src", /\/thumbnail\.jpg/);
-  await expect(groups).toContainText("1 bài đăng");
-  await expect(groups.getByText("Đã đăng", { exact: true })).toBeVisible();
-  await groups.getByRole("cell").last().click(); // the row, not the title's link
+  await expect(groups.getByTestId("cell-facebook")).toContainText("API");
+  await expect(groups.getByTestId("cell-tiktok").getByRole("button", { name: "Tải MP4" })).toBeVisible();
+  await expect(groups.getByTestId("cell-youtube").getByRole("button", { name: "Dán link" })).toBeVisible();
+  // Opening the row lists each post with its own actions, and the platforms it is not on yet.
+  await groups.locator(".ant-table-row-expand-icon").click();
   const posts = page.getByTestId("post-rows");
   await expect(posts.getByRole("link", { name: "Xem Reel" })).toBeVisible();
+  await expect(posts.getByText("Chưa đăng", { exact: true })).toHaveCount(2);
   // On a phone the table scrolls inside its card instead of being cut off.
   await expect(posts.locator(".ant-table-content").first()).toHaveCSS("overflow-x", "auto");
   // Every post has the same action buttons; those that do not apply are greyed out.
@@ -1687,11 +1691,10 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await expect(posts.getByText("Chưa có view", { exact: true })).toBeVisible();
   await posts.getByRole("button", { name: "Cập nhật view" }).click();
   await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
-  await expect(groups).toContainText("1.200");
+  await expect(groups.getByTestId("cell-facebook")).toContainText("1.200 view", { timeout: 30_000 });
   // The views stay on one line: the details sit in a tooltip.
   await expect(posts.getByText("3 share, 5 bình luận, 40 cảm xúc")).toHaveCount(0);
   await posts.getByTestId("post-views").hover();
-  // The "Cập nhật view" button's tooltip may still be fading out, so pick the views tooltip by its text.
   const viewsTip = page.getByRole("tooltip").filter({ hasText: "3 share, 5 bình luận, 40 cảm xúc" });
   await expect(viewsTip).toBeVisible();
   await expect(viewsTip).toContainText("Xem TB 8,4 giây");
@@ -1701,33 +1704,30 @@ test("a posted video appears in Bài đăng and its calendar", async ({ page }) 
   await expect(insights.getByTestId("insight-avg-watch")).toContainText("8,4 giây");
   await expect(insights.getByTestId("retention-chart")).toBeVisible();
   await expect(insights.getByTestId("scene-drop-off").getByRole("row")).toHaveCount(7); // header, title, 5 scenes
-  await expect(insights.getByTestId("scene-drop-off").locator(".ant-table-content")).toHaveCSS("overflow-x", "auto");
-  await expect(insights.getByText("mất nhiều nhất")).toHaveCount(1);
   await page.getByRole("dialog", { name: "Phân tích bài đăng" }).getByRole("button", { name: "Đóng" }).click(); // antd's vi_VN label for the X
-  await chooseOption(page, page.getByLabel("Sắp xếp"), "Nhiều view nhất");
+  // No weekly KPIs and no "Sẵn sàng đăng" or "Nhân bản" blocks on this page any more.
+  await expect(page.getByTestId("kpi-card")).toHaveCount(0);
+  await chooseOption(page, page.getByLabel("Sắp xếp"), "Tổng view");
   await expect(groups).toHaveCount(1);
-  // The KPIs: each figure on its own card, named plainly, with last week under it. The reel just went out, so
-  // nothing has reached 48 hours: the cards say it is on its way instead of a bare "—".
-  const kpis = page.getByTestId("kpi-card");
-  await expect(kpis).toHaveCount(3);
-  await expect(kpis.first()).toContainText("Bài đã đủ 48 giờ");
-  await expect(kpis.first()).toContainText("Tuần trước:");
-  await expect(kpis.first().getByTestId("kpi-note")).toContainText("Thêm 1 bài đang chờ, sớm nhất");
-  await expect(kpis.nth(1).getByTestId("kpi-note")).toContainText("1 bài đang chờ đủ 48 giờ");
-  // Its Page has no measured post yet, so the strip shows how far each Page is from a median to compare with.
-  await expect(page.getByTestId("kpi-unlock")).toContainText("0/5 bài");
-  // "Video thắng" was dropped: no winner card (three above), no winner filter.
-  await expect(page.getByText("Chỉ video thắng")).toHaveCount(0);
-  // The status tabs count the posts: a published reel is not among the scheduled or failed ones.
+  // The tabs count videos: one out on Facebook is not unposted, scheduled or failed.
   const tabs = page.getByLabel("Lọc theo trạng thái");
   await expect(tabs.getByText("Đã đăng (1)")).toBeVisible();
+  await expect(tabs.getByText("Chưa đăng (0)")).toBeVisible();
   await expect(tabs.getByText("Thất bại (0)")).toBeVisible();
   await tabs.getByText("Đã hẹn lịch (0)").click();
   await expect(groups).toHaveCount(0);
-  await expect(page.getByText("Không có bài đăng nào khớp")).toBeVisible();
-  await tabs.getByText("Đang hoạt động (1)").click();
+  await expect(page.getByText("Không có video nào khớp")).toBeVisible();
+  await tabs.getByText("Tất cả (1)").click();
   await expect(groups).toHaveCount(1);
-  // The search keeps posts whose title has the words.
+  // "Chưa có trên: TikTok" keeps it, "Chưa có trên: Facebook" does not.
+  await chooseOption(page, page.getByLabel("Chưa có trên"), "Chưa có trên TikTok");
+  await expect(groups).toHaveCount(1);
+  await chooseOption(page, page.getByLabel("Chưa có trên"), "Chưa có trên Facebook");
+  await expect(groups).toHaveCount(0);
+  await expect(page).toHaveURL(/[?&]missing=facebook/);
+  await page.goto("/posts?sort=views");
+  await expect(groups).toHaveCount(1);
+  // The search keeps videos whose title has the words.
   await page.getByLabel("Tìm theo tiêu đề").fill("không có tiêu đề này");
   await expect(groups).toHaveCount(0);
   await page.getByLabel("Tìm theo tiêu đề").fill("");
@@ -1767,7 +1767,7 @@ test("a posted video is a row of its Page's Nội dung tab, with columns to choo
     timeout: 30_000,
   });
 
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await page.getByRole("tab", { name: "Nội dung" }).click();
   const tab = page.getByRole("tabpanel", { name: "Nội dung" });
@@ -1816,22 +1816,20 @@ test("a posted video is a row of its Page's Nội dung tab, with columns to choo
   await expect(page).toHaveURL(/\/videos\/\d+$/);
 });
 
-test("a rendered video waits in Sẵn sàng đăng until its Đăng there posts it", async ({ page }) => {
+test("a rendered video waits in Chưa đăng until its Facebook cell posts it", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);
   const videoUrl = page.url();
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
-  const ready = page.getByTestId("ready-to-post");
-  await expect(ready.getByTestId("suggestion")).toHaveCount(1);
-  await expect(ready).toContainText("Sẵn sàng đăng (1)");
-  // Nothing did well yet, and with one Page only there is no other Page to make a variant for: the card says both.
-  await expect(page.getByTestId("clone-suggestions")).toContainText(
-    "Chưa có video nào cần nhân bản. Bản cho Page khác cần ít nhất 2 Fanpage đang dùng.",
-  );
+  const tabs = page.getByLabel("Lọc theo trạng thái");
+  await tabs.getByText("Chưa đăng (1)").click();
+  await expect(page).toHaveURL(/[?&]tab=unposted/);
+  const groups = page.getByTestId("post-group");
+  await expect(groups).toHaveCount(1);
 
-  // "Đăng" opens the video with its dialog open and the only Page picked; the address drops the request.
-  await ready.getByRole("link", { name: "Đăng" }).click();
+  // "Đăng / Hẹn giờ" opens the video with its dialog open and the only Page picked; the address drops the request.
+  await groups.getByTestId("cell-facebook").getByRole("link", { name: "Đăng / Hẹn giờ" }).click();
   const dialog = page.getByRole("dialog", { name: "Đăng bài" });
   await expect(dialog).toBeVisible();
   await expect(page).toHaveURL(videoUrl);
@@ -1842,8 +1840,51 @@ test("a rendered video waits in Sẵn sàng đăng until its Đăng there posts 
   });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
-  await expect(ready.getByTestId("suggestion")).toHaveCount(0);
-  await expect(ready).toContainText("Không có video nào đang chờ đăng.");
+  await expect(tabs.getByText("Chưa đăng (0)")).toBeVisible();
+  await expect(tabs.getByText("Đã đăng (1)")).toBeVisible();
+});
+
+test("Tải MP4 for TikTok waits for its link, and pasting it records the post", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  // A TikTok channel added from its link on Quản lý kênh.
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
+  await page.getByLabel("Link kênh TikTok hoặc YouTube").fill("https://www.tiktok.com/@kenhthu");
+  await page.getByRole("button", { name: "Thêm kênh" }).click();
+  await expect(page.getByTestId("channel-tiktok")).toContainText("@kenhthu");
+
+  await page.getByRole("menuitem", { name: "Bài đăng" }).click();
+  const groups = page.getByTestId("post-group");
+  const download = page.waitForEvent("download");
+  await groups.getByTestId("cell-tiktok").getByRole("button", { name: "Tải MP4" }).click();
+  await download;
+  const waiting = groups.getByTestId("cell-tiktok").getByRole("button", { name: /^Dán link TikTok/ });
+  await expect(waiting).toContainText("Chờ dán link");
+  await expect(page.getByLabel("Lọc theo trạng thái").getByText("Chờ dán link (1)")).toBeVisible();
+
+  // The cell opens the paste window with the video fixed; the link is read and its channel found.
+  await waiting.click();
+  const dialog = page.getByRole("dialog", { name: "Dán link bài đã đăng" });
+  await dialog
+    .getByLabel("Link bài đã đăng")
+    .fill("https://www.tiktok.com/@kenhthu/video/7301234567890123456?is_from_webapp=1");
+  await expect(dialog.getByText("Sẵn sàng")).toBeVisible({ timeout: 15_000 });
+  await dialog.getByRole("button", { name: "Lưu 1 link" }).click();
+  await expect(page.getByText("Đã lưu 1 link")).toBeVisible();
+  await expect(groups.getByTestId("cell-tiktok")).toContainText("Link tay");
+  await expect(page.getByLabel("Lọc theo trạng thái").getByText("Chờ dán link (0)")).toBeVisible();
+
+  // The same link again is already there.
+  await page.getByRole("button", { name: "Dán link bài đã đăng" }).click();
+  await page
+    .getByRole("dialog", { name: "Dán link bài đã đăng" })
+    .getByLabel("Link bài đã đăng")
+    .fill("https://www.tiktok.com/@kenhthu/video/7301234567890123456");
+  await expect(
+    page.getByRole("dialog", { name: "Dán link bài đã đăng" }).getByText("Đã có trong hệ thống"),
+  ).toBeVisible({
+    timeout: 15_000,
+  });
 });
 
 test("a scheduled video appears in Bài đăng and its calendar without a link to the reel", async ({ page }) => {
@@ -1860,8 +1901,9 @@ test("a scheduled video appears in Bài đăng and its calendar without a link t
   await expect(page.getByTestId("publication-status")).toContainText(`Hẹn đăng lúc ${shown}`, { timeout: 30_000 });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
-  await page.getByTestId("post-group").getByRole("cell").last().click();
-  await expect(page.getByTestId("post-rows").getByRole("cell", { name: "Đã hẹn lịch" })).toBeVisible();
+  await expect(page.getByTestId("cell-facebook")).toContainText("Hẹn lịch");
+  await page.getByTestId("post-group").locator(".ant-table-row-expand-icon").click();
+  await expect(page.getByTestId("post-rows").getByText("Hẹn lịch", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
   await expect(page.getByTestId("post-rows").getByRole("button", { name: "Xem Reel" })).toBeDisabled();
 
@@ -1911,40 +1953,32 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
-  // "Đang hoạt động" by default: the cancelled post is hidden, counted under its own tab.
+  // One row for the video: its Facebook cell shows the live post; the cancelled one counts under "Đã gỡ/hủy".
   const groups = page.getByTestId("post-group");
   const tabs = page.getByLabel("Lọc theo trạng thái");
   await expect(groups).toHaveCount(1);
-  await expect(groups).toContainText("1 bài đăng");
-  await expect(tabs.getByText("Đã hủy/xóa (1)")).toBeVisible();
-  await groups.getByRole("cell").last().click();
+  await expect(tabs.getByText("Đã gỡ/hủy (1)")).toBeVisible();
+  await groups.locator(".ant-table-row-expand-icon").click();
   const posts = page.getByTestId("post-rows");
   await posts.getByRole("button", { name: "Cập nhật view" }).click();
   await expect(posts.getByTestId("post-views")).toHaveText("1.200", { timeout: 30_000 });
   await posts.getByRole("button", { name: "Xóa", exact: true }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Xóa", exact: true }).click();
-  // Deleted, it leaves the default list too, but stays one click away.
-  await expect(groups).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.getByText("Không có bài nào đang hoạt động")).toBeVisible();
-  await tabs.getByText("Đã hủy/xóa (2)").click();
-  // Both posts belong to the same video: one row, opened to reach each post.
-  await expect(groups).toHaveCount(1);
-  await expect(groups).toContainText("2 bài đăng");
-  await groups.getByRole("cell").last().click();
-  await expect(posts.getByText("Đã xóa", { exact: true })).toBeVisible();
+  // Deleted, it is history: the cell says "Đã gỡ" and the video is unposted on Facebook again.
+  await expect(groups.getByTestId("cell-facebook")).toContainText("Đã gỡ", { timeout: 30_000 });
+  await expect(posts.getByText("Đã gỡ", { exact: true })).toBeVisible();
   // A deleted reel's last numbers are history: said as such, not bold like a live one's, and left out of the total.
   await expect(posts.getByTestId("post-views")).toHaveCount(0);
   await expect(posts.getByTestId("post-views-at-close")).toContainText("Lúc xóa: 1.200 view (đo lúc ");
-  await expect(groups.getByRole("cell", { name: "1.200", exact: true })).toHaveCount(0);
+  await expect(groups.getByText("1.200", { exact: true })).toHaveCount(0);
   await expect(posts.getByText("Đã hủy", { exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveCount(0);
-  // Who took each down and when, under its time; their action buttons are all greyed out.
+  // Who took each down and when, under its channel; their action buttons are all greyed out.
   await expect(posts.getByText(new RegExp(`^Xóa: ${SEED.name}, `))).toBeVisible();
   await expect(posts.getByText(new RegExp(`^Hủy: ${SEED.name}, `))).toBeVisible();
   await expect(posts.getByRole("button", { name: "Kiểm tra" }).first()).toBeDisabled();
-
-  await tabs.getByText("Tất cả (2)").click();
-  await expect(groups).toHaveCount(1);
+  await expect(tabs.getByText("Đã gỡ/hủy (1)")).toBeVisible();
+  await expect(tabs.getByText("Chưa đăng (1)")).toBeVisible();
 });
 
 test("a posted reel takes an approved product and its link goes in the pinned comment", async ({ page, context }) => {
@@ -3407,7 +3441,7 @@ test("30-day plan: an idea added for today becomes a video, linked both ways", a
   await loginAsSeed(page);
   // The banner shows the plans of the member's own groups only: those their Pages post.
   await connectFacebook(page);
-  await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
+  await page.getByRole("menuitem", { name: "Quản lý kênh" }).click();
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
   await page.getByRole("tab", { name: "Lịch đăng" }).click();
   const queue = page.getByRole("tabpanel", { name: "Lịch đăng" }).getByTestId("page-queue");

@@ -148,7 +148,7 @@ when set to an empty string. Containers use real environment variables only.
 Only tests and E2E set these, to reach the local fake Claude, Pixabay, ElevenLabs, Gemini and Cloudflare Workers AI
 ([api/scripts/fake_services.py](../api/scripts/fake_services.py)): `ANTHROPIC_BASE_URL`,
 `PIXABAY_API_URL`, `ELEVENLABS_API_URL`, `VIENEU_API_URL` (default `https://api.vieneu.io/api`; the fakes also empty `VIENEU_API_KEY`), `IMAGE_GEN_API_URL`, `IMAGE_GEN_CF_API_URL`, `FACEBOOK_API_URL`,
-`SHOPEE_AFFILIATE_API_URL`, `TIKTOK_API_URL` (TikTok's Login Kit and Content Posting API; default `https://open.tiktokapis.com`), `SHOPEE_SHORT_LINK_URL` (where a pasted s.shopee.vn link is asked for its redirect; Shopee's keys are each member's, pasted on Cấu hình › Tài khoản affiliate, so there is no
+`SHOPEE_AFFILIATE_API_URL`, `TIKTOK_API_URL` (TikTok's Login Kit and Content Posting API; default `https://open.tiktokapis.com`), `TIKTOK_OEMBED_URL` and `YOUTUBE_OEMBED_URL` (what a pasted post link on "Bài đăng" is read with; defaults `https://www.tiktok.com/oembed` and `https://www.youtube.com/oembed`, no key), `SHOPEE_SHORT_LINK_URL` (where a pasted s.shopee.vn link is asked for its redirect; Shopee's keys are each member's, pasted on Cấu hình › Tài khoản affiliate, so there is no
 Shopee key in `.env`; the fakes also
 set `IMAGE_GEN_CF_ACCOUNT_ID=test-account` and a fake `IMAGE_GEN_CF_API_KEY`, so with `IMAGE_GEN_PROVIDER` unset Cloudflare is
 the default; Gemini and Cloudflare tests set `IMAGE_GEN_PROVIDER` themselves). The Graph API version is the default in `config.facebook_api_url()`; change it there when Meta retires it. `JOB_TIMEOUT_SECONDS` (the job time limit) is lowered only in tests.
