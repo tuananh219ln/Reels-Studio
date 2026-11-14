@@ -7,7 +7,9 @@ the comment, the products and the comment's posting sit together.
 - The post's texts are one tile with tabs "Caption & hashtag", "Bình luận & sản phẩm", "Nhạc & an toàn"; the products
   come before the pinned comment because their links go into it, and the comment's state ("Đăng bình luận", with
   "Bình luận ngay") ends the tab, so the three steps read in the order they happen. A comment is edited only in its
-  tab; "Bài đăng của video" keeps its other buttons but no longer shows the comment's state.
+  tab. "Bài đăng của video" is no longer a tile of its own: each post is a tinted row inside "Sẵn sàng đăng?", beside
+  the MP4 (the owner's reference screen), with a read-only line for the comment's state; "Bình luận ngay" stays in the
+  tab only.
 - "Thiết lập" is a drawer opened from the header.
 - From 1400 px the page is two tiles of the screen's height: the scenes scroll inside theirs, and in the panel the
   MP4 card and the posts keep their size while the tabs take the rest (below 1400 px the panel only scrolls on its
