@@ -1,7 +1,7 @@
 "use client";
 
 import { CopyOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Card, Flex, Select, Tabs, Tooltip, Typography } from "antd";
+import { App, Alert, Button, Card, Flex, Select, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
@@ -11,7 +11,7 @@ import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/li
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import ExtraComments from "./ExtraComments";
 
-type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_comment" | "music_suggestions">;
+type PostFields = Pick<VideoDetail, "caption" | "hashtags" | "affiliates" | "pinned_comment">;
 
 const lines = (text: string) =>
   text
@@ -20,22 +20,17 @@ const lines = (text: string) =>
     .filter(Boolean);
 const words = (text: string) => text.split(/\s+/).filter(Boolean);
 
-/** The tabs of the post texts: the caption and hashtags; the comment with the products whose links go in it; the music
- * and the AI's safety review. */
-export type PostTabKey = "caption" | "comments" | "extras";
+/** The blocks of the post texts a step of the progress line can point at (`data-post-block`). */
+export type PostBlockKey = "caption" | "comments" | "products";
 
-export default function PostContent({
-  video,
-  tab,
-  onTab,
-}: {
-  video: VideoDetail;
-  tab?: PostTabKey;
-  onTab?: (tab: PostTabKey) => void;
-}) {
+/**
+ * The post's texts under "Sẵn sàng đăng?", in a fixed order: the caption, the comments, the products, and the
+ * hashtags last, each a block of its own. "Copy caption + hashtag" stays at the top of the first: it copies both,
+ * wherever the hashtags are typed. The music suggestions and the AI's safety review are not shown any more
+ * (docs/decisions/2026-11-14-video-editor-spec.md); a hand-written video still says it was not reviewed.
+ */
+export default function PostContent({ video }: { video: VideoDetail }) {
   const { message } = App.useApp();
-  const [own, setOwn] = useState<PostTabKey>("caption");
-  const active = tab ?? own;
   const patch = (body: Partial<PostFields>) => api<VideoDetail>(`/videos/${video.id}`, "PATCH", body);
   const warningsFor = (field: string) =>
     video.video_warnings.filter((warning) => warning.field === field).map((warning) => warning.message);
@@ -49,162 +44,113 @@ export default function PostContent({
     }
   }
 
-  /** A "Copy" in a block's title: it copies without opening or closing the block. */
+  /** A "Copy" in a block's title. */
   const copyButton = (label: string, text: string, what: string) => (
-    <Tooltip title={label}>
-      <Button
-        size="small"
-        icon={<CopyOutlined />}
-        aria-label={label}
-        onClick={(event) => {
-          event.stopPropagation();
-          void copy(text, what);
-        }}
-      />
-    </Tooltip>
+    <Button size="small" icon={<CopyOutlined />} onClick={() => void copy(text, what)}>
+      {label}
+    </Button>
   );
 
-  const pinnedWarnings = warningsFor("pinned_comment");
   const products = video.affiliate_product_ids.length;
   const shop = video.platform === "tiktok" ? "Sản phẩm TikTok Shop" : "Sản phẩm Shopee";
-  // A tab's name with, small beside it, what is in it: the member sees what is there without opening it.
-  const tabLabel = (title: string, summary: React.ReactNode) => (
-    <span>
-      {title}{" "}
-      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-        {summary}
-      </Typography.Text>
-    </span>
-  );
+  const block = { borderRadius: 10 } as const;
 
-  // Each tab keeps its fields mounted, so text not yet saved survives a change of tab.
   return (
-    <Card size="small" styles={{ body: { paddingTop: 0 } }} data-testid="post-blocks">
-      <Tabs
+    <Flex vertical gap={12} data-testid="post-blocks">
+      <Card
         size="small"
-        activeKey={active}
-        onChange={(key) => {
-          setOwn(key as PostTabKey);
-          onTab?.(key as PostTabKey);
-        }}
-        tabBarExtraContent={
-          active === "caption"
-            ? copyButton("Copy caption + hashtag", video.post_text, "caption + hashtag")
-            : active === "comments"
-              ? copyButton("Copy ghim", video.pinned_comment, "bình luận ghim")
-              : copyButton("Copy nhạc", video.music_suggestions.join("\n"), "gợi ý nhạc")
+        title="Nội dung đăng"
+        extra={copyButton("Copy caption + hashtag", video.post_text, "caption + hashtag")}
+        style={block}
+        data-post-block="caption"
+      >
+        <Flex vertical gap={4}>
+          {video.hand_written && (
+            <Alert
+              type="warning"
+              showIcon
+              data-testid="hand-written-review"
+              style={{ marginBottom: 8 }}
+              title="Video tự viết nên chưa được AI rà soát an toàn. Hãy tự kiểm tra nội dung theo luật an toàn của kênh trước khi đăng."
+            />
+          )}
+          <AutoSaveField
+            label="Caption"
+            value={video.caption}
+            multiline
+            rows={3}
+            save={(caption) => patch({ caption })}
+          />
+          <Warnings messages={warningsFor("caption")} />
+        </Flex>
+      </Card>
+      <Card
+        size="small"
+        title="Bình luận"
+        extra={copyButton("Copy ghim", video.pinned_comment, "bình luận ghim")}
+        style={block}
+        data-post-block="comments"
+      >
+        <Flex vertical gap={4}>
+          <AutoSaveField
+            label="Bình luận ghim"
+            value={video.pinned_comment}
+            multiline
+            save={(pinned_comment) => patch({ pinned_comment })}
+          />
+          <Warnings messages={warningsFor("pinned_comment")} />
+          <ExtraComments video={video} />
+          {video.platform === "facebook" && <CommentPosting video={video} />}
+        </Flex>
+      </Card>
+      <Card
+        size="small"
+        title={
+          <span>
+            {shop}{" "}
+            {products ? (
+              <StatusText tone="success">{products} sản phẩm</StatusText>
+            ) : (
+              <StatusText tone="warning">chưa gắn</StatusText>
+            )}
+          </span>
         }
-        items={[
-          {
-            key: "caption",
-            forceRender: true,
-            label: "Caption & hashtag",
-            children: (
-              <Flex vertical gap={4}>
-                <AutoSaveField
-                  label="Caption"
-                  value={video.caption}
-                  multiline
-                  rows={3}
-                  save={(caption) => patch({ caption })}
-                />
-                <Warnings messages={warningsFor("caption")} />
-                <AutoSaveField
-                  label="Hashtag"
-                  value={video.hashtags.join(" ")}
-                  placeholder="#xuongkhop #duongsinh"
-                  save={(text) => patch({ hashtags: words(text) })}
-                />
-              </Flex>
-            ),
-          },
-          {
-            key: "comments",
-            forceRender: true,
-            label: tabLabel(
-              "Bình luận & sản phẩm",
-              products ? (
-                <StatusText tone="success">{products} sản phẩm</StatusText>
-              ) : (
-                <StatusText tone="warning">chưa gắn</StatusText>
-              ),
-            ),
-            // In the order it happens: the products, whose links go into the pinned comment, then the comments.
-            children: (
-              <Flex vertical gap={4}>
-                <Typography.Text strong>1. {shop} gắn vào bình luận</Typography.Text>
-                <AutoSaveField
-                  label="Gợi ý sản phẩm (AI)"
-                  value={video.affiliates.join("\n")}
-                  multiline
-                  hint={
-                    video.platform === "tiktok"
-                      ? "Từ khoá để tìm sản phẩm trong mục “Thêm sản phẩm” của app TikTok; mỗi dòng một sản phẩm"
-                      : "Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
-                  }
-                  save={(text) => patch({ affiliates: lines(text) })}
-                />
-                {video.platform === "facebook" && <VideoSuggestions video={video} />}
-                <AttachedProducts video={video} />
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  ↓{" "}
-                  {video.platform === "tiktok"
-                    ? "sản phẩm gắn giỏ trong app TikTok"
-                    : "link của sản phẩm tự chèn vào bình luận sau bình luận ghim"}
-                </Typography.Text>
-                <Typography.Text strong>2. Bình luận ghim và bình luận thêm</Typography.Text>
-                <AutoSaveField
-                  label="Bình luận ghim"
-                  value={video.pinned_comment}
-                  multiline
-                  save={(pinned_comment) => patch({ pinned_comment })}
-                />
-                <Warnings messages={pinnedWarnings} />
-                <ExtraComments video={video} />
-                {video.platform === "facebook" && <CommentPosting video={video} />}
-              </Flex>
-            ),
-          },
-          {
-            key: "extras",
-            forceRender: true,
-            label: tabLabel("Nhạc & an toàn", video.hand_written ? "chưa rà" : video.self_review.length || ""),
-            children: (
-              <Flex vertical gap={8}>
-                <AutoSaveField
-                  label="Gợi ý nhạc"
-                  value={video.music_suggestions.join("\n")}
-                  multiline
-                  hint="Tìm tên nhạc này trong TikTok hoặc Facebook khi đăng; mỗi dòng một bản"
-                  save={(text) => patch({ music_suggestions: lines(text) })}
-                />
-                <Typography.Text strong>Rà soát an toàn của AI</Typography.Text>
-                {video.hand_written ? (
-                  <Alert
-                    type="warning"
-                    showIcon
-                    data-testid="hand-written-review"
-                    title="Video tự viết nên chưa được AI rà soát an toàn. Hãy tự kiểm tra nội dung theo luật an toàn của kênh trước khi đăng."
-                  />
-                ) : video.self_review.length ? (
-                  <ul style={{ margin: 0, paddingLeft: 20 }} data-testid="self-review">
-                    {video.self_review.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <Typography.Text type="secondary">Không có câu nào phải sửa</Typography.Text>
-                )}
-              </Flex>
-            ),
-          },
-        ]}
-      />
-    </Card>
+        style={block}
+        data-post-block="products"
+      >
+        <Flex vertical gap={4}>
+          <AutoSaveField
+            label="Gợi ý sản phẩm (AI)"
+            value={video.affiliates.join("\n")}
+            multiline
+            hint={
+              video.platform === "tiktok"
+                ? "Từ khoá để tìm sản phẩm trong mục “Thêm sản phẩm” của app TikTok; mỗi dòng một sản phẩm"
+                : "Từ khoá app dùng để tìm sản phẩm trên Shopee; mỗi dòng một sản phẩm"
+            }
+            save={(text) => patch({ affiliates: lines(text) })}
+          />
+          {video.platform === "facebook" && <VideoSuggestions video={video} />}
+          <AttachedProducts video={video} />
+        </Flex>
+      </Card>
+      {/* Last, a block of its own: the label and the field. */}
+      <div
+        data-testid="hashtag-block"
+        style={{ border: "1px solid #e7e5e2", borderRadius: 10, padding: 12, background: "#fff" }}
+      >
+        <AutoSaveField
+          label="Hashtag"
+          value={video.hashtags.join(" ")}
+          placeholder="#xuongkhop #duongsinh"
+          save={(text) => patch({ hashtags: words(text) })}
+        />
+      </div>
+    </Flex>
   );
 }
 
-/** "3. Đăng bình luận": where the comment under the newest open post stands, with "Bình luận ngay" once it is live. */
+/** "Đăng bình luận": where the comment under the newest open post stands, with "Bình luận ngay" once it is live. */
 function CommentPosting({ video }: { video: VideoDetail }) {
   const { onSaved } = useEditor();
   const reload = useCallback(() => {
@@ -217,7 +163,7 @@ function CommentPosting({ video }: { video: VideoDetail }) {
         ↓ đăng khi bài lên
       </Typography.Text>
       <Flex vertical gap={2} style={{ padding: "6px 8px", background: "rgba(0,0,0,0.03)", borderRadius: 8 }}>
-        <Typography.Text strong>3. Đăng bình luận</Typography.Text>
+        <Typography.Text strong>Đăng bình luận</Typography.Text>
         {post ? (
           <PostComment post={post} onChanged={reload} />
         ) : (

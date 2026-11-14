@@ -283,8 +283,7 @@ export default function SourcesPage() {
                   <Typography.Text strong>Tự tìm ảnh sau khi viết kịch bản</Typography.Text>
                   <Typography.Text type="secondary">
                     Viết kịch bản xong, app lấy cho mỗi cảnh một ảnh dọc từ các kho đang bật (không dùng ảnh AI, không
-                    trùng ảnh giữa các cảnh). Ảnh tự chọn có nhãn “Tự chọn, kiểm tra lại” để bạn xem và thay nếu sai
-                    món.
+                    trùng ảnh giữa các cảnh). Hãy xem lại ảnh của từng cảnh trước khi render và thay nếu sai món.
                   </Typography.Text>
                   {order.length > 0 && (
                     <Typography.Text type="secondary" data-testid="stock-order">

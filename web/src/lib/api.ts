@@ -1543,6 +1543,12 @@ export function formatDateTime(iso: string): string {
   return `${part.day}/${part.month}/${part.year} ${part.hour}:${part.minute}`;
 }
 
+/** hh:mm in Vietnam time. */
+export function formatTime(iso: string): string {
+  const part = Object.fromEntries(dateParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  return `${part.hour}:${part.minute}`;
+}
+
 /** An ISO time as a `datetime-local` input's value, in Vietnam time whatever the browser's time zone. */
 export function vietnamInputValue(iso: string): string {
   const part = Object.fromEntries(dateParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));

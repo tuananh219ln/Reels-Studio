@@ -1,7 +1,20 @@
 "use client";
 
 import { SendOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Checkbox, Flex, Input, Radio, Select, Tabs, Typography, theme } from "antd";
+import {
+  Alert,
+  App,
+  Button,
+  Checkbox,
+  Flex,
+  Input,
+  Radio,
+  Select,
+  Tabs,
+  Typography,
+  theme,
+  type ButtonProps,
+} from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -28,7 +41,7 @@ import PostMetrics from "@/components/PostMetrics";
 import FormDrawer from "@/components/FormDrawer";
 import StatusText from "@/components/StatusText";
 
-type Platform = "facebook" | "tiktok" | "youtube" | "instagram";
+export type Platform = "facebook" | "tiktok" | "youtube" | "instagram";
 
 /**
  * "Đăng bài" in the MP4 block: one drawer for every platform the MP4 may go to, whatever platform the video was made
@@ -36,7 +49,21 @@ type Platform = "facebook" | "tiktok" | "youtube" | "instagram";
  * TikTok: through the member's own connection, or recorded after posting by hand. YouTube Shorts and Instagram Reels:
  * posted by hand and recorded with their link. "Tạo bản TikTok" stays for a TikTok version with its own script.
  */
-export function PublishButton({ video, block }: { video: VideoDetail; block?: boolean }) {
+export function PublishButton({
+  video,
+  block,
+  label = "Đăng bài",
+  type = "primary",
+  request = null,
+}: {
+  video: VideoDetail;
+  block?: boolean;
+  /** The trigger's words; "Đăng bài" in the lists, "Tùy chọn khác" under the side panel's own posting. */
+  label?: string;
+  type?: ButtonProps["type"];
+  /** Opens the drawer on that platform's tab each time `at` changes: a YouTube Shorts or Instagram tile. */
+  request?: { platform: Platform; at: number } | null;
+}) {
   const { message, modal } = App.useApp();
   const { me } = useMe();
   const editor = useEditor();
@@ -63,6 +90,13 @@ export function PublishButton({ video, block }: { video: VideoDetail; block?: bo
   useEffect(() => {
     if (asked !== null) router.replace(pathname);
   }, [asked, router, pathname]);
+  // A tile of the side panel asks for a platform's tab: the drawer opens there.
+  const [seenRequest, setSeenRequest] = useState(request?.at ?? null);
+  if (request && request.at !== seenRequest) {
+    setSeenRequest(request.at);
+    setPlatform(request.platform);
+    setOpen(true);
+  }
   const [autoComment, setAutoComment] = useState(true);
   const [busy, setBusy] = useState(false);
   // The member's own Page of the video's group, else the Page they last posted to (B3), else the only one.
@@ -182,13 +216,13 @@ export function PublishButton({ video, block }: { video: VideoDetail; block?: bo
     youtube: video.manual_posts.filter((post) => post.platform === "youtube").length,
     instagram: video.manual_posts.filter((post) => post.platform === "instagram").length,
   };
-  const label = (name: string, count: number) => (count ? `${name} (${count})` : name);
+  const tabName = (name: string, count: number) => (count ? `${name} (${count})` : name);
   return (
     <>
       <Button
-        type="primary"
+        type={type}
         block={block}
-        icon={<SendOutlined />}
+        icon={type === "primary" ? <SendOutlined /> : undefined}
         disabled={video.locked}
         onClick={() => {
           // A red QC check does not stop posting, but the member says so first.
@@ -205,7 +239,7 @@ export function PublishButton({ video, block }: { video: VideoDetail; block?: bo
           });
         }}
       >
-        Đăng bài
+        {label}
       </Button>
       <FormDrawer
         title="Đăng bài"
@@ -224,20 +258,20 @@ export function PublishButton({ video, block }: { video: VideoDetail; block?: bo
           activeKey={platform}
           onChange={(key) => setPlatform(key as Platform)}
           items={[
-            { key: "facebook", label: label("Facebook", posted.facebook), children: facebook },
+            { key: "facebook", label: tabName("Facebook", posted.facebook), children: facebook },
             {
               key: "tiktok",
-              label: label("TikTok", posted.tiktok),
+              label: tabName("TikTok", posted.tiktok),
               children: <TikTokCard video={video} fanpageId={fanpage} />,
             },
             {
               key: "youtube",
-              label: label("YouTube Shorts", posted.youtube),
+              label: tabName("YouTube Shorts", posted.youtube),
               children: <ManualPostCard video={video} platform="youtube" />,
             },
             {
               key: "instagram",
-              label: label("Instagram Reels", posted.instagram),
+              label: tabName("Instagram Reels", posted.instagram),
               children: <ManualPostCard video={video} platform="instagram" />,
             },
           ]}

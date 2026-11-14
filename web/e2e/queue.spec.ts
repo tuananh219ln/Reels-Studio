@@ -113,7 +113,7 @@ test("a rendered video added to its Page's queue is scheduled there by the worke
   await expect(page.getByTestId("video-queue")).toContainText("của “Trang Dưỡng Sinh”");
 
   // The worker fills the queue once a minute and the publish job schedules the reel on Facebook.
-  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 150_000 });
+  await expect(page.getByTestId("publication-status")).toContainText("Hẹn đăng lúc", { timeout: 150_000 });
   await expect(page.getByTestId("video-queue")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "unordered-list Thêm vào hàng chờ" })).toBeVisible();
   // "Đăng bài" is still open over the page.

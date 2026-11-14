@@ -72,18 +72,13 @@ export async function chooseOption(page: Page, select: Locator, option: string) 
 }
 
 /**
- * Opens a panel of the video page's side tabs ("Nhạc nền", "Bình luận"…) by its title, if it is closed. The panels
- * start closed (but for "Âm thanh") and stay mounted, so a hidden field can be read but not seen or clicked.
+ * Opens a block of the video page's side panel by its title. "Bình luận" and "Sản phẩm Shopee" are blocks of the
+ * "Đăng bài" tab, always open; the rest are groups of the "Thiết lập" tab, which start closed (but for "Âm thanh") and
+ * stay mounted, so a hidden field can be read but not seen or clicked.
  */
 export async function openPanel(page: Page, title: string) {
-  // The post texts are tabs of the side panel; the rest are sections of the "Thiết lập" drawer.
-  const postTab: Record<string, string> = {
-    "Bình luận": "Bình luận & sản phẩm",
-    "Sản phẩm Shopee": "Bình luận & sản phẩm",
-    "Rà soát an toàn của AI": "Nhạc & an toàn",
-  };
-  if (postTab[title]) {
-    await page.getByRole("tab", { name: postTab[title] }).click();
+  if (title === "Bình luận" || title === "Sản phẩm Shopee") {
+    await sideTab(page, "Đăng bài");
     return;
   }
   await openSetup(page);
@@ -94,27 +89,30 @@ export async function openPanel(page: Page, title: string) {
   await expect(header).toHaveAttribute("aria-expanded", "true");
 }
 
-/** Closes the "Thiết lập" drawer again: it sits over the right of the page, with the header's buttons. */
-export async function closeSetup(page: Page) {
-  const drawer = page.getByRole("dialog", { name: "Thiết lập video" });
-  if (await drawer.isVisible()) await drawer.getByRole("button", { name: "Đóng" }).click();
-  await expect(drawer).toBeHidden();
+/** Picks a tab of the video page's side panel ("Đăng bài" or "Thiết lập"). */
+async function sideTab(page: Page, name: "Đăng bài" | "Thiết lập") {
+  const tab = page.locator("[data-side-panel]").getByRole("tab", { name, exact: true });
+  await tab.click();
+  await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/** The "Thiết lập" drawer of the video page, opened from its header button if it is closed. */
+/** Back on the side panel's "Đăng bài" tab, after the video's settings. */
+export async function closeSetup(page: Page) {
+  await sideTab(page, "Đăng bài");
+}
+
+/** The side panel's "Thiết lập" tab: the video's own settings. */
 export async function openSetup(page: Page) {
-  const drawer = page.getByRole("dialog", { name: "Thiết lập video" });
-  if (!(await drawer.isVisible())) await page.getByTestId("open-setup").click();
-  await expect(drawer).toBeVisible();
+  await sideTab(page, "Thiết lập");
 }
 
 /**
- * "Đăng bài" on the video page. A red QC check asks first (the e2e MP4s have silent narration); the test goes on to
- * the drawer either way.
+ * "Tùy chọn khác" under the side panel's posting: the drawer with every platform's own options (a Page's queue,
+ * TikTok posted directly, a post made by hand). A red QC check asks first (the e2e MP4s have silent narration); the
+ * test goes on to the drawer either way.
  */
 export async function openPublishDrawer(page: Page) {
-  // The button's name includes its icon's label.
-  await page.getByRole("button", { name: "send Đăng bài", exact: true }).click();
+  await page.getByTestId("ready-card").getByRole("button", { name: "Tùy chọn khác", exact: true }).click();
   const ask = page.locator(".ant-modal-confirm").filter({ hasText: "MP4 chưa đạt kiểm tra chất lượng" });
   const drawer = page.getByRole("dialog", { name: "Đăng bài" });
   await expect(ask.or(drawer).first()).toBeVisible();

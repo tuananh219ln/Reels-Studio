@@ -37,7 +37,7 @@ function writeOpen(memberId: number, open: Section[]) {
 
 /**
  * The video's own settings ("Thiết lập" tab). Each change saves at once; later defaults never replace them. "Logo"
- * comes first and stays open; the other groups open and close, each showing its current values in one line while
+ * comes first, in two rows; the other groups open and close, each showing its current values in one line while
  * closed, so they are read without opening.
  */
 export default function SetupTab({ video }: { video: VideoDetail }) {
@@ -48,8 +48,6 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
   const [open, setOpen] = useState<Section[]>(() => (typeof window === "undefined" ? FIRST_OPEN : readOpen(me.id)));
   const values = { ...video.options, voice_enabled: video.voice_enabled };
   const styleName = useTextStyleName(values);
-  // The logo's small frame shows a content scene, where the logo goes (never the title scene).
-  const preview = video.scenes.find((scene) => scene.preview_url)?.preview_url ?? null;
 
   async function save(body: object) {
     setBusy(true);
@@ -95,7 +93,7 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
 
   return (
     <Flex vertical gap={12} data-testid="setup-tab">
-      <LogoCard video={video} disabled={disabled} previewUrl={preview} onSave={(options) => void save({ options })} />
+      <LogoCard video={video} disabled={disabled} onSave={(options) => void save({ options })} />
       <Collapse
         size="small"
         expandIconPlacement="end"

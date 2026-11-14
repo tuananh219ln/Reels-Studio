@@ -43,9 +43,9 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
   await uploadPhotos(page);
   await expect(title.getByTestId("scene-preview")).toBeVisible();
-  await openPanel(page, "Rà soát an toàn của AI");
-  await expect(page.getByTestId("self-review")).toBeVisible();
-  await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
+  // The music suggestions and the AI's safety review are no longer on the page.
+  await expect(page.getByTestId("self-review")).toHaveCount(0);
+  await expect(page.getByLabel("Gợi ý nhạc")).toHaveCount(0);
 
   // The choice is saved first, then shown as selected; the options open from the toolbar's "Tiêu đề".
   await page.getByRole("button", { name: "Chọn tiêu đề" }).click();
@@ -83,7 +83,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   // A script's scenes follow their narration ("Tự khớp lời đọc"): each lasts its fake narration of 0.3 s per word plus
   // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
   // the five scenes' 4 words 1.9 s each.
-  await expect(page.getByTestId("render-time")).toContainText("Dài 12,0 giây");
+  await expect(page.getByTestId("render-time")).toContainText("12,0 giây");
   await openScene(first);
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
@@ -108,8 +108,14 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
 
   await openPublish(page);
   await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("button", { name: "Đăng", exact: true }).click();
-  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
-  await expect(page.getByRole("link", { name: "Xem Reel" })).toHaveAttribute("href", /facebook\.com\/reel\//);
+  await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId("ready-card")).toHaveAttribute("data-state", "posted");
+  await expect(page.getByTestId("platform-row-facebook").getByRole("link", { name: "Xem bài" })).toHaveAttribute(
+    "href",
+    /facebook\.com\/reel\//,
+  );
 
   // Once posted, the card says so rather than "Chờ đăng".
   await page.goto("/videos");
@@ -141,10 +147,10 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(bar.getByRole("button", { name: "Render lại" })).toBeEnabled();
 
   await openPublish(page);
-  await page.getByRole("radio", { name: "Hẹn giờ" }).click();
-  await page.getByLabel("Giờ đăng").fill(vietnamTimeIn(2));
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("radio", { name: "Hẹn giờ" }).click();
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByLabel("Giờ đăng").fill(vietnamTimeIn(2));
   await page.getByRole("dialog", { name: "Đăng bài" }).getByRole("button", { name: "Đăng", exact: true }).click();
-  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
+  await expect(page.getByTestId("publication-status")).toContainText("Hẹn đăng lúc", { timeout: 30_000 });
 
   // Opened again, a rendered video is in view mode: scenes closed, nothing to change by a stray click.
   await page.reload();
@@ -1472,7 +1478,7 @@ test("Đăng bài: a Facebook video's MP4 goes to TikTok and YouTube Shorts from
   await page.keyboard.press("Escape");
 
   // The video's posts on every platform are listed together, and its card says where else it is out.
-  await expect(page.getByTestId("other-post")).toContainText("YouTube Shorts");
+  await expect(page.getByTestId("platform-row-youtube")).toContainText("YouTube Shorts");
   await page.getByRole("menuitem", { name: "Video" }).click();
   const platforms = page.getByTestId("video-card").first().getByTestId("posted-platforms");
   await expect(platforms.locator('[data-platform="youtube"]')).toHaveAttribute("data-posted", "true");
@@ -1521,12 +1527,89 @@ test("a video opens with its Page's TikTok account already chosen", async ({ pag
   ).toContainText("An Lành SK (@anlanhsk)");
 });
 
+test("Đăng bài: the status card picks the platforms, posts, and a note says how it went", async ({ page }) => {
+  test.setTimeout(240_000);
+  await renderedVideo(page);
+  const card = page.getByTestId("ready-card");
+  // Rendered, not out: the MP4 with its facts and the 2×2 grid of platforms, Facebook picked for a Facebook video.
+  await expect(card).toHaveAttribute("data-state", "ready");
+  await expect(card).toContainText("Sẵn sàng đăng ✓");
+  await expect(card.getByTestId("render-time")).toContainText("MP4 · 1080×1920");
+  await expect(card.getByRole("checkbox", { name: "Facebook" })).toHaveAttribute("aria-checked", "true");
+  await expect(card.getByRole("checkbox", { name: "TikTok" })).toHaveAttribute("aria-checked", "false");
+  // TikTok's API cannot schedule: with "Hẹn giờ" its tile is off and only Facebook is counted.
+  await card.getByRole("checkbox", { name: "TikTok" }).click();
+  await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 2 nền tảng");
+  await card.getByRole("radio", { name: "Hẹn giờ" }).check();
+  await expect(card.getByRole("checkbox", { name: "TikTok" })).toBeDisabled();
+  await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 1 nền tảng");
+  await card.getByRole("radio", { name: "Đăng ngay" }).check();
+  await card.getByRole("checkbox", { name: "TikTok" }).click();
+  await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 1 nền tảng");
+
+  // A red QC check asks first (the e2e MP4s have silent narration).
+  await card.getByTestId("post-to-platforms").click();
+  const ask = page.locator(".ant-modal-confirm").filter({ hasText: "MP4 chưa đạt kiểm tra chất lượng" });
+  await ask.getByRole("button", { name: "Vẫn đăng" }).click();
+
+  // The note at the top right says where it went; the card turns to "Đã đăng" with a green row per platform.
+  const toast = page.getByTestId("post-toast");
+  await expect(toast).toContainText("Đã đăng lên Facebook", { timeout: 30_000 });
+  await expect(toast.getByTestId("post-toast-error")).toHaveCount(0);
+  // It sits above the side panel's tabs, not on them.
+  const tabs = await page.locator(".side-panel .side-tabs > .ant-tabs-nav").boundingBox();
+  const note = await toast.boundingBox();
+  expect(note!.y + note!.height).toBeLessThanOrEqual(tabs!.y + tabs!.height - 7);
+  await toast.getByRole("button", { name: "Đóng thông báo" }).click();
+  await expect(toast).toHaveCount(0);
+  await expect(card).toHaveAttribute("data-state", "posted");
+  await expect(card).toContainText("Đã đăng lên 1/1 nền tảng");
+  await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published");
+  await expect(page.getByTestId("platform-row-facebook")).toContainText(/✓ \d{2}:\d{2}/);
+  // The progress line's "Đăng" step counts the platforms, in green.
+  await expect(page.getByTestId("progress-post")).toHaveAttribute("data-state", "posted");
+  await expect(page.getByTestId("progress-post")).toContainText(/1\/1 nền tảng · \d{2}:\d{2}/);
+});
+
+test("the side panel: tabs at its top, the post's blocks in order, the Logo block in two rows", async ({ page }) => {
+  test.setTimeout(180_000);
+  await renderedVideo(page);
+  const panel = page.locator("[data-side-panel]");
+  // 60% for the scenes, 40% for the panel.
+  const scenes = await page.getByTestId("editor-column").boundingBox();
+  const side = await panel.boundingBox();
+  expect(side!.width / (scenes!.width + side!.width)).toBeGreaterThan(0.36);
+  expect(side!.width / (scenes!.width + side!.width)).toBeLessThan(0.44);
+  // Đăng bài: status, caption, comments, products, hashtags, in that order; no music, no AI review.
+  const blocks = panel.locator('[data-testid="ready-card"], [data-post-block], [data-testid="hashtag-block"]');
+  await expect(blocks).toHaveCount(5);
+  const order = await blocks.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute("data-post-block") ?? element.getAttribute("data-testid")),
+  );
+  expect(order).toEqual(["ready-card", "caption", "comments", "products", "hashtag-block"]);
+  await expect(panel.getByText("Rà soát an toàn của AI")).toHaveCount(0);
+  // The panel scrolls on its own; its tabs stay in view at its top.
+  await panel.evaluate((element) => element.scrollTo(0, element.scrollHeight));
+  await expect(panel.getByRole("tab", { name: "Thiết lập", exact: true })).toBeInViewport();
+
+  // Thiết lập: the Logo block is two rows, with no preview frame; its switch and channel stay.
+  await openSetup(page);
+  const logo = page.getByTestId("logo-settings");
+  await expect(logo.getByRole("switch", { name: "Gắn logo vào video" })).toBeVisible();
+  await expect(logo.getByLabel("Kênh của video")).toBeVisible();
+  await expect(logo.getByRole("link", { name: /Quản lý Page/ })).toBeVisible();
+  await expect(page.getByTestId("logo-frame")).toHaveCount(0);
+  expect((await logo.boundingBox())!.height).toBeLessThan(110);
+});
+
 test("a posted video appears in Bài đăng and its calendar", async ({ page }) => {
   test.setTimeout(240_000);
   await renderedVideo(page);
   await openPublish(page);
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+  await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
+    timeout: 30_000,
+  });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await expect(page).toHaveURL(/\/posts$/);
@@ -1624,7 +1707,9 @@ test("a posted video is a row of its Page's Nội dung tab, with columns to choo
   await renderedVideo(page);
   await openPublish(page);
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+  await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
+    timeout: 30_000,
+  });
 
   await page.getByRole("menuitem", { name: "Quản lý Page" }).click();
   await page.getByRole("link", { name: "Trang Dưỡng Sinh" }).click();
@@ -1696,7 +1781,9 @@ test("a rendered video waits in Sẵn sàng đăng until its Đăng there posts 
   await expect(page).toHaveURL(videoUrl);
   await expect(dialog.getByLabel("Fanpage")).toBeVisible();
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+  await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
+    timeout: 30_000,
+  });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await expect(ready.getByTestId("suggestion")).toHaveCount(0);
@@ -1707,14 +1794,14 @@ test("a scheduled video appears in Bài đăng and its calendar without a link t
   test.setTimeout(240_000);
   await renderedVideo(page);
   await openPublish(page);
-  await page.getByLabel("Hẹn giờ").check();
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByLabel("Hẹn giờ").check();
   const typed = vietnamTimeIn(1);
-  await page.getByLabel("Giờ đăng").fill(typed);
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByLabel("Giờ đăng").fill(typed);
   await confirmPost(page);
   // The time comes back as it was typed, whatever the browser's time zone.
   const [date, time] = typed.split("T");
   const shown = `${date.split("-").reverse().join("/")} ${time}`;
-  await expect(page.getByTestId("publication-status")).toContainText(`Đã hẹn đăng lúc ${shown}`, { timeout: 30_000 });
+  await expect(page.getByTestId("publication-status")).toContainText(`Hẹn đăng lúc ${shown}`, { timeout: 30_000 });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   await page.getByTestId("post-group").getByRole("cell").last().click();
@@ -1743,25 +1830,29 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   test.setTimeout(240_000);
   await renderedVideo(page);
   await openPublish(page);
-  await page.getByLabel("Hẹn giờ").check();
-  await page.getByLabel("Giờ đăng").fill(vietnamTimeIn(1));
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByLabel("Hẹn giờ").check();
+  await page.getByRole("dialog", { name: "Đăng bài" }).getByLabel("Giờ đăng").fill(vietnamTimeIn(1));
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc", { timeout: 30_000 });
+  await expect(page.getByTestId("publication-status")).toContainText("Hẹn đăng lúc", { timeout: 30_000 });
 
   // "Kiểm tra" reads the reel on Facebook; the fake still holds it for its time, so nothing changes.
   await page.getByRole("button", { name: "Kiểm tra" }).click();
   await expect(page.getByTestId("job-status")).toBeVisible();
   await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.getByTestId("publication-status")).toContainText("Đã hẹn đăng lúc");
+  await expect(page.getByTestId("publication-status")).toContainText("Hẹn đăng lúc");
 
   await page.getByRole("button", { name: "Hủy đăng" }).click();
   await page.getByRole("tooltip").getByRole("button", { name: "Hủy đăng" }).click();
-  await expect(page.getByTestId("publication-status")).toHaveText("Đã hủy", { timeout: 30_000 });
+  // A cancelled post leaves the status card: the video is ready to post again, the post kept in its history.
+  await expect(page.getByTestId("ready-card")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
+  await expect(page.getByTestId("post-history")).toContainText("Đã hủy");
 
   // Facebook no longer holds this MP4, so it can go out again.
   await openPublish(page);
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+  await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
+    timeout: 30_000,
+  });
 
   await page.getByRole("menuitem", { name: "Bài đăng" }).click();
   // "Đang hoạt động" by default: the cancelled post is hidden, counted under its own tab.
@@ -1806,7 +1897,9 @@ test("a posted reel takes an approved product and its link goes in the pinned co
   await renderedVideo(page);
   await openPublish(page);
   await confirmPost(page);
-  await expect(page.getByTestId("publication-status")).toHaveText("Đã đăng lên Facebook", { timeout: 30_000 });
+  await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
+    timeout: 30_000,
+  });
 
   // Through the browser's fetch, so the request carries the Origin the CSRF guard wants.
   await page.evaluate(async () => {
@@ -1966,6 +2059,24 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   // The chosen photo is served by the app, not linked from Pexels.
   await expect(title.getByTestId("scene-preview")).toHaveAttribute("src", /^\/api\/scenes\/\d+\/preview\.jpg/);
   await expect(title.getByRole("button", { name: "Tìm ảnh (Pexels)" })).toBeVisible();
+  // The card's frame is 182 × 324; its tools are a column of their own beside it, in three groups, always shown.
+  const frame = await title.locator(".scene-media__image").boundingBox();
+  expect(Math.round(frame!.width)).toBe(182);
+  expect(Math.round(frame!.height)).toBe(324);
+  const tools = title.getByTestId("scene-media-tools");
+  await expect(tools).toBeVisible();
+  await expect(tools.locator(".group-label")).toHaveText(["Lấy ảnh", "Tìm ảnh", "Tạo mới"]);
+  await expect(tools.getByRole("button", { name: "Tìm trên Google" })).toHaveText("Google");
+  await expect(tools.getByRole("button", { name: "Dán ảnh/link" })).toHaveText("Dán link");
+  const toolsBox = await tools.boundingBox();
+  expect(Math.abs(toolsBox!.height - frame!.height)).toBeLessThanOrEqual(10);
+  await expect(title.getByText("Tự chọn, kiểm tra lại")).toHaveCount(0);
+  // The frame's own tools lie inside it, shown while it is pointed at.
+  const quick = title.getByTestId("scene-media-actions");
+  await expect(quick).toHaveCSS("opacity", "0");
+  await title.locator(".scene-media__image").hover();
+  await expect(quick).toHaveCSS("opacity", "1");
+  await expect(quick.getByRole("button", { name: "Chỉnh khung" })).toBeVisible();
 
   // A content scene: a new keyword searches again, and the keyword that found the photo is kept first.
   const scenes = page.getByTestId("scene");
@@ -2369,18 +2480,16 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
 
   // The photo search runs as its own job after the script; every scene, the title included, gets a photo.
-  await expect(page.getByTestId("image-auto")).toHaveCount(6, { timeout: 120_000 });
+  await expect(page.getByTestId("scene-preview")).toHaveCount(6, { timeout: 120_000 });
   await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 60_000 });
-  await expect(page.getByTestId("scene-preview")).toHaveCount(6);
+  // The card no longer marks the picks ("Tự chọn, kiểm tra lại" and "Giữ ảnh này" are gone).
+  await expect(page.getByTestId("image-auto")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
 
-  // A member keeps a pick, or replaces it: either way its mark goes.
-  await openScene(page.getByTestId("scene").nth(0));
-  await page.getByTestId("scene").nth(0).getByRole("button", { name: "Giữ ảnh này" }).click();
-  await expect(page.getByTestId("image-auto")).toHaveCount(5);
+  // A member replaces a pick from the card's tools; the scene keeps a drawn preview.
   await openScene(page.getByTestId("scene").nth(1));
   await page.getByTestId("scene").nth(1).getByRole("button", { name: "Tìm ảnh" }).click();
-  await expect(page.getByTestId("image-auto")).toHaveCount(4);
+  await expect(page.getByTestId("scene").nth(1).getByTestId("scene-preview")).toBeVisible();
 
   await page.getByRole("menuitem", { name: "Nhật ký job" }).click();
   await expect(page.getByRole("row", { name: /Tự tìm ảnh/ })).toBeVisible();

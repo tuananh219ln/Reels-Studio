@@ -66,7 +66,7 @@ export default function GooglePhotosButton({ video, disabled }: { video: VideoDe
       } else if (filled < total) {
         void message.warning(`Đã lấy ảnh Google cho ${filled}/${total} cảnh; cảnh còn lại hãy tìm hoặc dán ảnh khác.`);
       } else {
-        void message.success(`Đã lấy ảnh Google cho ${filled} cảnh. Hãy xem lại từng ảnh “Tự chọn, kiểm tra lại”.`);
+        void message.success(`Đã lấy ảnh Google cho ${filled} cảnh. Hãy xem lại ảnh của từng cảnh.`);
       }
     } catch (err) {
       void message.error(err instanceof Error ? err.message : "Không lấy được ảnh Google");
