@@ -45,7 +45,7 @@ async function renderedVideo(page: Page) {
     await scenes.nth(index).getByLabel("Tải ảnh/video lên cho cảnh", { exact: true }).setInputFiles(file);
     await expect(scenes.nth(index).getByTestId("scene-preview")).toHaveCount(1);
   }
-  await page.getByRole("button", { name: "Render" }).click();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 }
 

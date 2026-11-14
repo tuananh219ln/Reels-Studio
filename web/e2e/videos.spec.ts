@@ -40,7 +40,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   // A video never rendered opens ready to edit.
   await expect(page.getByTestId("editing-tag")).toBeVisible();
   await expect(page.getByRole("button", { name: "Xong" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
+  await expect(page.getByTestId("render-bar").getByRole("button", { name: "Render" })).toBeDisabled();
   await uploadPhotos(page);
   await expect(title.getByTestId("scene-preview")).toBeVisible();
   // The music suggestions and the AI's safety review are no longer on the page.
@@ -78,7 +78,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await voice.blur();
   await expect(second.getByText(/Sẽ đọc chữ trên màn hình: .+\. Giàu canxi\./)).toBeVisible();
 
-  await page.getByRole("button", { name: "Render" }).click();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
   // A script's scenes follow their narration ("Tự khớp lời đọc"): each lasts its fake narration of 0.3 s per word plus
   // 0.6 s and the MP3 padding, shorter or longer than it was set to: the title's 6 words take 2.5 s (it was set to 3),
@@ -137,7 +137,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   const bar = page.getByTestId("render-bar");
   await expect(bar.getByTestId("render-bar-summary")).toContainText("5 cảnh");
   await expect(bar.getByTestId("render-bar-summary")).toContainText("chưa có MP4");
-  await page.getByRole("button", { name: "Render" }).click();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
   // The bar says the render is on its way, wherever the member has scrolled, and when it is done.
   await expect(bar.getByTestId("render-bar-job")).toBeVisible();
   await expect(page.getByText("Đã render xong MP4")).toBeVisible({ timeout: 120_000 });
@@ -160,7 +160,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(second.getByTestId("scene-toggle")).toHaveAttribute("aria-expanded", "false");
   await expect(second.getByLabel("Chữ trên màn hình")).toHaveAttribute("readonly", "");
   await expect(page.getByRole("button", { name: "Thêm cảnh" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
+  await expect(page.getByTestId("render-bar").getByRole("button", { name: "Render" })).toBeEnabled();
 
   // The post texts stay editable in view mode, and do not outdate the MP4.
   const caption = page.getByLabel("Caption", { exact: true });
@@ -220,7 +220,7 @@ test("30-day plan: a ready video is approved from its idea card", async ({ page 
   await expect(page).toHaveURL(/\/videos\/\d+$/);
   await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
   await uploadPhotos(page);
-  await page.getByRole("button", { name: "Render" }).click();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 
   // The same approval is available on the video and its list card.
@@ -739,7 +739,7 @@ test("phone width: the editor title keeps the full width and the actions sit bel
   await loginAsSeed(page);
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
   const title = await page.getByTestId("video-title").boundingBox();
-  const render = await page.getByRole("button", { name: "Render" }).boundingBox();
+  const render = await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).boundingBox();
   // Before the fix the actions kept their row and squeezed the title to one letter per line.
   expect(title!.width).toBeGreaterThan(300);
   expect(render!.y).toBeGreaterThan(title!.y + title!.height - 1);
@@ -747,9 +747,9 @@ test("phone width: the editor title keeps the full width and the actions sit bel
   const preview = await page.getByTestId("title-scene").getByTestId("scene-preview").boundingBox();
   expect(preview!.height).toBeLessThan(420);
   // "Render" stays on screen at the bottom, at the top of the page and deep among the scenes alike.
-  await expect(page.getByRole("button", { name: "Render" })).toBeInViewport();
+  await expect(page.getByTestId("render-bar").getByRole("button", { name: "Render" })).toBeInViewport();
   await page.getByTestId("scene").nth(3).scrollIntoViewIfNeeded();
-  await expect(page.getByRole("button", { name: "Render" })).toBeInViewport();
+  await expect(page.getByTestId("render-bar").getByRole("button", { name: "Render" })).toBeInViewport();
 });
 
 test("the render bar counts what blocks the render and jumps to it", async ({ page }) => {
@@ -1432,7 +1432,7 @@ async function renderedVideo(page: Page) {
   await expect(page.getByTestId("scene")).toHaveCount(5, { timeout: 90_000 });
   await jobFinished(page);
   await uploadPhotos(page);
-  await page.getByRole("button", { name: "Render" }).click();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 }
 
@@ -1845,7 +1845,7 @@ test("a scheduled post is cancelled, a posted one deleted, and both stay in Bài
   await page.getByRole("tooltip").getByRole("button", { name: "Hủy đăng" }).click();
   // A cancelled post leaves the status card: the video is ready to post again, the post kept in its history.
   await expect(page.getByTestId("ready-card")).toHaveAttribute("data-state", "ready", { timeout: 30_000 });
-  await expect(page.getByTestId("post-history")).toContainText("Đã hủy");
+  await expect(page.getByTestId("post-history")).toContainText("Đã hủy", { timeout: 30_000 });
 
   // Facebook no longer holds this MP4, so it can go out again.
   await openPublish(page);
@@ -2034,7 +2034,7 @@ test("photos from the stock picker: pick from the grid for the title and a scene
   await dialog.getByLabel("Chủ đề", { exact: true }).fill("canxi cho người lớn tuổi");
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await jobFinished(page);
-  const render = page.getByRole("button", { name: "Render" });
+  const render = page.getByTestId("render-bar").getByRole("button", { name: "Render" });
   await expect(render).toBeDisabled();
 
   // The title scene: the grid opens on its first keyword and shows every result as a large-enough thumbnail.
@@ -2372,7 +2372,7 @@ test("AI photos fill the scenes that have none, then the video can render", asyn
   await jobFinished(page);
 
   // No scene has a photo yet: the AI button is offered and Render stays blocked.
-  await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
+  await expect(page.getByTestId("render-bar").getByRole("button", { name: "Render" })).toBeDisabled();
   await page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" }).click();
   await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 120_000 });
 
@@ -2383,7 +2383,7 @@ test("AI photos fill the scenes that have none, then the video can render", asyn
   }
   // Every scene has a photo now: the button is gone and Render is unblocked.
   await expect(page.getByRole("button", { name: "Tạo ảnh AI cho cảnh thiếu" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
+  await expect(page.getByTestId("render-bar").getByRole("button", { name: "Render" })).toBeEnabled();
 });
 
 test("an AI photo for one scene, then a new one in its place", async ({ page }) => {
@@ -2484,7 +2484,7 @@ test("Tự tìm ảnh: after the script every scene gets a stock photo marked to
   await expect(page.getByTestId("job-status")).toHaveCount(0, { timeout: 60_000 });
   // The card no longer marks the picks ("Tự chọn, kiểm tra lại" and "Giữ ảnh này" are gone).
   await expect(page.getByTestId("image-auto")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
+  await expect(page.getByTestId("render-bar").getByRole("button", { name: "Render" })).toBeEnabled();
 
   // A member replaces a pick from the card's tools; the scene keeps a drawn preview.
   await openScene(page.getByTestId("scene").nth(1));
@@ -2796,7 +2796,7 @@ test("a title clip with a start time renders, and removing it asks for a photo a
   await expect(title.getByLabel("Số giây")).toHaveValue("2.3");
   await expect(title.getByText("Ở tốc độ 2× video ngắn hơn cảnh, khung cuối sẽ đứng yên")).toBeVisible();
 
-  await page.getByRole("button", { name: "Render" }).click();
+  await page.getByTestId("render-bar").getByRole("button", { name: "Render" }).click();
   await expect(page.getByTestId("video-status")).toHaveText("Chờ đăng", { timeout: 120_000 });
 
   await title.getByRole("button", { name: "Xoá video" }).click();
