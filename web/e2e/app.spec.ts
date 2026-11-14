@@ -287,7 +287,7 @@ test("only a thing's maker is offered to delete it: a teammate sees no Xóa on t
   await expect(binh.getByTestId("scene").first()).toBeVisible();
   await expect(binh.getByRole("button", { name: /^(delete )?Xóa$/ })).toHaveCount(0);
   await binh.getByRole("button", { name: "Thao tác khác với video" }).click();
-  await expect(binh.getByRole("menuitem", { name: "Nhân bản" })).toBeVisible();
+  await expect(binh.getByRole("menuitem", { name: /^(copy )?Nhân bản$/ })).toBeVisible();
   await expect(binh.getByRole("menuitem", { name: "Xóa video" })).toHaveCount(0);
   await binh.keyboard.press("Escape");
   await expect(binh.getByRole("button", { name: "Xóa cảnh" })).toHaveCount(0);

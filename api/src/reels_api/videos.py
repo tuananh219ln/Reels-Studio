@@ -731,7 +731,7 @@ def _video_link(db: DbSession, video: Video | None) -> dict | None:
     if video is None:
         return None
     title, _ = split_scenes(db, video)
-    return {"id": video.id, "title": title_of(video, title) or video.topic, "platform": video.platform}
+    return {"id": video.id, "title": video_name(video, title), "platform": video.platform}
 
 
 def published_publication(db: DbSession, video_id: int) -> Publication | None:
@@ -1006,6 +1006,11 @@ def title_of(video: Video, title: Scene | None) -> str:
     return plain_title(title.text) if title is not None and title.text.strip() else ""
 
 
+def video_name(video: Video, title: Scene | None) -> str:
+    """How lists name a video: its own name ("… (copy)"), else its title scene's text, else its topic."""
+    return video.name or title_of(video, title) or video.topic
+
+
 def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> list[dict]:
     """The studio's notes in the order of the video, each with the scene playing at its second now."""
     every = ([title] if title else []) + scenes
@@ -1053,6 +1058,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "id": video.id,
         "topic": video.topic,
         "title": title_of(video, title),
+        "name": video.name,
         "has_script": video.has_script,
         "hand_written": video.hand_written,
         "title_options": video.title_options,
@@ -1387,6 +1393,7 @@ def list_payload(
         "id": video.id,
         "topic": video.topic,
         "title": title_of(video, title),
+        "name": video.name,
         "platform": video.platform,
         # The video a TikTok version was made from: the list shows the version on its source's card.
         "variant_of_id": video.variant_of_id,

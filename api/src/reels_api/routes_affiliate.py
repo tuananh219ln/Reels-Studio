@@ -36,7 +36,7 @@ from .ownership import ensure_owner
 from .routes_music import like_pattern
 from .routes_videos import invalid, my_topic_ids
 from .sessions import current_member, now
-from .videos import is_published, split_scenes, thumbnail_url, title_of
+from .videos import is_published, split_scenes, thumbnail_url, video_name
 
 router = APIRouter(prefix="/api/affiliate-products")
 
@@ -411,7 +411,7 @@ def _video_payload(db: DbSession, video: Video, posts: list[Publication], user_i
             one["comment"] = "off" if one["comment"] in ("waiting", "pending") else one["comment"]
     return {
         "id": video.id,
-        "title": title_of(video, title) or video.topic,
+        "title": video_name(video, title),
         "thumbnail_url": thumbnail_url(video),
         # Its group's products come first in "+ Gắn sản phẩm".
         "knowledge_topic_id": video.knowledge_topic_id,

@@ -560,7 +560,7 @@ function VersionLinks({ versions }: { versions: VideoRow[] }) {
     <CardChip
       key={version.id}
       href={`/videos/${version.id}`}
-      label={`Mở bản TikTok: ${version.title || version.topic}`}
+      label={`Mở bản TikTok: ${version.name || version.title || version.topic}`}
       testId="video-version"
     >
       <span style={{ color: token.colorTextSecondary }}>TikTok</span>
@@ -639,7 +639,7 @@ function VideoCard({
 }) {
   const router = useRouter();
   const { token } = theme.useToken();
-  const name = row.title || row.topic;
+  const name = row.name || row.title || row.topic;
   const post = row.post;
   const standout = post?.times_median != null && post.times_median >= STANDOUT_TIMES;
   // A job's stage or a warning, said in words after the status rather than as more tags.
@@ -839,7 +839,7 @@ function VideoTable({
             render: (_, row) => (
               <VideoTitleCell
                 id={row.id}
-                title={row.title || row.topic}
+                title={row.name || row.title || row.topic}
                 thumbnailUrl={row.thumbnail_url}
                 maxWidth={340}
                 sub={

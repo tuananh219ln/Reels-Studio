@@ -863,6 +863,12 @@ Planned:
 - **Clone ("Nhân bản"):** stores a snapshot of the source as edited at that moment plus the change
   request on the new draft, and copies the source's MP3 as the draft's own file. The source is not
   locked. Cancelling and writing the draft again reruns the same clone.
+- **Exact copy ("Nhân bản y hệt"):** `POST /api/videos/{id}/duplicate` (any member, a video with a script) copies
+  the video's row, its scenes, layers, sounds and affiliate products, and every file they point at (photos, clips,
+  narration, music, thumbnail, a motion scene's files) into the new video's own folder, with no LLM call and no job
+  (`duplicate.py`). The MP4 is not copied, so the copy is rendered before it is posted. Its `videos.name` is the
+  source's name plus " (copy)": lists show `name`, else the title scene's text, else the topic (`videos.video_name`);
+  the title scene, drawn on the video, is unchanged.
 - **Files:** every file endpoint (photos, previews, thumbnail, MP3, MP4) requires login; the MP4
   supports Range requests for seeking. Uploads are one file per request with api-side limits
   (photos JPG/PNG/WebP up to 15 MB and 24 megapixels; MP3 up to 20 MB, checked by its first bytes;

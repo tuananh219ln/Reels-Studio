@@ -268,6 +268,9 @@ class Video(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     topic: Mapped[str] = mapped_column(Text)
+    # Its name in the app's lists, when it is not the title scene's text: "… (copy)" for "Nhân bản y hệt" (duplicate.py).
+    # Never drawn on the video.
+    name: Mapped[str | None] = mapped_column(String(200))
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id"))
     has_script: Mapped[bool] = mapped_column(Boolean, default=False)
     # "Tự viết": a member wrote the script, so no AI wrote it and none reviewed its safety.

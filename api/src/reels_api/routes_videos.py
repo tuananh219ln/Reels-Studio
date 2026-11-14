@@ -50,6 +50,7 @@ from . import (
 )
 from .claude import GeneratedScript
 from .db import get_db
+from .duplicate import duplicate_video
 from .errors import ApiError
 from .models import (
     AffiliateProduct,
@@ -117,7 +118,7 @@ from .videos import (
     spoken,
     text_position,
     thumbnail_url,
-    title_of,
+    video_name,
     video_not_found,
     video_payload,
 )
@@ -996,7 +997,7 @@ def clone_snapshot(db: DbSession, video: Video, request: str) -> dict:
         lines.append(f"Bình luận ghim: {comment}")
     return {
         "video_id": video.id,
-        "title": title_of(video, title) or video.topic,
+        "title": video_name(video, title),
         "topic": video.topic,
         "script": "\n".join(lines),
         "request": request,
@@ -1049,6 +1050,24 @@ def clone_video(
         draft.music_key, draft.music_name = new_key(draft.id, "music", "mp3"), source.music_name
         storage.save_file(draft.music_key, storage.path(source.music_key))
     _enqueue(db, draft, "clone", me)
+    return _saved(db, draft)
+
+
+@router.post("/videos/{video_id}/duplicate", status_code=201)
+def duplicate(
+    video_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Nhân bản y hệt": an exact copy of a video, named "… (copy)", with no LLM call; it is rendered before posting.
+    The source is only read, never locked: a teammate may keep working on it."""
+    source = db.get(Video, video_id)
+    if source is None:
+        raise video_not_found()
+    if not source.has_script:
+        raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
+    draft = duplicate_video(db, storage, source, me.user_id)
     return _saved(db, draft)
 
 
@@ -1995,7 +2014,7 @@ def list_jobs(
             else:
                 video = db.get(Video, job.video_id)
                 title, _ = split_scenes(db, video)
-                titles[owner] = title_of(video, title) or video.topic
+                titles[owner] = video_name(video, title)
                 thumbnails[job.video_id] = thumbnail_url(video)
         ended = job.finished_at
         rows.append(

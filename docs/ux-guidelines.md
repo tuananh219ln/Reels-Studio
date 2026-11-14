@@ -1565,7 +1565,8 @@ Where something is edited, its history is shown there, not on a page of its own
 On every list of videos the last column is a vertical "⋮" button (aria-label "Thao tác với video <tên>") that opens a
 small dropdown, not a drawer. The video is read once, when the menu is first opened. It holds "Mở video", "Đăng bài,
 hàng chờ, job…" (opens a drawer with the posting dialog, "Duyệt", the queue and retry/cancel, which need their own
-forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Tạo bản TikTok" (a Facebook video), and, for the
+forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Nhân bản y hệt" (an exact copy named "… (copy)",
+opened at once to be rendered; the video page's "⋯" menu has it too), "Tạo bản TikTok" (a Facebook video), and, for the
 maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; both off while a job runs). The maker of
 the group a teammate's video sits in sees "Chuyển về nhóm của <tên>" instead, which lists only groups made by the
 video's maker (the video page's "⋯" menu has the same item).

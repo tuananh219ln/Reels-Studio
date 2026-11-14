@@ -53,6 +53,8 @@ export type VideoRow = {
   id: number;
   topic: string;
   title: string;
+  /** Its own name in the app ("… (copy)" after "Nhân bản y hệt"), shown before the title; never on the video. */
+  name: string | null;
   platform: VideoPlatform;
   /** The video a TikTok version was made from; the list shows the version on that video's card. */
   variant_of_id: number | null;

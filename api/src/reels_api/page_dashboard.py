@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import analytics, facebook, fanpages, page_queue
 from .models import Fanpage, FanpageFollowers, FanpageInsights, PostMetrics, Publication, Video
 from .sessions import now
-from .videos import LIVE_POST_STATUSES, is_published, live_at, split_scenes, thumbnail_url, title_of
+from .videos import LIVE_POST_STATUSES, is_published, live_at, split_scenes, thumbnail_url, video_name
 
 PERIODS = (7, 28, 90)
 # How far ahead the "Đã lên lịch" strip and the "Lịch đăng" tab look.
@@ -133,7 +133,7 @@ def _post_sums(posts: list[Publication], period: Period) -> dict:
 
 def _video(db: DbSession, video: Video) -> dict:
     title, _ = split_scenes(db, video)
-    return {"id": video.id, "title": title_of(video, title) or video.topic, "thumbnail_url": thumbnail_url(video)}
+    return {"id": video.id, "title": video_name(video, title), "thumbnail_url": thumbnail_url(video)}
 
 
 def _latest_post(db: DbSession, posts: list[Publication]) -> dict | None:
