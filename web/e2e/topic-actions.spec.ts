@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { chooseOption, loginAsSeed, resetDatabase } from "./helpers";
+import { addUser, chooseOption, login, loginAsSeed, resetDatabase } from "./helpers";
 
 // Kho kiến thức: deleting a video from its group's list, moving a video to another group, and deleting ideas of the
 // 30-day plan together.
@@ -55,6 +55,47 @@ test("the video page moves a video to another group", async ({ page }) => {
   await drawer.getByRole("button", { name: "Chuyển nhóm" }).click();
   await expect(page.getByText("Đã chuyển video sang nhóm “Già Mà Khỏe”")).toBeVisible();
   await expect(page.getByText(/nhóm Già Mà Khỏe, tạo bởi/)).toBeVisible();
+});
+
+test("a group's maker sends a teammate's video back to a group of the video's maker", async ({ page, browser }) => {
+  await loginAsSeed(page);
+  const headers = { Origin: new URL(page.url()).origin };
+  const created = await page.request.post("/api/knowledge/topics", { data: { name: "Nhóm của An" }, headers });
+  expect(created.status()).toBe(201);
+  const mine = (await created.json()).topics.find((topic: { name: string }) => topic.name === "Nhóm của An").id;
+  await addUser(page, "binh@doi.vn", "Trần Bình", "mat-khau-tam-1");
+  const binh = await (await browser.newContext({ baseURL: "http://localhost:3100", locale: "vi-VN" })).newPage();
+  await login(binh, "binh@doi.vn", "mat-khau-tam-1");
+  await binh.getByLabel("Mật khẩu mới", { exact: true }).fill("binh-moi-1234");
+  await binh.getByLabel("Nhập lại mật khẩu mới").fill("binh-moi-1234");
+  await binh.getByRole("button", { name: "Lưu mật khẩu mới" }).click();
+  await expect(binh).toHaveURL(/\/videos$/);
+  const binhHeaders = { Origin: new URL(binh.url()).origin };
+  const theirs = await binh.request.post("/api/knowledge/topics", {
+    data: { name: "Nhóm của Bình" },
+    headers: binhHeaders,
+  });
+  expect(theirs.status()).toBe(201);
+  const made = await binh.request.post("/api/videos", {
+    data: {
+      topic: "Cháo yến mạch",
+      knowledge_topic_id: mine,
+      mode: "manual",
+      script: "Cháo yến mạch\nĐọc: Cháo yến mạch.",
+    },
+    headers: binhHeaders,
+  });
+  expect(made.status(), await made.text()).toBe(201);
+  const id = (await made.json()).id;
+
+  await page.goto(`/videos/${id}`);
+  await page.getByRole("button", { name: "Thao tác khác với video" }).click();
+  await expect(page.getByRole("menuitem", { name: "Xóa video" })).toHaveCount(0);
+  await page.getByRole("menuitem", { name: "Chuyển về nhóm của Trần Bình" }).click();
+  const drawer = page.getByRole("dialog", { name: "Chuyển về nhóm của Trần Bình" });
+  await chooseOption(page, drawer.getByLabel("Nhóm chủ đề mới"), "Nhóm của Bình");
+  await drawer.getByRole("button", { name: "Chuyển nhóm" }).click();
+  await expect(page.getByText("Đã chuyển video sang nhóm “Nhóm của Bình”")).toBeVisible();
 });
 
 test("30-day plan: ideas are ticked by day and deleted together", async ({ page }) => {

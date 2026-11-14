@@ -1134,6 +1134,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
         ],
         "knowledge_topic": topic.name if topic else None,
         "knowledge_topic_id": video.knowledge_topic_id,
+        # Who made the group: its maker may send a teammate's video back to a group of the video's maker.
+        "knowledge_topic_owner_id": topic.created_by_id if topic else None,
         "plan_idea": _plan_idea(db, video),
         "script_by": script_writer(db, video) if video.has_script else None,
         # When the script was written, for the progress line under the title.

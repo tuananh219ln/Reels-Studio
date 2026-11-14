@@ -1531,7 +1531,9 @@ On every list of videos the last column is a vertical "⋮" button (aria-label "
 small dropdown, not a drawer. The video is read once, when the menu is first opened. It holds "Mở video", "Đăng bài,
 hàng chờ, job…" (opens a drawer with the posting dialog, "Duyệt", the queue and retry/cancel, which need their own
 forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Tạo bản TikTok" (a Facebook video), and, for the
-maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; both off while a job runs).
+maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; both off while a job runs). The maker of
+the group a teammate's video sits in sees "Chuyển về nhóm của <tên>" instead, which lists only groups made by the
+video's maker (the video page's "⋯" menu has the same item).
 
 
 ### Kho kiến thức: "Lịch đăng" and the video id
