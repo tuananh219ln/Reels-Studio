@@ -317,18 +317,17 @@ export default function VideoPostsRow({
     { title: "48h", key: "48h", width: 80, render: (_, { post }) => (post ? mark(post, "48h", post.views_48h) : null) },
     { title: "7 ngày", key: "7d", width: 80, render: (_, { post }) => (post ? mark(post, "7d", post.views_7d) : null) },
     {
-      title: "Xu hướng",
-      key: "trend",
-      width: 90,
-      render: (_, { post }) => (post ? <Sparkline points={post.sparkline} /> : null),
-    },
-    {
       title: "View",
       key: "views",
       width: 150,
+      // The views, and under them their trend (a small line of the last readings), in one column so the opened
+      // row stays as narrow as the board.
       render: (_, { post }) =>
         post?.fb ? (
-          <PostMetrics post={post.fb} onAsked={changed} compact />
+          <Flex vertical gap={2}>
+            <PostMetrics post={post.fb} onAsked={changed} compact />
+            <Sparkline points={post.sparkline} />
+          </Flex>
         ) : post ? (
           <Tooltip
             title={post.metrics_updated_at ? `Cập nhật lần cuối ${formatDateTime(post.metrics_updated_at)}` : undefined}
@@ -336,6 +335,7 @@ export default function VideoPostsRow({
             <span>
               {post.views === null ? <Typography.Text type="secondary">—</Typography.Text> : formatCount(post.views)}
               {post.refreshing && <Spin size="small" style={{ marginLeft: 6 }} />}
+              <Sparkline points={post.sparkline} />
             </span>
           </Tooltip>
         ) : null,
