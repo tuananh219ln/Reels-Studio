@@ -11,6 +11,7 @@ import {
   login,
   loginAsSeed,
   openPanel,
+  openSetup,
   openPublishDrawer,
   openScene,
   resetDatabase,
@@ -41,9 +42,6 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByRole("button", { name: "Render" })).toBeDisabled();
   await uploadPhotos(page);
   await expect(title.getByTestId("scene-preview")).toBeVisible();
-  // Before an MP4 the side panel opens on "Thiết lập"; the post texts have their own tab.
-  await expect(page.getByRole("tab", { name: "Thiết lập" })).toHaveAttribute("aria-selected", "true");
-  await page.getByRole("tab", { name: "Đăng bài" }).click();
   await openPanel(page, "Rà soát an toàn của AI");
   await expect(page.getByTestId("self-review")).toBeVisible();
   await expect(page.getByLabel("Gợi ý nhạc")).toHaveValue("Windy Hill\nMorning Coffee");
@@ -89,7 +87,6 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
-  await page.getByRole("tab", { name: "Đăng bài" }).click();
   // The MP4 plays at the listener's volume, set under it: the player is too narrow for the browser's slider.
   const mp4 = page.getByTestId("mp4-player");
   await page.getByTestId("listen-volume").getByRole("button", { name: "Tắt tiếng" }).click();
@@ -159,7 +156,6 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
 
   // The post texts stay editable in view mode, and do not outdate the MP4.
-  await page.getByRole("tab", { name: "Đăng bài" }).click();
   const caption = page.getByLabel("Caption");
   await caption.fill("Caption mới");
   await caption.blur();
@@ -2735,7 +2731,7 @@ test("video settings: a member's defaults reach their new video, which then chan
 
   await page.getByRole("menuitem", { name: "Video" }).click();
   await newVideoWithScript(page, "xương khớp sau 50 tuổi");
-  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  await openSetup(page);
   // A closed panel's controls are left out of role queries: open "Hình ảnh" to read its choice.
   await openPanel(page, "Hình ảnh");
   const motion = page.getByTestId("motion-settings");
@@ -2928,7 +2924,7 @@ test("text size: a smaller size on Thiết lập redraws the scenes' previews, t
   const scenePreview = page.getByTestId("scene").first().getByTestId("scene-preview");
   const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
   const [sceneBefore, titleBefore] = [await scenePreview.getAttribute("src"), await titlePreview.getAttribute("src")];
-  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  await openSetup(page);
   await openPanel(page, "Chữ & phụ đề");
   const text = page.getByTestId("text-settings");
   await text.getByLabel("Cỡ chữ", { exact: true }).getByText("Nhỏ", { exact: true }).click();
@@ -2948,7 +2944,7 @@ test("text case: keeping the text as typed redraws the scenes' previews, and the
   const scenePreview = page.getByTestId("scene").first().getByTestId("scene-preview");
   const titlePreview = page.getByTestId("title-scene").getByTestId("scene-preview");
   const [sceneBefore, titleBefore] = [await scenePreview.getAttribute("src"), await titlePreview.getAttribute("src")];
-  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  await openSetup(page);
   await openPanel(page, "Chữ & phụ đề");
   const text = page.getByTestId("text-settings");
   const sceneCase = text.getByLabel("Dạng chữ", { exact: true });
@@ -2965,7 +2961,7 @@ test("text case: keeping the text as typed redraws the scenes' previews, and the
   await expect(titlePreview).not.toHaveAttribute("src", titleBefore ?? "");
   // Saved with the video: a reload keeps both choices.
   await page.reload();
-  await page.getByRole("tab", { name: "Thiết lập" }).click();
+  await openSetup(page);
   await expect(
     text.getByLabel("Dạng chữ", { exact: true }).getByRole("radio", { name: "Giữ nguyên như đã nhập" }),
   ).toBeChecked();

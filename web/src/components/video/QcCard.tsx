@@ -20,89 +20,54 @@ const HINT: Record<QcStatus, string> = {
 };
 const RANK = { fail: 0, warn: 1, pass: 2 } as const;
 
-/** How many checks still want a look: "2 mục cần sửa", or that the MP4 passes. */
-export function QcBadge({ qc }: { qc: QcResult }) {
+/** The QC in the page's header: red or yellow while checks still want a look, green when the MP4 passes; pressing it
+ * opens a small list of the checks (worst first), each with its measure and, when it is not green, what to do. The
+ * list is only for reading: there is no block of tiles in the side panel. */
+export function QcChip({ qc }: { qc: QcResult }) {
   const open = qc.checks.filter((check) => check.status !== "pass").length;
-  return open === 0 ? (
-    <StatusText tone="success" data-testid="qc-badge">
-      Đạt chuẩn đăng
-    </StatusText>
-  ) : (
-    <StatusText tone={TONE[qc.status]} data-testid="qc-badge">
-      {open} mục cần sửa
-    </StatusText>
-  );
-}
-
-/**
- * The MP4's automatic QC (api qc.py) as a grid of tiles, worst first: each check's name and measure on a red, yellow
- * or green tile; pressing one shows the whole measure and what to do about it.
- */
-export default function QcGrid({ qc }: { qc: QcResult }) {
   const checks = [...qc.checks].sort((a, b) => RANK[a.status] - RANK[b.status]);
   return (
-    <div
-      data-testid="qc-card"
-      style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}
-      role="group"
-      aria-label="Kiểm tra chất lượng"
-    >
-      {checks.map((check) => (
-        <Popover
-          key={check.id + check.label}
-          trigger="click"
-          title={check.label}
-          content={
-            <Flex vertical gap={4} style={{ maxWidth: 260 }}>
-              <Typography.Text>{check.detail}</Typography.Text>
+    <Popover
+      trigger="click"
+      placement="bottomLeft"
+      title="Kiểm tra MP4"
+      content={
+        <Flex
+          vertical
+          gap={6}
+          style={{ width: 280 }}
+          data-testid="qc-card"
+          role="group"
+          aria-label="Kiểm tra chất lượng"
+        >
+          {checks.map((check) => (
+            <Flex
+              key={check.id + check.label}
+              vertical
+              data-testid="qc-check"
+              data-status={check.status}
+              aria-label={`${check.label}: ${check.detail}`}
+            >
+              <StatusText tone={TONE[check.status]} style={{ fontWeight: 600 }}>
+                {check.label}
+              </StatusText>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                {HINT[check.status]}
+                {check.detail}
+                {check.status !== "pass" && ` ${HINT[check.status]}`}
               </Typography.Text>
             </Flex>
-          }
-        >
-          <button
-            type="button"
-            data-testid="qc-check"
-            data-status={check.status}
-            aria-label={`${check.label}: ${check.detail}`}
-            style={{
-              background: TILE[check.status].background,
-              border: `1px solid ${TILE[check.status].border}`,
-              borderRadius: 8,
-              padding: "6px 8px",
-              textAlign: "left",
-              cursor: "pointer",
-              minWidth: 0,
-              font: "inherit",
-            }}
-          >
-            <StatusText tone={TONE[check.status]} style={{ fontSize: 12, fontWeight: 600 }}>
-              {check.label}
-            </StatusText>
-            <Typography.Text type="secondary" ellipsis style={{ display: "block", fontSize: 12, marginTop: 2 }}>
-              {check.detail}
-            </Typography.Text>
-          </button>
-        </Popover>
-      ))}
-    </div>
-  );
-}
-
-/** The QC in the page's header: red or yellow while checks still want a look, green when the MP4 passes; pressing it
- * opens "Đăng bài", where the tiles are. */
-export function QcChip({ qc, onOpen }: { qc: QcResult; onOpen: () => void }) {
-  const open = qc.checks.filter((check) => check.status !== "pass").length;
-  return (
-    <Button
-      size="small"
-      type="text"
-      onClick={onOpen}
-      data-testid="qc-chip"
-      style={{ background: TILE[qc.status].background, border: `1px solid ${TILE[qc.status].border}`, fontSize: 13 }}
+          ))}
+        </Flex>
+      }
     >
-      <StatusText tone={TONE[qc.status]}>{open === 0 ? "QC: đạt" : `QC: ${open} mục chưa đạt`}</StatusText>
-    </Button>
+      <Button
+        size="small"
+        type="text"
+        data-testid="qc-chip"
+        style={{ background: TILE[qc.status].background, border: `1px solid ${TILE[qc.status].border}`, fontSize: 13 }}
+      >
+        <StatusText tone={TONE[qc.status]}>{open === 0 ? "QC: đạt" : `QC: ${open} mục chưa đạt`}</StatusText>
+      </Button>
+    </Popover>
   );
 }

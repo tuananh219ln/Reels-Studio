@@ -12,6 +12,7 @@ import { RenderButtons, RenderStatus, showFirstBlocking } from "@/components/vid
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
 import SetupTab from "@/components/video/SetupTab";
+import type { PostTabKey } from "@/components/video/PostContent";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import VideoPreview from "@/components/video/VideoPreview";
 import VideoProgress from "@/components/video/VideoProgress";
@@ -38,6 +39,7 @@ import {
   FolderOutlined,
   MoreOutlined,
   PlusOutlined,
+  SendOutlined,
   SettingOutlined,
 } from "@ant-design/icons";
 import {
@@ -54,7 +56,6 @@ import {
   Result,
   Segmented,
   Spin,
-  Tabs,
   Tooltip,
   Typography,
 } from "antd";
@@ -84,9 +85,6 @@ const JOB_NAMES = {
   image_edit: "Sửa ảnh",
   image_marks: "Tìm chữ/logo trên ảnh",
 } as const;
-
-/** The side panel's tabs: "Đăng bài" (post texts, MP4 and posting together) and the video's own settings. */
-type SideTab = "publish" | "setup";
 
 // The side panel's least width beside the scenes (they split the page half and half) and the drawer's width; below
 // WIDE_FROM it becomes a drawer opened from the header.
@@ -133,8 +131,10 @@ export default function VideoPage() {
   useEffect(() => {
     if (askedClone !== null) router.replace(`/videos/${id}`);
   }, [askedClone, id, router]);
-  // Until the member picks a tab, it follows the video: "Thiết lập" while there is no MP4, then "Đăng bài".
-  const [sideTab, setSideTab] = useState<SideTab | null>(null);
+  // The tab of the post texts a step of the progress line points at; until one does, the member's own pick holds.
+  const [postTab, setPostTab] = useState<PostTabKey | undefined>(undefined);
+  // The video's own settings: a drawer opened from the header's "Thiết lập".
+  const [setupOpen, setSetupOpen] = useState(false);
   // From 1100 px the side panel sits beside the scenes; narrower, it is a drawer, open or not.
   const sideBySide = useWiderThan(WIDE_FROM);
   const [sideOpen, setSideOpen] = useState(false);
@@ -363,9 +363,9 @@ export default function VideoPage() {
     }
   }
 
-  /** Shows the side panel, on `tab` when given: the drawer opens on a narrower screen. */
-  function openSide(tab?: SideTab) {
-    if (tab) setSideTab(tab);
+  /** Shows the side panel, on the post texts' `tab` when given: the drawer opens on a narrower screen. */
+  function openSide(tab?: PostTabKey) {
+    if (tab) setPostTab(tab);
     if (!sideBySide) setSideOpen(true);
   }
 
@@ -572,6 +572,11 @@ export default function VideoPage() {
               </Dropdown>
             )}
             {video.has_script && (
+              <Button icon={<SettingOutlined />} onClick={() => setSetupOpen(true)} data-testid="open-setup">
+                Thiết lập
+              </Button>
+            )}
+            {video.has_script && (
               <RenderButtons
                 video={video}
                 busy={busy}
@@ -585,16 +590,16 @@ export default function VideoPage() {
               />
             )}
             {video.has_script && !sideBySide && (
-              <Button icon={<SettingOutlined />} onClick={() => openSide()} data-testid="open-side-panel">
-                Thiết lập / Đăng bài
+              <Button icon={<SendOutlined />} onClick={() => openSide()} data-testid="open-side-panel">
+                Đăng bài
               </Button>
             )}
           </Flex>
         </Flex>
         <Flex wrap gap="4px 12px" align="center" justify="space-between" style={{ marginTop: 6 }}>
           <Flex wrap gap="4px 8px" align="center" style={{ minWidth: 0 }}>
-            <VideoProgress video={video} onOpenTab={() => openSide("publish")} />
-            {video.mp4?.qc && <QcChip qc={video.mp4.qc} onOpen={() => openSide("publish")} />}
+            <VideoProgress video={video} onOpenTab={(tab) => openSide(tab === "post" ? "comments" : undefined)} />
+            {video.mp4?.qc && <QcChip qc={video.mp4.qc} />}
           </Flex>
           {video.has_script && (
             <RenderStatus
@@ -798,22 +803,7 @@ export default function VideoPage() {
           open={sideOpen}
           onClose={() => setSideOpen(false)}
           panel={
-            <Tabs
-              activeKey={sideTab ?? (video.mp4 ? "publish" : "setup")}
-              onChange={(key) => setSideTab(key as SideTab)}
-              items={[
-                {
-                  key: "publish",
-                  label: "Đăng bài",
-                  children: <PublishTab video={video} postEditor={postEditor} onApproved={load} />,
-                },
-                {
-                  key: "setup",
-                  label: "Thiết lập",
-                  children: <SetupTab video={video} />,
-                },
-              ]}
-            />
+            <PublishTab video={video} postEditor={postEditor} onApproved={load} tab={postTab} onTab={setPostTab} />
           }
         >
           {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
@@ -971,6 +961,19 @@ export default function VideoPage() {
       )}
       <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
       <MoveGroupDrawer video={video} open={moving} onClose={() => setMoving(false)} onMoved={receive} />
+      {/* The video's own settings, rarely changed: a drawer, so the page keeps the room for posting. */}
+      <Drawer
+        open={setupOpen}
+        onClose={() => setSetupOpen(false)}
+        placement="right"
+        size={SIDE_WIDTH + 80}
+        forceRender
+        mask={false}
+        title="Thiết lập video"
+        styles={{ body: { paddingTop: 0 } }}
+      >
+        <SetupTab video={video} />
+      </Drawer>
     </EditorContext.Provider>
   );
 }
@@ -1006,7 +1009,7 @@ function SideLayout({
           placement="right"
           size={SIDE_WIDTH}
           forceRender
-          title="Thiết lập / Đăng bài"
+          title="Đăng bài"
           styles={{ body: { paddingTop: 0 } }}
         >
           <div data-side-panel>{panel}</div>

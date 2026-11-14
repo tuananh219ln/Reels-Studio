@@ -7,36 +7,40 @@ import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
 import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
 import { formatDecimal, type VideoDetail } from "@/lib/api";
 import { EditorContext } from "./AutoSaveField";
-import PostContent from "./PostContent";
+import PostContent, { type PostTabKey } from "./PostContent";
 import PublishCard, { PublishButton } from "./PublishCard";
-import QcGrid, { QcBadge } from "./QcCard";
 
 /**
- * The "Đăng bài" tab, in the order a member goes through it: is the MP4 ready (QC, download, post), the post's texts,
- * then the rarer blocks closed, then where it has been posted.
+ * The side panel, in the order a member goes through it: the MP4 with "Tải MP4" and "Đăng bài" (its QC is the chip in
+ * the page's header), the post's texts in one tile with tabs, then where it has been posted.
  */
 export default function PublishTab({
   video,
   postEditor,
   onApproved,
+  tab,
+  onTab,
 }: {
   video: VideoDetail;
   /** The post texts stay editable while the page is in "Xem". */
   postEditor: ContextType<typeof EditorContext>;
   onApproved: () => void;
+  /** The tab of the post texts; the page sets it when a step of the progress line points at one. */
+  tab?: PostTabKey;
+  onTab?: (tab: PostTabKey) => void;
 }) {
   return (
     <Flex vertical gap={12} data-testid="publish-tab">
       <ReadyCard video={video} onApproved={onApproved} />
       <EditorContext.Provider value={postEditor}>
-        <PostContent video={video} />
+        <PostContent video={video} tab={tab} onTab={onTab} />
       </EditorContext.Provider>
       <PublishCard video={video} />
     </Flex>
   );
 }
 
-/** "Sẵn sàng đăng?": the QC tiles, the MP4 and its facts, and "Tải MP4" beside "Đăng bài". */
+/** "Sẵn sàng đăng?": the MP4 small beside "Tải MP4" and "Đăng bài" and its facts; its QC is read from the header's chip. */
 function ReadyCard({ video, onApproved }: { video: VideoDetail; onApproved: () => void }) {
   const mp4 = video.mp4;
   if (!mp4) {
@@ -50,25 +54,22 @@ function ReadyCard({ video, onApproved }: { video: VideoDetail; onApproved: () =
     );
   }
   return (
-    <Card size="small" title="Sẵn sàng đăng?" extra={mp4.qc && <QcBadge qc={mp4.qc} />} data-testid="ready-card">
-      <Flex vertical gap={10}>
-        {mp4.qc && <QcGrid qc={mp4.qc} />}
-        <Flex gap={8}>
-          <Button icon={<DownloadOutlined />} href={mp4.download_url} style={{ flex: 1 }}>
-            Tải MP4
-          </Button>
-          <div style={{ flex: 1 }}>
-            <PublishButton video={video} block />
-          </div>
-        </Flex>
-        {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
-          <ApproveVideoButton videoId={video.id} onDone={onApproved} />
-        )}
-        <Flex gap={12} align="flex-start">
-          <Mp4Player key={mp4.url} url={mp4.url} />
+    <Card size="small" title="Sẵn sàng đăng?" data-testid="ready-card">
+      <Flex gap={12} align="center">
+        <Mp4Player key={mp4.url} url={mp4.url} />
+        <Flex vertical gap={8} style={{ flex: 1, minWidth: 0 }}>
           <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="render-time">
             Dài {formatDecimal(mp4.seconds)} giây, render mất {formatDecimal(mp4.render_seconds)} giây
           </Typography.Text>
+          <Flex gap={8} wrap>
+            <Button icon={<DownloadOutlined />} href={mp4.download_url}>
+              Tải MP4
+            </Button>
+            <PublishButton video={video} />
+          </Flex>
+          {video.post_stage === "ready" && video.plan_idea?.suggested_post_at && (
+            <ApproveVideoButton videoId={video.id} onDone={onApproved} />
+          )}
         </Flex>
       </Flex>
     </Card>

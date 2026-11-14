@@ -63,7 +63,6 @@ test("a new script finds Shopee products with the writer's account, and one is c
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
 
-  await page.getByRole("tab", { name: "Đăng bài" }).click();
   await openPanel(page, "Sản phẩm Shopee");
   const suggestions = page.getByTestId("shopee-suggestions");
   const products = suggestions.getByTestId("suggested-product");
@@ -93,7 +92,6 @@ test("without an App ID, an affiliate link pasted on the video is filled in by h
   await dialog.getByRole("button", { name: "Viết kịch bản" }).click();
   await expect(page.getByTestId("scene").first()).toBeVisible({ timeout: 90_000 });
 
-  await page.getByRole("tab", { name: "Đăng bài" }).click();
   await openPanel(page, "Sản phẩm Shopee");
   const suggestions = page.getByTestId("shopee-suggestions");
   await suggestions.getByLabel("Dán link aff Shopee").fill("https://s.shopee.vn/4LKghKN3cR");

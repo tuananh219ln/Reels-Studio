@@ -76,11 +76,29 @@ export async function chooseOption(page: Page, select: Locator, option: string) 
  * start closed (but for "Âm thanh") and stay mounted, so a hidden field can be read but not seen or clicked.
  */
 export async function openPanel(page: Page, title: string) {
+  // The post texts are tabs of the side panel; the rest are sections of the "Thiết lập" drawer.
+  const postTab: Record<string, string> = {
+    "Bình luận": "Bình luận & sản phẩm",
+    "Sản phẩm Shopee": "Bình luận & sản phẩm",
+    "Rà soát an toàn của AI": "Nhạc & an toàn",
+  };
+  if (postTab[title]) {
+    await page.getByRole("tab", { name: postTab[title] }).click();
+    return;
+  }
+  await openSetup(page);
   const header = page.locator(".ant-collapse-header[aria-expanded]").filter({
     has: page.locator(".ant-collapse-title").getByText(title, { exact: true }),
   });
   if ((await header.getAttribute("aria-expanded")) !== "true") await header.click();
   await expect(header).toHaveAttribute("aria-expanded", "true");
+}
+
+/** The "Thiết lập" drawer of the video page, opened from its header button if it is closed. */
+export async function openSetup(page: Page) {
+  const drawer = page.getByRole("dialog", { name: "Thiết lập video" });
+  if (!(await drawer.isVisible())) await page.getByTestId("open-setup").click();
+  await expect(drawer).toBeVisible();
 }
 
 /**
