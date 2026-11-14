@@ -171,8 +171,11 @@ export default function VideoPage() {
   const [previewFrom, setPreviewFrom] = useState<number | null>(null);
 
   /** Every video the api sends goes through here, so new scenes get their open/closed state. */
+  // The video as last received, for `receiveOwn` to compare with.
+  const last = useRef<VideoDetail | null>(null);
   const receive = useCallback((next: VideoDetail) => {
     const draft = !next.mp4 && !next.publication;
+    last.current = next;
     setVideo(next);
     setEditing((current) => current ?? draft);
     setExpanded((current) => {
@@ -235,6 +238,24 @@ export default function VideoPage() {
     }
   }, []);
 
+  /** The answer to the member's own change: when it changed the scenes and with them the pinned comment (its template
+   * unchanged), a toast says so (docs/decisions/2026-11-14-pinned-comment-template.md). Polling uses `receive`. */
+  const receiveOwn = useCallback(
+    (next: VideoDetail) => {
+      const before = last.current;
+      if (
+        before &&
+        before.id === next.id &&
+        before.pinned_comment === next.pinned_comment &&
+        before.pinned_comment_text !== next.pinned_comment_text
+      ) {
+        message.info("Bình luận ghim đã được cập nhật theo cảnh");
+      }
+      receive(next);
+    },
+    [message, receive],
+  );
+
   const editor = useMemo(
     () => ({
       locked: video?.locked ?? false,
@@ -248,9 +269,9 @@ export default function VideoPage() {
         (document.activeElement as HTMLElement | null)?.blur();
         await Promise.allSettled([...pending.current]);
       },
-      onSaved: receive,
+      onSaved: receiveOwn,
     }),
-    [video?.locked, editing, reportFailed, receive],
+    [video?.locked, editing, reportFailed, receiveOwn],
   );
   // The post texts are not part of the video itself: they stay editable in "Xem" too.
   const postEditor = useMemo(() => ({ ...editor, readOnly: false }), [editor]);
@@ -261,7 +282,7 @@ export default function VideoPage() {
   async function act(action: () => Promise<VideoDetail>) {
     setBusy(true);
     try {
-      receive(await action());
+      receiveOwn(await action());
     } catch (err) {
       message.error(errorMessage(err));
       void load();

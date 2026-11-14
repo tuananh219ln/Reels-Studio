@@ -614,6 +614,48 @@ async function newVideoWithScript(page: Page, topic: string) {
   await uploadPhotos(page);
 }
 
+test("the pinned comment lists the scenes and follows an edited scene", async ({ page }) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "canxi cho bữa sáng");
+  await sideTab(page, "Bình luận & Sản phẩm");
+  // A new script's comment is a template: the title and the scenes, filled in, then the AI's sentence.
+  const field = page.getByLabel("Bình luận ghim");
+  const preview = page.getByTestId("pinned-preview");
+  await expect(field).toHaveValue("{title}\n{items}\nLink sản phẩm ở đây nhé");
+  await expect(preview).toContainText("1. ");
+  await expect(preview).toContainText("Link sản phẩm ở đây nhé");
+  // No product attached: the "link" is flagged.
+  await expect(page.getByText("Bình luận nhắc tới “link” nhưng video chưa gắn sản phẩm nào")).toBeVisible();
+
+  // Editing a scene changes the comment, and says so.
+  const first = page.getByTestId("scene").first();
+  await openScene(first);
+  const text = first.getByLabel("Chữ trên màn hình");
+  await text.fill("Cá nhỏ chiên\nGiàu *canxi*");
+  await text.blur();
+  await expect(page.getByText("Bình luận ghim đã được cập nhật theo cảnh")).toBeVisible();
+  await expect(preview).toContainText("1. Cá nhỏ chiên – Giàu canxi");
+  const id = page.url().split("/videos/")[1];
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment_text)
+    .toContain("1. Cá nhỏ chiên – Giàu canxi");
+
+  // The preview follows the template as it is typed; without {items} it no longer follows the scenes.
+  await field.fill("Nhà bạn hay ăn món nào?");
+  await expect(preview).toHaveText("Nhà bạn hay ăn món nào?");
+  await expect(page.getByTestId("pinned-fixed")).toBeVisible();
+  await field.blur();
+  // "{items}" puts the variable back, and the comment lists the scenes again.
+  await page.getByTestId("field-insertions").getByRole("button", { name: "{items}", exact: true }).click();
+  await expect(field).toHaveValue(/\{items\}/);
+  await expect(preview).toContainText("1. Cá nhỏ chiên – Giàu canxi");
+  await expect(page.getByTestId("pinned-fixed")).toHaveCount(0);
+  await expect
+    .poll(async () => (await (await page.request.get(`/api/videos/${id}`)).json()).pinned_comment)
+    .toMatch(/\{items\}/);
+});
+
 test("a scene reuses a photo another video of its group already uses", async ({ page }) => {
   test.setTimeout(240_000);
   await loginAsSeed(page);
