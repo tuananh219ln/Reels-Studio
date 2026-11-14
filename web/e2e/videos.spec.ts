@@ -1994,10 +1994,16 @@ test("a posted reel takes an approved product and its link goes in the pinned co
     await page.getByRole("button", { name: "Sao chép" }).click();
     return page.evaluate(() => navigator.clipboard.readText());
   };
-  // The script's sentence first, then one line per product. The Windows clipboard turns \n into \r\n.
+  // The pinned comment (the title, the scenes one per line, the script's sentence), then one line per product.
+  // The Windows clipboard turns \n into \r\n.
   const both = (await copied()).split(/\r?\n/);
-  expect(both[0]).toBe("Link sản phẩm ở đây nhé");
-  expect(both.slice(1).sort()).toEqual(["Trà sen: https://s.shopee.vn/tra", "Vừng đen rang: https://s.shopee.vn/vung"]);
+  const sentence = both.indexOf("Link sản phẩm ở đây nhé");
+  expect(both[1]).toMatch(/^1\. /);
+  expect(sentence).toBeGreaterThan(1);
+  expect(both.slice(sentence + 1).sort()).toEqual([
+    "Trà sen: https://s.shopee.vn/tra",
+    "Vừng đen rang: https://s.shopee.vn/vung",
+  ]);
 
   // A product that lost its approval stays on the reel with a warning, but its link is not copied.
   await page.getByRole("tab", { name: "Sản phẩm" }).click();
