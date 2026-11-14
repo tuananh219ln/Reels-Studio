@@ -89,14 +89,18 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(first.getByTestId("voice-player")).toBeVisible();
 
   // The tab the member picked stays picked after the render; the MP4 is under "Xuất bản".
-  // The MP4 plays at the listener's volume, set under it: the player is too narrow for the browser's slider.
-  const mp4 = page.getByTestId("mp4-player");
-  await page.getByTestId("listen-volume").getByRole("button", { name: "Tắt tiếng" }).click();
+  // ▶ on the small MP4 opens it in a window, at the listener's volume, set under it.
+  await page.getByTestId("ready-card").getByRole("button", { name: "Phát MP4" }).click();
+  const player = page.getByRole("dialog", { name: "Xem MP4" });
+  const mp4 = player.getByTestId("mp4-player");
+  await player.getByTestId("listen-volume").getByRole("button", { name: "Tắt tiếng" }).click();
   await expect.poll(() => mp4.evaluate((element: HTMLVideoElement) => element.muted)).toBe(true);
-  await page.getByTestId("listen-volume").getByRole("button", { name: "Bật tiếng" }).click();
+  await player.getByTestId("listen-volume").getByRole("button", { name: "Bật tiếng" }).click();
   await expect.poll(() => mp4.evaluate((element: HTMLVideoElement) => element.muted)).toBe(false);
   // Seeking needs Range answers (206) through the web app's /api proxy.
-  const src = await page.getByTestId("mp4-player").getAttribute("src");
+  const src = await mp4.getAttribute("src");
+  await player.locator(".ant-modal-close").click();
+  await expect(player).toBeHidden();
   const range = await page.request.get(src ?? "", { headers: { Range: "bytes=100-199" } });
   expect(range.status()).toBe(206);
   expect((await range.body()).length).toBe(100);
@@ -112,7 +116,7 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published", {
     timeout: 30_000,
   });
-  await expect(page.getByTestId("ready-card")).toHaveAttribute("data-state", "posted");
+  await expect(page.getByTestId("ready-card")).toHaveAttribute("data-state", "published");
   await expect(page.getByTestId("platform-row-facebook").getByRole("link", { name: "Xem bài" })).toHaveAttribute(
     "href",
     /facebook\.com\/reel\//,
@@ -1532,18 +1536,22 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   test.setTimeout(240_000);
   await renderedVideo(page);
   const card = page.getByTestId("ready-card");
-  // Rendered, not out: the MP4 with its facts and the 2×2 grid of platforms, Facebook picked for a Facebook video.
+  // Rendered, not out: the MP4 with its facts and a row per platform, Facebook picked for a Facebook video.
   await expect(card).toHaveAttribute("data-state", "ready");
-  await expect(card).toContainText("Sẵn sàng đăng ✓");
-  await expect(card.getByTestId("render-time")).toContainText("MP4 · 1080×1920");
-  await expect(card.getByRole("checkbox", { name: "Facebook" })).toHaveAttribute("aria-checked", "true");
-  await expect(card.getByRole("checkbox", { name: "TikTok" })).toHaveAttribute("aria-checked", "false");
+  await expect(card.getByTestId("publish-status")).toHaveText("Sẵn sàng đăng");
+  await expect(card).toContainText("Video đã render xong");
+  await expect(card.getByTestId("render-time")).toContainText(/^MP4 · [\d,]+ giây · 1080×1920/);
+  await expect(card.getByRole("checkbox", { name: "Facebook" })).toBeChecked();
+  await expect(card.getByRole("checkbox", { name: "TikTok" })).not.toBeChecked();
+  // YouTube Shorts and Instagram are posted by hand: their rows have no checkbox.
+  await expect(card.getByTestId("platform-option-youtube")).toContainText("Đăng tay");
+  await expect(card.getByRole("checkbox", { name: "YouTube Shorts" })).toHaveCount(0);
   // TikTok's API cannot schedule: with "Hẹn giờ" its tile is off and only Facebook is counted.
   await card.getByRole("checkbox", { name: "TikTok" }).click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 2 nền tảng");
   await card.getByRole("radio", { name: "Hẹn giờ" }).check();
   await expect(card.getByRole("checkbox", { name: "TikTok" })).toBeDisabled();
-  await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 1 nền tảng");
+  await expect(card.getByTestId("post-to-platforms")).toHaveText("Hẹn đăng lên 1 nền tảng");
   await card.getByRole("radio", { name: "Đăng ngay" }).check();
   await card.getByRole("checkbox", { name: "TikTok" }).click();
   await expect(card.getByTestId("post-to-platforms")).toHaveText("Đăng lên 1 nền tảng");
@@ -1557,14 +1565,22 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   const toast = page.getByTestId("post-toast");
   await expect(toast).toContainText("Đã đăng lên Facebook", { timeout: 30_000 });
   await expect(toast.getByTestId("post-toast-error")).toHaveCount(0);
-  // It sits above the side panel's tabs, not on them.
-  const tabs = await page.locator(".side-panel .side-tabs > .ant-tabs-nav").boundingBox();
+  // Fixed 16 px from the window's top right, 380 px wide; "Xem chi tiết →" goes to the status card.
+  await expect(toast).toHaveAttribute("role", "status");
   const note = await toast.boundingBox();
-  expect(note!.y + note!.height).toBeLessThanOrEqual(tabs!.y + tabs!.height - 7);
-  await toast.getByRole("button", { name: "Đóng thông báo" }).click();
+  const width = page.viewportSize()!.width;
+  expect(note!.y).toBeCloseTo(16, 0);
+  expect(note!.x + note!.width).toBeCloseTo(width - 16, 0);
+  expect(note!.width).toBeCloseTo(Math.min(380, width - 32), 0);
+  await toast.getByRole("button", { name: "Xem chi tiết →" }).click();
+  await expect(card).toBeInViewport();
+  await toast.getByRole("button", { name: "Đóng", exact: true }).click();
   await expect(toast).toHaveCount(0);
-  await expect(card).toHaveAttribute("data-state", "posted");
+  // "● Đã đăng · dd/mm, hh:mm", the rows of the platforms tried, and "+ Đăng thêm" for another.
+  await expect(card).toHaveAttribute("data-state", "published");
+  await expect(card.getByTestId("publish-status")).toHaveText(/^Đã đăng\s*· \d{2}\/\d{2}, \d{2}:\d{2}$/);
   await expect(card).toContainText("Đã đăng lên 1/1 nền tảng");
+  await expect(card.getByRole("button", { name: "+ Đăng thêm" })).toBeVisible();
   await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published");
   await expect(page.getByTestId("platform-row-facebook")).toContainText(/✓ \d{2}:\d{2}/);
   // The progress line's "Đăng" step counts the platforms, in green.

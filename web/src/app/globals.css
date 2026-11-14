@@ -187,36 +187,257 @@ body {
   white-space: nowrap;
 }
 
-/* Đăng bài: a platform's result, one line, green when out, red when it failed. */
+/* Đăng bài's status card (docs/decisions/2026-11-14-publish-panel.md): the MP4 small beside its facts, one column
+   with a smaller MP4 when the card is narrower than 420 px. */
+.publish-card {
+  container-type: inline-size;
+}
+
+.publish-card__body {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.publish-card__thumb {
+  position: relative;
+  width: 112px;
+  height: 199px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #000;
+}
+
+.publish-card__thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.publish-card__play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  font-size: 12px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.publish-card__length {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 14px;
+}
+
+@container (max-width: 419px) {
+  .publish-card__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .publish-card__thumb {
+    width: 96px;
+    height: 171px;
+  }
+}
+
+/* A platform's square badge, its glyph white on its colour. */
+.platform-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  color: #fff;
+  line-height: 1;
+}
+
+.platform-badge--facebook {
+  background: #1877f2;
+}
+
+.platform-badge--tiktok {
+  background: #111;
+}
+
+.platform-badge--youtube {
+  background: #ff0000;
+}
+
+.platform-badge--instagram {
+  background: linear-gradient(45deg, #f58529, #dd2a7b, #8134af);
+}
+
+/* The platforms to post to: one row each, the whole row toggles its checkbox. */
+.platform-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.platform-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid #e7e5e2;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.platform-option:hover {
+  border-color: #d4d0cb;
+  background: #fafaf9;
+}
+
+.platform-option[data-checked="true"] {
+  border: 1.5px solid #c2410c;
+  padding: 0 11.5px;
+  background: #fff2eb;
+}
+
+.platform-option[data-disabled="true"],
+.platform-option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #fff;
+  border-color: #e7e5e2;
+}
+
+.platform-option:focus-visible,
+.platform-option:has(.platform-option__check:focus-visible),
+.publish-card__play:focus-visible {
+  outline: 2px solid #c2410c;
+  outline-offset: 2px;
+}
+
+.platform-option__name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.platform-option__hint {
+  font-size: 13px;
+  color: #5f6670;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.platform-option__end {
+  margin-left: auto;
+  flex: none;
+}
+
+.platform-option__check {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0 0 0 auto;
+  border: 1px solid #d4d0cb;
+  border-radius: 4px;
+  background: #fff;
+  cursor: inherit;
+}
+
+.platform-option__check:checked {
+  border-color: #c2410c;
+  background: #c2410c
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    center / 14px no-repeat;
+}
+
+.platform-option__check:focus-visible {
+  outline: none;
+}
+
+/* Đăng bài: a platform's result, one row, green when out, red when it failed. */
 .post-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
+  gap: 10px;
+  min-height: 38px;
+  padding: 4px 12px;
   border-radius: 8px;
   border: 1px solid #e7e5e2;
-  font-size: 12px;
+  background: #fff;
+  font-size: 13px;
   min-width: 0;
 }
 
 .post-row--ok {
-  background: #f0faf3;
-  border-color: #bbe5c8;
+  background: #f1faf4;
+  border-color: #bfe6cc;
 }
 
 .post-row--err {
-  background: #fff4f0;
-  border-color: #f5c2b5;
+  background: #fef3f3;
+  border-color: #f6c9cb;
 }
 
-.post-row--wait {
-  background: #fffaeb;
-  border-color: #f5dfa3;
+.post-row__name {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .post-row__status {
   margin-left: auto;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.post-row__action {
+  flex: none;
+  padding: 0;
+  height: auto;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* Scene card: up, down and delete show on hover, keyboard focus or while the card is open, and on touch screens. */

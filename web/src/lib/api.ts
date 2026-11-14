@@ -1543,6 +1543,12 @@ export function formatDateTime(iso: string): string {
   return `${part.day}/${part.month}/${part.year} ${part.hour}:${part.minute}`;
 }
 
+/** "dd/mm, hh:mm" in Vietnam time: a time this year, short. */
+export function formatDayTime(iso: string): string {
+  const part = Object.fromEntries(dateParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
+  return `${part.day}/${part.month}, ${part.hour}:${part.minute}`;
+}
+
 /** hh:mm in Vietnam time. */
 export function formatTime(iso: string): string {
   const part = Object.fromEntries(dateParts.formatToParts(new Date(iso)).map((p) => [p.type, p.value]));
