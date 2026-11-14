@@ -156,7 +156,7 @@ test("after a render, editing a scene text marks the MP4 outdated", async ({ pag
   await expect(page.getByRole("button", { name: "Render" })).toBeEnabled();
 
   // The post texts stay editable in view mode, and do not outdate the MP4.
-  const caption = page.getByLabel("Caption");
+  const caption = page.getByLabel("Caption", { exact: true });
   await caption.fill("Caption mới");
   await caption.blur();
   await expect(page.getByText("Đã lưu")).toBeVisible();
