@@ -409,6 +409,8 @@ export type VideoDetail = VideoRow & {
   posted_fanpage_ids: number[];
   knowledge_topic: string | null;
   knowledge_topic_id: number | null;
+  /** Who made the group: its maker may send a teammate's video back to a group of the video's maker. */
+  knowledge_topic_owner_id: number | null;
   /** The provider and model that wrote the script, e.g. "DeepSeek · deepseek-chat". */
   script_by: string | null;
   /** When the script was written: its last job's end, or the video's making; null without a script. */

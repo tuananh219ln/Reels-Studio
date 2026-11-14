@@ -91,6 +91,18 @@ export default function VideoActions({
               : []),
           ]
         : []),
+      // The maker of the group a teammate's video sits in sends it back to a group of the video's maker.
+      ...(!mine && detail.knowledge_topic_owner_id === me.id
+        ? [
+            { type: "divider" as const },
+            {
+              key: "move",
+              label: `Chuyển về nhóm của ${detail.created_by}`,
+              disabled: detail.locked,
+              onClick: () => setMoving(true),
+            },
+          ]
+        : []),
       ...(mine
         ? [
             { type: "divider" as const },

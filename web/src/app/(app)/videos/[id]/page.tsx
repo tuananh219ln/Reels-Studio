@@ -546,7 +546,7 @@ export default function VideoPage() {
               </Button>
             )}
             {/* The rarer actions sit under "⋯", "Xóa" last and apart. */}
-            {(video.has_script || video.created_by_id === me.id) && (
+            {(video.has_script || video.created_by_id === me.id || video.knowledge_topic_owner_id === me.id) && (
               <Dropdown
                 trigger={["click"]}
                 disabled={busy}
@@ -576,6 +576,18 @@ export default function VideoPage() {
                             danger: true,
                             disabled: video.locked,
                             onClick: remove,
+                          },
+                        ]
+                      : []),
+                    // The maker of the group a teammate's video sits in sends it back to a group of its maker.
+                    ...(video.created_by_id !== me.id && video.knowledge_topic_owner_id === me.id
+                      ? [
+                          {
+                            key: "group",
+                            icon: <FolderOutlined />,
+                            label: `Chuyển về nhóm của ${video.created_by}`,
+                            disabled: video.locked,
+                            onClick: () => setMoving(true),
                           },
                         ]
                       : []),
