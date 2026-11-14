@@ -696,13 +696,27 @@ the spec; the readings' schedule, YouTube and TikTok views, the Meta Suite impor
     scheduled and published ones and groups them in the browser, which is enough at 1–3 videos a day.
   - **A post's numbers** ([metrics.py](../api/src/reels_api/metrics.py)) are read by the worker
     between jobs, not by a job: a reading writes only numbers, so it never locks the video and is
-    not listed under Jobs. Every 5 seconds the worker reads up to 3 due posts, asked ones first, then
-    the longest unread. A public post is due an hour after it went live, then once a day for 14
-    days; the first reading at least 48 hours after it went live, if within 72 hours, is also kept
-    as its `48h` row. A failed reading records Facebook's reason on the post and waits a day, never
-    looping. "Cập nhật view", `POST /api/posts/{id}/metrics`, only sets `metrics_requested_at` for a
-    public post (409 otherwise), so a request never calls Facebook; the worker reads it within
-    seconds, even past the 14 days. Opening "Bài đăng" calls `POST /api/posts/freshen`, which asks the same
+    not listed under Jobs. Every 5 seconds the worker reads up to 3 due Facebook posts, asked ones
+    first, then the most overdue, and the due YouTube Shorts in one Data API call (50 ids, with
+    `YOUTUBE_API_KEY`; none without it). A post is due as soon as it is live, then at
+    `next_snapshot_at` ([decision](decisions/2026-11-14-post-readings-schedule.md)): hourly in its
+    first 48 hours (every 15 minutes while it is up 50 % or 2.000 views since the reading before),
+    every 6 hours to 7 days, daily to 30 days, weekly to 90 days, then never; the 1h, 24h, 48h, 7d
+    and 30d marks are read on the dot. Each reading adds a `post_metric_snapshots` row and settles
+    the marks the post has passed (`views_1h` … `views_30d`): the reading within the mark's
+    tolerance (0.5 h, 2 h, 3 h, 12 h, 24 h) nearest to it, else, once past the tolerance, the line
+    between the readings around it (named in `marks_estimated`); a mark once set stays. Facebook's
+    first reading at least 48 hours after it went live, if within 72 hours, is still kept as its
+    `48h` row of `post_metrics` (the KPIs and medians). A failed reading records the reason and is
+    tried again an hour later; a Facebook reel that does not read is never taken for removed here
+    (only a check decides that). A YouTube Short missing from two answers an hour apart is marked
+    `deleted` (looked at daily for 7 days, published again if it comes back); YouTube's time
+    replaces the post's unless the member typed it. "Cập nhật view" on a post,
+    `POST /api/posts/{id}/metrics`, only sets `metrics_requested_at` for a public post (409
+    otherwise), so a request never calls Facebook; the worker reads it within seconds, even past
+    90 days. The board's "Cập nhật view", `POST /api/posts/metrics/refresh` with the shown videos,
+    asks the same for their out Facebook and YouTube posts (at most 200), once per 5 minutes per
+    member (`users.views_refreshed_at`, 429 otherwise). Opening "Bài đăng" calls `POST /api/posts/freshen`, which asks the same
     for every post still followed whose last reading is over 15 minutes old and not asked yet (`{"asked": n}`). Every post payload has `metrics`: `latest` and `at_48h` (each
     null until read), `error`, `pending` while an asked reading has not run, `analysis`, and
     `length_seconds` with `scenes` (the post's `scene_marks`; null and empty for older posts).

@@ -115,7 +115,8 @@ app replaces CapCut, so the output is a finished MP4.
    "Tư liệu" tab; tags (movement, joint, room, opening or closing scene) are looked up on the web and by `list_media`. Members authorize and revoke OAuth connections
    on Cài đặt › Kết nối MCP; see [chatgpt.md](chatgpt.md).
 10. **Post numbers (built, issue #74 part 3):** the worker reads each public post's views, shares,
-    comments and reactions from Facebook, daily for 14 days, and keeps its 48-hour numbers; "Bài
+    comments and reactions from Facebook (and a YouTube Short's from YouTube's API), hourly at first and
+    for 90 days, and keeps its 1h, 24h, 48h, 7d and 30d marks; "Bài
     đăng" shows them, sorts by views, compares each with its Page's median at 48 hours and shows the
     weekly KPIs. "Phân tích bài đăng" adds watch time, reach, replays, follows and the retention
     curve, split by the scenes of the posted MP4.

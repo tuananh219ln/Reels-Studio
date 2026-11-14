@@ -54,6 +54,8 @@ class User(Base):
     edit_template_default: Mapped[object | None] = mapped_column(JSONB(none_as_null=True))
     # "Tự duyệt" (migration 0083): their finished renders are approved by the app (auto_approve.py).
     auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # Their last "Cập nhật view" on "Bài đăng" (migration 0088): once per 5 minutes (routes_posts.REFRESH_EVERY).
+    views_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
@@ -863,6 +865,18 @@ class Publication(Base):
     mp4_downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Whether `published_at` was read from the platform ("api") or typed or defaulted by the member ("user").
     published_at_source: Mapped[str | None] = mapped_column(String(8))
+    # When the worker reads the post's numbers next (metrics.next_reading, migration 0088); None before its first
+    # reading (it is then due as soon as it is live) and once it is no longer followed.
+    next_snapshot_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The views at each mark, set once (metrics.settle_marks); `marks_estimated` names those taken between readings.
+    views_1h: Mapped[int | None] = mapped_column(BigInteger)
+    views_24h: Mapped[int | None] = mapped_column(BigInteger)
+    views_48h: Mapped[int | None] = mapped_column(BigInteger)
+    views_7d: Mapped[int | None] = mapped_column(BigInteger)
+    views_30d: Mapped[int | None] = mapped_column(BigInteger)
+    marks_estimated: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
+    # The first reading that found a YouTube post missing; a second an hour later marks it removed.
+    gone_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])

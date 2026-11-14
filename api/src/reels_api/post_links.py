@@ -16,7 +16,7 @@ import httpx
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session as DbSession
 
-from . import config
+from . import config, youtube
 from .models import AffiliateAccount, Channel, Fanpage, Publication, TikTokConnection, Video
 from .videos import split_scenes, thumbnail_url, video_name
 
@@ -160,6 +160,9 @@ class Meta:
     channel_id: str | None = None
     author_name: str = ""
     thumbnail_url: str | None = None
+    # From the YouTube Data API, with the team's key: when it went live and its length.
+    published_at: datetime | None = None
+    duration: float | None = None
 
 
 def oembed(link: Link, client: httpx.Client) -> Meta | None:
@@ -192,6 +195,14 @@ def oembed(link: Link, client: httpx.Client) -> Meta | None:
             meta.handle = match.group(1).lower()
         elif match := YOUTUBE_CHANNEL.match(author.path):
             meta.channel_id = match.group(1)
+        if youtube.enabled():
+            try:
+                item = youtube.videos([link.external_id]).get(link.external_id)
+            except youtube.YouTubeError:
+                item = None  # oEmbed answered: the post is there, only its time and length stay unknown
+            if item is not None:
+                meta.published_at, meta.duration = youtube.published_at(item), youtube.duration_seconds(item)
+                meta.channel_id = (item.get("snippet") or {}).get("channelId") or meta.channel_id
     return meta
 
 

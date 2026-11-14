@@ -53,28 +53,28 @@ def windows(post: Publication) -> dict[str, PostMetrics]:
 # When a post is due
 
 
-def test_a_post_is_first_read_an_hour_after_it_went_live(db, me, storage, fakes):
-    fresh = add_post(db, storage, me, 0.5)
-    hour_old = add_post(db, storage, me, 2, remote_id="1001")
-    assert due(db) == [hour_old.id], "Facebook has few numbers to give in the first hour"
-    assert fresh.id not in due(db)
+def test_a_post_is_first_read_as_soon_as_it_is_live(db, me, storage, fakes):
+    fresh = add_post(db, storage, me, 0.1)
+    assert due(db) == [fresh.id]
 
 
-def test_a_read_post_is_read_again_a_day_later(db, me, storage, fakes):
+def test_a_read_post_is_read_again_on_its_schedule(db, me, storage, fakes):
     post = add_post(db, storage, me, 5)
     metrics.measure(db, post)
     assert due(db) == []
-    post.metrics_tried_at = datetime.now(UTC) - timedelta(hours=23)
-    db.commit()
-    assert due(db) == []
-    post.metrics_tried_at = datetime.now(UTC) - timedelta(hours=25)
+    # Five hours live: read again in an hour.
+    wait = post.next_snapshot_at - post.metrics_tried_at
+    assert timedelta(minutes=59) < wait <= timedelta(hours=1)
+    post.next_snapshot_at = hours_ago(0.01)
     db.commit()
     assert due(db) == [post.id]
 
 
-def test_a_post_is_followed_for_fourteen_days_only(db, me, storage, fakes):
-    add_post(db, storage, me, 15 * 24)
+def test_a_post_is_followed_for_ninety_days_only(db, me, storage, fakes):
+    add_post(db, storage, me, 91 * 24)
     assert due(db) == []
+    recent = add_post(db, storage, me, 15 * 24, remote_id="1001")
+    assert due(db) == [recent.id], "past the old 14 days, still followed"
 
 
 @pytest.mark.parametrize(
@@ -107,12 +107,12 @@ def test_a_deleted_post_is_no_longer_read_and_keeps_its_numbers(an, db, me, stor
     assert row["metrics"]["latest"]["views"] == 1200
 
 
-def test_the_post_read_longest_ago_comes_first_and_asked_posts_before_all(db, me, storage, fakes):
+def test_the_most_overdue_post_comes_first_and_asked_posts_before_all(db, me, storage, fakes):
     old = add_post(db, storage, me, 50)
     new = add_post(db, storage, me, 30, remote_id="1001")
-    asked = add_post(db, storage, me, 20 * 24, remote_id="1002", metrics_requested_at=hours_ago(0.01))
-    new.metrics_tried_at = hours_ago(30)
-    old.metrics_tried_at = hours_ago(40)
+    asked = add_post(db, storage, me, 100 * 24, remote_id="1002", metrics_requested_at=hours_ago(0.01))
+    for post, overdue in ((new, 1), (old, 2)):
+        post.metrics_tried_at, post.next_snapshot_at = hours_ago(overdue + 1), hours_ago(overdue)
     db.commit()
     assert due(db) == [asked.id, old.id, new.id]
     assert [post.id for post in metrics.due_posts(db)] == [asked.id, old.id, new.id][: metrics.BATCH]
@@ -304,9 +304,10 @@ def test_one_worker_round_reads_a_few_due_posts(committed, storage, fakes):  # n
 def test_a_round_never_calls_facebook_when_nothing_is_due(committed, storage, fakes):  # noqa: F811  (fixture)
     user = add_user(committed)
     with committed() as db:
-        add_post(db, storage, user, 0.2)
+        add_post(db, storage, user, 0.2, metrics_tried_at=hours_ago(0.1), next_snapshot_at=hours_ago(-0.5))
     metrics.measure_due(committed)
     assert fakes.facebook_insights_calls == 0
+    assert fakes.youtube_calls == []
 
 
 def test_the_list_shows_each_posts_numbers_and_when_they_were_read(an, db, me, storage, fakes):
@@ -351,11 +352,11 @@ def test_only_a_public_post_can_be_asked_for_numbers(an, db, me, storage, fakes,
 def test_opening_the_posts_page_asks_for_followed_posts_not_read_lately(an, db, me, storage, fakes):
     stale = add_post(db, storage, me, 30, metrics_tried_at=hours_ago(2))
     add_post(db, storage, me, 30, remote_id="1001", metrics_tried_at=hours_ago(0.1))
-    add_post(db, storage, me, 0.5, remote_id="1002")
+    fresh = add_post(db, storage, me, 0.5, remote_id="1002")
     add_post(db, storage, me, 24 * 20, remote_id="1003", metrics_tried_at=hours_ago(48))
-    assert due(db) == []
+    assert due(db) == [fresh.id], "a post never read is read as soon as it is live"
     assert an.post("/api/posts/freshen").json() == {"asked": 1}, "not one read minutes ago, too new or past 14 days"
-    assert due(db) == [stale.id]
+    assert due(db) == [stale.id, fresh.id]
     assert an.post("/api/posts/freshen").json() == {"asked": 0}, "a reading already asked for is not asked again"
 
 

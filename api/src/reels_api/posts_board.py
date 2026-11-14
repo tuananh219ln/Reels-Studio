@@ -42,6 +42,8 @@ class PostView:
     measured_at: datetime | None = None
     error: str | None = None
     retry_job_id: int | None = None
+    # A reading was asked for ("Cập nhật view") and has not run yet.
+    refreshing: bool = False
 
 
 @dataclass
@@ -124,7 +126,9 @@ def post_views(db: DbSession, posts: list[Publication]) -> list[PostView]:
                 state=state_of(post, job is not None and post.status == "pending"),
                 channel=channel_of(post),
                 views=reading.views if reading else None,
-                views_48h=marks.get(post.id),
+                views_48h=post.views_48h if post.views_48h is not None else marks.get(post.id),
+                refreshing=post.metrics_requested_at is not None
+                and (post.metrics_tried_at is None or post.metrics_tried_at < post.metrics_requested_at),
                 measured_at=reading.captured_at if reading else None,
                 error=job.error if job is not None and post.status == "pending" else None,
                 retry_job_id=job.id if job is not None and post.status == "pending" else None,
@@ -214,6 +218,7 @@ def cell(views: list[PostView], platform: str) -> dict | None:
         "retry_job_id": next((view.retry_job_id for view in chosen if view.retry_job_id), None),
         "closed_at": _iso(max((view.post.closed_at for view in chosen if view.post.closed_at), default=None)),
         "metrics_updated_at": _iso(max((view.measured_at for view in chosen if view.measured_at), default=None)),
+        "refreshing": any(view.refreshing for view in chosen),
     }
 
 
@@ -358,6 +363,45 @@ def board(db: DbSession, filters: Filters, offset: int = 0, limit: int = PAGE_SI
 
 # --- One video's posts, for its opened row ---
 
+SPARKLINE_POINTS = 30
+# The marks shown in an opened row: (column, hours, tolerance), as metrics.MARKS.
+SHOWN_MARKS = (("24h", 24, 2), ("48h", 48, 3), ("7d", 168, 12))
+
+
+def missed_marks(view: PostView) -> list[str]:
+    """Marks the post is past (with their tolerance) and has no value for: "n/a", not "—"."""
+    if view.state not in ("published", "removed"):
+        return []
+    age = (now() - live_at(view.post)).total_seconds() / 3600
+    values = {"24h": view.post.views_24h, "48h": view.views_48h, "7d": view.post.views_7d}
+    return [name for name, hours, tolerance in SHOWN_MARKS if values[name] is None and age > hours + tolerance]
+
+
+def sparklines(db: DbSession, post_ids: list[int]) -> dict[int, list[int]]:
+    """Each post's views over time, its last SPARKLINE_POINTS readings, oldest first."""
+    if not post_ids:
+        return {}
+    ranked = (
+        select(
+            PostMetricSnapshot.publication_id,
+            PostMetricSnapshot.views,
+            PostMetricSnapshot.captured_at,
+            func.row_number()
+            .over(partition_by=PostMetricSnapshot.publication_id, order_by=PostMetricSnapshot.captured_at.desc())
+            .label("rank"),
+        )
+        .where(PostMetricSnapshot.publication_id.in_(post_ids), PostMetricSnapshot.views.is_not(None))
+        .subquery()
+    )
+    lines: dict[int, list[int]] = {}
+    for post_id, views, _ in db.execute(
+        select(ranked.c.publication_id, ranked.c.views, ranked.c.captured_at)
+        .where(ranked.c.rank <= SPARKLINE_POINTS)
+        .order_by(ranked.c.publication_id, ranked.c.captured_at)
+    ):
+        lines.setdefault(post_id, []).append(views)
+    return lines
+
 
 def video_posts(db: DbSession, video: Video, fb_payload) -> dict:
     """`fb_payload(post)`: the "Bài đăng" payload of a Facebook post, whose actions (check, cancel, take down,
@@ -370,6 +414,7 @@ def video_posts(db: DbSession, video: Video, fb_payload) -> dict:
         )
     )
     views = post_views(db, posts)
+    trends = sparklines(db, [post.id for post in posts])
     topic = knowledge.topic_of(db, video)
     post_text = hashtags.post_text(video.caption, video.hashtags)
     active = {view.post.platform for view in views if view.state in ACTIVE_STATES}
@@ -389,11 +434,13 @@ def video_posts(db: DbSession, video: Video, fb_payload) -> dict:
                 if view.state == "pending_link"
                 else None,
                 "views": view.views,
-                # The 24-hour and 7-day marks come with the readings' schedule (part 2); until then only Facebook's
-                # 48-hour mark is known.
-                "views_24h": None,
+                "views_24h": view.post.views_24h,
                 "views_48h": view.views_48h,
-                "views_7d": None,
+                "views_7d": view.post.views_7d,
+                "marks_estimated": list(view.post.marks_estimated or []),
+                "marks_missed": missed_marks(view),
+                "sparkline": trends.get(view.post.id, []),
+                "refreshing": view.refreshing,
                 "metrics_updated_at": _iso(view.measured_at),
                 "error": view.error,
                 "retry_job_id": view.retry_job_id,
