@@ -99,8 +99,8 @@ test("topic to MP4: script, edits, render, play, seek, download and post", async
   await expect.poll(() => mp4.evaluate((element: HTMLVideoElement) => element.muted)).toBe(false);
   // Seeking needs Range answers (206) through the web app's /api proxy.
   const src = await mp4.getAttribute("src");
-  await page.keyboard.press("Escape");
-  await expect(player).toHaveCount(0);
+  await player.locator(".ant-modal-close").click();
+  await expect(player).toBeHidden();
   const range = await page.request.get(src ?? "", { headers: { Range: "bytes=100-199" } });
   expect(range.status()).toBe(206);
   expect((await range.body()).length).toBe(100);
