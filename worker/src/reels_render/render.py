@@ -92,6 +92,8 @@ def render_video(
         loop_seconds = None
         if options.backdrop:
             script = trim_backdrop(tools.ffmpeg, script, work_dir)
+        else:
+            script = trim_loops(tools.ffmpeg, script, work_dir)
             loop_seconds = backdrop_clip_seconds(tools.ffprobe, script.title)
         found = find_stock_images(script, work_dir, on_warning=on_warning)
         if found.missing:
@@ -190,7 +192,7 @@ def render_video(
                     color=scene.color,
                     music_level=scene.music_level,
                     video_sound=heard[index],
-                    loop=options.backdrop and video_start is not None,
+                    loop=video_start is not None and (options.backdrop or scene.video_loop),
                     blur=scene.video_blur if video_start is not None else (),
                     insets=tuple(insets),
                     motion_span=(
@@ -319,6 +321,27 @@ def trim_backdrop(ffmpeg_path: str, script: Script, work_dir: Path) -> Script:
     )  # fmt: skip
     moved = [replace(scene, video=cut, video_start=0.0) for scene in script.all_scenes]
     return Script(title=moved[0], scenes=moved[1:], logo=script.logo)
+
+
+def trim_loops(ffmpeg_path: str, script: Script, work_dir: Path) -> Script:
+    """A looped clip ("Lặp clip") starting past its beginning is cut there first, like the backdrop clip, so it
+    starts again from the scene's start time rather than from the clip's own beginning."""
+    scenes = list(script.all_scenes)
+    for index, scene in enumerate(scenes):
+        if scene.video is None or not scene.video_loop or scene.video_start <= 0:
+            continue
+        cut = work_dir / f"loop-{index:02d}.mp4"
+        ffmpeg.run(
+            [
+                ffmpeg_path, "-hide_banner", "-nostdin", "-v", "error", "-y",
+                "-ss", f"{scene.video_start:.3f}", "-max_pixels", str(MAX_CLIP_PIXELS), "-i", str(scene.video),
+                "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "16", "-pix_fmt", "yuv420p",
+                str(cut),
+            ],
+            f"FFmpeg không cắt được video của {scene.label} để lặp",
+        )  # fmt: skip
+        scenes[index] = replace(scene, video=cut, video_start=0.0)
+    return Script(title=scenes[0], scenes=scenes[1:], logo=script.logo)
 
 
 def backdrop_clip_seconds(ffprobe: str, title: Scene) -> float | None:
