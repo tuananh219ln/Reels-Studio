@@ -14,6 +14,7 @@ Tags (media_tags.py) say what an item shows, apart from its folder: set on one i
 chosen batch, filtered on (an item must carry every tag asked) and matched by the search, here and over MCP.
 """
 
+import functools
 import io
 import re
 import secrets
@@ -165,7 +166,22 @@ def link_folder(db: DbSession, topic: KnowledgeTopic, raw: str | None) -> str | 
     return name
 
 
-def payload(item: MediaItem) -> dict:
+@functools.lru_cache(maxsize=4096)
+def _specs(path: str, kind: str) -> tuple[int | None, int | None, int | None]:
+    """A stored file's (size in bytes, width, height): a photo's pixels come from its header alone, a clip's size only
+    (its length is `seconds`). A file that is gone reads as nothing. Files never change once stored, so this is kept."""
+    try:
+        size = Path(path).stat().st_size
+        if kind != "photo":
+            return size, None, None
+        with Image.open(path) as photo:
+            return size, photo.width, photo.height
+    except OSError:
+        return None, None, None
+
+
+def payload(item: MediaItem, storage: DirectoryStorage | None = None) -> dict:
+    size, width, height = _specs(str(storage.path(item.storage_key)), item.kind) if storage else (None, None, None)
     return {
         "id": item.id,
         "kind": item.kind,
@@ -173,6 +189,9 @@ def payload(item: MediaItem) -> dict:
         "folder": item.folder,
         "source_url": item.source_url,
         "seconds": item.seconds,
+        "size_bytes": size,
+        "width": width,
+        "height": height,
         "tags": list(item.tags or []),
         "file_url": f"/api/media/{item.id}/file",
         "thumb_url": f"/api/media/{item.id}/thumb.jpg",
@@ -219,6 +238,7 @@ def list_media(
     q: str | None = None,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
     tags: str | None = None,
 ) -> dict:
     """The library newest first (one folder, with its subfolders, when named; only items carrying every tag in
@@ -239,7 +259,13 @@ def list_media(
         if as_tag:
             matches.append(MediaItem.tags.cast(Text).like(f"%{like_pattern(as_tag)}%", "\\"))
         query = query.where(or_(*matches))
-    return {"items": [payload(item) for item in db.scalars(query)], "folders": folder_list(db), "tags": tag_list(db)}
+    return {
+        "items": [payload(item, storage) for item in db.scalars(query)],
+        # The whole library's count, whatever the filters: the page's "N tư liệu".
+        "total": db.scalar(select(func.count()).select_from(MediaItem)),
+        "folders": folder_list(db),
+        "tags": tag_list(db),
+    }
 
 
 @router.post("/move")

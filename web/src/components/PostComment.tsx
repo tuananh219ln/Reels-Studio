@@ -16,7 +16,16 @@ const STATE: Record<Post["comment"]["state"], { label: string; tone: StatusTone 
 
 /** The affiliate comment the worker writes under the reel (api post_comments.py), and "Bình luận ngay" / "Cập nhật
  * bình luận" once the reel is live. The comment still has to be pinned on Facebook. `onChanged` reloads the post. */
-export default function PostComment({ post, onChanged }: { post: Post; onChanged: () => void }) {
+export default function PostComment({
+  post,
+  onChanged,
+  readOnly = false,
+}: {
+  post: Post;
+  onChanged: () => void;
+  /** Only the state, without "Bình luận ngay" (the video page shows it in two places, the button in one). */
+  readOnly?: boolean;
+}) {
   const { message } = App.useApp();
   const [asking, setAsking] = useState(false);
   const { comment } = post;
@@ -50,7 +59,7 @@ export default function PostComment({ post, onChanged }: { post: Post; onChanged
       <Flex gap={6} align="center" wrap>
         <CommentOutlined />
         {shown && <StatusText tone={shown.tone}>{shown.label}</StatusText>}
-        {live && comment.state !== "pending" && (
+        {live && !readOnly && comment.state !== "pending" && (
           <Button size="small" type="link" loading={asking} onClick={ask} style={{ padding: 0 }}>
             {comment.state === "done" ? "Cập nhật bình luận" : "Bình luận ngay"}
           </Button>

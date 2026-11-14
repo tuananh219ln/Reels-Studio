@@ -1,10 +1,10 @@
 "use client";
 
 import { SendOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Tabs, Typography } from "antd";
+import { Alert, App, Button, Checkbox, Flex, Input, Radio, Select, Tabs, Typography, theme } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
 import { myPages, NO_PAGE_OF_MINE, pageOptions } from "@/lib/myPages";
 import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
@@ -25,7 +25,6 @@ import PostActions from "./PostActions";
 import QueueButton from "./QueueButton";
 import TikTokCard from "./TikTokCard";
 import PostMetrics from "@/components/PostMetrics";
-import PostComment from "@/components/PostComment";
 import FormDrawer from "@/components/FormDrawer";
 import StatusText from "@/components/StatusText";
 
@@ -262,77 +261,92 @@ const TIKTOK_STATUS: Record<TikTokPost["status"], string> = {
 
 /** Every post of this video on every platform, newest first per platform; Facebook's with their actions, the others'
  * as links (they are posted and recorded in "Đăng bài"). Cancelled or deleted Facebook posts stay, with who and when. */
-export default function PublishCard({ video }: { video: VideoDetail }) {
+export function PostRows({ video }: { video: VideoDetail }) {
   const editor = useEditor();
-  const { onSaved } = editor;
-  const reload = useCallback(() => {
-    api<VideoDetail>(`/videos/${video.id}`).then(onSaved, () => undefined);
-  }, [video.id, onSaved]);
+  const { token } = theme.useToken();
+  // Each post's row is tinted by where it stands: green out, amber waiting, red failed or taken down.
+  const tint = (tone: string) =>
+    tone === "success"
+      ? { background: token.colorSuccessBg, borderColor: token.colorSuccessBorder }
+      : tone === "danger"
+        ? { background: token.colorErrorBg, borderColor: token.colorErrorBorder }
+        : tone === "waiting"
+          ? { background: token.colorWarningBg, borderColor: token.colorWarningBorder }
+          : { background: token.colorFillQuaternary, borderColor: token.colorBorderSecondary };
   if (video.publications.length === 0 && video.tiktok_posts.length === 0 && video.manual_posts.length === 0) {
     return null;
   }
   return (
-    <Card title="Bài đăng của video" size="small">
-      <Flex vertical gap={12}>
-        {[
-          ...video.tiktok_posts.map((post) => ({
-            key: `tiktok-${post.id}`,
-            label: "TikTok",
-            text: [TIKTOK_STATUS[post.status], post.mode === "draft" ? "nháp trong hộp thư" : null]
-              .filter(Boolean)
-              .join(", "),
-            url: post.url,
-            who: [post.account, post.created_by, formatDateTime(post.at)].filter(Boolean).join(", "),
-          })),
-          ...video.manual_posts.map((post) => ({
-            key: `${post.platform}-${post.id}`,
-            label: post.platform_label,
-            text: "Đã đăng tay",
-            url: post.url,
-            who: [post.created_by, formatDateTime(post.at)].join(", "),
-          })),
-        ].map((row) => (
-          <div key={row.key} data-testid="other-post">
-            <Typography.Text strong style={{ marginRight: 8 }}>
-              {row.label}
-            </Typography.Text>
-            <Typography.Text>{row.text}</Typography.Text>{" "}
-            {row.url && (
-              <a href={row.url} target="_blank" rel="noreferrer">
-                Xem bài
+    <Flex vertical gap={8}>
+      {[
+        ...video.tiktok_posts.map((post) => ({
+          key: `tiktok-${post.id}`,
+          label: "TikTok",
+          text: [TIKTOK_STATUS[post.status], post.mode === "draft" ? "nháp trong hộp thư" : null]
+            .filter(Boolean)
+            .join(", "),
+          url: post.url,
+          who: [post.account, post.created_by, formatDateTime(post.at)].filter(Boolean).join(", "),
+        })),
+        ...video.manual_posts.map((post) => ({
+          key: `${post.platform}-${post.id}`,
+          label: post.platform_label,
+          text: "Đã đăng tay",
+          url: post.url,
+          who: [post.created_by, formatDateTime(post.at)].join(", "),
+        })),
+      ].map((row) => (
+        <div
+          key={row.key}
+          data-testid="other-post"
+          style={{ border: "1px solid", borderRadius: 8, padding: "6px 10px", ...tint("success") }}
+        >
+          <Typography.Text strong style={{ marginRight: 8 }}>
+            {row.label}
+          </Typography.Text>
+          <Typography.Text>{row.text}</Typography.Text>{" "}
+          {row.url && (
+            <a href={row.url} target="_blank" rel="noreferrer">
+              Xem bài
+            </a>
+          )}
+          <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
+            {row.who}
+          </Typography.Paragraph>
+        </div>
+      ))}
+      {video.publications.map((post, index) => (
+        <Flex
+          key={post.id}
+          justify="space-between"
+          align="center"
+          gap={8}
+          wrap
+          data-testid="video-post"
+          style={{ border: "1px solid", borderRadius: 8, padding: "6px 10px", ...tint(POST_STATUS[post.status].tone) }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <StatusText tone={POST_STATUS[post.status].tone} style={{ marginRight: 8 }}>
+              {POST_STATUS[post.status].label}
+            </StatusText>
+            <Typography.Text data-testid={index === 0 ? "publication-status" : undefined}>
+              {statusText(post)}
+            </Typography.Text>{" "}
+            {post.url && (
+              <a href={post.url} target="_blank" rel="noreferrer">
+                Xem Reel
               </a>
             )}
             <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-              {row.who}
+              {[post.fanpage, post.created_by].filter(Boolean).join(", ")}
+              {post.closed_at &&
+                `, ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
             </Typography.Paragraph>
+            <PostMetrics post={post} />
           </div>
-        ))}
-        {video.publications.map((post, index) => (
-          <Flex key={post.id} justify="space-between" align="center" gap={8} wrap data-testid="video-post">
-            <div style={{ minWidth: 0 }}>
-              <StatusText tone={POST_STATUS[post.status].tone} style={{ marginRight: 8 }}>
-                {POST_STATUS[post.status].label}
-              </StatusText>
-              <Typography.Text data-testid={index === 0 ? "publication-status" : undefined}>
-                {statusText(post)}
-              </Typography.Text>{" "}
-              {post.url && (
-                <a href={post.url} target="_blank" rel="noreferrer">
-                  Xem Reel
-                </a>
-              )}
-              <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-                {[post.fanpage, post.created_by].filter(Boolean).join(", ")}
-                {post.closed_at &&
-                  `, ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
-              </Typography.Paragraph>
-              <PostMetrics post={post} />
-              <PostComment post={post} onChanged={reload} />
-            </div>
-            <PostActions post={post} disabled={video.locked} onDone={editor.onSaved} />
-          </Flex>
-        ))}
-      </Flex>
-    </Card>
+          <PostActions post={post} disabled={video.locked} onDone={editor.onSaved} />
+        </Flex>
+      ))}
+    </Flex>
   );
 }

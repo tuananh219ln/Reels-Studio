@@ -19,7 +19,6 @@ test("a video's extra comments are added one by one, kept and removed", async ({
   const id = (await made.json()).id;
 
   await page.goto(`/videos/${id}`);
-  await page.getByRole("tab", { name: "Đăng bài" }).click();
   await openPanel(page, "Bình luận");
   const extra = page.getByTestId("extra-comments");
   for (const text of ["Nhà bạn hay nấu bí đỏ thế nào?", "Lưu lại cho cuối tuần nhé!"]) {
@@ -32,7 +31,6 @@ test("a video's extra comments are added one by one, kept and removed", async ({
   await expect(extra.getByRole("textbox", { name: "Bình luận 3" })).toHaveValue("Lưu lại cho cuối tuần nhé!");
 
   await page.reload();
-  await page.getByRole("tab", { name: "Đăng bài" }).click();
   await openPanel(page, "Bình luận");
   await extra.getByRole("button", { name: "Bỏ bình luận 2" }).click();
   await expect(extra.getByRole("textbox", { name: "Bình luận 2" })).toHaveValue("Lưu lại cho cuối tuần nhé!");
