@@ -10,6 +10,8 @@ import PasteLinksModal, { type PasteTarget } from "@/components/posts/PasteLinks
 import PlatformCell from "@/components/posts/PlatformCell";
 import { formatDayMonth, PLATFORM_LABEL } from "@/components/posts/boardText";
 import VideoPostsRow from "@/components/posts/VideoPostsRow";
+import UnmatchedTable from "@/components/posts/UnmatchedTable";
+import VideoThumbnail from "@/components/VideoThumbnail";
 import VideoTitleCell from "@/components/VideoTitleCell";
 import WhoseFilter, { type Whose } from "@/components/WhoseFilter";
 import {
@@ -33,7 +35,21 @@ import {
   SearchOutlined,
   UnorderedListOutlined,
 } from "@ant-design/icons";
-import { App, Button, Card, DatePicker, Flex, Input, Segmented, Select, Spin, Table, Tabs, Typography } from "antd";
+import {
+  App,
+  Button,
+  Card,
+  DatePicker,
+  Flex,
+  Input,
+  Segmented,
+  Select,
+  Spin,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
 import dayjs from "dayjs";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
@@ -48,6 +64,7 @@ const TABS: { value: BoardTab; label: string }[] = [
   { value: "published", label: "Đã đăng" },
   { value: "failed", label: "Thất bại" },
   { value: "closed", label: "Đã gỡ/hủy" },
+  { value: "unmatched", label: "Chưa khớp" },
   { value: "all", label: "Tất cả" },
 ];
 const TAB_VALUES = TABS.map((tab) => tab.value).filter((value) => value !== "all");
@@ -60,6 +77,28 @@ const SORTS: { value: BoardSort; label: string }[] = [
 ];
 
 type View = "list" | "calendar";
+
+/** A "Video ngoài" row: a post followed without a video, with the platform's own cover and caption. */
+function ExternalCell({ item }: { item: BoardItem }) {
+  return (
+    <Flex align="center" gap={12} style={{ minWidth: 0 }}>
+      <VideoThumbnail name={item.video.name} url={item.video.thumbnail_url} width={36} />
+      <Flex vertical style={{ minWidth: 0 }}>
+        <Typography.Text ellipsis={{ tooltip: item.video.name }} style={{ maxWidth: 240 }}>
+          {item.video.name}
+        </Typography.Text>
+        <Flex gap={6} align="center">
+          <Tag style={{ marginInlineEnd: 0, fontSize: 11 }}>Video ngoài</Tag>
+          {item.video.url && (
+            <a href={item.video.url} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>
+              Xem bài ↗
+            </a>
+          )}
+        </Flex>
+      </Flex>
+    </Flex>
+  );
+}
 
 /** "Bài đăng": every rendered video and where it stands on Facebook, TikTok and YouTube Shorts, with the links of posts
  * made by hand pasted in; or, as "Lịch" (`?view=calendar`), the Facebook posts by day. */
@@ -241,26 +280,29 @@ function Posts() {
       title: "Video",
       key: "video",
       width: 320,
-      render: (_, item) => (
-        <VideoTitleCell
-          id={item.video.id}
-          title={item.video.name}
-          thumbnailUrl={item.video.thumbnail_url}
-          maxWidth={260}
-          sub={
-            <>
-              {item.video.created_by}
-              {item.video.rendered_at && ` · render ${formatDayMonth(item.video.rendered_at)}`}
-              {item.video.unposted_days !== null && (
-                <Typography.Text type="danger" style={{ fontSize: 12 }}>
-                  {" "}
-                  · chưa đăng {item.video.unposted_days} ngày
-                </Typography.Text>
-              )}
-            </>
-          }
-        />
-      ),
+      render: (_, item) =>
+        item.video.id === null ? (
+          <ExternalCell item={item} />
+        ) : (
+          <VideoTitleCell
+            id={item.video.id}
+            title={item.video.name}
+            thumbnailUrl={item.video.thumbnail_url}
+            maxWidth={260}
+            sub={
+              <>
+                {item.video.created_by}
+                {item.video.rendered_at && ` · render ${formatDayMonth(item.video.rendered_at)}`}
+                {item.video.unposted_days !== null && (
+                  <Typography.Text type="danger" style={{ fontSize: 12 }}>
+                    {" "}
+                    · chưa đăng {item.video.unposted_days} ngày
+                  </Typography.Text>
+                )}
+              </>
+            }
+          />
+        ),
     },
     ...PLATFORMS.map((name) => ({
       title: PLATFORM_LABEL[name],
@@ -295,12 +337,13 @@ function Posts() {
       title: "",
       key: "actions",
       width: 56,
-      render: (_, item) => (
-        <VideoActions
-          video={{ id: item.video.id, title: item.video.name, topic: item.video.topic, name: item.video.name }}
-          onChanged={load}
-        />
-      ),
+      render: (_, item) =>
+        item.video.id === null ? null : (
+          <VideoActions
+            video={{ id: item.video.id, title: item.video.name, topic: item.video.topic, name: item.video.name }}
+            onChanged={load}
+          />
+        ),
     },
   ];
 
@@ -395,7 +438,9 @@ function Posts() {
             style={{ width: 160, marginLeft: "auto" }}
           />
         </Flex>
-        {board === null ? (
+        {tab === "unmatched" ? (
+          <UnmatchedTable platform={platform} onChanged={load} />
+        ) : board === null ? (
           <Flex justify="center" style={{ padding: 48 }}>
             <Spin />
           </Flex>
@@ -407,7 +452,7 @@ function Posts() {
           />
         ) : (
           <Table<BoardItem>
-            rowKey={(item) => item.video.id}
+            rowKey={(item) => (item.video.id === null ? `post-${item.video.post_id}` : `video-${item.video.id}`)}
             columns={columns}
             dataSource={board.items}
             pagination={{
@@ -420,9 +465,11 @@ function Posts() {
             scroll={{ x: 1180 }}
             onRow={() => ({ "data-testid": "post-group" }) as React.HTMLAttributes<HTMLElement>}
             expandable={{
-              expandedRowRender: (item) => (
-                <VideoPostsRow videoId={item.video.id} onPaste={openPaste} onDownload={download} onChanged={load} />
-              ),
+              rowExpandable: (item) => item.video.id !== null,
+              expandedRowRender: (item) =>
+                item.video.id === null ? null : (
+                  <VideoPostsRow videoId={item.video.id} onPaste={openPaste} onDownload={download} onChanged={load} />
+                ),
             }}
           />
         )}

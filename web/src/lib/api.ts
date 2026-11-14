@@ -1669,12 +1669,17 @@ export type BoardCell = {
 
 export type BoardItem = {
   video: {
-    id: number;
+    /** null for "Video ngoài": a post followed without a video, a row of its own. */
+    id: number | null;
+    /** "Video ngoài" only: its post, and the link to it. */
+    external?: boolean;
+    post_id?: number;
+    url?: string | null;
     name: string;
     topic: string;
     thumbnail_url: string | null;
     created_by: string;
-    created_by_id: number;
+    created_by_id: number | null;
     rendered_at: string | null;
     has_mp4: boolean;
     /** Days since its render when it is still unposted after more than 3; null otherwise. */
@@ -1686,7 +1691,22 @@ export type BoardItem = {
   latest_at: string | null;
 };
 
-export type BoardTab = "unposted" | "pending_link" | "scheduled" | "published" | "failed" | "closed" | "all";
+export type BoardTab =
+  "unposted" | "pending_link" | "scheduled" | "published" | "failed" | "closed" | "unmatched" | "all";
+
+/** A reel imported from a Page (Meta Business Suite) with no video yet, on "Chưa khớp". */
+export type UnmatchedPost = {
+  id: number;
+  platform: BoardPlatform;
+  url: string | null;
+  caption: string;
+  thumbnail_url: string | null;
+  channel: string | null;
+  published_at: string | null;
+  views: number | null;
+  match_status: "suggested" | "unmatched";
+  suggested: LinkVideo | null;
+};
 export type BoardSort = "latest" | "views" | "views_48h" | "oldest_render";
 
 export type Board = {
@@ -1762,7 +1782,16 @@ export type LinkPreview = {
 };
 
 export type Channels = {
-  facebook: { id: number; name: string; owner_id: number | null }[];
+  facebook: {
+    id: number;
+    name: string;
+    owner_id: number | null;
+    /** "Đồng bộ bài ngoài app": reels posted outside the app are imported hourly. */
+    sync_external_posts: boolean;
+    last_synced_at: string | null;
+    sync_error: string | null;
+    sync_pending: boolean;
+  }[];
   tiktok: {
     id: number;
     name: string;

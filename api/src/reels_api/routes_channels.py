@@ -17,7 +17,7 @@ from .db import get_db
 from .errors import ApiError
 from .models import AffiliateAccount, Channel, Fanpage, Publication, Session, User
 from .routes_videos import invalid
-from .sessions import current_member
+from .sessions import current_member, now
 
 router = APIRouter(prefix="/api/channels")
 
@@ -69,7 +69,17 @@ def list_channels(me: Session = Depends(current_member), db: DbSession = Depends
     youtube_posts = _counts(db, Publication.channel_id)
     return {
         "facebook": [
-            {"id": page.id, "name": page.name, "owner_id": page.owner_id}
+            {
+                "id": page.id,
+                "name": page.name,
+                "owner_id": page.owner_id,
+                # "Đồng bộ bài ngoài app" (meta_sync.py): on or off, last import, its error, an import asked for.
+                "sync_external_posts": page.sync_external_posts,
+                "last_synced_at": page.last_synced_at.isoformat() if page.last_synced_at else None,
+                "sync_error": page.sync_error,
+                "sync_pending": page.sync_requested_at is not None
+                and (page.sync_tried_at is None or page.sync_tried_at < page.sync_requested_at),
+            }
             for page in db.scalars(select(Fanpage).where(Fanpage.active.is_(True)).order_by(Fanpage.name))
         ],
         "tiktok": [
@@ -127,6 +137,39 @@ def add_channel(body: ChannelBody, me: Session = Depends(current_member), db: Db
         db.rollback()
         raise ApiError(409, "channel_exists", f"Kênh YouTube {handle} đã có") from None
     return {"platform": "youtube", "id": channel.id, "name": channel.name}
+
+
+class SyncBody(BaseModel):
+    enabled: bool
+
+
+def _page(db: DbSession, page_id: int) -> Fanpage:
+    page = db.get(Fanpage, page_id)
+    if page is None or not page.active:
+        raise ApiError(404, "page_not_found", "Không tìm thấy Page")
+    return page
+
+
+@router.put("/fanpage/{page_id}/sync")
+def set_sync(
+    page_id: int, body: SyncBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Đồng bộ bài ngoài app" on or off; the Page's owner's setting, as its other ones."""
+    page = _page(db, page_id)
+    if page.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", f"Chỉ chủ Page “{page.name}” mới đổi được")
+    page.sync_external_posts = body.enabled
+    db.commit()
+    return {"sync_external_posts": page.sync_external_posts}
+
+
+@router.post("/fanpage/{page_id}/sync-now")
+def sync_now(page_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """ "Đồng bộ ngay": the worker imports the Page's reels in its next round. The request never calls Facebook."""
+    page = _page(db, page_id)
+    page.sync_requested_at = now()
+    db.commit()
+    return {"asked": True}
 
 
 @router.delete("/youtube/{channel_id}")

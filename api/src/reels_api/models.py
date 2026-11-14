@@ -604,6 +604,13 @@ class Fanpage(Base):
     # What the worker sends to TikTok when a video of the Page goes live on Facebook (migration 0084, jobs.queue_tiktok_posts):
     # "draft" into the owner's TikTok inbox, or "direct" (public).
     tiktok_auto_mode: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft")
+    # "Đồng bộ bài ngoài app" (meta_sync.py, migration 0089): reels posted on the Page outside the app are imported
+    # hourly; when that last worked, was tried, was asked for ("Đồng bộ ngay"), and what went wrong.
+    sync_external_posts: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sync_tried_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sync_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sync_error: Mapped[str | None] = mapped_column(Text)
 
     updated_by: Mapped[User | None] = relationship(foreign_keys=[updated_by_id])
     owner: Mapped[User | None] = relationship(foreign_keys=[owner_id])
@@ -782,7 +789,12 @@ class Publication(Base):
             postgresql_where=text("status = 'pending'"),
         ),
         Index("ix_publications_article_id", "article_id"),
-        CheckConstraint("(video_id IS NULL) <> (article_id IS NULL)", name="one_target"),
+        # Neither for a reel imported from the Page (meta_suite) or a "Video ngoài" recorded by link (migration 0089).
+        CheckConstraint(
+            "(video_id IS NULL OR article_id IS NULL) "
+            "AND (video_id IS NOT NULL OR article_id IS NOT NULL OR source IN ('meta_suite', 'manual_link'))",
+            name="one_target",
+        ),
         Index(
             "uq_publications_platform_external_id",
             "platform",
@@ -877,6 +889,16 @@ class Publication(Base):
     marks_estimated: Mapped[list] = mapped_column(JSONB, default=list, server_default="[]")
     # The first reading that found a YouTube post missing; a second an hour later marks it removed.
     gone_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Which video the post is (migration 0089): "confirmed" (its video_id, or an article's post), "suggested" and
+    # "unmatched" (an imported reel waiting on "Chưa khớp"), "external" ("Video ngoài": followed without a video),
+    # "ignored" (hidden and no longer read). The best guess and its score (post_links.match_video).
+    match_status: Mapped[str] = mapped_column(String(16), default="confirmed", server_default="confirmed")
+    match_score: Mapped[float | None] = mapped_column(Float)
+    suggested_video_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
+    # What the platform says of a post the app did not send: its caption, length and cover.
+    caption: Mapped[str | None] = mapped_column(Text)
+    duration_sec: Mapped[float | None] = mapped_column(Float)
+    thumbnail_url: Mapped[str | None] = mapped_column(Text)
 
     fanpage: Mapped[Fanpage | None] = relationship()
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])

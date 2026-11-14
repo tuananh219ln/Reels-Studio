@@ -16,6 +16,9 @@ import type { ColumnsType } from "antd/es/table";
 import { useEffect, useRef, useState } from "react";
 import { PLATFORM_LABEL } from "./boardText";
 
+/** The video picker's "Video ngoài": the post is followed without a video. */
+const EXTERNAL = -1;
+
 /** Opened from a cell: the video and platform are fixed, the links are only checked against them. */
 export type PasteTarget = { videoId: number; platform: BoardPlatform; videoName: string };
 
@@ -124,7 +127,8 @@ export default function PasteLinksModal({
       const result = await api<{ saved: number }>("/posts/links", "POST", {
         items: savable.map(({ row, choice }) => ({
           url: row.url,
-          video_id: choice.videoId,
+          video_id: choice.videoId === EXTERNAL ? null : choice.videoId,
+          external: choice.videoId === EXTERNAL,
           channel_id: choice.channelId,
           published_at: choice.publishedAt,
           published_at_edited: choice.edited,
@@ -206,6 +210,7 @@ export default function PasteLinksModal({
               onChange={(value) => choose(index, { videoId: value })}
               options={[
                 ...(suggested.length ? [{ label: "Gợi ý", options: suggested }] : []),
+                { label: "Không có trong app", options: [{ value: EXTERNAL, label: "Video ngoài (không gắn video)" }] },
                 { label: "Mọi video", options: others },
               ]}
               style={{ width: 240 }}

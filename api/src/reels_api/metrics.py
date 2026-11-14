@@ -110,12 +110,19 @@ def ask_for_topic(db: DbSession, topic_id: int) -> int:
 def readable(at: datetime, youtube_on: bool | None = None):
     """Posts the worker has a reader for: a Facebook reel it knows the id of, a YouTube Short with the team's key."""
     youtube_on = youtube.enabled() if youtube_on is None else youtube_on
-    facebook_post = and_(Publication.platform == "facebook", Publication.remote_id.is_not(None), _is_published(at))
+    facebook_post = and_(
+        Publication.platform == "facebook",
+        Publication.remote_id.is_not(None),
+        _is_published(at),
+        # "Bỏ qua" on "Chưa khớp": hidden and no longer read.
+        Publication.match_status != "ignored",
+    )
     if not youtube_on:
         return facebook_post
     youtube_post = and_(
         Publication.platform == "youtube",
         Publication.external_id.is_not(None),
+        Publication.match_status != "ignored",
         # A removed Short is looked at again for a week, in case it comes back.
         or_(Publication.status == "published", Publication.status == "deleted"),
     )

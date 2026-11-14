@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session as DbSession
 from . import hashtags, knowledge
 from .analytics import VIETNAM
 from .models import Job, PostMetrics, PostMetricSnapshot, Publication, Scene, User, Video
-from .post_links import normalize
+from .post_links import normalize, video_ref
 from .script_rules import plain_title
 from .sessions import now
 from .videos import is_published, live_at, thumbnail_url
@@ -23,7 +23,9 @@ PLATFORMS = ("facebook", "tiktok", "youtube")
 # A cell shows the first of these its posts are in.
 STATE_ORDER = ("published", "scheduled", "publishing", "pending_link", "failed", "removed")
 ACTIVE_STATES = {"published", "scheduled", "publishing", "pending_link"}
-TABS = ("unposted", "pending_link", "scheduled", "published", "failed", "closed", "all")
+TABS = ("unposted", "pending_link", "scheduled", "published", "failed", "closed", "unmatched", "all")
+# "Chưa khớp": reels imported from a Page (meta_sync.py) with no video yet.
+UNMATCHED = ("suggested", "unmatched")
 SORTS = ("latest", "views", "views_48h", "oldest_render")
 PUBLISH_JOBS = {"facebook": "publish", "tiktok": "tiktok_publish"}
 STALE_PENDING = timedelta(hours=24)
@@ -48,9 +50,23 @@ class PostView:
 
 @dataclass
 class Row:
-    video: Video
+    """A video and its posts, or (`video` None) one post followed without a video ("Video ngoài")."""
+
+    video: Video | None
     name: str
     posts: list[PostView] = field(default_factory=list)
+
+    @property
+    def rendered_at(self) -> datetime | None:
+        return self.video.rendered_at if self.video else None
+
+    @property
+    def created_by_id(self) -> int | None:
+        return self.video.created_by_id if self.video else None
+
+    @property
+    def topic(self) -> str:
+        return self.video.topic if self.video else ""
 
     def on(self, platform: str | None) -> list[PostView]:
         return [view for view in self.posts if platform is None or view.post.platform == platform]
@@ -94,15 +110,23 @@ def _readings(db: DbSession, post_ids: list[int]) -> tuple[dict[int, PostMetricS
     """The latest snapshot of each post, and each Facebook post's 48-hour mark."""
     if not post_ids:
         return {}, {}
-    latest = {
-        row.publication_id: row
-        for row in db.scalars(
-            select(PostMetricSnapshot)
-            .where(PostMetricSnapshot.publication_id.in_(post_ids))
-            .distinct(PostMetricSnapshot.publication_id)
-            .order_by(PostMetricSnapshot.publication_id, PostMetricSnapshot.captured_at.desc())
+    newest = (
+        select(PostMetricSnapshot.publication_id, func.max(PostMetricSnapshot.captured_at).label("at"))
+        .where(PostMetricSnapshot.publication_id.in_(post_ids))
+        .group_by(PostMetricSnapshot.publication_id)
+        .subquery()
+    )
+    latest: dict[int, PostMetricSnapshot] = {}
+    for row in db.scalars(
+        select(PostMetricSnapshot)
+        .join(
+            newest,
+            (newest.c.publication_id == PostMetricSnapshot.publication_id)
+            & (newest.c.at == PostMetricSnapshot.captured_at),
         )
-    }
+        .order_by(PostMetricSnapshot.id)
+    ):
+        latest[row.publication_id] = row  # two readings at the same time: the one saved last
     marks = dict(
         db.execute(
             select(PostMetrics.publication_id, PostMetrics.views).where(
@@ -162,7 +186,7 @@ def rows(db: DbSession) -> list[Row]:
         )
     )
     if not videos:
-        return []
+        return external_rows(db)
     names = _names(db, videos)
     posts = list(
         db.scalars(
@@ -174,7 +198,29 @@ def rows(db: DbSession) -> list[Row]:
     by_video: dict[int, Row] = {video.id: Row(video, names[video.id]) for video in videos}
     for view in post_views(db, posts):
         by_video[view.post.video_id].posts.append(view)
-    return list(by_video.values())
+    return list(by_video.values()) + external_rows(db)
+
+
+def external_name(post: Publication) -> str:
+    first = (post.caption or "").strip().split("\n")[0][:120]
+    return first or "Video ngoài"
+
+
+def external_rows(db: DbSession) -> list[Row]:
+    """ "Video ngoài": posts followed without a video, a row each."""
+    posts = list(
+        db.scalars(
+            select(Publication)
+            .where(
+                Publication.video_id.is_(None),
+                Publication.article_id.is_(None),
+                Publication.match_status == "external",
+                Publication.platform.in_(PLATFORMS),
+            )
+            .order_by(Publication.id)
+        )
+    )
+    return [Row(None, external_name(view.post), [view]) for view in post_views(db, posts)]
 
 
 # --- What a row says ---
@@ -246,11 +292,13 @@ def in_tab(row: Row, tab: str, platform: str | None) -> bool:
             return tab in states
         case "closed":
             return bool(states & {"removed", "cancelled"})
+        case "unmatched":
+            return False  # imported reels, listed by unmatched_posts
     return True
 
 
 def unposted_days(row: Row) -> int | None:
-    rendered = row.video.rendered_at
+    rendered = row.rendered_at
     if rendered is None or in_tab(row, "unposted", None) is False:
         return None
     days = (now() - rendered).days
@@ -259,6 +307,28 @@ def unposted_days(row: Row) -> int | None:
 
 def item(row: Row, users: dict[int, str], platform: str | None) -> dict:
     video = row.video
+    if video is None:
+        post = row.posts[0].post
+        return {
+            "video": {
+                "id": None,
+                "post_id": post.id,
+                "external": True,
+                "name": row.name,
+                "topic": "",
+                "thumbnail_url": post.thumbnail_url,
+                "created_by": "",
+                "created_by_id": None,
+                "rendered_at": None,
+                "has_mp4": False,
+                "unposted_days": None,
+                "url": post.post_url,
+            },
+            "cells": {name: cell(row.on(name), name) for name in PLATFORMS},
+            "total_views": total_views(row, platform),
+            "views_48h": views_48h(row, platform),
+            "latest_at": _iso(latest_at(row, platform)),
+        }
     return {
         "video": {
             "id": video.id,
@@ -310,9 +380,9 @@ def _local_day(at: datetime | None) -> date | None:
 
 def _matches(row: Row, filters: Filters) -> bool:
     """Every filter but the tab, so the tabs' counts follow the other filters."""
-    if filters.owner_id is not None and row.video.created_by_id != filters.owner_id:
+    if filters.owner_id is not None and row.created_by_id != filters.owner_id:
         return False
-    if filters.query and normalize(filters.query) not in normalize(f"{row.name} {row.video.topic}"):
+    if filters.query and normalize(filters.query) not in normalize(f"{row.name} {row.topic}"):
         return False
     if filters.channels and not any(
         channel_key(view.post) in filters.channels for view in row.posts if view.state != "cancelled"
@@ -323,7 +393,7 @@ def _matches(row: Row, filters: Filters) -> bool:
     ):
         return False
     if filters.date_from or filters.date_to:
-        at = row.video.rendered_at if filters.tab == "unposted" else latest_at(row, filters.platform)
+        at = row.rendered_at if filters.tab == "unposted" else latest_at(row, filters.platform)
         day = _local_day(at)
         if day is None:
             return False
@@ -340,13 +410,14 @@ def _sort_key(sort: str, platform: str | None):
         case "views_48h":
             return lambda row: (views_48h(row, platform) or -1, latest_at(row, platform) or oldest)
         case "oldest_render":
-            return lambda row: row.video.rendered_at or oldest
-    return lambda row: latest_at(row, platform) or row.video.rendered_at or oldest
+            return lambda row: row.rendered_at or oldest
+    return lambda row: latest_at(row, platform) or row.rendered_at or oldest
 
 
 def board(db: DbSession, filters: Filters, offset: int = 0, limit: int = PAGE_SIZE) -> dict:
     every = [row for row in rows(db) if _matches(row, filters)]
     counts = {tab: sum(1 for row in every if in_tab(row, tab, filters.platform)) for tab in TABS}
+    counts["unmatched"] = len(_unmatched(db, filters.platform))
     shown = [row for row in every if in_tab(row, filters.tab, filters.platform)]
     sort = filters.sort or ("oldest_render" if filters.tab == "unposted" else "latest")
     shown.sort(key=_sort_key(sort, filters.platform), reverse=sort != "oldest_render")
@@ -359,6 +430,49 @@ def board(db: DbSession, filters: Filters, offset: int = 0, limit: int = PAGE_SI
         "next_cursor": str(offset + limit) if offset + limit < len(shown) else None,
         "sort": sort,
     }
+
+
+# --- "Chưa khớp" ---
+
+
+def _unmatched(db: DbSession, platform: str | None = None) -> list[Publication]:
+    query = select(Publication).where(
+        Publication.video_id.is_(None),
+        Publication.article_id.is_(None),
+        Publication.match_status.in_(UNMATCHED),
+    )
+    if platform is not None:
+        query = query.where(Publication.platform == platform)
+    return list(db.scalars(query.order_by(Publication.published_at.desc().nulls_last(), Publication.id.desc())))
+
+
+def unmatched_posts(db: DbSession, platform: str | None = None) -> list[dict]:
+    """The reels imported from a Page with no video yet, newest first, each with its best guess."""
+    posts = _unmatched(db, platform)
+    views = {view.post.id: view for view in post_views(db, posts)}
+    suggested = {
+        video.id: video
+        for video in db.scalars(
+            select(Video).where(Video.id.in_({p.suggested_video_id for p in posts if p.suggested_video_id}))
+        )
+    }
+    return [
+        {
+            "id": post.id,
+            "platform": post.platform,
+            "url": post.post_url,
+            "caption": post.caption or "",
+            "thumbnail_url": post.thumbnail_url,
+            "channel": channel_of(post),
+            "published_at": _iso(post.published_at),
+            "views": views[post.id].views,
+            "match_status": post.match_status,
+            "suggested": video_ref(db, suggested[post.suggested_video_id], post.match_score)
+            if post.suggested_video_id in suggested
+            else None,
+        }
+        for post in posts
+    ]
 
 
 # --- One video's posts, for its opened row ---

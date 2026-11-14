@@ -2,9 +2,9 @@
 
 import { useMe } from "@/components/MeContext";
 import StatusText from "@/components/StatusText";
-import { api, errorMessage, type Channels } from "@/lib/api";
+import { api, errorMessage, formatDateTime, type Channels } from "@/lib/api";
 import { PlusOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Input, List, Popconfirm, Typography } from "antd";
+import { App, Button, Card, Flex, Input, List, Popconfirm, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 
 /** "Quản lý kênh"'s TikTok and YouTube channels, added from their link: posts made by hand there are recorded on
@@ -41,6 +41,16 @@ export default function ChannelsCard() {
     }
   }
 
+  async function call(path: string, method: "PUT" | "POST", body: unknown, done: string) {
+    try {
+      await api(path, method, body);
+      message.success(done);
+      await load();
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+
   async function remove(id: number) {
     try {
       await api(`/channels/youtube/${id}`, "DELETE");
@@ -51,7 +61,7 @@ export default function ChannelsCard() {
   }
 
   return (
-    <Card title="Kênh TikTok và YouTube" data-testid="channels-card">
+    <Card title="Kênh TikTok, YouTube và đồng bộ Facebook" data-testid="channels-card">
       <Flex vertical gap={16}>
         <Flex gap={8} wrap>
           <Input
@@ -67,9 +77,57 @@ export default function ChannelsCard() {
           </Button>
         </Flex>
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          Kênh TikTok là tài khoản TikTok của người thêm; kết nối TikTok trong Cài đặt để đăng qua API. View TikTok và
-          YouTube sẽ tự cập nhật ở bản sau.
+          Kênh TikTok là tài khoản TikTok của người thêm; kết nối TikTok trong Cài đặt để đăng qua API. View YouTube tự
+          cập nhật (cần khóa YouTube API), view TikTok ở bản sau. Reel đăng trên Page ngoài app được đồng bộ mỗi giờ.
         </Typography.Text>
+        <div>
+          <Typography.Title level={5}>Facebook: bài đăng ngoài app</Typography.Title>
+          <List
+            size="small"
+            loading={channels === null}
+            dataSource={channels?.facebook ?? []}
+            locale={{ emptyText: "Chưa có Fanpage nào" }}
+            renderItem={(page) => (
+              <List.Item
+                data-testid="channel-facebook"
+                actions={[
+                  <Button
+                    key="now"
+                    size="small"
+                    loading={page.sync_pending}
+                    onClick={() =>
+                      call(`/channels/fanpage/${page.id}/sync-now`, "POST", {}, "Sẽ đồng bộ trong ít phút")
+                    }
+                  >
+                    Đồng bộ ngay
+                  </Button>,
+                ]}
+              >
+                <Flex gap={12} align="center" wrap>
+                  <Typography.Text strong>{page.name}</Typography.Text>
+                  <Switch
+                    size="small"
+                    aria-label={`Đồng bộ bài ngoài app của ${page.name}`}
+                    checked={page.sync_external_posts}
+                    disabled={page.owner_id !== me.id}
+                    onChange={(enabled) =>
+                      call(
+                        `/channels/fanpage/${page.id}/sync`,
+                        "PUT",
+                        { enabled },
+                        enabled ? "Đã bật đồng bộ" : "Đã tắt đồng bộ",
+                      )
+                    }
+                  />
+                  <Typography.Text type="secondary">
+                    {page.last_synced_at ? `Lần đồng bộ cuối ${formatDateTime(page.last_synced_at)}` : "Chưa đồng bộ"}
+                  </Typography.Text>
+                  {page.sync_error && <StatusText tone="danger">{page.sync_error}</StatusText>}
+                </Flex>
+              </List.Item>
+            )}
+          />
+        </div>
         <div>
           <Typography.Title level={5}>TikTok</Typography.Title>
           <List

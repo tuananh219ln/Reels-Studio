@@ -19,6 +19,7 @@ import sys
 import threading
 import time
 import urllib.parse
+from datetime import datetime
 from email import policy as email_policy
 from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -408,6 +409,11 @@ class FakeServices:
         self.youtube_gone: set[str] = set()
         self.youtube_error: int | None = None
         self.youtube_calls: list[list[str]] = []
+        # Reels on a Page posted outside the app (Meta Business Suite), by Page id: what /video_reels lists,
+        # {id, description, created_time (Graph's format), length, picture, published}.
+        self.page_reels: dict[str, list[dict]] = {}
+        self.page_reels_calls = 0
+        self.page_reels_error = False  # every listing answers 500
         self.oembed_calls: list[str] = []
         self.server = ThreadingHTTPServer(("127.0.0.1", port), self._handler())
         self.server.daemon_threads = True
@@ -1417,6 +1423,21 @@ class FakeServices:
 
     # --- TikTok ---
 
+    def _page_reels(self, page_id: str, query: dict) -> tuple[int, dict]:
+        if query.get("access_token") != FACEBOOK_TOKEN:
+            return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
+        since = int(query.get("since") or 0)
+        with self.lock:
+            self.page_reels_calls += 1
+            if self.page_reels_error:
+                return 500, {"error": {"message": "An unknown error has occurred.", "code": 1}}
+            rows = list(self.page_reels.get(page_id, []))
+
+        def created(row: dict) -> int:
+            return int(datetime.strptime(row["created_time"], "%Y-%m-%dT%H:%M:%S%z").timestamp())
+
+        return 200, {"data": [row for row in rows if created(row) >= since]}
+
     def _youtube_videos(self, query: dict) -> tuple[int, dict]:
         if query.get("key") != YOUTUBE_KEY:
             return 400, {"error": {"code": 400, "errors": [{"reason": "keyInvalid"}]}}
@@ -1760,7 +1781,10 @@ class FakeServices:
                 elif parts.path.startswith("/facebook/"):
                     query = dict(urllib.parse.parse_qsl(parts.query))
                     target = parts.path.removeprefix("/facebook/")
-                    if target in ("me", "me/accounts"):
+                    page_ids = {page["id"] for page in fake.facebook_pages}
+                    if target.endswith(("/video_reels", "/videos")) and target.split("/")[0] in page_ids:
+                        self._send(*fake._page_reels(target.split("/")[0], query))
+                    elif target in ("me", "me/accounts"):
                         self._send(*fake._me(target, query))
                     elif target.endswith(("/feed", "/scheduled_posts")):
                         self._send(*fake._page_feed(target.rsplit("/", 1)[1], query))

@@ -40,6 +40,8 @@ def _followed(at):
             and_(Publication.status == "scheduled", Publication.scheduled_at <= at),
         ),
         _live_at() > at - timedelta(days=FOLLOW_DAYS),
+        # A reel imported from the Page and not matched yet has no video to answer from.
+        or_(Publication.video_id.is_not(None), Publication.article_id.is_not(None)),
     )
 
 
