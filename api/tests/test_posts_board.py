@@ -70,6 +70,11 @@ def board(an, **params):
     return response.json()
 
 
+def tiktok_posted(an, video) -> bool:
+    """The video list's flag, which the video page's TikTok card reads too."""
+    return next(row for row in an.get("/api/videos").json() if row["id"] == video.id)["tiktok_posted"]
+
+
 def row_of(result, video):
     return next(item for item in result["items"] if item["video"]["id"] == video.id)
 
@@ -134,7 +139,7 @@ def test_download_for_tiktok_waits_for_a_link_and_goes_stale_after_a_day(an, db,
     db.commit()
     assert row_of(board(an), video)["cells"]["tiktok"]["pending_stale"] is True
     # Not out yet: the video page does not list it as a TikTok post.
-    assert an.get(f"/api/videos/{video.id}").json()["tiktok_posted"] is False
+    assert tiktok_posted(an, video) is False
 
 
 def test_pending_needs_tiktok_or_youtube_and_an_mp4(an, db, me, storage):
@@ -247,7 +252,7 @@ def test_saving_fills_the_wait_then_the_same_link_is_already_there(an, db, me, s
     row = an.post("/api/posts/links/preview", json={"urls": [TIKTOK_LINK]}).json()["items"][0]
     assert row["result"] == "duplicate" and row["existing_video"]["id"] == video.id
     # Now on the video page as a TikTok post.
-    assert an.get(f"/api/videos/{video.id}").json()["tiktok_posted"] is True
+    assert tiktok_posted(an, video) is True
 
 
 def test_a_link_of_another_tiktok_account_is_refused(an, db, me, storage):
