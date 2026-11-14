@@ -403,7 +403,13 @@ included, is under "Lịch sử bài Facebook (N)", folded. A red QC check asks 
 chất lượng", "Vẫn đăng"); the checks themselves are in the header's **QC chip** popover. Under the card, each a block of its
 own: "Nội dung đăng" (Caption, with "Copy caption + hashtag" in its title, which copies both wherever the hashtags
 are typed; a hand-written video's "not reviewed by the AI" warning), then "Hashtag". The "Bình luận & Sản phẩm" tab
-holds, in the same kind of blocks 12 px apart: "Bình luận" ("Bình luận ghim" with "Copy ghim", "Bình luận thêm",
+holds, in the same kind of blocks 12 px apart: "Bình luận" ("Bình luận ghim" with "Copy ghim", which copies the
+comment as it reads now; the field is the comment's template, with a "?" listing the variables, a row of small
+buttons `{title}`, `{items}`, `{item_names}`, `{count}`, `{hook}`, `{products}` that put one at the cursor, then
+"Xem trước": the comment rendered from the scenes as the template is typed, in a grey box, with a grey line "Tự cập
+nhật theo tiêu đề và các cảnh." or, for a template without `{items}`/`{item_names}`, an orange line "Bình luận không
+còn tự cập nhật theo cảnh: chèn {items} để liệt kê các cảnh."; a member's own change to the scenes that changes the
+comment shows the toast "Bình luận ghim đã được cập nhật theo cảnh"; then "Bình luận thêm",
 then the comment's posting state with "Bình luận ngay") and "Sản phẩm Shopee" (the AI's product ideas, the Shopee
 suggestions and the approved products, whose links go after the pinned comment). While no product is attached, the
 tab's name carries an orange dot. Every tab stays mounted while hidden, so what is typed survives a tab change. "Gợi ý nhạc" and "Rà soát an toàn của AI" are not shown. When "Đăng lên N nền

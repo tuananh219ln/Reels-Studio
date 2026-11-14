@@ -17,7 +17,20 @@ from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, 
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 from reels_render.timeline import VOICE_TAIL, fit_seconds
 
-from . import affiliate, analytics, brands, facebook, fanpages, hashtags, knowledge, llm, metrics, plans, post_comments
+from . import (
+    affiliate,
+    analytics,
+    brands,
+    facebook,
+    fanpages,
+    hashtags,
+    knowledge,
+    llm,
+    metrics,
+    pinned,
+    plans,
+    post_comments,
+)
 from .clips import ClipError, frame_at
 from .errors import ApiError
 from .frames import thumbnail_bytes
@@ -543,7 +556,11 @@ def scene_inputs(video: Video, title: Scene | None, scenes: list[Scene]) -> tupl
 def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> Checks:
     title_input, scene_input = scene_inputs(video, title, scenes)
     posts = {name: getattr(video, name) for name in POST_FIELDS}
+    # The pinned comment is checked as it reads now, its variables filled from these scenes (pinned.py).
+    source = pinned.scenes_source(title, scenes, pinned.product_names(db, video.id), video.topic)
+    posts["pinned_comment"] = pinned.render(video.pinned_comment, source)
     checks = check_script(title_input, scene_input, posts, knowledge.banned_words(db, video))
+    checks.warnings.extend(pinned.validate(video.pinned_comment, source, video.extra_comments))
     for scene in scenes:
         # A photo layer without a photo of its own shows its scene's: a clip, or no picture, leaves it nothing.
         drawn = drawn_layers(video, scene)
@@ -1036,6 +1053,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
     # One small query, and only for a video that has posts: this payload answers every save and poll of the editor.
     by_page = analytics.medians(db) if posts else {}
     extras = list_extras(db, [video])[video.id]
+    pinned_source = pinned.scenes_source(title, scenes, pinned.product_names(db, video.id), video.topic)
     payload = {
         "id": video.id,
         "topic": video.topic,
@@ -1067,7 +1085,11 @@ def video_payload(db: DbSession, video: Video) -> dict:
         },
         # The products whose links go in the comment under the video's reels (post_comments.py).
         "affiliate_product_ids": [product.id for product in affiliate.products_of(db, video.id)],
+        # The template a member edits, and what it reads as now: "Copy ghim" and the Page's comment use the latter.
         "pinned_comment": video.pinned_comment,
+        "pinned_comment_text": pinned.render(video.pinned_comment, pinned_source),
+        # The attached products' names, for `{products}` in the web's live preview (web/src/lib/pinned.ts).
+        "pinned_products": pinned_source.product_names,
         "extra_comments": video.extra_comments,
         "self_review": video.self_review,
         "music_suggestions": video.music_suggestions,
