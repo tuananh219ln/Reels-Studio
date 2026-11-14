@@ -60,6 +60,8 @@ export type VideoRow = {
   tiktok_posted: boolean;
   /** Every platform the video is out on (Facebook from its live posts), in the app's order. */
   posted_on: ("facebook" | "tiktok" | "youtube" | "instagram")[];
+  /** The link of each platform's newest post, for the icon to open it; a platform without a link is left out. */
+  posted_links?: Partial<Record<"facebook" | "tiktok" | "youtube" | "instagram", string>>;
   /** A TikTok version was made from it; a Facebook clone ("Nhân bản", a version for another Page) was made from it. */
   has_tiktok_version: boolean;
   cloned: boolean;

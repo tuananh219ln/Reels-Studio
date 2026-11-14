@@ -1106,6 +1106,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "posted_fanpage_ids": posted_fanpage_ids(video, posts),
         # Where it is out, as on the list: the page's row of platform icons.
         "posted_on": extras["posted_on"],
+        "posted_links": extras["posted_links"],
         "fanpages": [
             {
                 "id": page.id,
@@ -1224,14 +1225,20 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
     )
     # Where each video is out: Facebook from its live posts, the others from any post recorded or sent there.
     elsewhere: dict[int, set[str]] = {}
-    for video_id, platform in db.execute(
-        select(Publication.video_id, Publication.platform).where(
+    # The link of each platform's newest post, for the icon to open it.
+    links: dict[int, dict[str, str]] = {}
+    for video_id, platform, url in db.execute(
+        select(Publication.video_id, Publication.platform, Publication.post_url)
+        .where(
             Publication.video_id.in_(ids),
             Publication.platform != "facebook",
             Publication.status.in_(LIVE_POST_STATUSES),
         )
+        .order_by(Publication.id)
     ):
         elsewhere.setdefault(video_id, set()).add(platform)
+        if url:
+            links.setdefault(video_id, {})[platform] = url
     by_video: dict[int, list[tuple[Publication, str]]] = {}
     for post, page in posts:
         by_video.setdefault(post.video_id, []).append((post, page or ""))
@@ -1258,8 +1265,19 @@ def list_extras(db: DbSession, videos: list[Video]) -> dict[int, dict]:
                 for platform in POST_PLATFORMS
                 if (platform == "facebook" and live) or platform in elsewhere.get(video.id, set())
             ],
+            "posted_links": _posted_links(live, links.get(video.id, {})),
         }
     return extras
+
+
+def _posted_links(live: list[tuple[Publication, str]], others: dict[str, str]) -> dict[str, str]:
+    """Where to open each platform's post: the newest live Facebook reel, and the recorded link of the others."""
+    links = dict(others)
+    reels = [post for post, _ in live if post.remote_id]
+    if reels:
+        newest = max(reels, key=lambda post: post.published_at or post.created_at)
+        links["facebook"] = facebook.reel_url(newest.remote_id)
+    return {platform: links[platform] for platform in POST_PLATFORMS if platform in links}
 
 
 def _post_summary(
@@ -1325,6 +1343,7 @@ def list_payload(
         "post": None,
         "tiktok_posted": False,
         "posted_on": [],
+        "posted_links": {},
         "product_count": 0,
     }
     title, scenes = split_scenes(db, video)
