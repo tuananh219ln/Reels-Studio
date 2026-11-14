@@ -83,7 +83,20 @@ One LLM call per topic (the provider chosen on Cài đặt › Mô hình AI, Cla
    does not say, plus 5 hashtags kept apart from it. Hashtag-only lines a script still puts at the
    end of the caption move to the hashtags, and a post adds only the hashtags its caption does not
    already hold ([hashtags.py](../api/src/reels_api/hashtags.py)), so none is posted twice.
-4. 2 affiliate product suggestions plus the pinned-comment text.
+4. 2 affiliate product suggestions plus the pinned comment's closing question. The app saves the pinned comment as
+   the template `{title}
+{items}
+<question>` ([pinned.py](../api/src/reels_api/pinned.py)): the title and the
+   scenes are filled in from the video whenever the comment is shown, copied or posted, so editing, adding,
+   deleting or reordering a scene changes it with no AI call. Variables: `{title}` (the title scene's text, else
+   the topic), `{hook}` (the title scene's narration, else the title), `{items}` (each content scene on its own
+   line, "1. first line – the other lines"), `{item_names}` (the first lines, comma-separated), `{count}` (the
+   number of content scenes), `{products}` (the attached products' names, one per line; their links still follow
+   the comment); an unknown `{name}` stays as typed and a comment without variables reads as itself. Warnings,
+   none blocking: a title counting other than the scenes ("7 món" over 6 scenes); "link" in the pinned comment or
+   a "Bình luận thêm" while no product is attached; more than 1,500 characters; and, in a comment typed without
+   `{items}`/`{item_names}`, a numbered line that matches no scene, a scene missing from it, or the scenes out of
+   order.
 5. A safety self-review that lists the sentences it changed.
 6. 2–3 instrumental music suggestions that fit the topic, to pick in TikTok or Facebook when
    posting (those libraries cannot be used outside their apps).
@@ -267,7 +280,7 @@ because AI can fabricate sources or overstate benefits.
 - **Banned words:** each topic group has its own list on `/knowledge`, and a new group starts with
   none. The "Sức khỏe" group started with "chữa khỏi", "thay thuốc", "diệt tế bào ung thư", "đặc
   trị", "khắc tinh". Claude is told to avoid them. A hit in the
-  title scene text, a scene's text, the caption, or the pinned comment shows a yellow warning that
+  title scene text, a scene's text, the caption, or the pinned comment (as it renders) shows a yellow warning that
   does not block the render; matching ignores case, Unicode form, and `*` markup. The 5 title
   options are only for choosing and are not checked.
 - **Softer wording:** prefer "hỗ trợ" and "tốt cho" over sensational claims such as "khắc tinh tế

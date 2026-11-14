@@ -39,6 +39,7 @@ from . import (
     knowledge,
     llm,
     music_topics,
+    pinned,
     plans,
     remote_media,
     source_keys,
@@ -991,8 +992,9 @@ def clone_snapshot(db: DbSession, video: Video, request: str) -> dict:
         lines.append(f"Hashtag: {' '.join(video.hashtags)}")
     if video.affiliates:
         lines.append(f"Affiliate: {'; '.join(video.affiliates)}")
-    if video.pinned_comment:
-        lines.append(f"Bình luận ghim: {video.pinned_comment}")
+    comment = pinned.text_of(db, video)
+    if comment:
+        lines.append(f"Bình luận ghim: {comment}")
     return {
         "video_id": video.id,
         "title": video_name(video, title),
