@@ -10,6 +10,7 @@ import {
   DragOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
+  HolderOutlined,
   GoogleOutlined,
   HighlightOutlined,
   FolderOpenOutlined,
@@ -42,7 +43,15 @@ import {
   Typography,
 } from "antd";
 import { cloneElement, useEffect, useRef, useState } from "react";
-import { api, errorMessage, upload, type SceneData, type StockSource, type VideoDetail } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  upload,
+  type SceneData,
+  type SceneIssue,
+  type StockSource,
+  type VideoDetail,
+} from "@/lib/api";
 import { setGoogleTarget, useSentImage } from "@/lib/googleExtension";
 import {
   fileFromDataUrl,
@@ -105,6 +114,7 @@ function parseKeywords(text: string): string[] {
 
 type ScenePatch = Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">> & {
   video_start?: number;
+  video_loop?: boolean;
   text_position?: [number, number] | null;
 };
 
@@ -163,8 +173,21 @@ export function ScenePromptField({ scene }: { scene: SceneData }) {
   );
 }
 
-/** What blocks the scene's render, then what only warns. */
-export function SceneIssues({ scene }: { scene: SceneData }) {
+/** What blocks the scene's render, then what only warns; `fix` gives a reason its button, when it has one. */
+export function SceneIssues({ scene, fix }: { scene: SceneData; fix?: (issue: SceneIssue) => React.ReactNode }) {
+  if (fix && scene.issues) {
+    return scene.issues.map((issue) => (
+      <Alert
+        key={issue.level + issue.message}
+        type={issue.level === "blocking" ? "error" : "warning"}
+        showIcon
+        title={issue.message}
+        action={fix(issue)}
+        style={{ padding: "4px 10px" }}
+        data-testid={issue.level === "blocking" ? "scene-blocking" : "scene-warning"}
+      />
+    ));
+  }
   return (
     <>
       {/* One line each, so the card stays short. */}
@@ -205,6 +228,7 @@ export default function SceneCard({
   editing = false,
   backdrop = false,
   backdropScene = null,
+  reorder,
 }: {
   scene: SceneData;
   label: string;
@@ -224,8 +248,11 @@ export default function SceneCard({
   onPreview?: () => void;
   onMove?: (step: -1 | 1) => void;
   onDelete?: () => void;
+  /** Dragging a content scene by its handle onto another to put it there; absent in view mode and while locked. */
+  reorder?: SceneReorder;
 }) {
   const editor = useEditor();
+  const { message } = App.useApp();
   const frozen = editor.locked || editor.readOnly;
   const patch = (body: ScenePatch) => patchScene(scene, body);
   // Over a backdrop, a content scene's photo (and how to find it) matters only for a photo layer showing it: an
@@ -264,6 +291,55 @@ export default function SceneCard({
       )}
     </Flex>
   );
+  /** Puts the cursor in one of this card's fields, by its label. */
+  function focusField(label: string) {
+    document
+      .querySelector<HTMLElement>(`[data-scene-id="${scene.id}"] [aria-label="${label}"]`)
+      ?.focus({ preventScroll: false });
+  }
+
+  /** The button beside a reason, when the card can fix it in one step: "Lặp clip", or the field to change. */
+  function fixFor(issue: SceneIssue): React.ReactNode {
+    if (frozen) return null;
+    const button = (label: string, onClick: () => void) => (
+      <Button size="small" onClick={onClick}>
+        {label}
+      </Button>
+    );
+    switch (issue.field) {
+      case "video":
+        return scene.video && !scene.video.loop && !scene.video.sound
+          ? button("Lặp clip", () => void loop(true))
+          : null;
+      case "keywords":
+        return button("Nhập từ khóa", () => focusField("Từ khóa tìm ảnh"));
+      case "text":
+        return button("Sửa chữ", () => focusField("Chữ trên màn hình"));
+      case "voice":
+        return voiceEnabled ? button("Sửa lời đọc", () => focusField("Lời đọc")) : null;
+      case "seconds":
+        return button("Sửa số giây", () => focusField("Số giây"));
+      case "image":
+        // "Cảnh chưa có ảnh": the file picker of the card; the photo's credit has nothing to press.
+        return issue.level === "blocking" && ownPicture
+          ? button("Tải ảnh lên", () =>
+              document.querySelector<HTMLInputElement>(`[data-scene-id="${scene.id}"] input[type="file"]`)?.click(),
+            )
+          : null;
+      default:
+        return null;
+    }
+  }
+
+  /** "Lặp clip" on or off; the saved video comes back through the editor like any field. */
+  async function loop(on: boolean) {
+    try {
+      editor.onSaved(await patch({ video_loop: on }));
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+
   // The text and the narration side by side, then the numbers, what blocks or warns, and the AI prompt folded.
   const fields = (
     <Flex vertical gap={2}>
@@ -274,7 +350,7 @@ export default function SceneCard({
       {backdrop && !scene.is_title && <InsetOverlapWarning scene={scene} />}
       {numbers}
       <Flex vertical gap={6}>
-        <SceneIssues scene={scene} />
+        <SceneIssues scene={scene} fix={fixFor} />
       </Flex>
       {(ownPicture || backdrop) && <AdvancedPrompt scene={scene} />}
     </Flex>
@@ -286,7 +362,58 @@ export default function SceneCard({
       data-open={expanded}
       data-scene-id={scene.id}
       data-testid={scene.is_title ? "title-scene" : "scene"}
-      title={<SceneHeader scene={scene} label={label} expanded={expanded} onToggle={onToggle} />}
+      data-drop-target={reorder?.over ? "true" : undefined}
+      // The whole card takes the drop; only the handle starts a drag, so text in the fields stays selectable.
+      onDragOver={
+        reorder && !scene.is_title
+          ? (event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              reorder.onOver();
+            }
+          : undefined
+      }
+      onDrop={
+        reorder && !scene.is_title
+          ? (event) => {
+              event.preventDefault();
+              // The dragged scene is named in the drag itself, so the drop never depends on a re-render.
+              reorder.onDrop(Number(event.dataTransfer.getData("text/plain")));
+            }
+          : undefined
+      }
+      style={{
+        opacity: reorder?.dragging ? 0.5 : undefined,
+        // The place it would land: a brand line on the card's top edge.
+        boxShadow: reorder?.over ? `0 -3px 0 ${COLORS.primary}` : undefined,
+      }}
+      title={
+        <Flex align="center" gap={4} style={{ minWidth: 0 }}>
+          {reorder && !scene.is_title && (
+            <Tooltip title="Kéo để đổi thứ tự">
+              <span
+                draggable
+                role="img"
+                aria-label={`Kéo để đổi thứ tự ${label}`}
+                data-testid="scene-drag-handle"
+                className="scene-drag-handle"
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", String(scene.id));
+                  reorder.onStart();
+                }}
+                onDragEnd={reorder.onEnd}
+                style={{ cursor: "grab", color: COLORS.textSecondary, padding: "4px 2px", flex: "none" }}
+              >
+                <HolderOutlined />
+              </span>
+            </Tooltip>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SceneHeader scene={scene} label={label} expanded={expanded} onToggle={onToggle} />
+          </div>
+        </Flex>
+      }
       size="small"
       // A closed card keeps its fields mounted, so text not yet saved is never lost by closing it.
       styles={{
@@ -390,6 +517,19 @@ export default function SceneCard({
     </Card>
   );
 }
+
+/** What the page gives a content scene's card to be dragged into another place. */
+type SceneReorder = {
+  /** This card is the one being dragged. */
+  dragging: boolean;
+  /** A dragged card is over this one: it would land here. */
+  over: boolean;
+  onStart: () => void;
+  onOver: () => void;
+  /** `movedId`: the scene dropped here. */
+  onDrop: (movedId: number) => void;
+  onEnd: () => void;
+};
 
 /** "Nâng cao: Prompt ảnh AI", folded: rarely changed, and long. Kept mounted while folded, like every field. */
 function AdvancedPrompt({ scene }: { scene: SceneData }) {
@@ -1157,6 +1297,21 @@ export function ScenePicture({
         <StatusText tone={scene.motion.pending ? "active" : "done"}>
           {scene.motion.pending ? "Đang dựng cảnh động" : `Cảnh động, ${scene.motion.seconds} giây`}
         </StatusText>
+      )}
+      {scene.video?.loop && (
+        <Flex wrap align="center" gap={4} data-testid="clip-looped">
+          <StatusText tone="done">Clip lặp lại</StatusText>
+          {!editor.readOnly && (
+            <Button
+              size="small"
+              type="link"
+              disabled={off}
+              onClick={() => run("keep", () => api<VideoDetail>(`/scenes/${scene.id}`, "PATCH", { video_loop: false }))}
+            >
+              Bỏ lặp
+            </Button>
+          )}
+        </Flex>
       )}
       {(scene.video?.blur.length ?? 0) > 0 && (
         <StatusText tone="done" data-testid="clip-blurred">

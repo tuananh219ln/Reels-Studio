@@ -390,6 +390,8 @@ class Scene(Base):
     video_seconds: Mapped[float | None] = mapped_column(Float)  # the clip's probed length
     video_start: Mapped[float] = mapped_column(Float, default=0)
     video_speed: Mapped[float] = mapped_column(Float, default=1)
+    # "Lặp clip": a clip shorter than its scene starts again from its start time instead of holding its last frame.
+    video_loop: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # "Tiếng gốc": the clip's own sound is heard in the render ("Edit từ footage" turns it on); off, it is left out.
     video_sound: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # What the clip's sound says, [{"text", "start", "end"}] in the clip's own seconds (ElevenLabs Speech-to-Text):

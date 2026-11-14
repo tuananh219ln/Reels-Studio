@@ -46,6 +46,7 @@ class Scene:
     video: Path | None = None  # a clip shown instead of a photo
     video_start: float = 0.0  # seconds into the clip where the scene starts
     video_speed: float = 1.0  # how fast the clip plays; the scene's seconds stay its length on screen
+    video_loop: bool = False  # "Lặp clip": a clip shorter than the scene starts again from video_start
     voice_text: str = ""  # what the narration says, for captions
     text_position: tuple[int, int] | None = None  # the text box's centre in the frame; None: the template's place
     transition: str | None = None  # into this scene (effects.SCENE_TRANSITIONS); None: the video's
@@ -202,6 +203,7 @@ def _parse_scene(item: object, number: int, base_dir: Path) -> Scene:
         video=video,
         video_start=video_start,
         video_speed=video_speed,
+        video_loop=video is not None and _parse_loop(item, label),
         voice_text=voice_text,
         text_position=text_position,
         transition=transition,
@@ -354,6 +356,13 @@ def _parse_video(item: dict, label: str, base_dir: Path) -> tuple[Path | None, f
     if not (base_dir / video).is_file():
         raise InputError(f"{label}: không tìm thấy file video {video}")
     return base_dir / video, float(start), float(speed)
+
+
+def _parse_loop(item: dict, label: str) -> bool:
+    loop = item.get("video_loop", False)
+    if not isinstance(loop, bool):
+        raise InputError(f'{label}: "video_loop" phải là true hoặc false')
+    return loop
 
 
 def _parse_keywords(value: object, label: str) -> tuple[str, ...]:

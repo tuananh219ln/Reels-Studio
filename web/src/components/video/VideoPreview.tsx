@@ -1767,6 +1767,10 @@ function SceneLayer({
             if (isBackdrop(video) && clip) {
               event.currentTarget.currentTime = clip.start;
               if (playing) void event.currentTarget.play();
+            } else if (scene.video?.loop) {
+              // "Lặp clip": the scene's own clip starts again from its start time, as in the render.
+              event.currentTarget.currentTime = scene.video.start;
+              if (playing) void event.currentTarget.play();
             }
           }}
           autoPlay={playing}

@@ -121,6 +121,7 @@ def run(
         storage.save_bytes(key, photo.data)
         scene.image_key, scene.image_source, scene.image_error, scene.image_auto = key, photo.url, None, True
         scene.video_key, scene.video_seconds, scene.video_start, scene.video_speed = None, None, 0, 1
+        scene.video_loop = False
         scene.video_sound, scene.words = False, None
         scene.image_credit = {"url": photo.url, **photo.credit} if photo.credit else None
         used.add(photo.url)
