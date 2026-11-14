@@ -383,7 +383,7 @@ Built:
   as its own field "Bình luận 2", "Bình luận 3"… with a red bin "Bỏ bình luận N", and "Thêm bình luận", which opens
   a box with "Lưu bình luận" and "Huỷ", "Tối đa 5 bình luận thêm" at five; a post's comment line adds ", thêm N
   bình luận". Until a member picks a tab it shows "Thiết lập" while there is no MP4
-  and "Đăng bài" once there is. From 1100 px wide the panel is 440 px beside the scenes, stuck under the header and
+  and "Đăng bài" once there is. From 1100 px wide the panel is half the width beside the scenes (never under 440 px; 2026-11-14, back to the split the owner asked for), stuck under the header and
   scrolling on its own; narrower, it is a drawer from the right, opened by "Thiết lập / Đăng bài" in the header (the
   progress line and the QC chip open it too).
   "Thêm vào hàng chờ" (a Facebook video) opens a drawer with a reminder to watch the MP4 first, the Page
