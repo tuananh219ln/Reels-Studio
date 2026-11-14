@@ -4,7 +4,7 @@ import { SendOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Checkbox, Flex, Input, Radio, Select, Tabs, Typography } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useMe } from "@/components/MeContext";
 import { myPages, NO_PAGE_OF_MINE, pageOptions } from "@/lib/myPages";
 import { loadLastChoices, myPageOfGroup, saveLastChoice } from "@/lib/lastChoices";
@@ -25,7 +25,6 @@ import PostActions from "./PostActions";
 import QueueButton from "./QueueButton";
 import TikTokCard from "./TikTokCard";
 import PostMetrics from "@/components/PostMetrics";
-import PostComment from "@/components/PostComment";
 import FormDrawer from "@/components/FormDrawer";
 import StatusText from "@/components/StatusText";
 
@@ -264,10 +263,6 @@ const TIKTOK_STATUS: Record<TikTokPost["status"], string> = {
  * as links (they are posted and recorded in "Đăng bài"). Cancelled or deleted Facebook posts stay, with who and when. */
 export default function PublishCard({ video }: { video: VideoDetail }) {
   const editor = useEditor();
-  const { onSaved } = editor;
-  const reload = useCallback(() => {
-    api<VideoDetail>(`/videos/${video.id}`).then(onSaved, () => undefined);
-  }, [video.id, onSaved]);
   if (video.publications.length === 0 && video.tiktok_posts.length === 0 && video.manual_posts.length === 0) {
     return null;
   }
@@ -327,7 +322,6 @@ export default function PublishCard({ video }: { video: VideoDetail }) {
                   `, ${POST_STATUS[post.status].label} lúc ${formatDateTime(post.closed_at)} ${post.closed_by ? `bởi ${post.closed_by}` : "trên Facebook"}`}
               </Typography.Paragraph>
               <PostMetrics post={post} />
-              <PostComment post={post} onChanged={reload} />
             </div>
             <PostActions post={post} disabled={video.locked} onDone={editor.onSaved} />
           </Flex>

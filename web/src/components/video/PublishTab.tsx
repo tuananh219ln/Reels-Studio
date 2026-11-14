@@ -5,10 +5,11 @@ import { Button, Card, Flex, Typography } from "antd";
 import { useEffect, useRef, type ContextType } from "react";
 import ApproveVideoButton from "@/components/actions/ApproveVideoButton";
 import ListenVolume, { listenNow, setListen, useListen } from "@/components/ListenVolume";
-import { formatDecimal, type VideoDetail } from "@/lib/api";
+import { formatDateTime, formatDecimal, type VideoDetail } from "@/lib/api";
 import { EditorContext } from "./AutoSaveField";
 import PostContent, { type PostTabKey } from "./PostContent";
 import PublishCard, { PublishButton } from "./PublishCard";
+import { QcStrip } from "./QcCard";
 
 /**
  * The side panel, in the order a member goes through it: the MP4 with "Tải MP4" and "Đăng bài" (its QC is the chip in
@@ -20,6 +21,7 @@ export default function PublishTab({
   onApproved,
   tab,
   onTab,
+  fit = false,
 }: {
   video: VideoDetail;
   /** The post texts stay editable while the page is in "Xem". */
@@ -28,14 +30,22 @@ export default function PublishTab({
   /** The tab of the post texts; the page sets it when a step of the progress line points at one. */
   tab?: PostTabKey;
   onTab?: (tab: PostTabKey) => void;
+  /** The panel is as tall as the screen: the post texts take what the other tiles leave and scroll inside. */
+  fit?: boolean;
 }) {
   return (
-    <Flex vertical gap={12} data-testid="publish-tab">
-      <ReadyCard video={video} onApproved={onApproved} />
-      <EditorContext.Provider value={postEditor}>
-        <PostContent video={video} tab={tab} onTab={onTab} />
-      </EditorContext.Provider>
-      <PublishCard video={video} />
+    <Flex vertical gap={12} data-testid="publish-tab" style={fit ? { height: "100%" } : undefined}>
+      <div style={fit ? { flex: "none" } : undefined}>
+        <ReadyCard video={video} onApproved={onApproved} />
+      </div>
+      <div style={fit ? { flex: "1 1 0", minHeight: 160, overflowY: "auto" } : undefined}>
+        <EditorContext.Provider value={postEditor}>
+          <PostContent video={video} tab={tab} onTab={onTab} />
+        </EditorContext.Provider>
+      </div>
+      <div style={fit ? { flex: "none", maxHeight: "30%", overflowY: "auto" } : undefined}>
+        <PublishCard video={video} />
+      </div>
     </Flex>
   );
 }
@@ -53,14 +63,26 @@ function ReadyCard({ video, onApproved }: { video: VideoDetail; onApproved: () =
       </Card>
     );
   }
+  const next = video.publications.find((post) => post.status === "scheduled" && post.scheduled_at);
   return (
     <Card size="small" title="Sẵn sàng đăng?" data-testid="ready-card">
+      {mp4.qc && (
+        <div style={{ marginBottom: 8 }}>
+          <QcStrip qc={mp4.qc} />
+        </div>
+      )}
       <Flex gap={12} align="center">
         <Mp4Player key={mp4.url} url={mp4.url} />
         <Flex vertical gap={8} style={{ flex: 1, minWidth: 0 }}>
           <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="render-time">
             Dài {formatDecimal(mp4.seconds)} giây, render mất {formatDecimal(mp4.render_seconds)} giây
           </Typography.Text>
+          {next && (
+            <Typography.Text style={{ fontSize: 13 }} data-testid="next-post">
+              Hẹn đăng {formatDateTime(next.scheduled_at!)}
+              {next.fanpage ? `, ${next.fanpage}` : ""}
+            </Typography.Text>
+          )}
           <Flex gap={8} wrap>
             <Button icon={<DownloadOutlined />} href={mp4.download_url}>
               Tải MP4

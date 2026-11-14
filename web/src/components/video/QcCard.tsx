@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Flex, Popover, Typography } from "antd";
+import { Button, Flex, Popover, Tooltip, Typography } from "antd";
 import StatusText, { type StatusTone } from "@/components/StatusText";
 import type { QcResult } from "@/lib/api";
 
@@ -69,5 +69,31 @@ export function QcChip({ qc }: { qc: QcResult }) {
         <StatusText tone={TONE[qc.status]}>{open === 0 ? "QC: đạt" : `QC: ${open} mục chưa đạt`}</StatusText>
       </Button>
     </Popover>
+  );
+}
+
+/** The same checks as one thin line in the side panel, for reading: a dot and a name each, the measure in the tooltip,
+ * and on the right how many still want a look. */
+export function QcStrip({ qc }: { qc: QcResult }) {
+  const open = qc.checks.filter((check) => check.status !== "pass").length;
+  const checks = [...qc.checks].sort((a, b) => RANK[a.status] - RANK[b.status]);
+  return (
+    <Flex wrap align="center" gap="2px 12px" data-testid="qc-strip" style={{ fontSize: 12 }}>
+      {checks.map((check) => (
+        <Tooltip
+          key={check.id + check.label}
+          title={`${check.detail}${check.status !== "pass" ? ` ${HINT[check.status]}` : ""}`}
+        >
+          <span data-status={check.status}>
+            <StatusText tone={TONE[check.status]}>{check.label}</StatusText>
+          </span>
+        </Tooltip>
+      ))}
+      {open > 0 && (
+        <Typography.Text type="warning" style={{ marginLeft: "auto", fontSize: 12 }}>
+          {open} mục cần sửa
+        </Typography.Text>
+      )}
+    </Flex>
   );
 }

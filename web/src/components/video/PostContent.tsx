@@ -1,10 +1,11 @@
 "use client";
 
 import { CopyOutlined } from "@ant-design/icons";
-import { App, Alert, Button, Card, Flex, Select, Tabs, Typography } from "antd";
+import { App, Alert, Button, Card, Flex, Select, Tabs, Tooltip, Typography } from "antd";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import ShopeeSuggestions from "@/components/affiliate/ShopeeSuggestions";
+import PostComment from "@/components/PostComment";
 import StatusText from "@/components/StatusText";
 import { api, errorMessage, type AffiliateProduct, type VideoDetail } from "@/lib/api";
 import AutoSaveField, { useEditor } from "./AutoSaveField";
@@ -50,34 +51,22 @@ export default function PostContent({
 
   /** A "Copy" in a block's title: it copies without opening or closing the block. */
   const copyButton = (label: string, text: string, what: string) => (
-    <Button
-      size="small"
-      icon={<CopyOutlined />}
-      onClick={(event) => {
-        event.stopPropagation();
-        void copy(text, what);
-      }}
-    >
-      {label}
-    </Button>
+    <Tooltip title={label}>
+      <Button
+        size="small"
+        icon={<CopyOutlined />}
+        aria-label={label}
+        onClick={(event) => {
+          event.stopPropagation();
+          void copy(text, what);
+        }}
+      />
+    </Tooltip>
   );
 
   const pinnedWarnings = warningsFor("pinned_comment");
-  const extraCount = video.extra_comments.length;
-  const commentSummary = [
-    video.pinned_comment.trim() ? "1 ghim" : "Chưa có bình luận ghim",
-    extraCount ? `${extraCount} thêm` : null,
-    pinnedWarnings.length ? `${pinnedWarnings.length} cảnh báo` : null,
-  ]
-    .filter(Boolean)
-    .join(", ");
   const products = video.affiliate_product_ids.length;
   const shop = video.platform === "tiktok" ? "Sản phẩm TikTok Shop" : "Sản phẩm Shopee";
-  const reviewSummary = video.hand_written
-    ? "Chưa rà soát (kịch bản tự viết)"
-    : video.self_review.length
-      ? `${video.self_review.length} điểm đã sửa`
-      : "Không có câu nào phải sửa";
   // A tab's name with, small beside it, what is in it: the member sees what is there without opening it.
   const tabLabel = (title: string, summary: React.ReactNode) => (
     <span>
@@ -134,19 +123,16 @@ export default function PostContent({
             forceRender: true,
             label: tabLabel(
               "Bình luận & sản phẩm",
-              <>
-                {commentSummary}, {shop.replace("Sản phẩm ", "")}:{" "}
-                {products ? (
-                  <StatusText tone="success">đã gắn {products}</StatusText>
-                ) : (
-                  <StatusText tone="warning">chưa gắn</StatusText>
-                )}
-              </>,
+              products ? (
+                <StatusText tone="success">{products} sản phẩm</StatusText>
+              ) : (
+                <StatusText tone="warning">chưa gắn</StatusText>
+              ),
             ),
             // In the order it happens: the products, whose links go into the pinned comment, then the comments.
             children: (
               <Flex vertical gap={4}>
-                <Typography.Text strong>{shop}</Typography.Text>
+                <Typography.Text strong>1. {shop} gắn vào bình luận</Typography.Text>
                 <AutoSaveField
                   label="Gợi ý sản phẩm (AI)"
                   value={video.affiliates.join("\n")}
@@ -160,7 +146,13 @@ export default function PostContent({
                 />
                 {video.platform === "facebook" && <VideoSuggestions video={video} />}
                 <AttachedProducts video={video} />
-                <Typography.Text strong>Bình luận</Typography.Text>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  ↓{" "}
+                  {video.platform === "tiktok"
+                    ? "sản phẩm gắn giỏ trong app TikTok"
+                    : "link của sản phẩm tự chèn vào bình luận sau bình luận ghim"}
+                </Typography.Text>
+                <Typography.Text strong>2. Bình luận ghim và bình luận thêm</Typography.Text>
                 <AutoSaveField
                   label="Bình luận ghim"
                   value={video.pinned_comment}
@@ -169,13 +161,14 @@ export default function PostContent({
                 />
                 <Warnings messages={pinnedWarnings} />
                 <ExtraComments video={video} />
+                {video.platform === "facebook" && <CommentPosting video={video} />}
               </Flex>
             ),
           },
           {
             key: "extras",
             forceRender: true,
-            label: tabLabel("Nhạc & an toàn", `${video.music_suggestions.length || "chưa có"} nhạc, ${reviewSummary}`),
+            label: tabLabel("Nhạc & an toàn", video.hand_written ? "chưa rà" : video.self_review.length || ""),
             children: (
               <Flex vertical gap={8}>
                 <AutoSaveField
@@ -208,6 +201,32 @@ export default function PostContent({
         ]}
       />
     </Card>
+  );
+}
+
+/** "3. Đăng bình luận": where the comment under the newest open post stands, with "Bình luận ngay" once it is live. */
+function CommentPosting({ video }: { video: VideoDetail }) {
+  const { onSaved } = useEditor();
+  const reload = useCallback(() => {
+    api<VideoDetail>(`/videos/${video.id}`).then(onSaved, () => undefined);
+  }, [video.id, onSaved]);
+  const post = video.publications.find((row) => row.status === "published" || row.status === "scheduled");
+  return (
+    <>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        ↓ đăng khi bài lên
+      </Typography.Text>
+      <Flex vertical gap={2} style={{ padding: "6px 8px", background: "rgba(0,0,0,0.03)", borderRadius: 8 }}>
+        <Typography.Text strong>3. Đăng bình luận</Typography.Text>
+        {post ? (
+          <PostComment post={post} onChanged={reload} />
+        ) : (
+          <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+            Chưa có bài: bình luận tự đăng khi bài lên, nếu bật “Tự bình luận” lúc đăng.
+          </Typography.Text>
+        )}
+      </Flex>
+    </>
   );
 }
 

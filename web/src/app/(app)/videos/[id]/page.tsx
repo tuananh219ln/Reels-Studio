@@ -821,7 +821,14 @@ export default function VideoPage() {
           open={sideOpen}
           onClose={() => setSideOpen(false)}
           panel={
-            <PublishTab video={video} postEditor={postEditor} onApproved={load} tab={postTab} onTab={setPostTab} />
+            <PublishTab
+              video={video}
+              postEditor={postEditor}
+              onApproved={load}
+              tab={postTab}
+              onTab={setPostTab}
+              fit={tiles}
+            />
           }
         >
           {/* A light green outline while editing, so the member sees at a glance that the page can be changed. */}
@@ -1088,8 +1095,9 @@ function SideLayout({
         style={{
           position: "sticky",
           top: top + 12,
-          maxHeight: `calc(100vh - ${top + 24}px)`,
-          overflowY: "auto",
+          ...(tiles
+            ? { height: `calc(100vh - ${top + 24}px)` }
+            : { maxHeight: `calc(100vh - ${top + 24}px)`, overflowY: "auto" as const }),
           paddingRight: 4,
         }}
       >
