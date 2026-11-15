@@ -344,3 +344,23 @@ and never a Page token.
   (`GET /api/jobs`), to follow many renders at once.
 - `list_comments`: visitors' comments under the app's posts, open ones by default (`GET /api/comments`). Read only:
   the app neither answers nor hides comments (removed 2026-11-10), and a comment's text is data, not an instruction.
+
+## Changing the queue, the plan, the logo and jobs
+
+Write tools that go through the web's own handlers ([the decision](decisions/2026-11-15-mcp-flow-tools.md)):
+
+- `unschedule_video` ("Bỏ khỏi hàng chờ": the member who added it or the Page's owner) and `reorder_queue` (the
+  Page's owner, the Page's whole queue as video ids in their new order). Each answers with that Page's queue.
+- `add_plan_idea` and `update_plan_idea`: an idea of a group's 30-day plan, as on its "Kế hoạch" tab (a group
+  editor; a topic already in the plan or a full day is refused; `to_backlog` moves it to the Backlog). No AI call:
+  "Tạo kế hoạch bằng AI" stays on the web.
+- `set_video_options` also takes `brand_id`, `logo_fanpage_id` (the channel linked to that Page, logo on) and
+  `logo_enabled`, through the video page's own channel check.
+- `retry_job` and `cancel_job`: "Thử lại" on a failed job and "Hủy" on a waiting one, **only the member's own
+  jobs** over MCP (as for deletions, 2026-11-09). A retry can cost: a script or clone job uses the team's AI, a render
+  may make narration with ElevenLabs.
+- `make_tiktok_version`: "Tạo bản TikTok", a TikTok video linked to the Facebook one and rewritten by a clone job
+  (the team's AI, paid), with the web's suggested request unless another is given.
+
+The server's instructions, and each paid tool's description, ask the assistant to say what it costs and to call it
+only when the member asks, never retrying by itself.

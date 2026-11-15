@@ -38,6 +38,7 @@ from . import routes_comments as comment_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
 from . import routes_music as music_routes
+from . import routes_plans as plan_routes
 from . import routes_posts as post_routes
 from . import routes_queue as queue_routes
 from . import routes_sounds as sound_routes
@@ -51,7 +52,9 @@ from .models import (
     AffiliateProduct,
     Brand,
     Fanpage,
+    Job,
     KnowledgeTopic,
+    PageQueueItem,
     Publication,
     Scene,
     SceneLayer,
@@ -485,6 +488,122 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         nhắn thành viên qua WhatsApp."""
         return await run_in_threadpool(
             invoke, lambda db, me: {"results": auto_approve.recent(db, me.user_id, after_id, limit)}
+        )
+
+    @tool("Bỏ khỏi hàng chờ", read=False)
+    async def unschedule_video(video_id: int) -> dict:
+        """Như nút "Bỏ khỏi hàng chờ": video ra khỏi hàng chờ của Page (người đã thêm hoặc chủ Page). Bài đã được
+        hẹn giờ thì không còn trong hàng chờ và không bị huỷ ở đây."""
+
+        def operation(db, me):
+            item = db.scalar(select(PageQueueItem).where(PageQueueItem.video_id == video_id))
+            if item is None:
+                raise ApiError(404, "queue_item_not_found", "Video không ở trong hàng chờ nào, có thể đã được lên lịch")
+            fanpage_id = item.fanpage_id
+            queue_routes.remove(item.id, me, db)
+            return _queue_of(db, me, fanpage_id)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Sắp lại hàng chờ", read=False)
+    async def reorder_queue(
+        fanpage_id: int,
+        video_ids: Annotated[list[int], Field(description="Mọi video trong hàng chờ của Page, theo thứ tự mới")],
+    ) -> dict:
+        """Như kéo thả hàng chờ trên web (chủ Page): video đầu được hẹn trước. Phải gửi đủ mọi video đang chờ."""
+
+        def operation(db, me):
+            by_video = {item.video_id: item.id for item in page_queue_items(db, fanpage_id)}
+            if sorted(video_ids) != sorted(by_video):
+                raise ApiError(409, "queue_changed", "Danh sách không khớp hàng chờ hiện tại, hãy đọc lại hàng chờ")
+            queue_routes.reorder(fanpage_id, queue_routes.OrderBody(ids=[by_video[v] for v in video_ids]), me, db)
+            return _queue_of(db, me, fanpage_id)
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Thêm ý tưởng kế hoạch 30 ngày", read=False)
+    async def add_plan_idea(
+        knowledge_topic_id: int,
+        topic: Annotated[str, Field(description="Chủ đề video")],
+        day: Annotated[int | None, Field(description="Ngày trong kế hoạch (1–30); bỏ trống: Backlog")] = None,
+        pain_group: str = "",
+        pain: str = "",
+        hook: str = "",
+    ) -> dict:
+        """Như "Thêm ý tưởng" trong tab Kế hoạch của nhóm (người sửa được nhóm): không gọi AI. Chủ đề trùng hoặc
+        ngày đã đủ ý tưởng thì bị từ chối."""
+        body = plan_routes.IdeaBody(day=day, topic=topic, pain_group=pain_group, pain=pain, hook=hook)
+
+        def operation(db, me):
+            plan_routes.add_item(knowledge_topic_id, body, me, db)
+            idea = db.scalar(
+                select(TopicPlanItem)
+                .where(TopicPlanItem.knowledge_topic_id == knowledge_topic_id)
+                .order_by(TopicPlanItem.id.desc())
+                .limit(1)
+            )
+            return {"idea": _idea_payload(idea)}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Sửa ý tưởng kế hoạch 30 ngày", read=False)
+    async def update_plan_idea(
+        item_id: int,
+        topic: str | None = None,
+        pain_group: str | None = None,
+        pain: str | None = None,
+        hook: str | None = None,
+        day: Annotated[int | None, Field(description="Chuyển sang ngày này (1–30)")] = None,
+        to_backlog: Annotated[bool, Field(description="Chuyển ý tưởng về Backlog")] = False,
+    ) -> dict:
+        """Như sửa một ý tưởng trong tab Kế hoạch: chỉ các trường được truyền thay đổi."""
+        fields = given(topic=topic, pain_group=pain_group, pain=pain, hook=hook, day=day)
+        if to_backlog:
+            fields["day"] = None
+
+        def operation(db, me):
+            plan_routes.patch_item(item_id, plan_routes.IdeaPatchBody(**fields), me, db)
+            return {"idea": _idea_payload(db.get(TopicPlanItem, item_id))}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Thử lại job lỗi", read=False, external=True)
+    async def retry_job(job_id: int) -> dict:
+        """Như nút "Thử lại" của một job bị lỗi do bạn tạo. CÓ THỂ TỐN PHÍ: job kịch bản/nhân bản dùng API AI của
+        nhóm, render có thể tạo lại giọng bằng ElevenLabs, ảnh AI tính phí ảnh. Nói rõ phí và chỉ gọi khi người
+        dùng yêu cầu; không tự thử lại nhiều lần."""
+
+        def operation(db, me):
+            _own_job(db, job_id, me)
+            saved = videos.retry_job(job_id, me, db)
+            return changed(saved) if "scenes" in saved else {"retried": job_id}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Huỷ job", read=False)
+    async def cancel_job(job_id: int) -> dict:
+        """Như nút "Hủy" của một job đang chờ do bạn tạo (job đã chạy hoặc xong thì không huỷ được)."""
+
+        def operation(db, me):
+            _own_job(db, job_id, me)
+            saved = videos.cancel_job(job_id, me, db)
+            return changed(saved) if "scenes" in saved else {"cancelled": job_id}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Tạo bản TikTok", read=False, external=True)
+    async def make_tiktok_version(
+        video_id: int,
+        request: Annotated[
+            str | None, Field(description="Yêu cầu viết lại; bỏ trống: câu gợi ý của nút “Tạo bản TikTok” trên web")
+        ] = None,
+    ) -> dict:
+        """Như nút "Tạo bản TikTok": một video TikTok mới, nối với video Facebook, kịch bản được viết lại (mở đầu
+        khác, caption ngắn, đổi 1–2 cảnh). TỐN PHÍ: một job nhân bản trên API AI của nhóm. Nói rõ phí và chỉ gọi
+        khi người dùng yêu cầu."""
+        body = videos.CloneBody(request=request or TIKTOK_REQUEST, platform="tiktok")
+        return await run_in_threadpool(
+            invoke, lambda db, me: changed(videos.clone_video(video_id, body, me, db, get_storage())), write=True
         )
 
     @tool("Đọc video", read=True)
@@ -1384,6 +1503,11 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             ),
         ] = None,
         reset_title_text_position: bool = False,
+        brand_id: Annotated[int | None, Field(description="Kênh của bạn để gắn logo (id kênh)")] = None,
+        logo_fanpage_id: Annotated[
+            int | None, Field(description="Dùng kênh gắn với Page này (thay cho brand_id) và bật logo")
+        ] = None,
+        logo_enabled: Annotated[bool | None, Field(description="Bật/tắt “Gắn logo” của kênh trên MP4")] = None,
     ) -> dict:
         """Đổi tuỳ chọn dựng của một video như tab "Thiết lập" trên web: chỉ các trường được truyền, trường khác
         giữ nguyên; một giá trị sai thì không lưu gì. Giá trị hợp lệ có trong "Đọc lựa chọn dựng video", mục
@@ -1418,12 +1542,19 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             text_position=text_position,
             title_text_position=title_text_position,
         )
+        if brand_id is not None:
+            changes["brand_id"] = brand_id
+        if logo_enabled is not None:
+            changes["logo_enabled"] = logo_enabled
         if reset_text_position:
             changes["text_position"] = None
         if reset_title_text_position:
             changes["title_text_position"] = None
 
         def operation(db, me):
+            if logo_fanpage_id is not None:
+                changes["brand_id"] = _page_brand(db, logo_fanpage_id).id
+                changes.setdefault("logo_enabled", True)
             saved = videos.patch_video(video_id, videos.VideoPatchBody(options=changes), me, db, get_storage())
             return changed({"id": saved["id"], "options": saved["options"]})
 
@@ -1828,6 +1959,50 @@ def _page_brand(db: DbSession, fanpage_id: int) -> Brand:
             409, "page_has_no_brand", f"Page “{page.name}” chưa có logo: hãy tải logo ở Quản lý kênh rồi nhân bản"
         )
     return brand
+
+
+# The request "Tạo bản TikTok" fills in on the web (CloneModal.tsx), so both make the same TikTok version.
+TIKTOK_REQUEST = (
+    "Viết lại cho TikTok: mở đầu bằng một câu hỏi khơi bình luận, caption ngắn, ít hashtag, đổi 1–2 cảnh và ảnh khác "
+    "bản Facebook"
+)
+
+
+def page_queue_items(db: DbSession, fanpage_id: int) -> list[PageQueueItem]:
+    return list(
+        db.scalars(
+            select(PageQueueItem)
+            .where(PageQueueItem.fanpage_id == fanpage_id)
+            .order_by(PageQueueItem.position, PageQueueItem.id)
+        )
+    )
+
+
+def _queue_of(db: DbSession, me, fanpage_id: int) -> dict:
+    """One Page's queue after a change, compact: the video ids in their order and each one's reason for waiting."""
+    page = next((row for row in queue_routes.queue(me, db)["pages"] if row["id"] == fanpage_id), None)
+    items = page["items"] if page else []
+    return {
+        "fanpage_id": fanpage_id,
+        "queue": [
+            {"video_id": row["video"]["id"], "title": row["video"]["title"], "error": row["error"]} for row in items
+        ],
+    }
+
+
+def _idea_payload(idea: TopicPlanItem) -> dict:
+    return {
+        key: getattr(idea, key)
+        for key in ("id", "knowledge_topic_id", "day", "position", "topic", "pain_group", "pain", "hook", "video_id")
+    }
+
+
+def _own_job(db: DbSession, job_id: int, me) -> None:
+    """MCP retries or cancels only the connected member's own jobs, as it deletes only their own parts (decisions
+    2026-11-09); a missing id is left for the route to refuse."""
+    job = db.get(Job, job_id)
+    if job is not None and job.created_by_id != me.user_id:
+        raise ApiError(403, "not_job_owner", "Chỉ thử lại hoặc huỷ được job do bạn tạo")
 
 
 def _pages_report(db: DbSession, me, mine_only: bool) -> dict:
