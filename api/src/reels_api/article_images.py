@@ -131,8 +131,8 @@ def payload(image: ArticleImage) -> dict:
 
 
 def preview(db: DbSession, storage: DirectoryStorage, image: ArticleImage, fanpage_id: int | None) -> bytes:
-    """The photo as it will be posted to that Page, PREVIEW_WIDTH wide: with its logo, or without when the Page has
-    none or the photo's switch is off."""
+    """The photo as it will be posted to that Page, at most PREVIEW_WIDTH on its long side: with its logo, or without
+    when the Page has none or the photo's switch is off."""
     logo = photo_logo.logo_for_photo(brands.page_logo(db, storage, fanpage_id), image)
     return photo_logo.render(storage.path(image.image_key).read_bytes(), logo, photo_logo.PREVIEW_WIDTH)
 

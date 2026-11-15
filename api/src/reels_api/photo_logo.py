@@ -159,7 +159,8 @@ def render(data: bytes, logo: BrandLogo | None, max_side: int = MAX_POSTED_SIDE)
 
 
 def sample(ratio: str, logo: BrandLogo | None) -> bytes:
-    """One of the three sample photos (a light 1:1, a soft 4:5, a dark 1.91:1) with the logo, PREVIEW_WIDTH wide."""
+    """One of the three sample photos (a light 1:1, a soft 4:5, a dark 1.91:1) with the logo, at most
+    PREVIEW_WIDTH on its long side."""
     width, height = SAMPLE_RATIOS[ratio]
     start, end = SAMPLE_COLOURS[ratio]
     gradient = Image.linear_gradient("L").resize((width, height)).rotate(-45, expand=False, fillcolor=128)
