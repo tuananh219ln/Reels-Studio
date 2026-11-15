@@ -13,6 +13,7 @@ import {
   ApiError,
   api,
   errorMessage,
+  formatTime,
   type Article,
   type ArticleOptions,
   type Knowledge,
@@ -286,13 +287,22 @@ export default function ArticlePage() {
       </Flex>
 
       {failed && <Alert type="error" showIcon title={`AI viết chưa được: ${failed}`} />}
-      {article.publish_error && (
+      {article.publish_error && article.retry ? (
         <Alert
-          type="error"
+          type="warning"
           showIcon
           title={`Đăng chưa được: ${article.publish_error}`}
-          description="Sửa rồi bấm Đăng lại, hoặc Thử lại trong Nhật ký job."
+          description={`App tự thử lại lúc ${formatTime(article.retry.at)} (lần ${article.retry.attempt}/${article.retry.of}).`}
         />
+      ) : (
+        article.publish_error && (
+          <Alert
+            type="error"
+            showIcon
+            title={`Đăng chưa được: ${article.publish_error}`}
+            description="Sửa rồi bấm Đăng lại, hoặc Thử lại trong Nhật ký job."
+          />
+        )
       )}
 
       <Row gutter={[16, 16]}>

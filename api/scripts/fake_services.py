@@ -324,6 +324,7 @@ class FakeServices:
         self.page_post_calls = 0
         self.page_post_replies_lost = 0  # that many posts are made, then answer 500
         self.page_post_refusals = 0  # that many posts are refused: 400 and nothing is posted
+        self.page_post_errors = 0  # that many posts fail on Facebook's side: 500 and nothing is posted
         self.page_post_numbers: dict[str, dict] = {}
         self.page_post_reach_retired = False  # post_total_media_view_unique is refused, (#100) like a retired metric
         self.facebook_finish_fails = 0  # that many finish calls fail: 500 without publishing
@@ -1066,6 +1067,9 @@ class FakeServices:
             if self.page_post_refusals:
                 self.page_post_refusals -= 1
                 return 400, {"error": {"message": "Invalid parameter", "code": 100}}
+            if self.page_post_errors:
+                self.page_post_errors -= 1
+                return 500, {"error": {"message": "An unknown error has occurred.", "code": 1}}
             post_id = f"{FACEBOOK_PAGE}_{9000 + len(self.page_posts)}"
             self.page_posts[post_id] = {
                 "message": form.get("message", ""),

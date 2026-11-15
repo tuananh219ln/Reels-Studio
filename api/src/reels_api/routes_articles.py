@@ -214,6 +214,13 @@ def get_options(me: Session = Depends(current_member), db: DbSession = Depends(g
     return {**_options(), "fanpages": pages}
 
 
+@router.get("/attention")
+def attention(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
+    """The menu's badge: the member's articles whose post failed and will not be tried again by itself."""
+    failed = article_posts.failed_of(db, me.user_id)
+    return {"failed": len(failed), "article_ids": failed}
+
+
 @router.post("", status_code=201)
 def create_article(
     body: NewArticleBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
@@ -689,6 +696,7 @@ def publish(
     elif post.remote_id and post.fanpage_id != fanpage.id:
         raise ApiError(409, "other_fanpage", "Bài đã gửi lên Fanpage khác, hãy đăng lại trên Fanpage đó")
     post.fanpage_id, post.scheduled_at, post.created_by_id = fanpage.id, when, me.user_id
+    article_posts.reset_retries(post)
     # The comment is the pinned comment, then the products' links: with neither there is nothing to write.
     post.auto_comment = bool(article.pinned_comment.strip() or article_posts.products_of(db, article.id))
     db.flush()

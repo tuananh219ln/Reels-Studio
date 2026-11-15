@@ -19,11 +19,12 @@ import {
   TeamOutlined,
   UnorderedListOutlined,
 } from "@ant-design/icons";
-import { Button, Drawer, Dropdown, Flex, Grid, Layout, Menu, Result, Spin } from "antd";
+import { Badge, Button, Drawer, Dropdown, Flex, Grid, Layout, Menu, Result, Spin } from "antd";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, type Me } from "@/lib/api";
+import { usePolling } from "@/lib/polling";
 import { useStoredChoice } from "@/lib/storedChoice";
 import { ChangePasswordModal, RenameModal } from "./AccountModals";
 import Logo from "./Logo";
@@ -74,6 +75,8 @@ const NAV: { key: string; label: string; children: { key: string; icon: React.Re
 
 // The width of the menu folded to its icons, on a video's page.
 const RAIL_WIDTH = 56;
+// The member's articles that failed to post are counted on "Bài viết" about once a minute (UI Rules, "Refresh").
+const ATTENTION_MS = 60_000;
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -91,6 +94,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const [railOpen, setRailOpen] = useState(false);
 
   const [modal, setModal] = useState<"password" | "name" | null>(null);
+  // "Báo cho người tạo" (decisions 2026-11-15, "article posting retries"): a red count on "Bài viết".
+  const [failedArticles, setFailedArticles] = useState(0);
+  const pollAttention = useCallback(async () => {
+    const answer = await api<{ failed: number }>("/articles/attention").catch(() => null);
+    if (answer) setFailedArticles(answer.failed);
+  }, []);
+  usePolling(pollAttention, ATTENTION_MS);
 
   const load = useCallback(() => {
     api<Me>("/me")
@@ -141,7 +151,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     // current page is still loading; a click renders it then.
     label: (
       <Link href={item.key} prefetch={false}>
-        {item.label}
+        {item.key === "/articles" && failedArticles > 0 ? (
+          <Flex align="center" justify="space-between" gap={8}>
+            {item.label}
+            <Badge
+              count={failedArticles}
+              size="small"
+              title={`${failedArticles} bài của bạn đăng lỗi`}
+              data-testid="articles-failed-badge"
+            />
+          </Flex>
+        ) : (
+          item.label
+        )}
       </Link>
     ),
   });

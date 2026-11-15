@@ -23,15 +23,20 @@ from .models import (
     Job,
     Publication,
 )
+from .sessions import now
 from .videos import LIVE_POST_STATUSES, OPEN_POST_STATUSES, is_published, live_at
 
 MAX_PRODUCTS = 2
 PRODUCT_LINE = "Link sản phẩm mình để ở bình luận ghim."
 REEL_GAP = timedelta(hours=2)
+# An article's post that fails for a passing reason is tried again this many minutes later, then "Đăng lỗi"
+# (decisions 2026-11-15, "article posting retries").
+RETRY_MINUTES = (1, 5, 15)
 STATUS_LABELS = {
     "draft": "Nháp",
     "publishing": "Đang đăng…",
     "pending": "Chờ đăng",
+    "retrying": "Chờ thử lại",
     "failed": "Đăng lỗi",
     "scheduled": "Đã hẹn giờ",
     "published": "Đã đăng",
@@ -151,9 +156,12 @@ def status(db: DbSession, article: Article, posts: list[Publication]) -> str:
         return "published"
     if any(post.status == "scheduled" for post in posts):
         return "scheduled"
-    if any(post.status == "pending" for post in posts):
+    pending = next((post for post in posts if post.status == "pending"), None)
+    if pending is not None:
         last = _last_publish(db, article.id)
-        return "failed" if last is not None and last.status == "failed" else "pending"
+        if last is None or last.status != "failed":
+            return "pending"
+        return "retrying" if pending.retry_at is not None else "failed"
     return "draft"
 
 
@@ -222,12 +230,21 @@ def payload(db: DbSession, article: Article, by_page: dict | None = None) -> dic
     code = status(db, article, posts)
     last = _last_publish(db, article.id)
     products = products_of(db, article.id)
+    pending = next((post for post in posts if post.status == "pending"), None)
     data.update(
         {
             "status": code,
             "status_label": STATUS_LABELS[code],
             "posts": [post_payload(db, post, by_page) for post in posts],
-            "publish_error": last.error if code == "failed" and last is not None else None,
+            "publish_error": last.error if code in ("failed", "retrying") and last is not None else None,
+            # The next try of a post that failed for a passing reason: when, and which of RETRY_MINUTES it is.
+            "retry": {
+                "at": pending.retry_at.isoformat(),
+                "attempt": pending.auto_retries,
+                "of": len(RETRY_MINUTES),
+            }
+            if code == "retrying" and pending is not None and pending.retry_at is not None
+            else None,
             "products": [
                 {"id": product.id, "name": product.name, "usable": affiliate.usable(product)} for product in products
             ],
@@ -264,3 +281,80 @@ def enqueue(
         db.rollback()
         return False
     return True
+
+
+# --- Retries by themselves (decisions 2026-11-15, "article posting retries") ---
+
+
+def reset_retries(post: Publication) -> None:
+    """A member pressed "Đăng" or "Thử lại": the three tries start again."""
+    post.auto_retries, post.retry_at = 0, None
+
+
+def plan_retry(db: DbSession, article_id: int, retryable: bool) -> None:
+    """After a publish job failed: a passing failure plans the next try (1, 5, then 15 minutes later); a lasting one,
+    or one after the third try, leaves the post "Đăng lỗi" for its maker to see. Committed."""
+    post = pending_post(db, article_id)
+    if post is None:
+        return
+    if retryable and post.auto_retries < len(RETRY_MINUTES):
+        post.retry_at = now() + timedelta(minutes=RETRY_MINUTES[post.auto_retries])
+        post.auto_retries += 1
+    else:
+        post.retry_at = None
+    db.commit()
+
+
+def queue_retries(db: DbSession) -> int:
+    """Once a minute in the worker: a publish job for each article post whose try is due, as its author, as a retry
+    of the job that failed. A post whose article has a job queued or running waits for the next round. The caller
+    commits."""
+    due = db.scalars(
+        select(Publication)
+        .where(
+            Publication.article_id.is_not(None),
+            Publication.status == "pending",
+            Publication.retry_at.is_not(None),
+            Publication.retry_at <= now(),
+        )
+        .with_for_update(skip_locked=True)
+    ).all()
+    queued = 0
+    for post in due:
+        if articles.active_job(db, post.article_id) is not None:
+            continue
+        failed = _last_publish(db, post.article_id)
+        db.add(
+            Job(
+                article_id=post.article_id,
+                kind="publish",
+                status="queued",
+                created_by_id=post.created_by_id,
+                retry_of_id=failed.id if failed is not None else None,
+            )
+        )
+        post.retry_at = None
+        queued += 1
+    db.flush()
+    return queued
+
+
+def failed_of(db: DbSession, user_id: int) -> list[int]:
+    """The member's articles whose post failed and will not be tried again by itself: what the menu's badge counts."""
+    rows = db.scalars(
+        select(Publication.article_id)
+        .join(Article, Article.id == Publication.article_id)
+        .where(
+            Article.created_by_id == user_id,
+            Publication.status == "pending",
+            Publication.retry_at.is_(None),
+        )
+    ).all()
+    failed = []
+    for article_id in rows:
+        if articles.active_job(db, article_id) is not None:
+            continue
+        last = _last_publish(db, article_id)
+        if last is not None and last.status == "failed":
+            failed.append(article_id)
+    return failed

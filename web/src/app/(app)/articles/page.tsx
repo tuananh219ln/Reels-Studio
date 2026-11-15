@@ -23,7 +23,7 @@ import {
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
 import { PlusOutlined } from "@ant-design/icons";
-import { App, Button, Card, Flex, Form, Input, Select, Spin, Table, Typography } from "antd";
+import { Alert, App, Button, Card, Flex, Form, Input, Select, Spin, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -133,6 +133,17 @@ function NewArticleDrawer({
   );
 }
 
+/** "Lịch đăng": when the article goes or went out on Facebook, the open post first. */
+function scheduleOf(row: Article): { at: string; label: string } | null {
+  const scheduled = row.posts.find((post) => post.status === "scheduled" && post.scheduled_at);
+  if (scheduled) return { at: scheduled.scheduled_at!, label: `Hẹn giờ · ${scheduled.fanpage ?? ""}` };
+  const pending = row.posts.find((post) => post.status === "pending" && post.scheduled_at);
+  if (pending) return { at: pending.scheduled_at!, label: "Chờ đăng" };
+  const published = row.posts.find((post) => post.status === "published" && post.published_at);
+  if (published) return { at: published.published_at!, label: `Đã đăng · ${published.fanpage ?? ""}` };
+  return null;
+}
+
 export default function ArticlesPage() {
   // The list's search and filters are in the address, which a static page only knows in the browser.
   return (
@@ -184,6 +195,8 @@ function Articles() {
   );
   const groups = [...new Set((data?.articles ?? []).map((row) => row.group_name).filter(Boolean))] as string[];
 
+  // "Đăng lỗi" articles of the member, which the app will not try again by itself: shown above the list.
+  const myFailed = (data?.articles ?? []).filter((row) => row.status === "failed" && row.created_by_id === me?.id);
   const columns: ColumnsType<Article> = [
     {
       title: "Bài viết",
@@ -253,6 +266,24 @@ function Articles() {
         );
       },
     },
+    {
+      title: "Lịch đăng",
+      key: "schedule",
+      width: 150,
+      render: (_, row) => {
+        const when = scheduleOf(row);
+        return when ? (
+          <Flex vertical>
+            <span>{formatDateTime(when.at)}</span>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {when.label}
+            </Typography.Text>
+          </Flex>
+        ) : (
+          "—"
+        );
+      },
+    },
     { title: "Dạng bài", dataIndex: "kind_label", width: 130 },
     { title: "Nhóm chủ đề", dataIndex: "group_name", width: 130, render: (value) => value ?? "—" },
     {
@@ -302,6 +333,24 @@ function Articles() {
           options={data?.kinds ?? []}
         />
       </PageHeader>
+      {myFailed.length > 0 && (
+        <Alert
+          type="error"
+          showIcon
+          style={{ marginBottom: 12 }}
+          title={`${myFailed.length} bài của bạn đăng lỗi`}
+          description={
+            <Flex gap={8} wrap>
+              {myFailed.map((row) => (
+                <Link key={row.id} prefetch={false} href={`/articles/${row.id}`}>
+                  {row.hook || row.topic || `Bài #${row.id}`}
+                </Link>
+              ))}
+            </Flex>
+          }
+          data-testid="articles-failed"
+        />
+      )}
       <Card styles={{ body: { padding: 0 } }}>
         {data === null ? (
           <Flex justify="center" style={{ padding: 48 }}>
