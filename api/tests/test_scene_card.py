@@ -100,15 +100,19 @@ def test_the_card_is_shown_part_by_part_as_its_words_are_read(an, db, me, storag
     assert shown["voice_text"] == "một hai ba bốn năm sáu bảy tám chín mười"
     db.expire_all()
     assert first.reveal == {
-        "parts": [{"until": 0.25, "words": 3}, {"until": 0.5833, "words": 6}, {"until": 1.0, "words": 1}]
+        "parts": [
+            {"until": 0.25, "words": 3, "text": "một hai ba"},
+            {"until": 0.5833, "words": 6, "text": "bốn năm sáu bảy tám chín"},
+            {"until": 1.0, "words": 1, "text": "mười"},
+        ]
     }
     # No narration made yet: the parts share the scene's 10 s by their words (3, 6, 1 of 10).
     steps = [step["start"] for step in reveal_steps(video, first)]
     assert steps == [0.0, 3.0, 9.0]
     assert shown["layers"][0]["reveal"] == [
-        {"start": 0.0, "until": 0.25},
-        {"start": 3.0, "until": 0.5833},
-        {"start": 9.0, "until": 1.0},
+        {"start": 0.0, "until": 0.25, "text": "một hai ba"},
+        {"start": 3.0, "until": 0.5833, "text": "bốn năm sáu bảy tám chín"},
+        {"start": 9.0, "until": 1.0, "text": "mười"},
     ]
 
     off = an.put("/api/layers/card/reveal", json={"scene_id": first.id, "parts": []})
@@ -192,3 +196,28 @@ def _png(size, colour) -> bytes:
     buffer = io.BytesIO()
     Image.new("RGB", size, colour).save(buffer, "PNG")
     return buffer.getvalue()
+
+
+def test_the_studio_cuts_the_card_by_fractions_and_uploads_it(an, db, me, storage):
+    video = make_video(db, storage, me, scene_count=1, seconds=6)
+    first = split_scenes(db, video)[1][0]
+    uploaded = an.post(
+        "/api/layers/card/upload",
+        data={"scene_id": str(first.id)},
+        files={"file": ("the.png", card_png(), "image/png")},
+    )
+    assert uploaded.status_code == 201, uploaded.json()
+    assert scene_json(uploaded.json(), first.id)["layers"][0]["style"] == "card"
+    parts = [{"until": 0.4, "text": "một hai"}, {"text": "ba bốn"}]
+    saved = an.put("/api/layers/card/reveal", json={"scene_id": first.id, "parts": parts})
+    assert saved.status_code == 200, saved.json()
+    assert scene_json(saved.json(), first.id)["layers"][0]["reveal"] == [
+        {"start": 0.0, "until": 0.4, "text": "một hai"},
+        {"start": 3.0, "until": 1.0, "text": "ba bốn"},
+    ]
+    for bad, message in (
+        ([{"until": 0.6, "text": "a"}, {"until": 0.5, "text": "b"}], "thấp hơn phần trước"),
+        ([{"until": 1.5, "text": "a"}, {"text": "b"}], "nằm trong thẻ"),
+    ):
+        refused = an.put("/api/layers/card/reveal", json={"scene_id": first.id, "parts": bad})
+        assert refused.status_code == 422 and message in refused.json()["message"], refused.json()

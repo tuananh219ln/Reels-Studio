@@ -421,7 +421,8 @@ def reveal_steps(video: Video, scene: Scene) -> list[dict]:
     card's height shown from then on. The narration is one MP3 with no word timings, so a part comes in when the
     narration has read the words before it, at the same pace throughout: its share of the narration's length after
     the voice lead. Without narration yet (or with it off) the parts share the scene's seconds the same way. The
-    first part shows from the scene's start. Empty when the card shows whole."""
+    first part shows from the scene's start. Each step carries its part's words read (`text`, "" for parts saved
+    before they were kept), for the studio to show the parts again. Empty when the card shows whole."""
     parts = (scene.reveal or {}).get("parts") or []
     if not parts:
         return []
@@ -432,7 +433,7 @@ def reveal_steps(video: Video, scene: Scene) -> list[dict]:
     steps, before = [], 0
     for part, count in zip(parts, words, strict=True):
         start = 0.0 if not steps else round(lead + length * before / total, 2)
-        steps.append({"start": start, "until": part["until"]})
+        steps.append({"start": start, "until": part["until"], "text": part.get("text", "")})
         before += count
     return steps
 

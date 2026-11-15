@@ -629,13 +629,33 @@ def add_card(
 
 
 class RevealPart(BaseModel):
-    cut_y: int | None = None  # the row of the card's own picture where this part ends; the last part: its bottom
+    # Where this part ends, either as the row of the card's own picture (`cut_y`, the assistant's, read off the picture)
+    # or as a fraction of its height (`until`, the studio's, from a click on the card); the last part: its bottom.
+    cut_y: int | None = None
+    until: float | None = None
     text: str = ""  # what the narration reads while this part comes in
 
 
 class RevealBody(BaseModel):
     scene_id: int
     parts: list[RevealPart]  # empty: the card shows whole again
+
+
+@router.post("/card/upload", status_code=201)
+def upload_card(
+    scene_id: int = Form(...),
+    file: UploadFile = File(...),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """The scene's card from the member's computer."""
+    data = read_limited(file, MAX_IMAGE_BYTES, "Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn")
+    try:
+        extension = image_extension(data)
+    except UploadRejected as err:
+        raise ApiError(415, "invalid_image", str(err)) from None
+    return store_card(db, storage, scene_id, data, extension, None, None)
 
 
 @router.put("/card/reveal")
@@ -663,15 +683,30 @@ def set_card_reveal(
     texts = [unicodedata.normalize("NFC", " ".join(part.text.split())) for part in body.parts]
     if video.voice_enabled and not all(texts):
         raise invalid("Mỗi phần cần lời đọc của phần đó")
-    parts, last = [], 0
+    parts, last = [], 0.0
     for number, part in enumerate(body.parts, start=1):
-        cut = height if number == len(body.parts) and part.cut_y is None else part.cut_y
-        if cut is None:
+        text = texts[number - 1]
+        if part.cut_y is not None:
+            if not 0 < part.cut_y <= height:
+                raise invalid(f"Phần {number}: cut_y phải lớn hơn phần trước và không quá {height} (chiều cao ảnh thẻ)")
+            until = part.cut_y / height
+        elif part.until is not None:
+            if not (math.isfinite(part.until) and 0 < part.until <= 1):
+                raise invalid(f"Phần {number}: chỗ cắt phải nằm trong thẻ")
+            until = part.until
+        elif number == len(body.parts):
+            until = 1.0
+        else:
             raise invalid(f"Phần {number}: thiếu cut_y (dòng ảnh nơi phần này kết thúc)")
-        if not last < cut <= height:
-            raise invalid(f"Phần {number}: cut_y phải lớn hơn phần trước và không quá {height} (chiều cao ảnh thẻ)")
-        parts.append({"until": round(cut / height, 4), "words": len(texts[number - 1].split())})
-        last = cut
+        if until <= last:
+            raise invalid(
+                f"Phần {number}: cut_y phải lớn hơn phần trước và không quá {height} (chiều cao ảnh thẻ)"
+                if part.cut_y is not None
+                else f"Phần {number}: chỗ cắt phải thấp hơn phần trước"
+            )
+        # The words time the part (videos.reveal_steps); the text is kept for the studio to show the parts again.
+        parts.append({"until": round(until, 4), "words": len(text.split()), "text": text})
+        last = until
     parts[-1]["until"] = 1.0  # the whole card once the last part is in
     voice_text = " ".join(texts)
     if len(voice_text) > MAX_VOICE_LENGTH:
