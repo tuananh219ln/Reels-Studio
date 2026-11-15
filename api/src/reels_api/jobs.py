@@ -120,10 +120,14 @@ TITLE_SECONDS = 3
 
 
 class JobFailure(Exception):
-    def __init__(self, message: str, detail: str = ""):
+    """`retryable`: the reason may pass (the network, Facebook's own error), so an article's post is tried again by
+    itself (article_posts.plan_retry); every other failure waits for a member's "Thử lại"."""
+
+    def __init__(self, message: str, detail: str = "", retryable: bool = False):
         super().__init__(message)
         self.message = message
         self.detail = detail
+        self.retryable = retryable
 
 
 def work_dir(job_id: int) -> Path:
@@ -212,6 +216,8 @@ def run_job(
         except JobFailure as err:
             db.rollback()
             _finish(db, job_id, "failed", err.message, err.detail)
+            if job.kind == "publish" and job.article_id is not None:
+                article_posts.plan_retry(db, job.article_id, err.retryable)
             _reopen_notes(db, job)
             log.warning("Job %s failed: %s\n%s", job_id, err.message, err.detail)
             return
@@ -913,7 +919,9 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
                 db.commit()
                 status = facebook.post_status(page, found)
             elif now() - post.finish_sent_at < SETTLE_TIME:
-                raise JobFailure("Facebook có thể vẫn đang đăng lần trước, hãy xem Page, đợi 30 phút rồi Thử lại")
+                raise JobFailure(
+                    "Facebook có thể vẫn đang đăng lần trước, hãy xem Page, đợi 30 phút rồi Thử lại", retryable=True
+                )
         if status is None:
             _check_article_publishable(article, post)
             with tempfile.TemporaryDirectory(prefix="reels_article_post_") as folder:
@@ -939,8 +947,9 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
             if status is None:
                 raise JobFailure("Facebook không còn giữ bài vừa đăng, hãy xem Page rồi Thử lại")
     except FacebookError as err:
-        raise JobFailure(err.message, err.detail) from None
+        raise JobFailure(err.message, err.detail, retryable=facebook.is_passing(err)) from None
     post.status = "published" if status["published"] else "scheduled"
+    post.retry_at = None
     post.scheduled_at = (status["scheduled_at"] or post.scheduled_at) if post.status == "scheduled" else None
     post.published_at = now()
     db.commit()

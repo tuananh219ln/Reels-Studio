@@ -29,6 +29,7 @@ export const ARTICLE_STATUS_TONES: Record<Article["status"], StatusTone> = {
   publishing: "active",
   unpublishing: "active",
   pending: "waiting",
+  retrying: "warning",
   failed: "danger",
   scheduled: "waiting",
   published: "success",

@@ -830,6 +830,7 @@ class Publication(Base):
             unique=True,
             postgresql_where=text("status = 'pending_link'"),
         ),
+        Index("ix_publications_retry_at", "retry_at", postgresql_where=text("retry_at IS NOT NULL")),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -848,6 +849,10 @@ class Publication(Base):
     # Set before Facebook is asked to publish `remote_id`: from then on it may go live even if the answer was lost.
     finish_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # An article's post that failed for a passing reason is tried again by itself (article_posts.plan_retry): how many
+    # tries were planned since a member last pressed "Đăng" or "Thử lại", and when the next is queued (None: none).
+    auto_retries: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    retry_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # when it was cancelled or deleted

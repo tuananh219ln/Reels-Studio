@@ -2171,6 +2171,8 @@ def _retry_article(db: DbSession, job_id: int, article_id: int, me: Session) -> 
         queued = article_posts.enqueue(
             db, article, job.kind, me.user_id, publication_id=job.publication_id, retry_of_id=job_id
         )
+        if queued and job.kind == "publish" and (post := article_posts.pending_post(db, article_id)) is not None:
+            article_posts.reset_retries(post)
     if not queued:
         raise ApiError(409, "article_busy", "Bài viết đang có việc chờ hoặc đang chạy")
     db.commit()

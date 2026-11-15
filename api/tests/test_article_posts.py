@@ -474,3 +474,110 @@ def test_visitors_comments_under_an_article_name_it_on_binh_luan(an, db, me, fak
     assert row["post"]["title"] == "Bài viết: Ngủ đủ giấc quan trọng hơn bạn nghĩ"
     assert (row["post"]["article_id"], row["post"]["video_id"]) == (post.article_id, None)
     assert row["post"]["reel_url"] == f"https://www.facebook.com/{post.remote_id}"
+
+
+# --- Retries by themselves (decisions 2026-11-15, "article posting retries") ---
+
+
+def due_now(factory, article_id) -> None:
+    """The planned try is due: its time moved into the past."""
+    with factory() as db:
+        post = db.scalar(select(Publication).where(Publication.article_id == article_id))
+        post.retry_at = datetime.now(UTC) - timedelta(seconds=1)
+        db.commit()
+
+
+def queue_due(factory) -> int:
+    with factory() as db:
+        queued = article_posts.queue_retries(db)
+        db.commit()
+        return queued
+
+
+def test_a_passing_failure_is_tried_again_after_one_then_five_then_fifteen_minutes(committed, ready, fakes):
+    """A 5xx proves nothing about the post, so within 30 minutes a try only looks for it on the Page ("never posted
+    twice", 2026-11-06); not found three times, the article shows "Đăng lỗi" with the advice to wait."""
+    user, storage, article_id = ready
+    fakes.page_post_errors = 1
+    failed = run(committed, storage, article_id, user.id)
+    assert failed.status == "failed" and "Facebook đang lỗi" in failed.error
+    for attempt, minutes in enumerate(article_posts.RETRY_MINUTES, start=1):
+        post = post_of(committed, article_id)
+        assert post.auto_retries == attempt
+        wait = post.retry_at - datetime.now(UTC)
+        assert timedelta(minutes=minutes) - timedelta(seconds=30) < wait <= timedelta(minutes=minutes)
+        with committed() as db:
+            shown = article_posts.payload(db, db.get(Article, article_id))
+            assert (shown["status"], shown["status_label"]) == ("retrying", "Chờ thử lại")
+            assert shown["retry"]["attempt"] == attempt and shown["retry"]["of"] == 3
+        # Not due yet: nothing is queued.
+        assert queue_due(committed) == 0
+        due_now(committed, article_id)
+        assert queue_due(committed) == 1
+        with committed() as db:
+            job = db.scalar(
+                select(Job).where(Job.article_id == article_id, Job.status == "queued", Job.kind == "publish")
+            )
+            assert job.created_by_id == user.id and job.retry_of_id is not None
+            job.status = "running"
+            db.commit()
+            job_id = job.id
+        jobs.run_job(job_id, committed, storage)
+        retried = job_row(committed, job_id)
+        assert retried.status == "failed" and "đợi 30 phút" in retried.error
+    # Three tries spent: "Đăng lỗi", nothing more planned, and its maker's menu counts it.
+    post = post_of(committed, article_id)
+    assert (post.retry_at, post.auto_retries) == (None, 3)
+    with committed() as db:
+        assert article_posts.payload(db, db.get(Article, article_id))["status"] == "failed"
+        assert article_posts.failed_of(db, user.id) == [article_id]
+    assert fakes.page_post_calls == 1 and fakes.page_posts == {}
+
+
+def test_a_lost_answer_is_found_by_the_retry_without_posting_twice(committed, ready, fakes):
+    user, storage, article_id = ready
+    fakes.page_post_replies_lost = 1
+    assert run(committed, storage, article_id, user.id).status == "failed"
+    assert post_of(committed, article_id).retry_at is not None
+    due_now(committed, article_id)
+    assert queue_due(committed) == 1
+    with committed() as db:
+        job = db.scalar(select(Job).where(Job.article_id == article_id, Job.status == "queued"))
+        job.status = "running"
+        db.commit()
+        job_id = job.id
+    jobs.run_job(job_id, committed, storage)
+    assert job_row(committed, job_id).status == "done"
+    post = post_of(committed, article_id)
+    assert (post.status, post.retry_at) == ("published", None)
+    assert fakes.page_post_calls == 1 and len(fakes.page_posts) == 1
+
+
+def test_a_refusal_is_not_tried_again_and_shows_at_once(committed, ready, fakes):
+    user, storage, article_id = ready
+    fakes.page_post_refusals = 1
+    assert run(committed, storage, article_id, user.id).status == "failed"
+    post = post_of(committed, article_id)
+    assert (post.retry_at, post.auto_retries) == (None, 0)
+    assert queue_due(committed) == 0
+    with committed() as db:
+        assert article_posts.payload(db, db.get(Article, article_id))["status"] == "failed"
+        assert article_posts.failed_of(db, user.id) == [article_id]
+        # Another member's failed articles are not theirs to see in the badge.
+        assert article_posts.failed_of(db, user.id + 1000) == []
+
+
+def test_posting_again_starts_the_tries_over_and_the_badge_counts_only_my_failed_articles(an, db, me):
+    article = add_article(db, me)
+    page = page_id(db, me)
+    assert an.get("/api/articles/attention").json() == {"failed": 0, "article_ids": []}
+    post = Publication(article_id=article.id, platform="facebook", fanpage_id=page, created_by_id=me.id, auto_retries=3)
+    db.add(post)
+    db.add(Job(article_id=article.id, kind="publish", status="failed", error="Facebook đang lỗi", created_by_id=me.id))
+    db.commit()
+    assert an.get("/api/articles/attention").json() == {"failed": 1, "article_ids": [article.id]}
+    assert an.get(f"/api/articles/{article.id}").json()["status_label"] == "Đăng lỗi"
+    posted = an.post(f"/api/articles/{article.id}/publish", json={"fanpage_id": page})
+    assert posted.status_code == 200, posted.text
+    db.refresh(post)
+    assert (post.auto_retries, post.retry_at) == (0, None)

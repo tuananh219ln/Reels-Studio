@@ -113,6 +113,12 @@ def _http_error(status: int, body: str) -> FacebookError:
     return FacebookError(message, detail, status, code, subcode)
 
 
+def is_passing(err: FacebookError) -> bool:
+    """An error that may be gone a few minutes later: no answer or an unreadable one (status 0), Facebook's own
+    failure (5xx) or its rate limit. A refusal of the post or the token is not: trying again changes nothing."""
+    return err.status == 0 or err.status >= 500 or err.status == 429 or err.code in RATE_LIMIT_ERRORS
+
+
 def _publish_call(page: Page, fields: dict[str, str]) -> dict:
     body = urllib.parse.urlencode({**fields, "access_token": page.token}).encode()
     url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}/video_reels"

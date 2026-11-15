@@ -1058,10 +1058,12 @@ export type Article = {
   /** The shape an AI photo is made in. */
   image_aspect: ArticleAspect;
   source_comment: { id: number; author: string; message: string } | null;
-  status: "draft" | "publishing" | "pending" | "failed" | "scheduled" | "published" | "unpublishing";
+  status: "draft" | "publishing" | "pending" | "retrying" | "failed" | "scheduled" | "published" | "unpublishing";
   status_label: string;
   /** Why the last "Đăng" failed, while its post still waits ("Thử lại" in Nhật ký job or "Đăng" again). */
   publish_error: string | null;
+  /** "Chờ thử lại": a post that failed for a passing reason is tried again by itself at `at` (try `attempt` of `of`). */
+  retry: { at: string; attempt: number; of: number } | null;
   /** Its posts on Facebook, newest first, cancelled and taken-down ones included. */
   posts: ArticlePost[];
   /** At most `max_products` approved products; their links go in the comment, never in the caption. */
