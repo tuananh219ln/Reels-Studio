@@ -310,3 +310,21 @@ an owner check; agents do not access production or trigger real jobs to test it.
 scheduled (Page, time) and which waits for a manual "Duyệt" (reason). An assistant that is always on, like Muse on
 WhatsApp, calls it every few minutes with `after_id` set to the largest `id` it has already reported and messages the
 member one line per result. See [the decision](decisions/2026-11-13-auto-approve.md).
+
+## Copying a winning video to another Page, and queueing it
+
+Two tools ([the decision](decisions/2026-11-15-mcp-duplicate-schedule.md)) let the assistant copy a video that did
+well and post the copy on another Page, through the web's own rules:
+
+- `duplicate_video` (write) is "Nhân bản y hệt" (`duplicate.duplicate_video`, the route's own source check): an exact
+  copy named "… (copy)", made by the connected member, with no AI call and no MP4. `knowledge_topic_id` puts the copy
+  in another topic group, as "Chuyển sang nhóm khác" does; `fanpage_id` gives it the logo of the channel linked to
+  that Page, switched on, through the same check as the video page's "Kênh"/"Gắn logo" (the member's own channel,
+  with a logo). Without it, a copy of a video carrying another channel's logo is refused by that Page's queue. A
+  copy that cannot be made whole leaves nothing behind. Caption and comments are copied as they are, so the
+  assistant reads them; the answer lists the copied products and their `commission_warnings`.
+- `schedule_video` (write) is "Thêm vào hàng chờ" (`routes_queue.add`): the video's current MP4, the member's own
+  Page (or their Page of the video's group), the logo check, not already on that Page, not already queued, at most
+  100 videos. It neither picks a time nor posts: the worker's queue round schedules the Page's first video at its
+  next free posting time within 48 hours (the Page's own times, else its group's). The server's instructions ask the
+  assistant to call it only when the member asks, after looking at the render's frames.

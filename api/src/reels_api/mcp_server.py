@@ -31,11 +31,12 @@ from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
-from . import auto_approve, clips, footage_tools, frames, jobs, motion, remote_media, video_options
+from . import auto_approve, brands, clips, duplicate, footage_tools, frames, jobs, motion, remote_media, video_options
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
 from . import routes_music as music_routes
+from . import routes_queue as queue_routes
 from . import routes_sounds as sound_routes
 from . import routes_templates as template_routes
 from . import routes_videos as videos
@@ -43,7 +44,18 @@ from .claude import ScriptOutputError, parse_output
 from .db import get_db
 from .errors import ApiError
 from .mcp_auth import app_of, connection_for, public_url, registered
-from .models import AffiliateProduct, KnowledgeTopic, Scene, SceneLayer, SceneSound, TopicPlanItem, Video
+from .models import (
+    AffiliateProduct,
+    Brand,
+    Fanpage,
+    KnowledgeTopic,
+    Scene,
+    SceneLayer,
+    SceneSound,
+    TopicPlanItem,
+    Video,
+    VideoAffiliateProduct,
+)
 from .ownership import ensure_owner
 from .storage import get_storage
 from .videos import content_types as team_content_types
@@ -373,6 +385,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             'mỗi cảnh gọi "Tìm clip cho cảnh" bằng từ khóa đầu của cảnh (youtube trước, rồi pexels, pixabay), xem '
             'các đoạn, chọn đoạn đúng đối tượng và hành động rồi "Dùng clip đã chọn cho cảnh"; không có clip hợp '
             'thì dùng "Tìm ảnh kho miễn phí". Không tự render hay đăng; báo kết quả cho người dùng. '
+            'Nhân bản video thắng sang Page khác: "Nhân bản y hệt" (nhóm và logo của Page đích), soát caption, '
+            'bình luận và commission_warnings, render, xem bản render bằng "Xem khung hình bản render", rồi '
+            '"Thêm vào hàng chờ" chỉ khi người dùng yêu cầu rõ; giờ đăng do hàng chờ của Page tự xếp. '
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
             "Link video mở trong Reels Studio và cần đăng nhập. " + CLIP_RULES + " " + QUALITY
         ),
@@ -1657,7 +1672,76 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Xếp một job render MP4; giọng đọc còn thiếu có thể dùng phí ElevenLabs. Không chờ MP4 hay tự thử lại."""
         return await run_in_threadpool(invoke, lambda db, me: changed(videos.render(video_id, me, db)), write=True)
 
+    @tool("Nhân bản y hệt", read=False)
+    async def duplicate_video(
+        video_id: int,
+        knowledge_topic_id: Annotated[
+            int | None, Field(description="Nhóm chủ đề của bản copy; bỏ trống thì ở nhóm của video gốc")
+        ] = None,
+        fanpage_id: Annotated[
+            int | None,
+            Field(description="Page sẽ đăng: bản copy mang logo của kênh gắn với Page này (bật “Gắn logo”)"),
+        ] = None,
+    ) -> dict:
+        """Bản copy y hệt video (kịch bản, cảnh, lớp, âm thanh, sản phẩm, file), tên "… (copy)", người tạo là bạn;
+        không gọi AI, không copy MP4: render lại trước khi đăng. Caption và bình luận giữ nguyên như video gốc."""
+
+        def operation(db, me):
+            source = videos.duplicable(db, video_id)
+            group = videos.topic_group(db, knowledge_topic_id) if knowledge_topic_id is not None else None
+            brand = _page_brand(db, fanpage_id) if fanpage_id is not None else None
+            storage = get_storage()
+            draft = duplicate.duplicate_video(db, storage, source, me.user_id)
+            try:
+                if group is not None and group.id != draft.knowledge_topic_id:
+                    videos.place_in_group(db, draft, group)
+                if brand is not None:
+                    brands.apply_video_options(db, draft, me.user_id, {"brand_id": brand.id, "logo_enabled": True})
+                db.flush()
+            except BaseException:
+                db.rollback()
+                storage.delete_prefix(f"videos/{draft.id}")
+                raise
+            product_ids = list(
+                db.scalars(select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == draft.id))
+            )
+            db.commit()
+            saved = videos.video_payload(db, draft)
+            return {
+                **changed(saved),
+                **brands.payload_of(db, draft),
+                **_commission_report(db, {"product_ids": product_ids}, me.user_id),
+            }
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Thêm vào hàng chờ", read=False, external=True)
+    async def schedule_video(
+        video_id: int,
+        fanpage_id: Annotated[
+            int | None, Field(description="Page của bạn; bỏ trống thì Page của bạn thuộc nhóm của video")
+        ] = None,
+    ) -> dict:
+        """Như nút "Thêm vào hàng chờ": chỉ gọi khi người dùng yêu cầu rõ và đã xem bản render. Video cần MP4 mới
+        nhất; hàng chờ tự hẹn giờ vào khung giờ đăng trống tiếp theo của Page (trong 48 giờ tới), không chọn giờ ở
+        đây và không đăng ngay."""
+        body = queue_routes.AddBody(video_id=video_id, fanpage_id=fanpage_id)
+        return await run_in_threadpool(invoke, lambda db, me: queue_routes.add(body, me, db), write=True)
+
     return mcp
+
+
+def _page_brand(db: DbSession, fanpage_id: int) -> Brand:
+    """The channel whose logo goes on videos for this Page (one per Page)."""
+    page = db.get(Fanpage, fanpage_id)
+    if page is None or not page.active:
+        raise ApiError(404, "fanpage_not_found", "Không tìm thấy Fanpage đang dùng")
+    brand = db.scalar(select(Brand).where(Brand.fanpage_id == page.id))
+    if brand is None:
+        raise ApiError(
+            409, "page_has_no_brand", f"Page “{page.name}” chưa có logo: hãy tải logo ở Quản lý kênh rồi nhân bản"
+        )
+    return brand
 
 
 def _own_part(db, model, part_id: int, me) -> int:
