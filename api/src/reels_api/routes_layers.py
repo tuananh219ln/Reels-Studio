@@ -17,12 +17,18 @@ import unicodedata
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.layers import (
     ANIMATIONS,
+    CARD,
+    CARD_TOP_DEFAULT,
+    CARD_WIDTH_DEFAULT,
+    CARD_WIDTH_MAX,
+    CARD_WIDTH_MIN,
     HALF,
     HALF_HEIGHT_DEFAULT,
     HALF_HEIGHT_MAX,
@@ -43,6 +49,7 @@ from . import remote_media, video_options
 from .db import get_db
 from .errors import ApiError
 from .models import MediaItem, Scene, SceneLayer, Session, Video
+from .routes_videos import MAX_VOICE_LENGTH
 from .sessions import current_member
 from .storage import DirectoryStorage, get_storage
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension, read_limited
@@ -50,6 +57,7 @@ from .videos import (
     ensure_unlocked,
     half_layer,
     is_backdrop,
+    is_card_layer,
     is_half_layer,
     layer_photo_key,
     lock_scene,
@@ -125,8 +133,27 @@ def _preset(value: object, presets: dict, label: str) -> str:
     return value
 
 
+def _apply_card(row: SceneLayer, body: LayerBody) -> None:
+    """A card ("Thẻ"): only its top edge (`y`), its width percent (`height`), its start and its seconds change; it stays
+    centred across and just appears."""
+    for field in body.model_fields_set & set(FIELDS):
+        value = getattr(body, field)
+        if field == "y":
+            row.y = round(_number(value, "Vị trí mép trên của thẻ", 0, FRAME_HEIGHT - 1))
+        elif field == "height":
+            row.height = round(_number(value, "Cỡ thẻ (% chiều rộng khung)", CARD_WIDTH_MIN, CARD_WIDTH_MAX))
+        elif field == "start":
+            row.start = round(_number(value, "Giây bắt đầu", 0, MAX_START), 2)
+        elif field == "seconds":
+            row.seconds = round(_number(value, "Số giây", MIN_SECONDS, MAX_SECONDS), 2)
+    row.x = FRAME_WIDTH // 2
+
+
 def _apply(row: SceneLayer, body: LayerBody) -> None:
     """Checks and sets every field the body names, then that the layer can be drawn."""
+    if is_card_layer(row):
+        _apply_card(row, body)
+        return
     half = is_half_layer(row)
     if half and "height" in body.model_fields_set:
         # Taller or shorter, it keeps the edge it is flush with (the top, the bottom, or the middle).
@@ -284,9 +311,12 @@ def delete_layer(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    video, _, row = _layer(db, layer_id)
+    video, scene, row = _layer(db, layer_id)
     ensure_unlocked(db, video)
     own = row.image_key
+    if is_card_layer(row):
+        # Its parts were cut on this card's picture.
+        scene.reveal = None
     db.delete(row)
     payload = _saved(db, video)
     # A half-frame photo's own copy goes with it, once the layer is gone.
@@ -475,7 +505,13 @@ def layer_image(
     if row.kind == "photo":
         key = layer_photo_key(row)
         if not key or not storage.exists(key):
-            missing = "Ảnh chèn không còn trên máy chủ" if is_half_layer(row) else "Cảnh chưa có ảnh cho ảnh món"
+            missing = (
+                "Ảnh thẻ không còn trên máy chủ"
+                if is_card_layer(row)
+                else "Ảnh chèn không còn trên máy chủ"
+                if is_half_layer(row)
+                else "Cảnh chưa có ảnh cho ảnh món"
+            )
             raise ApiError(404, "photo_not_found", missing)
         image = storage.path(key)
     buffer = io.BytesIO()
@@ -486,3 +522,161 @@ def layer_image(
         raise ApiError(422, "photo_unreadable", f"Không vẽ được ảnh món: {err}") from None
     picture.save(buffer, "PNG")
     return Response(buffer.getvalue(), media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
+
+
+# --- "Thẻ" (a screenshot card over the scene's picture) and "Hiện dần" ---
+
+MAX_REVEAL_PARTS = 12
+CARD_ONLY_PHOTO = "Thẻ cần một ảnh, không phải video"
+
+
+class CardBody(BaseModel):
+    scene_id: int
+    # One of the two: a photo of the team's "Kho tư liệu" or a link to a photo.
+    media_id: int | None = None
+    url: str | None = None
+    top: object = None  # its top edge in the frame, pixels; a new card's CARD_TOP_DEFAULT
+    width: object = None  # its width in percent of the frame's width; a new card's CARD_WIDTH_DEFAULT
+
+
+def store_card(
+    db: DbSession, storage: DirectoryStorage, scene_id: int, data: bytes, extension: str, top: object, width: object
+) -> dict:
+    """The scene's card ("Thẻ"): a copy of the picture of its own, whole, centred across and hung from `top`, for the
+    whole scene, under its text; on a slide video as on a backdrop. A scene has one: a new picture takes the old one's
+    place (keeping its place and size unless given) and drops its "Hiện dần", whose parts were cut on the old one."""
+    video, scene = lock_scene(db, scene_id)
+    ensure_unlocked(db, video)
+    if scene.is_title:
+        raise invalid(TITLE_ERROR)
+    try:
+        with Image.open(io.BytesIO(data)) as picture:
+            picture.verify()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        raise invalid("Ảnh thẻ hỏng hoặc không đọc được") from None
+    key = new_key(video.id, f"card-{scene.id}", extension)
+    card = next((layer for layer in scene.layers if is_card_layer(layer)), None)
+    dropped = None
+    if card is None:
+        last = db.scalar(select(func.max(SceneLayer.position)).where(SceneLayer.scene_id == scene.id))
+        card = SceneLayer(
+            scene_id=scene.id,
+            position=(last or 0) + 1,
+            kind="photo",
+            text="",
+            sticker="",
+            start=0,
+            seconds=MAX_SECONDS,  # to the end of its scene: the render stops every layer there
+            x=FRAME_WIDTH // 2,
+            y=CARD_TOP_DEFAULT,
+            height=CARD_WIDTH_DEFAULT,
+            size="medium",
+            style=CARD,
+            animation="none",
+        )
+        db.add(card)
+    else:
+        dropped = card.image_key
+        scene.reveal = None
+    card.image_key = key
+    _apply_card(
+        card, LayerBody(**{name: value for name, value in (("y", top), ("height", width)) if value is not None})
+    )
+    storage.save_bytes(key, data)
+    try:
+        payload = _saved(db, video)
+    except Exception:
+        storage.delete(key)
+        raise
+    storage.delete(dropped)
+    return payload
+
+
+@router.post("/card", status_code=201)
+def add_card(
+    body: CardBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """The scene's card from the library (`media_id`) or from a link to a photo (`url`)."""
+    url = (body.url or "").strip()
+    if [body.media_id is not None, bool(url)].count(True) != 1:
+        raise invalid("Chọn một ảnh cho thẻ: từ kho tư liệu hoặc một link ảnh")
+    if body.media_id is not None:
+        item = db.get(MediaItem, body.media_id)
+        if item is None:
+            raise ApiError(404, "media_not_found", "Không tìm thấy tư liệu (có thể đã bị xoá)")
+        if item.kind != "photo":
+            raise invalid(CARD_ONLY_PHOTO)
+        if not storage.exists(item.storage_key):
+            raise ApiError(404, "media_not_found", "File của tư liệu không còn trên máy chủ")
+        data = storage.path(item.storage_key).read_bytes()
+        return store_card(db, storage, body.scene_id, data, item.storage_key.rsplit(".", 1)[-1], body.top, body.width)
+    # Checked before the download, and again when it is saved: no row lock is held while the other site answers.
+    video, _ = lock_scene(db, body.scene_id)
+    ensure_unlocked(db, video)
+    db.rollback()
+    with tempfile.TemporaryDirectory(prefix="reels_card_") as folder:
+        try:
+            media = remote_media.download(url, Path(folder))
+        except remote_media.RemoteMediaError as err:
+            raise invalid(str(err)) from None
+    if media.photo is None:
+        raise invalid(CARD_ONLY_PHOTO)
+    data, extension = media.photo
+    return store_card(db, storage, body.scene_id, data, extension, body.top, body.width)
+
+
+class RevealPart(BaseModel):
+    cut_y: int | None = None  # the row of the card's own picture where this part ends; the last part: its bottom
+    text: str = ""  # what the narration reads while this part comes in
+
+
+class RevealBody(BaseModel):
+    scene_id: int
+    parts: list[RevealPart]  # empty: the card shows whole again
+
+
+@router.put("/card/reveal")
+def set_card_reveal(
+    body: RevealBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Hiện dần": the scene's card shown part by part from the top, each part coming in as the narration reaches its
+    words (videos.reveal_steps). The scene's narration becomes the parts' texts in order, so the words line up with
+    the parts; fewer than two parts turn it off, and the narration stays as it is."""
+    video, scene = lock_scene(db, body.scene_id)
+    ensure_unlocked(db, video)
+    card = next((layer for layer in scene.layers if is_card_layer(layer)), None)
+    if card is None or not card.image_key or not storage.exists(card.image_key):
+        raise invalid("Cảnh này chưa có thẻ: gắn ảnh thẻ trước")
+    if not body.parts:
+        scene.reveal = None
+        return _saved(db, video)
+    if not 2 <= len(body.parts) <= MAX_REVEAL_PARTS:
+        raise invalid(f"Hiện dần cần từ 2 đến {MAX_REVEAL_PARTS} phần")
+    with Image.open(storage.path(card.image_key)) as picture:
+        height = ImageOps.exif_transpose(picture).height
+    texts = [unicodedata.normalize("NFC", " ".join(part.text.split())) for part in body.parts]
+    if video.voice_enabled and not all(texts):
+        raise invalid("Mỗi phần cần lời đọc của phần đó")
+    parts, last = [], 0
+    for number, part in enumerate(body.parts, start=1):
+        cut = height if number == len(body.parts) and part.cut_y is None else part.cut_y
+        if cut is None:
+            raise invalid(f"Phần {number}: thiếu cut_y (dòng ảnh nơi phần này kết thúc)")
+        if not last < cut <= height:
+            raise invalid(f"Phần {number}: cut_y phải lớn hơn phần trước và không quá {height} (chiều cao ảnh thẻ)")
+        parts.append({"until": round(cut / height, 4), "words": len(texts[number - 1].split())})
+        last = cut
+    parts[-1]["until"] = 1.0  # the whole card once the last part is in
+    voice_text = " ".join(texts)
+    if len(voice_text) > MAX_VOICE_LENGTH:
+        raise invalid(f"Lời đọc của các phần dài quá {MAX_VOICE_LENGTH} ký tự")
+    scene.reveal = {"parts": parts}
+    if voice_text:
+        scene.voice_text = voice_text
+    return _saved(db, video)

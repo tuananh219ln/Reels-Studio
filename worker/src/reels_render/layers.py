@@ -93,6 +93,18 @@ HALF_HEIGHT_DEFAULT, HALF_HEIGHT_MIN, HALF_HEIGHT_MAX = 32, 30, 45
 HALF_RADIUS = 36  # its rounded corners, in frame pixels; no border (owner's choice, 2026-11-12)
 
 
+# "Thẻ" (2026-11-15, the comment-reading pages): a screenshot card of its own (a Threads post) kept whole, never cut
+# or stretched, centred across and hung from its top edge (`y` is that edge, not a centre), under the scene's text
+# like an inset photo, on a slide video as on a backdrop. Its size is its width in percent of the frame's width (kept
+# in the layer's `height` field); a card too tall for CARD_MAX_HEIGHT is scaled down to it, narrower. Transparent
+# rows stay transparent, so a card drawn with its lower part cleared shows only its upper part at the same scale.
+CARD = "card"
+CARD_LABEL = "Thẻ"
+CARD_WIDTH_DEFAULT, CARD_WIDTH_MIN, CARD_WIDTH_MAX = 90, 50, 100
+CARD_TOP_DEFAULT = 220  # below the platform's top bar
+CARD_MAX_HEIGHT = 1500  # clear of the platform's caption and buttons at the bottom
+
+
 def half_height(percent: float = HALF_HEIGHT_DEFAULT) -> int:
     """An inset photo's side in frame pixels from its percent of the frame's height (32% is 614 px, 38% is 730)."""
     return round(FRAME_HEIGHT * min(max(percent, HALF_HEIGHT_MIN), HALF_HEIGHT_MAX) / 100)
@@ -147,10 +159,44 @@ class Layer:
     def half(self) -> bool:
         return is_half(self.kind, self.style)
 
+    @property
+    def card(self) -> bool:
+        return is_card(self.kind, self.style)
+
+    @property
+    def inset(self) -> bool:
+        """Laid under the scene's text, in the seconds of its own picture: an inset photo or a card."""
+        return self.half or self.card
+
 
 def is_half(kind: str, style: str) -> bool:
     """A photo layer "Ảnh chèn nửa khung"."""
     return kind == "photo" and style == HALF
+
+
+def is_card(kind: str, style: str) -> bool:
+    """A photo layer "Thẻ"."""
+    return kind == "photo" and style == CARD
+
+
+def card_width(percent: float = CARD_WIDTH_DEFAULT) -> int:
+    """A card's width in frame pixels from its percent of the frame's width."""
+    return round(FRAME_WIDTH * min(max(percent, CARD_WIDTH_MIN), CARD_WIDTH_MAX) / 100)
+
+
+def card_size(width: int, height: int, percent: float = CARD_WIDTH_DEFAULT) -> tuple[int, int]:
+    """The card's size in the frame for a picture `width` × `height`: its width percent, or less when that makes it
+    taller than CARD_MAX_HEIGHT; never stretched."""
+    wide = card_width(percent)
+    tall = max(1, round(wide * height / max(width, 1)))
+    if tall > CARD_MAX_HEIGHT:
+        wide, tall = max(1, round(wide * CARD_MAX_HEIGHT / tall)), CARD_MAX_HEIGHT
+    return wide, tall
+
+
+def card_corner(width: int, height: int, top: int) -> tuple[int, int]:
+    """Where a card goes: centred across, its top edge at `top`, kept inside the frame."""
+    return (FRAME_WIDTH - width) // 2, min(max(top, 0), max(FRAME_HEIGHT - height, 0))
 
 
 def half_y(y: float, height: int = HALF_HEIGHT_DEFAULT) -> int:
@@ -174,6 +220,8 @@ def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
             raise ValueError("lớp ảnh chưa có ảnh")
         if layer.half:
             return render_half(layer.image, layer.height)
+        if layer.card:
+            return render_card(layer.image, layer.height)
         return render_photo(layer.image, SIZES[layer.size].photo, layer.style)
     return _sticker(layer.sticker, SIZES[layer.size].sticker)
 
@@ -196,6 +244,13 @@ def render_half(path: Path, height: int = HALF_HEIGHT_DEFAULT) -> Image.Image:
     card = ImageOps.fit(picture, (side, side), Image.Resampling.LANCZOS, centering=(0.5, 0.5)).convert("RGBA")
     card.putalpha(_shape_mask((side, side), HALF_RADIUS, False))
     return card
+
+
+def render_card(path: Path, percent: float = CARD_WIDTH_DEFAULT) -> Image.Image:
+    """ "Thẻ": the picture whole at its card size (card_size), with its own transparency. Raises ValueError for a file
+    that is not a photo."""
+    picture = _open_photo(path)
+    return picture.resize(card_size(picture.width, picture.height, percent), Image.Resampling.LANCZOS)
 
 
 def render_photo(path: Path, width: int, shape: str) -> Image.Image:

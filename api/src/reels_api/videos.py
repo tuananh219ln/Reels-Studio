@@ -13,9 +13,9 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
-from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_half
+from reels_render.layers import HALF, HALF_HEIGHT_DEFAULT, HALF_X, half_height, half_y, is_card, is_half
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
-from reels_render.timeline import VOICE_TAIL, fit_seconds
+from reels_render.timeline import VOICE_LEAD, VOICE_TAIL, fit_seconds
 
 from . import (
     affiliate,
@@ -63,6 +63,7 @@ from .video_options import (
     look_signature,
     preview_look,
     render_options,
+    scene_voice,
     text_case,
     text_size,
     voice_id,
@@ -93,6 +94,7 @@ ALTERNATE = "alternate"
 GROUP_VIDEO_MODES = {**MODES, ALTERNATE: "Xen kẽ theo ngày (ngày lẻ: xuyên suốt, ngày chẵn: slide)"}
 PHOTO_LAYER_MISSING = "Cảnh có ảnh món nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc tắt ảnh món"
 HALF_PHOTO_MISSING = "Cảnh có ảnh chèn nhưng chưa có ảnh: chọn ảnh cho cảnh hoặc xoá ảnh chèn"
+CARD_PHOTO_MISSING = "Cảnh có thẻ nhưng thẻ chưa có ảnh: gắn lại ảnh thẻ hoặc xoá thẻ"
 # A new photo layer ("Ảnh món"): medium, for the whole scene (the render stops it at the scene's end), on the left or
 # the right of the frame by turns from one photo to the next, a little above the middle, coming up from below.
 PHOTO_LAYER_X = (367, 713)
@@ -337,7 +339,7 @@ def follow_narration(video: Video, scenes: list[Scene]) -> None:
 def made_voice_seconds(video: Video, scene: Scene) -> float | None:
     """Length of the stored narration when it was made from the current voice text, voice and model."""
     text = spoken(video, scene)
-    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text, *_voice(video)):
+    if not text or not scene.voice_key or scene.voice_signature != voice_signature(text, *_voice(video, scene)):
         return None
     return scene.voice_seconds
 
@@ -354,8 +356,9 @@ def scene_marks(video: Video, title: Scene | None, scenes: list[Scene]) -> list[
     return marks
 
 
-def _voice(video: Video) -> tuple[str, str]:
-    return voice_id(video), voice_speed(video)
+def _voice(video: Video, scene: Scene | None = None) -> tuple[str, float]:
+    """The voice and speed a scene's narration is made with; without a scene, the video's own voice."""
+    return (scene_voice(video, scene) if scene is not None else voice_id(video)), voice_speed(video)
 
 
 def text_position(video: Video, scene: Scene) -> list[int] | None:
@@ -397,12 +400,41 @@ def is_half_layer(layer: SceneLayer) -> bool:
     return is_half(layer.kind, layer.style)
 
 
+def is_card_layer(layer: SceneLayer) -> bool:
+    """ "Thẻ" (reels_render.layers.CARD): a screenshot card of its own, whole, hung from its top edge."""
+    return is_card(layer.kind, layer.style)
+
+
 def layer_photo_key(layer: SceneLayer) -> str | None:
     """The photo a photo layer shows: a half-frame photo's own, else its scene's (as "Ảnh món" always does): the one a
-    "Video xuyên suốt" script gives a scene that names a dish has none of its own until a member picks one."""
+    "Video xuyên suốt" script gives a scene that names a dish has none of its own until a member picks one. A card
+    shows only its own."""
     if layer.kind != "photo":
         return None
+    if is_card_layer(layer):
+        return layer.image_key
     return (layer.image_key if is_half_layer(layer) else None) or layer.scene.image_key
+
+
+def reveal_steps(video: Video, scene: Scene) -> list[dict]:
+    """When each part of the scene's card comes in ("Hiện dần"), in seconds into the scene, with the fraction of the
+    card's height shown from then on. The narration is one MP3 with no word timings, so a part comes in when the
+    narration has read the words before it, at the same pace throughout: its share of the narration's length after
+    the voice lead. Without narration yet (or with it off) the parts share the scene's seconds the same way. The
+    first part shows from the scene's start. Empty when the card shows whole."""
+    parts = (scene.reveal or {}).get("parts") or []
+    if not parts:
+        return []
+    words = [max(1, int(part.get("words") or 0)) for part in parts]
+    total = sum(words)
+    made = made_voice_seconds(video, scene) if video.voice_enabled else None
+    lead, length = (VOICE_LEAD, made) if made is not None else (0.0, scene.seconds)
+    steps, before = [], 0
+    for part, count in zip(parts, words, strict=True):
+        start = 0.0 if not steps else round(lead + length * before / total, 2)
+        steps.append({"start": start, "until": part["until"]})
+        before += count
+    return steps
 
 
 def _own_photo(layer: SceneLayer) -> dict:
@@ -411,22 +443,31 @@ def _own_photo(layer: SceneLayer) -> dict:
 
 def drawn_layers(video: Video, scene: Scene) -> list[SceneLayer]:
     """The layers the render lays over the scene: photo layers ("Ảnh món") only over a backdrop; on a slide video
-    they are kept for switching back, and not drawn; so are half-frame photos (2026-11-09: only over a backdrop)."""
-    return [layer for layer in scene.layers if layer.kind != "photo" or is_backdrop(video)]
+    they are kept for switching back, and not drawn; so are half-frame photos (2026-11-09: only over a backdrop). A
+    card ("Thẻ") is drawn on either."""
+    return [layer for layer in scene.layers if layer.kind != "photo" or is_backdrop(video) or is_card_layer(layer)]
 
 
-def layer_payload(layer: SceneLayer, case: str = "upper") -> dict:
+def layer_payload(layer: SceneLayer, case: str = "upper", video: Video | None = None) -> dict:
     # Its picture changes only with what is drawn, not with where or when it shows; a photo layer's with its photo, a
     # text layer's with the letter case it is drawn in (the scenes' "Dạng chữ"; capitals keep the earlier addresses).
     photo = layer_photo_key(layer)
     kept = [case] if layer.kind == "text" and case != "upper" else []
-    if is_half_layer(layer):
-        # An inset photo's size changes its picture; its place does not.
+    if is_half_layer(layer) or is_card_layer(layer):
+        # An inset photo's or a card's size changes its picture; its place does not.
         kept += [str(layer.height)]
     look = _version(layer.kind, layer.text, layer.sticker, layer.size, layer.style, *([photo] if photo else []), *kept)
     # A half-frame photo says whether its photo is its own or its scene's, so the card shows where to choose it.
     own = {"own_image": bool(layer.image_key)} if is_half_layer(layer) else {}
-    return {"id": layer.id, **layer_fields(layer), **own, "image_url": f"/api/layers/{layer.id}/image.png?v={look}"}
+    # A card shown part by part: when each part comes in (reveal_steps), for the preview to play it as the render does.
+    reveal = {"reveal": reveal_steps(video, layer.scene)} if video is not None and is_card_layer(layer) else {}
+    return {
+        "id": layer.id,
+        **layer_fields(layer),
+        **own,
+        **reveal,
+        "image_url": f"/api/layers/{layer.id}/image.png?v={look}",
+    }
 
 
 def sound_fields(sound: SceneSound) -> dict:
@@ -468,6 +509,8 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
             *([["music_level", scene.music_level]] if scene.music_level else []),
             # Blurred boxes on the clip join only when there are some, so earlier MP4s stay current.
             *([["video_blur", blurred]] if (blurred := blur_of(scene)) else []),
+            # A card shown part by part joins only then, so earlier MP4s stay current.
+            *([["reveal", scene.reveal]] if scene.reveal else []),
         ]
         for scene in every
     ]
@@ -480,7 +523,8 @@ def render_signature(video: Video, title: Scene | None, scenes: list[Scene]) -> 
     if is_backdrop(video):
         data = [data, ["mode", video.mode]]
     voices = [
-        voice_signature(spoken(video, scene), *_voice(video)) if spoken(video, scene) else None for scene in every
+        voice_signature(spoken(video, scene), *_voice(video, scene)) if spoken(video, scene) else None
+        for scene in every
     ]
     if any(voices):
         data = [data, voices]
@@ -565,7 +609,13 @@ def run_checks(db: DbSession, video: Video, title: Scene | None, scenes: list[Sc
         # A photo layer without a photo of its own shows its scene's: a clip, or no picture, leaves it nothing.
         drawn = drawn_layers(video, scene)
         if any(layer.kind == "photo" and not layer_photo_key(layer) for layer in drawn):
-            missing = HALF_PHOTO_MISSING if any(is_half_layer(layer) for layer in drawn) else PHOTO_LAYER_MISSING
+            missing = (
+                CARD_PHOTO_MISSING
+                if any(is_card_layer(layer) and not layer.image_key for layer in drawn)
+                else HALF_PHOTO_MISSING
+                if any(is_half_layer(layer) for layer in drawn)
+                else PHOTO_LAYER_MISSING
+            )
             checks.blocking.append(Issue(missing, scene.id, "image"))
     return checks
 
@@ -930,9 +980,10 @@ def scene_payload(video: Video, scene: Scene, checks: Checks) -> dict:
         "text_problem": text_problem(scene.text, scene.is_title, size, case),
         "transition": scene.transition,
         "color": scene.color,
-        "layers": [layer_payload(layer, text_case(video, False)) for layer in scene.layers],
+        "layers": [layer_payload(layer, text_case(video, False), video) for layer in scene.layers],
         "sounds": [sound_payload(sound) for sound in scene.sounds],
         "music_level": scene.music_level,
+        "voice_id": scene.voice_id,  # its own voice; None: the video's
         # A "Cảnh động" (motion.py): its markup and seconds while the scene shows its clip or it is being made.
         "motion": motion_payload(scene),
         "blocking": [issue.message for issue in checks.blocking if issue.scene_id == scene.id],

@@ -50,4 +50,14 @@ no_people bật: không người; từ khóa = keywords[0] tiếng Việt của 
 PHỤ LỤC THREADS: chỉ clip nền ở cảnh tiêu đề, theo vibe (V1 lưới tối, V2 ấm cúng, V3 minecraft parkour không chữ,
 V4 mukbang; V5, V6 dùng ảnh tĩnh); không áp luật người; cảnh không chữ nên không dời chữ, không sticker; sau
 "Sửa nội dung đăng" đọc lại caption và hashtag bằng "Đọc video".
+
+KHUÔN 3AM (Threads, khi kịch bản là đọc thẻ):
+- Mỗi thẻ một cảnh, cảnh không chữ. "Gắn thẻ cho cảnh" (ảnh thẻ trắng trong Kho hoặc link ảnh, top 220, width 90).
+- Nền: mỗi cảnh một clip nền ("Gắn clip cho cảnh"), chuyển cảnh "cut", tắt tiếng gốc; clip ngắn hơn cảnh thì bật
+  "Lặp clip". Muốn nền đổi theo thẻ thì cảnh sau dùng clip khác.
+- Thẻ dày (ảnh lồng, nhiều reply, list dài): "Hiện dần thẻ" với cut_y ở cuối mỗi phần (xem kích thước ảnh trong câu
+  trả lời của "Gắn thẻ cho cảnh") và lời đọc của từng phần. Thẻ một câu ngắn thì để hiện nguyên.
+- Đoạn kết tách riêng (chữ phủ, meme) có thể đọc bằng giọng khác: "Sửa cảnh" với voice_id của cảnh đó.
+- Tốc độ đọc nhanh kiểu 3AM: "Tùy chọn của video" voice_speed 1.4–1.5.
+- Xem lại bằng "Xem khung hình của cảnh" (thẻ hiện nguyên), sau render xem khung MP4 ở đầu và cuối cảnh hiện dần.
 ```

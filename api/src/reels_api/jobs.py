@@ -10,6 +10,7 @@ from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
 
+from PIL import Image, ImageOps
 from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
@@ -80,7 +81,7 @@ from .storage import DirectoryStorage
 from .tts import TtsError, service_name, synthesize, voice_signature
 from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
-from .video_options import render_options, voice_id, voice_pause, voice_speed
+from .video_options import render_options, scene_voice, voice_pause, voice_speed
 from .videos import (
     LIVE_POST_STATUSES,
     OPEN_POST_STATUSES,
@@ -91,6 +92,7 @@ from .videos import (
     drop_original,
     half_layer,
     is_backdrop,
+    is_card_layer,
     is_half_layer,
     is_published,
     layer_fields,
@@ -100,6 +102,7 @@ from .videos import (
     pending_publication,
     refresh_thumbnail,
     render_signature,
+    reveal_steps,
     run_checks,
     scene_marks,
     sound_fields,
@@ -614,11 +617,33 @@ def _scene_label(scene: Scene, index: int) -> str:
     return "Cảnh tiêu đề" if scene.is_title else f"Cảnh {index}"
 
 
+def reveal_layers(fields: dict, steps: list[dict], folder: Path, stem: str) -> list[dict]:
+    """A card shown part by part ("Hiện dần") as one card layer per part, each the whole card with the rows below its
+    part cleared, so every one is laid at the same size and place and the card grows down as each comes in over the
+    one before. Each lasts from its part's start to the card's own end."""
+    with Image.open(folder / fields["image"]) as source:
+        card = ImageOps.exif_transpose(source).convert("RGBA")
+    end = fields["start"] + fields["seconds"]
+    layers = []
+    for number, step in enumerate(steps):
+        start = max(fields["start"], step["start"])
+        if start >= end:
+            break
+        shown = card.copy()
+        cut = round(card.height * step["until"])
+        if cut < card.height:
+            shown.paste((0, 0, 0, 0), (0, cut, card.width, card.height))
+        name = f"{stem}-part{number:02d}.png"
+        shown.save(folder / name)
+        layers.append(fields | {"image": name, "start": round(start, 2), "seconds": round(end - start, 2)})
+    return layers
+
+
 def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
     """Narration for every scene that has something to read but no MP3 made from it yet. Each MP3 is committed at once,
     so a retry after a failure pays ElevenLabs or VieNeu only for the scenes still missing."""
-    voice = voice_id(video)
     for index, scene in enumerate(scenes):
+        voice = scene_voice(video, scene)
         text = spoken(video, scene)
         if not text or (made_voice_seconds(video, scene) is not None and storage.exists(scene.voice_key)):
             continue
@@ -639,7 +664,7 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
         old = scene.voice_key
         scene.voice_key, scene.voice_signature, scene.voice_seconds = (
             key,
-            voice_signature(text, voice_id(video), voice_speed(video)),
+            voice_signature(text, voice, voice_speed(video)),
             seconds,
         )
         # "Tự khớp lời đọc": the scene now lasts as long as its narration, shorter or longer than before.
@@ -716,7 +741,7 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
             if scene.color and not scene.is_title:
                 data["color"] = scene.color
             if (layers := drawn_layers(video, scene)) and not scene.is_title:
-                data["layers"] = [layer_data(layer, scene, index) for layer in layers]
+                data["layers"] = [fields for layer in layers for fields in layer_data(layer, scene, index)]
             if scene.sounds:
                 data["sounds"] = [sound_fields(sound) for sound in scene.sounds]
             if scene.music_level:
@@ -726,19 +751,22 @@ def run_render_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
                 data["voice_text"] = spoken(video, scene)
             return data
 
-        def layer_data(layer, scene: Scene, index: int) -> dict:
+        def layer_data(layer, scene: Scene, index: int) -> list[dict]:
+            """The layer as the render script reads it; a card shown part by part is laid once per part."""
             fields = layer_fields(layer)
             if layer.kind == "photo":
                 # A photo layer ("Ảnh món") shows its scene's own photo, which the checks make sure there is; a
-                # half-frame photo ("Ảnh chèn nửa khung") its own.
+                # half-frame photo ("Ảnh chèn nửa khung") or a card ("Thẻ") its own.
                 key = layer_photo_key(layer)
                 if not key or not storage.exists(key):
-                    what = "ảnh chèn" if is_half_layer(layer) else "ảnh món"
+                    what = "thẻ" if is_card_layer(layer) else "ảnh chèn" if is_half_layer(layer) else "ảnh món"
                     raise JobFailure(f"{_scene_label(scene, index)} có {what} nhưng chưa có ảnh trong storage")
                 extension = key.rsplit(".", 1)[-1]
-                name = "inset" if is_half_layer(layer) else "photo"
+                name = "card" if is_card_layer(layer) else "inset" if is_half_layer(layer) else "photo"
                 fields["image"] = storage.copy_to(key, folder / f"{name}-{index:02d}.{extension}").name
-            return fields
+                if is_card_layer(layer) and (steps := reveal_steps(video, scene)):
+                    return reveal_layers(fields, steps, folder, f"{name}-{index:02d}")
+            return [fields]
 
         data = {"title": entry(title, 0), "scenes": [entry(scene, index) for index, scene in enumerate(scenes, 1)]}
         signature = render_signature(video, title, scenes)

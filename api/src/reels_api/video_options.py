@@ -25,7 +25,7 @@ from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH, is_hex
 from reels_render.timeline import VOICE_TAIL
 
 from . import config
-from .models import KnowledgeTopic, UserVideoDefaults, Video
+from .models import KnowledgeTopic, Scene, UserVideoDefaults, Video
 from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_vieneu
 
 DEFAULTS_KEY = "video_defaults"  # the team's defaults before 2026-11-09 (migration 0067): kept, never read
@@ -159,6 +159,18 @@ def effective(video: Video) -> dict:
     return values | {"voice_speed": OLD_SPEEDS.get(values["voice_speed"], values["voice_speed"])}
 
 
+def clean_voice_id(value: object) -> str:
+    """A voice id as typed or picked: an ElevenLabs id, or vieneu:<name>; "" for none."""
+    if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH:
+        raise OptionError("Mã giọng đọc không hợp lệ")
+    value = value.strip()
+    # VieNeu names its voices ("vieneu:Ngọc Lan"), so only its ids may hold single spaces.
+    spaced = " ".join(value.split()) == value if is_vieneu(value) else len(value.split()) <= 1
+    if not spaced or any(not char.isprintable() for char in value):
+        raise OptionError("Mã giọng đọc không hợp lệ")
+    return value
+
+
 def clean_speed(value: object) -> float:
     """A reading speed from the slider, kept to its step; an old preset name still means its level."""
     if isinstance(value, str) and value in OLD_SPEEDS:
@@ -202,13 +214,7 @@ def clean(values: dict, allow_video_fields: bool = False) -> dict:
                 )
             value = float(value)
         elif name == "voice_id":
-            if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH:
-                raise OptionError("Mã giọng đọc không hợp lệ")
-            value = value.strip()
-            # VieNeu names its voices ("vieneu:Ngọc Lan"), so only its ids may hold single spaces.
-            spaced = " ".join(value.split()) == value if is_vieneu(value) else len(value.split()) <= 1
-            if not spaced or any(not char.isprintable() for char in value):
-                raise OptionError("Mã giọng đọc không hợp lệ")
+            value = clean_voice_id(value)
         elif name == "music_track_id" and (
             value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1)
         ):
@@ -250,6 +256,13 @@ def clean_position(value: object) -> list[int] | None:
 
 def voice_id(video: Video) -> str:
     return effective(video)["voice_id"] or config.voice_id()
+
+
+def scene_voice(video: Video, scene: Scene) -> str:
+    """The voice a scene reads with: its own when it has one, else the video's. Every place that makes, signs or
+    checks a scene's narration goes through here, or a scene with its own voice would look stale on every render
+    and be paid for again."""
+    return scene.voice_id or voice_id(video)
 
 
 def voice_speed(video: Video) -> float:

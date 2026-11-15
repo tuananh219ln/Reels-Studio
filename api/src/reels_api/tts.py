@@ -42,7 +42,7 @@ def spoken_text(voice_text: str) -> str:
 
 # The reading speed is a tempo factor applied with FFmpeg to the MP3 ElevenLabs returns (the "Tốc độ đọc" slider).
 # ElevenLabs' own voice_settings.speed is not used: the default model, eleven_v3, ignores it.
-MIN_SPEED, MAX_SPEED, SPEED_STEP = 0.7, 1.3, 0.05
+MIN_SPEED, MAX_SPEED, SPEED_STEP = 0.7, 1.5, 0.05  # 1.5 for the fast comment-reading pages (2026-11-15)
 
 
 def is_vieneu(voice_id: str | None) -> bool:

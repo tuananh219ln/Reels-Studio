@@ -389,6 +389,14 @@ class Scene(Base):
     # blurred for the whole scene (reels_render/blur.py) while the scene still shows that clip.
     video_blur: Mapped[dict | None] = mapped_column(JSONB)
     voice_text: Mapped[str] = mapped_column(Text, default="")
+    # The scene's own narration voice (an ElevenLabs id or vieneu:<name>); None reads with the video's
+    # (video_options.scene_voice), as every scene did before migration 0091.
+    voice_id: Mapped[str | None] = mapped_column(String(64))
+    # "Hiện dần" of the scene's card ("Thẻ", reels_render.layers.CARD): {"parts": [{"until": the fraction of the card's
+    # height shown from this part on, "words": the part's narration words}, ...]}, the last part's until 1. The render
+    # lays the card once per part, each with its lower rows cleared, coming in as the narration reaches it
+    # (videos.reveal_steps). None: the card shows whole.
+    reveal: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # The last narration MP3 made for this scene and the tts.voice_signature it was made from: it is reused
     # while the signature still matches, so a re-render does not pay ElevenLabs again.
     voice_key: Mapped[str | None] = mapped_column(String(200))

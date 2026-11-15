@@ -90,6 +90,33 @@ export function isHalf(layer: Pick<SceneLayer, "kind" | "style">): boolean {
   return layer.kind === "photo" && layer.style === HALF;
 }
 
+/**
+ * "Thẻ" (layers.CARD): a screenshot card of its own kept whole, centred across and hung from its top edge (`y` is
+ * that edge), under the scene's text like an inset photo, on a slide video as on a backdrop.
+ */
+export const CARD = "card";
+
+export function isCard(layer: Pick<SceneLayer, "kind" | "style">): boolean {
+  return layer.kind === "photo" && layer.style === CARD;
+}
+
+/** Laid under the scene's text, in its own picture's seconds: an inset photo or a card. */
+export function isInset(layer: Pick<SceneLayer, "kind" | "style">): boolean {
+  return isHalf(layer) || isCard(layer);
+}
+
+/** Where a card's picture goes: centred across, its top edge at `top`, kept inside the frame (layers.card_corner). */
+export function cardCorner(width: number, height: number, top: number): [number, number] {
+  return [Math.floor((FRAME_WIDTH - width) / 2), Math.min(Math.max(top, 0), Math.max(FRAME_HEIGHT - height, 0))];
+}
+
+/** How much of a card shows `elapsed` seconds into its scene: the last part come in (1 when it shows whole). */
+export function cardShown(layer: Pick<SceneLayer, "reveal">, elapsed: number): number {
+  const steps = layer.reveal ?? [];
+  if (steps.length === 0) return 1;
+  return steps.filter((step) => step.start <= elapsed).at(-1)?.until ?? steps[0].until;
+}
+
 /** An inset photo's centre down the frame: kept inside it, and (`snap`, for a drag) snapped to a nearby edge or the
  * middle; arrow keys move it without snapping, so it can leave an edge in small steps. */
 export function halfY(y: number, percent: number = HALF_HEIGHT_DEFAULT, snap = true): number {
@@ -111,10 +138,11 @@ export function halfYResized(y: number, before: number, after: number): number {
   return halfY(y, after, false);
 }
 
-/** A layer's name in lists: its text, its sticker's name, "Ảnh chèn" or "Ảnh món". */
+/** A layer's name in lists: its text, its sticker's name, "Ảnh chèn", "Thẻ" or "Ảnh món". */
 export function layerName(layer: SceneLayer): string {
   if (layer.kind === "text") return layer.text.replaceAll("*", "").replace(/\s+/g, " ").trim();
   if (isHalf(layer)) return "Ảnh chèn";
+  if (isCard(layer)) return "Thẻ";
   if (layer.kind === "photo") return "Ảnh món";
   return STICKERS.find((item) => item.value === layer.sticker)?.label ?? layer.sticker;
 }

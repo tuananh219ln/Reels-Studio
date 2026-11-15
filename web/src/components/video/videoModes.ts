@@ -1,5 +1,5 @@
 import type { GroupVideoMode, SceneData, SceneLayer, VideoDetail, VideoMode, VideoOptions } from "@/lib/api";
-import { isHalf } from "./preview/layers";
+import { isInset } from "./preview/layers";
 
 /** "Kiểu video" (api videos.MODES). */
 export const VIDEO_MODES: { value: VideoMode; label: string; hint: string }[] = [
@@ -45,7 +45,7 @@ export function isBackdrop(video: Pick<VideoDetail, "mode">): boolean {
 
 /** The scene's "Ảnh món": a photo layer showing the scene's own photo (not a half-frame photo with its own). */
 export function photoLayer(layers: SceneLayer[]): SceneLayer | undefined {
-  return layers.find((layer) => layer.kind === "photo" && !isHalf(layer));
+  return layers.find((layer) => layer.kind === "photo" && !isInset(layer));
 }
 
 /**
