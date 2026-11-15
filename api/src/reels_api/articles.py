@@ -24,7 +24,16 @@ from reels_render.textbox import FONT_PATH
 from . import article_images, knowledge
 from . import hashtags as hashtag_rules
 from .claude import ClaudeError, ScriptOutputError, _assemble, _strings, fill_placeholders, json_object
-from .models import ACTIVE_JOB_STATUSES, Article, Job, KnowledgeTopic, PageComment
+from .models import (
+    ACTIVE_JOB_STATUSES,
+    Article,
+    ArticlePlan,
+    ArticlePlanSlot,
+    Fanpage,
+    Job,
+    KnowledgeTopic,
+    PageComment,
+)
 from .script_rules import banned_hits
 
 KIND_LABELS = {
@@ -348,6 +357,30 @@ def image_prompt_of(article: Article) -> str:
     return ""
 
 
+def _plan_slot(db: DbSession, article_id: int) -> dict | None:
+    from .article_plans import slot_time
+
+    row = db.execute(
+        select(ArticlePlanSlot, ArticlePlan, Fanpage)
+        .join(ArticlePlan, ArticlePlan.id == ArticlePlanSlot.plan_id)
+        .join(Fanpage, Fanpage.id == ArticlePlan.fanpage_id)
+        .where(ArticlePlanSlot.article_id == article_id)
+    ).first()
+    if row is None:
+        return None
+    slot, plan, page = row
+    at = slot_time(plan, slot.day, slot.slot) if slot.day is not None else None
+    return {
+        "id": slot.id,
+        "day": slot.day,
+        "slot": slot.slot,
+        "fanpage_id": page.id,
+        "fanpage_name": page.name,
+        "post_at": at.isoformat() if at else None,
+        "image_urls": slot.image_urls,
+    }
+
+
 def _job(job: Job | None) -> dict | None:
     return {"id": job.id, "status": job.status, "error": job.error} if job else None
 
@@ -358,6 +391,7 @@ def payload(db: DbSession, article: Article) -> dict:
     image_job = last_job(db, article.id, "article_image")
     images = article_images.images_of(db, article.id)
     comment = article.source_comment
+    plan_slot = _plan_slot(db, article.id)
     return {
         "id": article.id,
         "knowledge_topic_id": article.knowledge_topic_id,
@@ -380,6 +414,8 @@ def payload(db: DbSession, article: Article) -> dict:
         "has_image": bool(images),
         # The first photo's tag: the list's thumbnail (`/api/articles/{id}/image`) follows it.
         "image_version": article_images.version(images[0]) if images else None,
+        # The plan script it was made from ("Ngày 5 · Khung 2"), its Page and the time planned for it.
+        "plan_slot": plan_slot,
         "image_query": article.image_query,
         "image_prompt": article.image_prompt,
         "image_aspect": article.image_aspect,

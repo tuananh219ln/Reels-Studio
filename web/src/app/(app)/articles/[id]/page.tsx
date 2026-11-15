@@ -13,6 +13,7 @@ import {
   ApiError,
   api,
   errorMessage,
+  formatDateTime,
   formatTime,
   type Article,
   type ArticleOptions,
@@ -286,6 +287,17 @@ export default function ArticlePage() {
         </Flex>
       </Flex>
 
+      {article.plan_slot && (
+        <Typography.Text type="secondary" data-testid="article-plan-link">
+          Từ kế hoạch của {article.plan_slot.fanpage_name}:{" "}
+          <Link prefetch={false} href={`/articles?view=plan&fanpage=${article.plan_slot.fanpage_id}`}>
+            {article.plan_slot.day !== null
+              ? `Ngày ${article.plan_slot.day} · Khung ${article.plan_slot.slot}`
+              : "Backlog"}
+          </Link>
+          {article.plan_slot.post_at ? ` · giờ đăng theo kế hoạch ${formatDateTime(article.plan_slot.post_at)}` : ""}
+        </Typography.Text>
+      )}
       {failed && <Alert type="error" showIcon title={`AI viết chưa được: ${failed}`} />}
       {article.publish_error && article.retry ? (
         <Alert

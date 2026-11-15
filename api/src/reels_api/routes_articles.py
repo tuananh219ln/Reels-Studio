@@ -20,6 +20,7 @@ from . import (
     affiliate,
     analytics,
     article_images,
+    article_plans,
     article_posts,
     articles,
     fanpages,
@@ -35,6 +36,8 @@ from .models import (
     AffiliateProduct,
     Article,
     ArticleAffiliateProduct,
+    ArticlePlan,
+    ArticlePlanSlot,
     Fanpage,
     KnowledgeTopic,
     MediaItem,
@@ -70,10 +73,12 @@ OPEN_POSTS = ("pending", "scheduled", "published")
 
 
 class NewArticleBody(BaseModel):
-    knowledge_topic_id: int
-    kind: str
+    knowledge_topic_id: int | None = None
+    kind: str = "kien_thuc"
     topic: str = ""
     source_comment_id: int | None = None
+    # "Tạo bài từ ô này": the article is filled from that script of a Page's plan, which becomes "Đã dùng".
+    plan_slot_id: int | None = None
 
 
 class ArticlePatchBody(BaseModel):
@@ -225,6 +230,10 @@ def attention(me: Session = Depends(current_member), db: DbSession = Depends(get
 def create_article(
     body: NewArticleBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
 ) -> dict:
+    if body.plan_slot_id is not None:
+        return _from_plan_slot(db, body.plan_slot_id, me)
+    if body.knowledge_topic_id is None:
+        raise invalid("Chọn nhóm chủ đề của bài")
     article = Article(
         knowledge_topic_id=_group(db, body.knowledge_topic_id),
         kind=_kind(body.kind),
@@ -234,6 +243,40 @@ def create_article(
     )
     db.add(article)
     db.flush()
+    return _saved(db, article)
+
+
+def _from_plan_slot(db: DbSession, slot_id: int, me: Session) -> dict:
+    """An article from a plan's script, by the Page's owner: its caption (hook, body, call to comment), hashtags,
+    kind, group and photo brief; the script's photo links are added by the page afterwards, one by one."""
+    slot = db.scalar(select(ArticlePlanSlot).where(ArticlePlanSlot.id == slot_id).with_for_update())
+    if slot is None:
+        raise ApiError(404, "plan_slot_not_found", "Không tìm thấy kịch bản (có thể đã bị xoá)")
+    plan = db.get(ArticlePlan, slot.plan_id)
+    page = db.get(Fanpage, plan.fanpage_id)
+    if page.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", f"Chỉ chủ Page “{page.name}” mới tạo bài từ kế hoạch của Page này")
+    if slot.article_id is not None:
+        raise ApiError(409, "plan_slot_used", "Kịch bản này đã có bài viết")
+    group_id = slot.knowledge_topic_id or next(
+        (group for group in plan.topic_group_ids if db.get(KnowledgeTopic, group) is not None), None
+    )
+    if group_id is None:
+        group_id = db.scalar(select(KnowledgeTopic.id).order_by(KnowledgeTopic.id).limit(1))
+    caption = article_plans.caption_of(slot)
+    article = Article(
+        knowledge_topic_id=group_id,
+        kind=slot.kind or "kien_thuc",
+        topic=slot.hook[: articles.MAX_TOPIC_LENGTH],
+        caption=caption[: articles.MAX_CAPTION_LENGTH],
+        hashtags=articles.clean_hashtags(slot.hashtags),
+        image_query=slot.image_brief[: articles.MAX_IMAGE_QUERY_LENGTH],
+        image_prompt=slot.image_brief[: articles.MAX_IMAGE_PROMPT_LENGTH],
+        created_by_id=me.user_id,
+    )
+    db.add(article)
+    db.flush()
+    slot.article_id, slot.skipped = article.id, False
     return _saved(db, article)
 
 

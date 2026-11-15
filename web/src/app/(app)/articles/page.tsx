@@ -2,6 +2,7 @@
 import ArticleActions from "@/components/actions/ArticleActions";
 
 import ArticleThumb from "@/components/ArticleThumb";
+import ArticlePlanTab from "@/components/article/ArticlePlanTab";
 import EmptyState from "@/components/EmptyState";
 import FilterSelect from "@/components/FilterSelect";
 import FormDrawer from "@/components/FormDrawer";
@@ -23,7 +24,7 @@ import {
 import { usePolling } from "@/lib/polling";
 import { useUrlChoice } from "@/lib/urlState";
 import { PlusOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Card, Flex, Form, Input, Select, Spin, Table, Typography } from "antd";
+import { Alert, App, Button, Card, Flex, Form, Input, Segmented, Select, Spin, Table, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -159,6 +160,8 @@ function Articles() {
   const [group, setGroup] = useUrlChoice<string | null>("group", null);
   const [kind, setKind] = useUrlChoice<ArticleKind | null>("kind", null);
   const [creating, setCreating] = useState(false);
+  // "Danh sách bài" or "Kế hoạch 30 ngày" (`?view=plan`).
+  const [view, setView] = useUrlChoice<"list" | "plan">("view", "list", ["list", "plan"]);
   const { me } = useMe();
   // "Của tôi" or "Cả đội"; null until chosen (the default follows whether the member has made an article).
   const [whosePick, setWhose] = useUrlChoice<Whose | null>("whose", null, ["mine", "all"]);
@@ -319,67 +322,88 @@ function Articles() {
           </Button>
         }
       >
-        <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={all.length} />
-        <FilterSelect<string>
-          value={group}
-          placeholder="Mọi nhóm chủ đề"
-          onChange={(value) => setGroup(value ?? null)}
-          options={groups.map((name) => ({ value: name, label: name }))}
+        <Segmented<"list" | "plan">
+          aria-label="Xem"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "list", label: "Danh sách bài" },
+            { value: "plan", label: "Kế hoạch 30 ngày" },
+          ]}
         />
-        <FilterSelect<ArticleKind>
-          value={kind}
-          placeholder="Mọi dạng bài"
-          onChange={(value) => setKind(value ?? null)}
-          options={data?.kinds ?? []}
-        />
-      </PageHeader>
-      {myFailed.length > 0 && (
-        <Alert
-          type="error"
-          showIcon
-          style={{ marginBottom: 12 }}
-          title={`${myFailed.length} bài của bạn đăng lỗi`}
-          description={
-            <Flex gap={8} wrap>
-              {myFailed.map((row) => (
-                <Link key={row.id} prefetch={false} href={`/articles/${row.id}`}>
-                  {row.hook || row.topic || `Bài #${row.id}`}
-                </Link>
-              ))}
-            </Flex>
-          }
-          data-testid="articles-failed"
-        />
-      )}
-      <Card styles={{ body: { padding: 0 } }}>
-        {data === null ? (
-          <Flex justify="center" style={{ padding: 48 }}>
-            <Spin />
-          </Flex>
-        ) : (
-          <Table<Article>
-            rowKey="id"
-            columns={columns}
-            dataSource={rows}
-            pagination={false}
-            scroll={{ x: "max-content" }}
-            locale={{
-              emptyText: (
-                <EmptyState
-                  description={whose === "mine" ? "Không có bài viết nào của bạn khớp bộ lọc" : "Chưa có bài viết nào"}
-                  action={
-                    whose !== "mine" && (
-                      <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
-                        Viết bài đầu tiên
-                      </Button>
-                    )
-                  }
-                />
-              ),
-            }}
-          />
+        {view === "list" && (
+          <>
+            <WhoseFilter value={whose} onChange={setWhose} mine={mineCount} all={all.length} />
+            <FilterSelect<string>
+              value={group}
+              placeholder="Mọi nhóm chủ đề"
+              onChange={(value) => setGroup(value ?? null)}
+              options={groups.map((name) => ({ value: name, label: name }))}
+            />
+            <FilterSelect<ArticleKind>
+              value={kind}
+              placeholder="Mọi dạng bài"
+              onChange={(value) => setKind(value ?? null)}
+              options={data?.kinds ?? []}
+            />
+          </>
         )}
-      </Card>
+      </PageHeader>
+      {view === "plan" ? (
+        <ArticlePlanTab />
+      ) : (
+        <>
+          {myFailed.length > 0 && (
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginBottom: 12 }}
+              title={`${myFailed.length} bài của bạn đăng lỗi`}
+              description={
+                <Flex gap={8} wrap>
+                  {myFailed.map((row) => (
+                    <Link key={row.id} prefetch={false} href={`/articles/${row.id}`}>
+                      {row.hook || row.topic || `Bài #${row.id}`}
+                    </Link>
+                  ))}
+                </Flex>
+              }
+              data-testid="articles-failed"
+            />
+          )}
+          <Card styles={{ body: { padding: 0 } }}>
+            {data === null ? (
+              <Flex justify="center" style={{ padding: 48 }}>
+                <Spin />
+              </Flex>
+            ) : (
+              <Table<Article>
+                rowKey="id"
+                columns={columns}
+                dataSource={rows}
+                pagination={false}
+                scroll={{ x: "max-content" }}
+                locale={{
+                  emptyText: (
+                    <EmptyState
+                      description={
+                        whose === "mine" ? "Không có bài viết nào của bạn khớp bộ lọc" : "Chưa có bài viết nào"
+                      }
+                      action={
+                        whose !== "mine" && (
+                          <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>
+                            Viết bài đầu tiên
+                          </Button>
+                        )
+                      }
+                    />
+                  ),
+                }}
+              />
+            )}
+          </Card>
+        </>
+      )}
       <NewArticleDrawer open={creating} kinds={data?.kinds ?? []} onClose={() => setCreating(false)} />
     </>
   );

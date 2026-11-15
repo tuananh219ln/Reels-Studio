@@ -1051,6 +1051,16 @@ export type Article = {
   has_image: boolean;
   /** The first photo's tag, so the list's thumbnail never shows an old one. */
   image_version: string | null;
+  /** The plan script it was made from ("Ngày 5 · Khung 2"), its Page and the time planned for it. */
+  plan_slot: {
+    id: number;
+    day: number | null;
+    slot: number | null;
+    fanpage_id: number;
+    fanpage_name: string;
+    post_at: string | null;
+    image_urls: string[];
+  } | null;
   /** "Từ khóa tìm ảnh": what "Tìm ảnh" searches. */
   image_query: string;
   /** "Nâng cao: Prompt ảnh AI"; empty: the search words, then the topic. */
@@ -1119,6 +1129,91 @@ export type ArticleImage = {
   url: string;
   /** The photo with a Page's logo, as it will be posted: add `&fanpage_id=`. */
   preview_url: string;
+};
+
+/** One script of a Page's 30-day article plan (api article_plans.slot_payload). */
+export type PlanSlot = {
+  id: number;
+  day: number | null;
+  slot: number | null;
+  hook: string;
+  body: string;
+  cta: string;
+  hashtags: string[];
+  image_brief: string;
+  image_urls: string[];
+  kind: ArticleKind | null;
+  kind_label: string | null;
+  knowledge_topic_id: number | null;
+  group_name: string | null;
+  keywords: string[];
+  source: "ai" | "import" | "manual";
+  skipped: boolean;
+  status: "unused" | "used" | "scheduled" | "posted" | "skipped";
+  status_label: string;
+  article_id: number | null;
+  /** Its day at its slot's posting time; null in the Backlog. */
+  post_at: string | null;
+  created_by_id: number;
+};
+
+/** A Page's plan tab (GET /api/article-plans/{fanpage_id}). */
+export type ArticlePlanView = {
+  fanpage: { id: number; name: string; owner_id: number | null };
+  can_edit: boolean;
+  defaults: { per_day: number; post_times: string[] };
+  kinds: { value: ArticleKind; label: string }[];
+  plan: {
+    id: number;
+    start_date: string | null;
+    end_date: string | null;
+    today_day: number | null;
+    per_day: number;
+    post_times: string[];
+    topic_group_ids: number[];
+    kind_mix: Partial<Record<ArticleKind, number>>;
+    tone: string;
+    total: number;
+    used: number;
+    scheduled: number;
+    posted: number;
+    empty_days: number;
+    backlog: number;
+  } | null;
+  slots: PlanSlot[];
+  backlog: PlanSlot[];
+  /** The earliest unused script from today on: "Tạo bài viết" offers it first. */
+  next_slot_id: number | null;
+};
+
+/** One row of a plan file as previewed (api article_plans.Row). */
+export type PlanImportRow = {
+  row: number;
+  day: number | null;
+  slot: number | null;
+  hook: string;
+  body: string;
+  cta: string;
+  hashtags: string[];
+  image_brief: string;
+  image_urls: string[];
+  kind: ArticleKind | null;
+  knowledge_topic_id: number | null;
+  /** The kind and topic group as the file names them. */
+  format: string;
+  topic_group: string;
+  errors: string[];
+  warnings: string[];
+  /** "day:slot", "backlog" or "skip". */
+  target: string;
+  note: string;
+  check: "ok" | "warning" | "error";
+};
+
+export type PlanImportPreview = {
+  rows: PlanImportRow[];
+  counts: { ok: number; warning: number; error: number; backlog: number };
+  file_name: string;
 };
 
 export type ArticleNumbers = {

@@ -142,3 +142,50 @@ test("Bài viết: only a Page's owner is offered it to post to", async ({ page,
   await expect(publish.getByTestId("no-page-of-mine")).toContainText("Chỉ chủ Page mới đăng lên Page đó");
   await expect(publish.getByLabel("Fanpage")).toHaveCount(0);
 });
+
+test("Bài viết: a Page's 30-day plan is set up, filled from a file, and an article made from a script", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginAsSeed(page);
+  await connectFacebook(page);
+  await page.getByRole("menuitem", { name: "Bài viết" }).click();
+  await page.getByText("Kế hoạch 30 ngày", { exact: true }).click();
+  const plan = page.getByTestId("article-plan");
+  // No plan yet: its owner starts on "Thiết lập".
+  const settings = plan.getByTestId("plan-settings");
+  const today = new Date(Date.now() + 7 * 3_600_000).toISOString().slice(0, 10);
+  await settings.getByLabel("Ngày bắt đầu").fill(today);
+  await settings.getByRole("button", { name: "Lưu" }).click();
+  await expect(plan.getByTestId("plan-summary")).toHaveText(
+    "Đã làm 0/90, đã lên lịch 0, ngày còn trống 30 · Backlog 0",
+  );
+
+  await plan.getByRole("button", { name: "Nhập file JSON/CSV" }).click();
+  const dialog = page.getByRole("dialog", { name: /Nhập file JSON\/CSV/ });
+  await dialog.locator('input[type="file"]').setInputFiles({
+    name: "ke-hoach.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from(
+      "day,slot,hook,body,cta,hashtags,image_brief,format,topic_group\n" +
+        "1,1,Bữa sáng 10 phút,Sáng nào cũng vội?,Bạn ăn sáng món gì?,#ansang,,Mẹo,\n" +
+        ",,Uống nước lúc nào?,Nội dung,,,,,\n" +
+        "2,1,Thiếu body,,,,,,\n",
+    ),
+  });
+  await expect(dialog.getByText("2 hợp lệ", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("1 lỗi", { exact: true })).toBeVisible();
+  await expect(dialog.getByText("Thiếu body", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Lưu kế hoạch (2 dòng)" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(plan.getByTestId("plan-summary")).toHaveText(
+    "Đã làm 0/90, đã lên lịch 0, ngày còn trống 30 · Backlog 1",
+  );
+  await expect(plan.getByTestId("plan-backlog")).toContainText("Uống nước lúc nào?");
+
+  await plan.getByRole("button", { name: "Ngày 1 khung 1: Bữa sáng 10 phút" }).click();
+  const drawer = page.getByRole("dialog", { name: /Ngày 1 · Khung 1/ });
+  await drawer.getByRole("button", { name: "Tạo bài từ ô này" }).click();
+  await expect(page).toHaveURL(/\/articles\/\d+$/);
+  await expect(page.getByLabel("Caption")).toHaveValue("Bữa sáng 10 phút\n\nSáng nào cũng vội?\n\nBạn ăn sáng món gì?");
+});

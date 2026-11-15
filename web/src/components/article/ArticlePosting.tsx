@@ -11,6 +11,7 @@ import {
   errorMessage,
   formatDateTime,
   fromVietnamInput,
+  vietnamInputValue,
   type Article,
   type ArticleNumbers,
   type ArticleOptions,
@@ -123,9 +124,13 @@ export function PublishButton({
 }) {
   const { message, modal } = App.useApp();
   const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState<number | null>(null);
-  const [mode, setMode] = useState<"now" | "later">("now");
-  const [when, setWhen] = useState("");
+  // An article made from a plan's script starts on its Page at its slot's time, while that time is still ahead
+  // (Facebook takes a time from 15 minutes on).
+  const plannedAt = article.plan_slot?.post_at ?? null;
+  const planned = plannedAt !== null && new Date(plannedAt).getTime() > Date.now() + 16 * 60_000;
+  const [picked, setPicked] = useState<number | null>(article.plan_slot?.fanpage_id ?? null);
+  const [mode, setMode] = useState<"now" | "later">(planned ? "later" : "now");
+  const [when, setWhen] = useState(planned && plannedAt ? vietnamInputValue(plannedAt) : "");
   const [busy, setBusy] = useState(false);
   const [loadedOptions, setLoadedOptions] = useState<ArticleOptions | null>(null);
   useEffect(() => {

@@ -1108,6 +1108,76 @@ class ArticleImage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class ArticlePlan(Base):
+    """A Page's 30-day plan of article scripts ("Kế hoạch 30 ngày" on Bài viết, article_plans.py): one per Page.
+    Day 1 is `start_date` (Vietnam time); each day has `per_day` slots posted at `post_times`. The topic groups, the
+    mix of kinds and the voice are what "Tạo bằng AI" writes from."""
+
+    __tablename__ = "article_plans"
+    __table_args__ = (CheckConstraint("per_day BETWEEN 1 AND 10", name="per_day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fanpage_id: Mapped[int] = mapped_column(ForeignKey("fanpages.id", ondelete="CASCADE"), unique=True)
+    start_date: Mapped[date | None] = mapped_column(Date)
+    per_day: Mapped[int] = mapped_column(Integer, default=3, server_default="3")
+    post_times: Mapped[list] = mapped_column(
+        JSONB, default=lambda: ["07:00", "11:30", "20:00"], server_default=text('\'["07:00", "11:30", "20:00"]\'')
+    )
+    topic_group_ids: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    kind_mix: Mapped[dict] = mapped_column(JSONB, default=dict, server_default=text("'{}'::jsonb"))  # kind -> %
+    tone: Mapped[str] = mapped_column(Text, default="", server_default="")
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    fanpage: Mapped[Fanpage] = relationship()
+
+
+ARTICLE_SLOT_SOURCES = ("ai", "import", "manual")
+
+
+class ArticlePlanSlot(Base):
+    """One article script of a plan, on a day and slot, or in the plan's Backlog when both are None. "Đã dùng" while
+    an article made from it exists (`article_id`; deleting the article frees it again); `skipped` is "Bỏ qua"."""
+
+    __tablename__ = "article_plan_slots"
+    __table_args__ = (
+        CheckConstraint("(day IS NULL) = (slot IS NULL)", name="day_and_slot"),
+        CheckConstraint("day IS NULL OR day BETWEEN 1 AND 30", name="day"),
+        CheckConstraint("slot IS NULL OR slot BETWEEN 1 AND 10", name="slot"),
+        Index(
+            "uq_article_plan_slots_cell",
+            "plan_id",
+            "day",
+            "slot",
+            unique=True,
+            postgresql_where=text("day IS NOT NULL"),
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("article_plans.id", ondelete="CASCADE"), index=True)
+    day: Mapped[int | None] = mapped_column(Integer)
+    slot: Mapped[int | None] = mapped_column(Integer)
+    hook: Mapped[str] = mapped_column(Text)
+    body: Mapped[str] = mapped_column(Text, default="", server_default="")
+    cta: Mapped[str] = mapped_column(Text, default="", server_default="")
+    hashtags: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    image_brief: Mapped[str] = mapped_column(Text, default="", server_default="")
+    image_urls: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    kind: Mapped[str | None] = mapped_column(String(32))  # one of ARTICLE_KINDS
+    knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="SET NULL"))
+    keywords: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    source: Mapped[str] = mapped_column(String(8), default="manual", server_default="manual")
+    skipped: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="SET NULL"), unique=True)
+    created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class MediaItem(Base):
     """A photo or clip in the team's "Kho tư liệu" (routes_media.py): uploaded, a whole folder at a time, or downloaded
     from a pasted link (a photo from Google Ảnh, a TikTok video). Using it in a scene copies the file, like "Đã dùng
