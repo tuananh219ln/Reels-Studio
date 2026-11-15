@@ -66,6 +66,7 @@ from .video_options import (
     scene_voice,
     text_case,
     text_size,
+    voice_id,
     voice_pause,
     voice_speed,
 )
@@ -355,8 +356,9 @@ def scene_marks(video: Video, title: Scene | None, scenes: list[Scene]) -> list[
     return marks
 
 
-def _voice(video: Video, scene: Scene) -> tuple[str, float]:
-    return scene_voice(video, scene), voice_speed(video)
+def _voice(video: Video, scene: Scene | None = None) -> tuple[str, float]:
+    """The voice and speed a scene's narration is made with; without a scene, the video's own voice."""
+    return (scene_voice(video, scene) if scene is not None else voice_id(video)), voice_speed(video)
 
 
 def text_position(video: Video, scene: Scene) -> list[int] | None:

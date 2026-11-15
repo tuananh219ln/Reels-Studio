@@ -625,10 +625,13 @@ export default function VideoPreview({
   const patchScene = (body: Record<string, unknown>) => changeScene("sửa cảnh", scene, body);
 
   /** The newest layer of a scene in a saved video: the one just added. */
+  const adding = useRef<Promise<void>>(Promise.resolve());
   const newestLayer = (saved: VideoDetail, sceneId: number) =>
     [saved.title_scene, ...saved.scenes].find((item) => item?.id === sceneId)?.layers.at(-1)?.id ?? null;
 
-  /** A text or sticker layer added to the scene shown, from the playhead's second in it; picked once added. */
+  /** A text or sticker layer added to the scene shown, from the playhead's second in it; picked once added. Adds go
+   * one after another in the order they were pressed: two sent at once could land the other way round, putting the
+   * first on top and picking it instead of the one pressed last. */
   function addLayer(body: Record<string, unknown>) {
     const target = scene;
     if (!target || target.is_title) return;
@@ -636,16 +639,20 @@ export default function VideoPreview({
     const into = Math.floor((position() - startOf(phase.index)) * 10) / 10;
     const start = Math.min(Math.max(0, into), Math.max(0, target.fitted_seconds - 0.5));
     let made: number | null = null;
-    void history.run({
-      label: body.kind === "text" ? "thêm chữ" : "thêm sticker",
-      redo: async () => {
-        const saved = await api<VideoDetail>("/layers", "POST", { scene_id: target.id, start, ...body });
-        made = newestLayer(saved, target.id);
-        setPickedLayer(made);
-        return saved;
-      },
-      undo: () => api<VideoDetail>(`/layers/${made}`, "DELETE"),
-    });
+    adding.current = adding.current.then(() =>
+      history.run({
+        label: body.kind === "text" ? "thêm chữ" : "thêm sticker",
+        redo: async () => {
+          const saved = await api<VideoDetail>("/layers", "POST", { scene_id: target.id, start, ...body });
+          made = newestLayer(saved, target.id);
+          setPickedLayer(made);
+          return saved;
+        },
+        undo: () => api<VideoDetail>(`/layers/${made}`, "DELETE"),
+      }),
+    );
+    // A failed add (already shown by the save) never holds up the next one.
+    adding.current = adding.current.catch(() => undefined);
   }
 
   /** A change to one layer, kept for "Hoàn tác". */
