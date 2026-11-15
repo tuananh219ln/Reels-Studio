@@ -151,6 +151,13 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   with no entrance; drawing the blur again replaces them). A scene with no text is left alone (the Threads pages'
   cards); the title takes no layers, so what still shows there is only reported (`cover` in the answer). `move_text`
   false turns this off.
+- **Comment-reading cards** (2026-11-15, [decisions/2026-11-15-threads-card-reveal-voice.md](decisions/2026-11-15-threads-card-reveal-voice.md)):
+  `set_scene_card` lays a screenshot card (a library photo or a photo link) whole over the scene's clip or photo,
+  centred and hung from `top` (`width` 50–100% of the frame), and answers with the card's pixel size;
+  `set_card_reveal` shows it part by part (`[{cut_y, text}]`, the last without `cut_y`; `[]` turns it off), each part
+  coming in as the narration reaches its words, the scene's narration becoming the parts' words. `update_scene` takes
+  `voice_id`, the scene's own voice ("" back to the video's): only that scene is read again. A different background
+  per card is a clip per scene with the `cut` transition.
 - **"Không dùng cảnh có người"** (`knowledge_topics.no_people`, migration 0090, a switch on the group's "Cài đặt nhóm",
   logged in its history; on for "Ăn Lành Sống Khỏe" only): every video carries its group's `no_people`, and the
   instructions say that with it on, no photo or clip stretch shows a face, a body or someone talking to the camera;

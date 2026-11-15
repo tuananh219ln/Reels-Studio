@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session as DbSession
 from reels_render.blur import parse_blur
 from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.errors import InputError
+from reels_render.layers import card_corner, render_card
 from reels_render.script import MAX_VIDEO_SPEED, MIN_VIDEO_SPEED
 from reels_render.sounds import MUSIC_LEVELS
 from reels_render.textbox import FRAME_WIDTH
@@ -99,6 +100,7 @@ from .videos import (
     ensure_unlocked,
     follow_narration,
     group_video_mode,
+    is_card_layer,
     list_extras,
     list_payload,
     lock_scene,
@@ -193,6 +195,7 @@ class ScenePatchBody(BaseModel):
     keywords_en: list[str] | None = None
     image_prompt: str | None = None
     voice_text: str | None = None
+    voice_id: object = None  # the scene's own voice; "" or null: the video's (video_options.scene_voice)
     video_start: float | None = None
     video_speed: float | None = None
     video_sound: bool | None = None  # "Tiếng gốc": the clip's own sound is heard in the render
@@ -1152,6 +1155,7 @@ def split_scene(
         transition="cut",
         color=scene.color,
         music_level=scene.music_level,
+        voice_id=scene.voice_id,
     )
     db.add(rest)
     db.flush()
@@ -1213,6 +1217,13 @@ def patch_scene(
         scene.image_prompt = _clean_text(body.image_prompt, MAX_LONG_TEXT_LENGTH, "Prompt ảnh").strip()
     if "voice_text" in fields and body.voice_text is not None:
         scene.voice_text = _clean_text(body.voice_text, MAX_VOICE_LENGTH, "Lời đọc").strip()
+    if "voice_id" in fields:
+        try:
+            voice = video_options.clean_voice_id(body.voice_id or "")
+        except video_options.OptionError as err:
+            raise invalid(str(err)) from None
+        # Only this scene's narration is made again, on the next voice job or render; the others keep theirs.
+        scene.voice_id = voice or None
     start_changed = False
     if "video_start" in fields and body.video_start is not None:
         if not scene.video_key:
@@ -2201,11 +2212,28 @@ def scene_preview(
         raise ApiError(404, "file_not_found", "Cảnh chưa có ảnh hoặc không lấy được khung hình từ video")
     video = db.get(Video, scene.video_id)
     frame = frames.compose_frame(
-        still, scene.text, scene.is_title, video_options.render_options(video), text_position(video, scene)
+        still,
+        scene.text,
+        scene.is_title,
+        video_options.render_options(video),
+        text_position(video, scene),
+        under=_card_under(storage, scene),
     )
     return Response(
         frames.jpeg_bytes(frame), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=3600"}
     )
+
+
+def _card_under(storage: DirectoryStorage, scene: Scene) -> list:
+    """The scene's card ("Thẻ") whole, where the render lays it under the text; nothing without one."""
+    card = next((layer for layer in scene.layers if is_card_layer(layer) and layer.image_key), None)
+    if card is None or not storage.exists(card.image_key):
+        return []
+    try:
+        picture = render_card(storage.path(card.image_key), card.height)
+    except ValueError:
+        return []
+    return [(picture, card_corner(picture.width, picture.height, card.y))]
 
 
 @router.get("/scenes/{scene_id}/frame.jpg")

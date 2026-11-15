@@ -11,6 +11,10 @@ from .effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from .errors import InputError
 from .layers import (
     ANIMATIONS,
+    CARD,
+    CARD_WIDTH_DEFAULT,
+    CARD_WIDTH_MAX,
+    CARD_WIDTH_MIN,
     HALF,
     HALF_HEIGHT_DEFAULT,
     HALF_HEIGHT_MAX,
@@ -269,9 +273,20 @@ def _parse_layers(value: object, label: str, base_dir: Path) -> tuple[Layer, ...
                 raise InputError(f'{where}: lớp ảnh cần "image"')
             if not (base_dir / image).is_file():
                 raise InputError(f"{where}: không tìm thấy file ảnh {image}")
-        # A photo layer is framed (PHOTO_SHAPES) or a half-frame photo (layers.HALF).
-        photo_styles = {**PHOTO_SHAPES, HALF: None}
-        style_presets, default_style = (photo_styles, "rounded") if kind == "photo" else (TEXT_STYLES, "outline")
+        # A photo layer is framed (PHOTO_SHAPES), a half-frame photo (layers.HALF) or a card (layers.CARD).
+        photo_styles = {**PHOTO_SHAPES, HALF: None, CARD: None}
+        style = _parse_preset(
+            item.get("style", "rounded" if kind == "photo" else "outline"),
+            "style",
+            photo_styles if kind == "photo" else TEXT_STYLES,
+            where,
+        )
+        # A card's size is its width percent; every other layer's `height` is an inset photo's side.
+        low, high, default_height = (
+            (CARD_WIDTH_MIN, CARD_WIDTH_MAX, CARD_WIDTH_DEFAULT)
+            if kind == "photo" and style == CARD
+            else (HALF_HEIGHT_MIN, HALF_HEIGHT_MAX, HALF_HEIGHT_DEFAULT)
+        )
         layer = Layer(
             kind=kind,
             text=text if kind == "text" else "",
@@ -281,12 +296,10 @@ def _parse_layers(value: object, label: str, base_dir: Path) -> tuple[Layer, ...
             x=int(_number(item.get("x", FRAME_WIDTH // 2), "x", where, 0, FRAME_WIDTH)),
             y=int(_number(item.get("y", FRAME_HEIGHT // 2), "y", where, 0, FRAME_HEIGHT)),
             size=_parse_preset(item.get("size", "medium"), "size", SIZES, where),
-            style=_parse_preset(item.get("style", default_style), "style", style_presets, where),
+            style=style,
             animation=_parse_preset(item.get("animation", "fade"), "animation", ANIMATIONS, where),
             image=base_dir / image if kind == "photo" else None,
-            height=int(
-                _number(item.get("height", HALF_HEIGHT_DEFAULT), "height", where, HALF_HEIGHT_MIN, HALF_HEIGHT_MAX)
-            ),
+            height=int(_number(item.get("height", default_height), "height", where, low, high)),
         )
         if kind in ("text", "photo"):
             try:

@@ -47,7 +47,7 @@ from .models import AffiliateProduct, KnowledgeTopic, Scene, SceneLayer, SceneSo
 from .ownership import ensure_owner
 from .storage import get_storage
 from .videos import content_types as team_content_types
-from .videos import marks_of, text_position
+from .videos import is_card_layer, marks_of, text_position
 
 log = logging.getLogger(__name__)
 
@@ -121,12 +121,16 @@ def _compact_scene(scene: dict) -> dict:
     }
     if video:
         row["clip"] = {key: video.get(key) for key in ("start", "seconds", "speed", "blur")}
-    for key in ("image_credit", "image_error"):
+    for key in ("image_credit", "image_error", "voice_id"):
         if scene.get(key):
             row[key] = scene[key]
     if scene.get("layers"):
         row["layers"] = [
-            {key: layer.get(key) for key in ("id", "kind", "text", "sticker") if layer.get(key) not in (None, "")}
+            {
+                key: layer.get(key)
+                for key in ("id", "kind", "text", "sticker", "style", "reveal")
+                if layer.get(key) not in (None, "", [])
+            }
             for layer in scene["layers"]
         ]
     if scene.get("sounds"):
@@ -532,12 +536,20 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             list[int] | None, Field(description="Tâm hộp chữ của riêng cảnh này [x, y] trong khung 1080×1920")
         ] = None,
         reset_text_position: bool = False,
+        voice_id: Annotated[
+            str | None,
+            Field(
+                description='Giọng đọc riêng của cảnh này (mã ElevenLabs hoặc "vieneu:<tên>"); "" về giọng của video'
+            ),
+        ] = None,
     ) -> dict:
         """Sửa chữ/lời đọc/thời lượng/từ khóa/prompt ảnh của một cảnh, kể cả cảnh tiêu đề. Với cảnh có clip:
         video_start là giây trong clip nơi cảnh bắt đầu, video_speed là tốc độ (1 là thường), video_sound bật/tắt
         "Tiếng gốc" (tiếng của clip có trong video xuất ra; clip phải có tiếng). text_position dời hộp chữ của riêng
         cảnh này (như kéo chữ trên web; render giữ hộp trong vùng an toàn, cảnh tiêu đề chỉ dời lên xuống),
-        reset_text_position đưa về chỗ chung của video. Không tạo ảnh."""
+        reset_text_position đưa về chỗ chung của video. voice_id đặt giọng riêng cho cảnh (ví dụ đoạn kết đọc
+        bằng giọng khác); chỉ cảnh đó được tạo lại giọng ở lần render sau (tốn ký tự cho riêng cảnh đó), giọng
+        mặc định của cả video vẫn đặt bằng "Tùy chọn của video". Không tạo ảnh."""
         fields = given(
             text=text,
             voice_text=voice_text,
@@ -549,6 +561,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             video_speed=video_speed,
             video_sound=video_sound,
             text_position=text_position,
+            voice_id=voice_id,
         )
         if reset_text_position:
             fields["text_position"] = None
@@ -833,8 +846,9 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
     @tool("Xem khung hình của cảnh", read=True, images=True)
     async def view_scene(scene_id: int) -> Image:
-        """Ảnh xem trước của cảnh như khi render: ảnh hoặc khung đầu clip, với chữ của cảnh đặt đúng chỗ (chưa có
-        lớp chữ/sticker, chuyển cảnh và chuyển động). Xem để kiểm tra chữ có đọc được, có che sản phẩm không."""
+        """Ảnh xem trước của cảnh như khi render: ảnh hoặc khung đầu clip, thẻ của cảnh (nguyên thẻ, kể cả khi hiện
+        dần) và chữ của cảnh đặt đúng chỗ (chưa có lớp chữ/sticker, chuyển cảnh và chuyển động). Xem để kiểm tra chữ
+        có đọc được, có che sản phẩm hay che thẻ không."""
 
         def operation(db, me):
             response = videos.scene_preview(scene_id, me, db, get_storage())
@@ -1164,6 +1178,61 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             lambda db, me: changed(
                 layer_routes.delete_layer(_own_part(db, SceneLayer, layer_id, me), me, db, get_storage())
             ),
+            write=True,
+        )
+
+    @tool("Gắn thẻ cho cảnh", read=False)
+    async def set_scene_card(
+        scene_id: int,
+        media_id: int | None = None,
+        url: str | None = None,
+        top: Annotated[
+            int | None, Field(description="Mép trên của thẻ trong khung 1080×1920 (px); mặc định 220")
+        ] = None,
+        width: Annotated[int | None, Field(description="Bề rộng thẻ, % bề rộng khung (50–100); mặc định 90")] = None,
+    ) -> dict:
+        """Gắn "Thẻ" cho cảnh: ảnh chụp một bài/bình luận (ví dụ thẻ Threads trắng) đặt nguyên vẹn trên clip hoặc
+        ảnh nền của cảnh, giữ tỉ lệ, không cắt, giữa theo chiều ngang, treo từ mép trên `top`; thẻ quá cao được thu nhỏ
+        cho vừa (tối đa 1500 px). Dùng được cho cả Slide ảnh lẫn Video xuyên suốt; nằm dưới chữ của cảnh. Ảnh lấy từ
+        Kho tư liệu (media_id) hoặc một link ảnh (url). Cảnh đã có thẻ thì thay ảnh (bỏ "Hiện dần" cũ). Câu trả lời
+        có kích thước ảnh thẻ (px) để chọn cut_y cho "Hiện dần thẻ". Chỉnh top/width sau bằng "Sửa lớp" (y, height).
+        Nền khác nhau cho từng thẻ: mỗi cảnh gắn clip nền riêng, chuyển cảnh "cut", tắt tiếng gốc, bật "Lặp clip" nếu
+        clip ngắn."""
+        body = layer_routes.CardBody(scene_id=scene_id, media_id=media_id, url=url, top=top, width=width)
+
+        def operation(db, me):
+            payload = layer_routes.add_card(body, me, db, get_storage())
+            scene = db.get(Scene, scene_id)
+            card = next((layer for layer in scene.layers if is_card_layer(layer)), None)
+            info = {}
+            if card is not None and card.image_key:
+                with PILImage.open(get_storage().path(card.image_key)) as picture:
+                    info = {"layer_id": card.id, "width_px": picture.width, "height_px": picture.height}
+            return {**changed(payload), "card": info}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Hiện dần thẻ", read=False)
+    async def set_card_reveal(
+        scene_id: int,
+        parts: Annotated[
+            list[dict],
+            Field(
+                max_length=12,
+                description='[{"cut_y": dòng ảnh thẻ (px, theo ảnh gốc) nơi phần kết thúc, "text": lời đọc của phần}]'
+                "; phần cuối bỏ cut_y; [] tắt hiện dần",
+            ),
+        ],
+    ) -> dict:
+        """ "Hiện dần" thẻ của cảnh: thẻ hiện từ trên xuống từng phần, phần mới hiện khi giọng đọc tới lời của phần
+        đó, phần cũ đứng yên, thẻ cao dần (kiểu 3AM). Lời đọc của cảnh được thay bằng lời các phần nối lại theo thứ tự.
+        Giờ hiện mỗi phần ước theo tỉ lệ số từ (giọng đọc là một file liền, không có mốc từng từ). Chỉ dùng cho thẻ
+        dày (ảnh lồng, nhiều reply, list dài); thẻ một câu ngắn thì để hiện nguyên. Xem lại bằng "Xem khung hình của
+        cảnh" và sau render bằng khung hình của MP4."""
+        body = layer_routes.RevealBody(scene_id=scene_id, parts=[layer_routes.RevealPart(**part) for part in parts])
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: changed(layer_routes.set_card_reveal(body, me, db, get_storage())),
             write=True,
         )
 

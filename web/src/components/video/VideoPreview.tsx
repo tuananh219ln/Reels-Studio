@@ -53,7 +53,7 @@ import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
 import { LayerList, LayerTools } from "./preview/LayerPanel";
 import LayerStage from "./preview/LayerStage";
-import { isHalf } from "./preview/layers";
+import { isHalf, isInset } from "./preview/layers";
 import { NoteBar, NoteTools } from "./preview/NotePanel";
 import { SoundList, SoundStage, SoundTools } from "./preview/SoundPanel";
 import { musicGain } from "./preview/sounds";
@@ -772,11 +772,12 @@ export default function VideoPreview({
 
   /** A layer removed; "Hoàn tác" adds it back (on top of the scene's others). */
   function removeLayer(layer: SceneLayer, sceneId: number) {
-    if (isHalf(layer)) {
+    if (isInset(layer)) {
       // Its own copy of the photo goes with it, so this cannot be undone: asked first.
+      const name = isHalf(layer) ? "ảnh chèn" : "thẻ";
       modal.confirm({
-        title: "Xoá ảnh chèn?",
-        content: "Ảnh chèn bị xoá hẳn, không hoàn tác được. Muốn dùng lại thì thêm ảnh lần nữa.",
+        title: `Xoá ${name}?`,
+        content: `${name[0].toUpperCase()}${name.slice(1)} bị xoá hẳn, không hoàn tác được. Muốn dùng lại thì thêm ảnh lần nữa.`,
         okText: "Xoá",
         okButtonProps: { danger: true },
         cancelText: "Huỷ",
@@ -1327,7 +1328,7 @@ export default function VideoPreview({
                       insets={
                         <LayerStage
                           under
-                          layers={scenes[phase.prev].layers.filter(isHalf)}
+                          layers={scenes[phase.prev].layers.filter(isInset)}
                           // The scene going out holds its last frame, and its half-frame photo as it was then.
                           elapsed={() => (scenes[phase.prev ?? 0]?.fitted_seconds ?? 0) - 0.001}
                           stage={stage}
@@ -1362,7 +1363,7 @@ export default function VideoPreview({
                         <LayerStage
                           key={scene.id}
                           under
-                          layers={scene.layers.filter(isHalf)}
+                          layers={scene.layers.filter(isInset)}
                           elapsed={() => position() - startOf(phase.index)}
                           stage={stage}
                           selected={pickedLayer}
@@ -1418,10 +1419,10 @@ export default function VideoPreview({
                   {platform !== "none" && (
                     <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
                   )}
-                  {scene && scene.layers.some((layer) => !isHalf(layer)) && (
+                  {scene && scene.layers.some((layer) => !isInset(layer)) && (
                     <LayerStage
                       key={scene.id}
-                      layers={scene.layers.filter((layer) => !isHalf(layer))}
+                      layers={scene.layers.filter((layer) => !isInset(layer))}
                       elapsed={() => position() - startOf(phase.index)}
                       stage={stage}
                       selected={pickedLayer}
