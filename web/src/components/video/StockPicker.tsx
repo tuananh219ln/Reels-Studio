@@ -3,9 +3,9 @@
 import EmptyState from "@/components/EmptyState";
 import { SearchOutlined } from "@ant-design/icons";
 import { Alert, Checkbox, Flex, Input, Modal, Segmented, Spin, Tag, Typography } from "antd";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api, errorMessage, type ClipHit, type PixabayHit, type StockSource, type VideoDetail } from "@/lib/api";
-import { useEditor } from "./AutoSaveField";
+import { EditorContext, useEditor } from "./AutoSaveField";
 import { COLORS } from "@/app/theme";
 
 const MAX_KEYWORDS = 10;
@@ -19,16 +19,19 @@ const ORIENTATIONS = [
   { label: "Tất cả", value: "all" },
 ];
 
-/** One source search; the callers own the state, this only carries the request. */
-function fetchHits(sceneId: number, text: string, sourceId: string, filters: Filters) {
+/** One source search at `path` (a scene's or an article's); the callers own the state, this only carries the request. */
+function fetchHits(path: string, text: string, sourceId: string, filters: Filters) {
   const params = new URLSearchParams({
     q: text,
     source: sourceId,
     orientation: filters.orientation,
     hide_used: String(filters.hideUsed),
   });
-  return api<{ keyword: string; source: string; hits: PixabayHit[] }>(`/scenes/${sceneId}/stock?${params.toString()}`);
+  return api<{ keyword: string; source: string; hits: PixabayHit[] }>(`${path}?${params.toString()}`);
 }
+
+/** What the shown results were found with: a choice must name the same, so the api can check it. */
+export type StockSearch = { source: string; keyword: string; orientation: Filters["orientation"] };
 
 /** The scene's keywords with the one a photo was just chosen with put first, so "Tìm ảnh" starts from it. */
 export function keywordsWithFirst(keywords: string[], keyword: string): string[] {
@@ -70,7 +73,8 @@ function sourceOptions(sources: StockSource[]) {
  * shows each source's small thumbnails (`preview`) straight from the source; choosing sends the
  * full-size `url` with the keyword and the source it was found with, and the server checks it against
  * that search and stores its own copy. A thumbnail is never saved anywhere. With `onChoose` (an inset photo's "Tìm")
- * only photos are offered and the chosen one goes there instead of to the scene.
+ * only photos are offered and the chosen one goes there instead of to the scene. Without a scene (an article's photos)
+ * the search goes to `searchPath`, only photos are offered, nothing is hidden as used, and `onPick` stores the choice.
  */
 export default function StockPicker({
   sceneId,
@@ -78,19 +82,32 @@ export default function StockPicker({
   keywords: liveKeywords,
   keywordsEn: liveKeywordsEn,
   onChoose,
+  searchPath,
+  onPick,
+  forWhat = "cảnh này",
+  initialOrientation = "vertical",
   title = "Chọn từ kho ảnh/video",
   onClose,
 }: {
-  sceneId: number;
-  videoId: number;
+  sceneId?: number;
+  videoId?: number;
   keywords: string[];
   keywordsEn: string[];
   /** Where the chosen photo goes instead of the scene's own picture. */
   onChoose?: (hit: PixabayHit) => Promise<VideoDetail>;
+  /** Without a scene: where to search, and what stores the chosen photo. */
+  searchPath?: string;
+  onPick?: (hit: PixabayHit, searched: StockSearch) => Promise<void>;
+  /** What the photo is for, in "Bấm một ảnh để dùng cho …". */
+  forWhat?: string;
+  initialOrientation?: Filters["orientation"];
   title?: string;
   onClose: () => void;
 }) {
-  const editor = useEditor();
+  // A scene's picker lives in the video editor; an article's has none.
+  const editor = useContext(EditorContext);
+  const path = searchPath ?? `/scenes/${sceneId}/stock`;
+  const forScene = sceneId !== undefined && onPick === undefined;
   // The keywords as they were when the picker opened. The page polls the video every few seconds and
   // each poll hands new (equal) arrays; following them would restart the picker and drop the chosen
   // source. The choice itself still reorders the latest lists (see choose()).
@@ -108,9 +125,9 @@ export default function StockPicker({
   const [choosing, setChoosing] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [kind, setKind] = useState<"photo" | "clip">("photo");
-  const [filters, setFilters] = useState<Filters>({ orientation: "vertical", hideUsed: true });
+  const [filters, setFilters] = useState<Filters>({ orientation: initialOrientation, hideUsed: forScene });
   // The orientation the shown results were found with: the choice is checked against the same search.
-  const [searchedOrientation, setSearchedOrientation] = useState<Filters["orientation"]>("vertical");
+  const [searchedOrientation, setSearchedOrientation] = useState<Filters["orientation"]>(initialOrientation);
   // Only the latest search may fill the grid, whatever order the answers arrive in.
   const latest = useRef(0);
   // True while the picker is mounted: an answer that arrives after it closed changes nothing.
@@ -128,7 +145,7 @@ export default function StockPicker({
 
   async function load(request: number, text: string, sourceId: string, using: Filters = filters) {
     try {
-      const result = await fetchHits(sceneId, text, sourceId, using);
+      const result = await fetchHits(path, text, sourceId, using);
       if (request === latest.current) {
         setHits(result.hits);
         setSearchedFor(result.keyword);
@@ -153,7 +170,7 @@ export default function StockPicker({
   // snapshot taken at open, so this runs once per opening.
   useEffect(() => {
     open.current = true;
-    api<StockSource[]>(`/stock/sources?video_id=${videoId}`)
+    api<StockSource[]>(videoId !== undefined ? `/stock/sources?video_id=${videoId}` : "/stock/sources")
       .then(
         // A source turned off on Cài đặt is left out; one waiting for its key stays, greyed out.
         (all) => all.filter((item) => item.available || item.missing_key),
@@ -187,7 +204,7 @@ export default function StockPicker({
     };
     // `load` is a plain function that changes every render; depending on it would re-run this each time.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per opening, see above
-  }, [keywords, keywordsEn, sceneId, videoId]);
+  }, [keywords, keywordsEn, path, videoId]);
 
   /** A filter changed: the shown keyword is searched again with it. */
   function changeFilters(next: Filters) {
@@ -219,8 +236,13 @@ export default function StockPicker({
     setChoosing(hit.url);
     setError(null);
     try {
+      if (onPick) {
+        await onPick(hit, { source: searchedSource, keyword: searchedFor, orientation: searchedOrientation });
+        onClose();
+        return;
+      }
       if (onChoose) {
-        editor.onSaved(await onChoose(hit));
+        editor?.onSaved(await onChoose(hit));
         onClose();
         return;
       }
@@ -230,7 +252,7 @@ export default function StockPicker({
         url: hit.url,
         orientation: searchedOrientation,
       });
-      editor.onSaved(saved);
+      editor?.onSaved(saved);
       // Keep the keyword that found the photo at the head of the list its source reads, so the
       // next search walks on through the same results: Wikimedia and Openverse read the Vietnamese
       // list, "Tìm ảnh" reads the list of the source it searches.
@@ -244,7 +266,7 @@ export default function StockPicker({
             ? { keywords: keywordsWithFirst(liveKeywords, searchedFor) }
             : { keywords_en: keywordsWithFirst(liveKeywordsEn, searchedFor) },
         );
-        editor.onSaved(saved);
+        editor?.onSaved(saved);
       }
       onClose();
     } catch (err) {
@@ -255,7 +277,7 @@ export default function StockPicker({
   }
 
   const sourceLabel = sources?.find((item) => item.id === searchedSource)?.label ?? "Pexels";
-  const clipSources = onChoose ? [] : (sources ?? []).filter((item) => item.clips);
+  const clipSources = onChoose || !forScene ? [] : (sources ?? []).filter((item) => item.clips);
 
   return (
     <Modal
@@ -283,7 +305,7 @@ export default function StockPicker({
       )}
       {kind === "clip" ? (
         <ClipPicker
-          sceneId={sceneId}
+          sceneId={sceneId ?? 0}
           sources={clipSources}
           opening={firstKeyword("pexels", keywords, keywordsEn)}
           onClose={onClose}
@@ -343,13 +365,15 @@ export default function StockPicker({
               disabled={choosing !== null}
               onChange={(value) => changeFilters({ ...filters, orientation: value as Filters["orientation"] })}
             />
-            <Checkbox
-              checked={filters.hideUsed}
-              disabled={choosing !== null}
-              onChange={(event) => changeFilters({ ...filters, hideUsed: event.target.checked })}
-            >
-              Ẩn ảnh đã dùng trong video này
-            </Checkbox>
+            {forScene && (
+              <Checkbox
+                checked={filters.hideUsed}
+                disabled={choosing !== null}
+                onChange={(event) => changeFilters({ ...filters, hideUsed: event.target.checked })}
+              >
+                Ẩn ảnh đã dùng trong video này
+              </Checkbox>
+            )}
           </Flex>
           {error && (
             <Alert type="error" showIcon title={error} style={{ marginBottom: 12 }} data-testid="picker-error" />
@@ -362,7 +386,8 @@ export default function StockPicker({
             ) : (
               !error && (
                 <Typography.Text type="secondary" data-testid="picker-hint">
-                  Cảnh này chưa có từ khóa: nhập từ khóa ở ô trên để tìm ảnh.
+                  {forWhat.charAt(0).toUpperCase() + forWhat.slice(1)} chưa có từ khóa: nhập từ khóa ở ô trên để tìm
+                  ảnh.
                 </Typography.Text>
               )
             )
@@ -371,7 +396,7 @@ export default function StockPicker({
           ) : (
             <>
               <Typography.Text type="secondary" style={{ display: "block", marginBottom: 8 }}>
-                {hits.length} ảnh từ {sourceLabel} cho “{searchedFor}”. Bấm một ảnh để dùng cho cảnh này.
+                {hits.length} ảnh từ {sourceLabel} cho “{searchedFor}”. Bấm một ảnh để dùng cho {forWhat}.
               </Typography.Text>
               {/* Columns follow the dialog's width: two on a phone, more on a wide screen; never a sideways scroll.
                   Each tile is 9:16 and filled, cropped as the render will crop the photo. */}
@@ -399,7 +424,7 @@ export default function StockPicker({
                       cursor: choosing !== null || loading ? "default" : "pointer",
                       background: COLORS.muted,
                       position: "relative",
-                      aspectRatio: "9 / 16",
+                      aspectRatio: forScene ? "9 / 16" : "1 / 1",
                       overflow: "hidden",
                     }}
                   >

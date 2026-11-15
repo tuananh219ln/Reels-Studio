@@ -42,10 +42,15 @@ test("Bài viết: create a draft, let the AI write the caption, make a text car
   await caption.blur();
   await expect(page.getByText("Caption có link: link sản phẩm chỉ để ở bình luận ghim")).toBeHidden();
 
-  await page.getByRole("button", { name: "Xanh lá" }).click();
-  await expect(page.getByText("Đang dùng: Thẻ chữ")).toBeVisible();
+  const photos = page.getByTestId("article-images");
+  await photos.getByRole("button", { name: "Thẻ chữ" }).click();
+  await page.getByRole("menuitem", { name: "Thẻ chữ Xanh lá" }).click();
+  await expect(photos.getByRole("button", { name: "Ảnh 1", exact: true })).toBeVisible();
+  await expect(photos.getByText("Ảnh bài viết (1/10)")).toBeVisible();
+  // The chosen photo is shown as the api draws it for the Page (no Page here, so no logo).
+  await expect(photos.getByRole("img", { name: "Ảnh 1 có logo" })).toBeVisible();
   await expect(preview.getByRole("img", { name: "Ảnh của bài" })).toBeVisible();
-  await page.getByRole("button", { name: "Bỏ ảnh" }).click();
+  await photos.getByRole("button", { name: "Bỏ ảnh" }).click();
   await expect(page.getByText("Chưa có ảnh: bài sẽ đăng dạng chỉ chữ.")).toBeVisible();
 
   await page.getByRole("link", { name: "Về danh sách bài viết" }).click();

@@ -1,37 +1,42 @@
 "use client";
 
 import { App, Button, Divider, Flex, Modal, Spin, Typography } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { FolderFilter } from "@/components/media/FolderSelect";
 import MediaGrid from "@/components/media/MediaGrid";
 import MediaLinkSearch from "@/components/media/MediaLinkSearch";
 import { api, errorMessage, type AffiliateProduct, type MediaList, type VideoDetail } from "@/lib/api";
-import { useEditor } from "./AutoSaveField";
+import { EditorContext } from "./AutoSaveField";
 
 /**
  * "Kho tư liệu" from a scene: the library's photos and clips, opened on the folder of the product the video sells,
  * with Google Ảnh and TikTok searches for that product whose pasted links land in the same folder. "Dùng" copies the
- * item into the scene, or into what `onUse` names (an inset photo's "Kho").
+ * item into the scene, or into what `onUse` names (an inset photo's "Kho"). Without a video (an article's photos)
+ * the library opens on the folder named after `topic`, and `onUse` adds the photo.
  */
 export default function MediaLibraryPicker({
   sceneId,
   videoId,
+  topic,
   hasPicture,
   onUse,
   usedFor = "ảnh chèn",
   onClose,
 }: {
-  sceneId: number;
-  videoId: number;
+  sceneId?: number;
+  videoId?: number;
+  /** Without a video: what the search and the folder are named after. */
+  topic?: string;
   hasPicture: boolean;
   /** Where the chosen item goes instead of the scene's own picture. */
-  onUse?: (mediaId: number) => Promise<VideoDetail>;
-  /** What `onUse` puts it in, for the message once used ("ảnh chèn", "thẻ"). */
+  onUse?: (mediaId: number) => Promise<VideoDetail | void>;
+  /** What `onUse` puts it in, for the message once used ("ảnh chèn", "thẻ", "bài viết"). */
   usedFor?: string;
   onClose: () => void;
 }) {
   const { message, modal } = App.useApp();
-  const editor = useEditor();
+  // A scene's picker lives in the video editor; an article's has none.
+  const editor = useContext(EditorContext);
   const [keyword, setKeyword] = useState<string | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
   const [data, setData] = useState<MediaList | null>(null);
@@ -41,6 +46,12 @@ export default function MediaLibraryPicker({
   useEffect(() => {
     let live = true;
     (async () => {
+      if (videoId === undefined) {
+        const name = topic ?? "";
+        setKeyword(name);
+        setFolder(name.slice(0, 80).replaceAll("/", "-"));
+        return;
+      }
       try {
         const video = await api<VideoDetail>(`/videos/${videoId}`);
         const products = video.affiliate_product_ids.length
@@ -61,7 +72,7 @@ export default function MediaLibraryPicker({
     return () => {
       live = false;
     };
-  }, [videoId]);
+  }, [videoId, topic]);
 
   const load = useCallback(async () => {
     if (folder === null) return;
@@ -84,9 +95,10 @@ export default function MediaLibraryPicker({
     const go = async () => {
       setUsing(mediaId);
       try {
-        editor.onSaved(
-          await (onUse ? onUse(mediaId) : api<VideoDetail>(`/media/${mediaId}/use`, "POST", { scene_id: sceneId })),
-        );
+        const saved = await (onUse
+          ? onUse(mediaId)
+          : api<VideoDetail>(`/media/${mediaId}/use`, "POST", { scene_id: sceneId }));
+        if (saved) editor?.onSaved(saved);
         message.success(onUse ? `Đã dùng tư liệu cho ${usedFor}` : "Đã dùng tư liệu cho cảnh");
         onClose();
       } catch (err) {
@@ -136,8 +148,8 @@ export default function MediaLibraryPicker({
             />
           )}
           <Typography.Text type="secondary">
-            {onUse ? "Tư liệu được chép vào ảnh chèn" : "Tư liệu được chép vào cảnh"}: xoá khỏi kho không làm hỏng
-            video.
+            {onUse ? `Tư liệu được chép vào ${usedFor}` : "Tư liệu được chép vào cảnh"}: xoá khỏi kho không làm hỏng
+            {videoId === undefined ? ` ${usedFor}` : " video"}.
           </Typography.Text>
         </Flex>
       )}

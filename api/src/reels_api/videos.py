@@ -157,6 +157,7 @@ JOB_KINDS = {
     "revise": "AI sửa theo góp ý",
     "rework": "Nâng cấp kịch bản và tư liệu",
     "article_caption": "Viết bài viết",
+    "article_image": "Tạo ảnh AI cho bài viết",
     "motion": "Cảnh động",
     "tiktok_publish": "Đăng TikTok",
 }

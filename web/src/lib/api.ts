@@ -1046,12 +1046,17 @@ export type Article = {
   suggest: { state: "idle" | "pending" | "failed"; error: string | null; at: string | null };
   /** The caption's first line, what a text card shows. */
   hook: string;
+  /** Its photos in order (1–10, or none for a text-only post); the Page's logo is laid on each when posted. */
+  images: ArticleImage[];
   has_image: boolean;
-  image_kind: "ai" | "link" | "text_card" | null;
-  image_kind_label: string | null;
-  image_source: string | null;
-  /** Changes with every new picture, so the browser never shows an old one. */
+  /** The first photo's tag, so the list's thumbnail never shows an old one. */
   image_version: string | null;
+  /** "Từ khóa tìm ảnh": what "Tìm ảnh" searches. */
+  image_query: string;
+  /** "Nâng cao: Prompt ảnh AI"; empty: the search words, then the topic. */
+  image_prompt: string;
+  /** The shape an AI photo is made in. */
+  image_aspect: ArticleAspect;
   source_comment: { id: number; author: string; message: string } | null;
   status: "draft" | "publishing" | "pending" | "failed" | "scheduled" | "published" | "unpublishing";
   status_label: string;
@@ -1063,14 +1068,55 @@ export type Article = {
   products: { id: number; name: string; usable: boolean }[];
   /** What "Đăng" sends: the caption, the line pointing at the comment when products are attached, the hashtags. */
   post_text: string;
-  job: { id: number; status: "queued" | "running" | "done" | "failed" | "cancelled"; error: string | null } | null;
-  /** The AI is writing it: no edits until it is done. */
+  job: ArticleJob | null;
+  /** The last "Tạo ảnh AI" of the article. */
+  image_job: ArticleJob | null;
+  /** The AI is writing it or making a photo: no edits until it is done. */
   busy: boolean;
   /** `blocking` will stop posting (no caption, a link); `warnings` never do. */
   checks: { blocking: ArticleIssue[]; warnings: ArticleIssue[] };
   created_by: string;
   created_at: string;
   updated_at: string;
+};
+
+export type ArticleJob = {
+  id: number;
+  status: "queued" | "running" | "done" | "failed" | "cancelled";
+  error: string | null;
+};
+
+export type ArticleAspect = "1:1" | "4:5" | "1.91:1";
+
+/** The nine places a logo can sit on a photo. */
+export type LogoPosition =
+  | "top_left"
+  | "top_center"
+  | "top_right"
+  | "middle_left"
+  | "center"
+  | "middle_right"
+  | "bottom_left"
+  | "bottom_center"
+  | "bottom_right";
+
+/** One photo of an article (api article_images.payload). */
+export type ArticleImage = {
+  id: number;
+  position: number;
+  source: "upload" | "link" | "stock" | "library" | "ai" | "text_card";
+  source_label: string;
+  /** Where it came from, for a copyright claim: a link, a stock photo's address, "ai:<model>". */
+  source_ref: string | null;
+  /** The line a stock licence asks for (Wikimedia CC BY...). */
+  credit: string | null;
+  logo_enabled: boolean;
+  /** Its own logo place; null: the Page's. */
+  logo_position: LogoPosition | null;
+  /** The photo as chosen. */
+  url: string;
+  /** The photo with a Page's logo, as it will be posted: add `&fanpage_id=`. */
+  preview_url: string;
 };
 
 export type ArticleNumbers = {
@@ -1636,6 +1682,31 @@ export type BrandLogoResult = {
   logo_version: string | null;
   /** Videos with an MP4 and the logo on, not posted yet: they need a new render. */
   videos_outdated: number;
+};
+
+/** How a brand's logo sits on an article's photos (api photo_logo.py). */
+export type PhotoLogo = {
+  position: LogoPosition;
+  /** Width, % of the photo's width. */
+  size: number;
+  /** Distance from the edges, % of the photo's width. */
+  margin: number;
+  /** 0.1–1. */
+  opacity: number;
+  /** Below this brightness (0–1) under the logo the white logo is used; null: never. */
+  alt_threshold: number | null;
+};
+
+/** A brand as GET /api/brands/{id} gives it, with its photo-logo settings. */
+export type BrandDetail = {
+  id: number;
+  name: string;
+  logo_url: string | null;
+  logo_badge_url: string | null;
+  logo_alt_url: string | null;
+  photo_logo: PhotoLogo;
+  mine: boolean;
+  owner_name: string;
 };
 
 /** A channel in the list the video's Logo card picks from (GET /api/brands). */

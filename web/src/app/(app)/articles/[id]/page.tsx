@@ -19,7 +19,8 @@ import {
   type PageComments,
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
-import { ArrowLeftOutlined, LinkOutlined, RobotOutlined } from "@ant-design/icons";
+import ArticleImages from "@/components/article/ArticleImages";
+import { ArrowLeftOutlined, RobotOutlined } from "@ant-design/icons";
 import { Alert, App, Button, Card, Col, Flex, Input, Result, Row, Select, Spin, Typography } from "antd";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -58,13 +59,53 @@ function FeedPreview({
         <Typography.Paragraph style={{ margin: 0, whiteSpace: "pre-wrap" }}>
           {text || <Typography.Text type="secondary">(chưa có caption)</Typography.Text>}
         </Typography.Paragraph>
-        {article.has_image && (
-          // eslint-disable-next-line @next/next/no-img-element -- a private file behind the login
-          <img
-            src={`/api/articles/${article.id}/image?v=${article.image_version}`}
-            alt="Ảnh của bài"
-            style={{ width: "100%", borderRadius: 6, display: "block" }}
-          />
+        {article.images.length > 0 && (
+          // The first photo big, up to three more beside it, as the feed lays out a post of several photos.
+          <div
+            style={{
+              display: "grid",
+              gap: 4,
+              gridTemplateColumns: article.images.length > 1 ? "2fr 1fr" : "1fr",
+              borderRadius: 6,
+              overflow: "hidden",
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- a private file behind the login */}
+            <img
+              src={article.images[0].url}
+              alt="Ảnh của bài"
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+            />
+            {article.images.length > 1 && (
+              <div style={{ display: "grid", gap: 4 }}>
+                {article.images.slice(1, 4).map((image, index) => (
+                  <div key={image.id} style={{ position: "relative" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- a private file behind the login */}
+                    <img
+                      src={image.url}
+                      alt=""
+                      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    />
+                    {index === 2 && article.images.length > 4 && (
+                      <Flex
+                        align="center"
+                        justify="center"
+                        style={{
+                          position: "absolute",
+                          inset: 0,
+                          background: "rgba(0,0,0,0.45)",
+                          color: "#fff",
+                          fontSize: 20,
+                        }}
+                      >
+                        +{article.images.length - 4}
+                      </Flex>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
         {(article.pinned_comment || article.products.length > 0) && (
           <div
@@ -100,7 +141,6 @@ export default function ArticlePage() {
   const [comments, setComments] = useState<PageComments["comments"]>([]);
   const [topic, setTopic] = useState("");
   const [caption, setCaption] = useState("");
-  const [link, setLink] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   // The fields a member is typing in keep their text when a reload arrives meanwhile.
   const typing = useRef({ topic: false, caption: false });
@@ -212,6 +252,7 @@ export default function ArticlePage() {
   const locked = writing || busy !== null;
   const failed = article.job?.status === "failed" ? article.job.error : null;
   const aiWriting = article.job?.status === "queued" || article.job?.status === "running";
+  const aiDrawing = article.image_job?.status === "queued" || article.image_job?.status === "running";
 
   return (
     <Flex vertical gap={16}>
@@ -223,8 +264,8 @@ export default function ArticlePage() {
           <Typography.Title level={3} style={{ margin: 0, fontWeight: 600 }}>
             {article.hook || article.topic || "Bài viết mới"}
           </Typography.Title>
-          {aiWriting ? (
-            <StatusText tone="active">AI đang viết…</StatusText>
+          {aiWriting || aiDrawing ? (
+            <StatusText tone="active">{aiWriting ? "AI đang viết…" : "AI đang tạo ảnh…"}</StatusText>
           ) : (
             <StatusText tone={ARTICLE_STATUS_TONES[article.status]} data-testid="article-status">
               {article.status_label}
@@ -374,84 +415,7 @@ export default function ArticlePage() {
               </Flex>
             </Card>
 
-            <Card
-              size="small"
-              title="Ảnh (không bắt buộc)"
-              extra={
-                article.has_image && (
-                  <Button
-                    size="small"
-                    disabled={locked}
-                    loading={busy === "remove"}
-                    onClick={() => run("remove", () => api<Article>(`/articles/${id}/image`, "DELETE"), "Đã bỏ ảnh")}
-                  >
-                    Bỏ ảnh
-                  </Button>
-                )
-              }
-            >
-              <Flex vertical gap={12}>
-                <Typography.Text type="secondary">
-                  {article.has_image
-                    ? `Đang dùng: ${article.image_kind_label}${article.image_source ? ` (${article.image_source})` : ""}`
-                    : "Chưa có ảnh: bài sẽ đăng dạng chỉ chữ."}
-                </Typography.Text>
-                <div>
-                  <Typography.Text strong>Thẻ chữ</Typography.Text>
-                  <Typography.Paragraph type="secondary" style={{ margin: "2px 0 8px" }}>
-                    Dòng đầu của caption trên nền màu. Lưu caption trước khi tạo thẻ.
-                  </Typography.Paragraph>
-                  <Flex gap={8} wrap>
-                    {(options?.card_presets ?? []).map((preset) => (
-                      <Button
-                        key={preset.value}
-                        disabled={locked || !article.hook}
-                        loading={busy === `card-${preset.value}`}
-                        style={{ background: preset.background, color: preset.color, borderColor: preset.background }}
-                        onClick={() =>
-                          run(
-                            `card-${preset.value}`,
-                            () => api<Article>(`/articles/${id}/text-card`, "POST", { preset: preset.value }),
-                            "Đã tạo thẻ chữ",
-                          )
-                        }
-                      >
-                        {preset.label}
-                      </Button>
-                    ))}
-                  </Flex>
-                </div>
-                <div>
-                  <Typography.Text strong>Ảnh từ link</Typography.Text>
-                  <Flex gap={8} style={{ marginTop: 8 }}>
-                    <Input
-                      aria-label="Link ảnh"
-                      prefix={<LinkOutlined />}
-                      placeholder="Dán link ảnh…"
-                      value={link}
-                      onChange={(event) => setLink(event.target.value)}
-                    />
-                    <Button
-                      disabled={locked || !link.trim()}
-                      loading={busy === "link"}
-                      onClick={() =>
-                        run(
-                          "link",
-                          async () => {
-                            const saved = await api<Article>(`/articles/${id}/image-from-url`, "POST", { url: link });
-                            setLink("");
-                            return saved;
-                          },
-                          "Đã lấy ảnh",
-                        )
-                      }
-                    >
-                      Lấy ảnh
-                    </Button>
-                  </Flex>
-                </div>
-              </Flex>
-            </Card>
+            <ArticleImages article={article} options={options} disabled={locked} onSaved={show} />
             <CommentCard article={article} options={options} disabled={locked} onSaved={show} reload={load} />
           </Flex>
         </Col>

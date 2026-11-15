@@ -94,7 +94,7 @@ def run(
             continue
         photo = None
         for source in list(alive):
-            client, error_type = routes_videos._stock_client(source, db)
+            client, error_type = routes_videos.stock_client(source, db)
             # Wikimedia and Openverse index Vietnamese titles, the others English; each list backs the other up.
             keywords = routes_videos.stock_keywords(source, list(scene.keywords), list(scene.keywords_en))
             if not keywords:

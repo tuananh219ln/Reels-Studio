@@ -97,8 +97,10 @@ app replaces CapCut, so the output is a finished MP4.
 
    **Bài viết** (built, [brief](specs/bai-viet/brief.md)): photo or text posts for a Page, to test a topic cheaply
    before making a reel. An article has a topic group, kind, topic and caption, typed or written by the AI ("AI
-   viết"), up to 5 hashtags, an optional picture (a "Thẻ chữ" drawn by the api, or a photo from a pasted link; no
-   stock photos), a pinned comment and up to 2 approved Shopee products, found from the AI's product ideas through
+   viết"), up to 5 hashtags, up to 10 photos taken with a scene's tools (upload, paste, "Kho tư liệu", the stock
+   sources, Google and TikTok searches whose links are pasted back, an AI photo in 1:1, 4:5 or 1.91:1) or a "Thẻ
+   chữ" drawn by the api, the Page's logo laid on each when posted (its place, size, margin and opacity set per Page,
+   a white logo for dark photos, a switch and place per photo), a pinned comment and up to 2 approved Shopee products, found from the AI's product ideas through
    Shopee's search as on a video, or by a pasted link. "Đăng" posts it to a Page chosen then, now or at a time; the
    worker writes the pinned comment and the products' links under it (pinned by hand). The same caption is never posted twice
    on one Page, and a second Page or a reel within two hours asks first. Posts are taken down and checked like reels,
