@@ -369,8 +369,17 @@ Built:
   meanwhile) and "Lưu phân tích". The card's header has "Tạo thêm video từ mẫu này" once the sample is
   analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
   scripts and clips; the card then says the sample was deleted).
+  The header folds to its first row with the ⌃ button at its end ("Thu gọn đầu trang", ⌄ "Mở rộng đầu trang"): the
+progress line, QC and the render's state hide, and a small pill beside the title still says what needs a look (the job
+running or waiting, "<job> lỗi", "Còn N lỗi cần sửa"), unfolding the header on a click; nothing when all is well. The
+fold is kept per member in this browser (2026-11-15, fold and split).
   The scenes fill the left column (60%). The right column (40%) is the side panel with three tabs, "Đăng bài",
-"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the panel has no scroll of its own and grows with the page, its tab row held just under the page header (2026-11-15). "Đăng bài" starts
+"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the panel has no scroll of its own and grows with the page, its tab row held just under the page header (2026-11-15).
+A line between the two columns is dragged to share the width another way (a grip that stays in view, orange while
+hovered or dragged; ← → keys move it, a double click or Enter goes back to 60/40), the scenes never under 420 px and the
+panel never under 440 px, the share kept per member in this browser. The panel lays its tabs out by its own width: from
+720 px the groups of "Thiết lập" and the blocks of "Bình luận & Sản phẩm" sit in two columns, and on "Đăng bài" the MP4
+stops at 260 px with a post's buttons back beside its name (2026-11-15, fold and split). "Đăng bài" starts
 with one status card (2026-11-14, publish panel spec; radius 12, a 1 px border, no shadow): a header (12 × 16 px
 padding, a line under it) with where the video stands, a dot and a word, "Sẵn sàng đăng" green, a spinner and "Đang
 đăng…" orange, "Đã đăng" green, "Đã đăng một phần" orange, "Đăng thất bại" red, "Đã hẹn giờ" green, each but the first

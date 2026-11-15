@@ -116,7 +116,7 @@ export function EngageContent({ video }: { video: VideoDetail }) {
   const shop = video.platform === "tiktok" ? "Sản phẩm TikTok Shop" : "Sản phẩm Shopee";
 
   return (
-    <Flex vertical gap={12} data-testid="engage-blocks">
+    <Flex vertical gap={12} className="panel-blocks" data-testid="engage-blocks">
       <Card
         size="small"
         title="Bình luận"
