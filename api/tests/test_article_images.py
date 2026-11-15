@@ -172,7 +172,8 @@ def test_the_preview_lays_the_page_logo_where_the_photo_puts_it(an, db, me):
         return Image.open(io.BytesIO(response.content)).convert("RGB")
 
     shown = preview()
-    assert shown.width == photo_logo.PREVIEW_WIDTH
+    # At most PREVIEW_WIDTH on its long side; a smaller photo is never enlarged.
+    assert shown.size == (600, 750)
     assert shown.getpixel(centre_of_logo(shown)) == pytest.approx(RED, abs=12)
     assert shown.getpixel(centre_of_logo(shown, "top_left")) == pytest.approx(WHITE, abs=6)
 

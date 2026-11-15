@@ -620,7 +620,7 @@ def image_preview(
     storage: DirectoryStorage = Depends(get_storage),
 ) -> Response:
     """The photo as it will be posted to `fanpage_id`: with that Page's logo where this photo puts it, drawn by the
-    same code as the posted copy, 800 px wide."""
+    same code as the posted copy, at most 800 px on its long side."""
     image = article_images.get(db, article_id, image_id)
     if not storage.exists(image.image_key):
         raise ApiError(404, "file_not_found", "Không tìm thấy file")
