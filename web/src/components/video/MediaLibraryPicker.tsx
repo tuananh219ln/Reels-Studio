@@ -18,6 +18,7 @@ export default function MediaLibraryPicker({
   videoId,
   hasPicture,
   onUse,
+  usedFor = "ảnh chèn",
   onClose,
 }: {
   sceneId: number;
@@ -25,6 +26,8 @@ export default function MediaLibraryPicker({
   hasPicture: boolean;
   /** Where the chosen item goes instead of the scene's own picture. */
   onUse?: (mediaId: number) => Promise<VideoDetail>;
+  /** What `onUse` puts it in, for the message once used ("ảnh chèn", "thẻ"). */
+  usedFor?: string;
   onClose: () => void;
 }) {
   const { message, modal } = App.useApp();
@@ -84,7 +87,7 @@ export default function MediaLibraryPicker({
         editor.onSaved(
           await (onUse ? onUse(mediaId) : api<VideoDetail>(`/media/${mediaId}/use`, "POST", { scene_id: sceneId })),
         );
-        message.success(onUse ? "Đã dùng tư liệu cho ảnh chèn" : "Đã dùng tư liệu cho cảnh");
+        message.success(onUse ? `Đã dùng tư liệu cho ${usedFor}` : "Đã dùng tư liệu cho cảnh");
         onClose();
       } catch (err) {
         message.error(errorMessage(err));

@@ -13,6 +13,7 @@ import {
 import HalfPhotoPanel, { InsetOverlapWarning } from "../HalfPhotoPanel";
 import { photoLayer } from "../videoModes";
 import { isHalf } from "./layers";
+import CardPanel from "../CardPanel";
 
 /**
  * The studio's "Chỉnh cảnh N" panel beside the phone: everything about the scene being shown, so a scene is made
@@ -74,7 +75,10 @@ export default function SceneInspector({
           },
           ...(scene.is_title
             ? []
-            : [{ key: "layers", label: `Chữ & sticker (${scene.layers.length})`, children: layers }]),
+            : [
+                { key: "layers", label: `Chữ & sticker (${scene.layers.length})`, children: layers },
+                { key: "card", label: "Thẻ", children: <CardPanel scene={saved} /> },
+              ]),
           { key: "sounds", label: `Âm thanh (${scene.sounds.length})`, children: sounds },
           { key: "timing", label: "Thời lượng và vị trí chữ", children: timing },
           { key: "effects", label: "Hiệu ứng", children: effects },

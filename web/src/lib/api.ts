@@ -216,7 +216,7 @@ export type SceneLayer = {
   height: number;
   /** A card shown part by part ("Hiện dần", api videos.reveal_steps): from each `start` (seconds into the scene) the
    * card shows down to `until` of its height. Empty when it shows whole; absent on other layers. */
-  reveal?: { start: number; until: number }[];
+  reveal?: { start: number; until: number; text: string }[];
 };
 
 /** A sound effect heard from a second of its scene (reels_render.sounds), made by FFmpeg. */

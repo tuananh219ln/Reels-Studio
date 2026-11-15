@@ -1380,8 +1380,17 @@ team's AI through MCP, the assistant) takes the group's too:
   MP4 does.
 
 **Thẻ** (2026-11-15, the comment-reading pages; slide videos and backdrops alike): a screenshot card of its own,
-kept whole, centred across and hung from its top edge, under the scene's text and the other layers, added by an
-assistant (`set_scene_card`); the web has no button for it yet. On the studio's phone it is drawn in the scene's
+kept whole, centred across and hung from its top edge, under the scene's text and the other layers. A content scene's
+card has a folded **"Thẻ (ảnh chụp bài đăng)"** under its fields (open, titled "Thẻ · hiện dần N phần" or "Thẻ", once
+it has one; also a "Thẻ" section in the studio's "Chỉnh cảnh"): without a card, a line saying what it is and "Tải ảnh
+thẻ", "Từ Kho" and "Dán link ảnh thẻ" + "Dùng"; with one, the card (160 px wide) beside "Cỡ thẻ (% bề rộng khung)"
+(a 50–100 slider, saved on release), "Mép trên" (px, saved on leaving the field) and "Xoá thẻ" (asks first), then the
+same three ways to change its picture (which keeps its size and place and drops its parts), then the "Hiện dần"
+switch. On, it says to click the card to add a cut: each click draws a dashed pink line numbered with its part, and a
+row per part, "Phần N" with a text field for the words read while it comes in (the first part starts with the scene's
+narration) and a bin that merges it into the part below; "Lưu hiện dần" saves (the scene's narration becomes the
+parts' words in order), "Huỷ" drops the changes; off, the parts go. An assistant does the same with
+`set_scene_card` and `set_card_reveal`. On the studio's phone it is drawn in the scene's
 picture like an inset photo and dragged only up and down by its top edge; deleting it asks first, as its own copy goes
 with it. A card shown part by part ("Hiện dần") grows down on the phone as in the MP4: the rows below the part shown
 stay hidden, nothing faded in ahead. Its name in lists is "Thẻ".

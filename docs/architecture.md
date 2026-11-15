@@ -403,12 +403,14 @@ A scene may hold an uploaded video clip instead of a photo
   of the frame's width wide (50–100, 90 for a new one), scaled down narrower when that would make it taller than
   1500 px, centred across and hung from its top edge: `y` is that edge (220 for a new one), clamped so it stays in the
   frame (`layers.card_corner`). The api forces `x` to 540 and changes only `y`, `height`, `start` and `seconds`.
-  `POST /api/layers/card` (`media_id` from the library or a photo `url`; `top`, `width`) adds the scene's one card or
+  `POST /api/layers/card` (`media_id` from the library or a photo `url`; `top`, `width`) or `POST /api/layers/card/upload`
+  (a file from the computer) adds the scene's one card or
   replaces its picture, keeping its place and size; never on the title scene. It is drawn in the scene's own chain like
   an inset photo (`Layer.inset`), under the text box, and the scene preview (`/scenes/{id}/preview.jpg`, the
   assistant's `view_scene`) draws it whole under the text. The job copies its picture as `card-NN.ext`.
-  **"Hiện dần"** (`PUT /api/layers/card/reveal`, `scenes.reveal`): 2–12 parts, each the row of the card's picture
-  where it ends (`cut_y`, the last part its bottom) and the words read while it comes in; the scene's narration
+  **"Hiện dần"** (`PUT /api/layers/card/reveal`, `scenes.reveal`): 2–12 parts, each where it ends, as the row of the
+  card's picture (`cut_y`, the assistant's) or a fraction of its height (`until`, the studio's click), the last part at
+  its bottom, and the words read while it comes in (kept as each part's `text`, sent back in the steps for the studio); the scene's narration
   becomes the parts' words in order. `videos.reveal_steps` times each part: the narration is one MP3 with no word
   timings, so a part comes in at the voice lead plus the narration's length times the share of words before it
   (without narration, the scene's seconds the same way); the first from the scene's start. The render job lays the

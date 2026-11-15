@@ -65,6 +65,7 @@ import {
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import GroupMediaPicker from "./GroupMediaPicker";
 import MediaLibraryPicker from "./MediaLibraryPicker";
+import { CardFold } from "./CardPanel";
 import ClipBlurModal from "./ClipBlurModal";
 import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
@@ -386,6 +387,7 @@ export default function SceneCard({
       <Flex vertical gap={6}>
         <SceneIssues scene={scene} fix={fixFor} />
       </Flex>
+      {!scene.is_title && <CardFold scene={scene} />}
       {(ownPicture || backdrop) && <AdvancedPrompt scene={scene} />}
     </Flex>
   );
