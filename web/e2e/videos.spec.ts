@@ -1635,6 +1635,13 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   await expect(card.getByRole("button", { name: "+ Đăng thêm" })).toBeVisible();
   await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published");
   await expect(page.getByTestId("platform-row-facebook")).toContainText(/✓ \d{2}:\d{2}/);
+  // "Kiểm tra", "Sửa link reel" and "Xóa" stay inside the row in the 440 px side panel: they wrap to a second line
+  // instead of running out of the card (cut off at the right before).
+  const row = (await page.getByTestId("platform-row-facebook").boundingBox())!;
+  for (const name of ["Kiểm tra", "Sửa link reel", "Xóa"]) {
+    const button = (await page.getByTestId("platform-row-facebook").getByRole("button", { name }).boundingBox())!;
+    expect(button.x + button.width, name).toBeLessThanOrEqual(row.x + row.width);
+  }
   // The progress line's "Đăng" step counts the platforms, in green.
   await expect(page.getByTestId("progress-post")).toHaveAttribute("data-state", "posted");
   await expect(page.getByTestId("progress-post")).toContainText(/1\/1 nền tảng · \d{2}:\d{2}/);

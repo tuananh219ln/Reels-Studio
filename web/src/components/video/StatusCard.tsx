@@ -388,7 +388,9 @@ function ResultRow({ video, result }: { video: VideoDetail; result: PlatformResu
       )}
       {result.post && result.state !== "err" && (
         // "Kiểm tra" and "Hủy đăng"/"Xóa" of the Facebook post.
-        <PostActions post={result.post} disabled={video.locked} onDone={editor.onSaved} />
+        <span className="post-row__tools">
+          <PostActions post={result.post} disabled={video.locked} onDone={editor.onSaved} />
+        </span>
       )}
     </div>
   );
