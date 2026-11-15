@@ -558,9 +558,7 @@ def move_video(
     plan shows the idea as still to make."""
     video = lock_video(db, video_id)
     ensure_unlocked(db, video)
-    group = db.get(KnowledgeTopic, body.knowledge_topic_id)
-    if group is None:
-        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    group = topic_group(db, body.knowledge_topic_id)
     if video.created_by_id != me.user_id:
         # The maker of the group a teammate's video sits in may send it back to a group of the video's maker, so
         # that their own group can be emptied and deleted without anyone deleting the teammate's work.
@@ -569,10 +567,22 @@ def move_video(
             ensure_owner(video.created_by_id, me.user_id, "video này", "chuyển nhóm được")
     if group.id == video.knowledge_topic_id:
         raise invalid(f"Video đã ở nhóm “{group.name}”")
+    place_in_group(db, video, group)
+    return _saved(db, video)
+
+
+def topic_group(db: DbSession, knowledge_topic_id: int) -> KnowledgeTopic:
+    group = db.get(KnowledgeTopic, knowledge_topic_id)
+    if group is None:
+        raise ApiError(404, "topic_not_found", "Không tìm thấy nhóm chủ đề")
+    return group
+
+
+def place_in_group(db: DbSession, video: Video, group: KnowledgeTopic) -> None:
+    """The video into another topic group; the old group's plan idea made from it is freed."""
     for idea in db.scalars(select(TopicPlanItem).where(TopicPlanItem.video_id == video.id)):
         idea.video_id = None
     video.knowledge_topic_id = group.id
-    return _saved(db, video)
 
 
 @router.delete("/videos/{video_id}")
@@ -1065,13 +1075,18 @@ def duplicate(
 ) -> dict:
     """ "Nhân bản y hệt": an exact copy of a video, named "… (copy)", with no LLM call; it is rendered before posting.
     The source is only read, never locked: a teammate may keep working on it."""
+    draft = duplicate_video(db, storage, duplicable(db, video_id), me.user_id)
+    return _saved(db, draft)
+
+
+def duplicable(db: DbSession, video_id: int) -> Video:
+    """The source of "Nhân bản y hệt": any member's video with a script."""
     source = db.get(Video, video_id)
     if source is None:
         raise video_not_found()
     if not source.has_script:
         raise ApiError(409, "no_script", "Video gốc chưa có kịch bản để nhân bản")
-    draft = duplicate_video(db, storage, source, me.user_id)
-    return _saved(db, draft)
+    return source
 
 
 # --- Scenes ---
