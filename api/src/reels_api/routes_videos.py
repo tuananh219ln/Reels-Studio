@@ -2330,6 +2330,7 @@ class TopicPatchBody(BaseModel):
     video_mode: Literal["slides", "single", "alternate"] | None = None  # "Kiểu video" (videos.GROUP_VIDEO_MODES)
     text_look: dict | None = None  # "Chữ & phụ đề" (text_looks.FIELDS); null or {} (when sent): the maker's
     text_ai: bool | None = None  # "AI chọn kiểu chữ cho từng video"
+    no_people: bool | None = None  # "Không dùng cảnh có người"
     media_folder: str | None = None  # "Tư liệu": its folder in the "Kho tư liệu"; null or "" (when sent) unlinks
 
 
@@ -2373,6 +2374,7 @@ def _knowledge_payload(db: DbSession, user_id: int) -> dict:
                 # suggested looks and its job (queued, running, or failed) while there is one to show.
                 "text_look": text_looks.group_look(topic) or None,
                 "text_ai": topic.text_ai,
+                "no_people": topic.no_people,
                 "text_suggestions": topic.text_suggestions,
                 "text_job": text_looks.job_payload(text_looks.job_of(db, topic.id)),
                 "created_by_id": topic.created_by_id,
@@ -2518,6 +2520,8 @@ def patch_topic(
             raise invalid(str(err)) from None
     if body.text_ai is not None:
         topic.text_ai = body.text_ai
+    if body.no_people is not None:
+        topic.no_people = body.no_people
     if "media_folder" in body.model_fields_set:
         from .routes_media import link_folder
 

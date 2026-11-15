@@ -572,6 +572,8 @@ export type KnowledgeTopic = {
   text_look: Partial<VideoOptions> | null;
   /** "AI chọn kiểu chữ cho từng video": the script call also picks each video's look, over the group's. */
   text_ai: boolean;
+  /** "Không dùng cảnh có người": the group's scenes show no faces or bodies (hands at work are fine). */
+  no_people: boolean;
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */

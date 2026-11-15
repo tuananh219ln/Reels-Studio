@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge, Flex, Tabs } from "antd";
+import { App, Badge, Button, Flex, Tabs, Typography } from "antd";
 import { useState, type ContextType } from "react";
 import type { VideoDetail } from "@/lib/api";
 import { EditorContext } from "./AutoSaveField";
@@ -39,8 +39,11 @@ export default function PublishTab({
   /** "Render lại", as the header's button. */
   onRender: () => void;
 }) {
-  // "Tùy chọn đăng khác" in "Thiết lập": back on "Đăng bài", its card's drawer opens on the video's platform.
+  const { modal } = App.useApp();
+  // "Tùy chọn đăng khác", on "Đăng bài" under the status card (owner, 2026-11-15): the card's drawer opens on the
+  // video's platform.
   const [drawerRequest, setDrawerRequest] = useState<DrawerRequest | null>(null);
+  const moreOptions = () => setDrawerRequest({ platform: video.platform, at: Date.now() });
   return (
     <Tabs
       className="side-tabs"
@@ -61,6 +64,34 @@ export default function PublishTab({
                 onRender={onRender}
                 drawerRequest={drawerRequest}
               />
+              {/* The posting drawer with every platform's own options (a Page's queue, TikTok posted directly, a post
+                  made by hand); what was posted shows on the card above once it closes. */}
+              {video.mp4 && (
+                <Flex vertical gap={4} align="flex-start" data-testid="publish-more">
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Hàng chờ của Page, đăng thẳng lên TikTok, ghi lại bài đã đăng tay.
+                  </Typography.Text>
+                  <Button
+                    disabled={video.locked}
+                    onClick={() => {
+                      // A red QC check does not stop posting, but the member says so first.
+                      if (video.mp4?.qc?.status !== "fail") {
+                        moreOptions();
+                        return;
+                      }
+                      modal.confirm({
+                        title: "MP4 chưa đạt kiểm tra chất lượng",
+                        content: "Còn mục đỏ trong QC ở đầu trang. Nên sửa rồi render lại; vẫn đăng bản này?",
+                        okText: "Vẫn đăng",
+                        cancelText: "Huỷ",
+                        onOk: moreOptions,
+                      });
+                    }}
+                  >
+                    Tùy chọn đăng khác
+                  </Button>
+                </Flex>
+              )}
               <EditorContext.Provider value={postEditor}>
                 <PostContent video={video} />
               </EditorContext.Provider>
@@ -92,15 +123,7 @@ export default function PublishTab({
           key: "setup",
           label: "Thiết lập",
           forceRender: true,
-          children: (
-            <SetupTab
-              video={video}
-              onMoreOptions={() => {
-                onTab("post");
-                setDrawerRequest({ platform: video.platform, at: Date.now() });
-              }}
-            />
-          ),
+          children: <SetupTab video={video} />,
         },
       ]}
     />

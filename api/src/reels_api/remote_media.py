@@ -22,7 +22,7 @@ from pathlib import Path
 import yt_dlp
 
 from .clips import MAX_CLIP_BYTES, looks_like_clip
-from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
+from .uploads import MAX_IMAGE_BYTES, MAX_MUSIC_BYTES, UploadRejected, check_mp3, image_extension
 
 TIMEOUT_SECONDS = 15
 # A whole download, a 50 MB clip included; each read still gives up after TIMEOUT_SECONDS of silence.
@@ -278,3 +278,27 @@ def download(url: str, folder: Path) -> Media:
         return Media(photo=(data, image_extension(data)))
     except UploadRejected:
         raise RemoteMediaError(NOT_MEDIA) from None
+
+
+MUSIC_TOO_BIG = "File nhạc quá 20 MB, hãy chọn file nhỏ hơn"
+
+
+def download_music(url: str, folder: Path) -> bytes:
+    """An MP3 file's bytes from a direct link (a free music site's download), within the upload's 20 MB. A TikTok or
+    YouTube link is refused: their sound is someone's work that Facebook mutes or blocks (owner, 2026-11-15)."""
+    url = check_url(url)
+    parts = urllib.parse.urlsplit(url)
+    host = parts.hostname or ""
+    if is_tiktok(host) or is_youtube(host):
+        raise RemoteMediaError(
+            "Không lấy nhạc từ TikTok hay YouTube: hãy dùng link file MP3 của nguồn nhạc có giấy phép"
+        )
+    _check_host(parts)
+    target = folder / "music"
+    _fetch(url, target, MAX_MUSIC_BYTES, MUSIC_TOO_BIG)
+    data = target.read_bytes()
+    try:
+        check_mp3(data)
+    except UploadRejected:
+        raise RemoteMediaError("Link không phải file MP3: hãy dùng link tải thẳng file .mp3") from None
+    return data

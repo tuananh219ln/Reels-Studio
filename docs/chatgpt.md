@@ -136,6 +136,34 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   with words, paid), `restore_scene_image` brings back the original, and `set_scene_clip_blur` blurs boxes on a clip.
   A stock site's watermarked preview is dropped for another photo, never erased.
 
+- **The clip flow** (owner, 2026-11-15, [decisions/2026-11-15-mcp-clip-flow.md](decisions/2026-11-15-mcp-clip-flow.md)):
+  `view_clip_frames` returns one grid of 2–12 frames (9:16, as the render crops them, each labelled with its second)
+  of a library clip or of a scene's clip over the stretch the scene uses, so a whole stretch is checked before it is
+  used, not only its first frame; `attach_scene_clip` puts a library clip on a scene from `video_start`, blurs the
+  boxes given, keeps the scene's length (the web sets a clip scene to the clip's length, 10 s at most, which turned a
+  fixed-length title into 10 s) and answers with the scene's first frame. `update_scene` takes `text_position`
+  ([x, y] in the 1080×1920 frame; the render keeps the box in its safe zone, the title moves only up and down) and
+  `reset_text_position`.
+- **A blurred patch is covered**: `set_scene_clip_blur` and `attach_scene_clip` move the scene's text box onto the
+  centre of the largest box, then work out, with the render core's own box (`frames.text_box`), what of the patches
+  the box leaves showing and add cover stickers there (the kitchen set and Trái tim, Ngôi sao, Dấu tích, the smallest
+  size that spans the strip, two side by side when even 340 px does not, at most two a scene, to the end of the scene
+  with no entrance; drawing the blur again replaces them). A scene with no text is left alone (the Threads pages'
+  cards); the title takes no layers, so what still shows there is only reported (`cover` in the answer). `move_text`
+  false turns this off.
+- **"Không dùng cảnh có người"** (`knowledge_topics.no_people`, migration 0090, a switch on the group's "Cài đặt nhóm",
+  logged in its history; on for "Ăn Lành Sống Khỏe" only): every video carries its group's `no_people`, and the
+  instructions say that with it on, no photo or clip stretch shows a face, a body or someone talking to the camera;
+  hands at work are fine. Finding people automatically is a later change.
+- **Edit tools answer compactly**: the video's state and each scene in a line or two (text, seconds, media, clip start
+  and blur, layer and sound ids, warnings), about a tenth of `get_video`, which still answers in full; making a video
+  (`create_video*`) still answers in full. An assistant that read the caption or hashtags back from `update_video`
+  reads them with `get_video`.
+- **Music from a link**: `add_music_from_link` stores an MP3 from a direct link (20 MB at most, as an upload) in the
+  music library with its mood, topics ("chung" by default) and a licence note, which is required; TikTok and YouTube
+  links are refused, as their sound is someone's work that Facebook mutes or blocks. The track is then put on a video
+  with `set_audio`'s `music_track_id`.
+
 The server's instructions hold the team's quality bar: a strong hook in the first two seconds, one idea per scene,
 short on-screen text, a clear call to buy; fix every blocking item and warning, look at every scene before
 rendering, read the MP4's automatic QC (`mp4.qc`, see [architecture.md](architecture.md#render-qc)) and fix every

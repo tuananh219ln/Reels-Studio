@@ -61,7 +61,7 @@ import {
 } from "antd";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 
 // Job status and teammates' edits arrive by polling; 2.5 s keeps the page live without a socket while a job runs,
@@ -1133,17 +1133,8 @@ function SideLayout({
       }}
     >
       <div style={{ minWidth: 0 }}>{children}</div>
-      <div
-        data-side-panel
-        className="side-panel"
-        style={{
-          position: "sticky",
-          top: top + 12,
-          maxHeight: `calc(100vh - ${top + 22}px)`,
-          overflowY: "auto",
-          paddingRight: 4,
-        }}
-      >
+      {/* No scroll of its own (owner, 2026-11-15): the panel grows with the page, its tabs held under the header. */}
+      <div data-side-panel className="side-panel" style={{ "--side-top": `${top}px` } as CSSProperties}>
         {panel}
       </div>
     </div>

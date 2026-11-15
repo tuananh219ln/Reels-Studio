@@ -1591,7 +1591,7 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   // Only the badge and the name show: TikTok's "Nháp vào hộp thư" is its tooltip and its checkbox's description.
   await expect(card.getByRole("checkbox", { name: "TikTok" })).toHaveAccessibleDescription("Nháp vào hộp thư");
   await expect(card.getByText("Nháp vào hộp thư")).toBeHidden();
-  // The posting drawer has no button on the card any more; it is "Tùy chọn đăng khác" in "Thiết lập".
+  // The posting drawer has no button on the card itself; it is "Tùy chọn đăng khác" just under the card.
   await expect(card.getByRole("button", { name: "Tùy chọn khác" })).toHaveCount(0);
   // The MP4 takes 2 parts of the card's width, its facts 3, at 9:16.
   const thumb = await card.locator(".publish-card__thumb").boundingBox();

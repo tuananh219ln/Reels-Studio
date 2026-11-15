@@ -29,8 +29,9 @@ from starlette.concurrency import run_in_threadpool
 from reels_render.effects import COLOR_PRESETS, SCENE_TRANSITIONS
 from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
+from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
-from . import auto_approve, clips, footage_tools, jobs, motion, remote_media, video_options
+from . import auto_approve, clips, footage_tools, frames, jobs, motion, remote_media, video_options
 from . import routes_affiliate as affiliate_routes
 from . import routes_layers as layer_routes
 from . import routes_media as media_routes
@@ -46,7 +47,7 @@ from .models import AffiliateProduct, KnowledgeTopic, Scene, SceneLayer, SceneSo
 from .ownership import ensure_owner
 from .storage import get_storage
 from .videos import content_types as team_content_types
-from .videos import marks_of
+from .videos import marks_of, text_position
 
 log = logging.getLogger(__name__)
 
@@ -86,6 +87,199 @@ def _jpeg(frame: PILImage.Image) -> Image:
 
 STOCK_PREVIEWS = 6
 StockSource = Literal["pexels", "unsplash", "pixabay", "wikimedia", "openverse"]
+
+# The clip rule every assistant follows when it picks footage (owner, 2026-11-15): no people, hands are fine, and the
+# scene's own text goes over a blurred patch so the patch reads as part of the design.
+CLIP_RULES = (
+    'Luật chọn clip: video có no_people=true (nhóm bật "Không dùng cảnh có người") thì không chọn ảnh hay đoạn clip '
+    "có người (mặt, thân người, người nói trước camera); bàn tay đang thao tác (gắp, múc, cắt, rót) thì được. Soát cả "
+    'đoạn sẽ dùng bằng "Xem nhiều khung hình của clip", không chỉ khung đầu. Có làm mờ vùng nào trên clip thì chữ của '
+    'cảnh được dời lên đúng chỗ mờ đó và phần chữ không che hết được che bằng sticker ("Làm mờ vùng trên video của '
+    'cảnh" và "Gắn clip cho cảnh" tự làm); xem lại bằng "Xem khung hình của cảnh".'
+)
+
+# "Xem nhiều khung hình của clip": a grid of small 9:16 frames, each labelled with its second in the clip.
+SHEET_COLUMNS = 3
+SHEET_TILE = (180, 320)
+SHEET_MIN, SHEET_MAX, SHEET_DEFAULT = 2, 12, 9
+SHEET_DEFAULT_SECONDS = 6.0
+
+
+def _compact_scene(scene: dict) -> dict:
+    """One scene in a write tool's answer: enough to see what changed and to address it again."""
+    video = scene.get("video")
+    media = "clip" if video else ("photo" if scene.get("has_image") else None)
+    row = {
+        "id": scene["id"],
+        "is_title": scene["is_title"],
+        "text": scene["text"],
+        "seconds": scene["seconds"],
+        "fitted_seconds": scene.get("fitted_seconds"),
+        "voice_text": scene.get("voice_text", ""),
+        "media": media,
+        "text_position": scene.get("text_position"),
+    }
+    if video:
+        row["clip"] = {key: video.get(key) for key in ("start", "seconds", "speed", "blur")}
+    for key in ("image_credit", "image_error"):
+        if scene.get(key):
+            row[key] = scene[key]
+    if scene.get("layers"):
+        row["layers"] = [
+            {key: layer.get(key) for key in ("id", "kind", "text", "sticker") if layer.get(key) not in (None, "")}
+            for layer in scene["layers"]
+        ]
+    if scene.get("sounds"):
+        row["sounds"] = [{key: sound.get(key) for key in ("id", "sound")} for sound in scene["sounds"]]
+    for key in ("blocking", "warnings"):
+        if scene.get(key):
+            row[key] = scene[key]
+    return row
+
+
+def _compact_video(payload: dict) -> dict:
+    """A write tool's answer: the video's state and each scene in a line or two, not the whole video (about a tenth of
+    "Đọc video"), which the assistant reads when it needs the caption, the options or the posts."""
+    mp4 = payload.get("mp4")
+    music = payload.get("music")
+    title = payload.get("title_scene")
+    return {
+        "id": payload["id"],
+        "title": payload.get("title"),
+        "status": payload.get("status"),
+        "status_label": payload.get("status_label"),
+        "locked": payload.get("locked"),
+        "can_render": payload.get("can_render"),
+        "mp4_outdated": payload.get("mp4_outdated"),
+        "mp4": {"seconds": mp4["seconds"], "qc": (mp4.get("qc") or {}).get("status")} if mp4 else None,
+        "active_job": payload.get("active_job"),
+        "failed_job": payload.get("failed_job"),
+        "music": music["name"] if music else None,
+        "edit_template": payload.get("edit_template"),
+        "plan_idea": payload.get("plan_idea"),
+        "no_people": payload.get("no_people", False),
+        "title_scene": _compact_scene(title) if title else None,
+        "scenes": [_compact_scene(scene) for scene in payload.get("scenes", [])],
+        "video_blocking": payload.get("video_blocking", []),
+        "video_warnings": payload.get("video_warnings", []),
+        "note": 'Bản rút gọn; đọc đủ (caption, hashtag, bình luận ghim, thiết lập) bằng "Đọc video".',
+    }
+
+
+def _box_centre(boxes: list[list[float]]) -> list[int]:
+    """The centre, in frame pixels, of the largest blur box: where the scene's text box goes to cover it."""
+    x, y, width, height = max(boxes, key=lambda box: box[2] * box[3])
+    return [round((x + width / 2) * FRAME_WIDTH), round((y + height / 2) * FRAME_HEIGHT)]
+
+
+# The stickers that may cover a blurred patch (owner, 2026-11-15): the kitchen set and three plain ones; never a word
+# badge or a cross. A cover sticker lasts to the end of its scene, with no entrance, which is also how one is known
+# again when the blur changes.
+COVER_STICKERS = ("leaf", "bowl", "chopsticks", "tea", "apple", "flower", "heart", "star", "check")
+COVER_SECONDS = 60.0
+COVER_MIN_PIXELS = 12  # a sliver thinner than this is not worth a sticker
+COVER_MAX = 2  # at most this many cover stickers on a scene
+
+
+def is_cover_sticker(layer) -> bool:
+    return (
+        layer.kind == "sticker"
+        and layer.sticker in COVER_STICKERS
+        and layer.start == 0
+        and layer.seconds == COVER_SECONDS
+        and layer.animation == "none"
+    )
+
+
+def blur_rect(box: list[float]) -> tuple[int, int, int, int]:
+    """A blur box [x, y, width, height] in 0–1 of the frame, as (left, top, right, bottom) frame pixels."""
+    x, y, width, height = box
+    return (
+        round(x * FRAME_WIDTH),
+        round(y * FRAME_HEIGHT),
+        round((x + width) * FRAME_WIDTH),
+        round((y + height) * FRAME_HEIGHT),
+    )
+
+
+def uncovered_strips(
+    patch: tuple[int, int, int, int], text: tuple[int, int, int, int]
+) -> list[tuple[int, int, int, int]]:
+    """The parts of a blurred patch the text box leaves showing, as up to four rectangles (left and right of the box at
+    the patch's full height, above and below it across the box), slivers dropped."""
+    px0, py0, px1, py1 = patch
+    tx0, ty0, tx1, ty1 = text
+    if tx1 <= px0 or tx0 >= px1 or ty1 <= py0 or ty0 >= py1:
+        strips = [patch]
+    else:
+        strips = [
+            (px0, py0, min(tx0, px1), py1),
+            (max(tx1, px0), py0, px1, py1),
+            (max(tx0, px0), py0, min(tx1, px1), min(ty0, py1)),
+            (max(tx0, px0), max(ty1, py0), min(tx1, px1), py1),
+        ]
+    return [
+        (x0, y0, x1, y1) for x0, y0, x1, y1 in strips if x1 - x0 >= COVER_MIN_PIXELS and y1 - y0 >= COVER_MIN_PIXELS
+    ]
+
+
+def cover_stickers(strips: list[tuple[int, int, int, int]]) -> list[tuple[int, int, str]]:
+    """Where cover stickers go, (x, y, size) with x, y the centre in frame pixels: on each showing strip, largest first,
+    the smallest size whose side spans the strip's longer edge (two side by side when even the largest does not), at
+    most COVER_MAX in all."""
+    sides = sorted(((SIZES[name].sticker, name) for name in SIZES), key=lambda pair: pair[0])
+    placed: list[tuple[int, int, str]] = []
+    for x0, y0, x1, y1 in sorted(strips, key=lambda r: (r[2] - r[0]) * (r[3] - r[1]), reverse=True):
+        width, height = x1 - x0, y1 - y0
+        longest = max(width, height)
+        count = 1 if longest <= sides[-1][0] else 2
+        reach = longest / count
+        size = next((name for side, name in sides if side >= reach), sides[-1][1])
+        for index in range(count):
+            if len(placed) == COVER_MAX:
+                return placed
+            if width >= height:
+                x = round(x0 + width * (index + 0.5) / count)
+                y = round((y0 + y1) / 2)
+            else:
+                x = round((x0 + x1) / 2)
+                y = round(y0 + height * (index + 0.5) / count)
+            placed.append((x, y, size))
+    return placed
+
+
+def _contact_sheet(path: Path, seconds: list[float]) -> Image:
+    """Frames of a clip at `seconds`, cropped to 9:16 as the render fills the frame, in rows of three with each second
+    written on its tile."""
+    from PIL import ImageDraw
+
+    tiles = []
+    for second in seconds:
+        try:
+            frame = clips.frame_at(path, second)
+        except clips.ClipError as err:
+            raise ApiError(422, "frame_failed", f"Không lấy được khung ở giây {second:g}: {err}") from None
+        tiles.append(PILImageOps.fit(frame.convert("RGB"), SHEET_TILE))
+    width, height = SHEET_TILE
+    rows = -(-len(tiles) // SHEET_COLUMNS)
+    sheet = PILImage.new("RGB", (width * SHEET_COLUMNS, height * rows), "black")
+    draw = ImageDraw.Draw(sheet)
+    for index, (tile, second) in enumerate(zip(tiles, seconds, strict=True)):
+        left, top = (index % SHEET_COLUMNS) * width, (index // SHEET_COLUMNS) * height
+        sheet.paste(tile, (left, top))
+        draw.rectangle((left, top, left + 58, top + 20), fill="black")
+        draw.text((left + 5, top + 4), f"{second:.1f}s", fill="white")
+    buffer = io.BytesIO()
+    sheet.save(buffer, "JPEG", quality=82)
+    return Image(data=buffer.getvalue(), format="jpeg")
+
+
+def sheet_seconds(start: float, length: float, count: int) -> list[float]:
+    """`count` seconds spread over [start, start + length], first and last included, to a tenth."""
+    if count == 1:
+        return [round(start, 1)]
+    step = length / (count - 1)
+    return [round(start + step * index, 1) for index in range(count)]
 
 
 def _preview(url: str) -> Image | str:
@@ -176,7 +370,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             'các đoạn, chọn đoạn đúng đối tượng và hành động rồi "Dùng clip đã chọn cho cảnh"; không có clip hợp '
             'thì dùng "Tìm ảnh kho miễn phí". Không tự render hay đăng; báo kết quả cho người dùng. '
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
-            "Link video mở trong Reels Studio và cần đăng nhập. " + QUALITY
+            "Link video mở trong Reels Studio và cần đăng nhập. " + CLIP_RULES + " " + QUALITY
         ),
         token_verifier=MemberTokenVerifier(app, resource),
         auth=AuthSettings(
@@ -237,6 +431,12 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
     def video_link(payload: dict) -> dict:
         return {**payload, "editor_url": resource.removesuffix("/api/mcp") + f"/videos/{payload['id']}"}
+
+    def changed(payload: dict) -> dict:
+        """An edit tool's answer: a video comes back compact (a full one runs to tens of thousands of tokens and the
+        assistant repeats it on every edit); anything else, such as products or options, as it is. Making a video
+        still answers in full: it happens once, and its caption, writer and type are checked then."""
+        return video_link(_compact_video(payload) if "scenes" in payload else payload)
 
     @tool("Tìm video", read=True)
     async def list_videos(
@@ -313,7 +513,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             }
         )
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.patch_video(video_id, body, me, db, get_storage())), write=True
+            invoke, lambda db, me: changed(videos.patch_video(video_id, body, me, db, get_storage())), write=True
         )
 
     @tool("Sửa cảnh", read=False)
@@ -328,29 +528,33 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         video_start: float | None = None,
         video_speed: float | None = None,
         video_sound: bool | None = None,
+        text_position: Annotated[
+            list[int] | None, Field(description="Tâm hộp chữ của riêng cảnh này [x, y] trong khung 1080×1920")
+        ] = None,
+        reset_text_position: bool = False,
     ) -> dict:
         """Sửa chữ/lời đọc/thời lượng/từ khóa/prompt ảnh của một cảnh, kể cả cảnh tiêu đề. Với cảnh có clip:
         video_start là giây trong clip nơi cảnh bắt đầu, video_speed là tốc độ (1 là thường), video_sound bật/tắt
-        "Tiếng gốc" (tiếng của clip có trong video xuất ra; clip phải có tiếng). Không tạo ảnh."""
-        body = videos.ScenePatchBody(
-            **{
-                key: value
-                for key, value in {
-                    "text": text,
-                    "voice_text": voice_text,
-                    "seconds": seconds,
-                    "keywords": keywords,
-                    "keywords_en": keywords_en,
-                    "image_prompt": image_prompt,
-                    "video_start": video_start,
-                    "video_speed": video_speed,
-                    "video_sound": video_sound,
-                }.items()
-                if value is not None
-            }
+        "Tiếng gốc" (tiếng của clip có trong video xuất ra; clip phải có tiếng). text_position dời hộp chữ của riêng
+        cảnh này (như kéo chữ trên web; render giữ hộp trong vùng an toàn, cảnh tiêu đề chỉ dời lên xuống),
+        reset_text_position đưa về chỗ chung của video. Không tạo ảnh."""
+        fields = given(
+            text=text,
+            voice_text=voice_text,
+            seconds=seconds,
+            keywords=keywords,
+            keywords_en=keywords_en,
+            image_prompt=image_prompt,
+            video_start=video_start,
+            video_speed=video_speed,
+            video_sound=video_sound,
+            text_position=text_position,
         )
+        if reset_text_position:
+            fields["text_position"] = None
+        body = videos.ScenePatchBody(**fields)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True
+            invoke, lambda db, me: changed(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True
         )
 
     @tool("Tạo video và viết kịch bản bằng API của nhóm", read=False, external=True)
@@ -504,9 +708,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
     @tool("Thêm cảnh", read=False)
     async def add_scene(video_id: int) -> dict:
         """Thêm một cảnh trống ở cuối video; đọc lại video để lấy ID cảnh mới rồi sửa nó."""
-        return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.add_scene(video_id, me, db)), write=True
-        )
+        return await run_in_threadpool(invoke, lambda db, me: changed(videos.add_scene(video_id, me, db)), write=True)
 
     @tool("Làm cảnh động", read=False)
     async def set_scene_motion(
@@ -525,7 +727,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         render chồng lên như mọi cảnh; để trống chữ cảnh nếu HTML đã có chữ. Không tốn phí AI của nhóm."""
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(motion.request(db, get_storage(), scene_id, html, seconds, me)),
+            lambda db, me: changed(motion.request(db, get_storage(), scene_id, html, seconds, me)),
             write=True,
         )
 
@@ -537,7 +739,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         body = videos.MediaLinkBody(url=url)
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(videos.media_from_url(scene_id, body, me, db, get_storage())),
+            lambda db, me: changed(videos.media_from_url(scene_id, body, me, db, get_storage())),
             write=True,
         )
 
@@ -589,7 +791,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         def operation(db, me):
             saved = affiliate_routes.set_video_products(video_id, body, me, db)
-            return video_link({**saved, **_commission_report(db, saved, me.user_id)})
+            return changed({**saved, **_commission_report(db, saved, me.user_id)})
 
         return await run_in_threadpool(invoke, operation, write=True)
 
@@ -721,7 +923,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         credit."""
         body = videos.StockChoiceBody(source=source, keyword=keyword, url=url, orientation=orientation)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.choose_stock(scene_id, body, me, db, get_storage())), write=True
+            invoke, lambda db, me: changed(videos.choose_stock(scene_id, body, me, db, get_storage())), write=True
         )
 
     @tool("Sửa ảnh của cảnh", read=False, external=True)
@@ -738,29 +940,88 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         dùng trước). Ảnh gốc được giữ để khôi phục. Chỉ xóa watermark/logo trên ảnh nhóm có quyền dùng."""
         body = videos.ImageEditBody(engine=engine, boxes=boxes or [], prompt=prompt)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.edit_scene_image(scene_id, body, me, db)), write=True
+            invoke, lambda db, me: changed(videos.edit_scene_image(scene_id, body, me, db)), write=True
         )
 
     @tool("Làm mờ vùng trên video của cảnh", read=False)
     async def set_scene_clip_blur(
         scene_id: int,
         boxes: Annotated[list[Annotated[list[float], Field(min_length=4, max_length=4)]], Field(max_length=10)],
+        move_text: bool = True,
     ) -> dict:
         """Làm mờ suốt cảnh các vùng [x, y, rộng, cao] tỉ lệ 0–1 của khung 1080×1920 (như "Xem cảnh" cho thấy) trên
-        clip của cảnh: logo, tên kênh, chữ dính trong video. Danh sách rỗng bỏ làm mờ. Áp dụng ở lần render sau."""
+        clip của cảnh: logo, tên kênh, chữ dính trong video. Danh sách rỗng bỏ làm mờ. Áp dụng ở lần render sau.
+        move_text (mặc định bật, luật của nhóm): chữ của cảnh được dời lên đúng chỗ mờ (tâm vùng lớn nhất) để che nó,
+        phần mờ chữ không che hết thì tự thêm sticker che (trả về trong "cover"); cảnh không có chữ thì không dời, không
+        thêm. Xem lại bằng "Xem khung hình của cảnh"."""
         body = videos.VideoBlurBody(boxes=boxes)
-        return await run_in_threadpool(
-            invoke,
-            lambda db, me: video_link(videos.set_scene_video_blur(scene_id, body, me, db, get_storage())),
-            write=True,
-        )
+
+        def operation(db, me):
+            saved = videos.set_scene_video_blur(scene_id, body, me, db, get_storage())
+            if not move_text:
+                return changed(saved)
+            payload, notes = _cover_blur(db, me, scene_id, boxes)
+            return {**changed(payload), "cover": notes}
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    def _cover_blur(db, me, scene_id: int, boxes: list[list[float]]) -> tuple[dict, list[str]]:
+        """The owner's rule (2026-11-15): the scene's text box moves onto the largest blurred patch, and what of the
+        patches it leaves showing gets a sticker; the cover stickers of an earlier blur go first. A scene with no text
+        is left alone, and the title, which takes no layers, is only reported."""
+        storage = get_storage()
+        scene = db.get(Scene, scene_id)
+        video = db.get(Video, scene.video_id)
+        for layer in list(scene.layers):
+            if is_cover_sticker(layer):
+                layer_routes.delete_layer(layer.id, me, db, storage)
+        db.expire_all()
+        scene = db.get(Scene, scene_id)
+        if not boxes or not (scene.text or "").strip():
+            return videos.video_payload(db, video), []
+        payload = videos.patch_scene(scene_id, videos.ScenePatchBody(text_position=_box_centre(boxes)), me, db, storage)
+        db.expire_all()
+        scene, video = db.get(Scene, scene_id), db.get(Video, scene.video_id)
+        try:
+            box, (left, top) = frames.text_box(
+                scene.text, scene.is_title, video_options.render_options(video), text_position(video, scene)
+            )
+        except Exception:  # text that cannot render is reported by the scene's own warnings
+            return payload, ["Chữ của cảnh chưa render được nên chưa tính được phần mờ còn lộ"]
+        text_rect = (left, top, left + box.width, top + box.height)
+        strips = [strip for one in boxes for strip in uncovered_strips(blur_rect(one), text_rect)]
+        if not strips:
+            return payload, ["Chữ của cảnh đã che hết vùng mờ"]
+        if scene.is_title:
+            return payload, [
+                "Cảnh tiêu đề không gắn được sticker: phần mờ còn lộ "
+                + ", ".join(f"[{x0},{y0},{x1},{y1}]" for x0, y0, x1, y1 in strips)
+                + " px; hãy đổi video_start, đổi clip hoặc thu nhỏ vùng mờ"
+            ]
+        notes = []
+        name = COVER_STICKERS[scene.position % len(COVER_STICKERS)]
+        for x, y, size in cover_stickers(strips):
+            body = layer_routes.NewLayerBody(
+                scene_id=scene_id,
+                kind="sticker",
+                sticker=name,
+                start=0,
+                seconds=COVER_SECONDS,
+                x=x,
+                y=y,
+                size=size,
+                animation="none",
+            )
+            payload = layer_routes.add_layer(body, me, db)
+            notes.append(f"Đã thêm sticker “{STICKERS[name].label}” cỡ {SIZES[size].label.lower()} tại ({x}, {y})")
+        return payload, notes
 
     @tool("Khôi phục ảnh gốc của cảnh", read=False)
     async def restore_scene_image(scene_id: int) -> dict:
         """Bỏ mọi lần "Sửa ảnh" của cảnh và dùng lại ảnh trước lần sửa đầu tiên."""
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(videos.restore_scene_image(scene_id, me, db, get_storage())),
+            lambda db, me: changed(videos.restore_scene_image(scene_id, me, db, get_storage())),
             write=True,
         )
 
@@ -808,7 +1069,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             fields["seconds_auto"] = seconds_auto
         body = videos.ScenePatchBody(**fields)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True
+            invoke, lambda db, me: changed(videos.patch_scene(scene_id, body, me, db, get_storage())), write=True
         )
 
     @tool("Sắp xếp cảnh", read=False)
@@ -817,7 +1078,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         giữ chỗ ở cuối."""
         body = videos.SceneOrderBody(ids=scene_ids)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.reorder_scenes(video_id, body, me, db)), write=True
+            invoke, lambda db, me: changed(videos.reorder_scenes(video_id, body, me, db)), write=True
         )
 
     @tool("Tách cảnh", read=False)
@@ -825,7 +1086,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Tách cảnh tại giây `at`: phần sau thành cảnh mới ngay sau, cùng ảnh/clip, không chữ, không lời đọc."""
         body = videos.SplitBody(at=at)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.split_scene(scene_id, body, me, db, get_storage())), write=True
+            invoke, lambda db, me: changed(videos.split_scene(scene_id, body, me, db, get_storage())), write=True
         )
 
     @tool("Xoá cảnh", read=False)
@@ -833,7 +1094,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Xoá một cảnh nội dung cùng ảnh, clip và lời đọc của nó. Không hoàn tác được: chỉ làm khi người dùng yêu
         cầu. Không xoá được cảnh tiêu đề."""
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(videos.delete_scene(scene_id, me, db, get_storage())), write=True
+            invoke, lambda db, me: changed(videos.delete_scene(scene_id, me, db, get_storage())), write=True
         )
 
     @tool("Thêm lớp chữ, sticker hoặc ảnh chèn", read=False)
@@ -863,15 +1124,13 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             photo = layer_routes.HalfPhotoBody(scene_id=scene_id, scene_photo=True)
             return await run_in_threadpool(
                 invoke,
-                lambda db, me: video_link(layer_routes.add_half_photo(photo, me, db, get_storage())),
+                lambda db, me: changed(layer_routes.add_half_photo(photo, me, db, get_storage())),
                 write=True,
             )
         values = given(text=text, sticker=sticker, start=start, seconds=seconds, x=x, y=y)
         values |= given(size=size, style=style, animation=animation)
         body = layer_routes.NewLayerBody(scene_id=scene_id, kind=kind, **values)
-        return await run_in_threadpool(
-            invoke, lambda db, me: video_link(layer_routes.add_layer(body, me, db)), write=True
-        )
+        return await run_in_threadpool(invoke, lambda db, me: changed(layer_routes.add_layer(body, me, db)), write=True)
 
     @tool("Sửa lớp chữ, sticker hoặc ảnh", read=False)
     async def update_layer(
@@ -894,7 +1153,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         values |= given(size=size, style=style, animation=animation)
         body = layer_routes.LayerBody(**values)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(layer_routes.patch_layer(layer_id, body, me, db)), write=True
+            invoke, lambda db, me: changed(layer_routes.patch_layer(layer_id, body, me, db)), write=True
         )
 
     @tool("Xoá lớp chữ, sticker hoặc ảnh", read=False)
@@ -902,7 +1161,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Xoá một lớp chữ, sticker hoặc ảnh (ảnh chèn xoá cùng bản sao ảnh của nó)."""
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(
+            lambda db, me: changed(
                 layer_routes.delete_layer(_own_part(db, SceneLayer, layer_id, me), me, db, get_storage())
             ),
             write=True,
@@ -913,16 +1172,14 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         """Thêm hiệu ứng âm thanh (ví dụ "ding" khi giá hiện ra) ở giây `start` của cảnh; tên và mức âm lấy từ
         "Đọc lựa chọn dựng video"."""
         body = sound_routes.NewSoundBody(scene_id=scene_id, sound=sound, start=start, volume=volume)
-        return await run_in_threadpool(
-            invoke, lambda db, me: video_link(sound_routes.add_sound(body, me, db)), write=True
-        )
+        return await run_in_threadpool(invoke, lambda db, me: changed(sound_routes.add_sound(body, me, db)), write=True)
 
     @tool("Xoá âm thanh", read=False)
     async def delete_sound(sound_id: int) -> dict:
         """Xoá một hiệu ứng âm thanh (ID có trong "Đọc video", mục sounds của cảnh)."""
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(sound_routes.delete_sound(_own_part(db, SceneSound, sound_id, me), me, db)),
+            lambda db, me: changed(sound_routes.delete_sound(_own_part(db, SceneSound, sound_id, me), me, db)),
             write=True,
         )
 
@@ -945,7 +1202,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         Áp mẫu khác sau đó sẽ gỡ âm thanh và lớp chữ của mẫu trước rồi mới áp mẫu mới. Mẫu sai thì không đổi gì."""
         body = template_routes.ApplyBody(video_id=video_id, template=template_id)
         return await run_in_threadpool(
-            invoke, lambda db, me: video_link(template_routes.apply_template(body, me, db)), write=True
+            invoke, lambda db, me: changed(template_routes.apply_template(body, me, db)), write=True
         )
 
     @tool("Lưu video thành mẫu cá nhân", read=False)
@@ -987,7 +1244,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             settings = given(music_volume=music_volume, voice_enabled=voice_enabled)
             if settings or payload is None:
                 payload = videos.patch_video(video_id, videos.VideoPatchBody(**settings), me, db, storage)
-            return video_link(payload)
+            return changed(payload)
 
         return await run_in_threadpool(invoke, operation, write=True)
 
@@ -1079,7 +1336,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         def operation(db, me):
             saved = videos.patch_video(video_id, videos.VideoPatchBody(options=changes), me, db, get_storage())
-            return video_link({"id": saved["id"], "options": saved["options"]})
+            return changed({"id": saved["id"], "options": saved["options"]})
 
         return await run_in_threadpool(invoke, operation, write=True)
 
@@ -1155,7 +1412,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         đoạn bằng video_start trong "Sửa cảnh"."""
         return await run_in_threadpool(
             invoke,
-            lambda db, me: video_link(media_routes.use_in_scene(db, get_storage(), media_id, scene_id)),
+            lambda db, me: changed(media_routes.use_in_scene(db, get_storage(), media_id, scene_id)),
             write=True,
         )
 
@@ -1202,14 +1459,134 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         def operation(db, me):
             footage_tools.use(db, get_storage(), scene_id, candidate, window)
             scene = db.get(Scene, scene_id)
-            return video_link(videos.video_payload(db, db.get(Video, scene.video_id)))
+            return changed(videos.video_payload(db, db.get(Video, scene.video_id)))
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Xem nhiều khung hình của clip", read=True, images=True)
+    async def view_clip_frames(
+        media_id: int | None = None,
+        scene_id: int | None = None,
+        start: Annotated[float | None, Field(ge=0)] = None,
+        seconds: Annotated[float | None, Field(gt=0, le=60)] = None,
+        count: Annotated[int, Field(ge=SHEET_MIN, le=SHEET_MAX)] = SHEET_DEFAULT,
+    ) -> list:
+        """Một ảnh lưới gồm `count` khung 9:16 (cắt như khi render) rải đều từ giây `start` tới `start + seconds` của
+        một clip, mỗi khung ghi giây: soát CẢ ĐOẠN sẽ dùng trước khi gắn, không chỉ khung đầu (người, chữ dính, sai
+        món). Truyền media_id (clip trong kho, mặc định từ giây 0, dài 6 giây) hoặc scene_id (clip đang gắn của cảnh,
+        mặc định đúng đoạn cảnh dùng: từ video_start, dài bằng thời lượng cảnh). Chọn xong thì "Gắn clip cho cảnh"
+        với video_start là giây của khung đầu đoạn hợp."""
+        if (media_id is None) == (scene_id is None):
+            raise ToolError("Truyền đúng một trong media_id hoặc scene_id")
+
+        def operation(db, me):
+            from .models import MediaItem
+
+            storage = get_storage()
+            if media_id is not None:
+                item = db.get(MediaItem, media_id)
+                if item is None or item.kind != "clip" or not storage.exists(item.storage_key):
+                    raise ApiError(404, "clip_not_found", f"Không có clip {media_id} trong kho")
+                path, length, begin, span = storage.path(item.storage_key), item.seconds, 0.0, SHEET_DEFAULT_SECONDS
+                label = f"Clip #{item.id} “{item.name}”"
+            else:
+                scene = db.get(Scene, scene_id)
+                if scene is None or not scene.video_key or not storage.exists(scene.video_key):
+                    raise ApiError(409, "no_clip", "Cảnh này không có clip")
+                path, length = storage.path(scene.video_key), scene.video_seconds
+                begin, span = scene.video_start or 0.0, scene.seconds or SHEET_DEFAULT_SECONDS
+                label = f"Cảnh {scene.id}"
+            begin = begin if start is None else start
+            span = span if seconds is None else seconds
+            if length:
+                # The last frame a seek can reach is a little before the end of the clip.
+                end = max(0.0, length - 0.1)
+                begin = min(begin, end)
+                span = max(0.0, min(span, end - begin))
+            shown = sheet_seconds(begin, span, count)
+            note = f"{label}: {len(shown)} khung từ giây {shown[0]:g} tới {shown[-1]:g}"
+            if length:
+                note += f" (clip dài {length:g} giây)"
+            return [note + ".", _contact_sheet(path, shown)]
+
+        return await run_in_threadpool(invoke, operation)
+
+    @tool("Gắn clip cho cảnh", read=False, images=True)
+    async def attach_scene_clip(
+        scene_id: int,
+        media_id: int,
+        video_start: Annotated[float, Field(ge=0)] = 0,
+        blur: Annotated[list[Annotated[list[float], Field(min_length=4, max_length=4)]], Field(max_length=10)]
+        | None = None,
+        keep_seconds: bool = True,
+        move_text: bool = True,
+    ) -> list:
+        """Một lần gọi thay cho 4 lệnh: gắn clip trong kho (media_id) vào cảnh, chọn đoạn từ giây video_start, làm mờ
+        các vùng `blur` [x, y, rộng, cao] tỉ lệ 0–1 của khung 1080×1920 (chữ của cảnh tự dời lên chỗ mờ khi
+        move_text), giữ thời lượng cũ của cảnh (keep_seconds; gắn clip trên web đặt cảnh dài bằng clip, tối đa 10 giây,
+        nên cảnh tiêu đề không tự khớp lời đọc sẽ thành 10 giây), rồi trả bản rút gọn của video kèm khung đầu của cảnh
+        như khi render. Soát đoạn trước bằng "Xem nhiều khung hình của clip": không người, đúng món."""
+
+        def operation(db, me):
+            storage = get_storage()
+            scene = db.get(Scene, scene_id)
+            if scene is None:
+                raise ApiError(404, "scene_not_found", "Không tìm thấy cảnh")
+            before = scene.seconds
+            media_routes.use_in_scene(db, storage, media_id, scene_id)
+            db.expire_all()
+            scene = db.get(Scene, scene_id)
+            if scene.video_key is None:
+                raise ApiError(409, "not_a_clip", f"Tư liệu {media_id} là ảnh, không phải clip")
+            fields: dict = {"video_start": video_start}
+            # A scene that follows its narration already has the right length; only a fixed one is put back.
+            if keep_seconds and before and not scene.seconds_auto and scene.seconds != before:
+                fields["seconds"] = before
+            payload = videos.patch_scene(scene_id, videos.ScenePatchBody(**fields), me, db, storage)
+            notes: list[str] = []
+            if blur:
+                payload = videos.set_scene_video_blur(scene_id, videos.VideoBlurBody(boxes=blur), me, db, storage)
+                if move_text:
+                    payload, notes = _cover_blur(db, me, scene_id, blur)
+            preview = videos.scene_preview(scene_id, me, db, storage)
+            with PILImage.open(io.BytesIO(preview.body)) as frame:
+                image = _jpeg(frame)
+            return [json.dumps({**changed(payload), "cover": notes}, ensure_ascii=False), image]
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Thêm nhạc vào thư viện từ link", read=False, external=True)
+    async def add_music_from_link(
+        url: Annotated[str, Field(max_length=2000)],
+        mood: Annotated[str, Field(description="Một trong: " + ", ".join(music_routes.MOODS))],
+        license_note: Annotated[str, Field(min_length=3, max_length=500)],
+        name: Annotated[str, Field(max_length=200)] = "",
+        topics: Annotated[list[str], Field(max_length=20)] | None = None,
+    ) -> dict:
+        """Tải một bài nhạc về Thư viện nhạc của nhóm từ link file MP3 trực tiếp (tối đa 20 MB), như tải lên trên web.
+        Chỉ dùng nhạc có giấy phép rõ cho video đăng mạng xã hội (ví dụ nhạc miễn phí bản quyền của Pixabay, YouTube
+        Audio Library) và ghi nguồn + giấy phép vào license_note (bắt buộc); không nhận link TikTok, YouTube (nhạc
+        của người khác bị Facebook tắt tiếng hoặc chặn). mood lấy trong danh sách; topics là tên nhóm chủ đề hoặc
+        "chung" (mặc định "chung"). Gắn cho video bằng "Nhạc nền và giọng đọc" với music_track_id trả về."""
+
+        def operation(db, me):
+            with tempfile.TemporaryDirectory(prefix="reels_music_") as folder:
+                try:
+                    data = remote_media.download_music(url, Path(folder))
+                except remote_media.RemoteMediaError as err:
+                    raise ToolError(str(err)) from None
+            label = name or url.rsplit("/", 1)[-1].split("?", 1)[0].removesuffix(".mp3") or "Nhạc"
+            track = music_routes.save_track(
+                db, get_storage(), me.user_id, data, label, mood, topics or ["chung"], license_note
+            )
+            return {**music_routes.track_payload(track), "music_track_id": track.id}
 
         return await run_in_threadpool(invoke, operation, write=True)
 
     @tool("Yêu cầu render", read=False, external=True)
     async def render_video(video_id: int) -> dict:
         """Xếp một job render MP4; giọng đọc còn thiếu có thể dùng phí ElevenLabs. Không chờ MP4 hay tự thử lại."""
-        return await run_in_threadpool(invoke, lambda db, me: video_link(videos.render(video_id, me, db)), write=True)
+        return await run_in_threadpool(invoke, lambda db, me: changed(videos.render(video_id, me, db)), write=True)
 
     return mcp
 

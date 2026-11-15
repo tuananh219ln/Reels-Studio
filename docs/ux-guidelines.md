@@ -370,7 +370,7 @@ Built:
   analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
   scripts and clips; the card then says the sample was deleted).
   The scenes fill the left column (60%). The right column (40%) is the side panel with three tabs, "Đăng bài",
-"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the tab row kept at the panel's top while it scrolls. "Đăng bài" starts
+"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the panel has no scroll of its own and grows with the page, its tab row held just under the page header (2026-11-15). "Đăng bài" starts
 with one status card (2026-11-14, publish panel spec; radius 12, a 1 px border, no shadow): a header (12 × 16 px
 padding, a line under it) with where the video stands, a dot and a word, "Sẵn sàng đăng" green, a spinner and "Đang
 đăng…" orange, "Đã đăng" green, "Đã đăng một phần" orange, "Đăng thất bại" red, "Đã hẹn giờ" green, each but the first
@@ -390,7 +390,7 @@ select when several); TikTok cannot be scheduled, so with "Hẹn giờ" its row 
 Shorts and Instagram rows are dashed on #fafaf9, with a grey export mark instead of a ring ("Đăng tay" as tooltip): they
 open the posting drawer on their tab, where a post made by hand is recorded with its link. That drawer, with every
 platform's own options (a Page's queue, TikTok posted directly, "Đã đăng tay"), has no button on the card: it is
-"Tùy chọn đăng khác" at the foot of the "Thiết lập" tab, which goes back to "Đăng bài" and opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
+"Tùy chọn đăng khác" just under the card on "Đăng bài" (2026-11-15, MCP clip flow), which opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
 then a 40 px button "Đăng lên N nền tảng" ("Hẹn đăng lên N nền tảng", "Chọn nền tảng để đăng" and off with none) and
 a grey note: the newest MP4 goes with the saved caption and hashtags, Facebook comments when the post is up (when
 Facebook is picked and there is a pinned comment), several platforms go one by one with the page left open. Once
@@ -1295,7 +1295,9 @@ relied on (samples in the PR that added them).
   layer: its words (`*word*` in the accent colour, line breaks kept), Chữ viền (white, black outline, yellow
   accent) or a box (Hộp vàng, Hộp đen, Hộp trắng, Hộp đỏ), Nhỏ / Vừa / Lớn. A sticker, drawn by the render core
   itself (no image files): Mũi tên xuống, Mũi tên phải, Khoanh tròn, Ngôi sao, Trái tim, Dấu tích, Dấu X, Nhãn
-  MỚI, Nhãn HOT, Nhãn SALE, at 160, 240 or 340 px. Entrance: Hiện ngay, Mờ dần, Trượt lên (from 120 px lower),
+  MỚI, Nhãn HOT, Nhãn SALE, and the kitchen set Lá xanh, Bát canh, Đôi đũa, Chén trà, Quả táo, Bông hoa (flat, white-edged, 2026-11-15),
+  at 160, 240 or 340 px. The kitchen set and Trái tim, Ngôi sao, Dấu tích also cover a blurred patch the scene's
+  text leaves showing (MCP, [chatgpt.md](chatgpt.md)). Sample of the set: [samples/sticker-nha-bep.json](../samples/sticker-nha-bep.json). Entrance: Hiện ngay, Mờ dần, Trượt lên (from 120 px lower),
   Trượt từ trái (from off the frame), each over 0.3 s and fading in. The studio shows the exact picture the render
   lays on. Sample: [samples/lop-chu-sticker.json](../samples/lop-chu-sticker.json).
 - **Sound** ([reels_render/sounds.py](../worker/src/reels_render/sounds.py)), any scene, the title included.
