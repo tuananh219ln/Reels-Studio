@@ -1199,6 +1199,9 @@ export type PlanImportRow = {
   image_urls: string[];
   kind: ArticleKind | null;
   knowledge_topic_id: number | null;
+  /** The kind and topic group as the file names them. */
+  format: string;
+  topic_group: string;
   errors: string[];
   warnings: string[];
   /** "day:slot", "backlog" or "skip". */

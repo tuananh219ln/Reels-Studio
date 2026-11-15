@@ -79,12 +79,15 @@ def test_settings_make_the_plan_and_check_the_posting_times(an, page):
     assert (plan["used"], plan["empty_days"], plan["backlog"]) == (0, 30, 0)
     for wrong in (
         {"per_day": 2, "post_times": ["07:00", "11:30", "20:00"]},
-        {"per_day": 2, "post_times": ["20:00", "07:00"]},
+        {"per_day": 2, "post_times": ["20:00", "20:00"]},
         {"per_day": 11, "post_times": [f"{hour:02d}:00" for hour in range(11)]},
         {"per_day": 3, "post_times": ["07:00", "11:30", "20:00"], "start_date": None},
     ):
         body = {"start_date": article_plans.today().isoformat(), **wrong}
         assert an.put(f"/api/article-plans/{page}/settings", json=body).status_code == 422, wrong
+    # Times typed out of order are kept in the order of the day.
+    plan = set_up(an, page, per_day=2, times=("20:00", "07:00"))["plan"]
+    assert plan["post_times"] == ["07:00", "20:00"]
 
 
 def test_only_the_page_owner_changes_the_plan_but_everyone_reads_it(an, client, db, page):

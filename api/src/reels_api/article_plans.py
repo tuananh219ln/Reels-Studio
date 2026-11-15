@@ -185,8 +185,9 @@ def apply_settings(
     times = check_post_times(post_times)
     if len(times) != per_day:
         raise ValueError(f"Cần đúng {per_day} giờ đăng, mỗi giờ cho một bài")
-    if times != sorted(times):
-        raise ValueError("Giờ đăng phải tăng dần trong ngày")
+    # check_post_times puts them in order of the day; the same time twice would make two slots one.
+    if len(set(times)) != len(times):
+        raise ValueError("Mỗi giờ đăng chỉ một lần")
     groups = list(dict.fromkeys(topic_group_ids))
     for group_id in groups:
         if db.get(KnowledgeTopic, group_id) is None:
@@ -392,6 +393,9 @@ class Row:
     image_urls: list[str] = field(default_factory=list)
     kind: str | None = None
     knowledge_topic_id: int | None = None
+    # The kind and topic group as the file names them, so saving checks the same names again.
+    format: str = ""
+    topic_group: str = ""
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     # Where saving puts it: "day:slot", "backlog" or "skip", with why when it is not where the file says.
@@ -519,12 +523,12 @@ def read_rows(db: DbSession, plan: ArticlePlan, records: list[dict]) -> list[Row
             row.errors.append(f"Tối đa {MAX_LINKS} link ảnh")
         if any(not url.startswith(("http://", "https://")) for url in row.image_urls):
             row.errors.append("Link ảnh phải bắt đầu bằng http:// hoặc https://")
-        kind_name = _text(record.get("format"))
+        kind_name = row.format = _text(record.get("format"))
         if kind_name:
             row.kind = kind_of(kind_name)
             if row.kind is None:
                 row.errors.append(f"Dạng bài “{kind_name}” không tồn tại")
-        group_name = _text(record.get("topic_group"))
+        group_name = row.topic_group = _text(record.get("topic_group"))
         if group_name:
             row.knowledge_topic_id = groups.get(plain(group_name))
             if row.knowledge_topic_id is None:
@@ -681,7 +685,6 @@ def rows_from_payload(items: list[dict]) -> list[Row]:
 
 def check_rows(db: DbSession, plan: ArticlePlan, rows: list[Row]) -> None:
     """The rows as saved are checked again: a row changed in the browser cannot slip past the rules."""
-    names = dict(db.execute(select(KnowledgeTopic.id, KnowledgeTopic.name)).all())
     records = [
         {
             "day": row.day,
@@ -692,8 +695,8 @@ def check_rows(db: DbSession, plan: ArticlePlan, rows: list[Row]) -> None:
             "hashtags": row.hashtags,
             "image_brief": row.image_brief,
             "image_urls": row.image_urls,
-            "format": row.kind or "",
-            "topic_group": names.get(row.knowledge_topic_id or 0, ""),
+            "format": row.format,
+            "topic_group": row.topic_group,
         }
         for row in rows
     ]
