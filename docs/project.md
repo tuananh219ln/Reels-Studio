@@ -106,7 +106,10 @@ app replaces CapCut, so the output is a finished MP4.
    on one Page, and a second Page or a reel within two hours asks first. Posts are taken down and checked like reels,
    visitors' comments under them can be answered by a new article, and their numbers are read at 48 hours: reach, shares,
    comments, reactions, against the Page's median reach of articles. "Làm reel từ bài này" starts a video draft on
-   its topic. Articles are not in "Bài đăng", a Page's dashboard or its posting queue.
+   its topic. Articles are not in "Bài đăng", a Page's dashboard or its posting queue. Each Page has a 30-day plan of
+   article scripts (its posts a day at set times, a Backlog, filled by hand or from a CSV/JSON file previewed before it
+   is saved); "Tạo bài từ ô này" makes an article from a script. A posting failure that may pass is tried again by
+   itself after 1, 5 and 15 minutes, then the article shows "Đăng lỗi" with a red count on the menu.
 
 9. **ChatGPT and Claude connection (built, opt-in):** private MCP tools read/search videos, edit scene and posting
    text, create script jobs and request renders; for product videos, Claude (on the member's own plan) also
