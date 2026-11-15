@@ -10,12 +10,13 @@ import PostToast from "@/components/video/PostToast";
 import PublishTab, { type SideTab } from "@/components/video/PublishTab";
 import { usePostRound, type PostOutcome } from "@/components/video/postRound";
 import { QcChip } from "@/components/video/QcCard";
-import { RenderButtons, RenderStatus, showFirstBlocking } from "@/components/video/RenderBar";
+import { FoldedStatus, RenderButtons, RenderStatus, showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
 import type { PostBlockKey } from "@/components/video/PostContent";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import VideoPreview from "@/components/video/VideoPreview";
+import ResizableColumns from "@/components/video/ResizableColumns";
 import VideoProgress from "@/components/video/VideoProgress";
 import { ContentTypeField, PostedPlatforms, VideoKindTags } from "@/components/VideoKind";
 import VideoStatusTags from "@/components/VideoStatusTags";
@@ -29,6 +30,7 @@ import {
   type VideoMode,
 } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
+import { useStoredChoice } from "@/lib/storedChoice";
 import { usePresence } from "@/lib/presence";
 import {
   ArrowLeftOutlined,
@@ -41,6 +43,7 @@ import {
   MoreOutlined,
   PlusOutlined,
   SendOutlined,
+  UpOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -133,6 +136,9 @@ export default function VideoPage() {
   }, [askedClone, id, router]);
   // The side panel's tab: "Đăng bài", "Bình luận & Sản phẩm" or "Thiết lập".
   const [sideTab, setSideTab] = useState<SideTab>("post");
+  // The fixed header folded to its first row (title and actions), kept per member in this browser.
+  const [headerFold, setHeaderFold] = useStoredChoice<"open" | "folded">(`video-header:${me.id}`, "open");
+  const folded = headerFold === "folded";
   // From 1100 px the side panel sits beside the scenes; narrower, it is a drawer, open or not.
   const sideBySide = useWiderThan(WIDE_FROM);
   const [sideOpen, setSideOpen] = useState(false);
@@ -566,6 +572,14 @@ export default function VideoPage() {
               {video.name || video.title || video.topic}
             </Typography.Title>
             <Flex gap={10} align="center" wrap style={{ flex: "none" }}>
+              {folded && (
+                <FoldedStatus
+                  video={video}
+                  jobName={job ? JOB_NAMES[job.kind] : undefined}
+                  failedName={failed ? JOB_NAMES[failed.kind] : undefined}
+                  onOpen={() => setHeaderFold("open")}
+                />
+              )}
               <VideoStatusTags video={video} />
               {video.has_script && !viewing && (
                 <Typography.Text type="secondary" style={{ fontSize: 13 }} data-testid="editing-tag">
@@ -674,9 +688,24 @@ export default function VideoPage() {
                 Đăng bài / Thiết lập
               </Button>
             )}
+            <Tooltip title={folded ? "Mở rộng đầu trang" : "Thu gọn đầu trang"}>
+              <Button
+                icon={folded ? <DownOutlined /> : <UpOutlined />}
+                aria-label={folded ? "Mở rộng đầu trang" : "Thu gọn đầu trang"}
+                aria-expanded={!folded}
+                onClick={() => setHeaderFold(folded ? "open" : "folded")}
+              />
+            </Tooltip>
           </Flex>
         </Flex>
-        <Flex wrap gap="4px 12px" align="center" justify="space-between" style={{ marginTop: 6 }}>
+        <Flex
+          wrap
+          gap="4px 12px"
+          align="center"
+          justify="space-between"
+          style={{ marginTop: 6, display: folded ? "none" : undefined }}
+          data-testid="header-details"
+        >
           <Flex wrap gap="4px 8px" align="center" style={{ minWidth: 0 }}>
             <VideoProgress video={video} onOpenTab={(tab) => openSide(tab === "post" ? "products" : "ready")} />
             {video.mp4?.qc && <QcChip qc={video.mp4.qc} />}
@@ -880,6 +909,7 @@ export default function VideoPage() {
         <SideLayout
           wide={sideBySide}
           top={headerHeight}
+          storageKey={`video-split:${me.id}`}
           open={sideOpen}
           onClose={() => setSideOpen(false)}
           panel={
@@ -1082,19 +1112,22 @@ export default function VideoPage() {
 }
 
 /**
- * The scenes and the side panel: from 1100 px side by side, 60% and 40%, the panel stuck under the header and
- * scrolling on its own while the scenes scroll with the page; on a narrower screen the scenes take the width and the
- * panel is a drawer.
+ * The scenes and the side panel: from 1100 px side by side, 60% and 40% until the member drags the line between them
+ * (kept per member in this browser), the panel's tabs stuck under the header; on a narrower screen the scenes take
+ * the width and the panel is a drawer.
  */
 function SideLayout({
   wide,
   top,
+  storageKey,
   open,
   onClose,
   panel,
   children,
 }: {
   wide: boolean;
+  /** Where the dragged share of the width is kept. */
+  storageKey: string;
   /** The fixed header's height. */
   top: number;
   open: boolean;
@@ -1124,19 +1157,15 @@ function SideLayout({
     );
   }
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)",
-        gap: 16,
-        alignItems: "start",
-      }}
-    >
-      <div style={{ minWidth: 0 }}>{children}</div>
-      {/* No scroll of its own (owner, 2026-11-15): the panel grows with the page, its tabs held under the header. */}
-      <div data-side-panel className="side-panel" style={{ "--side-top": `${top}px` } as CSSProperties}>
-        {panel}
-      </div>
-    </div>
+    <ResizableColumns
+      storageKey={storageKey}
+      left={children}
+      right={
+        // No scroll of its own (owner, 2026-11-15): the panel grows with the page, its tabs held under the header.
+        <div data-side-panel className="side-panel" style={{ "--side-top": `${top}px` } as CSSProperties}>
+          {panel}
+        </div>
+      }
+    />
   );
 }

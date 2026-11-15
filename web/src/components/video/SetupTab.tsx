@@ -96,6 +96,7 @@ export default function SetupTab({ video }: { video: VideoDetail }) {
       <LogoCard video={video} disabled={disabled} onSave={(options) => void save({ options })} />
       <Collapse
         size="small"
+        className="setup-groups"
         expandIconPlacement="end"
         activeKey={open}
         onChange={(keys) => {
