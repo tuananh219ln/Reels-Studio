@@ -410,8 +410,8 @@ body {
   color: #a8a29e;
 }
 
-/* Đăng bài: a platform's result, one row, green when out, red when it failed. The post's buttons wrap to a second
-   line, at the right, when the 440 px side panel has no room for them beside the name and status. */
+/* Đăng bài: a platform's result, one row, green when out, red when it failed. The post's buttons always take a
+   second line, at the right: the 440 px side panel has no room for them beside the name, status and "Xem bài". */
 .post-row {
   display: flex;
   flex-wrap: wrap;
@@ -451,7 +451,9 @@ body {
 }
 
 .post-row__tools {
-  margin-left: auto;
+  flex-basis: 100%;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .post-row__action {
