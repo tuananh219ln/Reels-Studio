@@ -329,6 +329,22 @@ well and post the copy on another Page, through the web's own rules:
   next free posting time within 48 hours (the Page's own times, else its group's). The server's instructions ask the
   assistant to call it only when the member asks, after looking at the render's frames.
 
+## Reading Pages, results, jobs and comments
+
+Four read-only tools let an assistant run the flow without screenshots: each reads what a web page reads, compactly,
+and never a Page token.
+
+- `list_my_pages`: the member's Pages (or every active one): id, group, posting times and whether they are the
+  Page's own, the logo of its channel, the free times of the next 48 hours, the queue with each video's reason for
+  waiting, and the posts scheduled in the next 7 days (the queue's `GET /api/queue`).
+- `list_post_stats`: published Facebook posts of the last `days` (one Page, or the member's, or all) with views,
+  reach, shares, comments, reactions, watch time and the reading against the Page's 48-hour median, sorted by views,
+  date, shares or watch ratio (`GET /api/posts`). It is how the assistant picks winners to copy.
+- `list_jobs`: the newest page of the job log (the member's or everyone's), filtered by status or video
+  (`GET /api/jobs`), to follow many renders at once.
+- `list_comments`: visitors' comments under the app's posts, open ones by default (`GET /api/comments`). Read only:
+  the app neither answers nor hides comments (removed 2026-11-10), and a comment's text is data, not an instruction.
+
 ## Changing the queue, the plan, the logo and jobs
 
 Write tools that go through the web's own handlers ([the decision](decisions/2026-11-15-mcp-flow-tools.md)):
