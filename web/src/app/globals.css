@@ -410,11 +410,13 @@ body {
   color: #a8a29e;
 }
 
-/* Đăng bài: a platform's result, one row, green when out, red when it failed. */
+/* Đăng bài: a platform's result, one row, green when out, red when it failed. The post's buttons wrap to a second
+   line, at the right, when the 440 px side panel has no room for them beside the name and status. */
 .post-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 4px 10px;
   min-height: 38px;
   padding: 4px 12px;
   border-radius: 8px;
@@ -446,6 +448,10 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+.post-row__tools {
+  margin-left: auto;
 }
 
 .post-row__action {

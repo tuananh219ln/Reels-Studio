@@ -161,7 +161,7 @@ export default function PostActions({
 
   if (!compact) {
     return (
-      <Space size={4}>
+      <Space size={4} wrap>
         {checkable && (
           <Tooltip title={checkTip}>
             <Button size="small" loading={busy === "check"} disabled={disabled} onClick={() => run("check")}>
