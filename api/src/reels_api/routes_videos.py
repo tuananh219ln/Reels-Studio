@@ -1614,7 +1614,7 @@ def remove_scene_video(
     return payload
 
 
-def _orientation(value: str) -> str:
+def stock_orientation(value: str) -> str:
     if value not in ORIENTATIONS:
         raise invalid("Hướng ảnh không hợp lệ")
     return value
@@ -1637,12 +1637,12 @@ def find_other_image(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    orientation = _orientation(orientation)
+    orientation = stock_orientation(orientation)
     video, scene = lock_scene(db, scene_id)
     ensure_unlocked(db, video)
     # No source named: the first usable one of the video's topic group's order.
     source = source or first_stock_source(db, video)
-    client, error_type = _stock_client(source, db)
+    client, error_type = stock_client(source, db)
     if source in stock_turned_off(db):
         raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
     # Each source is searched in the language it indexes: Wikimedia and Openverse in Vietnamese, the others in
@@ -1742,7 +1742,7 @@ STOCK_OFF_KEY = "stock_sources_off"
 CLIP_DOWNLOAD_SECONDS = 60
 
 
-def _stock_client(source: str, db: DbSession):
+def stock_client(source: str, db: DbSession):
     """The picker client for a source and its error type; an unknown source is a bad request."""
     if source == "pixabay":
         return Pixabay(source_keys.get(db, "pixabay")), PixabayError
@@ -1783,7 +1783,7 @@ def stock_order(db: DbSession, video: Video | None) -> list[str]:
 def first_stock_source(db: DbSession, video: Video | None) -> str:
     """Where "Tìm ảnh" and the assistant's search go when no source is named: the first one usable, in order."""
     order = stock_order(db, video)
-    return next((source for source in order if _stock_available(source, db)), order[0])
+    return next((source for source in order if stock_available(source, db)), order[0])
 
 
 def stock_turned_off(db: DbSession) -> set[str]:
@@ -1796,7 +1796,7 @@ def stock_turned_off(db: DbSession) -> set[str]:
     )
 
 
-def _stock_available(source: str, db: DbSession) -> bool:
+def stock_available(source: str, db: DbSession) -> bool:
     return stock_configured(source, db) and source not in stock_turned_off(db)
 
 
@@ -1811,9 +1811,9 @@ def stock_sources(
         {
             "id": source,
             "label": STOCK_LABELS[source],
-            "available": _stock_available(source, db),
+            "available": stock_available(source, db),
             "missing_key": not stock_configured(source, db),
-            "clips": source in stock_clips.SOURCES and _stock_available(source, db),
+            "clips": source in stock_clips.SOURCES and stock_available(source, db),
         }
         for source in stock_order(db, video)
     ]
@@ -1910,7 +1910,7 @@ def search_stock(
     scene = db.get(Scene, scene_id)
     if scene is None:
         raise ApiError(404, "scene_deleted", "Cảnh này đã bị xóa")
-    orientation = _orientation(orientation)
+    orientation = stock_orientation(orientation)
     # No source named: the first usable one of the video's topic group's order.
     source = source or first_stock_source(db, db.get(Video, scene.video_id))
     used = _used_photos(db, scene.video_id) if hide_used else set()
@@ -1921,7 +1921,7 @@ def search_stock(
         raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
     if source in stock_turned_off(db):
         raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
-    client, error_type = _stock_client(source, db)
+    client, error_type = stock_client(source, db)
     db.rollback()
     try:
         hits = client.search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS, orientation)
@@ -1960,12 +1960,12 @@ def choose_stock(
     ensure_unlocked(db, video)
     if body.source in stock_turned_off(db):
         raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
-    client, error_type = _stock_client(body.source, db)
+    client, error_type = stock_client(body.source, db)
     db.rollback()
     deadline = time.monotonic() + FIND_IMAGE_SECONDS
     try:
         # The address comes from the browser: only a result the source itself returned may be fetched.
-        if body.url not in client.search(" ".join(body.keyword.split()), deadline, _orientation(body.orientation)):
+        if body.url not in client.search(" ".join(body.keyword.split()), deadline, stock_orientation(body.orientation)):
             raise invalid("Ảnh này không có trong kết quả tìm, hãy tìm lại")
         photo = client.download(body.url, deadline)
     except error_type as err:
@@ -2138,6 +2138,9 @@ def _retry_article(db: DbSession, job_id: int, article_id: int, me: Session) -> 
         raise ApiError(409, "job_not_failed", "Chỉ thử lại được job bị lỗi")
     if job.kind == "article_caption":
         queued = articles.enqueue_caption(db, article, me.user_id, retry_of_id=job_id)
+    elif job.kind == "article_image":
+        provider = job.image_provider or image_providers.default(db)
+        queued = articles.enqueue_image(db, article, me.user_id, provider, retry_of_id=job_id)
     else:
         queued = article_posts.enqueue(
             db, article, job.kind, me.user_id, publication_id=job.publication_id, retry_of_id=job_id

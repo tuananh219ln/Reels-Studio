@@ -2,16 +2,17 @@
 a brand's owner changes it. See brands.py."""
 
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from . import brands, remote_media
+from . import brands, photo_logo, remote_media
 from .db import get_db
 from .errors import ApiError
 from .models import Brand, Fanpage, Session
@@ -33,6 +34,29 @@ class BrandBody(BaseModel):
     youtube_channel_id: str | None = None
     youtube_handle: str | None = None
     logo_default_on: bool | None = None
+    # How the logo sits on an article's photos (photo_logo.py); `photo_logo_alt_threshold` null turns the white logo
+    # off.
+    photo_logo_position: str | None = None
+    photo_logo_size: float | None = None
+    photo_logo_margin: float | None = None
+    photo_logo_opacity: float | None = None
+    photo_logo_alt_threshold: float | None = None
+
+
+PHOTO_FIELDS = ("photo_logo_position", "photo_logo_size", "photo_logo_margin", "photo_logo_opacity")
+
+
+def _photo_payload(brand: Brand) -> dict:
+    return {
+        "logo_alt_url": brands.alt_logo_url(brand),
+        "photo_logo": {
+            "position": brand.photo_logo_position,
+            "size": brand.photo_logo_size,
+            "margin": brand.photo_logo_margin,
+            "opacity": brand.photo_logo_opacity,
+            "alt_threshold": brand.photo_logo_alt_threshold,
+        },
+    }
 
 
 def _payload(db: DbSession, brand: Brand, me: Session) -> dict:
@@ -51,6 +75,7 @@ def _payload(db: DbSession, brand: Brand, me: Session) -> dict:
         "logo_url": brands.logo_url(brand),
         "logo_badge_url": brands.badge_url(brand),
         "logo_version": brand.logo_version,
+        **_photo_payload(brand),
         "owner_id": brand.owner_id,
         "owner_name": brand.owner.name,
         "mine": brand.owner_id == me.user_id,
@@ -104,6 +129,28 @@ def _apply(db: DbSession, brand: Brand, me: Session, body: BrandBody) -> None:
             setattr(brand, name, _link(value, label, strip) if value is not None else None)
     if "logo_default_on" in fields and body.logo_default_on is not None:
         brand.logo_default_on = body.logo_default_on
+    _apply_photo_look(brand, body)
+
+
+def _apply_photo_look(brand: Brand, body: BrandBody) -> None:
+    fields = body.model_fields_set
+    look = photo_logo.look_of(brand)
+    changes = {
+        name.removeprefix("photo_logo_"): getattr(body, name)
+        for name in PHOTO_FIELDS
+        if name in fields and getattr(body, name) is not None
+    }
+    if "photo_logo_alt_threshold" in fields:
+        changes["alt_threshold"] = body.photo_logo_alt_threshold
+    if not changes:
+        return
+    try:
+        look = photo_logo.checked(replace(look, **changes))
+    except photo_logo.LogoSettingsError as err:
+        raise invalid(str(err)) from None
+    brand.photo_logo_position, brand.photo_logo_size = look.position, look.size
+    brand.photo_logo_margin, brand.photo_logo_opacity = look.margin, look.opacity
+    brand.photo_logo_alt_threshold = look.alt_threshold
 
 
 def _commit(db: DbSession) -> None:
@@ -160,6 +207,7 @@ def delete_brand(
     if using:
         raise ApiError(409, "brand_in_use", f"Kênh còn {len(using)} video đang dùng nên không xoá được")
     brands.drop_logo_files(storage, brand)
+    brands.clear_alt_logo(storage, brand)
     db.delete(brand)
     db.commit()
 
@@ -256,4 +304,90 @@ def original(
         raise ApiError(404, "no_logo", "Kênh chưa có logo")
     return FileResponse(
         storage.path(brand.logo_path), headers={"Cache-Control": "private, max-age=31536000, immutable"}
+    )
+
+
+# --- The logo on articles' photos ---
+
+
+@router.post("/{brand_id}/logo-alt")
+def upload_alt_logo(
+    brand_id: int,
+    file: UploadFile = File(...),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Logo phụ (bản trắng)": used on a dark photo when the brightness threshold is on."""
+    brand = brands.get_owned(db, brand_id, me.user_id)
+    brands.save_alt_logo(storage, brand, file.file.read(brands.MAX_LOGO_BYTES + 1))
+    db.commit()
+    return _photo_payload(brand)
+
+
+@router.delete("/{brand_id}/logo-alt")
+def delete_alt_logo(
+    brand_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    brand = brands.get_owned(db, brand_id, me.user_id)
+    brands.clear_alt_logo(storage, brand)
+    db.commit()
+    return _photo_payload(brand)
+
+
+@router.get("/{brand_id}/logo-alt")
+def alt_logo(
+    brand_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
+    brand = db.get(Brand, brand_id)
+    if brand is None or not brand.logo_alt_path or not storage.exists(brand.logo_alt_path):
+        raise ApiError(404, "no_logo", "Kênh chưa có logo phụ")
+    return FileResponse(
+        storage.path(brand.logo_alt_path), headers={"Cache-Control": "private, max-age=31536000, immutable"}
+    )
+
+
+@router.get("/{brand_id}/photo-sample")
+def photo_sample(
+    brand_id: int,
+    ratio: str = "1:1",
+    position: str | None = None,
+    size: float | None = None,
+    margin: float | None = None,
+    opacity: float | None = None,
+    alt_threshold: float | None = None,
+    no_alt: bool = False,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> Response:
+    """A sample photo of `ratio` (1:1 light, 4:5 soft, 1.91:1 dark) with the logo, drawn exactly as a posted photo is;
+    the settings being dragged are passed in the query before they are saved (`no_alt`: the white logo turned
+    off)."""
+    brand = db.get(Brand, brand_id)
+    if brand is None:
+        raise brands.not_found()
+    if ratio not in photo_logo.SAMPLE_RATIOS:
+        raise invalid("Tỉ lệ ảnh mẫu không hợp lệ")
+    logo = brands.brand_logo(storage, brand)
+    if logo is not None:
+        changes = {
+            name: value
+            for name, value in (("position", position), ("size", size), ("margin", margin), ("opacity", opacity))
+            if value is not None
+        }
+        if alt_threshold is not None or no_alt:
+            changes["alt_threshold"] = None if no_alt else alt_threshold
+        try:
+            logo = replace(logo, look=photo_logo.checked(replace(logo.look, **changes)))
+        except photo_logo.LogoSettingsError as err:
+            raise invalid(str(err)) from None
+    return Response(
+        photo_logo.sample(ratio, logo), media_type="image/jpeg", headers={"Cache-Control": "private, max-age=60"}
     )

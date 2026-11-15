@@ -200,7 +200,7 @@ function Articles() {
               </Typography.Text>
             </Link>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              {row.topic && row.hook ? row.topic : (row.image_kind_label ?? "Chỉ chữ")}
+              {row.topic && row.hook ? row.topic : row.images.length ? `${row.images.length} ảnh` : "Chỉ chữ"}
             </Typography.Text>
           </Flex>
         </Flex>

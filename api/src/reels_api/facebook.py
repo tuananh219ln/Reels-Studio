@@ -640,11 +640,10 @@ def publish_text(page: Page, message: str, scheduled_at: datetime | None) -> str
     return str(reply["id"])
 
 
-def publish_photo(page: Page, message: str, image: Path, scheduled_at: datetime | None) -> str:
-    """A photo post with `message` as its text, now or at `scheduled_at`; returns the id of the post (not of the
-    photo), which comments, numbers and deleting go through."""
+def _photo_upload(page: Page, fields: dict[str, str], image: Path) -> dict:
+    """POST /{page}/photos with the photo as `source` and `fields`; Facebook's answer."""
     boundary = uuid.uuid4().hex
-    fields = {"message": message, **_schedule_fields(scheduled_at), "access_token": page.token}
+    fields = {**fields, "access_token": page.token}
     parts = [
         f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode() + value.encode() + b"\r\n"
         for name, value in fields.items()
@@ -658,13 +657,45 @@ def publish_photo(page: Page, message: str, image: Path, scheduled_at: datetime 
     url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}/photos"
     headers = {"Content-Type": f"multipart/form-data; boundary={boundary}"}
     try:
-        reply = _send(urllib.request.Request(url, data=b"".join(parts), method="POST", headers=headers), UPLOAD_TIMEOUT)
+        return _send(urllib.request.Request(url, data=b"".join(parts), method="POST", headers=headers), UPLOAD_TIMEOUT)
     except FacebookError as err:
         raise _article_error(err) from None
+
+
+def publish_photo(page: Page, message: str, image: Path, scheduled_at: datetime | None) -> str:
+    """A photo post with `message` as its text, now or at `scheduled_at`; returns the id of the post (not of the
+    photo), which comments, numbers and deleting go through."""
+    reply = _photo_upload(page, {"message": message, **_schedule_fields(scheduled_at)}, image)
     post_id = reply.get("post_id") or reply.get("id")
     if not post_id:
         raise FacebookError("Facebook trả dữ liệu không đọc được, hãy xem Page trước khi thử lại", str(reply))
     return str(post_id)
+
+
+def publish_photos(page: Page, message: str, images: list[Path], scheduled_at: datetime | None) -> str:
+    """A post of several photos, in order, with `message` as its text, now or at `scheduled_at`; returns the post's
+    id. Each photo is uploaded unpublished (and `temporary` for a scheduled post, as Facebook asks), then one feed
+    post attaches them all. Photos uploaded for a post that then fails are never shown on the Page."""
+    upload_fields = {"published": "false", **({"temporary": "true"} if scheduled_at is not None else {})}
+    photo_ids = []
+    for image in images:
+        reply = _photo_upload(page, upload_fields, image)
+        if not reply.get("id"):
+            raise FacebookError("Facebook trả dữ liệu không đọc được khi tải ảnh lên, hãy thử lại", str(reply))
+        photo_ids.append(str(reply["id"]))
+    fields = {"message": message, **_schedule_fields(scheduled_at), "access_token": page.token}
+    for index, photo_id in enumerate(photo_ids):
+        fields[f"attached_media[{index}]"] = json.dumps({"media_fbid": photo_id})
+    url = f"{config.facebook_api_url()}/{urllib.parse.quote(page.id, safe='')}/feed"
+    try:
+        reply = _send(
+            urllib.request.Request(url, data=urllib.parse.urlencode(fields).encode(), method="POST"), REQUEST_TIMEOUT
+        )
+    except FacebookError as err:
+        raise _article_error(err) from None
+    if not reply.get("id"):
+        raise FacebookError("Facebook trả dữ liệu không đọc được, hãy xem Page trước khi thử lại", str(reply))
+    return str(reply["id"])
 
 
 def post_status(page: Page, post_id: str) -> dict | None:

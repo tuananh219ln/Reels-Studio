@@ -20,6 +20,7 @@ from sqlalchemy.orm import object_session
 
 from reels_render.logo import MIN_SOURCE_SIDE, make_badge
 
+from . import photo_logo
 from .errors import ApiError
 from .models import Brand, Fanpage, Publication, Video
 from .storage import DirectoryStorage
@@ -69,9 +70,9 @@ def logo_url(brand: Brand) -> str | None:
 # --- Logo file ---
 
 
-def save_logo(db: DbSession, storage: DirectoryStorage, brand: Brand, data: bytes) -> None:
-    """Checks the picture, keeps the original, makes the badge and bumps `logo_version`. Refused with 400 and a
-    reason: PNG, JPG or WebP, at most 5 MB, the shorter side at least 256 px."""
+def _checked_logo(data: bytes) -> str:
+    """The picture's extension, or a 400 with the reason: PNG, JPG or WebP, at most 5 MB, the shorter side at least
+    256 px."""
     if len(data) > MAX_LOGO_BYTES:
         raise ApiError(400, "logo_too_large", "Logo tối đa 5 MB")
     try:
@@ -85,6 +86,12 @@ def save_logo(db: DbSession, storage: DirectoryStorage, brand: Brand, data: byte
                 "logo_too_small",
                 f"Logo quá nhỏ: cạnh ngắn phải từ {MIN_SOURCE_SIDE}px (ảnh này {min(image.size)}px)",
             )
+    return extension
+
+
+def save_logo(db: DbSession, storage: DirectoryStorage, brand: Brand, data: bytes) -> None:
+    """Checks the picture (`_checked_logo`), keeps the original, makes the badge and bumps `logo_version`."""
+    extension = _checked_logo(data)
     tag = secrets.token_hex(6)
     original, badge = f"brands/{brand.id}/logo-{tag}.{extension}", f"brands/{brand.id}/badge-{tag}.png"
     storage.save_bytes(original, data)
@@ -105,6 +112,7 @@ def _badge_target(storage: DirectoryStorage, key: str) -> Path:
 
 
 def drop_logo_files(storage: DirectoryStorage, brand: Brand) -> None:
+    """The logo and its badge; the white logo goes only with the brand (`clear_alt_logo`)."""
     storage.delete(brand.logo_path)
     storage.delete(brand.logo_badge_path)
 
@@ -112,6 +120,46 @@ def drop_logo_files(storage: DirectoryStorage, brand: Brand) -> None:
 def clear_logo(storage: DirectoryStorage, brand: Brand) -> None:
     drop_logo_files(storage, brand)
     brand.logo_path = brand.logo_badge_path = brand.logo_version = None
+
+
+# --- The logo on articles' photos (photo_logo.py) ---
+
+
+def save_alt_logo(storage: DirectoryStorage, brand: Brand, data: bytes) -> None:
+    """The white logo used on dark photos; the same checks as the logo, no badge (videos never use it)."""
+    extension = _checked_logo(data)
+    key = f"brands/{brand.id}/logo-alt-{secrets.token_hex(6)}.{extension}"
+    storage.save_bytes(key, data)
+    storage.delete(brand.logo_alt_path)
+    brand.logo_alt_path, brand.logo_alt_version = key, hashlib.sha256(data).hexdigest()[:6]
+
+
+def clear_alt_logo(storage: DirectoryStorage, brand: Brand) -> None:
+    storage.delete(brand.logo_alt_path)
+    brand.logo_alt_path = brand.logo_alt_version = None
+
+
+def alt_logo_url(brand: Brand) -> str | None:
+    if not brand.logo_alt_path:
+        return None
+    return f"/api/brands/{brand.id}/logo-alt?v={brand.logo_alt_version}"
+
+
+def brand_logo(storage: DirectoryStorage, brand: Brand | None) -> photo_logo.BrandLogo | None:
+    """The brand's logo files and photo settings, or None when it has no logo (or its file is gone)."""
+    if brand is None or not brand.logo_path or not storage.exists(brand.logo_path):
+        return None
+    alt = brand.logo_alt_path if brand.logo_alt_path and storage.exists(brand.logo_alt_path) else None
+    return photo_logo.BrandLogo(
+        storage.path(brand.logo_path), storage.path(alt) if alt else None, photo_logo.look_of(brand)
+    )
+
+
+def page_logo(db: DbSession, storage: DirectoryStorage, fanpage_id: int | None) -> photo_logo.BrandLogo | None:
+    """The logo a photo posted to this Page gets: its brand's, or None."""
+    if fanpage_id is None:
+        return None
+    return brand_logo(storage, db.scalar(select(Brand).where(Brand.fanpage_id == fanpage_id)))
 
 
 # --- Videos ---

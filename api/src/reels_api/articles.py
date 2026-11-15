@@ -4,7 +4,8 @@ The caption is typed by a member or written by the AI in an `article_caption` jo
 `claude._assemble` as a video script, with this module's fixed output format. Its checks follow the video's: a banned
 word only warns (decisions 2026-10-31); a link in the caption or pinned comment blocks, because the app adds the
 affiliate links itself, in the comment only. The AI writes its own reminder to ask a doctor, in the post's voice; no
-fixed sentence is added (decisions 2026-11-07). A picture is optional: a "Thẻ chữ" (text card drawn here), a pasted photo's link, or none.
+fixed sentence is added (decisions 2026-11-07). Photos are optional: up to 10 (article_images.py), among them a
+"Thẻ chữ" (text card drawn here) or an AI photo made in an `article_image` job; none makes a text-only post.
 """
 
 import io
@@ -20,8 +21,8 @@ from sqlalchemy.orm import Session as DbSession
 
 from reels_render.textbox import FONT_PATH
 
+from . import article_images, knowledge
 from . import hashtags as hashtag_rules
-from . import knowledge
 from .claude import ClaudeError, ScriptOutputError, _assemble, _strings, fill_placeholders, json_object
 from .models import ACTIVE_JOB_STATUSES, Article, Job, KnowledgeTopic, PageComment
 from .script_rules import banned_hits
@@ -34,7 +35,9 @@ KIND_LABELS = {
     "tra_loi_binh_luan": "Trả lời bình luận",
     "checklist": "Tổng hợp / danh sách",
 }
-IMAGE_KIND_LABELS = {"ai": "Ảnh AI", "link": "Ảnh từ link", "text_card": "Thẻ chữ"}
+IMAGE_ASPECT_LABELS = {"1:1": "Vuông 1:1", "4:5": "Dọc 4:5", "1.91:1": "Ngang 1.91:1"}
+MAX_IMAGE_QUERY_LENGTH = 200
+MAX_IMAGE_PROMPT_LENGTH = 2000
 MAX_HASHTAGS = 5
 MAX_IDEAS = 3
 MAX_PINNED_LENGTH = 2000
@@ -300,24 +303,26 @@ def active_job(db: DbSession, article_id: int) -> Job | None:
     return db.scalar(select(Job).where(Job.article_id == article_id, Job.status.in_(ACTIVE_JOB_STATUSES)))
 
 
-def last_job(db: DbSession, article_id: int) -> Job | None:
-    return db.scalar(
-        select(Job).where(Job.article_id == article_id, Job.kind == "article_caption").order_by(Job.id.desc()).limit(1)
-    )
+def last_job(db: DbSession, article_id: int, kind: str = "article_caption") -> Job | None:
+    return db.scalar(select(Job).where(Job.article_id == article_id, Job.kind == kind).order_by(Job.id.desc()).limit(1))
 
 
 def enqueue_caption(db: DbSession, article: Article, user_id: int, retry_of_id: int | None = None) -> bool:
     """False when the article already has a job queued or running (the partial unique index is the guard), after
     rolling the transaction back."""
-    db.add(
-        Job(
-            article_id=article.id,
-            kind="article_caption",
-            status="queued",
-            created_by_id=user_id,
-            retry_of_id=retry_of_id,
-        )
-    )
+    return _enqueue(db, Job(article_id=article.id, kind="article_caption", retry_of_id=retry_of_id), user_id)
+
+
+def enqueue_image(db: DbSession, article: Article, user_id: int, provider: str, retry_of_id: int | None = None) -> bool:
+    """ "Tạo ảnh AI" for the article: one photo from `provider` in the article's shape, added last. False as
+    `enqueue_caption`."""
+    job = Job(article_id=article.id, kind="article_image", image_provider=provider, retry_of_id=retry_of_id)
+    return _enqueue(db, job, user_id)
+
+
+def _enqueue(db: DbSession, job: Job, user_id: int) -> bool:
+    job.status, job.created_by_id = "queued", user_id
+    db.add(job)
     try:
         db.flush()
     except IntegrityError:
@@ -334,9 +339,24 @@ def comment_text(comment: PageComment | None) -> str:
     return f"{comment.author_name}: {comment.message}" if comment else ""
 
 
+def image_prompt_of(article: Article) -> str:
+    """What an AI photo is made from: the prompt typed under "Nâng cao", else the photo search words, else the
+    topic, else the caption's first line."""
+    for text in (article.image_prompt, article.image_query, article.topic, hook_of(article.caption)):
+        if text.strip():
+            return text.strip()
+    return ""
+
+
+def _job(job: Job | None) -> dict | None:
+    return {"id": job.id, "status": job.status, "error": job.error} if job else None
+
+
 def payload(db: DbSession, article: Article) -> dict:
     group = group_of(db, article)
     job = last_job(db, article.id)
+    image_job = last_job(db, article.id, "article_image")
+    images = article_images.images_of(db, article.id)
     comment = article.source_comment
     return {
         "id": article.id,
@@ -356,24 +376,22 @@ def payload(db: DbSession, article: Article) -> dict:
             "at": article.suggested_at.isoformat() if article.suggested_at else None,
         },
         "hook": hook_of(article.caption),
-        "has_image": bool(article.image_key),
-        "image_kind": article.image_kind,
-        "image_kind_label": IMAGE_KIND_LABELS.get(article.image_kind or ""),
-        "image_source": article.image_source,
-        "image_version": article.image_key.rsplit("-", 1)[-1] if article.image_key else None,
+        "images": [article_images.payload(image) for image in images],
+        "has_image": bool(images),
+        # The first photo's tag: the list's thumbnail (`/api/articles/{id}/image`) follows it.
+        "image_version": article_images.version(images[0]) if images else None,
+        "image_query": article.image_query,
+        "image_prompt": article.image_prompt,
+        "image_aspect": article.image_aspect,
         "source_comment": {"id": comment.id, "author": comment.author_name, "message": comment.message}
         if comment
         else None,
         "status": "draft",
         "status_label": "Nháp",
-        "job": {
-            "id": job.id,
-            "status": job.status,
-            "error": job.error,
-        }
-        if job
-        else None,
-        "busy": job is not None and job.status in ACTIVE_JOB_STATUSES,
+        "job": _job(job),
+        "image_job": _job(image_job),
+        # The AI writes the caption or makes a photo: the article is not edited meanwhile.
+        "busy": any(item is not None and item.status in ACTIVE_JOB_STATUSES for item in (job, image_job)),
         "checks": checks(article, group.banned_words if group else []),
         "created_by": article.created_by.name,
         "created_by_id": article.created_by_id,

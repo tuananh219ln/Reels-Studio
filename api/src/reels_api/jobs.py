@@ -22,6 +22,7 @@ from reels_render.script import parse_script
 
 from . import (
     affiliate_rounds,
+    article_images,
     article_posts,
     articles,
     auto_approve,
@@ -159,6 +160,8 @@ def run_job(
                 run_render_job(db, job, storage)
             elif job.kind == "image":
                 run_image_job(db, job, storage)
+            elif job.kind == "article_image":
+                run_article_image_job(db, job, storage)
             elif job.kind == "image_edit":
                 run_image_edit_job(db, job, storage)
             elif job.kind == "image_marks":
@@ -884,20 +887,24 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
             elif now() - post.finish_sent_at < SETTLE_TIME:
                 raise JobFailure("Facebook có thể vẫn đang đăng lần trước, hãy xem Page, đợi 30 phút rồi Thử lại")
         if status is None:
-            image = _check_article_publishable(db, article, post, storage)
-            post.post_text, post.remote_id, post.finish_sent_at = article_posts.post_text(db, article), None, now()
-            db.commit()
-            try:
-                if image is None:
-                    remote = facebook.publish_text(page, post.post_text, post.scheduled_at)
-                else:
-                    remote = facebook.publish_photo(page, post.post_text, image, post.scheduled_at)
-            except FacebookError as err:
-                # Only a refusal proves Facebook did not post it; a lost or 5xx answer proves nothing.
-                if 400 <= err.status < 500:
-                    post.finish_sent_at = None
-                    db.commit()
-                raise
+            _check_article_publishable(article, post)
+            with tempfile.TemporaryDirectory(prefix="reels_article_post_") as folder:
+                photos = _article_photos(db, article, post, storage, Path(folder))
+                post.post_text, post.remote_id, post.finish_sent_at = article_posts.post_text(db, article), None, now()
+                db.commit()
+                try:
+                    if not photos:
+                        remote = facebook.publish_text(page, post.post_text, post.scheduled_at)
+                    elif len(photos) == 1:
+                        remote = facebook.publish_photo(page, post.post_text, photos[0], post.scheduled_at)
+                    else:
+                        remote = facebook.publish_photos(page, post.post_text, photos, post.scheduled_at)
+                except FacebookError as err:
+                    # Only a refusal proves Facebook did not post it; a lost or 5xx answer proves nothing.
+                    if 400 <= err.status < 500:
+                        post.finish_sent_at = None
+                        db.commit()
+                    raise
             post.remote_id = remote
             db.commit()
             status = facebook.post_status(page, remote)
@@ -912,20 +919,23 @@ def run_article_publish_job(db: DbSession, job: Job, storage: DirectoryStorage) 
     log.info("Job %s posted article %s to Facebook as %s", job.id, article.id, post.remote_id)
 
 
-def _check_article_publishable(
-    db: DbSession, article: Article, post: Publication, storage: DirectoryStorage
-) -> Path | None:
-    """Also covers "Thử lại", which does not pass through the publish endpoint. The picture, if any, as a file."""
+def _check_article_publishable(article: Article, post: Publication) -> None:
+    """Also covers "Thử lại", which does not pass through the publish endpoint."""
     blocking = articles.checks(article, [])["blocking"]
     if blocking:
         raise JobFailure(blocking[0]["message"])
     if post.scheduled_at is not None and post.scheduled_at < now() + MIN_SCHEDULE_LEAD:
         raise JobFailure("Giờ hẹn đã qua hoặc còn dưới 10 phút, hãy chọn giờ khác rồi bấm đăng lại")
-    if article.image_key is None:
-        return None
-    if not storage.exists(article.image_key):
-        raise JobFailure("Không thấy ảnh của bài trong storage, hãy chọn lại ảnh rồi đăng")
-    return storage.path(article.image_key)
+
+
+def _article_photos(
+    db: DbSession, article: Article, post: Publication, storage: DirectoryStorage, folder: Path
+) -> list[Path]:
+    """The article's photos as posted to the post's Page: with that Page's logo, unless a photo's switch is off."""
+    try:
+        return article_images.posted_files(db, storage, article, post.fanpage_id, folder)
+    except FileNotFoundError as err:
+        raise JobFailure(f"Không thấy {str(err).lower()} của bài trong storage, hãy chọn lại ảnh rồi đăng") from None
 
 
 def _set_cover(page: facebook.Page, post: Publication, storage: DirectoryStorage) -> None:
@@ -1162,6 +1172,44 @@ def _check_publishable(db: DbSession, video: Video, post: Publication, storage: 
 
 
 # --- Images ---
+
+
+def run_article_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:
+    """An article's "Tạo ảnh AI": one photo in the article's shape (1:1, 4:5 or 1.91:1) from its prompt, added last.
+    Counted before the call, as a scene's; a refused prompt or a provider failure fails the job and adds nothing."""
+    article = db.get(Article, job.article_id)
+    prompt = articles.image_prompt_of(article)
+    if not prompt:
+        raise JobFailure("Bài chưa có prompt ảnh AI, từ khóa tìm ảnh hay chủ đề để tạo ảnh")
+    if article_images.count(db, article.id) >= article_images.MAX_IMAGES:
+        raise JobFailure(f"Bài đã đủ {article_images.MAX_IMAGES} ảnh, hãy bỏ bớt ảnh rồi tạo lại")
+    provider = job.image_provider or image_providers.default(db)
+    db.execute(update(Job).where(Job.id == job.id).values(image_calls=Job.image_calls + 1))
+    db.commit()
+    try:
+        data = generate_image(
+            image_style.styled(prompt, image_style.get(db)),
+            source_keys.get(db, provider),
+            provider,
+            article.image_aspect,
+        )
+        if len(data) > MAX_IMAGE_BYTES:
+            raise ImageGenError(
+                f"Ảnh {image_providers.LABELS.get(provider, provider)} trả về quá 15 MB, hãy bấm tạo lại"
+            )
+        try:
+            extension = image_extension(data)
+        except UploadRejected as err:
+            raise ImageGenError(str(err)) from None
+    except ImageGenError as err:
+        raise JobFailure(err.message, err.detail) from None
+    # Locked again: a member may have added photos while the provider worked.
+    article = db.get(Article, job.article_id, with_for_update=True, populate_existing=True)
+    if article_images.count(db, article.id) >= article_images.MAX_IMAGES:
+        raise JobFailure(f"Bài đã đủ {article_images.MAX_IMAGES} ảnh, hãy bỏ bớt ảnh rồi tạo lại")
+    article_images.add(db, storage, article, data, extension, "ai", f"ai:{_image_model(provider)}")
+    db.commit()
+    log.info("Job %s: AI photo added to article %s", job.id, article.id)
 
 
 def run_image_job(db: DbSession, job: Job, storage: DirectoryStorage) -> None:

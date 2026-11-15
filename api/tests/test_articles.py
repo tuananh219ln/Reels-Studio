@@ -11,7 +11,7 @@ from worker_helpers import add_user, committed, job_row  # noqa: F401  (fixtures
 
 from reels_api import articles, jobs, knowledge, remote_media
 from reels_api.claude import OUTPUT_FORMAT, build_script_prompt
-from reels_api.models import Article, Job, KnowledgeTopic
+from reels_api.models import Article, ArticleImage, Job, KnowledgeTopic
 from reels_api.storage import DirectoryStorage
 
 
@@ -134,8 +134,8 @@ def test_the_pinned_comment_and_product_ideas_are_edited_and_checked(an, db, top
 def test_an_article_is_deleted_with_its_picture(an, db, topic_id, tmp_path):
     article = create(an, topic_id)
     an.patch(f"/api/articles/{article['id']}", json={"caption": "Thẻ chữ thử"})
-    an.post(f"/api/articles/{article['id']}/text-card", json={"preset": "cam"})
-    key = db.scalar(select(Article.image_key).where(Article.id == article["id"]))
+    an.post(f"/api/articles/{article['id']}/images/text-card", json={"preset": "cam"})
+    key = db.scalar(select(ArticleImage.image_key).where(ArticleImage.article_id == article["id"]))
     storage = DirectoryStorage(tmp_path / "storage")
     assert storage.exists(key)
     assert an.delete(f"/api/articles/{article['id']}").json() == {"ok": True}
@@ -148,16 +148,17 @@ def test_an_article_is_deleted_with_its_picture(an, db, topic_id, tmp_path):
 
 def test_a_text_card_draws_the_caption_first_line_in_the_chosen_colour(an, topic_id, tmp_path):
     article = create(an, topic_id)
-    refused = an.post(f"/api/articles/{article['id']}/text-card", json={"preset": "cam"})
+    refused = an.post(f"/api/articles/{article['id']}/images/text-card", json={"preset": "cam"})
     assert refused.status_code == 422 and "viết caption trước" in refused.json()["message"]
     an.patch(f"/api/articles/{article['id']}", json={"caption": "Ăn sáng muộn có sao không?\n\nNội dung"})
-    saved = an.post(f"/api/articles/{article['id']}/text-card", json={"preset": "xanh_la"}).json()
-    assert (saved["has_image"], saved["image_kind"], saved["image_kind_label"]) == (True, "text_card", "Thẻ chữ")
+    saved = an.post(f"/api/articles/{article['id']}/images/text-card", json={"preset": "xanh_la"}).json()
+    assert saved["has_image"] is True
+    assert [(image["source"], image["source_label"]) for image in saved["images"]] == [("text_card", "Thẻ chữ")]
     image = Image.open(io.BytesIO(an.get(f"/api/articles/{article['id']}/image").content))
     assert image.size == articles.CARD_SIZE
     # The corner is the preset's background.
     assert image.getpixel((5, 5)) == pytest.approx((0x2F, 0x7D, 0x4F), abs=6)
-    assert an.post(f"/api/articles/{article['id']}/text-card", json={"preset": "tim"}).status_code == 422
+    assert an.post(f"/api/articles/{article['id']}/images/text-card", json={"preset": "tim"}).status_code == 422
 
 
 def test_a_text_card_fits_vietnamese_text_of_the_longest_allowed_length():
@@ -174,12 +175,13 @@ def test_a_pasted_photo_keeps_its_link_and_a_video_link_is_refused(an, topic_id,
     monkeypatch.setattr(
         remote_media, "download", lambda url, folder: remote_media.Media(photo=(photo.getvalue(), "png"))
     )
-    saved = an.post(f"/api/articles/{article['id']}/image-from-url", json={"url": " https://anh.vn/a.png "}).json()
-    assert (saved["image_kind"], saved["image_source"]) == ("link", "https://anh.vn/a.png")
-    removed = an.delete(f"/api/articles/{article['id']}/image").json()
-    assert (removed["has_image"], removed["image_kind"], removed["image_source"]) == (False, None, None)
+    saved = an.post(f"/api/articles/{article['id']}/images/from-url", json={"url": " https://anh.vn/a.png "}).json()
+    (image,) = saved["images"]
+    assert (image["source"], image["source_ref"]) == ("link", "https://anh.vn/a.png")
+    removed = an.delete(f"/api/articles/{article['id']}/images/{image['id']}").json()
+    assert (removed["has_image"], removed["images"]) == (False, [])
     monkeypatch.setattr(remote_media, "download", lambda url, folder: remote_media.Media(clip=folder / "x.mp4"))
-    refused = an.post(f"/api/articles/{article['id']}/image-from-url", json={"url": "https://tiktok.com/x"})
+    refused = an.post(f"/api/articles/{article['id']}/images/from-url", json={"url": "https://tiktok.com/x"})
     assert refused.status_code == 422 and refused.json()["message"] == "Link này là video: bài viết chỉ nhận ảnh"
 
 

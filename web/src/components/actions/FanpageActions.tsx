@@ -1,5 +1,6 @@
 "use client";
 import FormDrawer from "@/components/FormDrawer";
+import PhotoLogoDrawer from "@/components/actions/PhotoLogoDrawer";
 import { useMe } from "@/components/MeContext";
 import { api, errorMessage, upload, type AffiliateAccount, type BrandLogoResult, type Fanpage } from "@/lib/api";
 import { DeleteOutlined, FacebookOutlined, MoreOutlined, StopOutlined } from "@ant-design/icons";
@@ -123,6 +124,7 @@ export function OwnerLine({
 function LogoLine({ row, onRows }: { row: Fanpage; onRows: (rows: Fanpage[]) => void }) {
   const { message } = App.useApp();
   const [busy, setBusy] = useState(false);
+  const [photoLogo, setPhotoLogo] = useState(false);
   const brand = row.brand;
 
   async function change(work: (brandId: number) => Promise<BrandLogoResult | null>) {
@@ -213,8 +215,12 @@ function LogoLine({ row, onRows }: { row: Fanpage; onRows: (rows: Fanpage[]) => 
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
             Video của Page tự gắn logo
           </Typography.Text>
+          <Button size="small" type="link" onClick={() => setPhotoLogo(true)}>
+            Logo trên ảnh bài viết
+          </Button>
         </Flex>
       )}
+      {photoLogo && brand && <PhotoLogoDrawer brandId={brand.id} onClose={() => setPhotoLogo(false)} />}
     </Flex>
   );
 }

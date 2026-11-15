@@ -317,8 +317,10 @@ class FakeServices:
         self.vieneu_mode = "ok"  # ok | trial_limit | error500
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
-        # "photo": bytes or None}; their numbers by post id (reach, shares, comments, reactions).
+        # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
+        # shares, comments, reactions).
         self.page_posts: dict[str, dict] = {}
+        self.page_photos: dict[str, dict] = {}  # unpublished photos waiting to be attached to a feed post
         self.page_post_calls = 0
         self.page_post_replies_lost = 0  # that many posts are made, then answer 500
         self.page_post_refusals = 0  # that many posts are refused: 400 and nothing is posted
@@ -1045,18 +1047,34 @@ class FakeServices:
             return 400, {"error": {"message": "Invalid OAuth access token", "code": 190}}
         if page != FACEBOOK_PAGE:
             return 400, {"error": {"message": "Unknown page", "code": 100}}
+        scheduled = form.get("scheduled_publish_time")
+        if edge == "photos" and form.get("published") == "false" and not scheduled:
+            # A photo uploaded unpublished, to be attached to a feed post of several photos: not a post itself.
+            with self.lock:
+                photo_id = f"photo_{len(self.page_photos) + 1}"
+                self.page_photos[photo_id] = {"photo": photo, "temporary": form.get("temporary") == "true"}
+            return 200, {"id": photo_id}
+        attached = [
+            json.loads(form[name])["media_fbid"]
+            for name in sorted(
+                (name for name in form if name.startswith("attached_media[")),
+                key=lambda name: int(name.removeprefix("attached_media[").removesuffix("]")),
+            )
+        ]
         with self.lock:
             self.page_post_calls += 1
             if self.page_post_refusals:
                 self.page_post_refusals -= 1
                 return 400, {"error": {"message": "Invalid parameter", "code": 100}}
             post_id = f"{FACEBOOK_PAGE}_{9000 + len(self.page_posts)}"
-            scheduled = form.get("scheduled_publish_time")
             self.page_posts[post_id] = {
                 "message": form.get("message", ""),
                 "published": form.get("published", "true") != "false",
                 "scheduled": int(scheduled) if scheduled else None,
                 "photo": photo,
+                "photos": [
+                    self.page_photos[photo_id]["photo"] for photo_id in attached if photo_id in self.page_photos
+                ],
                 "edge": edge,
             }
             if self.page_post_replies_lost:

@@ -2,7 +2,9 @@
 (the default) or Cloudflare Workers AI (FLUX.1 schnell), dispatched by `provider` (image_providers: the team's default or the one chosen for a press).
 
 Gemini is asked for the 9:16 frame directly. Cloudflare's FLUX.1 schnell ignores width/height and always answers
-a 1024x1024 square, so that branch cuts the centre to 9:16 here before returning.
+a 1024x1024 square, so that branch cuts the centre to 9:16 here before returning. An article's photo is asked for in
+its own shape (`aspect`: 1:1, 4:5 or 1.91:1); Gemini has no 1.91:1, so it is asked for 16:9 and both providers' photos
+are cut to the exact shape.
 
 Called only from the image job. The returned bytes still go through the upload checks
 (uploads.image_extension) before they are stored, and the scene records the model as its
@@ -38,21 +40,27 @@ class ImageGenError(Exception):
         self.fatal = fatal
 
 
-def generate_image(prompt: str, key: str, provider: str = "gemini") -> bytes:
-    """One photo for the prompt, as raw image bytes (format not yet checked); `key` is the provider's, from
-    source_keys."""
+# Width / height of each shape a photo is made in, and what Gemini is asked for (it has no 1.91:1).
+ASPECTS = {"9:16": 9 / 16, "1:1": 1.0, "4:5": 4 / 5, "1.91:1": 1.91}
+GEMINI_ASPECTS = {"9:16": "9:16", "1:1": "1:1", "4:5": "4:5", "1.91:1": "16:9"}
+
+
+def generate_image(prompt: str, key: str, provider: str = "gemini", aspect: str = "9:16") -> bytes:
+    """One photo for the prompt, as raw image bytes (format not yet checked) in the shape `aspect` (a scene's 9:16 by
+    default); `key` is the provider's, from source_keys."""
     if provider == "cloudflare":
-        return _generate_cloudflare(prompt, key)
-    return _generate_gemini(prompt, key)
+        return _cut(_generate_cloudflare(prompt, key), ASPECTS[aspect], "Cloudflare")
+    data = _generate_gemini(prompt, key, aspect)
+    return data if GEMINI_ASPECTS[aspect] == aspect else _cut(data, ASPECTS[aspect], "Gemini")
 
 
-def _generate_gemini(prompt: str, key: str) -> bytes:
+def _generate_gemini(prompt: str, key: str, aspect: str = "9:16") -> bytes:
     if not key:
         raise ImageGenError(
             "Chưa có key Gemini nên không tạo được ảnh AI: nhập key ở Cài đặt › Nguồn tư liệu", fatal=True
         )
-    # Scenes are frames of a vertical reel: ask for the 9:16 frame explicitly instead of cropping whatever comes back.
-    return gemini_image([{"text": prompt}], key, {"aspectRatio": "9:16"})
+    # Ask for the frame's shape explicitly instead of cropping whatever comes back.
+    return gemini_image([{"text": prompt}], key, {"aspectRatio": GEMINI_ASPECTS[aspect]})
 
 
 def gemini_image(parts: list[dict], key: str, image_config: dict | None = None) -> bytes:
@@ -115,7 +123,7 @@ def _http_error(status: int, body: str) -> ImageGenError:
 # --- Cloudflare Workers AI ---
 
 CF_STEPS = 4  # FLUX.1 schnell's own default and maximum
-FRAME_RATIO = 9 / 16
+
 JPEG_QUALITY = 90
 
 
@@ -162,7 +170,7 @@ def _generate_cloudflare(prompt: str, key: str) -> bytes:
         image = base64.b64decode(data, validate=True)
     except (binascii.Error, ValueError):
         raise ImageGenError("Cloudflare trả ảnh không đọc được, thử lại sau") from None
-    return _vertical(image)
+    return image
 
 
 def _cf_messages(payload: object) -> str:
@@ -207,24 +215,25 @@ def _cf_http_error(status: int, body: str) -> ImageGenError:
     return _cf_refused(messages, detail)
 
 
-def _vertical(data: bytes) -> bytes:
-    """The centre of the photo cut to 9:16 and saved as JPEG; a photo already 9:16 (within a pixel) is kept."""
+def _cut(data: bytes, ratio: float, provider: str) -> bytes:
+    """The centre of the photo cut to `ratio` (width / height) and saved as JPEG; a photo already that shape (within
+    a pixel) is kept."""
     try:
         with Image.open(io.BytesIO(data)) as source:
             source.load()
             width, height = source.size
-            target = round(height * FRAME_RATIO)
+            target = round(height * ratio)
             if abs(width - target) <= 1:
                 return data
             if width > target:
                 left = (width - target) // 2
                 box = (left, 0, left + target, height)
             else:
-                cut = round(width / FRAME_RATIO)
+                cut = round(width / ratio)
                 top = (height - cut) // 2
                 box = (0, top, width, top + cut)
             buffer = io.BytesIO()
             source.crop(box).convert("RGB").save(buffer, "JPEG", quality=JPEG_QUALITY)
             return buffer.getvalue()
     except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
-        raise ImageGenError("Cloudflare trả ảnh không đọc được, thử lại sau") from None
+        raise ImageGenError(f"{provider} trả ảnh không đọc được, thử lại sau") from None

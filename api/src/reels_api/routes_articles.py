@@ -1,38 +1,67 @@
-"""Articles ("Bài viết"): photo or text posts written for a Page. The draft (articles.py: caption by hand or by the AI,
-a text card or a pasted photo), its posts (article_posts.py: posting, taking down, checking, the affiliate comment,
-the numbers) and "Làm reel từ bài này". A request never calls Facebook: the worker does."""
+"""Articles ("Bài viết"): photo or text posts written for a Page. The draft (articles.py: caption by hand or by the AI;
+its photos, article_images.py, with the Page's logo laid on when posted), its posts (article_posts.py: posting, taking
+down, checking, the affiliate comment, the numbers) and "Làm reel từ bài này". A request never calls Facebook: the
+worker does."""
 
 import tempfile
+import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, analytics, article_posts, articles, fanpages, remote_media
+from . import (
+    affiliate,
+    analytics,
+    article_images,
+    article_posts,
+    articles,
+    fanpages,
+    image_providers,
+    remote_media,
+)
 from .db import get_db
 from .errors import ApiError
 from .models import (
+    ARTICLE_IMAGE_ASPECTS,
     ARTICLE_KINDS,
+    PHOTO_LOGO_POSITIONS,
     AffiliateProduct,
     Article,
     ArticleAffiliateProduct,
     Fanpage,
     KnowledgeTopic,
+    MediaItem,
     PageComment,
     Publication,
     Session,
 )
 from .ownership import ensure_can_take_down, ensure_owner, ensure_page_owner
 from .routes_affiliate import _ask_comments
-from .routes_videos import MAX_SCHEDULE_DELAY, MIN_SCHEDULE_DELAY, NewVideoBody, create_video, invalid
+from .routes_videos import (
+    FIND_IMAGE_SECONDS,
+    MAX_KEYWORD_LENGTH,
+    MAX_SCHEDULE_DELAY,
+    MIN_SCHEDULE_DELAY,
+    NewVideoBody,
+    clean_stock_order,
+    create_video,
+    invalid,
+    stock_available,
+    stock_client,
+    stock_orientation,
+    stock_turned_off,
+)
 from .sessions import current_member, now
+from .stock_sites import stock_site
 from .storage import DirectoryStorage, get_storage
+from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension, read_limited
 
 router = APIRouter(prefix="/api/articles")
 
@@ -48,6 +77,9 @@ class NewArticleBody(BaseModel):
 
 
 class ArticlePatchBody(BaseModel):
+    image_query: str | None = None
+    image_prompt: str | None = None
+    image_aspect: str | None = None
     knowledge_topic_id: int | None = None
     kind: str | None = None
     topic: str | None = None
@@ -229,6 +261,14 @@ def patch_article(
     if body.affiliates is not None:
         ideas = [" ".join(idea.split())[:100] for idea in body.affiliates if idea.strip()]
         article.affiliates = list(dict.fromkeys(ideas))[:20]
+    if body.image_query is not None:
+        article.image_query = _text(body.image_query, articles.MAX_IMAGE_QUERY_LENGTH, "Từ khóa tìm ảnh")
+    if body.image_prompt is not None:
+        article.image_prompt = _text(body.image_prompt, articles.MAX_IMAGE_PROMPT_LENGTH, "Prompt ảnh AI")
+    if body.image_aspect is not None:
+        if body.image_aspect not in ARTICLE_IMAGE_ASPECTS:
+            raise invalid("Tỉ lệ ảnh không hợp lệ")
+        article.image_aspect = body.image_aspect
     if body.clear_source_comment:
         article.source_comment_id = None
     elif body.source_comment_id is not None:
@@ -247,10 +287,11 @@ def delete_article(
     ensure_owner(article.created_by_id, me.user_id, "bài viết này")
     if any(post.status in OPEN_POSTS for post in article_posts.posts_of(db, article.id)):
         raise ApiError(409, "article_posted", "Bài đang chờ đăng, đã hẹn giờ hoặc đã đăng: gỡ bài trên Facebook trước")
-    key = article.image_key
+    keys = [image.image_key for image in article_images.images_of(db, article.id)]
     db.delete(article)
     db.commit()
-    storage.delete(key)
+    for key in keys:
+        storage.delete(key)
     return {"ok": True}
 
 
@@ -265,26 +306,46 @@ def write_caption(article_id: int, me: Session = Depends(current_member), db: Db
     return _saved(db, article)
 
 
-def _store_image(
+# --- Photos (article_images.py): the same tools as a scene's photo, up to 10, the Page's logo laid on when posted ---
+
+
+def _added(
     db: DbSession,
     storage: DirectoryStorage,
     article_id: int,
     data: bytes,
     extension: str,
-    kind: str,
-    source: str | None,
+    source: str,
+    source_ref: str | None = None,
+    credit: str | None = None,
 ) -> dict:
     article = _editable(db, article_id)
-    old = article.image_key
-    key = articles.new_key(article.id, "image", extension)
-    storage.save_bytes(key, data)
-    article.image_key, article.image_kind, article.image_source = key, kind, source
-    payload = _saved(db, article)
-    storage.delete(old)
-    return payload
+    article_images.add(db, storage, article, data, extension, source, source_ref, credit)
+    return _saved(db, article)
 
 
-@router.post("/{article_id}/text-card")
+def _extension(data: bytes) -> str:
+    try:
+        return image_extension(data)
+    except UploadRejected as err:
+        raise ApiError(415, "invalid_image", str(err)) from None
+
+
+@router.post("/{article_id}/images")
+def upload_image(
+    article_id: int,
+    file: UploadFile = File(...),
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """ "Tải lên" and a pasted picture ("Dán…"): the photo added last."""
+    article_images.ensure_room(db, _article(db, article_id).id)
+    data = read_limited(file, MAX_IMAGE_BYTES, "Ảnh quá 15 MB, hãy chọn ảnh nhỏ hơn")
+    return _added(db, storage, article_id, data, _extension(data), "upload")
+
+
+@router.post("/{article_id}/images/text-card")
 def make_text_card(
     article_id: int,
     body: TextCardBody,
@@ -292,16 +353,17 @@ def make_text_card(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    """ "Thẻ chữ": the caption's first line on a plain colour, drawn here (no stock photo, so nothing unoriginal)."""
+    """ "Thẻ chữ": the caption's first line on a plain colour, drawn here."""
     article = _editable(db, article_id)
+    article_images.ensure_room(db, article.id)
     try:
         data = articles.text_card(articles.hook_of(article.caption), body.preset)
     except articles.CardError as err:
         raise invalid(str(err)) from None
-    return _store_image(db, storage, article_id, data, "jpg", "text_card", None)
+    return _added(db, storage, article_id, data, "jpg", "text_card")
 
 
-@router.post("/{article_id}/image-from-url")
+@router.post("/{article_id}/images/from-url")
 def image_from_url(
     article_id: int,
     body: LinkBody,
@@ -309,8 +371,9 @@ def image_from_url(
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    """A photo pasted as a link, downloaded like a scene's; the link is kept so a copyright claim can be traced."""
-    _editable(db, article_id)
+    """A photo pasted as a link (Google Ảnh, a shop...), downloaded like a scene's; the link is kept so a copyright
+    claim can be traced."""
+    article_images.ensure_room(db, _editable(db, article_id).id)
     # No row lock may be held while the other site answers; the save locks and re-checks.
     db.rollback()
     with tempfile.TemporaryDirectory(prefix="reels_article_") as folder:
@@ -321,39 +384,250 @@ def image_from_url(
     if media.photo is None:
         raise invalid("Link này là video: bài viết chỉ nhận ảnh")
     data, extension = media.photo
-    return _store_image(db, storage, article_id, data, extension, "link", body.url.strip())
+    payload = _added(db, storage, article_id, data, extension, "link", body.url.strip())
+    if site := stock_site(body.url):
+        payload["notice"] = (
+            f"Ảnh này lấy từ {site}: ảnh xem trước thường có watermark và cần mua bản quyền. "
+            "Nếu nhóm chưa mua, hãy đổi ảnh khác."
+        )
+    return payload
 
 
-@router.delete("/{article_id}/image")
-def remove_image(
+class LibraryBody(BaseModel):
+    media_id: int
+
+
+@router.post("/{article_id}/images/library")
+def image_from_library(
     article_id: int,
+    body: LibraryBody,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> dict:
-    """Back to a text-only post, which is a valid article."""
+    """ "Chọn từ kho" › Kho tư liệu: a copy of the library's photo, so deleting it there leaves the article's."""
+    item = db.get(MediaItem, body.media_id)
+    if item is None:
+        raise ApiError(404, "media_not_found", "Không tìm thấy tư liệu (có thể đã bị xoá)")
+    if item.kind != "photo":
+        raise invalid("Bài viết chỉ nhận ảnh, không nhận video")
+    if not storage.exists(item.storage_key):
+        raise ApiError(404, "media_not_found", "File của tư liệu không còn trên máy chủ")
+    data = storage.path(item.storage_key).read_bytes()
+    extension = item.storage_key.rsplit(".", 1)[-1]
+    return _added(db, storage, article_id, data, extension, "library", item.source_url or None)
+
+
+@router.get("/{article_id}/stock")
+def search_stock(
+    article_id: int,
+    q: str = "",
+    source: str | None = None,
+    orientation: str = "all",
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """ "Tìm ảnh" for an article: the scene's stock search (the same sources in the order of the article's group, the
+    same keys and switches); the results are shown straight from the source."""
+    article = _article(db, article_id)
+    group = db.get(KnowledgeTopic, article.knowledge_topic_id) if article.knowledge_topic_id else None
+    order = clean_stock_order(group.stock_order if group else None)
+    source = source or next((item for item in order if stock_available(item, db)), order[0])
+    keyword = " ".join(q.split())
+    if not keyword:
+        raise invalid("Hãy nhập từ khóa tìm ảnh")
+    if len(keyword) > MAX_KEYWORD_LENGTH:
+        raise invalid(f"Từ khóa dài quá {MAX_KEYWORD_LENGTH} ký tự")
+    if source in stock_turned_off(db):
+        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+    client, error_type = stock_client(source, db)
+    orientation = stock_orientation(orientation)
+    db.rollback()
+    try:
+        hits = client.search_hits(keyword, time.monotonic() + FIND_IMAGE_SECONDS, orientation)
+    except error_type as err:
+        raise ApiError(502, "stock_error", f"Không tìm được ảnh: {err.message}") from None
+    return {
+        "keyword": keyword,
+        "source": source,
+        "hits": [
+            {"url": hit.url, "preview": hit.preview, "credit": hit.credit["line"] if hit.credit else None}
+            for hit in hits
+        ],
+    }
+
+
+class StockChoiceBody(BaseModel):
+    source: str
+    keyword: str
+    url: str
+    orientation: str = "all"
+
+
+@router.post("/{article_id}/images/stock")
+def choose_stock(
+    article_id: int,
+    body: StockChoiceBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """The chosen stock photo, downloaded from its source; it must be one of that source's results for the keyword,
+    as for a scene. Its address and any credit line its licence asks for are kept."""
+    article_images.ensure_room(db, _editable(db, article_id).id)
+    if body.source in stock_turned_off(db):
+        raise invalid("Nguồn này đang tắt trong Cài đặt › Nguồn tư liệu")
+    client, error_type = stock_client(body.source, db)
+    orientation = stock_orientation(body.orientation)
+    db.rollback()
+    deadline = time.monotonic() + FIND_IMAGE_SECONDS
+    try:
+        # The address comes from the browser: only a result the source itself returned may be fetched.
+        if body.url not in client.search(" ".join(body.keyword.split()), deadline, orientation):
+            raise invalid("Ảnh này không có trong kết quả tìm, hãy tìm lại")
+        photo = client.download(body.url, deadline)
+    except error_type as err:
+        raise ApiError(502, "stock_error", f"Không tìm được ảnh: {err.message}") from None
+    if photo is None:
+        raise ApiError(422, "unusable_image", "Ảnh này không tải được, hãy chọn ảnh khác")
+    credit = photo.credit["line"] if photo.credit else None
+    return _added(db, storage, article_id, photo.data, photo.extension, "stock", photo.url, credit)
+
+
+@router.post("/{article_id}/images/ai")
+def generate_image(
+    article_id: int, provider: str | None = None, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Tạo ảnh AI": a job that makes one photo in the article's shape from its AI prompt (or, without one, its
+    photo search words, then its topic) and adds it last. `provider`: the one picked from the arrow for this press;
+    the team's default otherwise."""
     article = _editable(db, article_id)
-    old = article.image_key
-    article.image_key = article.image_kind = article.image_source = None
+    article_images.ensure_room(db, article.id)
+    if not articles.image_prompt_of(article):
+        raise invalid("Nhập prompt ảnh AI, từ khóa tìm ảnh hoặc chủ đề của bài trước khi tạo ảnh AI")
+    try:
+        chosen = image_providers.choose(db, provider)
+    except ValueError:
+        raise invalid("Nguồn ảnh AI không hợp lệ") from None
+    if not articles.enqueue_image(db, article, me.user_id, chosen):
+        raise ApiError(409, "article_busy", "Bài đang có việc chờ hoặc đang chạy")
+    return _saved(db, article)
+
+
+class ImagePatchBody(BaseModel):
+    logo_enabled: bool | None = None
+    # A position of its own for this photo's logo; null: the Page's.
+    logo_position: str | None = None
+
+
+@router.patch("/{article_id}/images/{image_id}")
+def patch_image(
+    article_id: int,
+    image_id: int,
+    body: ImagePatchBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+) -> dict:
+    """ "Logo ảnh này": the switch and the photo's own logo position."""
+    article = _editable(db, article_id)
+    image = article_images.get(db, article.id, image_id)
+    if body.logo_enabled is not None:
+        image.logo_enabled = body.logo_enabled
+    if "logo_position" in body.model_fields_set:
+        if body.logo_position is not None and body.logo_position not in PHOTO_LOGO_POSITIONS:
+            raise invalid("Vị trí logo không hợp lệ")
+        image.logo_position = body.logo_position
+    return _saved(db, article)
+
+
+class OrderBody(BaseModel):
+    ids: list[int]
+
+
+@router.put("/{article_id}/images/order")
+def order_images(
+    article_id: int, body: OrderBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Kéo để đổi thứ tự": the first photo is the one the feed shows biggest."""
+    article = _editable(db, article_id)
+    article_images.reorder(db, article.id, body.ids)
+    return _saved(db, article)
+
+
+@router.delete("/{article_id}/images/{image_id}")
+def remove_image(
+    article_id: int,
+    image_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    """Without photos the article is a text-only post, which is valid."""
+    article = _editable(db, article_id)
+    image = article_images.get(db, article.id, image_id)
+    key = image.image_key
+    db.delete(image)
+    db.flush()
+    article_images.renumber(db, article.id)
     payload = _saved(db, article)
-    storage.delete(old)
+    storage.delete(key)
     return payload
 
 
+def _photo_file(storage: DirectoryStorage, key: str) -> FileResponse:
+    if not storage.exists(key):
+        raise ApiError(404, "file_not_found", "Không tìm thấy file")
+    extension = key.rsplit(".", 1)[-1]
+    media_type = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(extension, "image/jpeg")
+    # The address carries the file's tag, so a browser may keep it for good.
+    return FileResponse(
+        storage.path(key), media_type=media_type, headers={"Cache-Control": "private, max-age=31536000, immutable"}
+    )
+
+
 @router.get("/{article_id}/image")
-def article_image(
+def first_image(
     article_id: int,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
 ) -> FileResponse:
-    article = _article(db, article_id)
-    if not article.image_key or not storage.exists(article.image_key):
+    """The first photo, as the list's thumbnail."""
+    images = article_images.images_of(db, _article(db, article_id).id)
+    if not images:
+        raise ApiError(404, "file_not_found", "Bài chưa có ảnh")
+    return _photo_file(storage, images[0].image_key)
+
+
+@router.get("/{article_id}/images/{image_id}")
+def image_file(
+    article_id: int,
+    image_id: int,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> FileResponse:
+    return _photo_file(storage, article_images.get(db, article_id, image_id).image_key)
+
+
+@router.get("/{article_id}/images/{image_id}/preview")
+def image_preview(
+    article_id: int,
+    image_id: int,
+    fanpage_id: int | None = None,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> Response:
+    """The photo as it will be posted to `fanpage_id`: with that Page's logo where this photo puts it, drawn by the
+    same code as the posted copy, 800 px wide."""
+    image = article_images.get(db, article_id, image_id)
+    if not storage.exists(image.image_key):
         raise ApiError(404, "file_not_found", "Không tìm thấy file")
-    extension = article.image_key.rsplit(".", 1)[-1]
-    media_type = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}.get(extension, "image/jpeg")
-    return FileResponse(
-        storage.path(article.image_key), media_type=media_type, headers={"Cache-Control": "private, max-age=3600"}
+    return Response(
+        article_images.preview(db, storage, image, fanpage_id),
+        media_type="image/jpeg",
+        headers={"Cache-Control": "private, no-cache"},
     )
 
 

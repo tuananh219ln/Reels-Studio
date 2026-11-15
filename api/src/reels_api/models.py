@@ -634,6 +634,16 @@ class Brand(Base):
     youtube_channel_id: Mapped[str | None] = mapped_column(String(64))
     youtube_handle: Mapped[str | None] = mapped_column(String(64))
     logo_default_on: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    # The logo on an article's photos (photo_logo.py): a white version for dark photos, used when the photo under
+    # the logo is darker than `photo_logo_alt_threshold` (0–1, None: never); where it sits (PHOTO_LOGO_POSITIONS),
+    # its width and its distance from the edges in % of the photo's width, and its opacity (0–1).
+    logo_alt_path: Mapped[str | None] = mapped_column(String(255))
+    logo_alt_version: Mapped[str | None] = mapped_column(String(16))
+    photo_logo_position: Mapped[str] = mapped_column(String(16), default="bottom_right", server_default="bottom_right")
+    photo_logo_size: Mapped[float] = mapped_column(Float, default=12, server_default="12")
+    photo_logo_margin: Mapped[float] = mapped_column(Float, default=3, server_default="3")
+    photo_logo_opacity: Mapped[float] = mapped_column(Float, default=1, server_default="1")
+    photo_logo_alt_threshold: Mapped[float | None] = mapped_column(Float)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -1001,18 +1011,31 @@ class PageComment(Base):
 
 
 ARTICLE_KINDS = ("kien_thuc", "meo", "cau_hoi", "canh_bao", "tra_loi_binh_luan", "checklist")
-ARTICLE_IMAGE_KINDS = ("ai", "link", "text_card")
+# Where an article's photo came from (article_images.source).
+ARTICLE_IMAGE_SOURCES = ("upload", "link", "stock", "library", "ai", "text_card")
+ARTICLE_IMAGE_ASPECTS = ("1:1", "4:5", "1.91:1")
+PHOTO_LOGO_POSITIONS = (
+    "top_left",
+    "top_center",
+    "top_right",
+    "middle_left",
+    "center",
+    "middle_right",
+    "bottom_left",
+    "bottom_center",
+    "bottom_right",
+)
 
 
 class Article(Base):
     """A photo or text post for a Page ("Bài viết", articles.py): a cheap test of a topic before a reel is made.
     Named "article" in code because "post" already means a `publications` row. Its posting status will come from its
-    publications, as a video's does; until then it is a draft. Without a picture it is a text-only post."""
+    publications, as a video's does; until then it is a draft. Its photos are `article_images` (1–10, in order);
+    without one it is a text-only post."""
 
     __tablename__ = "articles"
     __table_args__ = (
         CheckConstraint(f"kind IN {ARTICLE_KINDS}", name="kind"),
-        CheckConstraint(f"image_kind IS NULL OR image_kind IN {ARTICLE_IMAGE_KINDS}", name="image_kind"),
         Index("ix_articles_created_at", "created_at"),
     )
 
@@ -1022,9 +1045,11 @@ class Article(Base):
     topic: Mapped[str] = mapped_column(Text, default="", server_default="")  # what it is about ("Chủ đề")
     caption: Mapped[str] = mapped_column(Text, default="", server_default="")
     hashtags: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
-    image_key: Mapped[str | None] = mapped_column(String(200))
-    image_kind: Mapped[str | None] = mapped_column(String(16))  # one of ARTICLE_IMAGE_KINDS
-    image_source: Mapped[str | None] = mapped_column(Text)  # a pasted photo's link, kept for a copyright claim
+    # "Từ khóa tìm ảnh" (the stock search's words), the AI photo's prompt ("Nâng cao: Prompt ảnh AI") and the shape
+    # an AI photo is made in, one of ARTICLE_IMAGE_ASPECTS.
+    image_query: Mapped[str] = mapped_column(Text, default="", server_default="")
+    image_prompt: Mapped[str] = mapped_column(Text, default="", server_default="")
+    image_aspect: Mapped[str] = mapped_column(String(8), default="4:5", server_default="4:5")
     # The comment the worker writes under the post opens with this, then the products' links (as a video's).
     pinned_comment: Mapped[str] = mapped_column(Text, default="", server_default="")
     # Product ideas to search Shopee for ("Tìm sản phẩm"), and that search, as on a video (affiliate_rounds.suggest).
@@ -1043,6 +1068,28 @@ class Article(Base):
 
     created_by: Mapped[User] = relationship(foreign_keys=[created_by_id])
     source_comment: Mapped[PageComment | None] = relationship()
+
+
+class ArticleImage(Base):
+    """One photo of an article, in `position` order (0 first). The stored file is the photo as chosen; the Page's logo
+    is laid on a copy when the article is posted, for the Page posted to, so the original never changes
+    (photo_logo.py)."""
+
+    __tablename__ = "article_images"
+    __table_args__ = (Index("ix_article_images_article", "article_id", "position"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    article_id: Mapped[int] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
+    position: Mapped[int] = mapped_column(Integer)
+    image_key: Mapped[str] = mapped_column(String(200))
+    source: Mapped[str] = mapped_column(String(16))  # one of ARTICLE_IMAGE_SOURCES
+    # What the photo came from, for a copyright claim: the link or stock photo's address, "ai:<model>", a library
+    # item's link; None for an upload or a text card.
+    source_ref: Mapped[str | None] = mapped_column(Text)
+    credit: Mapped[str | None] = mapped_column(Text)  # the line a stock licence asks for (Wikimedia CC BY...)
+    logo_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    logo_position: Mapped[str | None] = mapped_column(String(16))  # one of PHOTO_LOGO_POSITIONS; None: the brand's
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class MediaItem(Base):

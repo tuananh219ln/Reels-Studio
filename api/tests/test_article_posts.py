@@ -14,6 +14,7 @@ from reels_api.models import (
     AffiliateProduct,
     Article,
     ArticleAffiliateProduct,
+    ArticleImage,
     Fanpage,
     Job,
     PageComment,
@@ -303,7 +304,7 @@ def test_a_photo_post_sends_the_picture_and_a_scheduled_one_waits(committed, rea
     storage.save_bytes("articles/1/card.jpg", articles.text_card("Ngủ đủ giấc", "cam"))
     at = datetime.now(UTC) + timedelta(hours=5)
     with committed() as db:
-        db.get(Article, article_id).image_key = "articles/1/card.jpg"
+        db.add(ArticleImage(article_id=article_id, position=0, image_key="articles/1/card.jpg", source="text_card"))
         post = db.scalar(select(Publication).where(Publication.article_id == article_id))
         post.scheduled_at = at
         db.commit()
