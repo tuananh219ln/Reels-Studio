@@ -15,7 +15,7 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, UnidentifiedImageError
 
 from .markup import MarkupError, parse_scene_text
 from .textbox import (
@@ -93,6 +93,18 @@ HALF_HEIGHT_DEFAULT, HALF_HEIGHT_MIN, HALF_HEIGHT_MAX = 32, 30, 45
 HALF_RADIUS = 36  # its rounded corners, in frame pixels; no border (owner's choice, 2026-11-12)
 
 
+# "Thẻ" (2026-11-15, the comment-reading pages): a screenshot card of its own (a Threads post) kept whole, never cut
+# or stretched, centred across and hung from its top edge (`y` is that edge, not a centre), under the scene's text
+# like an inset photo, on a slide video as on a backdrop. Its size is its width in percent of the frame's width (kept
+# in the layer's `height` field); a card too tall for CARD_MAX_HEIGHT is scaled down to it, narrower. Transparent
+# rows stay transparent, so a card drawn with its lower part cleared shows only its upper part at the same scale.
+CARD = "card"
+CARD_LABEL = "Thẻ"
+CARD_WIDTH_DEFAULT, CARD_WIDTH_MIN, CARD_WIDTH_MAX = 90, 50, 100
+CARD_TOP_DEFAULT = 220  # below the platform's top bar
+CARD_MAX_HEIGHT = 1500  # clear of the platform's caption and buttons at the bottom
+
+
 def half_height(percent: float = HALF_HEIGHT_DEFAULT) -> int:
     """An inset photo's side in frame pixels from its percent of the frame's height (32% is 614 px, 38% is 730)."""
     return round(FRAME_HEIGHT * min(max(percent, HALF_HEIGHT_MIN), HALF_HEIGHT_MAX) / 100)
@@ -109,7 +121,15 @@ STICKERS: dict[str, Named] = {
     "new": Named("Nhãn MỚI"),
     "hot": Named("Nhãn HOT"),
     "sale": Named("Nhãn SALE"),
+    # The kitchen set (owner, 2026-11-15): also what covers a blurred patch the scene's text leaves showing.
+    "leaf": Named("Lá xanh"),
+    "bowl": Named("Bát canh"),
+    "chopsticks": Named("Đôi đũa"),
+    "tea": Named("Chén trà"),
+    "apple": Named("Quả táo"),
+    "flower": Named("Bông hoa"),
 }
+KITCHEN_STICKERS = ("leaf", "bowl", "chopsticks", "tea", "apple", "flower")
 
 # How a layer comes in; every entrance but "none" also fades in over ANIMATION_SECONDS.
 ANIMATIONS: dict[str, Named] = {
@@ -139,10 +159,44 @@ class Layer:
     def half(self) -> bool:
         return is_half(self.kind, self.style)
 
+    @property
+    def card(self) -> bool:
+        return is_card(self.kind, self.style)
+
+    @property
+    def inset(self) -> bool:
+        """Laid under the scene's text, in the seconds of its own picture: an inset photo or a card."""
+        return self.half or self.card
+
 
 def is_half(kind: str, style: str) -> bool:
     """A photo layer "Ảnh chèn nửa khung"."""
     return kind == "photo" and style == HALF
+
+
+def is_card(kind: str, style: str) -> bool:
+    """A photo layer "Thẻ"."""
+    return kind == "photo" and style == CARD
+
+
+def card_width(percent: float = CARD_WIDTH_DEFAULT) -> int:
+    """A card's width in frame pixels from its percent of the frame's width."""
+    return round(FRAME_WIDTH * min(max(percent, CARD_WIDTH_MIN), CARD_WIDTH_MAX) / 100)
+
+
+def card_size(width: int, height: int, percent: float = CARD_WIDTH_DEFAULT) -> tuple[int, int]:
+    """The card's size in the frame for a picture `width` × `height`: its width percent, or less when that makes it
+    taller than CARD_MAX_HEIGHT; never stretched."""
+    wide = card_width(percent)
+    tall = max(1, round(wide * height / max(width, 1)))
+    if tall > CARD_MAX_HEIGHT:
+        wide, tall = max(1, round(wide * CARD_MAX_HEIGHT / tall)), CARD_MAX_HEIGHT
+    return wide, tall
+
+
+def card_corner(width: int, height: int, top: int) -> tuple[int, int]:
+    """Where a card goes: centred across, its top edge at `top`, kept inside the frame."""
+    return (FRAME_WIDTH - width) // 2, min(max(top, 0), max(FRAME_HEIGHT - height, 0))
 
 
 def half_y(y: float, height: int = HALF_HEIGHT_DEFAULT) -> int:
@@ -166,6 +220,8 @@ def render_layer(layer: Layer, case: str = "upper") -> Image.Image:
             raise ValueError("lớp ảnh chưa có ảnh")
         if layer.half:
             return render_half(layer.image, layer.height)
+        if layer.card:
+            return render_card(layer.image, layer.height)
         return render_photo(layer.image, SIZES[layer.size].photo, layer.style)
     return _sticker(layer.sticker, SIZES[layer.size].sticker)
 
@@ -188,6 +244,13 @@ def render_half(path: Path, height: int = HALF_HEIGHT_DEFAULT) -> Image.Image:
     card = ImageOps.fit(picture, (side, side), Image.Resampling.LANCZOS, centering=(0.5, 0.5)).convert("RGBA")
     card.putalpha(_shape_mask((side, side), HALF_RADIUS, False))
     return card
+
+
+def render_card(path: Path, percent: float = CARD_WIDTH_DEFAULT) -> Image.Image:
+    """ "Thẻ": the picture whole at its card size (card_size), with its own transparency. Raises ValueError for a file
+    that is not a photo."""
+    picture = _open_photo(path)
+    return picture.resize(card_size(picture.width, picture.height, percent), Image.Resampling.LANCZOS)
 
 
 def render_photo(path: Path, width: int, shape: str) -> Image.Image:
@@ -285,9 +348,87 @@ def _sticker(name: str, side: int) -> Image.Image:
         else:
             draw.line([(big * 0.32, big * 0.32), (big * 0.68, big * 0.68)], "#FFFFFF", stroke)
             draw.line([(big * 0.68, big * 0.32), (big * 0.32, big * 0.68)], "#FFFFFF", stroke)
+    elif name in KITCHEN_STICKERS:
+        _kitchen(draw, name, big, edge)
     else:
         raise ValueError(f"không có sticker {name!r}")
     return image.resize((side, side), Image.Resampling.LANCZOS)
+
+
+LEAF_GREEN = "#2E9E4F"
+BOWL_ORANGE = "#E8833A"
+WOOD = "#9C6233"
+TEA_GREEN = "#8DB33A"
+APPLE_RED = "#D62D2D"
+PETAL_PINK = "#F06C9B"
+STEAM = "#FFFFFF"
+
+
+def _kitchen(draw: ImageDraw.ImageDraw, name: str, big: int, edge: int) -> None:
+    """The kitchen stickers, flat shapes with a white edge like the others, on a `big` square."""
+    white = "#FFFFFF"
+
+    def steam(xs: list[float], top: float, bottom: float) -> None:
+        width = round(big * 0.035)
+        for x in xs:
+            points = [(big * (x + 0.03 * math.sin(i)), big * (bottom - (bottom - top) * i / 6)) for i in range(7)]
+            draw.line(points, fill=DARK, width=width + edge, joint="curve")
+            draw.line(points, fill=STEAM, width=width, joint="curve")
+
+    if name == "leaf":
+        # A leaf leaning right: two arcs meeting at the tip, a vein down the middle.
+        # Two overlapping circles: where both are is a leaf pointed at both ends.
+        left, right = Image.new("L", (big, big), 0), Image.new("L", (big, big), 0)
+        ImageDraw.Draw(left).ellipse((big * -0.08, big * 0.12, big * 0.72, big * 0.88), fill=255)
+        ImageDraw.Draw(right).ellipse((big * 0.28, big * 0.12, big * 1.08, big * 0.88), fill=255)
+        leaf = ImageChops.multiply(left, right).rotate(-35, resample=Image.Resampling.BICUBIC)
+        outline = leaf.filter(ImageFilter.MaxFilter(edge * 2 + 1))
+        draw.bitmap((0, 0), outline, fill=white)
+        draw.bitmap((0, 0), leaf, fill=LEAF_GREEN)
+        draw.line([(big * 0.34, big * 0.76), (big * 0.66, big * 0.24)], fill=white, width=round(big * 0.04))
+    elif name == "bowl":
+        steam([0.36, 0.5, 0.64], 0.06, 0.36)
+        box = (big * 0.08, big * 0.18, big * 0.92, big * 0.9)
+        draw.chord(box, 0, 180, fill=BOWL_ORANGE, outline=white, width=edge)
+        draw.ellipse((big * 0.08, big * 0.48, big * 0.92, big * 0.62), fill="#F6C28B", outline=white, width=edge)
+        draw.rounded_rectangle(
+            (big * 0.36, big * 0.86, big * 0.64, big * 0.94),
+            radius=big * 0.03,
+            fill=BOWL_ORANGE,
+            outline=white,
+            width=edge,
+        )
+    elif name == "chopsticks":
+        stick = round(big * 0.07)
+        for start, end in (((0.22, 0.08), (0.62, 0.94)), ((0.4, 0.06), (0.78, 0.92))):
+            points = [(big * start[0], big * start[1]), (big * end[0], big * end[1])]
+            draw.line(points, fill=white, width=stick + 2 * edge)
+            draw.line(points, fill=WOOD, width=stick)
+    elif name == "tea":
+        steam([0.4, 0.54], 0.06, 0.32)
+        draw.ellipse((big * 0.66, big * 0.46, big * 0.92, big * 0.74), outline=white, width=round(big * 0.09))
+        draw.ellipse((big * 0.66, big * 0.46, big * 0.92, big * 0.74), outline="#E9E3D5", width=round(big * 0.05))
+        draw.rounded_rectangle(
+            (big * 0.14, big * 0.38, big * 0.76, big * 0.9),
+            radius=big * 0.12,
+            fill="#E9E3D5",
+            outline=white,
+            width=edge,
+        )
+        draw.ellipse((big * 0.18, big * 0.38, big * 0.72, big * 0.5), fill=TEA_GREEN)
+    elif name == "apple":
+        draw.ellipse((big * 0.1, big * 0.26, big * 0.58, big * 0.92), fill=APPLE_RED, outline=white, width=edge)
+        draw.ellipse((big * 0.42, big * 0.26, big * 0.9, big * 0.92), fill=APPLE_RED, outline=white, width=edge)
+        draw.ellipse((big * 0.2, big * 0.32, big * 0.8, big * 0.88), fill=APPLE_RED)
+        draw.line([(big * 0.5, big * 0.32), (big * 0.54, big * 0.1)], fill=WOOD, width=round(big * 0.05))
+        draw.ellipse((big * 0.55, big * 0.08, big * 0.82, big * 0.24), fill=LEAF_GREEN, outline=white, width=edge)
+    else:  # flower
+        for index in range(5):
+            angle = math.pi / 2 + index * 2 * math.pi / 5
+            cx, cy = big * (0.5 + 0.24 * math.cos(angle)), big * (0.5 - 0.24 * math.sin(angle))
+            r = big * 0.2
+            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=PETAL_PINK, outline=white, width=edge)
+        draw.ellipse((big * 0.37, big * 0.37, big * 0.63, big * 0.63), fill=YELLOW, outline=white, width=edge)
 
 
 def _star_points(big: int) -> list[tuple[float, float]]:

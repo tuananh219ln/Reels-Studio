@@ -36,6 +36,51 @@ function useElapsed(startedAt: string | null) {
 const scenesOf = (video: VideoDetail) => [video.title_scene, ...video.scenes].filter((scene) => scene !== null);
 
 /**
+ * What the folded header still says beside the title, so nothing that needs a look hides behind the fold: the job
+ * running or waiting, the last job that failed, or the reasons that still block a render. Nothing when all is well.
+ * A click unfolds the header.
+ */
+export function FoldedStatus({
+  video,
+  jobName,
+  failedName,
+  onOpen,
+}: {
+  video: VideoDetail;
+  jobName?: string;
+  failedName?: string;
+  onOpen: () => void;
+}) {
+  const job = video.active_job;
+  const blocking = video.video_blocking.length + scenesOf(video).reduce((sum, scene) => sum + scene.blocking.length, 0);
+  let tone: "info" | "danger";
+  let text: string;
+  if (job) {
+    tone = "info";
+    text = job.status === "running" ? `Đang chạy: ${jobName ?? "job"}` : `Đang chờ: ${jobName ?? "job"}`;
+  } else if (video.failed_job) {
+    tone = "danger";
+    text = `${failedName ?? "Job"} lỗi`;
+  } else if (blocking > 0) {
+    tone = "danger";
+    text = `Còn ${blocking} lỗi cần sửa`;
+  } else {
+    return null;
+  }
+  return (
+    <button
+      type="button"
+      className={`folded-status folded-status--${tone}`}
+      data-testid="folded-status"
+      aria-label={`${text}, mở rộng đầu trang`}
+      onClick={onOpen}
+    >
+      {tone === "info" ? <Spin size="small" /> : <span aria-hidden>●</span>} {text}
+    </button>
+  );
+}
+
+/**
  * How the video stands against a render, in the page's fixed header: what still blocks it (and a jump to it), which
  * job is running and for how long, or how the MP4 stands against the scenes; then a short summary of the video.
  */

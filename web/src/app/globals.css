@@ -157,10 +157,105 @@ body {
   column-gap: 12px;
 }
 
-/* Video page: the side panel's tabs ("Đăng bài", "Thiết lập") stay at its top while it scrolls. */
+/* Video page: the side panel's tabs ("Đăng bài", "Thiết lập") stay just under the page header while the page scrolls. */
+/* The side panel lays its tabs out by its own width, which the member changes by dragging the line beside it. */
+.side-panel {
+  container: side-panel / inline-size;
+}
+
+/* A wide panel (dragged to 720 px or more): the groups of "Thiết lập" and the blocks of "Bình luận & Sản phẩm" side
+   by side in two columns instead of one long column. */
+@container side-panel (min-width: 720px) {
+  .side-panel .panel-blocks {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .side-panel .setup-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    align-items: start;
+    border: 0;
+    background: transparent !important; /* the Collapse's own white sits behind each group instead */
+  }
+
+  .side-panel .setup-groups > .ant-collapse-item {
+    border: 1px solid #e7e8ea;
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+  }
+}
+
+/* The line between the scenes and the side panel (ResizableColumns): as tall as the columns, a thin rule with a grip
+   that stays in view while the page scrolls; orange while hovered, dragged or focused. */
+.split-handle {
+  align-self: stretch;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+  background: linear-gradient(#e7e8ea, #e7e8ea) center / 2px 100% no-repeat;
+}
+
+.split-handle__grip {
+  position: sticky;
+  top: 50vh;
+  margin-top: 120px;
+  width: 12px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid #c9ccd1;
+  background: #fff;
+}
+
+.split-handle:hover,
+.split-handle--dragging,
+.split-handle:focus-visible {
+  background-image: linear-gradient(#c2410c, #c2410c);
+  background-size: 3px 100%;
+}
+
+.split-handle:hover .split-handle__grip,
+.split-handle--dragging .split-handle__grip,
+.split-handle:focus-visible .split-handle__grip {
+  border-color: #c2410c;
+}
+
+/* The folded header's one word on what needs a look (FoldedStatus): a small pill that unfolds the header. */
+.folded-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 20px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* theme.ts COLORS.info / infoBg / infoBorder */
+.folded-status--info {
+  color: #3b6a9a;
+  background: #f1f5f9;
+  border: 1px solid #cbd8e6;
+}
+
+.folded-status--danger {
+  color: #c0392b;
+  background: #fdf1f0;
+  border: 1px solid #f3c4bf;
+}
+
 .side-panel .side-tabs > .ant-tabs-nav {
   position: sticky;
-  top: 0;
+  top: var(--side-top, 0);
   z-index: 5;
   /* theme.ts COLORS.layout */
   background: #f6f6f7;
@@ -246,6 +341,17 @@ body {
   font-size: 11px;
   font-weight: 600;
   line-height: 14px;
+}
+
+/* A wide panel: the MP4 stops at 260 px, the facts take the rest, and a post's buttons fit beside its name again. */
+@container (min-width: 720px) {
+  .publish-card__body {
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  }
+
+  .publish-card .post-row__tools {
+    flex-basis: auto;
+  }
 }
 
 @container (max-width: 399px) {
@@ -410,11 +516,13 @@ body {
   color: #a8a29e;
 }
 
-/* Đăng bài: a platform's result, one row, green when out, red when it failed. */
+/* Đăng bài: a platform's result, one row, green when out, red when it failed. The post's buttons always take a
+   second line, at the right: the 440 px side panel has no room for them beside the name, status and "Xem bài". */
 .post-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 4px 10px;
   min-height: 38px;
   padding: 4px 12px;
   border-radius: 8px;
@@ -446,6 +554,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+
+.post-row__tools {
+  flex-basis: 100%;
+  display: flex;
+  justify-content: flex-end;
 }
 
 .post-row__action {

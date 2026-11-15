@@ -1591,7 +1591,7 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   // Only the badge and the name show: TikTok's "Nháp vào hộp thư" is its tooltip and its checkbox's description.
   await expect(card.getByRole("checkbox", { name: "TikTok" })).toHaveAccessibleDescription("Nháp vào hộp thư");
   await expect(card.getByText("Nháp vào hộp thư")).toBeHidden();
-  // The posting drawer has no button on the card any more; it is "Tùy chọn đăng khác" in "Thiết lập".
+  // The posting drawer has no button on the card itself; it is "Tùy chọn đăng khác" just under the card.
   await expect(card.getByRole("button", { name: "Tùy chọn khác" })).toHaveCount(0);
   // The MP4 takes 2 parts of the card's width, its facts 3, at 9:16.
   const thumb = await card.locator(".publish-card__thumb").boundingBox();
@@ -1635,6 +1635,13 @@ test("Đăng bài: the status card picks the platforms, posts, and a note says h
   await expect(card.getByRole("button", { name: "+ Đăng thêm" })).toBeVisible();
   await expect(page.getByTestId("platform-row-facebook")).toHaveAttribute("data-status", "published");
   await expect(page.getByTestId("platform-row-facebook")).toContainText(/✓ \d{2}:\d{2}/);
+  // "Kiểm tra", "Sửa link reel" and "Xóa" stay inside the row in the 440 px side panel: they wrap to a second line
+  // instead of running out of the card (cut off at the right before).
+  const row = (await page.getByTestId("platform-row-facebook").boundingBox())!;
+  for (const name of ["Kiểm tra", "Sửa link reel", "Xóa"]) {
+    const button = (await page.getByTestId("platform-row-facebook").getByRole("button", { name }).boundingBox())!;
+    expect(button.x + button.width, name).toBeLessThanOrEqual(row.x + row.width);
+  }
   // The progress line's "Đăng" step counts the platforms, in green.
   await expect(page.getByTestId("progress-post")).toHaveAttribute("data-state", "posted");
   await expect(page.getByTestId("progress-post")).toContainText(/1\/1 nền tảng · \d{2}:\d{2}/);
@@ -3914,4 +3921,56 @@ test("30-day plan: a file is loaded by overwriting, adding to its days, into the
   await expect(report).toContainText("Thay: ngày 2, 4");
   await report.getByRole("button", { name: "Đã xem" }).click();
   expect((await page.request.get(`/api/videos/${(await made.json()).id}`)).ok()).toBe(true);
+});
+
+test("Thẻ: a card uploaded over a scene, resized, cut into parts shown as they are read, and removed", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await loginAsSeed(page);
+  await newVideoWithScript(page, "đọc bình luận threads");
+  const first = page.getByTestId("scene").first();
+  await openScene(first);
+  await first.getByText("Thẻ (ảnh chụp bài đăng)").click();
+  const panel = first.getByTestId("card-panel");
+  // A 1×1 white PNG: the card keeps it whole, square at its width.
+  await panel.getByTestId("card-file").setInputFiles({
+    name: "the.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    ),
+  });
+  const picture = panel.getByTestId("card-picture");
+  await expect(picture.getByRole("img", { name: "Thẻ" })).toBeVisible();
+
+  // Its top edge, saved on leaving the field.
+  const top = panel.getByLabel("Mép trên của thẻ");
+  await top.fill("400");
+  await top.blur();
+  const id = page.url().split("/videos/")[1];
+  await expect
+    .poll(async () => {
+      const video = await (await page.request.get(`/api/videos/${id}`)).json();
+      return video.scenes[0].layers.find((layer: { style: string }) => layer.style === "card")?.y;
+    })
+    .toBe(400);
+
+  // "Hiện dần": a click halfway down the card makes two parts, each with its words.
+  await panel.getByRole("switch", { name: "Hiện dần" }).click();
+  const box = await picture.boundingBox();
+  await picture.click({ position: { x: (box?.width ?? 160) / 2, y: (box?.height ?? 160) / 2 } });
+  await expect(panel.getByTestId("card-cut")).toHaveCount(1);
+  await panel.getByLabel("Lời đọc phần 1").fill("Bạn từng quê nhất lúc nào");
+  await panel.getByLabel("Lời đọc phần 2").fill("Mình gọi sếp là mẹ");
+  await panel.getByRole("button", { name: "Lưu hiện dần" }).click();
+  await expect(panel.getByTestId("card-reveal-summary")).toHaveText("2 phần");
+  await expect(first.getByLabel("Lời đọc", { exact: true })).toHaveValue(
+    "Bạn từng quê nhất lúc nào Mình gọi sếp là mẹ",
+  );
+
+  await panel.getByRole("button", { name: "Xoá thẻ" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Xoá" }).click();
+  await expect(panel.getByRole("button", { name: "Tải ảnh thẻ" })).toBeVisible();
 });

@@ -20,7 +20,7 @@ from .graph import (
     clip_lead,
 )
 from .images import normalize_image
-from .layers import layer_corner, render_layer
+from .layers import card_corner, layer_corner, render_layer
 from .logo import TEXT_TOP_MIN, corner_placement
 from .markup import Run, cased
 from .options import DEFAULT_OPTIONS, RenderOptions
@@ -155,16 +155,20 @@ def render_video(
             for number, layer in enumerate(scene.layers):
                 start = scene_start / FPS + layer.start
                 # A photo layer ("Ảnh món") is kept on a slide video but shown only over a backdrop.
-                if start >= scene_end or (layer.kind == "photo" and not layer.half and not options.backdrop):
+                if start >= scene_end or (layer.kind == "photo" and not layer.inset and not options.backdrop):
                     continue
                 picture = render_layer(layer, options.text_case)
                 path = work_dir / f"layer-{index:02d}-{number:02d}.png"
                 picture.save(path)
-                if layer.half:
-                    # Under the scene's text box, in the seconds of the scene's own picture.
+                if layer.inset:
+                    # Under the scene's text box, in the seconds of the scene's own picture; a card hangs from its
+                    # top edge.
                     lead = clip_lead(index, cut)
                     end = min(start + layer.seconds, scene_end) - scene_start / FPS
-                    left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
+                    if layer.card:
+                        left, top = card_corner(picture.width, picture.height, layer.y)
+                    else:
+                        left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))
                     insets.append(InsetInput(path, top, layer.start + lead, end + lead, left))
                     continue
                 left, top = layer_corner(picture.width, picture.height, (layer.x, layer.y))

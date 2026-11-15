@@ -369,8 +369,17 @@ Built:
   meanwhile) and "Lưu phân tích". The card's header has "Tạo thêm video từ mẫu này" once the sample is
   analysed and a bin that deletes the sample after a confirmation (the videos made from it keep their
   scripts and clips; the card then says the sample was deleted).
+  The header folds to its first row with the ⌃ button at its end ("Thu gọn đầu trang", ⌄ "Mở rộng đầu trang"): the
+progress line, QC and the render's state hide, and a small pill beside the title still says what needs a look (the job
+running or waiting, "<job> lỗi", "Còn N lỗi cần sửa"), unfolding the header on a click; nothing when all is well. The
+fold is kept per member in this browser (2026-11-15, fold and split).
   The scenes fill the left column (60%). The right column (40%) is the side panel with three tabs, "Đăng bài",
-"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the tab row kept at the panel's top while it scrolls. "Đăng bài" starts
+"Bình luận & Sản phẩm" and "Thiết lập" (2026-11-14, video editor spec and engage tab), the panel has no scroll of its own and grows with the page, its tab row held just under the page header (2026-11-15).
+A line between the two columns is dragged to share the width another way (a grip that stays in view, orange while
+hovered or dragged; ← → keys move it, a double click or Enter goes back to 60/40), the scenes never under 420 px and the
+panel never under 440 px, the share kept per member in this browser. The panel lays its tabs out by its own width: from
+720 px the groups of "Thiết lập" and the blocks of "Bình luận & Sản phẩm" sit in two columns, and on "Đăng bài" the MP4
+stops at 260 px with a post's buttons back beside its name (2026-11-15, fold and split). "Đăng bài" starts
 with one status card (2026-11-14, publish panel spec; radius 12, a 1 px border, no shadow): a header (12 × 16 px
 padding, a line under it) with where the video stands, a dot and a word, "Sẵn sàng đăng" green, a spinner and "Đang
 đăng…" orange, "Đã đăng" green, "Đã đăng một phần" orange, "Đăng thất bại" red, "Đã hẹn giờ" green, each but the first
@@ -390,7 +399,7 @@ select when several); TikTok cannot be scheduled, so with "Hẹn giờ" its row 
 Shorts and Instagram rows are dashed on #fafaf9, with a grey export mark instead of a ring ("Đăng tay" as tooltip): they
 open the posting drawer on their tab, where a post made by hand is recorded with its link. That drawer, with every
 platform's own options (a Page's queue, TikTok posted directly, "Đã đăng tay"), has no button on the card: it is
-"Tùy chọn đăng khác" at the foot of the "Thiết lập" tab, which goes back to "Đăng bài" and opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
+"Tùy chọn đăng khác" just under the card on "Đăng bài" (2026-11-15, MCP clip flow), which opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
 then a 40 px button "Đăng lên N nền tảng" ("Hẹn đăng lên N nền tảng", "Chọn nền tảng để đăng" and off with none) and
 a grey note: the newest MP4 goes with the saved caption and hashtags, Facebook comments when the post is up (when
 Facebook is picked and there is a pinned comment), several platforms go one by one with the page left open. Once
@@ -473,7 +482,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - inside an open card, two columns (stacked when the card is narrower than 700 px, the picture first): the frame
     and its tools column on the left (416 px; the frame alone in view mode), the fields on the right: "Chữ trên màn
     hình" (a "?" beside it explains `*từ*` and line breaks) and "Lời đọc", one under the other, the narration once made as one line under it (the player, then "Lời đọc 3,7s → cảnh
-    4,3s", amber when the narration lengthened the scene); "Số giây", "Bắt đầu từ giây" (clip only) and "Từ khóa tìm
+    4,3s", amber when the narration lengthened the scene), then "Giọng đọc của cảnh" (the voice list of "Tùy chọn của
+    video" with its Nghe thử, empty showing "Theo video" and cleared with ×; a voice picked here remakes only this
+    scene's narration; 2026-11-15) while the video has narration; "Số giây", "Bắt đầu từ giây" (clip only) and "Từ khóa tìm
     ảnh" on one row; the reasons and warnings, one line each; then "Nâng cao: Prompt ảnh AI", folded (every scene, the
     title included; its "?" says to describe what is in the photo, in English, since the shared style is added). On
     the label's row of the text and the voice text a counter shows the words as typed (the `*` not counted), in yellow
@@ -1295,7 +1306,9 @@ relied on (samples in the PR that added them).
   layer: its words (`*word*` in the accent colour, line breaks kept), Chữ viền (white, black outline, yellow
   accent) or a box (Hộp vàng, Hộp đen, Hộp trắng, Hộp đỏ), Nhỏ / Vừa / Lớn. A sticker, drawn by the render core
   itself (no image files): Mũi tên xuống, Mũi tên phải, Khoanh tròn, Ngôi sao, Trái tim, Dấu tích, Dấu X, Nhãn
-  MỚI, Nhãn HOT, Nhãn SALE, at 160, 240 or 340 px. Entrance: Hiện ngay, Mờ dần, Trượt lên (from 120 px lower),
+  MỚI, Nhãn HOT, Nhãn SALE, and the kitchen set Lá xanh, Bát canh, Đôi đũa, Chén trà, Quả táo, Bông hoa (flat, white-edged, 2026-11-15),
+  at 160, 240 or 340 px. The kitchen set and Trái tim, Ngôi sao, Dấu tích also cover a blurred patch the scene's
+  text leaves showing (MCP, [chatgpt.md](chatgpt.md)). Sample of the set: [samples/sticker-nha-bep.json](../samples/sticker-nha-bep.json). Entrance: Hiện ngay, Mờ dần, Trượt lên (from 120 px lower),
   Trượt từ trái (from off the frame), each over 0.3 s and fading in. The studio shows the exact picture the render
   lays on. Sample: [samples/lop-chu-sticker.json](../samples/lop-chu-sticker.json).
 - **Sound** ([reels_render/sounds.py](../worker/src/reels_render/sounds.py)), any scene, the title included.
@@ -1343,7 +1356,7 @@ relied on (samples in the PR that added them).
   as the scenes'), which wins over everything else. Videos made with the older "Kiểu tiêu đề: Hộp
   vàng" keep the original yellow box and black text on the title, whatever the scenes use.
 - **Narration:** the voice (any of the account's ElevenLabs voices; the server's default otherwise),
-  the speed (a tempo factor from 0.7 to 1.3 in steps of 0.05, applied with FFmpeg to the narration
+  the speed (a tempo factor from 0.7 to 1.5 in steps of 0.05, applied with FFmpeg to the narration
   ElevenLabs returns; presets saved before the slider read as 0.8 / 1.0 / 1.2), the level (0–100%), and "Nhỏ nhạc khi có giọng
   đọc", which compresses the music under the narration (a sidechain, about a quarter of its level).
   Changing the voice or speed makes the narration again on the next render.
@@ -1374,6 +1387,22 @@ team's AI through MCP, the assistant) takes the group's too:
   (frames, sizes, places, entrance) are gone from the page; an older video's "Ảnh món" still renders, and its card
   offers "Đổi ảnh món thành ảnh chèn". The preview and each card's frame play the backdrop under every scene, as the
   MP4 does.
+
+**Thẻ** (2026-11-15, the comment-reading pages; slide videos and backdrops alike): a screenshot card of its own,
+kept whole, centred across and hung from its top edge, under the scene's text and the other layers. A content scene's
+card has a folded **"Thẻ (ảnh chụp bài đăng)"** under its fields (open, titled "Thẻ · hiện dần N phần" or "Thẻ", once
+it has one; also a "Thẻ" section in the studio's "Chỉnh cảnh"): without a card, a line saying what it is and "Tải ảnh
+thẻ", "Từ Kho" and "Dán link ảnh thẻ" + "Dùng"; with one, the card (160 px wide) beside "Cỡ thẻ (% bề rộng khung)"
+(a 50–100 slider, saved on release), "Mép trên" (px, saved on leaving the field) and "Xoá thẻ" (asks first), then the
+same three ways to change its picture (which keeps its size and place and drops its parts), then the "Hiện dần"
+switch. On, it says to click the card to add a cut: each click draws a dashed pink line numbered with its part, and a
+row per part, "Phần N" with a text field for the words read while it comes in (the first part starts with the scene's
+narration) and a bin that merges it into the part below; "Lưu hiện dần" saves (the scene's narration becomes the
+parts' words in order), "Huỷ" drops the changes; off, the parts go. An assistant does the same with
+`set_scene_card` and `set_card_reveal`. On the studio's phone it is drawn in the scene's
+picture like an inset photo and dragged only up and down by its top edge; deleting it asks first, as its own copy goes
+with it. A card shown part by part ("Hiện dần") grows down on the phone as in the MP4: the rows below the part shown
+stay hidden, nothing faded in ahead. Its name in lists is "Thẻ".
 
 **Ảnh chèn** (only a "Video xuyên suốt"; a slide video has none, its scene's photo already fills the frame;
 2026-11-12): a square photo with rounded corners and no border, "Cỡ ảnh" 30–45% of the frame's height on each side

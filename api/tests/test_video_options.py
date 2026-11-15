@@ -63,10 +63,11 @@ def test_bad_defaults_are_refused(an):
         ({"music_volume": 150}, "Âm lượng phải từ 0 đến 100%"),
         ({"colour": "pink"}, "Không có tuỳ chọn"),
         ({"ducking": "yes"}, "“Nhỏ nhạc khi có giọng” chỉ nhận bật hoặc tắt"),
-        ({"voice_speed": 1.5}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
-        ({"voice_speed": 0.6}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
-        ({"voice_speed": "nhanh"}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
-        ({"voice_speed": True}, "Tốc độ đọc phải từ 0.7 đến 1.3"),
+        ({"voice_speed": 1.6}, "Tốc độ đọc phải từ 0.7 đến 1.5"),
+        ({"voice_speed": 1.55}, "Tốc độ đọc phải từ 0.7 đến 1.5"),
+        ({"voice_speed": 0.6}, "Tốc độ đọc phải từ 0.7 đến 1.5"),
+        ({"voice_speed": "nhanh"}, "Tốc độ đọc phải từ 0.7 đến 1.5"),
+        ({"voice_speed": True}, "Tốc độ đọc phải từ 0.7 đến 1.5"),
     ):
         refused = an.put(DEFAULTS_URL, json={"values": values})
         assert refused.status_code == 422 and refused.json()["message"].startswith(message), values
@@ -217,7 +218,7 @@ def test_the_chosen_voice_and_speed_make_the_narration_and_a_change_remakes_it(c
 
 
 @needs_ffmpeg
-@pytest.mark.parametrize("speed", [0.7, 0.8, 1.2, 1.3])
+@pytest.mark.parametrize("speed", [0.7, 0.8, 1.2, 1.3, 1.4, 1.5])
 def test_the_reading_speed_changes_the_narration_length_even_when_the_model_ignores_it(db, me, storage, fakes, speed):
     # The default model (eleven_v3) ignores ElevenLabs' own speed setting, and so does the fake: the speed has to
     # be applied to the MP3 ElevenLabs returns.

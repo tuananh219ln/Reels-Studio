@@ -53,7 +53,7 @@ import PreviewTimeline from "./preview/PreviewTimeline";
 import PreviewToolbar from "./preview/PreviewToolbar";
 import { LayerList, LayerTools } from "./preview/LayerPanel";
 import LayerStage from "./preview/LayerStage";
-import { isHalf } from "./preview/layers";
+import { isHalf, isInset } from "./preview/layers";
 import { NoteBar, NoteTools } from "./preview/NotePanel";
 import { SoundList, SoundStage, SoundTools } from "./preview/SoundPanel";
 import { musicGain } from "./preview/sounds";
@@ -625,10 +625,13 @@ export default function VideoPreview({
   const patchScene = (body: Record<string, unknown>) => changeScene("sửa cảnh", scene, body);
 
   /** The newest layer of a scene in a saved video: the one just added. */
+  const adding = useRef<Promise<void>>(Promise.resolve());
   const newestLayer = (saved: VideoDetail, sceneId: number) =>
     [saved.title_scene, ...saved.scenes].find((item) => item?.id === sceneId)?.layers.at(-1)?.id ?? null;
 
-  /** A text or sticker layer added to the scene shown, from the playhead's second in it; picked once added. */
+  /** A text or sticker layer added to the scene shown, from the playhead's second in it; picked once added. Adds go
+   * one after another in the order they were pressed: two sent at once could land the other way round, putting the
+   * first on top and picking it instead of the one pressed last. */
   function addLayer(body: Record<string, unknown>) {
     const target = scene;
     if (!target || target.is_title) return;
@@ -636,16 +639,20 @@ export default function VideoPreview({
     const into = Math.floor((position() - startOf(phase.index)) * 10) / 10;
     const start = Math.min(Math.max(0, into), Math.max(0, target.fitted_seconds - 0.5));
     let made: number | null = null;
-    void history.run({
-      label: body.kind === "text" ? "thêm chữ" : "thêm sticker",
-      redo: async () => {
-        const saved = await api<VideoDetail>("/layers", "POST", { scene_id: target.id, start, ...body });
-        made = newestLayer(saved, target.id);
-        setPickedLayer(made);
-        return saved;
-      },
-      undo: () => api<VideoDetail>(`/layers/${made}`, "DELETE"),
-    });
+    adding.current = adding.current.then(() =>
+      history.run({
+        label: body.kind === "text" ? "thêm chữ" : "thêm sticker",
+        redo: async () => {
+          const saved = await api<VideoDetail>("/layers", "POST", { scene_id: target.id, start, ...body });
+          made = newestLayer(saved, target.id);
+          setPickedLayer(made);
+          return saved;
+        },
+        undo: () => api<VideoDetail>(`/layers/${made}`, "DELETE"),
+      }),
+    );
+    // A failed add (already shown by the save) never holds up the next one.
+    adding.current = adding.current.catch(() => undefined);
   }
 
   /** A change to one layer, kept for "Hoàn tác". */
@@ -772,11 +779,12 @@ export default function VideoPreview({
 
   /** A layer removed; "Hoàn tác" adds it back (on top of the scene's others). */
   function removeLayer(layer: SceneLayer, sceneId: number) {
-    if (isHalf(layer)) {
+    if (isInset(layer)) {
       // Its own copy of the photo goes with it, so this cannot be undone: asked first.
+      const name = isHalf(layer) ? "ảnh chèn" : "thẻ";
       modal.confirm({
-        title: "Xoá ảnh chèn?",
-        content: "Ảnh chèn bị xoá hẳn, không hoàn tác được. Muốn dùng lại thì thêm ảnh lần nữa.",
+        title: `Xoá ${name}?`,
+        content: `${name[0].toUpperCase()}${name.slice(1)} bị xoá hẳn, không hoàn tác được. Muốn dùng lại thì thêm ảnh lần nữa.`,
         okText: "Xoá",
         okButtonProps: { danger: true },
         cancelText: "Huỷ",
@@ -1327,7 +1335,7 @@ export default function VideoPreview({
                       insets={
                         <LayerStage
                           under
-                          layers={scenes[phase.prev].layers.filter(isHalf)}
+                          layers={scenes[phase.prev].layers.filter(isInset)}
                           // The scene going out holds its last frame, and its half-frame photo as it was then.
                           elapsed={() => (scenes[phase.prev ?? 0]?.fitted_seconds ?? 0) - 0.001}
                           stage={stage}
@@ -1362,7 +1370,7 @@ export default function VideoPreview({
                         <LayerStage
                           key={scene.id}
                           under
-                          layers={scene.layers.filter(isHalf)}
+                          layers={scene.layers.filter(isInset)}
                           elapsed={() => position() - startOf(phase.index)}
                           stage={stage}
                           selected={pickedLayer}
@@ -1418,10 +1426,10 @@ export default function VideoPreview({
                   {platform !== "none" && (
                     <PlatformFrame platform={platform} channel={channel} caption={caption} music={sound} />
                   )}
-                  {scene && scene.layers.some((layer) => !isHalf(layer)) && (
+                  {scene && scene.layers.some((layer) => !isInset(layer)) && (
                     <LayerStage
                       key={scene.id}
-                      layers={scene.layers.filter((layer) => !isHalf(layer))}
+                      layers={scene.layers.filter((layer) => !isInset(layer))}
                       elapsed={() => position() - startOf(phase.index)}
                       stage={stage}
                       selected={pickedLayer}

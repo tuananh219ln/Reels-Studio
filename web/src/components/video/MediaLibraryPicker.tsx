@@ -30,7 +30,7 @@ export default function MediaLibraryPicker({
   hasPicture: boolean;
   /** Where the chosen item goes instead of the scene's own picture. */
   onUse?: (mediaId: number) => Promise<VideoDetail | void>;
-  /** What `onUse` fills, in the messages ("ảnh chèn", "bài viết"). */
+  /** What `onUse` puts it in, for the message once used ("ảnh chèn", "thẻ", "bài viết"). */
   usedFor?: string;
   onClose: () => void;
 }) {

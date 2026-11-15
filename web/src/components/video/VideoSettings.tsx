@@ -58,7 +58,7 @@ const ROW_LABEL_WIDTH = 92;
 
 // The reading speed slider (api tts.MIN_SPEED, MAX_SPEED, SPEED_STEP).
 const SPEED_MIN = 0.7;
-const SPEED_MAX = 1.3;
+const SPEED_MAX = 1.5;
 const SPEED_STEP = 0.05;
 // The end labels sit inside the rail instead of centred on its ends, where they spilled out of the card.
 const SPEED_MARKS = {

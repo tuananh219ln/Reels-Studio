@@ -65,6 +65,7 @@ import {
 import AutoSaveField, { useEditor } from "./AutoSaveField";
 import GroupMediaPicker from "./GroupMediaPicker";
 import MediaLibraryPicker from "./MediaLibraryPicker";
+import { CardFold } from "./CardPanel";
 import ClipBlurModal from "./ClipBlurModal";
 import ImageEditModal from "./ImageEditModal";
 import ImageProviderMenu from "./ImageProviderMenu";
@@ -77,6 +78,7 @@ import SceneViewer from "./SceneViewer";
 import StockPicker, { DEFAULT_SOURCE } from "./StockPicker";
 import TextPositionModal from "./TextPositionModal";
 import VoiceText from "./VoiceText";
+import { VoicePicker } from "./VideoSettings";
 import { COLORS } from "@/app/theme";
 import StatusText from "@/components/StatusText";
 
@@ -113,6 +115,7 @@ function parseKeywords(text: string): string[] {
 }
 
 type ScenePatch = Partial<Pick<SceneData, "text" | "seconds" | "keywords" | "image_prompt" | "voice_text">> & {
+  voice_id?: string;
   video_start?: number;
   video_loop?: boolean;
   text_position?: [number, number] | null;
@@ -139,9 +142,41 @@ export function SceneTextField({ scene }: { scene: SceneData }) {
   );
 }
 
-/** "Lời đọc", with its narration player, when the video has narration. */
+/** "Lời đọc", with its narration player, and the scene's own voice, when the video has narration. */
 export function SceneVoiceField({ scene, voiceEnabled }: { scene: SceneData; voiceEnabled: boolean }) {
-  return voiceEnabled ? <VoiceText scene={scene} save={(voice_text) => patchScene(scene, { voice_text })} /> : null;
+  if (!voiceEnabled) {
+    return null;
+  }
+  return (
+    <Flex vertical gap={4}>
+      <VoiceText scene={scene} save={(voice_text) => patchScene(scene, { voice_text })} />
+      <SceneVoicePicker scene={scene} />
+    </Flex>
+  );
+}
+
+/** "Giọng đọc của cảnh": empty reads with the video's voice; another voice remakes only this scene's narration. */
+function SceneVoicePicker({ scene }: { scene: SceneData }) {
+  const editor = useEditor();
+  const { message } = App.useApp();
+  async function choose(voice_id: string) {
+    try {
+      editor.onSaved(await patchScene(scene, { voice_id }));
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
+  return (
+    <Flex vertical gap={2} data-testid="scene-voice">
+      <Typography.Text style={{ fontSize: 12 }}>Giọng đọc của cảnh</Typography.Text>
+      <VoicePicker
+        values={{ voice_id: scene.voice_id ?? "" }}
+        unset="Theo video"
+        disabled={editor.locked || editor.readOnly}
+        onChange={(changes) => void choose(changes.voice_id ?? "")}
+      />
+    </Flex>
+  );
 }
 
 /** "Từ khóa tìm ảnh". */
@@ -352,6 +387,7 @@ export default function SceneCard({
       <Flex vertical gap={6}>
         <SceneIssues scene={scene} fix={fixFor} />
       </Flex>
+      {!scene.is_title && <CardFold scene={scene} />}
       {(ownPicture || backdrop) && <AdvancedPrompt scene={scene} />}
     </Flex>
   );

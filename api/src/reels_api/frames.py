@@ -47,8 +47,10 @@ def compose_frame(
     is_title: bool,
     options: RenderOptions = DEFAULT_OPTIONS,
     centre: Centre = None,
+    under: list[tuple[Image.Image, tuple[int, int]]] | None = None,
 ) -> Image.Image:
-    """Cover-cropped photo (or clip frame) plus the text box; no box without text or while the text cannot render."""
+    """Cover-cropped photo (or clip frame) plus the text box; no box without text or while the text cannot render.
+    `under`: pictures laid on the frame under the text box, at their corners (a card, as the render lays it)."""
     if isinstance(image, Image.Image):
         upright = image.convert("RGB")
     else:
@@ -56,6 +58,8 @@ def compose_frame(
             source.load()
             upright = ImageOps.exif_transpose(source).convert("RGB")
     frame = ImageOps.fit(upright, (FRAME_WIDTH, FRAME_HEIGHT), Image.Resampling.BICUBIC, centering=(0.5, 0.5))
+    for picture, corner in under or []:
+        frame.paste(picture, corner, picture if picture.mode == "RGBA" else None)
     size = options.title_text_size if is_title else options.text_size
     case = options.title_text_case if is_title else options.text_case
     if text.strip() and text_problem(text, is_title, size, case) is None:

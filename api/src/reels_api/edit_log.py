@@ -41,6 +41,7 @@ TOPIC_FIELDS = (
     "video_mode",
     "text_look",
     "text_ai",
+    "no_people",
     "stock_order",
     "media_folder",
     "templates",

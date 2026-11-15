@@ -7,16 +7,16 @@ photo-logo settings and a white logo for dark photos (decisions 2026-11-15, "art
 - `brands`: the white logo (`logo_alt_path`), and where, how big, how far in and how opaque the logo sits on a photo,
   and the brightness below which the white logo is used.
 
-Revision ID: 0090
-Revises: 0089
+Revision ID: 0092
+Revises: 0091
 Create Date: 2026-11-15
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0090"
-down_revision = "0089"
+revision = "0092"
+down_revision = "0091"
 branch_labels = None
 depends_on = None
 

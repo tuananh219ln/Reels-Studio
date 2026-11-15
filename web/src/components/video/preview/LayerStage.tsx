@@ -2,7 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { SceneLayer } from "@/lib/api";
-import { ENTRANCE_SECONDS, FRAME_HEIGHT, FRAME_WIDTH, HALF_X, halfY, isHalf, layerCorner } from "./layers";
+import {
+  ENTRANCE_SECONDS,
+  FRAME_HEIGHT,
+  FRAME_WIDTH,
+  HALF_X,
+  cardCorner,
+  cardShown,
+  halfY,
+  isCard,
+  isHalf,
+  layerCorner,
+} from "./layers";
 
 // The render core's slide-up distance (layers.SLIDE_UP_PX), in frame pixels.
 const SLIDE_UP = 120;
@@ -61,6 +72,10 @@ export default function LayerStage({
         const dy = layer.animation === "slide_up" ? SLIDE_UP * (1 - progress) : 0;
         element.style.visibility = shown ? "visible" : "hidden";
         element.style.opacity = String(progress);
+        // A card shown part by part: the rows below the last part come in stay hidden, as the render clears them.
+        if (layer.reveal?.length) {
+          element.style.clipPath = `inset(0 0 ${((1 - cardShown(layer, now)) * 100).toFixed(2)}% 0)`;
+        }
         // In the stage's own width (cqw), so it moves as far as in the 1080-pixel frame.
         element.style.transform = `translate(${(dx / FRAME_WIDTH) * 100}cqw, ${(dy / FRAME_WIDTH) * 100}cqw)`;
       }
@@ -92,11 +107,12 @@ export default function LayerStage({
       const point = framePoint(moveEvent);
       if (!point) return;
       // A half-frame photo only goes up and down, from the top half to the bottom half, snapping to them.
+      // A card only goes up and down too, by its top edge.
       const half = isHalf(layer);
-      const x = half ? HALF_X : Math.min(FRAME_WIDTH, Math.max(0, layer.x + point[0] - from[0]));
+      const x = half || isCard(layer) ? HALF_X : Math.min(FRAME_WIDTH, Math.max(0, layer.x + point[0] - from[0]));
       const y = half
         ? halfY(layer.y + point[1] - from[1], layer.height)
-        : Math.min(FRAME_HEIGHT, Math.max(0, layer.y + point[1] - from[1]));
+        : Math.min(FRAME_HEIGHT - 1, Math.max(0, layer.y + point[1] - from[1]));
       last = [x, y];
       setDragged({ id: layer.id, x, y });
     };
@@ -115,7 +131,11 @@ export default function LayerStage({
       {layers.map((layer) => {
         const size = sizes[layer.image_url];
         const place = dragged?.id === layer.id ? { x: dragged.x, y: dragged.y } : layer;
-        const corner = size ? layerCorner(size.width, size.height, place) : null;
+        const corner = size
+          ? isCard(layer)
+            ? cardCorner(size.width, size.height, place.y)
+            : layerCorner(size.width, size.height, place)
+          : null;
         return (
           // eslint-disable-next-line @next/next/no-img-element -- drawn by the api with the render core's own code
           <img

@@ -151,6 +151,35 @@ def add_track(
     return track_payload(track)
 
 
+def save_track(
+    db: DbSession,
+    storage: DirectoryStorage,
+    user_id: int,
+    data: bytes,
+    name: str,
+    mood: str,
+    topics: list[str],
+    license_note: str,
+) -> MusicTrack:
+    """A checked MP3 into the library, as an upload would be; the fields are checked before anything is stored."""
+    track = MusicTrack(
+        name=_name(name),
+        topics=_topics(db, topics),
+        mood=_mood(mood),
+        license_note=_license(license_note),
+        storage_key=f"music/track-{secrets.token_hex(6)}.mp3",
+        created_by_id=user_id,
+    )
+    try:
+        check_mp3(data)
+    except UploadRejected as err:
+        raise ApiError(415, "invalid_music", str(err)) from None
+    storage.save_bytes(track.storage_key, data)
+    db.add(track)
+    db.commit()
+    return track
+
+
 @router.patch("/{track_id}")
 def update_track(
     track_id: int, body: TrackPatchBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)

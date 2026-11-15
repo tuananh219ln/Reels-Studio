@@ -212,8 +212,11 @@ export type SceneLayer = {
   image_url: string;
   /** A half-frame photo's: whether its photo is its own (false: it shows its scene's photo). */
   own_image?: boolean;
-  /** A half-frame (inset) photo's height in percent of the frame, 30–45. */
+  /** A half-frame (inset) photo's height in percent of the frame, 30–45; a card's ("Thẻ") width in percent, 50–100. */
   height: number;
+  /** A card shown part by part ("Hiện dần", api videos.reveal_steps): from each `start` (seconds into the scene) the
+   * card shows down to `until` of its height. Empty when it shows whole; absent on other layers. */
+  reveal?: { start: number; until: number; text: string }[];
 };
 
 /** A sound effect heard from a second of its scene (reels_render.sounds), made by FFmpeg. */
@@ -329,6 +332,8 @@ export type SceneData = {
   sounds: SceneSound[];
   /** The music's level during the scene ("off", "low", "high"); null: the video's. */
   music_level: string | null;
+  /** The scene's own narration voice (api video_options.scene_voice); null: the video's. */
+  voice_id: string | null;
   /** A "Cảnh động" an assistant wrote (HTML + GSAP, rendered by HyperFrames into this scene's clip); null: none. */
   motion: { html: string; seconds: number; pending: boolean } | null;
   blocking: string[];
@@ -572,6 +577,8 @@ export type KnowledgeTopic = {
   text_look: Partial<VideoOptions> | null;
   /** "AI chọn kiểu chữ cho từng video": the script call also picks each video's look, over the group's. */
   text_ai: boolean;
+  /** "Không dùng cảnh có người": the group's scenes show no faces or bodies (hands at work are fine). */
+  no_people: boolean;
   /** The AI's last suggested looks ("AI gợi ý"), kept for a member to pick one; null before the first. */
   text_suggestions: TextSuggestions | null;
   /** The "AI gợi ý" job while queued or running, or the last one if it failed; null otherwise. */
@@ -756,7 +763,7 @@ export type GroupVideoMode = VideoMode | "alternate";
 /** A video's settings, each a named preset or a level (api video_options.DEFAULTS). */
 export type VideoOptions = {
   voice_id: string;
-  /** Reading speed, a tempo factor from 0.7 to 1.3 in steps of 0.05 (api tts.MIN_SPEED, MAX_SPEED). */
+  /** Reading speed, a tempo factor from 0.7 to 1.5 in steps of 0.05 (api tts.MIN_SPEED, MAX_SPEED). */
   voice_speed: number;
   voice_volume: number;
   ducking: boolean;

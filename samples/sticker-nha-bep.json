@@ -1,0 +1,100 @@
+{
+  "title": {
+    "text": "STICKER\n*NHÀ BẾP*",
+    "seconds": 2,
+    "image": "xuong-khop/00-tieu-de.jpg"
+  },
+  "scenes": [
+    {
+      "text": "Bộ sticker *nhà bếp*",
+      "seconds": 3,
+      "image": "xuong-khop/01-ca-nho.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "leaf",
+          "start": 0,
+          "seconds": 60,
+          "x": 240,
+          "y": 560,
+          "size": "small",
+          "animation": "none"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "bowl",
+          "start": 0,
+          "seconds": 60,
+          "x": 540,
+          "y": 760,
+          "size": "medium",
+          "animation": "none"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "chopsticks",
+          "start": 0,
+          "seconds": 60,
+          "x": 840,
+          "y": 560,
+          "size": "large",
+          "animation": "none"
+        }
+      ]
+    },
+    {
+      "text": "Bộ sticker *nhà bếp*",
+      "seconds": 3,
+      "image": "xuong-khop/02-sua-chua.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "tea",
+          "start": 0,
+          "seconds": 60,
+          "x": 240,
+          "y": 560,
+          "size": "small",
+          "animation": "none"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "apple",
+          "start": 0,
+          "seconds": 60,
+          "x": 540,
+          "y": 760,
+          "size": "medium",
+          "animation": "none"
+        },
+        {
+          "kind": "sticker",
+          "sticker": "flower",
+          "start": 0,
+          "seconds": 60,
+          "x": 840,
+          "y": 560,
+          "size": "large",
+          "animation": "none"
+        }
+      ]
+    },
+    {
+      "text": "Che chỗ *làm mờ*",
+      "seconds": 3,
+      "image": "xuong-khop/03-dau-phu.jpg",
+      "layers": [
+        {
+          "kind": "sticker",
+          "sticker": "leaf",
+          "start": 0,
+          "seconds": 60,
+          "x": 140,
+          "y": 1340,
+          "size": "small",
+          "animation": "none"
+        }
+      ]
+    }
+  ]
+}
