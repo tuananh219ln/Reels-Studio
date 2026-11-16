@@ -655,6 +655,12 @@ class Brand(Base):
     photo_logo_margin: Mapped[float] = mapped_column(Float, default=3, server_default="3")
     photo_logo_opacity: Mapped[float] = mapped_column(Float, default=1, server_default="1")
     photo_logo_alt_threshold: Mapped[float | None] = mapped_column(Float)
+    # Its shape (PHOTO_LOGO_SHAPES: a round or rounded badge with a ring, or "none": the logo as uploaded), the ring on
+    # or off and its colour, and a soft shadow under it.
+    photo_logo_shape: Mapped[str] = mapped_column(String(8), default="circle", server_default="circle")
+    photo_logo_border: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
+    photo_logo_border_color: Mapped[str] = mapped_column(String(7), default="#FFFFFF", server_default="#FFFFFF")
+    photo_logo_shadow: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true())
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -1030,6 +1036,7 @@ ARTICLE_KINDS = ("kien_thuc", "meo", "cau_hoi", "canh_bao", "tra_loi_binh_luan",
 # Where an article's photo came from (article_images.source).
 ARTICLE_IMAGE_SOURCES = ("upload", "link", "stock", "library", "ai", "text_card")
 ARTICLE_IMAGE_ASPECTS = ("1:1", "4:5", "1.91:1")
+PHOTO_LOGO_SHAPES = ("circle", "rounded", "none")
 PHOTO_LOGO_POSITIONS = (
     "top_left",
     "top_center",

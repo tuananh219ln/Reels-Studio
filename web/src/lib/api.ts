@@ -1792,6 +1792,12 @@ export type PhotoLogo = {
   opacity: number;
   /** Below this brightness (0–1) under the logo the white logo is used; null: never. */
   alt_threshold: number | null;
+  /** "circle" and "rounded" make a badge with a ring; "none" lays the logo as uploaded. */
+  shape: "circle" | "rounded" | "none";
+  border: boolean;
+  /** "#RRGGBB". */
+  border_color: string;
+  shadow: boolean;
 };
 
 /** A brand as GET /api/brands/{id} gives it, with its photo-logo settings. */

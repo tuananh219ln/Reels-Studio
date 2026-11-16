@@ -41,9 +41,22 @@ class BrandBody(BaseModel):
     photo_logo_margin: float | None = None
     photo_logo_opacity: float | None = None
     photo_logo_alt_threshold: float | None = None
+    photo_logo_shape: str | None = None
+    photo_logo_border: bool | None = None
+    photo_logo_border_color: str | None = None
+    photo_logo_shadow: bool | None = None
 
 
-PHOTO_FIELDS = ("photo_logo_position", "photo_logo_size", "photo_logo_margin", "photo_logo_opacity")
+PHOTO_FIELDS = (
+    "photo_logo_position",
+    "photo_logo_size",
+    "photo_logo_margin",
+    "photo_logo_opacity",
+    "photo_logo_shape",
+    "photo_logo_border",
+    "photo_logo_border_color",
+    "photo_logo_shadow",
+)
 
 
 def _photo_payload(brand: Brand) -> dict:
@@ -55,6 +68,10 @@ def _photo_payload(brand: Brand) -> dict:
             "margin": brand.photo_logo_margin,
             "opacity": brand.photo_logo_opacity,
             "alt_threshold": brand.photo_logo_alt_threshold,
+            "shape": brand.photo_logo_shape,
+            "border": brand.photo_logo_border,
+            "border_color": brand.photo_logo_border_color,
+            "shadow": brand.photo_logo_shadow,
         },
     }
 
@@ -151,6 +168,8 @@ def _apply_photo_look(brand: Brand, body: BrandBody) -> None:
     brand.photo_logo_position, brand.photo_logo_size = look.position, look.size
     brand.photo_logo_margin, brand.photo_logo_opacity = look.margin, look.opacity
     brand.photo_logo_alt_threshold = look.alt_threshold
+    brand.photo_logo_shape, brand.photo_logo_border = look.shape, look.border
+    brand.photo_logo_border_color, brand.photo_logo_shadow = look.border_color.upper(), look.shadow
 
 
 def _commit(db: DbSession) -> None:
@@ -363,6 +382,10 @@ def photo_sample(
     opacity: float | None = None,
     alt_threshold: float | None = None,
     no_alt: bool = False,
+    shape: str | None = None,
+    border: bool | None = None,
+    border_color: str | None = None,
+    shadow: bool | None = None,
     me: Session = Depends(current_member),
     db: DbSession = Depends(get_db),
     storage: DirectoryStorage = Depends(get_storage),
@@ -379,7 +402,16 @@ def photo_sample(
     if logo is not None:
         changes = {
             name: value
-            for name, value in (("position", position), ("size", size), ("margin", margin), ("opacity", opacity))
+            for name, value in (
+                ("position", position),
+                ("size", size),
+                ("margin", margin),
+                ("opacity", opacity),
+                ("shape", shape),
+                ("border", border),
+                ("border_color", border_color),
+                ("shadow", shadow),
+            )
             if value is not None
         }
         if alt_threshold is not None or no_alt:
