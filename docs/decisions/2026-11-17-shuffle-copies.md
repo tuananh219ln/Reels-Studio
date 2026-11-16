@@ -19,5 +19,11 @@ points below were settled against the app as it is.
   renumbered, with a warning.
 - **Orders avoid** the source's, the first video's and every earlier copy's (`videos.scene_order`, kept as the first
   video's scene ids so copies of copies compare too). "Xáo lại cảnh" exists only on a copy.
-- **Left for later:** the AI rewrite of the hook (spec 5.1: it is an LLM call, so it needs a job and prompt text in
-  the app's data), pinning scenes other than the last, a QC item for an unchanged title, and the MCP tool.
+- **New titles come from the member's assistant, not the team's AI** (tuananh219ln's choice in the session, over the
+  spec's 5.1): the MCP tool `shuffle_duplicate_video` makes the copies and its description asks the assistant to
+  write each a new title under the spec's rules (same idea and numbers, ±20% words, censorship spellings kept, each
+  different, no emoji or hashtag) and save it with "Sửa cảnh". No job, no prompt in the app's data, no cost to the
+  team's AI service. The web has no AI title button.
+- **"Ghim cảnh khác"**: any content scene can keep its place, beside "Giữ cố định cảnh cuối", in the drawer, the api
+  (`pinned_scene_ids`) and the MCP tool.
+- **Left for later:** a QC item for an unchanged title.

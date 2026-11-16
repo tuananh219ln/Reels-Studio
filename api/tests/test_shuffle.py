@@ -229,3 +229,41 @@ def test_an_exact_copy_of_a_shuffled_copy_is_not_a_shuffle(an, db, me, storage):
     exact = an.post(f"/api/videos/{copy_id}/duplicate").json()
     row = db.get(Video, exact["id"])
     assert (row.shuffled_from_id, row.scene_order, row.review_title) == (None, None, None)
+
+
+# --- pinned scenes ---
+
+
+def test_pinned_scenes_keep_their_place(an, db, me, storage):
+    video, ids = numbered_video(db, storage, me)
+    pinned = [ids[1], ids[3]]
+    preview = an.post(
+        f"/api/shuffle/videos/{video.id}/preview", json={"count": 5, "pinned_scene_ids": [*pinned, 999]}
+    ).json()
+    # 3 free scenes: 3! - 1 orders; the unknown id is left out.
+    assert preview["max_distinct"] == 5 and preview["pinned"] == pinned
+    orders = preview["orders"]
+    assert len(orders) == 5 and all(order[1] == ids[1] and order[3] == ids[3] for order in orders)
+
+    made = an.post(
+        f"/api/shuffle/videos/{video.id}/copies", json={"orders": orders[:1], "pinned_scene_ids": pinned}
+    ).json()
+    scenes = content(db, made["videos"][0]["id"])
+    assert [scene.source_scene_id for scene in scenes] == orders[0]
+    assert scenes[1].text.startswith("2. ") and scenes[3].text.startswith("4. ")
+
+    moved = [ids[1], ids[0], ids[2], ids[3], ids[4]]
+    refused = an.post(f"/api/shuffle/videos/{video.id}/copies", json={"orders": [moved], "pinned_scene_ids": pinned})
+    assert refused.status_code == 422 and "ghim" in refused.json()["message"]
+    gone = an.post(f"/api/shuffle/videos/{video.id}/copies", json={"orders": orders[1:2], "pinned_scene_ids": [999]})
+    assert gone.status_code == 409
+
+
+def test_reshuffle_keeps_pinned_scenes(an, db, me, storage):
+    video, _ = numbered_video(db, storage, me, count=4)
+    orders = an.post(f"/api/shuffle/videos/{video.id}/preview", json={"count": 1}).json()["orders"]
+    copy_id = an.post(f"/api/shuffle/videos/{video.id}/copies", json={"orders": orders}).json()["videos"][0]["id"]
+    before = [scene.id for scene in content(db, copy_id)]
+    an.post(f"/api/shuffle/videos/{copy_id}/reshuffle", json={"pinned_scene_ids": [before[0]]})
+    after = [scene.id for scene in content(db, copy_id)]
+    assert after[0] == before[0] and after != before

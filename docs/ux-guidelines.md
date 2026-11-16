@@ -1591,7 +1591,8 @@ maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; 
 the group a teammate's video sits in sees "Chuyển về nhóm của <tên>" instead, which lists only groups made by the
 video's maker (the video page's "⋯" menu has the same item).
 
-"Nhân bản xáo cảnh" opens a drawer: "Số bản" (1–20, "Tối đa X bản khác nhau" beside it), "Giữ cố định cảnh cuối",
+"Nhân bản xáo cảnh" opens a drawer: "Số bản" (1–20, "Tối đa X bản khác nhau" beside it), "Giữ cố định cảnh cuối", "Ghim cảnh khác" (a folded
+list of the content scenes, each a checkbox; shown from 3 scenes; a pinned scene has a pin in the preview),
 "Đánh lại số thứ tự ở đầu chữ và lời đọc" (off and greyed when the scenes are not numbered), and "Xem trước": one
 line per copy, "Bản 1: 5 → 3 → 2 → 4 → 1" with the scenes' short names under it, and "Xáo lại" to draw again. "Tạo N
 bản" makes exactly the orders shown; one copy opens at once, several are listed as links in a notification that

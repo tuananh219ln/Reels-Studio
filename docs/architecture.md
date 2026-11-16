@@ -955,11 +955,12 @@ TikTok post takes "Nhập view", `POST /api/posts/{id}/metrics/manual` (`views`,
   the title scene, drawn on the video, is unchanged.
 - **Shuffled copies ("Nhân bản xáo cảnh", [decision](decisions/2026-11-17-shuffle-copies.md)):** `routes_shuffle.py`
   and `shuffle.py`, no LLM call and no job. `POST /api/shuffle/videos/{id}/preview` (`count` 1–20, `lock_last`) draws
-  orders of the content scenes (the title scene stays first; `lock_last` keeps the last one): each other than the
+  orders of the content scenes (the title scene stays first; `lock_last` keeps the last one and
+  `pinned_scene_ids`, "Ghim cảnh", any others in their place): each other than the
   source's, than the first video's and than every earlier copy's, those where at least half the scenes moved first
   from 4 scenes on; up to 6 free scenes every order is listed and drawn from, above that orders are drawn at random.
-  `POST /api/shuffle/videos/{id}/copies` (`orders` from the preview, `lock_last`, `renumber`) checks each order (the
-  source's scenes, the last kept, none repeated or the original) and makes one exact copy per order in one
+  `POST /api/shuffle/videos/{id}/copies` (`orders` from the preview, `lock_last`, `pinned_scene_ids`, `renumber`)
+  checks each order (the source's scenes, the last and pinned ones kept, none repeated or the original) and makes one exact copy per order in one
   transaction (`duplicate.copy_video`; files of copies made before a failure are removed), named "… (xáo N)", with
   the scenes placed 1…N. When at least half the content scenes open their on-screen text with a list number ("1.",
   "2)", "3:", "4 -", "#5.", "Số 6:", "Cách 7.", "Món 8)", "Bước 9." — not "1.5 kg", "3-4 lần", "50 tuổi"),

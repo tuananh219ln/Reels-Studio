@@ -1,8 +1,8 @@
 "use client";
 import FormDrawer from "@/components/FormDrawer";
 import { api, errorMessage } from "@/lib/api";
-import { ReloadOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Checkbox, Flex, InputNumber, Spin, Typography } from "antd";
+import { PushpinFilled, ReloadOutlined } from "@ant-design/icons";
+import { Alert, App, Button, Checkbox, Collapse, Flex, InputNumber, Spin, Typography } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,6 +12,8 @@ type Preview = {
   free_scenes: number;
   max_distinct: number;
   orders: number[][];
+  /** The content scenes that keep their place: the pinned ones, and the last with "Giữ cố định cảnh cuối". */
+  pinned: number[];
   scenes: { id: number; number: number; name: string }[];
   numbered: boolean;
   warnings: string[];
@@ -38,6 +40,8 @@ export default function ShuffleModal({
   const router = useRouter();
   const [count, setCount] = useState(1);
   const [lockLast, setLockLast] = useState(false);
+  // "Ghim cảnh khác": content scenes (by id) that keep their place in every copy.
+  const [pinned, setPinned] = useState<number[]>([]);
   const [renumber, setRenumber] = useState(true);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,14 +53,18 @@ export default function ShuffleModal({
     const ask = ++asked.current;
     setLoading(true);
     try {
-      const next = await api<Preview>(`/shuffle/videos/${videoId}/preview`, "POST", { count, lock_last: lockLast });
+      const next = await api<Preview>(`/shuffle/videos/${videoId}/preview`, "POST", {
+        count,
+        lock_last: lockLast,
+        pinned_scene_ids: pinned,
+      });
       if (ask === asked.current) setPreview(next);
     } catch (err) {
       if (ask === asked.current) message.error(errorMessage(err));
     } finally {
       if (ask === asked.current) setLoading(false);
     }
-  }, [videoId, count, lockLast, message]);
+  }, [videoId, count, lockLast, pinned, message]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- the preview follows the dialog's choices
@@ -73,6 +81,7 @@ export default function ShuffleModal({
       const made = await api<Made>(`/shuffle/videos/${videoId}/copies`, "POST", {
         orders,
         lock_last: lockLast,
+        pinned_scene_ids: pinned,
         renumber,
       });
       onClose();
@@ -114,6 +123,7 @@ export default function ShuffleModal({
       okButtonProps={{ disabled: loading || tooFew || orders.length === 0 }}
       confirmLoading={busy}
       destroyOnHidden
+      afterClose={() => setPinned([])}
       width={560}
     >
       <Flex vertical gap={12}>
@@ -144,6 +154,36 @@ export default function ShuffleModal({
             <Checkbox checked={lockLast} onChange={(event) => setLockLast(event.target.checked)}>
               Giữ cố định cảnh cuối (cảnh kết, kêu gọi hành động)
             </Checkbox>
+            {preview && preview.scenes.length > 2 && (
+              <Collapse
+                size="small"
+                items={[
+                  {
+                    key: "pin",
+                    label: `Ghim cảnh khác${pinned.length ? ` (${pinned.length})` : ""}`,
+                    children: (
+                      <Flex vertical gap={4} data-testid="shuffle-pins">
+                        {preview.scenes.map((scene) => (
+                          <Checkbox
+                            key={scene.id}
+                            checked={pinned.includes(scene.id)}
+                            onChange={(event) =>
+                              setPinned((current) =>
+                                event.target.checked
+                                  ? [...current, scene.id]
+                                  : current.filter((sceneId) => sceneId !== scene.id),
+                              )
+                            }
+                          >
+                            Cảnh {scene.number}: {scene.name || "(chưa có chữ)"}
+                          </Checkbox>
+                        ))}
+                      </Flex>
+                    ),
+                  },
+                ]}
+              />
+            )}
             <Checkbox
               checked={renumber && Boolean(preview?.numbered)}
               disabled={!preview?.numbered}
@@ -168,7 +208,16 @@ export default function ShuffleModal({
                 {orders.map((order, index) => (
                   <div key={order.join(",")}>
                     <Typography.Text>
-                      Bản {index + 1}: {order.map((sceneId) => names.get(sceneId)?.number ?? "?").join(" → ")}
+                      Bản {index + 1}:{" "}
+                      {order.map((sceneId, place) => (
+                        <span key={sceneId}>
+                          {place > 0 && " → "}
+                          {names.get(sceneId)?.number ?? "?"}
+                          {preview?.pinned.includes(sceneId) && (
+                            <PushpinFilled aria-label="đã ghim" style={{ fontSize: 11, marginLeft: 2 }} />
+                          )}
+                        </span>
+                      ))}
                     </Typography.Text>
                     <Typography.Paragraph type="secondary" ellipsis={{ rows: 2 }} style={{ margin: 0, fontSize: 12 }}>
                       {order.map((sceneId) => names.get(sceneId)?.name || "(chưa có chữ)").join(" · ")}

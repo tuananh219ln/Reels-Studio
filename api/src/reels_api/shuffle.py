@@ -1,6 +1,7 @@
 """'Nhân bản xáo cảnh': copies of a video, each with its content scenes in another order and their list numbers
 ("1.", "2)"…) at the start of the on-screen text and the voice text written again for their new place. The title
-scene stays first; "Giữ cố định cảnh cuối" keeps the last scene (a closing/CTA scene) where it is. A copy asks for a
+scene stays first; "Giữ cố định cảnh cuối" keeps the last scene (a closing/CTA scene) where it is, and a pinned scene
+("Ghim cảnh") keeps its place too. A copy asks for a
 new title until its title scene says something else (docs/decisions/2026-11-17-shuffle-copies.md)."""
 
 import math
@@ -8,12 +9,13 @@ import random
 import re
 from itertools import permutations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
 from .duplicate import MAX_NAME_LENGTH, copy_video
 from .errors import ApiError
 from .models import Scene, Video
+from .script_rules import plain_title
 from .storage import DirectoryStorage
 from .videos import split_scenes, title_of, video_name
 
@@ -137,14 +139,18 @@ def _taken(db: DbSession, root_id: int, by_key: dict[int, int]) -> set[tuple[int
     return taken
 
 
-def _locked(scenes: list[Scene], lock_last: bool) -> set[int]:
-    return {len(scenes) - 1} if lock_last and scenes else set()
+def _locked(scenes: list[Scene], lock_last: bool, pinned=()) -> set[int]:
+    """The places that keep their scene: the last one with `lock_last`, and those of the pinned scenes (by id)."""
+    pinned = set(pinned)
+    places = {index for index, scene in enumerate(scenes) if scene.id in pinned}
+    return places | ({len(scenes) - 1} if lock_last and scenes else set())
 
 
-def preview(db: DbSession, source: Video, count: int, lock_last: bool) -> dict:
-    """The orders "Tạo N bản" would make, for the dialog to show; it makes them as shown."""
+def preview(db: DbSession, source: Video, count: int, lock_last: bool, pinned=()) -> dict:
+    """The orders "Tạo N bản" would make, for the dialog to show; it makes them as shown. A pinned id that is not one
+    of the source's content scenes is left out."""
     _, scenes = split_scenes(db, source)
-    locked = _locked(scenes, lock_last)
+    locked = _locked(scenes, lock_last, pinned)
     free = len(scenes) - len(locked)
     ids = [scene.id for scene in scenes]
     taken = _taken(db, _root_id(source), {_key(scene): scene.id for scene in scenes})
@@ -158,6 +164,7 @@ def preview(db: DbSession, source: Video, count: int, lock_last: bool) -> dict:
         "free_scenes": free,
         "max_distinct": min(MAX_COPIES, max(0, distinct_orders(free) - len(still_taken))),
         "orders": orders,
+        "pinned": [scenes[index].id for index in sorted(locked)],
         "scenes": [
             {"id": scene.id, "number": index, "name": _short(scene.text)} for index, scene in enumerate(scenes, 1)
         ],
@@ -172,11 +179,26 @@ def _short(text: str) -> str:
     return first if len(first) <= 40 else first[:39] + "…"
 
 
-def check_orders(db: DbSession, source: Video, orders: list[list[int]], lock_last: bool) -> list[Scene]:
-    """Refuses orders that are not the source's content scenes in another order, that move the locked last scene, or
-    that repeat; returns the source's content scenes."""
+def used_titles(db: DbSession, source: Video) -> list[str]:
+    """The titles the first video and its copies show now, for an assistant writing new ones not to repeat them."""
+    root = _root_id(source)
+    rows = db.scalars(
+        select(Scene.text)
+        .join(Video, Video.id == Scene.video_id)
+        .where(Scene.is_title.is_(True), or_(Video.id == root, Video.shuffled_from_id == root))
+        .order_by(Video.id)
+    )
+    return list(dict.fromkeys(plain_title(text) for text in rows if text.strip()))
+
+
+def check_orders(db: DbSession, source: Video, orders: list[list[int]], lock_last: bool, pinned=()) -> list[Scene]:
+    """Refuses orders that are not the source's content scenes in another order, that move the locked last scene or a
+    pinned one, or that repeat; returns the source's content scenes."""
     _, scenes = split_scenes(db, source)
     ids = [scene.id for scene in scenes]
+    if not set(pinned) <= set(ids):
+        raise ApiError(409, "scenes_changed", "Cảnh đã ghim không còn trong video gốc, hãy xáo lại bản xem trước")
+    kept = {index for index, scene_id in enumerate(ids) if scene_id in set(pinned)}
     if not orders:
         raise ApiError(422, "invalid_value", "Chưa có thứ tự cảnh nào để tạo")
     if len(orders) > MAX_COPIES:
@@ -187,6 +209,8 @@ def check_orders(db: DbSession, source: Video, orders: list[list[int]], lock_las
             raise ApiError(409, "scenes_changed", "Cảnh của video gốc vừa thay đổi, hãy xáo lại bản xem trước")
         if lock_last and order[-1] != ids[-1]:
             raise ApiError(422, "invalid_value", "Cảnh cuối phải đứng yên")
+        if any(order[index] != ids[index] for index in kept):
+            raise ApiError(422, "invalid_value", "Cảnh đã ghim phải đứng yên")
         if tuple(order) in seen:
             raise ApiError(422, "invalid_value", "Các bản phải có thứ tự cảnh khác nhau và khác video gốc")
         seen.add(tuple(order))
@@ -211,10 +235,11 @@ def make_copies(
     lock_last: bool,
     renumber_text: bool,
     user_id: int,
+    pinned=(),
 ) -> tuple[list[Video], bool, list[str]]:
     """One copy per order, all or none: a failure removes the files of the copies made before it (their rows go with
     the request's rollback)."""
-    scenes = check_orders(db, source, orders, lock_last)
+    scenes = check_orders(db, source, orders, lock_last, pinned)
     title, _ = split_scenes(db, source)
     renumbering, warnings = numbered(scenes) if renumber_text else (False, [])
     if renumber_text and not renumbering:
@@ -246,7 +271,7 @@ def make_copies(
 
 
 def reshuffle(
-    db: DbSession, video: Video, lock_last: bool, renumber_text: bool, order: list[int] | None = None
+    db: DbSession, video: Video, lock_last: bool, renumber_text: bool, order: list[int] | None = None, pinned=()
 ) -> list[int]:
     """ "Xáo lại cảnh" on a copy: another order than its own and its siblings', or `order` (its previous one, for
     "Hoàn tác"). Returns the order it had before."""
@@ -254,9 +279,8 @@ def reshuffle(
     previous = [scene.id for scene in scenes]
     if order is None:
         taken = _taken(db, _root_id(video), {_key(scene): scene.id for scene in scenes})
-        found = generate_orders(previous, _locked(scenes, lock_last), 1, taken) or generate_orders(
-            previous, _locked(scenes, lock_last), 1
-        )
+        locked = _locked(scenes, lock_last, pinned)
+        found = generate_orders(previous, locked, 1, taken) or generate_orders(previous, locked, 1)
         if not found:
             raise ApiError(409, "nothing_to_shuffle", "Cần ít nhất 2 cảnh xáo được")
         order = found[0]
