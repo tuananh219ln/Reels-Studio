@@ -505,7 +505,8 @@ export default function SourcesPage() {
                   >
                     <Flex vertical gap={12}>
                       <Typography.Text type="secondary">
-                        Đọc lời từng cảnh khi render, và danh sách giọng ở Thiết lập mặc định. Key giọng VieNeu ở{" "}
+                        Đọc lời từng cảnh khi render, và danh sách giọng ở Thiết lập mặc định. Key giọng VieNeu và
+                        Google ở{" "}
                         <Link prefetch={false} href="/settings/ai">
                           Cài đặt › Mô hình AI
                         </Link>

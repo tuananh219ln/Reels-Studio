@@ -11,7 +11,7 @@ from . import auto_footage, auto_photos, edit_log, image_providers, image_style,
 from .models import LlmProvider
 
 # Card ids within each page's history, and the names the history shows for them.
-AI_CARDS = {1: "AI viết kịch bản", 2: "Giọng đọc VieNeu"}
+AI_CARDS = {1: "AI viết kịch bản", 2: "Giọng đọc VieNeu", 3: "Giọng đọc Google"}
 SOURCE_CARDS = {1: "Kho ảnh và video miễn phí", 2: "Dịch vụ AI"}
 STOCK_KEYS = ("pixabay", "pexels", "unsplash")
 SHORT_KEY = 12  # a shorter key shows no characters at all, as the page does
@@ -51,6 +51,7 @@ def snapshot(db: DbSession) -> dict[tuple[str, int], dict[str, Any]]:
     return {
         (edit_log.SETTINGS_AI, 1): _llm_card(db),
         (edit_log.SETTINGS_AI, 2): {"vieneu.key": _source_key(db, "vieneu")},
+        (edit_log.SETTINGS_AI, 3): {"google_tts.key": _source_key(db, "google_tts")},
         (edit_log.SETTINGS_SOURCES, 1): stock,
         (edit_log.SETTINGS_SOURCES, 2): {
             "ai_provider": image_providers.saved(db),
