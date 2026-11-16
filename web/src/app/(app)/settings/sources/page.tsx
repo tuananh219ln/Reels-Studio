@@ -484,6 +484,10 @@ export default function SourcesPage() {
                 >
                   <Flex vertical gap={12}>
                     <Typography.Text type="secondary">Model: {data.ai_images.model}</Typography.Text>
+                    <Typography.Text type="secondary">
+                      Key này cũng đọc lời từng cảnh: các giọng Gemini hiện trong ô “Giọng” khi có key. Gói miễn phí của
+                      Google giới hạn số lượt đọc mỗi ngày, hết lượt thì app báo lỗi chứ không tự đổi giọng.
+                    </Typography.Text>
                     {data.ai_images.key && (
                       <KeyField name="gemini" label="Gemini" value={data.ai_images.key} onSaved={setData} />
                     )}

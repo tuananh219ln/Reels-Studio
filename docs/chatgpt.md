@@ -97,8 +97,8 @@ The assistant edits with the studio's own handlers, presets and locks (nothing t
   narration, ducking, transition, motion, zoom, text box and title looks, captions, text sizes, the scenes' text position and the title's, `title_text_position`, which moves only the title box up or
   down; `reset_text_position` and `reset_title_text_position` put each back where the template has it).
   Only the arguments sent change; it goes through the same `PATCH /videos/{id}` handler and `video_options.clean`
-  as the tab, so one wrong value saves nothing. A voice id is checked for its form only (a bare ElevenLabs id or
-  `vieneu:<id>`), as on the web; a voice that does not exist fails when the narration is made. It makes no
+  as the tab, so one wrong value saves nothing. A voice id is checked for its form only (a bare ElevenLabs id,
+  `vieneu:<id>` or `gemini:<voice>`), as on the web; a voice that does not exist fails when the narration is made. It makes no
   narration and never touches the member's defaults or another video. It returns the video's whole `options`.
 - `set_scene_effects` (transition, colour, music level, "Tự khớp lời đọc"; `default` goes back to the video's),
   `reorder_scenes`, `split_scene`, `delete_scene` (content scenes only).

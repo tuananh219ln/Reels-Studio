@@ -103,10 +103,19 @@ test("Lấy ảnh Google: shown only with the extension, skips stock sites, and 
   await page.context().route("https://www.google.com/**", (route) => route.fulfill({ body: "Google Ảnh" }));
   const first = page.getByTestId("scene").first();
   await openScene(first);
-  await first.getByRole("button", { name: "Tìm trên Google" }).click();
-  const opened = page.waitForEvent("popup");
-  await page.locator(".ant-dropdown:visible").getByRole("menuitem").nth(1).click();
-  await (await opened).close();
+  // The tab opens only after the keyword has been saved, and a menu click on a slow runner can land while the menu
+  // is closing (CI, 2026-11-16: no popup in 3 minutes): open the menu if it is shut, click, wait a bit, try again.
+  const menu = page.locator(".ant-dropdown:visible");
+  await expect(async () => {
+    if (!(await menu.isVisible())) {
+      await first.getByRole("button", { name: "Tìm trên Google" }).click({ timeout: 5_000 });
+    }
+    const [popup] = await Promise.all([
+      page.waitForEvent("popup", { timeout: 15_000 }),
+      menu.getByRole("menuitem").nth(1).click({ timeout: 5_000 }),
+    ]);
+    await popup.close();
+  }).toPass({ timeout: 90_000 });
   const target = await page.evaluate(
     () => (window as unknown as { __extension: { target: { sceneId: number; label: string } } }).__extension.target,
   );
