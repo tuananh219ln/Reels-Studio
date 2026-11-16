@@ -155,7 +155,8 @@ def test_a_clone_takes_its_sources_settings(an, db, me, storage, fakes):
     assert draft["options"]["zoom"] == "strong" and draft["voice_enabled"] is False
 
 
-def test_the_voice_list_comes_from_elevenlabs(an, fakes):
+def test_the_voice_list_comes_from_elevenlabs(an, fakes, monkeypatch):
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # Gemini's voices come with its key
     payload = an.get("/api/settings/voices").json()
     assert payload["default_id"] == config.DEFAULT_VOICE_ID
     assert [voice["name"] for voice in payload["voices"]] == ["Adam", "Mai"]
@@ -171,6 +172,7 @@ def test_without_an_elevenlabs_key_the_voice_list_says_so(an, monkeypatch):
 
 def test_an_elevenlabs_key_pasted_on_the_sources_page_lists_the_voices(an, fakes, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # Gemini's voices come with its key
     before = an.get("/api/settings/sources").json()["voices"]
     assert (before["configured"], before["key"]["origin"]) == (False, None)
 
@@ -181,7 +183,8 @@ def test_an_elevenlabs_key_pasted_on_the_sources_page_lists_the_voices(an, fakes
     assert [voice["name"] for voice in an.get("/api/settings/voices").json()["voices"]] == ["Adam", "Mai"]
 
 
-def test_a_wrong_elevenlabs_key_says_where_to_fix_it(an, fakes):
+def test_a_wrong_elevenlabs_key_says_where_to_fix_it(an, fakes, monkeypatch):
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # with Gemini's voices there would be voices to show
     an.put("/api/settings/sources/elevenlabs/key", json={"api_key": "not-the-fake-key"})
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422

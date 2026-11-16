@@ -270,8 +270,8 @@ def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(ge
         raise ApiError(
             422,
             "voices_unavailable",
-            "Chưa có key giọng đọc nào nên chưa chọn được giọng đọc: nhập key ElevenLabs hay Gemini ở Cài đặt › "
-            "Nguồn tư liệu, hoặc key VieNeu ở Cài đặt › Mô hình AI",
+            "Chưa có key ElevenLabs, Gemini hay VieNeu nên chưa chọn được giọng đọc: nhập key ElevenLabs hay Gemini "
+            "ở Cài đặt › Nguồn tư liệu, hoặc key VieNeu ở Cài đặt › Mô hình AI",
         )
     voices: list[dict] = []
     problems: list[str] = []
