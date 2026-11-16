@@ -224,6 +224,13 @@ Photos and clips gathered once and used in any scene ([routes_media.py](../api/s
   otherwise. A link that fails is reported on its own and the others still come in. The link is kept as the item's
   source. The web's Google Ảnh (also "Ảnh không nền", `tbs=ic:trans`) and TikTok buttons only open a search for the
   product's name in the member's browser; the app never searches or downloads from Google by itself.
+- **Cutting a clip into a new item** ("Cắt thành file mới", `POST /api/media/{id}/cut`, `routes_media.cut_to_library`,
+  [decision](decisions/2026-11-16-trim-clip-to-library.md)): `length` seconds (1–60) from `start` of a library clip,
+  cut with `clips.cut_part` (re-encoded H.264, no sound, short side raised to 576 px) and checked with `check_clip`,
+  become a new clip item of the member's own with the folder and at least one tag given and the clip's `source_url`.
+  A part past the clip's end, an untagged cut, a photo or a clip whose file is gone is refused, and nothing is stored
+  unless the cut passes. The clip itself is never changed or deleted; it is deleted on its own (`DELETE
+  /api/media/{id}`, its maker only). Done in the request, like a pasted link's download: one cut is a few seconds.
 - **Using an item** (`POST /api/media/{id}/use`) copies it into the scene through the editor's own `_store_photo` and
   `_attach_clip`, with their locks and checks. Thumbnails are a photo, or a clip's frame at one second.
 - **Folders are labels** (`media_items.folder`), a folder including its subfolders (whole parts of the path: `Gia`
@@ -248,10 +255,10 @@ Photos and clips gathered once and used in any scene ([routes_media.py](../api/s
 - **The page** ([MediaLibrary.tsx](../web/src/components/media/MediaLibrary.tsx), [decision](decisions/2026-11-14-media-library-layout.md)):
   the folder tree beside the grid (a tile dropped on a folder moves it, `POST /api/media/move`), "Thêm tư liệu" in a
   drawer, small tiles (size S/M/L, per browser) laid out as one section per folder or as one grid, and a drawer with an
-  item's numbers and actions. A scene's picker and a group's tab keep one grid without the sidebar.
+  item's numbers and actions (a clip's "Cắt thành file mới" among them). A scene's picker and a group's tab keep one grid without the sidebar.
 - **MCP:** `list_media` (by folder, kind, tags and a search over names, folders and tags; each item with its tags),
   `view_media` (the pictures of up to eight items, so the assistant chooses by looking),
-  `add_media_from_links` and `set_scene_media_from_library`.
+  `add_media_from_links`, `set_scene_media_from_library`, `cut_clip_to_library` and `delete_media`.
 
 ### Render QC
 
