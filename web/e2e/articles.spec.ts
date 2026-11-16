@@ -104,7 +104,19 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
   const publishNow = publish.getByRole("button", { name: "Đăng", exact: true });
   await expect(async () => {
     if (!(await publishNow.isVisible())) {
-      await page.getByRole("button", { name: /^send Đăng$/ }).click({ timeout: 5_000 });
+      // A drawer left on screen without its own "Đăng" covers the page's button (CI, 2026-11-17: its header took
+      // every click for the whole minute): close it, so the next round opens a fresh one.
+      const opened = await page
+        .getByRole("button", { name: /^send Đăng$/ })
+        .click({ timeout: 5_000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      if (!opened) {
+        await page.keyboard.press("Escape");
+        throw new Error("Ngăn kéo Đăng bài viết che nút Đăng: đã đóng để thử lại");
+      }
     }
     await publishNow.click({ timeout: 5_000 });
     await expect(refused.first()).toBeVisible({ timeout: 5_000 });

@@ -472,9 +472,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
     thumbnail of the preview, "Cảnh N" (or "Cảnh tiêu đề"), its seconds, while closed its text on one line (without
     the `*` marks), a status (red "N lỗi", amber "N cảnh báo" or green "Sẵn sàng") and "Xem từ cảnh này" (▷). "Lên
     trên", "Xuống dưới" and "Xóa cảnh" show only on hover, keyboard focus or while the card is open (always on a
-    touch screen). While the page can be edited, a content scene's row starts with a handle (⋮⋮, "Kéo để đổi thứ tự"):
-    dragged onto another content scene's card, it takes that place and the ones between shift by one (a brand line
-    on the card's top edge shows where it lands); the arrows stay for the keyboard. A click or Enter on the row opens the card and closes the one that was open, or closes it; only
+    touch screen). Scenes are reordered only with these arrows; there is no drag handle (removed 2026-11-16). A click or Enter on the row opens the card and closes the one that was open, or closes it; only
     "Mở tất cả" opens several. On a scene's row ↑ and ↓ open the scene above or below; Ctrl+Enter (⌘+Enter) in an open
     card saves the field being typed in and opens the next scene. When the page opens, the first scene with a red
     reason is open, else on a draft the first scene, else none. "Thêm cảnh" opens the new scene. A closed card keeps
@@ -1413,19 +1411,19 @@ next scene; its start and length can be typed in "Chỉnh cảnh". It sits under
 layers; the text gets no shade of its own, so a box style keeps it readable over a busy photo. One photo layer per
 scene.
 
-A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 150 px left
-column (220 px until 2026-11-14) and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
-the scene's text box on top, as the render lays them) beside the text, narration, "Số giây", "Bắt đầu từ giây", "Từ
-khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part
-of the inset (never blocking). Row 2: **"Chỉnh vị trí chữ & ảnh chèn"** (the primary button, always there, with or
-without an inset). Row 3: the scene's own picture tools while the inset shows the scene's photo (or on an older
-scene's "Ảnh món"). The **"Ảnh chèn"** block sits on the right of rows 2 and 3, as wide as the column and only as tall
-as what it holds. Narrower than 576 px, one column: preview, button, picture tools, block, then the fields.
+A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout; three columns since 2026-11-16) is a
+grid from 576 px of three columns, 12 px apart: the 150 px preview (the backdrop playing, the inset photo over it, the
+scene's text box on top, as the render lays them); a 170 px middle column with, one under the other, **"Chỉnh vị trí
+chữ & ảnh chèn"** (the primary button, always there, with or without an inset; its name may wrap to two lines), the
+scene's own picture tools while the inset shows the scene's photo (or on an older scene's "Ảnh món") and the **"Ảnh
+chèn"** block; then the text, narration, "Số giây", "Bắt đầu từ giây", "Từ khóa tìm ảnh" and "Prompt ảnh AI", with a
+small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part of the inset (never blocking). Narrower
+than 576 px, one column: preview, button, picture tools, block, then the fields.
 
 The block is its title and a switch on one row. Off, one line, "Đang tắt. Bật để chèn ảnh của cảnh.". On: the "Cỡ ảnh"
 slider (30–45, step 1, "Cỡ ảnh: 32% (hẹp hơn video)" under it, the preview resizing while it is dragged and keeping
 the edge it is flush with), nothing else. The inset always shows the scene's photo, so changing the scene's photo with
-the left column's tools changes it too; the block has no picture buttons of its own. An inset an older edit gave a
+the middle column's tools changes it too; the block has no picture buttons of its own. An inset an older edit gave a
 photo of its own keeps rendering it, with "Đang dùng ảnh riêng chọn từ trước." and "Dùng ảnh của cảnh" in the block.
 Turning the switch off asks first only for such an inset (its own photo is lost); turned on again while the card is
 open, the inset comes back with the size and place it had. The Trên / Giữa / Dưới buttons are gone.
