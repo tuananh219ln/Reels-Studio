@@ -520,13 +520,15 @@ export default function SceneCard({
       }
     >
       {backdrop && !scene.is_title ? (
-        // A "Video xuyên suốt" scene: the preview beside the text, narration and fields, then "Chỉnh vị trí chữ & ảnh
-        // chèn" and the scene's own picture tools (when its inset shows the scene's photo) beside the "Ảnh chèn" block.
+        // A "Video xuyên suốt" scene, laid out as a slide video's: the preview with "Chỉnh vị trí chữ & ảnh chèn" under
+        // it, the scene's own picture tools beside it (when its inset shows the scene's photo), then the fields and
+        // the "Ảnh chèn" block.
         <div data-testid="scene-two-column">
           <HalfPhotoPanel scene={scene} backdrop={backdropScene} fields={fields}>
             {ownPicture && (
               <ScenePicture
                 compact
+                column
                 scene={scene}
                 voiceEnabled={voiceEnabled}
                 generating={generating}
@@ -710,12 +712,16 @@ export function ScenePicture({
   generating,
   editing = false,
   compact = false,
+  column = false,
 }: {
   scene: SceneData;
   voiceEnabled: boolean;
   generating: boolean;
   editing?: boolean;
   compact?: boolean;
+  /** With `compact` (a "Video xuyên suốt" scene beside its own preview): the tools as the 222 px column of a slide
+   * video's scene, first, instead of the studio's rows. */
+  column?: boolean;
 }) {
   const { message, modal } = App.useApp();
   const editor = useEditor();
@@ -1137,7 +1143,7 @@ export function ScenePicture({
       />
     </Space.Compact>
   );
-  const tools = editor.readOnly ? null : compact ? (
+  const tools = editor.readOnly ? null : compact && !column ? (
     <>
       {/* Upload, paste and Google on one row: the studio's picture column is narrow, and these are the quick ones. */}
       <Flex gap={6} wrap>
@@ -1180,6 +1186,7 @@ export function ScenePicture({
         }
       }}
     >
+      {compact && column && tools}
       {compact && !editor.readOnly && hasPicture && (
         <Flex gap={6} wrap>
           {!scene.video && (
@@ -1440,7 +1447,7 @@ export function ScenePicture({
         aria-label={`Tải ảnh/video lên cho ${which}`}
         onChange={(event) => chosen(event.target.files?.[0])}
       />
-      {compact && tools}
+      {compact && !column && tools}
       {error && (
         <Typography.Text type="danger" data-testid="image-error">
           {error.message}

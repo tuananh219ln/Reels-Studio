@@ -1241,6 +1241,17 @@ test("inset photo: only on a backdrop video, the scene's photo as a rounded squa
   await expect(block.getByRole("button")).toHaveCount(0);
   await expect(block.getByTestId("inset-own-image")).toHaveCount(0);
 
+  // The same layout as a slide video's scene: the 182 px preview, the place button under it, and the picture's tools
+  // column beside it, its top level with the preview's.
+  const stageBox = await panel.getByTestId("half-photo-stage").boundingBox();
+  const toolsBox = await panel.getByTestId("scene-media-tools").boundingBox();
+  const placeBox = await panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" }).boundingBox();
+  expect(Math.round(stageBox!.width)).toBe(182);
+  expect(toolsBox!.x).toBeGreaterThan(stageBox!.x + stageBox!.width);
+  expect(Math.abs(toolsBox!.y - stageBox!.y)).toBeLessThan(2);
+  expect(placeBox!.y).toBeGreaterThan(stageBox!.y + stageBox!.height);
+  expect(placeBox!.width).toBeLessThanOrEqual(stageBox!.width + 1);
+
   // 32%: a 614 px square, centred across (left 233 of 1080), flush with the bottom edge (top 1306 of 1920).
   const photo = panel.getByTestId("half-photo-stage").getByTestId("preview-layer");
   await expect(photo).toBeVisible();

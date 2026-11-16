@@ -1413,14 +1413,16 @@ next scene; its start and length can be typed in "Chỉnh cảnh". It sits under
 layers; the text gets no shade of its own, so a box style keeps it readable over a busy photo. One photo layer per
 scene.
 
-A content scene's card on a "Video xuyên suốt" (2026-11-12, scene card layout) is a grid from 576 px: a 150 px left
-column (220 px until 2026-11-14) and the rest, 16 px apart, rows 8 px apart. Row 1: the preview (the backdrop playing, the inset photo over it,
-the scene's text box on top, as the render lays them) beside the text, narration, "Số giây", "Bắt đầu từ giây", "Từ
-khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ đang đè lên ảnh chèn" when the saved text box covers part
-of the inset (never blocking). Row 2: **"Chỉnh vị trí chữ & ảnh chèn"** (the primary button, always there, with or
-without an inset). Row 3: the scene's own picture tools while the inset shows the scene's photo (or on an older
-scene's "Ảnh món"). The **"Ảnh chèn"** block sits on the right of rows 2 and 3, as wide as the column and only as tall
-as what it holds. Narrower than 576 px, one column: preview, button, picture tools, block, then the fields.
+A content scene's card on a "Video xuyên suốt" is laid out as a slide video's scene (2026-11-16; a 150 px grid from
+2026-11-12 until then): on the left the 182 × 324 preview (the backdrop playing, the inset photo over it, the scene's
+text box on top, as the render lays them) with **"Chỉnh vị trí chữ & ảnh chèn"** under it (the primary button, as wide
+as the preview, its label on two lines, always there, with or without an inset); beside the preview the scene's own
+picture tools in the same 222 px column as a slide video's scene ("Lấy ảnh", "Tìm ảnh", "Tạo mới"), while the inset
+shows the scene's photo (or on an older scene's "Ảnh món"), with "Chỉnh khung" and "Sửa ảnh" under it; on the right
+the text, narration, "Số giây", "Bắt đầu từ giây", "Từ khóa tìm ảnh" and "Prompt ảnh AI", with a small yellow "Chữ
+đang đè lên ảnh chèn" when the saved text box covers part of the inset (never blocking), then the **"Ảnh chèn"**
+block under them. A card narrower than 700 px puts the fields under the picture, and narrower than 440 px the tools
+under the preview, as on a slide video's scene.
 
 The block is its title and a switch on one row. Off, one line, "Đang tắt. Bật để chèn ảnh của cảnh.". On: the "Cỡ ảnh"
 slider (30–45, step 1, "Cỡ ảnh: 32% (hẹp hơn video)" under it, the preview resizing while it is dragged and keeping

@@ -1,8 +1,8 @@
 "use client";
 
 import { DragOutlined } from "@ant-design/icons";
-import { Alert, App, Button, Flex, Grid, Slider, Switch, Typography } from "antd";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Alert, App, Button, Flex, Slider, Switch, Typography } from "antd";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, errorMessage, type SceneData, type SceneLayer, type VideoDetail } from "@/lib/api";
 import { useEditor } from "./AutoSaveField";
 import PlaceModal from "./PlaceModal";
@@ -21,8 +21,8 @@ import { silentVideo } from "./silentVideo";
 import { placeBox } from "./TextPositionModal";
 
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
-/** The left column of a scene card on a screen from 576 px: the 9:16 frame stays a thumbnail. */
-const LEFT_WIDTH = 150;
+/** The preview's width on a scene card: the 182 × 324 frame of a slide video's scene. */
+const FRAME_SIDE = 182;
 
 type Size = { width: number; height: number };
 type Place = { y: number; height: number };
@@ -74,9 +74,10 @@ export function InsetOverlapWarning({ scene }: { scene: SceneData }) {
  * always shows the scene's photo (2026-11-12, scene card layout); one an older edit gave a photo of its own keeps it,
  * with "Dùng ảnh của cảnh" to let it go.
  *
- * Given `fields` (the scene card), from 576 px it lays out as a grid: the preview beside `fields`, then the button and
- * the picture tools on the left beside the "Ảnh chèn" block on the right; narrower, everything in one column, the
- * fields last. Without `fields` (the studio's inspector), one column.
+ * Given `fields` (the scene card), it lays out as a slide video's scene (the `.scene-body` and `.scene-media` rules):
+ * the 182 px preview with the button under it, the picture tools' column beside it, then `fields` and the "Ảnh chèn"
+ * block under them; on a narrow card the fields drop under the picture. Without `fields` (the studio's inspector), one
+ * column.
  */
 export default function HalfPhotoPanel({
   scene,
@@ -93,7 +94,6 @@ export default function HalfPhotoPanel({
 }) {
   const { modal } = App.useApp();
   const editor = useEditor();
-  const wide = Grid.useBreakpoint().sm === true;
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [placing, setPlacing] = useState(false);
@@ -244,6 +244,8 @@ export default function HalfPhotoPanel({
       block
       icon={<DragOutlined />}
       disabled={frozen}
+      // As wide as the 182 px preview: the label wraps onto two lines instead of being cut.
+      style={{ height: "auto", minHeight: 32, paddingBlock: 4, whiteSpace: "normal", lineHeight: 1.3 }}
       onClick={async () => {
         // The box is drawn from the saved text: the text being typed is saved first.
         await editor.flush();
@@ -338,32 +340,19 @@ export default function HalfPhotoPanel({
     );
   }
 
-  // From 576 px: the preview beside the fields, the button and picture tools beside the "Ảnh chèn" block, which keeps
-  // its own height. Narrower: one column as before, the left column's parts a thumbnail wide, the fields last.
-  const cell = (area: string, left: boolean): CSSProperties => ({
-    gridArea: area,
-    minWidth: 0,
-    ...(left && !wide ? { width: "100%", maxWidth: LEFT_WIDTH, justifySelf: "center" } : {}),
-  });
   return (
-    <div
-      data-testid="half-photo-panel"
-      style={{
-        display: "grid",
-        columnGap: 16,
-        rowGap: 8,
-        gridTemplateColumns: wide ? `${LEFT_WIDTH}px minmax(0, 1fr)` : "minmax(0, 1fr)",
-        gridTemplateRows: wide ? "auto auto 1fr" : undefined,
-        gridTemplateAreas: wide
-          ? '"stage fields" "place block" "tools block"'
-          : '"stage" "place" "tools" "block" "fields"',
-      }}
-    >
-      <div style={cell("stage", true)}>{stage}</div>
-      <div style={cell("fields", false)}>{fields}</div>
-      <div style={cell("place", true)}>{place}</div>
-      {children && <div style={cell("tools", true)}>{children}</div>}
-      <div style={{ ...cell("block", true), alignSelf: "start" }}>{block}</div>
+    <div className="scene-body" data-testid="half-photo-panel">
+      <div className="scene-media">
+        <Flex vertical gap={8} style={{ flex: "none", width: FRAME_SIDE }}>
+          {stage}
+          {place}
+        </Flex>
+        {children && <div style={{ flex: "none", minWidth: 0 }}>{children}</div>}
+      </div>
+      <Flex vertical gap={12} style={{ minWidth: 0 }}>
+        {fields}
+        {block}
+      </Flex>
       {placeWindow}
     </div>
   );
