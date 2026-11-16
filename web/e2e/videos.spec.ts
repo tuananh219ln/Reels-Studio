@@ -868,19 +868,24 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   await expect(first.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
 });
 
-test("a scene dragged by its handle onto another takes its place, and the order is saved", async ({ page }) => {
+test("a scene moves down with its arrow, not by dragging, and the order is saved", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
   await newVideoWithScript(page, "canh rau cho người lớn tuổi");
   const scenes = page.getByTestId("scene");
   // The content scenes are closed (the title is open), so each sums itself up in its title row.
-  const third = await scenes.nth(2).getByTestId("scene-summary").innerText();
   const first = await scenes.nth(0).getByTestId("scene-summary").innerText();
-  await scenes.nth(2).getByTestId("scene-drag-handle").dragTo(scenes.nth(0));
-  await expect(scenes.nth(0).getByTestId("scene-summary")).toHaveText(third);
+  const second = await scenes.nth(1).getByTestId("scene-summary").innerText();
+  // No drag handle: the arrows are the one way to reorder.
+  await expect(page.getByLabel(/Kéo để đổi thứ tự/)).toHaveCount(0);
+  await expect(async () => {
+    await scenes.nth(0).hover();
+    await scenes.nth(0).getByRole("button", { name: "Xuống dưới" }).click({ timeout: 5_000 });
+    await expect(scenes.nth(0).getByTestId("scene-summary")).toHaveText(second, { timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
   await expect(scenes.nth(1).getByTestId("scene-summary")).toHaveText(first);
   await page.reload();
-  await expect(page.getByTestId("scene").nth(0).getByTestId("scene-summary")).toHaveText(third);
+  await expect(page.getByTestId("scene").nth(0).getByTestId("scene-summary")).toHaveText(second);
 });
 
 test("Sửa ảnh: erase a drawn box, edit in words, then bring back the original", async ({ page }) => {
@@ -1233,6 +1238,15 @@ test("inset photo: only on a backdrop video, the scene's photo as a rounded squa
   await expect(panel.getByTestId("inset-off")).toHaveText("Đang tắt. Bật để chèn ảnh của cảnh.");
   await expect(panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" })).toBeVisible();
   await expect(panel.getByRole("button", { name: /Chỉnh vị trí ảnh chèn/ })).toHaveCount(0);
+  // Three columns: the preview, then the button, the picture tools and the block, then the fields.
+  const tools = panel.getByTestId("half-photo-tools");
+  await expect(tools.getByTestId("inset-block")).toBeVisible();
+  await expect(tools.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" })).toBeVisible();
+  const stageBox = (await panel.getByTestId("half-photo-stage").boundingBox())!;
+  const toolsBox = (await tools.boundingBox())!;
+  const textBox = (await card.getByLabel("Chữ trên màn hình").boundingBox())!;
+  expect(toolsBox.x).toBeGreaterThanOrEqual(stageBox.x + stageBox.width);
+  expect(textBox.x).toBeGreaterThanOrEqual(toolsBox.x + toolsBox.width);
 
   // On, it shows the scene's photo, chosen with the scene's own picture tools; the block has no picture buttons.
   await panel.getByRole("switch", { name: "Ảnh chèn" }).click();

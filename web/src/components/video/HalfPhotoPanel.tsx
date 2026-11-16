@@ -23,6 +23,8 @@ import { placeBox } from "./TextPositionModal";
 const percent = (value: number, of: number) => `${(value / of) * 100}%`;
 /** The left column of a scene card on a screen from 576 px: the 9:16 frame stays a thumbnail. */
 const LEFT_WIDTH = 150;
+/** The middle column: "Chỉnh vị trí chữ & ảnh chèn", the scene's picture tools and the "Ảnh chèn" block. */
+const MIDDLE_WIDTH = 170;
 
 type Size = { width: number; height: number };
 type Place = { y: number; height: number };
@@ -74,9 +76,9 @@ export function InsetOverlapWarning({ scene }: { scene: SceneData }) {
  * always shows the scene's photo (2026-11-12, scene card layout); one an older edit gave a photo of its own keeps it,
  * with "Dùng ảnh của cảnh" to let it go.
  *
- * Given `fields` (the scene card), from 576 px it lays out as a grid: the preview beside `fields`, then the button and
- * the picture tools on the left beside the "Ảnh chèn" block on the right; narrower, everything in one column, the
- * fields last. Without `fields` (the studio's inspector), one column.
+ * Given `fields` (the scene card), from 576 px it lays out in three columns: the preview, then the button, the picture
+ * tools and the "Ảnh chèn" block in the middle, then `fields`; narrower, everything in one column, the fields last.
+ * Without `fields` (the studio's inspector), one column.
  */
 export default function HalfPhotoPanel({
   scene,
@@ -242,6 +244,8 @@ export default function HalfPhotoPanel({
     <Button
       type="primary"
       block
+      // Two lines in the narrow middle column rather than a cut-off name.
+      style={{ height: "auto", whiteSpace: "normal", paddingBlock: 4 }}
       icon={<DragOutlined />}
       disabled={frozen}
       onClick={async () => {
@@ -338,32 +342,27 @@ export default function HalfPhotoPanel({
     );
   }
 
-  // From 576 px: the preview beside the fields, the button and picture tools beside the "Ảnh chèn" block, which keeps
-  // its own height. Narrower: one column as before, the left column's parts a thumbnail wide, the fields last.
-  const cell = (area: string, left: boolean): CSSProperties => ({
-    gridArea: area,
-    minWidth: 0,
-    ...(left && !wide ? { width: "100%", maxWidth: LEFT_WIDTH, justifySelf: "center" } : {}),
-  });
+  // From 576 px, three columns: the preview, then the button, the picture tools and the "Ảnh chèn" block stacked in
+  // the middle, then the fields. Narrower: one column as before, the picture's parts a thumbnail wide, the fields last.
+  const narrow: CSSProperties = wide ? {} : { width: "100%", maxWidth: LEFT_WIDTH, justifySelf: "center" };
   return (
     <div
       data-testid="half-photo-panel"
       style={{
         display: "grid",
-        columnGap: 16,
+        alignItems: "start",
+        columnGap: 12,
         rowGap: 8,
-        gridTemplateColumns: wide ? `${LEFT_WIDTH}px minmax(0, 1fr)` : "minmax(0, 1fr)",
-        gridTemplateRows: wide ? "auto auto 1fr" : undefined,
-        gridTemplateAreas: wide
-          ? '"stage fields" "place block" "tools block"'
-          : '"stage" "place" "tools" "block" "fields"',
+        gridTemplateColumns: wide ? `${LEFT_WIDTH}px ${MIDDLE_WIDTH}px minmax(0, 1fr)` : "minmax(0, 1fr)",
       }}
     >
-      <div style={cell("stage", true)}>{stage}</div>
-      <div style={cell("fields", false)}>{fields}</div>
-      <div style={cell("place", true)}>{place}</div>
-      {children && <div style={cell("tools", true)}>{children}</div>}
-      <div style={{ ...cell("block", true), alignSelf: "start" }}>{block}</div>
+      <div style={{ minWidth: 0, ...narrow }}>{stage}</div>
+      <Flex vertical gap={8} data-testid="half-photo-tools" style={{ minWidth: 0, ...narrow }}>
+        {place}
+        {children}
+        {block}
+      </Flex>
+      <div style={{ minWidth: 0 }}>{fields}</div>
       {placeWindow}
     </div>
   );
