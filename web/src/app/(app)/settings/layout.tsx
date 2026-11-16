@@ -41,7 +41,12 @@ const GROUPS: { key: string; label: string; tabs: Tab[] }[] = [
     key: "group:team",
     label: "Chung cả nhóm",
     tabs: [
-      { key: "/settings/ai", label: "Mô hình AI", hint: "AI viết kịch bản, giọng VieNeu", icon: <RobotOutlined /> },
+      {
+        key: "/settings/ai",
+        label: "Mô hình AI",
+        hint: "AI viết kịch bản, giọng VieNeu và Google",
+        icon: <RobotOutlined />,
+      },
       {
         key: "/settings/sources",
         label: "Nguồn tư liệu",

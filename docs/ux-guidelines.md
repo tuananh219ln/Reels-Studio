@@ -720,8 +720,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     slider with its value beside it), "Âm lượng giọng", "Nghỉ sau lời" (0,4 / 0,7 / 1 giây); Cài đặt › Thiết lập mặc
     định keeps the stacked card. In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
     The groups: "Âm thanh" (narration on/off, the
-    voice picked from the ElevenLabs account's voices, and VieNeu's once its key is set, grouped "ElevenLabs" and "VieNeu"
-    when both have voices, with "Nghe thử" playing ElevenLabs' free sample (VieNeu voices have none), the
+    voice picked from the ElevenLabs account's voices, and VieNeu's and Google's once their key is set, grouped
+    "ElevenLabs", "VieNeu" and "Google" when two or more have voices, with "Nghe thử" playing ElevenLabs' free sample
+    (VieNeu and Google voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,
@@ -1082,7 +1083,7 @@ steps open the status card or the products block on its tab, the QC chip its pop
   is: the group in the list says it.
   From 1200 px the tabs are a list down the left (240 px, staying in view), each with its icon and a
   line on what it holds ("Video mới của tôi", "Shopee, TikTok của tôi", "ChatGPT, Claude của tôi", "AI viết kịch bản,
-  giọng VieNeu", "Kho ảnh, ảnh AI, giọng ElevenLabs", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
+  giọng VieNeu và Google", "Kho ảnh, ảnh AI, giọng ElevenLabs", "Thư viện mẫu của đội", "Chế độ render, các máy"), beside the tab;
   narrower, a row above it. Every tab starts the
   same way ([SettingsBlocks](../web/src/components/settings/SettingsBlocks.tsx)): its name, a line on
   what it sets, and its main actions on the right; a tab's groups each have a heading and a line.
@@ -1113,7 +1114,12 @@ steps open the status card or the products block on its tab, the QC chip its pop
     Under the provider choice, the card "Giọng đọc VieNeu" ("Sẵn sàng" / "Chưa cấu hình") takes the VieNeu API key the
     same way ("Lưu key", "Dán key mới", "Xoá key") with a link to VieNeu's developer page and one to Nguồn tư liệu
     for ElevenLabs' key (whose card links back here); with a key, VieNeu's
-    voices join the "Giọng" picker. A service whose voices cannot be listed is named in yellow under the picker.
+    voices join the "Giọng" picker. Under it, the card "Giọng đọc Google" does the same for a Google Cloud
+    Text-to-Speech API key, with a link to Google Cloud Console's credentials page and a line that the key's project
+    needs billing and the Cloud Text-to-Speech API on. Below the key, the switch "Chỉ dùng mức miễn phí" (on by
+    default) with a line saying what on and off mean, then "Đã dùng tháng MM/YYYY:" and one row per voice kind
+    (Standard, WaveNet, Neural2, Chirp-HD): a thin bar of the characters used against 90 % of its free tier, red once
+    reached, and "used / limit ký tự" in Vietnamese number format. A service whose voices cannot be listed is named in yellow under the picker.
   - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
     (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
     tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side

@@ -22,7 +22,7 @@ import { api, errorMessage, formatDateTime, type LlmProvider, type LlmSettings }
 import { COLORS } from "@/app/theme";
 import { SettingsHeader } from "@/components/settings/SettingsBlocks";
 import { LastEdit, PageHistory, useLatestEdits } from "@/components/settings/SharedHistory";
-import VieneuKeyCard from "@/components/settings/VieneuKeyCard";
+import VoiceKeyCard, { VOICE_KEY_SERVICES } from "@/components/settings/VoiceKeyCard";
 import StatusText from "@/components/StatusText";
 
 function StatusTag({ provider }: { provider: LlmProvider }) {
@@ -264,13 +264,14 @@ export default function AiSettingsPage() {
   const active = settings?.providers.find((provider) => provider.active);
   // The history names a provider's fields by the provider ("OpenAI · Model").
   const owners = Object.fromEntries((settings?.providers ?? []).map((provider) => [provider.id, provider.name]));
-  owners.vieneu = "VieNeu";
+  owners.vieneu = VOICE_KEY_SERVICES.vieneu.name;
+  owners.google_tts = VOICE_KEY_SERVICES.google_tts.name;
 
   return (
     <>
       <SettingsHeader
         title="Mô hình AI"
-        description="Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó. Key giọng đọc VieNeu cũng nhập ở đây."
+        description="Chọn nhà cung cấp AI viết kịch bản và nhân bản cho cả nhóm. Mỗi nhà cung cấp có API key, Base URL và model riêng. Đổi nhà cung cấp chỉ ảnh hưởng các kịch bản viết sau đó; mỗi video ghi lại model đã viết nó. Key giọng đọc VieNeu và Google cũng nhập ở đây."
         actions={<PageHistory entityType="settings_ai" title="Mô hình AI" owners={owners} />}
       />
       {/* The choice beside the list on a wide screen, and staying in view while the list scrolls. */}
@@ -311,21 +312,25 @@ export default function AiSettingsPage() {
                 owners={owners}
               />
             </Card>
-            {/* The narration voices of VieNeu: their key lives here, with the other AI services' keys. */}
-            <div style={{ marginTop: 16 }}>
-              <VieneuKeyCard
-                onSaved={() => void load()}
-                footer={
-                  <LastEdit
-                    entry={latest["2"]}
-                    entityType="settings_ai"
-                    entityId={2}
-                    title="Giọng đọc VieNeu"
-                    owners={owners}
-                  />
-                }
-              />
-            </div>
+            {/* The narration voices of VieNeu and Google: their keys live here, with the other AI services' keys. The
+                card ids are the api's settings_log AI_CARDS. */}
+            {(["vieneu", "google_tts"] as const).map((service, index) => (
+              <div key={service} style={{ marginTop: 16 }}>
+                <VoiceKeyCard
+                  service={service}
+                  onSaved={() => void load()}
+                  footer={
+                    <LastEdit
+                      entry={latest[String(index + 2)]}
+                      entityType="settings_ai"
+                      entityId={index + 2}
+                      title={VOICE_KEY_SERVICES[service].title}
+                      owners={owners}
+                    />
+                  }
+                />
+              </div>
+            ))}
           </div>
         </Col>
         <Col xs={24} xxl={16}>

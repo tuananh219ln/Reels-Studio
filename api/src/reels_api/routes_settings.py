@@ -11,6 +11,7 @@ from . import (
     auto_photos,
     config,
     crypto,
+    google_tts_quota,
     image_providers,
     image_style,
     llm,
@@ -257,20 +258,25 @@ def delete_my_video_defaults(me: Session = Depends(current_member), db: DbSessio
 
 @router.get("/voices")
 def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The voices to choose from: ElevenLabs' and VieNeu's, each listed once its key is set, and the server's default
-    one. A service that cannot list its voices is named in `problems` while the other's voices still come; with no
-    voice at all, the reason is the error."""
-    keys = {name: source_keys.get(db, name) for name in ("elevenlabs", "vieneu")}
+    """The voices to choose from: ElevenLabs', VieNeu's and Google Cloud's, each listed once its key is set, and the
+    server's default one. A service that cannot list its voices is named in `problems` while the others' voices still
+    come; with no voice at all, the reason is the error."""
+    listings = (
+        ("elevenlabs", tts.list_voices),
+        ("vieneu", tts.list_vieneu_voices),
+        ("google_tts", tts.list_google_voices),
+    )
+    keys = {name: source_keys.get(db, name) for name, _ in listings}
     if not any(keys.values()):
         raise ApiError(
             422,
             "voices_unavailable",
-            "Chưa có key ElevenLabs hay VieNeu nên chưa chọn được giọng đọc: nhập key ElevenLabs ở Cài đặt › "
-            "Nguồn tư liệu, hoặc key VieNeu ở Cài đặt › Mô hình AI",
+            "Chưa có key giọng đọc nào nên chưa chọn được giọng đọc: nhập key ElevenLabs ở Cài đặt › "
+            "Nguồn tư liệu, hoặc key VieNeu hay Google ở Cài đặt › Mô hình AI",
         )
     voices: list[dict] = []
     problems: list[str] = []
-    for name, listing in (("elevenlabs", tts.list_voices), ("vieneu", tts.list_vieneu_voices)):
+    for name, listing in listings:
         if not keys[name]:
             if name == "elevenlabs":
                 # The server's default voice is an ElevenLabs one, so say why it cannot be read.
@@ -302,6 +308,7 @@ SOURCE_SIGNUP = {
     "cloudflare": "https://dash.cloudflare.com/profile/api-tokens",
     "elevenlabs": "https://elevenlabs.io/app/settings/api-keys",
     "vieneu": "https://www.vieneu.io/#/developer",
+    "google_tts": "https://console.cloud.google.com/apis/credentials",
 }
 
 
@@ -353,6 +360,13 @@ def _sources(db: DbSession) -> dict:
         "voices": {"configured": bool(source_keys.get(db, "elevenlabs")), "key": _key(db, "elevenlabs")},
         # Narration (VieNeu), its key pasted on Cài đặt › Mô hình AI: voices whose id starts with "vieneu:".
         "vieneu": {"configured": bool(source_keys.get(db, "vieneu")), "key": _key(db, "vieneu")},
+        # Narration (Google Cloud Text-to-Speech), its key pasted on Cài đặt › Mô hình AI: voices "google:<name>".
+        # With this month's characters by voice kind and "Chỉ dùng mức miễn phí" (google_tts_quota.py).
+        "google_tts": {
+            "configured": bool(source_keys.get(db, "google_tts")),
+            "key": _key(db, "google_tts"),
+            **google_tts_quota.payload(db),
+        },
     }
 
 
@@ -429,6 +443,19 @@ def set_source(
         db.add(AppSetting(key=routes_videos.STOCK_OFF_KEY, value=sorted(off), updated_by_id=me.user_id))
     else:
         setting.value, setting.updated_by_id = sorted(off), me.user_id
+    settings_log.record(db, before, me.user_id)
+    db.commit()
+    return _sources(db)
+
+
+@router.put("/google-tts-free-only")
+def set_google_tts_free_only(
+    body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Chỉ dùng mức miễn phí" on the "Giọng đọc Google" card: on, narration stops before a voice kind passes its
+    free characters for the month."""
+    before = settings_log.snapshot(db)
+    google_tts_quota.set_free_only(db, body.enabled, me.user_id)
     settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)

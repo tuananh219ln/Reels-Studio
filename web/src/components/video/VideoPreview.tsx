@@ -273,7 +273,7 @@ export default function VideoPreview({
   const unvoiced = scenes.filter((item) => item.spoken_text && !item.voice_url).length;
   const missingVoice = unvoiced > 0;
   const voicing = video.active_job?.kind === "voice";
-  // ElevenLabs or VieNeu, by the video's voice: the service "Tạo giọng" calls.
+  // ElevenLabs, VieNeu or Google, by the video's voice: the service "Tạo giọng" calls.
   const service = voiceService(video.options.voice_id);
 
   useEffect(() => {
@@ -1195,7 +1195,7 @@ export default function VideoPreview({
           {tool === "voice" && (
             <Flex vertical gap={8} data-testid="preview-voice">
               <Typography.Text strong>Giọng đọc</Typography.Text>
-              {/* The video's ElevenLabs or VieNeu voice, the same choice as "Thiết lập": a new one makes the narration again. */}
+              {/* The video's ElevenLabs, VieNeu or Google voice, the same choice as "Thiết lập": a new one makes the narration again. */}
               <VoicePicker
                 values={{ ...video.options, voice_enabled: video.voice_enabled }}
                 disabled={!editable}

@@ -34,6 +34,7 @@ from . import (
     facebook,
     fanpages,
     footage,
+    google_tts_quota,
     hashtags,
     image_edit,
     image_providers,
@@ -79,7 +80,7 @@ from .models import (
 )
 from .sessions import now
 from .storage import DirectoryStorage
-from .tts import TtsError, service_name, synthesize, voice_signature
+from .tts import TtsError, is_google, service_name, synthesize, voice_signature
 from .tts import key_name as tts_key_name
 from .uploads import MAX_IMAGE_BYTES, UploadRejected, image_extension
 from .video_options import render_options, scene_voice, voice_pause, voice_speed
@@ -650,7 +651,7 @@ def reveal_layers(fields: dict, steps: list[dict], folder: Path, stem: str) -> l
 
 def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
     """Narration for every scene that has something to read but no MP3 made from it yet. Each MP3 is committed at once,
-    so a retry after a failure pays ElevenLabs or VieNeu only for the scenes still missing."""
+    so a retry after a failure pays the voice's service only for the scenes still missing."""
     for index, scene in enumerate(scenes):
         voice = scene_voice(video, scene)
         text = spoken(video, scene)
@@ -658,9 +659,17 @@ def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: Direc
             continue
         label = _scene_label(scene, index)
         try:
+            if is_google(voice):
+                # Google bills past its free tier with no way to stop there, so the app stops first.
+                google_tts_quota.check(db, voice, text)
             data = synthesize(text, source_keys.get(db, tts_key_name(voice)), voice, voice_speed(video))
         except TtsError as err:
             raise JobFailure(f"{label}: {err.message}", err.detail) from None
+        if is_google(voice):
+            # Committed at once, which also frees the counter's row lock: what Google read is counted even if a
+            # later step fails.
+            google_tts_quota.record(db, voice, text)
+            db.commit()
         key = new_key(video.id, f"voice-{scene.id}", "mp3")
         storage.save_bytes(key, data)
         try:

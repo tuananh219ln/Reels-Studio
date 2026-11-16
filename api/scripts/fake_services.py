@@ -1,9 +1,9 @@
 """Local stand-ins for the Claude Messages API, an OpenAI-compatible chat API, the stock sources (Pixabay, Pexels, Openverse),
-ElevenLabs and VieNeu TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels, Shopee Affiliate and TikTok
+ElevenLabs, VieNeu and Google Cloud TTS, Gemini and Cloudflare Workers AI image generation, Facebook Reels, Shopee Affiliate and TikTok
 (Login Kit, Content Posting API), for pytest and E2E.
 
 The app reaches them only through ANTHROPIC_BASE_URL, PIXABAY_API_URL, PEXELS_API_URL,
-OPENVERSE_API_URL, ELEVENLABS_API_URL, VIENEU_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL,
+OPENVERSE_API_URL, ELEVENLABS_API_URL, VIENEU_API_URL, GOOGLE_TTS_API_URL, IMAGE_GEN_API_URL, IMAGE_GEN_CF_API_URL, FACEBOOK_API_URL,
 SHOPEE_AFFILIATE_API_URL, SHOPEE_SHORT_LINK_URL and TIKTOK_API_URL,
 so production code has no test switches. The OpenAI-compatible API (at <url>/openai/v1) is reached the way a
 member sets any provider up, through its base URL on /settings/ai. Run `python fake_services.py <port>` for E2E; pytest starts FakeServices in a thread.
@@ -35,6 +35,7 @@ UNSPLASH_KEY = "fake-unsplash-key"
 ELEVENLABS_KEY = "fake-elevenlabs-key"
 # Not in env(): VieNeu voices are offered only once a key is set, so tests set this one themselves.
 VIENEU_KEY = "vn_test_fake-vieneu-key"
+GOOGLE_TTS_KEY = "AIzaFakeGoogleTextToSpeechKey0000"  # same: Google voices are offered only once a key is set
 IMAGE_GEN_KEY = "fake-image-gen-key"
 IMAGE_GEN_CF_KEY = "fake-cloudflare-token"
 # What the fake inpainting model paints, so a test sees exactly which pixels it changed.
@@ -315,6 +316,9 @@ class FakeServices:
         # VieNeu (OpenAI-compatible /v1/audio/speech): {"voice", "input", "model", "response_format", "authorization"}
         self.vieneu_requests: list[dict] = []
         self.vieneu_mode = "ok"  # ok | trial_limit | error500
+        # Google Cloud Text-to-Speech (/v1/text:synthesize): {"input", "voice", "audioConfig", "key"}
+        self.google_tts_requests: list[dict] = []
+        self.google_tts_mode = "ok"  # ok | billing | error500
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
@@ -454,6 +458,8 @@ class FakeServices:
             "ELEVENLABS_API_URL": self.url,
             "VIENEU_API_URL": f"{self.url}/vieneu/api",
             "VIENEU_API_KEY": "",  # a key from a developer's .env must not offer VieNeu voices in every test
+            "GOOGLE_TTS_API_URL": f"{self.url}/google-tts",
+            "GOOGLE_TTS_API_KEY": "",  # the same for Google's voices
             "IMAGE_GEN_API_KEY": IMAGE_GEN_KEY,
             "IMAGE_GEN_API_URL": f"{self.url}/gemini",
             # IMAGE_GEN_PROVIDER is left unset: both providers are set up, so Cloudflare is the default
@@ -893,6 +899,42 @@ class FakeServices:
         if body.get("voice") not in {voice["id"] for voice in self.VIENEU_VOICES}:
             return failed(400, "Unknown voice for engine v4.")
         return 200, self._tone(str(body.get("input", "")))
+
+    GOOGLE_VOICES = [
+        {"languageCodes": ["vi-VN"], "name": "vi-VN-Chirp3-HD-Achernar", "ssmlGender": "FEMALE"},
+        {"languageCodes": ["vi-VN"], "name": "vi-VN-Neural2-D", "ssmlGender": "MALE"},
+        {"languageCodes": ["vi-VN"], "name": "vi-VN-Standard-A", "ssmlGender": "FEMALE"},
+    ]
+
+    @staticmethod
+    def _google_failed(status: int, message: str, reason: str) -> tuple[int, dict]:
+        state = {400: "INVALID_ARGUMENT", 403: "PERMISSION_DENIED", 500: "INTERNAL"}.get(status, "UNKNOWN")
+        details = [{"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": reason}] if reason else []
+        return status, {"error": {"code": status, "message": message, "status": state, "details": details}}
+
+    def _google_voices(self, key: str | None, query: dict) -> tuple[int, dict]:
+        if key != GOOGLE_TTS_KEY:
+            return self._google_failed(400, "API key not valid. Please pass a valid API key.", "API_KEY_INVALID")
+        language = query.get("languageCode")
+        voices = [voice for voice in self.GOOGLE_VOICES if not language or language in voice["languageCodes"]]
+        return 200, {"voices": [voice | {"naturalSampleRateHertz": 24000} for voice in voices]}
+
+    def _google_speech(self, key: str | None, body: dict) -> tuple[int, dict]:
+        with self.lock:
+            self.google_tts_requests.append(
+                {name: body.get(name) for name in ("input", "voice", "audioConfig")} | {"key": key}
+            )
+        if key != GOOGLE_TTS_KEY:
+            return self._google_failed(400, "API key not valid. Please pass a valid API key.", "API_KEY_INVALID")
+        if self.google_tts_mode == "billing":
+            return self._google_failed(403, "This API method requires billing to be enabled.", "BILLING_DISABLED")
+        if self.google_tts_mode == "error500":
+            return self._google_failed(500, "Internal error encountered.", "")
+        voice = (body.get("voice") or {}).get("name")
+        if voice not in {item["name"] for item in self.GOOGLE_VOICES}:
+            return self._google_failed(400, f"Voice '{voice}' does not exist.", "")
+        audio = self._tone(str((body.get("input") or {}).get("text", "")))
+        return 200, {"audioContent": base64.b64encode(audio).decode()}
 
     @staticmethod
     def _tone(text: str) -> bytes:
@@ -1774,6 +1816,8 @@ class FakeServices:
                 elif path == "/vieneu/api/v1/audio/speech":
                     status, reply = fake._vieneu_speech(self.headers.get("Authorization"), body)
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
+                elif path == "/google-tts/v1/text:synthesize":
+                    self._send(*fake._google_speech(self.headers.get("X-Goog-Api-Key"), body))
                 else:
                     self._send(404, {"error": "not found"})
 
@@ -1818,6 +1862,9 @@ class FakeServices:
                     self._send(*fake._voices(self.headers.get("xi-api-key")))
                 elif parts.path == "/vieneu/api/v1/voices":
                     self._send(*fake._vieneu_voices(dict(urllib.parse.parse_qsl(parts.query))))
+                elif parts.path == "/google-tts/v1/voices":
+                    query = dict(urllib.parse.parse_qsl(parts.query))
+                    self._send(*fake._google_voices(self.headers.get("X-Goog-Api-Key"), query))
                 elif parts.path == "/v1/models":
                     # The Anthropic SDK sends the key as a bearer token; older clients use x-api-key.
                     bearer = (self.headers.get("Authorization") or "").removeprefix("Bearer ")

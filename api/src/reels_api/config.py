@@ -224,6 +224,12 @@ def vieneu_api_url() -> str:
     return (read_env("VIENEU_API_URL") or "https://api.vieneu.io/api").rstrip("/")
 
 
+def google_tts_api_url() -> str:
+    # Google Cloud Text-to-Speech, the voices whose id starts with "google:" (tts.py). Overridable only so tests and
+    # E2E can point it at the fake services.
+    return (read_env("GOOGLE_TTS_API_URL") or "https://texttospeech.googleapis.com").rstrip("/")
+
+
 def voice_id() -> str:
     return read_env("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE_ID
 
