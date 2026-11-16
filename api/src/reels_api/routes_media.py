@@ -16,6 +16,7 @@ chosen batch, filtered on (an item must carry every tag asked) and matched by th
 
 import functools
 import io
+import math
 import re
 import secrets
 import tempfile
@@ -63,6 +64,14 @@ class MediaPatchBody(BaseModel):
 
 class UseBody(BaseModel):
     scene_id: int
+
+
+class CutBody(BaseModel):
+    start: float  # seconds into the library clip
+    length: float
+    folder: str = ""
+    tags: list[str] = []  # at least one: the library keeps no untagged cut
+    name: str | None = None  # empty: the clip's own name with the part cut
 
 
 class MoveBody(BaseModel):
@@ -494,6 +503,77 @@ def delete_media(
     db.commit()
     storage.delete(key)
     return {"ok": True}
+
+
+def _second(value: float) -> str:
+    return f"{round(value, 1):g}"
+
+
+def cut_to_library(
+    db: DbSession, storage: DirectoryStorage, me: Session, media_id: int, start: float, length: float,
+    folder: str = "", tags: list[str] | None = None, name: str | None = None,
+) -> dict:  # fmt: skip
+    """`length` seconds of a library clip from `start`, stored as a new library item of the member's own with its
+    folder and tags and the clip's source link (decision 2026-11-16-trim-clip-to-library). Without sound, like a
+    scene clip; the clip itself is never changed or deleted. Nothing is stored unless the cut passes check_clip."""
+    item = _item(db, media_id)
+    if item.kind != "clip":
+        raise invalid("Chỉ cắt được clip, không cắt được ảnh")
+    if not storage.exists(item.storage_key):
+        raise ApiError(404, "media_not_found", "File của tư liệu không còn trên máy chủ")
+    chosen = tags_of(tags or [])
+    if not chosen:
+        raise invalid("Hãy gắn ít nhất một thẻ cho đoạn cắt (video, cảnh, món hoặc chủ đề)")
+    where = clean_folder(folder)
+    if not (math.isfinite(start) and start >= 0):
+        raise invalid("Giây bắt đầu phải từ 0 trở lên")
+    if not (math.isfinite(length) and clips.MIN_CLIP_SECONDS <= length <= clips.MAX_CLIP_SECONDS):
+        raise invalid(f"Đoạn cắt phải dài từ {clips.MIN_CLIP_SECONDS} đến {clips.MAX_CLIP_SECONDS} giây")
+    label = " ".join(unicodedata.normalize("NFC", name or "").split())
+    if len(label) > 200:
+        raise invalid("Tên từ 1 đến 200 ký tự")
+    label = label or f"{item.name} ({_second(start)}–{_second(start + length)}s)"[-200:]
+    path = storage.path(item.storage_key)
+    try:
+        sample = clips.probe_sample(path)
+    except UploadRejected as err:
+        raise ApiError(415, "invalid_video", str(err)) from None
+    if start + length > sample.seconds + 0.05:  # ffprobe's length and a member's rounding may differ a frame
+        raise invalid(
+            f"Đoạn {_second(start)}–{_second(start + length)} giây vượt quá độ dài clip ({sample.seconds:.1f} giây)"
+        )
+    with tempfile.TemporaryDirectory(prefix="reels_media_") as raw:
+        target = Path(raw) / "cut.mp4"
+        try:
+            clips.cut_part(path, sample, start, min(length, sample.seconds - start), target)
+            clip = clips.check_clip(target)
+        except (clips.ClipError, UploadRejected) as err:
+            raise ApiError(422, "cut_failed", f"Không cắt được đoạn này: {err}") from None
+        key = _new_key(clip.extension)
+        storage.save_file(key, target)
+    cut = MediaItem(
+        kind="clip", storage_key=key, seconds=round(clip.seconds, 2), name=label, folder=where,
+        source_url=item.source_url, created_by_id=me.user_id, tags=chosen,
+    )  # fmt: skip
+    db.add(cut)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        storage.delete(key)
+        raise
+    return payload(cut)
+
+
+@router.post("/{media_id}/cut", status_code=201)
+def cut_media(
+    media_id: int,
+    body: CutBody,
+    me: Session = Depends(current_member),
+    db: DbSession = Depends(get_db),
+    storage: DirectoryStorage = Depends(get_storage),
+) -> dict:
+    return cut_to_library(db, storage, me, media_id, body.start, body.length, body.folder, body.tags, body.name)
 
 
 def use_in_scene(db: DbSession, storage: DirectoryStorage, media_id: int, scene_id: int) -> dict:

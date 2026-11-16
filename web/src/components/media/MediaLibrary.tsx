@@ -1,6 +1,7 @@
 "use client";
 
 import { useMe } from "@/components/MeContext";
+import CutClipModal from "@/components/media/CutClipModal";
 import FolderActions from "@/components/media/FolderActions";
 import FolderSidebar, { DRAG_TYPE } from "@/components/media/FolderSidebar";
 import { FolderFilter } from "@/components/media/FolderSelect";
@@ -76,6 +77,7 @@ export default function MediaLibrary({
   );
   const [size, setSize] = useTileSize();
   const [opened, setOpened] = useState<MediaItem | null>(null);
+  const [cutting, setCutting] = useState<MediaItem | null>(null);
   const [adding, setAdding] = useState(false);
   const screens = Grid.useBreakpoint();
   const sidebar = !embedded && !lockedFolder && screens.lg !== false;
@@ -368,7 +370,18 @@ export default function MediaLibrary({
         onClose={() => setOpened(null)}
         onMove={(item) => setMoving({ ids: [item.id], current: item.folder })}
         onTags={(item) => setTagEdit({ mode: "set", item })}
+        onCut={setCutting}
         onDelete={remove}
+      />
+      <CutClipModal
+        item={cutting}
+        folders={data.folders}
+        tags={data.tags}
+        onClose={() => setCutting(null)}
+        onCut={() => {
+          void load();
+          void onChanged?.();
+        }}
       />
       <TagEditModal
         edit={tagEdit}

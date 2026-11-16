@@ -1626,6 +1626,39 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             invoke, lambda db, me: media_routes.add_links(db, get_storage(), me, urls, folder), write=True
         )
 
+    @tool("Cắt clip thành file mới trong kho", read=False)
+    async def cut_clip_to_library(
+        media_id: int,
+        start: Annotated[float, Field(ge=0)],
+        length: Annotated[float, Field(ge=1, le=60)],
+        tags: Annotated[list[Annotated[str, Field(max_length=50)]], Field(min_length=1, max_length=30)],
+        folder: Annotated[str, Field(max_length=200)] = "",
+        name: Annotated[str, Field(max_length=200)] = "",
+    ) -> dict:
+        """Cắt length giây từ giây start của một clip trong kho thành tư liệu MỚI trong kho (không tiếng, như clip
+        cảnh), vào thư mục folder (ví dụ "Ăn Lành/16-11"), với thẻ bắt buộc đủ video + cảnh + món/chủ đề (ví dụ
+        "189-canh1-trung-la-dinh-lang"); giữ link nguồn của clip gốc. Kho chỉ giữ đoạn đã cắt đúng cảnh cần: soát
+        đoạn bằng "Xem nhiều khung hình của clip" trước, cắt, rồi gắn bản cắt bằng "Gắn tư liệu vào cảnh" hoặc "Gắn
+        clip cho cảnh" với video_start=0. Clip gốc vẫn còn (không tự xoá); đoạn vượt quá clip thì báo lỗi."""
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: media_routes.cut_to_library(
+                db, get_storage(), me, media_id, start, length, folder, tags, name or None
+            ),
+            write=True,
+        )
+
+    @tool("Xoá tư liệu khỏi kho", read=False)
+    async def delete_media(media_id: int) -> dict:
+        """Xoá hẳn một ảnh hoặc clip khỏi kho (file và dòng), chỉ khi người dùng yêu cầu hoặc đồng ý, ví dụ clip gốc
+        đã cắt xong đoạn cần dùng. Chỉ xoá được tư liệu do chính người dùng thêm. Cảnh đã dùng tư liệu này vẫn giữ
+        bản sao riêng của nó, nên video không đổi."""
+        return await run_in_threadpool(
+            invoke,
+            lambda db, me: media_routes.delete_media(media_id, me, db, get_storage()),
+            write=True,
+        )
+
     @tool("Gắn tư liệu vào cảnh", read=False)
     async def set_scene_media_from_library(scene_id: int, media_id: int) -> dict:
         """Dùng một ảnh hoặc clip trong kho làm hình của cảnh (bản sao riêng; thay ảnh/clip đang có). Clip thì chọn

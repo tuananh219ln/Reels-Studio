@@ -3,7 +3,7 @@
 import type { MediaItem } from "@/lib/api";
 import { formatDateTime } from "@/lib/api";
 import { formatBytes, formatClock, isSmall, shapeOf, SMALL_SIDE } from "@/lib/mediaSpecs";
-import { DeleteOutlined, DownloadOutlined, FolderOutlined, TagsOutlined } from "@ant-design/icons";
+import { DeleteOutlined, DownloadOutlined, FolderOutlined, ScissorOutlined, TagsOutlined } from "@ant-design/icons";
 import { Alert, Button, Descriptions, Drawer, Flex, Popconfirm, Tag, Typography } from "antd";
 import type { ReactNode } from "react";
 
@@ -23,6 +23,7 @@ export default function MediaDetailDrawer({
   onClose,
   onMove,
   onTags,
+  onCut,
   onDelete,
 }: {
   item: MediaItem | null;
@@ -30,6 +31,8 @@ export default function MediaDetailDrawer({
   onClose: () => void;
   onMove: (item: MediaItem) => void;
   onTags: (item: MediaItem) => void;
+  /** "Cắt thành file mới", a clip only. */
+  onCut: (item: MediaItem) => void;
   onDelete: (item: MediaItem) => void;
 }) {
   const shape = item ? shapeOf(item) : null;
@@ -115,6 +118,11 @@ export default function MediaDetailDrawer({
             <Button icon={<TagsOutlined />} onClick={() => onTags(item)}>
               Sửa thẻ
             </Button>
+            {item.kind === "clip" && (
+              <Button icon={<ScissorOutlined />} onClick={() => onCut(item)}>
+                Cắt thành file mới
+              </Button>
+            )}
             <Button icon={<DownloadOutlined />} href={item.file_url} download={item.name}>
               Tải về
             </Button>
