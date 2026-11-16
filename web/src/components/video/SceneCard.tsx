@@ -10,6 +10,7 @@ import {
   DragOutlined,
   EyeInvisibleOutlined,
   EyeOutlined,
+  HolderOutlined,
   GoogleOutlined,
   HighlightOutlined,
   FolderOpenOutlined,
@@ -262,6 +263,7 @@ export default function SceneCard({
   editing = false,
   backdrop = false,
   backdropScene = null,
+  reorder,
 }: {
   scene: SceneData;
   label: string;
@@ -281,6 +283,8 @@ export default function SceneCard({
   onPreview?: () => void;
   onMove?: (step: -1 | 1) => void;
   onDelete?: () => void;
+  /** Dragging a content scene by its handle onto another to put it there; absent in view mode and while locked. */
+  reorder?: SceneReorder;
 }) {
   const editor = useEditor();
   const { message } = App.useApp();
@@ -394,7 +398,58 @@ export default function SceneCard({
       data-open={expanded}
       data-scene-id={scene.id}
       data-testid={scene.is_title ? "title-scene" : "scene"}
-      title={<SceneHeader scene={scene} label={label} expanded={expanded} onToggle={onToggle} />}
+      data-drop-target={reorder?.over ? "true" : undefined}
+      // The whole card takes the drop; only the handle starts a drag, so text in the fields stays selectable.
+      onDragOver={
+        reorder && !scene.is_title
+          ? (event) => {
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              reorder.onOver();
+            }
+          : undefined
+      }
+      onDrop={
+        reorder && !scene.is_title
+          ? (event) => {
+              event.preventDefault();
+              // The dragged scene is named in the drag itself, so the drop never depends on a re-render.
+              reorder.onDrop(Number(event.dataTransfer.getData("text/plain")));
+            }
+          : undefined
+      }
+      style={{
+        opacity: reorder?.dragging ? 0.5 : undefined,
+        // The place it would land: a brand line on the card's top edge.
+        boxShadow: reorder?.over ? `0 -3px 0 ${COLORS.primary}` : undefined,
+      }}
+      title={
+        <Flex align="center" gap={4} style={{ minWidth: 0 }}>
+          {reorder && !scene.is_title && (
+            <Tooltip title="Kéo để đổi thứ tự">
+              <span
+                draggable
+                role="img"
+                aria-label={`Kéo để đổi thứ tự ${label}`}
+                data-testid="scene-drag-handle"
+                className="scene-drag-handle"
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", String(scene.id));
+                  reorder.onStart();
+                }}
+                onDragEnd={reorder.onEnd}
+                style={{ cursor: "grab", color: COLORS.textSecondary, padding: "4px 2px", flex: "none" }}
+              >
+                <HolderOutlined />
+              </span>
+            </Tooltip>
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SceneHeader scene={scene} label={label} expanded={expanded} onToggle={onToggle} />
+          </div>
+        </Flex>
+      }
       size="small"
       // A closed card keeps its fields mounted, so text not yet saved is never lost by closing it.
       styles={{
@@ -465,13 +520,15 @@ export default function SceneCard({
       }
     >
       {backdrop && !scene.is_title ? (
-        // A "Video xuyên suốt" scene: the preview beside the text, narration and fields, then "Chỉnh vị trí chữ & ảnh
-        // chèn" and the scene's own picture tools (when its inset shows the scene's photo) beside the "Ảnh chèn" block.
+        // A "Video xuyên suốt" scene, laid out as a slide video's: the preview with "Chỉnh vị trí chữ & ảnh chèn" under
+        // it, the scene's own picture tools beside it (when its inset shows the scene's photo), then the fields and
+        // the "Ảnh chèn" block.
         <div data-testid="scene-two-column">
           <HalfPhotoPanel scene={scene} backdrop={backdropScene} fields={fields}>
             {ownPicture && (
               <ScenePicture
                 compact
+                column
                 scene={scene}
                 voiceEnabled={voiceEnabled}
                 generating={generating}
@@ -498,6 +555,19 @@ export default function SceneCard({
     </Card>
   );
 }
+
+/** What the page gives a content scene's card to be dragged into another place. */
+type SceneReorder = {
+  /** This card is the one being dragged. */
+  dragging: boolean;
+  /** A dragged card is over this one: it would land here. */
+  over: boolean;
+  onStart: () => void;
+  onOver: () => void;
+  /** `movedId`: the scene dropped here. */
+  onDrop: (movedId: number) => void;
+  onEnd: () => void;
+};
 
 /** "Nâng cao: Prompt ảnh AI", folded: rarely changed, and long. Kept mounted while folded, like every field. */
 function AdvancedPrompt({ scene }: { scene: SceneData }) {
@@ -642,12 +712,16 @@ export function ScenePicture({
   generating,
   editing = false,
   compact = false,
+  column = false,
 }: {
   scene: SceneData;
   voiceEnabled: boolean;
   generating: boolean;
   editing?: boolean;
   compact?: boolean;
+  /** With `compact` (a "Video xuyên suốt" scene beside its own preview): the tools as the 222 px column of a slide
+   * video's scene, first, instead of the studio's rows. */
+  column?: boolean;
 }) {
   const { message, modal } = App.useApp();
   const editor = useEditor();
@@ -1069,7 +1143,7 @@ export function ScenePicture({
       />
     </Space.Compact>
   );
-  const tools = editor.readOnly ? null : compact ? (
+  const tools = editor.readOnly ? null : compact && !column ? (
     <>
       {/* Upload, paste and Google on one row: the studio's picture column is narrow, and these are the quick ones. */}
       <Flex gap={6} wrap>
@@ -1112,6 +1186,7 @@ export function ScenePicture({
         }
       }}
     >
+      {compact && column && tools}
       {compact && !editor.readOnly && hasPicture && (
         <Flex gap={6} wrap>
           {!scene.video && (
@@ -1372,7 +1447,7 @@ export function ScenePicture({
         aria-label={`Tải ảnh/video lên cho ${which}`}
         onChange={(event) => chosen(event.target.files?.[0])}
       />
-      {compact && tools}
+      {compact && !column && tools}
       {error && (
         <Typography.Text type="danger" data-testid="image-error">
           {error.message}

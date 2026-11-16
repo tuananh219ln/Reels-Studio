@@ -868,24 +868,19 @@ test("scene cards open and close, count words, and crop a photo to 9:16", async 
   await expect(first.getByTestId("scene-preview")).not.toHaveAttribute("src", before ?? "");
 });
 
-test("a scene moves down with its arrow, not by dragging, and the order is saved", async ({ page }) => {
+test("a scene dragged by its handle onto another takes its place, and the order is saved", async ({ page }) => {
   test.setTimeout(180_000);
   await loginAsSeed(page);
   await newVideoWithScript(page, "canh rau cho người lớn tuổi");
   const scenes = page.getByTestId("scene");
   // The content scenes are closed (the title is open), so each sums itself up in its title row.
+  const third = await scenes.nth(2).getByTestId("scene-summary").innerText();
   const first = await scenes.nth(0).getByTestId("scene-summary").innerText();
-  const second = await scenes.nth(1).getByTestId("scene-summary").innerText();
-  // No drag handle: the arrows are the one way to reorder.
-  await expect(page.getByLabel(/Kéo để đổi thứ tự/)).toHaveCount(0);
-  await expect(async () => {
-    await scenes.nth(0).hover();
-    await scenes.nth(0).getByRole("button", { name: "Xuống dưới" }).click({ timeout: 5_000 });
-    await expect(scenes.nth(0).getByTestId("scene-summary")).toHaveText(second, { timeout: 5_000 });
-  }).toPass({ timeout: 60_000 });
+  await scenes.nth(2).getByTestId("scene-drag-handle").dragTo(scenes.nth(0));
+  await expect(scenes.nth(0).getByTestId("scene-summary")).toHaveText(third);
   await expect(scenes.nth(1).getByTestId("scene-summary")).toHaveText(first);
   await page.reload();
-  await expect(page.getByTestId("scene").nth(0).getByTestId("scene-summary")).toHaveText(second);
+  await expect(page.getByTestId("scene").nth(0).getByTestId("scene-summary")).toHaveText(third);
 });
 
 test("Sửa ảnh: erase a drawn box, edit in words, then bring back the original", async ({ page }) => {
@@ -1238,15 +1233,6 @@ test("inset photo: only on a backdrop video, the scene's photo as a rounded squa
   await expect(panel.getByTestId("inset-off")).toHaveText("Đang tắt. Bật để chèn ảnh của cảnh.");
   await expect(panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" })).toBeVisible();
   await expect(panel.getByRole("button", { name: /Chỉnh vị trí ảnh chèn/ })).toHaveCount(0);
-  // Three columns: the preview, then the button, the picture tools and the block, then the fields.
-  const tools = panel.getByTestId("half-photo-tools");
-  await expect(tools.getByTestId("inset-block")).toBeVisible();
-  await expect(tools.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" })).toBeVisible();
-  const stageBox = (await panel.getByTestId("half-photo-stage").boundingBox())!;
-  const toolsBox = (await tools.boundingBox())!;
-  const textBox = (await card.getByLabel("Chữ trên màn hình").boundingBox())!;
-  expect(toolsBox.x).toBeGreaterThanOrEqual(stageBox.x + stageBox.width);
-  expect(textBox.x).toBeGreaterThanOrEqual(toolsBox.x + toolsBox.width);
 
   // On, it shows the scene's photo, chosen with the scene's own picture tools; the block has no picture buttons.
   await panel.getByRole("switch", { name: "Ảnh chèn" }).click();
@@ -1254,6 +1240,17 @@ test("inset photo: only on a backdrop video, the scene's photo as a rounded squa
   await expect(block.getByTestId("inset-size")).toHaveText("Cỡ ảnh: 32% (hẹp hơn video)");
   await expect(block.getByRole("button")).toHaveCount(0);
   await expect(block.getByTestId("inset-own-image")).toHaveCount(0);
+
+  // The same layout as a slide video's scene: the 182 px preview, the place button under it, and the picture's tools
+  // column beside it, its top level with the preview's.
+  const stageBox = await panel.getByTestId("half-photo-stage").boundingBox();
+  const toolsBox = await panel.getByTestId("scene-media-tools").boundingBox();
+  const placeBox = await panel.getByRole("button", { name: "Chỉnh vị trí chữ & ảnh chèn" }).boundingBox();
+  expect(Math.round(stageBox!.width)).toBe(182);
+  expect(toolsBox!.x).toBeGreaterThan(stageBox!.x + stageBox!.width);
+  expect(Math.abs(toolsBox!.y - stageBox!.y)).toBeLessThan(2);
+  expect(placeBox!.y).toBeGreaterThan(stageBox!.y + stageBox!.height);
+  expect(placeBox!.width).toBeLessThanOrEqual(stageBox!.width + 1);
 
   // 32%: a 614 px square, centred across (left 233 of 1080), flush with the bottom edge (top 1306 of 1920).
   const photo = panel.getByTestId("half-photo-stage").getByTestId("preview-layer");
