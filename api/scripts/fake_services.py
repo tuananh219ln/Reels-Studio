@@ -13,12 +13,15 @@ import base64
 import hashlib
 import io
 import json
+import math
 import re
+import struct
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
+import wave
 from datetime import datetime
 from email import policy as email_policy
 from email.parser import BytesParser
@@ -315,6 +318,10 @@ class FakeServices:
         # VieNeu (OpenAI-compatible /v1/audio/speech): {"voice", "input", "model", "response_format", "authorization"}
         self.vieneu_requests: list[dict] = []
         self.vieneu_mode = "ok"  # ok | trial_limit | error500
+        # Gemini TTS (/v1beta/interactions, the key that makes AI photos): {"voice", "text", "model", "key"}
+        self.gemini_tts_requests: list[dict] = []
+        self.gemini_tts_mode = "ok"  # ok | daily_limit | minute_limit | error500
+        self.gemini_tts_minute_failures = 0  # in "minute_limit" mode that many requests are refused, then it reads
         self.reels: dict[str, dict] = {}  # video_id -> {"uploaded", "bytes", "finishes", "state", "description", ...}
         # Photo and text posts on the Page's feed ("Bài viết"), by post id: {"message", "published", "scheduled",
         # "photo": bytes or None, "photos": the attached photos of a post of several}; their numbers by post id (reach,
@@ -893,6 +900,63 @@ class FakeServices:
         if body.get("voice") not in {voice["id"] for voice in self.VIENEU_VOICES}:
             return failed(400, "Unknown voice for engine v4.")
         return 200, self._tone(str(body.get("input", "")))
+
+    GEMINI_TTS_VOICES = {"Kore", "Puck", "Charon"}
+
+    @staticmethod
+    def _gemini_failed(status: int, message: str, state: str, metric: str = "") -> tuple[int, dict]:
+        details = [{"@type": "type.googleapis.com/google.rpc.QuotaFailure", "violations": [{"quotaId": metric}]}]
+        return status, {"error": {"code": status, "message": message, "status": state, "details": details}}
+
+    def _gemini_speech(self, key: str | None, body: dict) -> tuple[int, dict]:
+        try:
+            text = body["input"][0]["content"][0]["text"]
+            voice = body["generation_config"]["speech_config"][0]["voice"]
+        except (KeyError, IndexError, TypeError):
+            return self._gemini_failed(400, "Invalid request.", "INVALID_ARGUMENT")
+        with self.lock:
+            self.gemini_tts_requests.append({"voice": voice, "text": text, "model": body.get("model"), "key": key})
+            refused_minute = self.gemini_tts_mode == "minute_limit" and self.gemini_tts_minute_failures > 0
+            if refused_minute:
+                self.gemini_tts_minute_failures -= 1
+        if key != IMAGE_GEN_KEY:
+            return self._gemini_failed(400, "API key not valid. Please pass a valid API key.", "INVALID_ARGUMENT")
+        if self.gemini_tts_mode == "daily_limit":
+            return self._gemini_failed(
+                429,
+                "You exceeded your current quota.",
+                "RESOURCE_EXHAUSTED",
+                "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+            )
+        if refused_minute:
+            return self._gemini_failed(
+                429,
+                "You exceeded your current quota.",
+                "RESOURCE_EXHAUSTED",
+                "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+            )
+        if self.gemini_tts_mode == "error500":
+            return self._gemini_failed(500, "Internal error encountered.", "INTERNAL")
+        if voice not in self.GEMINI_TTS_VOICES:
+            return self._gemini_failed(400, f"Unknown voice {voice}.", "INVALID_ARGUMENT")
+        audio = base64.b64encode(self._wav_tone(str(text))).decode()
+        return 200, {"steps": [{"type": "model_output", "content": [{"type": "audio", "data": audio}]}]}
+
+    @staticmethod
+    def _wav_tone(text: str) -> bytes:
+        # The same tone as _tone, as the 24 kHz mono 16-bit WAV Gemini answers with.
+        rate, seconds = 24000, 0.3 * max(1, len(text.split()))
+        frames = b"".join(
+            struct.pack("<h", int(8000 * math.sin(2 * math.pi * 330 * index / rate)))
+            for index in range(int(rate * seconds))
+        )
+        out = io.BytesIO()
+        with wave.open(out, "wb") as file:
+            file.setnchannels(1)
+            file.setsampwidth(2)
+            file.setframerate(rate)
+            file.writeframes(frames)
+        return out.getvalue()
 
     @staticmethod
     def _tone(text: str) -> bytes:
@@ -1771,6 +1835,8 @@ class FakeServices:
                         path.removeprefix("/v1/text-to-speech/"), self.headers.get("xi-api-key"), body
                     )
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")
+                elif path == "/gemini/v1beta/interactions":
+                    self._send(*fake._gemini_speech(self.headers.get("x-goog-api-key"), body))
                 elif path == "/vieneu/api/v1/audio/speech":
                     status, reply = fake._vieneu_speech(self.headers.get("Authorization"), body)
                     self._send(status, reply, "audio/mpeg" if isinstance(reply, bytes) else "application/json")

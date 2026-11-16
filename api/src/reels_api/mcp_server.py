@@ -678,7 +678,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
         voice_id: Annotated[
             str | None,
             Field(
-                description='Giọng đọc riêng của cảnh này (mã ElevenLabs hoặc "vieneu:<tên>"); "" về giọng của video'
+                description=(
+                    'Giọng đọc riêng của cảnh này (mã ElevenLabs, "vieneu:<tên>" hoặc "gemini:<tên giọng>"); '
+                    '"" về giọng của video'
+                )
             ),
         ] = None,
     ) -> dict:

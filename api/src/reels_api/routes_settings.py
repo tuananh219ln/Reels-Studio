@@ -257,20 +257,25 @@ def delete_my_video_defaults(me: Session = Depends(current_member), db: DbSessio
 
 @router.get("/voices")
 def get_voices(me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The voices to choose from: ElevenLabs' and VieNeu's, each listed once its key is set, and the server's default
-    one. A service that cannot list its voices is named in `problems` while the other's voices still come; with no
-    voice at all, the reason is the error."""
-    keys = {name: source_keys.get(db, name) for name in ("elevenlabs", "vieneu")}
+    """The voices to choose from: ElevenLabs', VieNeu's and Gemini's, each listed once its key is set (Gemini's is the
+    one that makes AI photos), and the server's default one. A service that cannot list its voices is named in
+    `problems` while the others' voices still come; with no voice at all, the reason is the error."""
+    listings = (
+        ("elevenlabs", tts.list_voices),
+        ("vieneu", tts.list_vieneu_voices),
+        ("gemini", tts.list_gemini_voices),
+    )
+    keys = {name: source_keys.get(db, name) for name, _ in listings}
     if not any(keys.values()):
         raise ApiError(
             422,
             "voices_unavailable",
-            "Chưa có key ElevenLabs hay VieNeu nên chưa chọn được giọng đọc: nhập key ElevenLabs ở Cài đặt › "
+            "Chưa có key giọng đọc nào nên chưa chọn được giọng đọc: nhập key ElevenLabs hay Gemini ở Cài đặt › "
             "Nguồn tư liệu, hoặc key VieNeu ở Cài đặt › Mô hình AI",
         )
     voices: list[dict] = []
     problems: list[str] = []
-    for name, listing in (("elevenlabs", tts.list_voices), ("vieneu", tts.list_vieneu_voices)):
+    for name, listing in listings:
         if not keys[name]:
             if name == "elevenlabs":
                 # The server's default voice is an ElevenLabs one, so say why it cannot be read.

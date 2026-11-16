@@ -720,8 +720,9 @@ steps open the status card or the products block on its tab, the QC chip its pop
     slider with its value beside it), "Âm lượng giọng", "Nghỉ sau lời" (0,4 / 0,7 / 1 giây); Cài đặt › Thiết lập mặc
     định keeps the stacked card. In "Chữ & phụ đề" the style cards are 56 px, on one row that scrolls sideways.
     The groups: "Âm thanh" (narration on/off, the
-    voice picked from the ElevenLabs account's voices, and VieNeu's once its key is set, grouped "ElevenLabs" and "VieNeu"
-    when both have voices, with "Nghe thử" playing ElevenLabs' free sample (VieNeu voices have none), the
+    voice picked from the ElevenLabs account's voices, and VieNeu's and Gemini's once their key is set (Gemini's is
+    the key that makes AI photos), grouped "ElevenLabs", "VieNeu" and "Gemini" when two or more have voices, with
+    "Nghe thử" playing ElevenLabs' free sample (VieNeu and Gemini voices have none), the
     "Tốc độ đọc" slider (0,70× to 1,30×, marked Chậm/Vừa/Nhanh), voice level, "Nhỏ nhạc khi có giọng đọc"); the music card (from the library
     ("Chọn từ thư viện", filtered by topic, mood, and name) or an uploaded MP3, optionally saved to
     the library with its topics and mood, with a volume slider); "Hình ảnh" (Chuyển cảnh: Mờ dần,

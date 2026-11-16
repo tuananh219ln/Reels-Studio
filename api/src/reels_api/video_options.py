@@ -31,7 +31,8 @@ from .tts import MAX_SPEED, MAX_VOICE_ID_LENGTH, MIN_SPEED, SPEED_STEP, is_viene
 DEFAULTS_KEY = "video_defaults"  # the team's defaults before 2026-11-09 (migration 0067): kept, never read
 
 DEFAULTS: dict = {
-    # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default); "vieneu:<id>": a VieNeu voice (tts.py)
+    # empty: the server's ELEVENLABS_VOICE_ID ("Adam" by default); "vieneu:<id>": a VieNeu voice, "gemini:<name>" a
+    # Gemini one (tts.py)
     "voice_id": "",
     "voice_speed": 1.0,  # tempo factor, MIN_SPEED to MAX_SPEED
     "voice_volume": 100,  # percent
@@ -160,7 +161,7 @@ def effective(video: Video) -> dict:
 
 
 def clean_voice_id(value: object) -> str:
-    """A voice id as typed or picked: an ElevenLabs id, or vieneu:<name>; "" for none."""
+    """A voice id as typed or picked: an ElevenLabs id, vieneu:<name> or gemini:<name>; "" for none."""
     if not isinstance(value, str) or len(value) > MAX_VOICE_ID_LENGTH:
         raise OptionError("Mã giọng đọc không hợp lệ")
     value = value.strip()
@@ -229,7 +230,7 @@ def choices() -> dict:
         {name: list(values) for name, values in CHOICES.items()}
         | {name: [*values, "#RRGGBB"] for name, values in COLORS.items()}
         | {
-            "voice_id": "ElevenLabs voice id, or vieneu:<id>; empty: the team's server voice",
+            "voice_id": "ElevenLabs voice id, vieneu:<id> or gemini:<name>; empty: the team's server voice",
             "voice_speed": {"min": MIN_SPEED, "max": MAX_SPEED, "step": SPEED_STEP},
             "voice_volume": {"min": 0, "max": 100},
             "voice_pause": list(VOICE_PAUSES),

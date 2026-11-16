@@ -95,7 +95,7 @@ export function forgetVoices() {
   voiceCache = null;
 }
 
-/** The ElevenLabs and VieNeu voices, fetched once per page load. */
+/** The ElevenLabs, VieNeu and Gemini voices, fetched once per page load. */
 function useVoices() {
   const [state, setState] = useState<{
     defaultId: string;
@@ -120,6 +120,7 @@ function useVoices() {
 const VOICE_GROUPS: { service: Voice["service"]; label: string }[] = [
   { service: "elevenlabs", label: "ElevenLabs" },
   { service: "vieneu", label: "VieNeu" },
+  { service: "gemini", label: "Gemini" },
 ];
 
 function Field({
@@ -214,7 +215,7 @@ export function VoicePicker({
     value: voice.id,
     label: `${voice.name}${voice.id === voices?.defaultId ? " (mặc định)" : ""}${voice.description ? `, ${voice.description}` : ""}`,
   });
-  // Grouped by service once both have voices; a single service stays a plain list, as before VieNeu.
+  // Grouped by service once two or more have voices; a single service stays a plain list, as before VieNeu.
   const groups = VOICE_GROUPS.map((group) => ({
     ...group,
     voices: (voices?.voices ?? []).filter((voice) => voice.service === group.service),
@@ -279,7 +280,7 @@ export function AudioSettings({
       <RowFields.Provider value={Boolean(bare)}>
         <Flex vertical gap={bare ? 10 : 14}>
           {bare ? (
-            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs hoặc VieNeu.">
+            <Field label="Đọc lời" hint="Đọc lời từng cảnh bằng ElevenLabs, VieNeu hoặc Gemini.">
               <Flex gap={8} align="flex-start">
                 <div style={{ paddingTop: 6 }}>{voiceSwitch}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -291,7 +292,7 @@ export function AudioSettings({
             <>
               <Flex gap={8} align="center">
                 {voiceSwitch}
-                <Typography.Text>Đọc lời từng cảnh (ElevenLabs hoặc VieNeu)</Typography.Text>
+                <Typography.Text>Đọc lời từng cảnh (ElevenLabs, VieNeu hoặc Gemini)</Typography.Text>
               </Flex>
               <Field label="Giọng">
                 <VoicePicker values={values} onChange={onChange} disabled={disabled || off} />

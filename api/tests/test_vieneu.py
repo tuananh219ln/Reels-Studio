@@ -31,9 +31,10 @@ def fresh_voice_lists():
     tts._voices_cache.clear()
 
 
-def test_without_a_vieneu_key_only_elevenlabs_voices_are_offered(an, fakes):
+def test_without_a_vieneu_key_no_vieneu_voice_is_offered(an, fakes):
     payload = an.get("/api/settings/voices").json()
-    assert {voice["service"] for voice in payload["voices"]} == {"elevenlabs"}
+    # Gemini's voices are there: the fakes set the Gemini key that makes AI photos.
+    assert {voice["service"] for voice in payload["voices"]} == {"elevenlabs", "gemini"}
     assert payload["problems"] == []
 
 
@@ -55,6 +56,7 @@ def test_a_vieneu_key_saved_on_the_ai_page_adds_its_voices_beside_elevenlabs(an,
 
 def test_vieneu_alone_lists_its_voices_and_says_elevenlabs_has_no_key(an, fakes, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")  # Gemini's voices come with its key
     monkeypatch.setenv("VIENEU_API_KEY", VIENEU_KEY)
     payload = an.get("/api/settings/voices").json()
     assert {voice["service"] for voice in payload["voices"]} == {"vieneu"}
@@ -63,6 +65,7 @@ def test_vieneu_alone_lists_its_voices_and_says_elevenlabs_has_no_key(an, fakes,
 
 def test_with_neither_key_the_voice_list_names_both_pages(an, fakes, monkeypatch):
     monkeypatch.setenv("ELEVENLABS_API_KEY", "")
+    monkeypatch.setenv("IMAGE_GEN_API_KEY", "")
     refused = an.get("/api/settings/voices")
     assert refused.status_code == 422
     assert "Nguồn tư liệu" in refused.json()["message"] and "Mô hình AI" in refused.json()["message"]

@@ -1,10 +1,14 @@
-"""Scene narration with ElevenLabs (the "Adam" voice by default) or VieNeu, called only from the voice and render jobs.
+"""Scene narration with ElevenLabs (the "Adam" voice by default), VieNeu or Gemini, called only from the voice and
+render jobs.
 
 A video's voice id says which service reads it: "vieneu:<VieNeu voice id>" is a VieNeu voice (its OpenAI-compatible
-/v1/audio/speech), any other id an ElevenLabs one. Each scene's MP3 is stored with the signature of what it was made
+/v1/audio/speech), "gemini:<voice>" a Gemini TTS one (the Google AI Studio key that makes AI photos, its
+/v1beta/interactions), any other id an ElevenLabs one. Each scene's MP3 is stored with the signature of what it was made
 from, so a re-render pays only for narration whose text, voice or model changed.
 """
 
+import base64
+import binascii
 import hashlib
 import json
 import tempfile
@@ -25,6 +29,45 @@ MAX_VOICE_ID_LENGTH = 64  # videos.options["voice_id"], prefix included; video_o
 VIENEU_PREFIX = "vieneu:"
 VIENEU_MODEL = "vieneu-v4"
 VIENEU_ENGINE = "v4"
+
+GEMINI_PREFIX = "gemini:"
+GEMINI_MODEL = "gemini-3.8-flash-tts"
+GEMINI_RETRIES = 3  # a per-minute limit is waited out this many times before the job fails
+GEMINI_RETRY_SECONDS = 20
+# Gemini's 30 prebuilt voices speak any language it is given (Vietnamese included), picked by name; the word is
+# Google's own description of the voice (ai.google.dev/gemini-api/docs/speech-generation#voices), in Vietnamese.
+GEMINI_VOICES = {
+    "Achernar": "Mềm",
+    "Achird": "Thân thiện",
+    "Algenib": "Khàn",
+    "Algieba": "Mượt",
+    "Alnilam": "Chắc",
+    "Aoede": "Nhẹ nhàng",
+    "Autonoe": "Sáng",
+    "Callirrhoe": "Thoải mái",
+    "Charon": "Rõ thông tin",
+    "Despina": "Mượt",
+    "Enceladus": "Hơi thở",
+    "Erinome": "Rõ",
+    "Fenrir": "Hào hứng",
+    "Gacrux": "Chững chạc",
+    "Iapetus": "Rõ",
+    "Kore": "Chắc",
+    "Laomedeia": "Tươi vui",
+    "Leda": "Trẻ trung",
+    "Orus": "Chắc",
+    "Puck": "Tươi vui",
+    "Pulcherrima": "Thẳng",
+    "Rasalgethi": "Rõ thông tin",
+    "Sadachbia": "Sôi nổi",
+    "Sadaltager": "Hiểu biết",
+    "Schedar": "Đều",
+    "Sulafat": "Ấm",
+    "Umbriel": "Thoải mái",
+    "Vindemiatrix": "Dịu",
+    "Zephyr": "Sáng",
+    "Zubenelgenubi": "Tự nhiên",
+}
 
 
 class TtsError(Exception):
@@ -49,13 +92,27 @@ def is_vieneu(voice_id: str | None) -> bool:
     return bool(voice_id) and voice_id.startswith(VIENEU_PREFIX)
 
 
+def is_gemini(voice_id: str | None) -> bool:
+    return bool(voice_id) and voice_id.startswith(GEMINI_PREFIX)
+
+
 def key_name(voice_id: str | None) -> str:
     """The source_keys name of the key that reads this voice (the server's default voice is an ElevenLabs one)."""
-    return "vieneu" if is_vieneu(voice_id) else "elevenlabs"
+    if is_vieneu(voice_id):
+        return "vieneu"
+    return "gemini" if is_gemini(voice_id) else "elevenlabs"
 
 
 def service_name(voice_id: str | None) -> str:
-    return "VieNeu" if is_vieneu(voice_id) else "ElevenLabs"
+    if is_vieneu(voice_id):
+        return "VieNeu"
+    return "Gemini" if is_gemini(voice_id) else "ElevenLabs"
+
+
+def _model(voice: str) -> str:
+    if is_vieneu(voice):
+        return VIENEU_MODEL
+    return GEMINI_MODEL if is_gemini(voice) else config.voice_model()
 
 
 def voice_signature(voice_text: str, voice_id: str | None = None, speed: float = 1.0) -> str:
@@ -63,7 +120,7 @@ def voice_signature(voice_text: str, voice_id: str | None = None, speed: float =
     speeds existed stays valid; it joins as "tempo:<factor>", so narration made at an old preset ("tempo:fast")
     or while the speed was left to ElevenLabs (and ignored by eleven_v3) is made again."""
     voice = voice_id or config.voice_id()
-    data = [voice, VIENEU_MODEL if is_vieneu(voice) else config.voice_model(), spoken_text(voice_text)]
+    data = [voice, _model(voice), spoken_text(voice_text)]
     if speed != 1.0:
         data.append(f"tempo:{speed:g}")
     return hashlib.sha256(json.dumps(data, ensure_ascii=False).encode()).hexdigest()
@@ -71,6 +128,7 @@ def voice_signature(voice_text: str, voice_id: str | None = None, speed: float =
 
 NO_KEY = "Chưa có key ElevenLabs nên {}: nhập key ở Cài đặt › Nguồn tư liệu"
 NO_VIENEU_KEY = "Chưa có key VieNeu nên {}: nhập key ở Cài đặt › Mô hình AI"
+NO_GEMINI_KEY = "Chưa có key Gemini nên {}: nhập key ở Cài đặt › Nguồn tư liệu (cùng key tạo ảnh AI)"
 
 
 def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: float = 1.0) -> bytes:
@@ -80,6 +138,8 @@ def synthesize(voice_text: str, key: str, voice_id: str | None = None, speed: fl
     voice = voice_id or config.voice_id()
     if is_vieneu(voice):
         return change_speed(_vieneu_speech(voice_text, key, voice.removeprefix(VIENEU_PREFIX)), speed)
+    if is_gemini(voice):
+        return change_speed(_gemini_speech(voice_text, key, voice.removeprefix(GEMINI_PREFIX)), speed)
     if not key:
         raise TtsError(NO_KEY.format("không tạo được lời đọc"))
     url = f"{config.elevenlabs_api_url()}/v1/text-to-speech/{voice}?output_format=mp3_44100_128"
@@ -149,6 +209,122 @@ def _vieneu_error(status: int, body: str) -> TtsError:
     if status >= 500:
         return TtsError(f"VieNeu đang lỗi (HTTP {status}), thử lại sau", detail)
     return TtsError("VieNeu từ chối tạo lời đọc", detail)
+
+
+def _gemini_speech(voice_text: str, key: str, voice: str) -> bytes:
+    """Gemini TTS's MP3 for the text. Its answer is JSON holding a base64 WAV (24 kHz, mono), turned into MP3 here;
+    the language is detected from the text, and the text is read verbatim (no style note is sent). A per-minute
+    limit is waited out and the call made again; the daily one fails at once."""
+    if not key:
+        raise TtsError(NO_GEMINI_KEY.format("không tạo được lời đọc"))
+    if voice not in GEMINI_VOICES:
+        raise TtsError("Gemini không có giọng đã chọn, hãy chọn giọng khác", f"voice {voice!r}")
+    payload = {
+        "model": GEMINI_MODEL,
+        "input": [{"type": "user_input", "content": [{"type": "text", "text": spoken_text(voice_text)}]}],
+        "response_format": {"type": "audio"},
+        "generation_config": {"speech_config": [{"voice": voice}]},
+    }
+    for attempt in range(GEMINI_RETRIES + 1):
+        request = urllib.request.Request(
+            f"{config.image_gen_api_url()}/v1beta/interactions",
+            data=json.dumps(payload, ensure_ascii=False).encode(),
+            method="POST",
+            headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+                answer = json.loads(response.read(MAX_AUDIO_BYTES * 2))
+            break
+        except urllib.error.HTTPError as err:
+            body = err.read(4000).decode("utf-8", "replace")
+            if err.code == 429 and not _gemini_daily_limit(body) and attempt < GEMINI_RETRIES:
+                time.sleep(GEMINI_RETRY_SECONDS)
+                continue
+            raise _gemini_error(err.code, body) from None
+        except OSError as err:
+            raise TtsError("Không kết nối được Gemini, kiểm tra mạng rồi thử lại", str(err)) from None
+        except ValueError as err:
+            raise TtsError("Gemini trả file lời đọc không dùng được, thử lại sau", repr(err)) from None
+    wav = _gemini_audio(answer)
+    if not wav or len(wav) > MAX_AUDIO_BYTES:
+        raise TtsError("Gemini trả file lời đọc không dùng được, thử lại sau", f"{len(wav)} bytes")
+    return _wav_to_mp3(wav)
+
+
+def _gemini_audio(answer: object) -> bytes:
+    """The last audio block of the answer's steps, decoded; empty when there is none."""
+    blocks = []
+    steps = answer.get("steps") if isinstance(answer, dict) else None
+    for step in steps if isinstance(steps, list) else []:
+        content = step.get("content") if isinstance(step, dict) else None
+        for block in content if isinstance(content, list) else []:
+            if isinstance(block, dict) and block.get("type") == "audio" and isinstance(block.get("data"), str):
+                blocks.append(block["data"])
+    if not blocks:
+        return b""
+    try:
+        return base64.b64decode(blocks[-1], validate=True)
+    except (ValueError, binascii.Error):
+        return b""
+
+
+def _gemini_daily_limit(body: str) -> bool:
+    """A 429 about the day's requests ("...RequestsPerDay...") rather than the minute's: waiting does not help."""
+    lowered = body.lower()
+    return "perday" in lowered or "per day" in lowered or "daily" in lowered
+
+
+def _gemini_error(status: int, body: str) -> TtsError:
+    detail = f"HTTP {status}: {body}"
+    lowered = body.lower()
+    if "api_key_invalid" in lowered or "api key not valid" in lowered or status == 401:
+        return TtsError("Key Gemini không hợp lệ: kiểm tra lại ở Cài đặt › Nguồn tư liệu", detail)
+    if status == 403:
+        return TtsError(
+            "Key Gemini không được phép đọc lời (chưa bật quyền hoặc bị giới hạn): kiểm tra ở AI Studio", detail
+        )
+    if status == 429:
+        if _gemini_daily_limit(body):
+            return TtsError(
+                "Key Gemini đã hết lượt đọc lời trong ngày (làm mới khoảng 14–15 giờ Việt Nam): "
+                "thử lại sau, hoặc chọn giọng ElevenLabs/VieNeu cho video này",
+                detail,
+            )
+        return TtsError("Gemini đang giới hạn số lượt gọi mỗi phút, thử lại sau ít phút", detail)
+    if status == 404:
+        return TtsError("Gemini không có model đọc lời đã cấu hình", detail)
+    if status == 400 and "voice" in lowered:
+        return TtsError("Gemini không có giọng đã chọn, hãy chọn giọng khác", detail)
+    if status >= 500:
+        return TtsError(f"Gemini đang lỗi (HTTP {status}), thử lại sau", detail)
+    return TtsError("Gemini từ chối tạo lời đọc", detail)
+
+
+def _wav_to_mp3(data: bytes) -> bytes:
+    with tempfile.TemporaryDirectory() as folder:
+        source, output = Path(folder) / "voice.wav", Path(folder) / "voice.mp3"
+        source.write_bytes(data)
+        try:
+            run(
+                [
+                    find_tools().ffmpeg,
+                    "-v",
+                    "error",
+                    "-y",
+                    "-i",
+                    str(source),
+                    "-c:a",
+                    "libmp3lame",
+                    "-b:a",
+                    "128k",
+                    str(output),
+                ],
+                "FFmpeg không đổi được lời đọc Gemini sang MP3",
+            )
+        except RenderError as err:
+            raise TtsError("Gemini trả file lời đọc không dùng được, thử lại sau", str(err)) from None
+        return output.read_bytes()
 
 
 def change_speed(data: bytes, speed: float) -> bytes:
@@ -283,3 +459,20 @@ def list_vieneu_voices(key: str) -> list[dict]:
     voices.sort(key=lambda voice: voice["name"].lower())
     _voices_cache[cache_key] = (time.monotonic(), voices)
     return voices
+
+
+def list_gemini_voices(key: str) -> list[dict]:
+    """Gemini TTS's prebuilt voices for the voice picker, each id prefixed with "gemini:". The list is fixed (Google
+    publishes it, no call is made) and offered once the Gemini key is set, since reading them needs it."""
+    if not key:
+        raise TtsError(NO_GEMINI_KEY.format("chưa chọn được giọng Gemini"))
+    return [
+        {
+            "id": GEMINI_PREFIX + name,
+            "name": name,
+            "description": description,
+            "preview_url": None,
+            "service": "gemini",
+        }
+        for name, description in sorted(GEMINI_VOICES.items())
+    ]

@@ -650,7 +650,7 @@ def reveal_layers(fields: dict, steps: list[dict], folder: Path, stem: str) -> l
 
 def make_voices(db: DbSession, video: Video, scenes: list[Scene], storage: DirectoryStorage) -> None:
     """Narration for every scene that has something to read but no MP3 made from it yet. Each MP3 is committed at once,
-    so a retry after a failure pays ElevenLabs or VieNeu only for the scenes still missing."""
+    so a retry after a failure pays the voice's service only for the scenes still missing."""
     for index, scene in enumerate(scenes):
         voice = scene_voice(video, scene)
         text = spoken(video, scene)
