@@ -7,7 +7,11 @@ import { DeleteOutlined } from "@ant-design/icons";
 import { App, Button, ColorPicker, Flex, Radio, Slider, Spin, Switch, Typography } from "antd";
 import { useEffect, useState } from "react";
 
-const DEFAULTS: PhotoLogo = { position: "bottom_right", size: 12, margin: 3, opacity: 1,
+const DEFAULTS: PhotoLogo = {
+  position: "bottom_right",
+  size: 12,
+  margin: 3,
+  opacity: 1,
   alt_threshold: null,
   shape: "circle",
   border: true,
