@@ -98,11 +98,15 @@ test("Bài viết: post a text article to a Page, read its numbers, take it down
   // whole step is retried: open it if it is not open, press its "Đăng", see the refusal. Pressing again is harmless,
   // the api refuses every time.
   const refused = page.getByText("Nội dung này đã đăng hoặc đã hẹn trên Page này, không đăng lại được");
+  // The test is whether the drawer's own "Đăng" can be pressed, not whether the drawer's box is visible: while the
+  // drawer slides shut its box still counts as visible but has no buttons to press, and CI (2026-11-16) spent the whole
+  // minute clicking at a drawer that was not there.
+  const publishNow = publish.getByRole("button", { name: "Đăng", exact: true });
   await expect(async () => {
-    if (!(await publish.isVisible())) {
+    if (!(await publishNow.isVisible())) {
       await page.getByRole("button", { name: /^send Đăng$/ }).click({ timeout: 5_000 });
     }
-    await publish.getByRole("button", { name: "Đăng", exact: true }).click({ timeout: 5_000 });
+    await publishNow.click({ timeout: 5_000 });
     await expect(refused.first()).toBeVisible({ timeout: 5_000 });
   }).toPass({ timeout: 60_000 });
   await publish.getByRole("button", { name: "Huỷ" }).click();
