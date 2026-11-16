@@ -61,8 +61,8 @@ def page_with_logo(an, db, me, colour=RED) -> int:
     return page.id
 
 
-def centre_of_logo(image: Image.Image, position="bottom_right") -> tuple[int, int]:
-    left, top, width, height = photo_logo.box(image.size, (600, 300), photo_logo.Look(position=position))
+def centre_of_logo(image: Image.Image, position="bottom_right", shape="circle") -> tuple[int, int]:
+    left, top, width, height = photo_logo.box(image.size, (600, 300), photo_logo.Look(position=position, shape=shape))
     return left + width // 2, top + height // 2
 
 
@@ -188,32 +188,106 @@ def test_the_preview_lays_the_page_logo_where_the_photo_puts_it(an, db, me):
     assert preview(None).getpixel(centre_of_logo(moved, "top_left")) == pytest.approx(WHITE, abs=6)
 
 
-def test_the_logo_takes_its_size_and_margin_from_the_photo_width():
-    look = photo_logo.Look()
+def test_the_logo_takes_its_size_and_margin_from_the_photos_short_side():
+    look = photo_logo.Look(shape="none")
     assert photo_logo.box((1080, 1080), (600, 300), look) == (918, 983, 130, 65)
     assert photo_logo.box((1080, 1350), (600, 300), look) == (918, 1253, 130, 65)
-    assert photo_logo.box((1200, 628), (600, 300), look) == (1020, 520, 144, 72)
-    assert photo_logo.box((1000, 1000), (100, 100), photo_logo.Look(position="center", size=20)) == (400, 400, 200, 200)
+    assert photo_logo.box((1200, 628), (600, 300), look) == (1106, 571, 75, 38)
+    assert photo_logo.box((1000, 1000), (100, 100), photo_logo.Look(position="center", size=20, shape="none")) == (
+        400,
+        400,
+        200,
+        200,
+    )
+
+
+def test_a_round_badge_is_square_at_least_120_px_and_16_px_from_the_edge():
+    look = photo_logo.Look(size=14, margin=3)
+    # 14% of 1080 = 151; the margin 3% = 32.
+    assert photo_logo.box((1080, 1350), (600, 300), look) == (1080 - 151 - 32, 1350 - 151 - 32, 151, 151)
+    # A small photo: 14% of 600 would be 84, so 120; 3% of 600 would be 18, so 18; of 400 it would be 12, so 16.
+    assert photo_logo.box((600, 800), (600, 300), look)[2:] == (120, 120)
+    assert photo_logo.box((400, 400), (600, 300), look) == (400 - 120 - 16, 400 - 120 - 16, 120, 120)
 
 
 def test_the_white_logo_goes_on_a_dark_photo_and_opacity_lets_the_photo_through(tmp_path):
     (tmp_path / "logo.png").write_bytes(png(RED, (600, 300), True))
     (tmp_path / "alt.png").write_bytes(png(WHITE, (600, 300), True))
-    logo = photo_logo.BrandLogo(tmp_path / "logo.png", tmp_path / "alt.png", photo_logo.Look(alt_threshold=0.4))
+    logo = photo_logo.BrandLogo(
+        tmp_path / "logo.png", tmp_path / "alt.png", photo_logo.Look(alt_threshold=0.4, shape="none")
+    )
     for colour, expected in (((250, 250, 250), RED), ((10, 10, 10), WHITE)):
         photo = Image.open(io.BytesIO(photo_logo.render(png(colour, (1080, 1350)), logo)))
-        assert photo.getpixel(centre_of_logo(photo)) == pytest.approx(expected, abs=12)
-    faint = photo_logo.BrandLogo(tmp_path / "logo.png", None, photo_logo.Look(opacity=0.5))
+        assert photo.getpixel(centre_of_logo(photo, shape="none")) == pytest.approx(expected, abs=12)
+    faint = photo_logo.BrandLogo(tmp_path / "logo.png", None, photo_logo.Look(opacity=0.5, shape="none"))
     photo = Image.open(io.BytesIO(photo_logo.render(png((10, 10, 10), (1080, 1350)), faint)))
-    assert photo.getpixel(centre_of_logo(photo)) == pytest.approx((120, 15, 15), abs=12)
+    assert photo.getpixel(centre_of_logo(photo, shape="none")) == pytest.approx((120, 15, 15), abs=12)
 
 
 def test_a_big_photo_is_posted_at_most_2048_wide_with_the_logo_kept_in_proportion(tmp_path):
     (tmp_path / "logo.png").write_bytes(png(RED, (600, 300), True))
-    logo = photo_logo.BrandLogo(tmp_path / "logo.png", None, photo_logo.Look())
+    logo = photo_logo.BrandLogo(tmp_path / "logo.png", None, photo_logo.Look(shape="none"))
     photo = Image.open(io.BytesIO(photo_logo.render(png(WHITE, (4000, 3000)), logo)))
     assert photo.size == (2048, 1536)
-    assert photo.getpixel(centre_of_logo(photo)) == pytest.approx(RED, abs=12)
+    assert photo.getpixel(centre_of_logo(photo, shape="none")) == pytest.approx(RED, abs=12)
+
+
+def test_a_round_logo_has_a_white_ring_clear_corners_and_a_solid_face(tmp_path):
+    # A transparent PNG: the badge is solid all through, on white.
+    (tmp_path / "logo.png").write_bytes(png(RED, (600, 300), True))
+    clear = Image.new("RGBA", (600, 600), (0, 0, 0, 0))
+    clear.putpixel((300, 300), (0, 0, 255, 255))
+    buffer = io.BytesIO()
+    clear.save(buffer, "PNG")
+    (tmp_path / "clear.png").write_bytes(buffer.getvalue())
+    dark = png((10, 10, 10), (1080, 1350))
+    look = photo_logo.Look(shadow=False)
+    for name, face_pixel in (("logo.png", RED), ("clear.png", WHITE)):
+        logo = photo_logo.BrandLogo(tmp_path / name, None, look)
+        photo = Image.open(io.BytesIO(photo_logo.render(dark, logo)))
+        left, top, width, _ = photo_logo.box(photo.size, (600, 600), look)
+        assert photo.getpixel((left + width // 2, top + width // 2)) == pytest.approx(face_pixel, abs=12) or name == (
+            "clear.png"
+        )
+        # The corner is outside the circle: the dark photo shows.
+        assert photo.getpixel((left + 2, top + 2)) == pytest.approx((10, 10, 10), abs=6)
+        # The ring is white (the logo's face is inside it).
+        assert photo.getpixel((left + 2, top + width // 2)) == pytest.approx(WHITE, abs=6)
+    # Without the ring the logo fills the circle to its edge.
+    plain = photo_logo.Look(border=False, shadow=False)
+    photo = Image.open(io.BytesIO(photo_logo.render(dark, photo_logo.BrandLogo(tmp_path / "logo.png", None, plain))))
+    left, top, width, _ = photo_logo.box(photo.size, (600, 600), plain)
+    assert photo.getpixel((left + 4, top + width // 2)) == pytest.approx(RED, abs=12)
+
+
+def test_a_rounded_logo_keeps_a_square_with_soft_corners_and_a_coloured_ring(tmp_path):
+    (tmp_path / "logo.png").write_bytes(png(RED, (600, 300), True))
+    look = photo_logo.Look(shape="rounded", border_color="#00FF00", shadow=False)
+    photo = Image.open(
+        io.BytesIO(
+            photo_logo.render(png((10, 10, 10), (1080, 1080)), photo_logo.BrandLogo(tmp_path / "logo.png", None, look))
+        )
+    )
+    left, top, width, _ = photo_logo.box(photo.size, (600, 600), look)
+    assert photo.getpixel((left + width // 2, top + 3)) == pytest.approx((0, 255, 0), abs=6)
+    assert photo.getpixel((left, top)) == pytest.approx((10, 10, 10), abs=15)
+    shadowed = photo_logo.Look(shape="circle")
+    lit = Image.open(
+        io.BytesIO(
+            photo_logo.render(png(WHITE, (1080, 1080)), photo_logo.BrandLogo(tmp_path / "logo.png", None, shadowed))
+        )
+    )
+    left, top, width, _ = photo_logo.box(lit.size, (600, 600), shadowed)
+    # Under the badge, on a white photo, the shadow darkens it; away from it nothing does.
+    assert sum(lit.getpixel((left + width // 2, top + width + 3))) < 3 * 250
+    assert lit.getpixel((10, 10)) == WHITE
+
+
+def test_the_logo_look_is_checked():
+    for wrong in (photo_logo.Look(shape="star"), photo_logo.Look(border_color="white")):
+        with pytest.raises(photo_logo.LogoSettingsError):
+            photo_logo.checked(wrong)
+    assert photo_logo.checked(photo_logo.Look(shape="rounded", border_color="#aabbcc")).shape == "rounded"
 
 
 def test_the_brand_photo_logo_settings_are_checked_and_drawn_on_the_samples(an, db, me):
@@ -229,7 +303,12 @@ def test_the_brand_photo_logo_settings_are_checked_and_drawn_on_the_samples(an, 
         "margin": 3,
         "opacity": 1,
         "alt_threshold": 0.3,
+        "shape": "circle",
+        "border": True,
+        "border_color": "#FFFFFF",
+        "shadow": True,
     }
+    assert an.patch(f"/api/brands/{brand_id}", json={"photo_logo_shape": "star"}).status_code == 422
     assert (
         an.patch(f"/api/brands/{brand_id}", json={"photo_logo_alt_threshold": None}).json()["photo_logo"][
             "alt_threshold"

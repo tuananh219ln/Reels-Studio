@@ -4,10 +4,20 @@ import FormDrawer from "@/components/FormDrawer";
 import { LOGO_POSITIONS } from "@/components/article/ArticleImages";
 import { api, errorMessage, upload, type BrandDetail, type LogoPosition, type PhotoLogo } from "@/lib/api";
 import { DeleteOutlined } from "@ant-design/icons";
-import { App, Button, Flex, Slider, Spin, Switch, Typography } from "antd";
+import { App, Button, ColorPicker, Flex, Radio, Slider, Spin, Switch, Typography } from "antd";
 import { useEffect, useState } from "react";
 
-const DEFAULTS: PhotoLogo = { position: "bottom_right", size: 12, margin: 3, opacity: 1, alt_threshold: null };
+const DEFAULTS: PhotoLogo = {
+  position: "bottom_right",
+  size: 12,
+  margin: 3,
+  opacity: 1,
+  alt_threshold: null,
+  shape: "circle",
+  border: true,
+  border_color: "#FFFFFF",
+  shadow: true,
+};
 const DEFAULT_THRESHOLD = 0.35;
 const SAMPLES = [
   { ratio: "1:1", label: "1:1 · 1080×1080" },
@@ -23,6 +33,10 @@ function sampleUrl(brandId: number, ratio: string, look: PhotoLogo, version: str
     size: String(look.size),
     margin: String(look.margin),
     opacity: String(look.opacity),
+    shape: look.shape,
+    border: String(look.border),
+    border_color: look.border_color,
+    shadow: String(look.shadow),
     v: version,
   });
   if (look.alt_threshold === null) params.set("no_alt", "true");
@@ -71,6 +85,10 @@ export default function PhotoLogoDrawer({ brandId, onClose }: { brandId: number;
         photo_logo_margin: look.margin,
         photo_logo_opacity: look.opacity,
         photo_logo_alt_threshold: look.alt_threshold,
+        photo_logo_shape: look.shape,
+        photo_logo_border: look.border,
+        photo_logo_border_color: look.border_color,
+        photo_logo_shadow: look.shadow,
       });
       setBrand(saved);
       message.success("Đã lưu logo trên ảnh");
@@ -178,6 +196,59 @@ export default function PhotoLogoDrawer({ brandId, onClose }: { brandId: number;
             </Flex>
             <div>
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                KIỂU LOGO
+              </Typography.Text>
+              <div style={{ marginTop: 6 }}>
+                <Radio.Group
+                  aria-label="Kiểu logo"
+                  value={look.shape}
+                  disabled={readOnly}
+                  optionType="button"
+                  onChange={(event) => change({ shape: event.target.value })}
+                  options={[
+                    { value: "circle", label: "Tròn" },
+                    { value: "rounded", label: "Vuông bo góc" },
+                    { value: "none", label: "Giữ nguyên" },
+                  ]}
+                />
+              </div>
+            </div>
+            {look.shape !== "none" && (
+              <Flex gap={16} align="center" wrap>
+                <Flex gap={8} align="center">
+                  <Switch
+                    size="small"
+                    checked={look.border}
+                    disabled={readOnly}
+                    aria-label="Viền quanh logo"
+                    onChange={(on) => change({ border: on })}
+                  />
+                  <Typography.Text>Viền</Typography.Text>
+                  {look.border && (
+                    <ColorPicker
+                      size="small"
+                      value={look.border_color}
+                      disabled={readOnly}
+                      disabledAlpha
+                      aria-label="Màu viền"
+                      onChangeComplete={(color) => change({ border_color: color.toHexString().toUpperCase() })}
+                    />
+                  )}
+                </Flex>
+                <Flex gap={8} align="center">
+                  <Switch
+                    size="small"
+                    checked={look.shadow}
+                    disabled={readOnly}
+                    aria-label="Bóng mờ dưới logo"
+                    onChange={(on) => change({ shadow: on })}
+                  />
+                  <Typography.Text>Bóng mờ</Typography.Text>
+                </Flex>
+              </Flex>
+            )}
+            <div>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 VỊ TRÍ
               </Typography.Text>
               <div
@@ -210,7 +281,7 @@ export default function PhotoLogoDrawer({ brandId, onClose }: { brandId: number;
             <label>
               <Flex justify="space-between">
                 <Typography.Text>Kích thước</Typography.Text>
-                <Typography.Text strong>{look.size}% chiều rộng</Typography.Text>
+                <Typography.Text strong>{look.size}% cạnh ngắn</Typography.Text>
               </Flex>
               <Slider
                 aria-label="Kích thước logo"
@@ -303,7 +374,7 @@ export default function PhotoLogoDrawer({ brandId, onClose }: { brandId: number;
               <Typography.Text type="secondary">Page chưa có logo: tải logo ở thẻ Page trước.</Typography.Text>
             )}
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-              Logo cách mép {look.margin}% và rộng {look.size}% chiều rộng ảnh, nên tỉ lệ giữ đúng trên mọi kích thước.
+              Logo cách mép {look.margin}% và rộng {look.size}% cạnh ngắn ảnh, nên tỉ lệ giữ đúng trên mọi kích thước.
             </Typography.Text>
           </Flex>
         </Flex>
