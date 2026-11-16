@@ -1,0 +1,23 @@
+# 2026-11-17 — "Nhân bản xáo cảnh": copies with the scenes in another order, renumbered, title to change
+
+From Looper's spec "Nhân bản video với xáo trộn cảnh", built by tuananh219ln's request in the session. The spec's
+points below were settled against the app as it is.
+
+- **Its own menu item and drawer, not a "Y hệt / Xáo trộn" radio** in a shared dialog: "Nhân bản y hệt" has no
+  dialog and stays one click ([2026-11-14](2026-11-14-duplicate-video.md), unchanged), and "Nhân bản" is the AI clone.
+  The copy is that exact copy (`duplicate.copy_video`) with the content scenes reordered, so no LLM call and no job.
+- **The hook is the title scene's text**, which is also what lists and the "Tiêu đề" row show (the spec's open
+  question). So one reminder, "Đổi tiêu đề", covers both; `videos.review_title` keeps the title the copy started with
+  and the reminder lasts while the title scene still says it (compared without case, `*` marks and extra spaces) or
+  until "Bỏ qua". No separate `needs_title_review` / `needs_hook_review` flags.
+- **No `audio_stale` column:** a scene's narration is reused only while its signature (text, voice, speed) matches,
+  so a renumbered voice text is read again at the next voice job or render by itself. Likewise a reshuffled copy's MP4
+  shows "MP4 chưa cập nhật theo bản sửa" through the render fingerprint.
+- **Renumbering** changes a list number only at the start of the on-screen text and the voice text, keeping its word
+  ("Số", "Cách", "Món", "Bước", "#"), mark and spaces; a mark right before a digit ("1.5", "3-4") is not a list
+  number. It runs when at least half the content scenes are numbered; numbers not 1, 2, 3… in order are still
+  renumbered, with a warning.
+- **Orders avoid** the source's, the first video's and every earlier copy's (`videos.scene_order`, kept as the first
+  video's scene ids so copies of copies compare too). "Xáo lại cảnh" exists only on a copy.
+- **Left for later:** the AI rewrite of the hook (spec 5.1: it is an LLM call, so it needs a job and prompt text in
+  the app's data), pinning scenes other than the last, a QC item for an unchanged title, and the MCP tool.

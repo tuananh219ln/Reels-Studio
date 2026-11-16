@@ -55,6 +55,8 @@ export type VideoRow = {
   title: string;
   /** Its own name in the app ("… (copy)" after "Nhân bản y hệt"), shown before the title; never on the video. */
   name: string | null;
+  /** A "Nhân bản xáo cảnh" copy whose title scene still says its source's: the app asks for a new title. */
+  title_review: boolean;
   platform: VideoPlatform;
   /** The video a TikTok version was made from; the list shows the version on that video's card. */
   variant_of_id: number | null;
@@ -433,6 +435,13 @@ export type VideoDetail = VideoRow & {
   /** When the script was written: its last job's end, or the video's making; null without a script. */
   script_at: string | null;
   clone_of: { title: string; request: string } | null;
+  /** A "Nhân bản xáo cảnh" copy: its source, whether a new title is still asked for, and the videos with the same
+   * title among its source and the source's other copies. Null for any other video. */
+  shuffle: {
+    source: { id: number; name: string } | null;
+    review: boolean;
+    same_title: { id: number; name: string }[];
+  } | null;
   /** "Từ video mẫu": the sample video the script is learned from; null for other videos. */
   reference: VideoSample | null;
   /** The 30-day plan idea the video was made from. */

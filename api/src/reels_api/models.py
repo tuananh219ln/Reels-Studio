@@ -339,6 +339,12 @@ class Video(Base):
     # "Loại nội dung": what kind of content a member says it is (Hướng dẫn, Mẹo nhanh...), free text; "" for none.
     content_type: Mapped[str] = mapped_column(String(40), default="", server_default="")
     variant_of_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"))
+    # "Nhân bản xáo cảnh" (shuffle.py): the video this copy was shuffled from (the first one, for a copy of a copy),
+    # its content scenes' order as that video's scene ids ("12,10,11"), so later copies take another order, and the
+    # title the copy started with: "Đổi tiêu đề" is asked for while the title scene still says it. "Bỏ qua" clears it.
+    shuffled_from_id: Mapped[int | None] = mapped_column(ForeignKey("videos.id", ondelete="SET NULL"), index=True)
+    scene_order: Mapped[str | None] = mapped_column(Text)
+    review_title: Mapped[str | None] = mapped_column(Text)
     # Shopee product suggestions (affiliate_suggest.py): asked for, with whose account, done, and what went wrong.
     suggest_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suggest_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -428,6 +434,8 @@ class Scene(Base):
     # {"html", "seconds", "photo_key": a copy of the scene's photo the markup may show, "clip_key": the clip it
     # made}. The scene shows it while video_key is still clip_key; another photo or clip simply takes its place.
     motion: Mapped[dict | None] = mapped_column(JSONB)
+    # The scene of the first video a "Nhân bản xáo cảnh" copy comes from (shuffle.py), for its order; None otherwise.
+    source_scene_id: Mapped[int | None] = mapped_column(Integer)
 
     video: Mapped[Video] = relationship(back_populates="scenes")
     layers: Mapped[list["SceneLayer"]] = relationship(

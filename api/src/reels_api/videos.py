@@ -9,7 +9,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as DbSession
 
 from reels_render.blur import blur_image
@@ -1073,6 +1073,43 @@ def video_name(video: Video, title: Scene | None) -> str:
     return video.name or title_of(video, title) or video.topic
 
 
+def _plain_title(text: str | None) -> str:
+    return " ".join((text or "").replace("*", "").split()).casefold()
+
+
+def title_review(video: Video, title: Scene | None) -> bool:
+    """A "Nhân bản xáo cảnh" copy (shuffle.py) whose title scene still says what its source's did: the app asks for a
+    new title until it changes or a member presses "Bỏ qua"."""
+    return video.review_title is not None and _plain_title(title_of(video, title)) == _plain_title(video.review_title)
+
+
+def shuffle_payload(db: DbSession, video: Video, title: Scene | None) -> dict | None:
+    """The video page's banner on a "Nhân bản xáo cảnh" copy: its source, whether a new title is still asked for, and
+    the other copies (or the source) whose title is the same as this one's."""
+    if video.scene_order is None:
+        return None
+    source = db.get(Video, video.shuffled_from_id) if video.shuffled_from_id else None
+    mine = _plain_title(title_of(video, title))
+    same = []
+    if source is not None and mine:
+        rows = db.execute(
+            select(Video, Scene)
+            .join(Scene, (Scene.video_id == Video.id) & Scene.is_title.is_(True))
+            .where(or_(Video.shuffled_from_id == source.id, Video.id == source.id), Video.id != video.id)
+            .order_by(Video.id)
+        ).all()
+        same = [
+            {"id": other.id, "name": video_name(other, other_title)}
+            for other, other_title in rows
+            if _plain_title(title_of(other, other_title)) == mine
+        ]
+    return {
+        "source": {"id": source.id, "name": video_name(source, split_scenes(db, source)[0])} if source else None,
+        "review": title_review(video, title),
+        "same_title": same,
+    }
+
+
 def notes_payload(db: DbSession, video: Video, title: Scene | None, scenes: list[Scene]) -> list[dict]:
     """The studio's notes in the order of the video, each with the scene playing at its second now."""
     every = ([title] if title else []) + scenes
@@ -1121,6 +1158,7 @@ def video_payload(db: DbSession, video: Video) -> dict:
         "topic": video.topic,
         "title": title_of(video, title),
         "name": video.name,
+        "title_review": title_review(video, title),
         "has_script": video.has_script,
         "hand_written": video.hand_written,
         "title_options": video.title_options,
@@ -1137,6 +1175,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
             _video_link(db, variant)
             for variant in db.scalars(select(Video).where(Video.variant_of_id == video.id).order_by(Video.id))
         ],
+        # A "Nhân bản xáo cảnh" copy's banner; None for any other video.
+        "shuffle": shuffle_payload(db, video, title),
         "tiktok_posts": [tiktok_post_payload(post) for post in tiktok_posts_of(db, video.id)],
         # YouTube Shorts and Instagram Reels, posted by hand from the same MP4.
         "manual_posts": [manual_post_payload(post) for post in manual_posts_of(db, video.id)],
@@ -1476,6 +1516,8 @@ def list_payload(
         "assistant_app": video.assistant_app,
         "mode": video.mode,
         "content_type": video.content_type,
+        # A "Nhân bản xáo cảnh" copy still showing its source's title: the card says to change it.
+        "title_review": title_review(video, title),
         **_labels(video, title, scenes, job, failed),
         "thumbnail_url": thumbnail_url(video),
         **extras,
