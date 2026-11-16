@@ -1116,7 +1116,10 @@ steps open the status card or the products block on its tab, the QC chip its pop
     for ElevenLabs' key (whose card links back here); with a key, VieNeu's
     voices join the "Giọng" picker. Under it, the card "Giọng đọc Google" does the same for a Google Cloud
     Text-to-Speech API key, with a link to Google Cloud Console's credentials page and a line that the key's project
-    needs billing and the Cloud Text-to-Speech API on. A service whose voices cannot be listed is named in yellow under the picker.
+    needs billing and the Cloud Text-to-Speech API on. Below the key, the switch "Chỉ dùng mức miễn phí" (on by
+    default) with a line saying what on and off mean, then "Đã dùng tháng MM/YYYY:" and one row per voice kind
+    (Standard, WaveNet, Neural2, Chirp-HD): a thin bar of the characters used against 90 % of its free tier, red once
+    reached, and "used / limit ký tự" in Vietnamese number format. A service whose voices cannot be listed is named in yellow under the picker.
   - **Nguồn tư liệu** (`/settings/sources`): two groups, "Kho ảnh và video miễn phí" and "Dịch vụ AI". "Kho ảnh và video miễn phí": first the switch "Tự tìm ảnh sau khi viết kịch bản"
     (on by default: a stock photo for every scene once a script or clone is written) with "Thứ tự
     tìm: Pexels → Pixabay → Openverse" (the sources in use); then the stock libraries side by side

@@ -7,7 +7,17 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from . import auto_footage, auto_photos, edit_log, image_providers, image_style, llm, routes_videos, source_keys
+from . import (
+    auto_footage,
+    auto_photos,
+    edit_log,
+    google_tts_quota,
+    image_providers,
+    image_style,
+    llm,
+    routes_videos,
+    source_keys,
+)
 from .models import LlmProvider
 
 # Card ids within each page's history, and the names the history shows for them.
@@ -51,7 +61,10 @@ def snapshot(db: DbSession) -> dict[tuple[str, int], dict[str, Any]]:
     return {
         (edit_log.SETTINGS_AI, 1): _llm_card(db),
         (edit_log.SETTINGS_AI, 2): {"vieneu.key": _source_key(db, "vieneu")},
-        (edit_log.SETTINGS_AI, 3): {"google_tts.key": _source_key(db, "google_tts")},
+        (edit_log.SETTINGS_AI, 3): {
+            "google_tts.key": _source_key(db, "google_tts"),
+            "google_tts.free_only": google_tts_quota.free_only(db),
+        },
         (edit_log.SETTINGS_SOURCES, 1): stock,
         (edit_log.SETTINGS_SOURCES, 2): {
             "ai_provider": image_providers.saved(db),

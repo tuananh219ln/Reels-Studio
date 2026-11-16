@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { App, Button, Card, Flex, Input, Popconfirm, Space, Typography } from "antd";
+import { App, Button, Card, Flex, Input, Popconfirm, Progress, Space, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 import StatusText from "@/components/StatusText";
 import { forgetVoices } from "@/components/video/VideoSettings";
@@ -12,7 +12,76 @@ import { api, errorMessage } from "@/lib/api";
 type VoiceKey = {
   configured: boolean;
   key: { origin: "saved" | "unreadable" | "env" | null; hint: string; signup_url: string };
+  /** Google only (api google_tts_quota.py): "Chỉ dùng mức miễn phí" and this month's characters by voice kind. */
+  free_only?: boolean;
+  month?: string;
+  usage?: { kind: string; label: string; used: number; limit: number }[];
 };
+
+const number = (value: number) => value.toLocaleString("vi-VN");
+
+/** "Chỉ dùng mức miễn phí": on, narration stops before a voice kind passes 90 % of Google's free characters for the
+ * month; the bars show this month's use of each kind against that limit. */
+function FreeTierLimit({ state, onChange }: { state: VoiceKey; onChange: (data: VoiceKey) => void }) {
+  const { message } = App.useApp();
+  const [busy, setBusy] = useState(false);
+
+  async function toggle(enabled: boolean) {
+    setBusy(true);
+    try {
+      const data = await api<{ google_tts: VoiceKey }>("/settings/google-tts-free-only", "PUT", { enabled });
+      onChange(data.google_tts);
+    } catch (err) {
+      message.error(errorMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Flex vertical gap={6} data-testid="google-free-tier">
+      <Flex gap={8} align="center">
+        <Switch
+          aria-label="Chỉ dùng mức miễn phí"
+          checked={state.free_only}
+          loading={busy}
+          onChange={(enabled) => void toggle(enabled)}
+        />
+        <Typography.Text>Chỉ dùng mức miễn phí</Typography.Text>
+      </Flex>
+      <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+        {state.free_only
+          ? "Bật: app dừng đọc lời khi một loại giọng dùng tới 90% số ký tự miễn phí của tháng, nên không bị tính phí."
+          : "Tắt: app đọc tiếp khi vượt mức miễn phí, Google sẽ tính phí phần vượt."}{" "}
+        Đã dùng tháng {state.month}:
+      </Typography.Text>
+      {state.usage?.map((row) => (
+        <Flex key={row.kind} gap={8} align="center" wrap>
+          <Typography.Text style={{ width: 150, flex: "none" }}>{row.label}</Typography.Text>
+          {row.limit > 0 ? (
+            <>
+              <Progress
+                aria-label={`Đã dùng ${row.label}`}
+                style={{ flex: "1 1 120px", margin: 0 }}
+                size="small"
+                showInfo={false}
+                percent={Math.min(100, (row.used / row.limit) * 100)}
+                status={row.used >= row.limit ? "exception" : "normal"}
+              />
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                {number(row.used)} / {number(row.limit)} ký tự
+              </Typography.Text>
+            </>
+          ) : (
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {number(row.used)} ký tự
+            </Typography.Text>
+          )}
+        </Flex>
+      ))}
+    </Flex>
+  );
+}
 
 /** The narration services whose key is pasted on Cài đặt › Mô hình AI, by their api source_keys name. */
 export const VOICE_KEY_SERVICES = {
@@ -171,6 +240,7 @@ export default function VoiceKeyCard({
             )}
           </Space.Compact>
         )}
+        {state.usage && <FreeTierLimit state={state} onChange={setState} />}
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
           Key được mã hoá khi lưu và không bao giờ hiện lại.
         </Typography.Text>

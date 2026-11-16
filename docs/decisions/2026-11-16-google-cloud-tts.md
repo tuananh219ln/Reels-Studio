@@ -18,3 +18,11 @@ voice and the only Speech-to-Text.
 - **A text over 5000 bytes is refused before the call** (Google's limit for one request), with a message to split the
   scene, rather than paying for a failed request.
 - The web key card is now one component for both services (`VoiceKeyCard`, from `VieneuKeyCard`).
+- **"Chỉ dùng mức miễn phí", on by default.** Google bills past each voice kind's monthly free characters and has no
+  switch to stop there (a budget only sends alerts, hours late), so the app counts the characters Google read, by kind
+  and month, and refuses a narration before the call when it would pass 90 % of its kind's free tier. The margin
+  covers the hours by which Vietnam's month starts before Google's (Pacific time) and two jobs counting at once.
+  Characters are counted after Google answers (it bills only what it read) and always, so the card shows the month's
+  use with the switch off too. A kind with no free tier known to the app is refused while the switch is on. The free
+  tiers are written in `google_tts_quota.TIERS` from Google's pricing page of 2026-11; a change there needs a change
+  here. Turning the switch off is logged in the Mô hình AI history like the key.

@@ -7,8 +7,8 @@ from fake_services import GOOGLE_TTS_KEY
 from test_voice import TEN_WORDS, needs_ffmpeg, render, voiced  # noqa: F401  (fixture)
 from worker_helpers import committed  # noqa: F401  (fixture)
 
-from reels_api import source_keys, tts, video_options
-from reels_api.models import Video
+from reels_api import google_tts_quota, source_keys, tts, video_options
+from reels_api.models import AppSetting, Video
 from reels_api.tts import voice_signature
 
 ACHERNAR = "google:vi-VN-Chirp3-HD-Achernar"
@@ -158,3 +158,95 @@ def test_google_billing_off_fails_the_render_with_a_clear_reason(committed, voic
     job = render(committed, storage, video_id, user.id)
     assert job.status == "failed" and "chưa bật thanh toán" in job.error
     assert len(fakes.google_tts_requests) == 1
+
+
+# --- "Chỉ dùng mức miễn phí": the app stops before a voice kind passes Google's free characters for the month ---
+
+
+def test_each_google_voice_counts_against_its_own_kind():
+    assert google_tts_quota.kind(ACHERNAR) == "chirp_hd"
+    assert google_tts_quota.kind("google:vi-VN-Chirp-HD-F") == "chirp_hd"
+    assert google_tts_quota.kind("google:vi-VN-Neural2-D") == "neural2"
+    assert google_tts_quota.kind("google:vi-VN-Wavenet-A") == "wavenet"
+    assert google_tts_quota.kind("google:vi-VN-Standard-A") == "standard"
+    assert google_tts_quota.kind("google:vi-VN-Studio-X") == "other"
+    assert google_tts_quota.limit("chirp_hd") == 900_000 and google_tts_quota.limit("standard") == 3_600_000
+
+
+def set_usage(factory, month, chars):
+    with factory() as db:
+        db.merge(AppSetting(key=google_tts_quota.USAGE_KEY, value={"month": month, "chars": chars}))
+        db.commit()
+
+
+def google_ready(factory, video_id, user_id, voice=ACHERNAR):
+    with factory() as db:
+        db.get(Video, video_id).options = video_options.DEFAULTS | {"voice_id": voice}
+        source_keys.save(db, "google_tts", GOOGLE_TTS_KEY, user_id)
+        db.commit()
+
+
+@needs_ffmpeg
+def test_a_render_counts_what_google_read_and_the_card_shows_it(committed, voiced, fakes):  # noqa: F811
+    user, storage, video_id = voiced
+    set_usage(committed, "2000-01", {"chirp_hd": 899_999})  # last month's count does not carry over
+    google_ready(committed, video_id, user.id)
+    assert render(committed, storage, video_id, user.id).status == "done"
+    with committed() as db:
+        assert google_tts_quota.used(db) == {"chirp_hd": len(TEN_WORDS)}
+        card = google_tts_quota.payload(db)
+    assert card["free_only"] is True
+    chirp = next(row for row in card["usage"] if row["kind"] == "chirp_hd")
+    assert chirp == {"kind": "chirp_hd", "label": "Chirp-HD", "used": len(TEN_WORDS), "limit": 900_000}
+
+
+@needs_ffmpeg
+def test_a_render_that_would_pass_the_free_tier_stops_before_calling_google(committed, voiced, fakes):  # noqa: F811
+    user, storage, video_id = voiced
+    set_usage(committed, google_tts_quota.this_month(), {"chirp_hd": 900_000 - 3, "standard": 10})
+    google_ready(committed, video_id, user.id)
+    job = render(committed, storage, video_id, user.id)
+    assert job.status == "failed" and "gần hết mức miễn phí" in job.error and "899.997 / 900.000" in job.error
+    assert fakes.google_tts_requests == []
+    with committed() as db:
+        assert google_tts_quota.used(db) == {"chirp_hd": 900_000 - 3, "standard": 10}
+
+
+@needs_ffmpeg
+def test_another_kind_still_reads_when_one_kind_is_used_up(committed, voiced, fakes):  # noqa: F811
+    user, storage, video_id = voiced
+    set_usage(committed, google_tts_quota.this_month(), {"chirp_hd": 900_000})
+    google_ready(committed, video_id, user.id, "google:vi-VN-Neural2-D")
+    assert render(committed, storage, video_id, user.id).status == "done"
+    with committed() as db:
+        assert google_tts_quota.used(db) == {"chirp_hd": 900_000, "neural2": len(TEN_WORDS)}
+
+
+@needs_ffmpeg
+def test_with_the_switch_off_google_reads_past_the_free_tier(committed, voiced, fakes):  # noqa: F811
+    user, storage, video_id = voiced
+    set_usage(committed, google_tts_quota.this_month(), {"chirp_hd": 900_000})
+    google_ready(committed, video_id, user.id)
+    with committed() as db:
+        google_tts_quota.set_free_only(db, False, user.id)
+        db.commit()
+    assert render(committed, storage, video_id, user.id).status == "done"
+    with committed() as db:
+        assert google_tts_quota.used(db) == {"chirp_hd": 900_000 + len(TEN_WORDS)}
+
+
+@needs_ffmpeg
+def test_a_voice_kind_with_no_known_free_tier_is_refused_while_the_switch_is_on(committed, voiced, fakes):  # noqa: F811
+    user, storage, video_id = voiced
+    google_ready(committed, video_id, user.id, "google:vi-VN-Studio-X")
+    job = render(committed, storage, video_id, user.id)
+    assert job.status == "failed" and "không có mức miễn phí" in job.error
+    assert fakes.google_tts_requests == []
+
+
+def test_the_switch_is_on_by_default_and_turning_it_off_is_logged(an, fakes):
+    assert an.get("/api/settings/sources").json()["google_tts"]["free_only"] is True
+    off = an.put("/api/settings/google-tts-free-only", json={"enabled": False})
+    assert off.status_code == 200 and off.json()["google_tts"]["free_only"] is False
+    entries = an.get("/api/edit-logs", params={"entity_type": "settings_ai", "entity_id": 3}).json()["entries"]
+    assert [entry["changes"] for entry in entries] == [{"google_tts.free_only": {"old": True, "new": False}}]

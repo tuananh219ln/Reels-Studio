@@ -11,6 +11,7 @@ from . import (
     auto_photos,
     config,
     crypto,
+    google_tts_quota,
     image_providers,
     image_style,
     llm,
@@ -360,7 +361,12 @@ def _sources(db: DbSession) -> dict:
         # Narration (VieNeu), its key pasted on Cài đặt › Mô hình AI: voices whose id starts with "vieneu:".
         "vieneu": {"configured": bool(source_keys.get(db, "vieneu")), "key": _key(db, "vieneu")},
         # Narration (Google Cloud Text-to-Speech), its key pasted on Cài đặt › Mô hình AI: voices "google:<name>".
-        "google_tts": {"configured": bool(source_keys.get(db, "google_tts")), "key": _key(db, "google_tts")},
+        # With this month's characters by voice kind and "Chỉ dùng mức miễn phí" (google_tts_quota.py).
+        "google_tts": {
+            "configured": bool(source_keys.get(db, "google_tts")),
+            "key": _key(db, "google_tts"),
+            **google_tts_quota.payload(db),
+        },
     }
 
 
@@ -437,6 +443,19 @@ def set_source(
         db.add(AppSetting(key=routes_videos.STOCK_OFF_KEY, value=sorted(off), updated_by_id=me.user_id))
     else:
         setting.value, setting.updated_by_id = sorted(off), me.user_id
+    settings_log.record(db, before, me.user_id)
+    db.commit()
+    return _sources(db)
+
+
+@router.put("/google-tts-free-only")
+def set_google_tts_free_only(
+    body: SourceBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> dict:
+    """ "Chỉ dùng mức miễn phí" on the "Giọng đọc Google" card: on, narration stops before a voice kind passes its
+    free characters for the month."""
+    before = settings_log.snapshot(db)
+    google_tts_quota.set_free_only(db, body.enabled, me.user_id)
     settings_log.record(db, before, me.user_id)
     db.commit()
     return _sources(db)
