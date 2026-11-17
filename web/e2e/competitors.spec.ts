@@ -51,7 +51,7 @@ async function standIn(page: Page, account: { userId: string | null; incognito: 
       }
       const answer = (body: object) => window.postMessage({ source: "reels-extension", ...body }, "*");
       if (data.type === "hello") {
-        answer({ type: "ready", version: "1.3.0" });
+        answer({ type: "ready", version: "1.4.0" });
       } else if (data.type === "scan-account") {
         answer({ type: "answer", id: data.id, ...saved });
       } else if (data.type === "scan-reels") {

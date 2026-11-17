@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { usePolling } from "@/lib/polling";
 
 /*
- * "Phân tích đối thủ": this page drives the team's Chrome extension (extension/ at the repo root, 1.2.0 or newer).
+ * "Phân tích đối thủ": this page drives the team's Chrome extension (extension/ at the repo root, 1.4.0 or newer).
  * While it is open with the extension there and a second Facebook account saved in it, it asks the api for the
  * member's next scan (made here or by their Claude through MCP), has the extension read the competitor's Reels grid
  * in an incognito window signed in as that account, saves each batch, then sends back the most viewed reels for the
@@ -23,7 +23,15 @@ export type CompetitorScan = {
   started_at: string | null;
   finished_at: string | null;
   error: string | null;
-  competitor: { id: number; fb_url: string; kind: "page" | "profile"; name: string | null; reels_url: string };
+  include_videos: boolean;
+  competitor: {
+    id: number;
+    fb_url: string;
+    kind: "page" | "profile";
+    name: string | null;
+    reels_url: string;
+    videos_url: string;
+  };
 };
 
 /** The second account saved in the extension (its Facebook id), and whether it may open incognito windows. */
@@ -34,7 +42,7 @@ export type ScanProgress = { scan: CompetitorScan; found: number; details?: { re
 
 const FROM_PAGE = "reels-page";
 const FROM_EXTENSION = "reels-extension";
-const MIN_VERSION = [1, 2, 0];
+const MIN_VERSION = [1, 4, 0];
 // Nothing from the extension for this long: the window or the extension stopped; the scan is saved as partial.
 const SILENCE_MS = 3 * 60 * 1000;
 
@@ -103,7 +111,10 @@ export function openExtensionOptions(): void {
   window.postMessage({ source: FROM_PAGE, type: "open-options" }, window.location.origin);
 }
 
-type GridVideo = { fb_video_id: string; views_raw: string | null; position: number };
+/** A video the extension opens on its own page (api competitors.enrich_targets). */
+type EnrichTarget = { fb_video_id: string; url: string; comments: boolean };
+
+type GridVideo = { fb_video_id: string; views_raw: string | null; position: number; type?: "reel" | "video" };
 type Ended = { status: "done" | "partial" | "failed"; error?: string | null; name?: string | null };
 
 /** Runs one claimed scan through the extension, saving everything in order; resolves with how it ended. */
@@ -152,16 +163,18 @@ function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => v
         save(async () => {
           // Not answered: no reels are opened and the extension closes the scan with the grid saved.
           // The first of them (comment_ids) also have a sample of their comments read.
-          const targets = await api<{ fb_video_ids: string[]; comment_ids: string[] }>(
-            `/competitors/scans/${scan.id}/enrich-targets`,
-            "POST",
-          ).catch(() => ({ fb_video_ids: [] as string[], comment_ids: [] as string[] }));
-          onProgress({ scan, found, details: { read: 0, of: targets.fb_video_ids.length } });
+          // Then a few videos spread down each grid, only for their posting date (M5). Each has its own address.
+          const empty = { targets: [] as EnrichTarget[], fb_video_ids: [] as string[], comment_ids: [] as string[] };
+          const targets = await api<typeof empty>(`/competitors/scans/${scan.id}/enrich-targets`, "POST").catch(
+            () => empty,
+          );
+          onProgress({ scan, found, details: { read: 0, of: targets.targets.length } });
           window.postMessage(
             {
               source: FROM_PAGE,
               type: "scan-details",
               scanId: scan.id,
+              targets: targets.targets,
               ids: targets.fb_video_ids,
               commentIds: targets.comment_ids,
             },
@@ -188,6 +201,8 @@ function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => v
         id: request,
         scanId: scan.id,
         url: scan.competitor.reels_url,
+        // M5: the Videos tab after Reels, when the scan asks for it.
+        videosUrl: scan.include_videos ? scan.competitor.videos_url : undefined,
         maxVideos: scan.max_videos,
       },
       window.location.origin,

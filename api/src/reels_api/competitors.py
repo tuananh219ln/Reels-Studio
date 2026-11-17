@@ -8,21 +8,35 @@ docs/decisions/2026-11-17-competitor-analyzer.md; the extension's side is extens
 import re
 import statistics
 import unicodedata
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urlsplit
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session as DbSession
 
 from .errors import ApiError
-from .models import Competitor, CompetitorComment, CompetitorReport, CompetitorScan, CompetitorVideo, User
+from .models import (
+    COMPETITOR_VIDEO_TYPES,
+    Competitor,
+    CompetitorComment,
+    CompetitorReport,
+    CompetitorScan,
+    CompetitorVideo,
+    User,
+)
 from .sessions import now
 
 MAX_VIDEOS_DEFAULT = 500
 MAX_VIDEOS_LIMIT = 2000
 # M3: the most viewed videos whose own page is opened for caption, sound and reactions (4–8 s apart).
+# M5: besides the top reels, a video every TIMELINE_STEP places down each grid (the newest and the oldest
+# always) has its own page opened for its posting date, so how often the competitor posts is read from the grid.
+TIMELINE_STEP = 50
+TIMELINE_LIMIT = 30
+VIETNAM = ZoneInfo("Asia/Ho_Chi_Minh")
 CAPTIONS_TOP_DEFAULT = 30
 CAPTIONS_TOP_LIMIT = 100
 CAPTION_LIMIT = 5000
@@ -117,12 +131,24 @@ def parse_url(raw: str) -> dict:
     ):
         raise ApiError(422, "bad_competitor_url", BAD_LINK)
     url = f"https://www.facebook.com/{name}"
-    return {"fb_url": url, "fb_id": None, "kind": "page", "reels_url": url + "/reels/"}
+    return {
+        "fb_url": url,
+        "fb_id": None,
+        "kind": "page",
+        "reels_url": url + "/reels/",
+        "videos_url": url + "/videos/",
+    }
 
 
 def _numeric(fb_id: str) -> dict:
     url = f"https://www.facebook.com/profile.php?id={fb_id}"
-    return {"fb_url": url, "fb_id": fb_id, "kind": "profile", "reels_url": url + "&sk=reels_tab"}
+    return {
+        "fb_url": url,
+        "fb_id": fb_id,
+        "kind": "profile",
+        "reels_url": url + "&sk=reels_tab",
+        "videos_url": url + "&sk=videos",
+    }
 
 
 # "4,5M", "288K", "7,6 N", "1,2 Tr lượt xem", "12.345", "980": Facebook writes views in the reader's locale, so "." and
@@ -167,6 +193,151 @@ def parse_views(raw: str | None) -> int | None:
     return int(value.to_integral_value())
 
 
+# Facebook's posting time as written on a video's page: relative ("5 phút", "3 giờ", "2 ngày", "1 tuần", "3d"),
+# "Hôm qua lúc 08:00", or a date ("17 tháng 10", "17 tháng 10, 2024", "17/10/2024", "October 17, 2024").
+RELATIVE = re.compile(
+    r"^(\d+)\s*(giây|phút|giờ|ngày|tuần|tháng|năm|s|m|h|d|w|y|secs?|mins?|hrs?|hours?|days?|weeks?|months?|years?)$"
+)
+UNIT_DAYS = {
+    "giây": 1 / 86400,
+    "s": 1 / 86400,
+    "sec": 1 / 86400,
+    "secs": 1 / 86400,
+    "phút": 1 / 1440,
+    "m": 1 / 1440,
+    "min": 1 / 1440,
+    "mins": 1 / 1440,
+    "giờ": 1 / 24,
+    "h": 1 / 24,
+    "hr": 1 / 24,
+    "hrs": 1 / 24,
+    "hour": 1 / 24,
+    "hours": 1 / 24,
+    "ngày": 1,
+    "d": 1,
+    "day": 1,
+    "days": 1,
+    "tuần": 7,
+    "w": 7,
+    "week": 7,
+    "weeks": 7,
+    "tháng": 30,
+    "month": 30,
+    "months": 30,
+    "năm": 365,
+    "y": 365,
+    "year": 365,
+    "years": 365,
+}
+MONTHS_EN = {
+    name: number
+    for number, names in enumerate(
+        [
+            ("january", "jan"),
+            ("february", "feb"),
+            ("march", "mar"),
+            ("april", "apr"),
+            ("may",),
+            ("june", "jun"),
+            ("july", "jul"),
+            ("august", "aug"),
+            ("september", "sep", "sept"),
+            ("october", "oct"),
+            ("november", "nov"),
+            ("december", "dec"),
+        ],
+        start=1,
+    )
+    for name in names
+}
+CLOCK = re.compile(r"(?:lúc|at)\s+(\d{1,2}):(\d{2})\s*(am|pm|sa|ch)?")
+
+
+def parse_posted(raw: str | None, at: datetime) -> datetime | None:
+    """When a video was posted, from the time its page shows, `at` being when it was read. Relative times are as
+    exact as Facebook wrote them; a date without a year is the last such day not after `at` (Vietnam time)."""
+    if not raw:
+        return None
+    text = unicodedata.normalize("NFC", raw).lower().replace("\u00a0", " ").strip()
+    text = re.sub(r"\s+(trước|ago)$", "", text).strip(" ·.")
+    if text in ("vừa xong", "just now"):
+        return at
+    found = RELATIVE.match(text)
+    if found:
+        return at - timedelta(days=int(found[1]) * UNIT_DAYS[found[2]])
+    local = at.astimezone(VIETNAM)
+    clock = CLOCK.search(text)
+    hour, minute = 0, 0
+    if clock:
+        hour, minute = int(clock[1]) % 24, int(clock[2])
+        if clock[3] in ("pm", "ch") and hour < 12:
+            hour += 12
+        if clock[3] in ("am", "sa") and hour == 12:
+            hour = 0
+        text = text[: clock.start()].strip(" ,")
+    if text in ("hôm qua", "yesterday"):
+        day = (local - timedelta(days=1)).date()
+        return datetime(day.year, day.month, day.day, hour, minute, tzinfo=VIETNAM).astimezone(UTC)
+    day = month = year = None
+    if (found := re.fullmatch(r"(\d{1,2})\s+tháng\s+(\d{1,2})(?:,?\s+(?:năm\s+)?(\d{4}))?", text)) or (
+        found := re.fullmatch(r"(\d{1,2})/(\d{1,2})(?:/(\d{4}))?", text)
+    ):
+        day, month, year = int(found[1]), int(found[2]), found[3]
+    elif found := re.fullmatch(r"([a-z]+)\s+(\d{1,2})(?:,?\s+(\d{4}))?", text):
+        month, day, year = MONTHS_EN.get(found[1]), int(found[2]), found[3]
+    elif found := re.fullmatch(r"(\d{1,2})\s+([a-z]+)(?:,?\s+(\d{4}))?", text):
+        day, month, year = int(found[1]), MONTHS_EN.get(found[2]), found[3]
+    if not day or not month:
+        return None
+    try:
+        posted = datetime(int(year) if year else local.year, month, day, hour, minute, tzinfo=VIETNAM)
+    except ValueError:
+        return None
+    if not year and posted > local:
+        try:
+            posted = posted.replace(year=posted.year - 1)
+        except ValueError:
+            return None
+    return posted.astimezone(UTC)
+
+
+def compare(db: DbSession, user_id: int, competitor_ids: list[int]) -> list[dict]:
+    """Competitors side by side (M5): for each, its latest scan that read anything (done or partial) and that scan's
+    numbers, summed in code. A competitor with no such scan is listed with `scan: null`."""
+    rows = []
+    for competitor_id in competitor_ids:
+        competitor = own_competitor(db, competitor_id, user_id)
+        scan = db.scalar(
+            select(CompetitorScan)
+            .where(CompetitorScan.competitor_id == competitor.id, CompetitorScan.status.in_(("done", "partial")))
+            .order_by(CompetitorScan.id.desc())
+            .limit(1)
+        )
+        summary = None
+        if scan is not None:
+            numbers = stats(db, scan)
+            summary = {
+                key: numbers[key]
+                for key in (
+                    "scan_id",
+                    "status",
+                    "videos",
+                    "by_type",
+                    "total_views",
+                    "median_views",
+                    "max_views",
+                    "buckets",
+                    "top10_share",
+                    "videos_per_week",
+                    "newest_posted_at",
+                    "oldest_posted_at",
+                )
+            }
+            summary["finished_at"] = scan.finished_at.isoformat() if scan.finished_at else None
+        rows.append({"competitor": competitor_payload(competitor), "scan": summary})
+    return rows
+
+
 def scanner_online(user: User) -> bool:
     seen = user.competitor_scanner_at
     return seen is not None and now() - seen < SCANNER_ONLINE_FOR
@@ -179,6 +350,7 @@ def start_scan(
     max_videos: int = MAX_VIDEOS_DEFAULT,
     captions_top: int = CAPTIONS_TOP_DEFAULT,
     comments_top: int = COMMENTS_TOP_DEFAULT,
+    include_videos: bool = False,
 ) -> CompetitorScan:
     """A queued scan of the competitor at `url` (made on first use). One waiting or running scan per competitor: a
     second request answers the one already there."""
@@ -203,7 +375,7 @@ def start_scan(
         status="queued",
         scope={
             "reels": True,
-            "videos": False,
+            "videos": bool(include_videos),
             "max_videos": max(1, min(max_videos, MAX_VIDEOS_LIMIT)),
             "fetch_captions_top_n": max(0, min(captions_top, CAPTIONS_TOP_LIMIT)),
             "fetch_comments_top_n": max(0, min(comments_top, COMMENTS_TOP_LIMIT, captions_top)),
@@ -301,22 +473,53 @@ def comments_top(scan: CompetitorScan) -> int:
     return (scan.scope or {}).get("fetch_comments_top_n", 0)
 
 
-def enrich_targets(db: DbSession, scan: CompetitorScan) -> list[str]:
-    """The most viewed videos of a running scan whose own page the extension opens next (M3); the first
-    comments_top(scan) of them also have their comments sampled (M4)."""
+def enrich_targets(db: DbSession, scan: CompetitorScan) -> list[dict]:
+    """The videos of a running scan whose own page the extension opens next, each {fb_video_id, url, comments}: the
+    most viewed (M3; the first comments_top(scan) of them also have their comments sampled, M4), then the grid's
+    timeline samples (M5), only for their posting date."""
     ensure_running(scan)
     scan.heartbeat_at = now()
-    limit = captions_top(scan)
-    if not limit:
-        return []
-    return list(
+    top = list(
         db.scalars(
-            select(CompetitorVideo.fb_video_id)
+            select(CompetitorVideo)
             .where(CompetitorVideo.scan_id == scan.id, CompetitorVideo.views.is_not(None))
             .order_by(CompetitorVideo.views.desc(), CompetitorVideo.id)
-            .limit(limit)
+            .limit(captions_top(scan))
         )
     )
+    sampled = comments_top(scan)
+    targets = [
+        {"fb_video_id": video.fb_video_id, "url": video.url, "comments": rank < sampled}
+        for rank, video in enumerate(top)
+    ]
+    chosen = {video.id for video in top}
+    for video in timeline_samples(db, scan.id):
+        if video.id not in chosen:
+            targets.append({"fb_video_id": video.fb_video_id, "url": video.url, "comments": False})
+            chosen.add(video.id)
+    return targets
+
+
+def timeline_samples(db: DbSession, scan_id: int) -> list[CompetitorVideo]:
+    """For each grid (Reels, Videos), the newest and the oldest video and one every TIMELINE_STEP places between."""
+    picked = []
+    for kind in COMPETITOR_VIDEO_TYPES:
+        grid = list(
+            db.scalars(
+                select(CompetitorVideo)
+                .where(
+                    CompetitorVideo.scan_id == scan_id,
+                    CompetitorVideo.type == kind,
+                    CompetitorVideo.position.is_not(None),
+                )
+                .order_by(CompetitorVideo.position)
+            )
+        )
+        if not grid:
+            continue
+        places = sorted({*range(0, len(grid), TIMELINE_STEP), len(grid) - 1})[:TIMELINE_LIMIT]
+        picked.extend(grid[place] for place in places)
+    return picked
 
 
 def add_details(db: DbSession, scan: CompetitorScan, details: list[dict]) -> int:
@@ -340,6 +543,10 @@ def add_details(db: DbSession, scan: CompetitorScan, details: list[dict]) -> int
             video.audio_name = audio[:300]
         if detail.get("duration_s"):
             video.duration_s = detail["duration_s"]
+        posted_raw = (detail.get("posted_raw") or "").strip()[:80]
+        posted = parse_posted(posted_raw, now())
+        if posted is not None:
+            video.posted_raw, video.posted_at = posted_raw, posted
         for field in ("reactions", "comments", "shares"):
             value = parse_views(detail.get(f"{field}_raw"))
             if value is not None:
@@ -410,10 +617,8 @@ def stats(db: DbSession, scan: CompetitorScan) -> dict:
     total = sum(views)
     top10 = sum(views[:10])  # videos_of sorts by views, highest first
     dated = sorted(video.posted_at for video in videos if video.posted_at is not None)
-    per_week = None
-    if len(dated) >= 2:
-        weeks = max((dated[-1] - dated[0]).days / 7, 1)
-        per_week = round(len(dated) / weeks, 1)
+    frequency = {kind: _frequency(videos, kind) for kind in COMPETITOR_VIDEO_TYPES}
+    main = frequency["reel"] or frequency["video"]
     return {
         "scan_id": scan.id,
         "status": scan.status,
@@ -433,9 +638,49 @@ def stats(db: DbSession, scan: CompetitorScan) -> dict:
         ],
         "top10_views": top10,
         "top10_share": round(top10 / total, 4) if total else None,
-        "videos_per_week": per_week,
+        "by_type": {kind: sum(1 for video in videos if video.type == kind) for kind in COMPETITOR_VIDEO_TYPES},
+        "videos_per_week": main["videos_per_week"] if main else None,
+        "frequency": frequency,
+        "newest_posted_at": dated[-1].isoformat() if dated else None,
+        "oldest_posted_at": dated[0].isoformat() if dated else None,
         "dated_videos": len(dated),
         "limits": _limits(scan, videos, len(videos), len(views), len(dated), _commented(db, scan.id)),
+    }
+
+
+def _frequency(videos: list[CompetitorVideo], kind: str) -> dict | None:
+    """How often one grid was posted to, from its dated videos and their places on it (newest first): the videos
+    between two dated ones were posted between their dates. Whole span, and each stretch between dated samples."""
+    points = sorted(
+        (video.position, video.posted_at)
+        for video in videos
+        if video.type == kind and video.position is not None and video.posted_at is not None
+    )
+    if len(points) < 2:
+        return None
+
+    def per_week(newer, older) -> float | None:
+        days = (newer[1] - older[1]).total_seconds() / 86400
+        if days < 1 or older[0] <= newer[0]:
+            return None
+        return round((older[0] - newer[0]) / (days / 7), 1)
+
+    stretches = []
+    for newer, older in zip(points, points[1:], strict=False):
+        stretches.append(
+            {
+                "from": older[1].isoformat(),
+                "to": newer[1].isoformat(),
+                "videos": older[0] - newer[0],
+                "videos_per_week": per_week(newer, older),
+            }
+        )
+    return {
+        "videos_per_week": per_week(points[0], points[-1]),
+        "from": points[-1][1].isoformat(),
+        "to": points[0][1].isoformat(),
+        "videos": points[-1][0] - points[0][0] + 1,
+        "stretches": stretches,
     }
 
 
@@ -464,10 +709,16 @@ def _limits(
             "(tối đa 30 bình luận đầu mỗi video, không phải toàn bộ)."
         )
     if count and dated == 0:
-        notes.append("Lưới Reels không có ngày đăng: chưa tính được tần suất đăng.")
+        notes.append("Chưa đọc được ngày đăng nào: chưa tính được tần suất đăng.")
+    elif count:
+        notes.append(
+            'Ngày đăng đọc từ trang riêng của từng video (ví dụ "3 ngày", "17 tháng 10"): ngày tương đối là ước '
+            "lượng; tần suất tính theo vị trí trên lưới giữa các video có ngày."
+        )
     if count >= (scan.scope or {}).get("max_videos", MAX_VIDEOS_DEFAULT):
         notes.append("Đã chạm giới hạn số video của lượt quét; trang có thể còn video cũ hơn.")
-    notes.append("Chỉ quét tab Reels; video thường (tab Video) chưa được quét.")
+    if not (scan.scope or {}).get("videos"):
+        notes.append("Chỉ quét tab Reels; video thường (tab Video) không được quét ở lượt này.")
     return notes
 
 
@@ -554,6 +805,7 @@ def video_payload(video: CompetitorVideo, rank: int | None = None) -> dict:
         "caption": video.caption,
         "duration_s": video.duration_s,
         "posted_at": video.posted_at.isoformat() if video.posted_at else None,
+        "posted_raw": video.posted_raw,
         "audio_name": video.audio_name,
         "reactions": video.reactions,
         "comments": video.comments,
@@ -570,6 +822,7 @@ def scan_payload(scan: CompetitorScan) -> dict:
         "max_videos": (scan.scope or {}).get("max_videos", MAX_VIDEOS_DEFAULT),
         "fetch_captions_top_n": captions_top(scan),
         "fetch_comments_top_n": comments_top(scan),
+        "include_videos": bool((scan.scope or {}).get("videos")),
         "created_at": scan.created_at.isoformat() if scan.created_at else None,
         "started_at": scan.started_at.isoformat() if scan.started_at else None,
         "finished_at": scan.finished_at.isoformat() if scan.finished_at else None,
@@ -586,6 +839,7 @@ def competitor_payload(competitor: Competitor) -> dict:
         "name": competitor.name,
         "followers": competitor.followers,
         "reels_url": parse_url(competitor.fb_url)["reels_url"],
+        "videos_url": parse_url(competitor.fb_url)["videos_url"],
     }
 
 

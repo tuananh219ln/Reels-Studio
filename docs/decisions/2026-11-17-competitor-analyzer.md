@@ -2,7 +2,8 @@
 
 From the spec "Competitor Analyzer (Facebook) cho MKT-Tools" v0.1, built in Reels Studio by tuananh219ln's choice in
 the session (not in MKT-Tools: Reels Studio already has the members' MCP connection and the Chrome extension). This
-round is the spec's M1 to M4; M5 (the Videos tab, posting dates, comparing competitors) is later work.
+round is the spec's M1 to M4; M5 (the Videos tab, posting dates, comparing competitors) is
+[2026-11-17-competitor-m5](2026-11-17-competitor-m5.md).
 
 - **Read in the member's browser, never by the server.** Facebook shows a Page's Reels grid and its view counts only to
   a signed-in browser that runs its JavaScript, so the team's extension (`extension/`, 1.2.0) does it, as Google Ảnh

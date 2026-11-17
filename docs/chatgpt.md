@@ -361,18 +361,20 @@ and never a Page token.
 
 ## Competitor analysis
 
-Eight tools ([the decision](decisions/2026-11-17-competitor-analyzer.md)) let a member's Claude analyse a competitor's
+Nine tools ([the decision](decisions/2026-11-17-competitor-analyzer.md)) let a member's Claude analyse a competitor's
 Facebook Reels on the member's own plan, with no AI call of the team's:
 
 - `competitor_scan_start` (write): queues a scan of the pasted link's Reels tab (`max_videos`, 500 by default;
   `fetch_captions_top_n`, 30 by default, the most viewed reels opened for caption, sound and counts;
-  `fetch_comments_top_n`, 10 by default, the first of them whose comments are sampled) or answers the one already
-  waiting. It runs as the second Facebook account saved in the member's extension. Its answer says whether the member's "Đối thủ" page with the extension is open
+  `fetch_comments_top_n`, 10 by default, the first of them whose comments are sampled; `include_videos`, the Videos
+  tab too) or answers the one already waiting. It runs as the second Facebook account saved in the member's extension. Its answer says whether the member's "Đối thủ" page with the extension is open
   (`scanner_online`) and, if not, asks the assistant to have the member open it: the scan runs only there.
 - `competitor_scan_get`: the scan's status and number of videos; the assistant calls it again after 30–60 s.
 - `competitor_list`: the member's competitors with their latest scan and its views.
-- `competitor_stats`: count, total, median, buckets (≥1M, 100K–1M, 10K–100K, <10K), the top 10's share, videos a week
-  when dates are known, and the data's limits, all summed in code.
+- `competitor_stats`: count (by type), total, median, buckets (≥1M, 100K–1M, 10K–100K, <10K), the top 10's share,
+  how often each grid was posted to (whole span and each stretch between dated samples), and the data's limits,
+  all summed in code.
+- `competitor_compare`: 2–10 competitors side by side, each by its latest scan ([M5](decisions/2026-11-17-competitor-m5.md)).
 - `competitor_video_details`: one video's full caption, sound, length, counts and `comment_samples` (text and
   likes, up to 30, no authors).
 - `competitor_top_videos`: the most viewed videos (links and views; caption, sound and counts for the opened ones)

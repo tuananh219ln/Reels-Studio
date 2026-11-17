@@ -129,13 +129,13 @@ app replaces CapCut, so the output is a finished MP4.
     mẫu", is cut by what is said (pauses and fillers out, each stretch a scene keeping its own sound, captions on the
     real words) with no AI writing. Any clip scene can keep its sound ("Tiếng gốc"). Next: the AI picks the hook,
     on-screen text and effects; then a long video cut into several shorts.
-12. **Phân tích đối thủ (built, parts M1–M4 of 5, `/competitors`):** a member pastes a competitor's Facebook link;
+12. **Phân tích đối thủ (built, `/competitors`):** a member pastes a competitor's Facebook link;
     the team's Chrome extension reads its Reels grid (each reel and its views), then the most viewed reels' captions,
     sound and reactions, in an incognito window of the member's Chrome signed in as a second account by its cookies,
     the api sums the numbers (total, median, buckets, the top 10's share), and the member's Claude analyses topics,
     viewers' pains and what to make through MCP, on the member's plan, using sample comments of the top reels as
-    evidence, and saves the report, shown under the scan. Next: the Videos tab, posting dates and comparing
-    competitors (M5). See
+    evidence, and saves the report, shown under the scan. The Videos tab can be read too, posting dates of
+    samples down each grid give how often a competitor posts, and "So sánh" puts competitors side by side. See
     [decision](decisions/2026-11-17-competitor-analyzer.md).
 
 ---
