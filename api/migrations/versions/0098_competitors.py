@@ -1,8 +1,8 @@
 """'Phân tích đối thủ': a member's competitors on Facebook, their scans, the videos each scan saw, sample
 comments of the most viewed and the reports their Claude saved.
 
-Revision ID: 0097
-Revises: 0096
+Revision ID: 0098
+Revises: 0097
 Create Date: 2026-11-17
 """
 
@@ -10,8 +10,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects.postgresql import JSONB
 
-revision = "0097"
-down_revision = "0096"
+revision = "0098"
+down_revision = "0097"
 branch_labels = None
 depends_on = None
 

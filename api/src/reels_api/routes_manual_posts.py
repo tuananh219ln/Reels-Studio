@@ -102,6 +102,9 @@ def remove_post(post_id: int, me: Session = Depends(current_member), db: DbSessi
         raise ApiError(404, "post_not_found", "Không tìm thấy bài đăng")
     if post.created_by_id != me.user_id:
         raise ApiError(403, "not_post_author", "Chỉ người ghi bài này mới xóa được")
+    if post.status == "pending":
+        # Its youtube_publish job works on this row: removing it now could leave a video on YouTube nobody sees here.
+        raise ApiError(409, "post_uploading", "Video đang tải lên YouTube, hãy đợi xong rồi xóa")
     video = db.get(Video, post.video_id)
     db.delete(post)
     db.commit()

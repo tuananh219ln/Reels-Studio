@@ -56,7 +56,7 @@ class User(Base):
     auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Their last "Cập nhật view" on "Bài đăng" (migration 0088): once per 5 minutes (routes_posts.REFRESH_EVERY).
     views_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # When their "Đối thủ" page last said the competitor extension is there (migration 0097): MCP tells the
+    # When their "Đối thủ" page last said the competitor extension is there (migration 0098): MCP tells the
     # assistant whether a queued scan will be picked up (competitors.scanner_online).
     competitor_scanner_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -551,7 +551,7 @@ class Job(Base):
     knowledge_topic_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_topics.id", ondelete="CASCADE"))
     article_id: Mapped[int | None] = mapped_column(ForeignKey("articles.id", ondelete="CASCADE"))
     # script | clone | learn | render | publish | unpublish | check | image | photos | voice | plan | revise
-    # | article_caption | motion | tiktok_publish | image_edit | image_marks
+    # | article_caption | motion | tiktok_publish | youtube_publish | image_edit | image_marks
     kind: Mapped[str] = mapped_column(String(16))
     status: Mapped[str] = mapped_column(String(16), default="queued")  # queued | running | done | failed | cancelled
     created_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
@@ -626,6 +626,9 @@ class Fanpage(Base):
     # What the worker sends to TikTok when a video of the Page goes live on Facebook (migration 0084, jobs.queue_tiktok_posts):
     # "draft" into the owner's TikTok inbox, or "direct" (public).
     tiktok_auto_mode: Mapped[str] = mapped_column(String(16), default="draft", server_default="draft")
+    # The YouTube channel the Page's videos open with on their "Tải lên YouTube" (migration 0097): one its owner
+    # connected (youtube_connections).
+    youtube_channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
     # "Đồng bộ bài ngoài app" (meta_sync.py, migration 0089): reels posted on the Page outside the app are imported
     # hourly; when that last worked, was tried, was asked for ("Đồng bộ ngay"), and what went wrong.
     sync_external_posts: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
@@ -858,6 +861,8 @@ class Publication(Base):
     platform: Mapped[str] = mapped_column(String(16))  # facebook
     fanpage_id: Mapped[int | None] = mapped_column(ForeignKey("fanpages.id"))
     # pending | scheduled | published | cancelled (never went live) | deleted (taken off the platform after going live)
+    # | private (a YouTube upload waiting for its member to make it public in YouTube Studio; `scheduled_at` is the
+    # time they planned, only a reminder) | pending_link
     status: Mapped[str] = mapped_column(String(16), default="pending")
     scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # The platform's id, saved before the upload, so "Thử lại" continues this reel instead of posting a second one.
@@ -916,6 +921,9 @@ class Publication(Base):
     external_id: Mapped[str | None] = mapped_column(String(64))
     # The YouTube channel a YouTube post is on (TikTok posts have `affiliate_account_id`, Facebook `fanpage_id`).
     channel_id: Mapped[int | None] = mapped_column(ForeignKey("channels.id", ondelete="SET NULL"))
+    # A YouTube upload's resumable session (youtube_publish.py), saved before the file is sent so a retry asks YouTube
+    # about that very upload instead of making a second video; None once it is done, and for every other post.
+    upload_url: Mapped[str | None] = mapped_column(Text)
     # "Tải MP4" for TikTok or YouTube on "Bài đăng": the post waits for its link (status `pending_link`) since then.
     mp4_downloaded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Whether `published_at` was read from the platform ("api") or typed or defaulted by the member ("user").
@@ -1289,6 +1297,41 @@ class TikTokConnection(Base):
     last_error: Mapped[str | None] = mapped_column(Text)
 
 
+class YouTubeConnection(Base):
+    """A member's YouTube channel connected through Google's OAuth (youtube_connections.py), on its `channels` row.
+    Both tokens are encrypted like a Fanpage token (crypto.py) and never leave the server. Videos go up private only
+    (docs/decisions/2026-11-17-youtube-private-upload.md)."""
+
+    __tablename__ = "youtube_connections"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    channel_id: Mapped[int] = mapped_column(ForeignKey("channels.id", ondelete="CASCADE"), unique=True)
+    google_channel_id: Mapped[str] = mapped_column(String(64), unique=True)  # YouTube's id of the channel, "UC…"
+    title: Mapped[str] = mapped_column(String(200))
+    access_token_encrypted: Mapped[str] = mapped_column(Text)
+    refresh_token_encrypted: Mapped[str] = mapped_column(Text)
+    access_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    scopes: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    # What went wrong refreshing the tokens (revoked on Google, or ended): the member has to connect again.
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+
+class YouTubeOAuthState(Base):
+    """A "Kết nối YouTube" on its way through Google's consent page: the hash of its `state`, the member who started
+    it, and when it lapses. Used once."""
+
+    __tablename__ = "youtube_oauth_states"
+
+    state_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+
+
 class TikTokOAuthState(Base):
     """A "Kết nối TikTok" on its way through TikTok's authorize page: the hash of its `state`, the member who started
     it, and when it lapses. Used once."""
@@ -1479,7 +1522,7 @@ class VideoPresence(Base):
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
-# "Phân tích đối thủ" (competitors.py, migration 0097): a member's competitors on Facebook, read in their own Chrome by
+# "Phân tích đối thủ" (competitors.py, migration 0098): a member's competitors on Facebook, read in their own Chrome by
 # the team's extension, never by the server (docs/decisions/2026-11-17-competitor-analyzer.md).
 COMPETITOR_KINDS = ("page", "profile")
 SCAN_STATUSES = ("queued", "running", "partial", "done", "failed")

@@ -396,7 +396,8 @@ outline): Facebook and TikTok ("Nháp vào hộp thư") are posted by the app, o
 after the other (one job per video at a time): Facebook to the member's Page (a "Fanpage" select when they have several)
 with the comment written when the reel is live, TikTok as a draft to the inbox of the member's connected account (a
 select when several); TikTok cannot be scheduled, so with "Hẹn giờ" its row is off ("Không hẹn giờ được"). The YouTube
-Shorts and Instagram rows are dashed on #fafaf9, with a grey export mark instead of a ring ("Đăng tay" as tooltip): they
+Shorts and Instagram rows are dashed on #fafaf9, with a grey export mark instead of a ring ("Đăng tay" as tooltip;
+YouTube's says "Tải lên riêng tư hoặc đăng tay"): they
 open the posting drawer on their tab, where a post made by hand is recorded with its link. That drawer, with every
 platform's own options (a Page's queue, TikTok posted directly, "Đã đăng tay"), has no button on the card: it is
 "Tùy chọn đăng khác" just under the card on "Đăng bài" (2026-11-15, MCP clip flow), which opens it there. The member's last pick is kept in the browser. "Đăng ngay" / "Hẹn giờ",
@@ -776,9 +777,16 @@ steps open the status card or the products block on its tab, the QC chip its pop
   - "Đăng bài" in the MP4 card, on every video, opens one drawer whose tabs are the platforms the MP4 may go to, each
     with how many posts it has ("YouTube Shorts (1)"), opening on the video's own platform (on Facebook when a
     suggestion's "Đăng" opened it): Facebook (below, with "Thêm vào hàng chờ" under its form; the drawer's own "Đăng"
-    button belongs to this tab only), TikTok (above), YouTube Shorts and Instagram Reels (the app has no connection
-    to either: "Tải MP4", "Copy caption + hashtag", then the post's link and "Ghi bài đã đăng", with the posts below
-    and a delete for the member who recorded each). Under the MP4, "Bài đăng của video" lists the posts on every
+    button belongs to this tab only), TikTok (above), YouTube Shorts and Instagram Reels ("Tải MP4", "Copy caption +
+    hashtag", then the post's link and "Ghi bài đã đăng", with the posts below and a delete for the member who
+    recorded each). YouTube Shorts starts with "Tải lên YouTube (riêng tư)": a select of the member's connected
+    channels (the Page's first), "Tiêu đề YouTube" (100 characters, counted), "Dự định công khai lúc" (a
+    `datetime-local` in Vietnam time, the Facebook time ahead or the next 07:00/11:00/18:00) and the primary button
+    "Tải lên YouTube"; with no channel connected, one warning line says to press "Kết nối YouTube" on Quản lý kênh. An
+    upload's line says "Đang tải lên YouTube…", then "Đã tải lên riêng tư · nhớ công khai lúc dd/mm/yyyy hh:mm" with
+    "Mở YouTube Studio ↗", then its "Xem bài" once YouTube shows it public. Quản lý kênh's YouTube list has "Kết nối
+    YouTube" beside its heading, each channel's state ("Đã kết nối (tên)", "Cần kết nối lại", "Chưa kết nối") and
+    "Ngắt kết nối" for the member who connected it; a Page's owner picks its YouTube channel under its TikTok account. Under the MP4, "Bài đăng của video" lists the posts on every
     platform: TikTok's and the hand-recorded ones as a line with "Xem bài", Facebook's with their actions. On
     `/videos` a card says "+ TikTok, YouTube" beside its platform when its own MP4 is out elsewhere, and a Facebook
     video already on TikTok is not offered a TikTok version;

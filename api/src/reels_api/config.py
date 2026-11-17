@@ -188,6 +188,25 @@ def youtube_api_url() -> str:
     return (read_env("YOUTUBE_API_URL") or "https://www.googleapis.com/youtube/v3").rstrip("/")
 
 
+def google_client_id() -> str:
+    # The team's Google Cloud OAuth client ("Kết nối YouTube" and uploading Shorts as private), not a member's.
+    return read_env("GOOGLE_CLIENT_ID")
+
+
+def google_client_secret() -> str:
+    return read_env("GOOGLE_CLIENT_SECRET")
+
+
+def google_oauth_url() -> str:
+    # Google's token and revoke endpoints. Overridable only so tests and E2E can point at a local fake.
+    return (read_env("GOOGLE_OAUTH_URL") or "https://oauth2.googleapis.com").rstrip("/")
+
+
+def youtube_upload_url() -> str:
+    # YouTube's resumable upload endpoint. Overridable only so tests and E2E can point at a local fake.
+    return (read_env("YOUTUBE_UPLOAD_URL") or "https://www.googleapis.com/upload/youtube/v3").rstrip("/")
+
+
 def tiktok_oembed_url() -> str:
     # Overridable only so tests and E2E can point at a local fake; production uses the default.
     return read_env("TIKTOK_OEMBED_URL") or "https://www.tiktok.com/oembed"

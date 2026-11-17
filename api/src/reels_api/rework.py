@@ -19,7 +19,7 @@ from .video_options import text_case, text_size
 from .videos import refresh_thumbnail, run_checks, split_scenes
 
 KIND = "rework"
-BLOCKED_POSTS = ("pending", "scheduled", "published", "deleted")
+BLOCKED_POSTS = ("pending", "scheduled", "private", "published", "deleted")
 
 
 class ReworkError(Exception):

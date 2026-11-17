@@ -599,7 +599,7 @@ function Platforms({
     if (!AUTO_PLATFORMS.includes(platform)) {
       // Posted by hand: the row opens the posting drawer on its tab to record the post's link.
       return (
-        <Tooltip key={platform} title="Đăng tay">
+        <Tooltip key={platform} title={platform === "youtube" ? "Tải lên riêng tư hoặc đăng tay" : "Đăng tay"}>
           <button
             type="button"
             className="platform-option platform-option--manual"

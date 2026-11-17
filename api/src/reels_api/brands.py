@@ -207,7 +207,7 @@ def has_posts(db: DbSession, video_id: int) -> bool:
             .select_from(Publication)
             .where(
                 Publication.video_id == video_id,
-                Publication.status.in_(("pending", "scheduled", "published")),
+                Publication.status.in_(("pending", "scheduled", "private", "published")),
             )
         )
         > 0

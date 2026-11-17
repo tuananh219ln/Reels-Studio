@@ -3,18 +3,20 @@
 import { useMe } from "@/components/MeContext";
 import StatusText from "@/components/StatusText";
 import { api, errorMessage, formatDateTime, type Channels } from "@/lib/api";
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, YoutubeOutlined } from "@ant-design/icons";
 import { App, Button, Card, Flex, Input, List, Popconfirm, Switch, Typography } from "antd";
 import { useCallback, useEffect, useState } from "react";
 
 /** "Quản lý kênh"'s TikTok and YouTube channels, added from their link: posts made by hand there are recorded on
- * them ("Dán link bài đã đăng" on Bài đăng). A TikTok channel is the member's TikTok account, connected in Cài đặt. */
+ * them ("Dán link bài đã đăng" on Bài đăng). A TikTok channel is the member's TikTok account, connected in Cài đặt;
+ * a YouTube channel is connected here ("Kết nối YouTube"), and its member then uploads videos to it private. */
 export default function ChannelsCard() {
   const { message } = App.useApp();
   const { me } = useMe();
   const [channels, setChannels] = useState<Channels | null>(null);
   const [link, setLink] = useState("");
   const [adding, setAdding] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
   const load = useCallback(
     () =>
@@ -26,6 +28,46 @@ export default function ChannelsCard() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Back from Google's consent page: say how the connection went, once, then drop it from the address.
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const outcome = query.get("youtube");
+    if (outcome === "connected") {
+      message.success("Đã kết nối kênh YouTube");
+    } else if (outcome === "error") {
+      message.error(query.get("message") || "Không kết nối được YouTube, hãy thử lại");
+    }
+    if (outcome) {
+      query.delete("youtube");
+      query.delete("message");
+      const rest = query.toString();
+      window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    }
+  }, [message]);
+
+  /** "Kết nối YouTube": the api gives Google's consent page and the browser goes there itself; Google sends it back
+   * here with ?youtube=connected|error. Not a link to the api: the /api proxy follows redirects itself. */
+  async function connectYouTube() {
+    setConnecting(true);
+    try {
+      const { url } = await api<{ url: string }>("/youtube/oauth/start");
+      window.location.assign(url);
+    } catch (err) {
+      message.error(errorMessage(err));
+      setConnecting(false);
+    }
+  }
+
+  async function disconnect(connectionId: number) {
+    try {
+      await api(`/youtube/connections/${connectionId}`, "DELETE");
+      message.success("Đã ngắt kết nối YouTube");
+      await load();
+    } catch (err) {
+      message.error(errorMessage(err));
+    }
+  }
 
   async function add() {
     setAdding(true);
@@ -162,7 +204,17 @@ export default function ChannelsCard() {
           />
         </div>
         <div>
-          <Typography.Title level={5}>YouTube</Typography.Title>
+          <Flex justify="space-between" align="center" gap={8} wrap>
+            <Typography.Title level={5} style={{ margin: 0 }}>
+              YouTube
+            </Typography.Title>
+            <Button size="small" icon={<YoutubeOutlined />} loading={connecting} onClick={connectYouTube}>
+              Kết nối YouTube
+            </Button>
+          </Flex>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            Kênh đã kết nối nhận video tải lên ở chế độ riêng tư; bạn tự công khai hoặc hẹn giờ trong YouTube Studio.
+          </Typography.Text>
           <List
             size="small"
             loading={channels === null}
@@ -171,8 +223,22 @@ export default function ChannelsCard() {
             renderItem={(channel) => (
               <List.Item
                 data-testid="channel-youtube"
-                actions={
-                  channel.created_by_id === me.id
+                actions={[
+                  ...(channel.connection?.owner_id === me.id
+                    ? [
+                        <Popconfirm
+                          key="disconnect"
+                          title={`Ngắt kết nối ${channel.name}?`}
+                          description="App quên quyền tải lên; video và bài đã ghi vẫn còn."
+                          okText="Ngắt"
+                          cancelText="Không"
+                          onConfirm={() => channel.connection && disconnect(channel.connection.id)}
+                        >
+                          <Button size="small">Ngắt kết nối</Button>
+                        </Popconfirm>,
+                      ]
+                    : []),
+                  ...(channel.created_by_id === me.id && !channel.connection
                     ? [
                         <Popconfirm
                           key="delete"
@@ -188,14 +254,23 @@ export default function ChannelsCard() {
                           </Button>
                         </Popconfirm>,
                       ]
-                    : []
-                }
+                    : []),
+                ]}
               >
                 <Flex gap={12} align="center" wrap>
                   <Typography.Text strong>{channel.name}</Typography.Text>
                   <a href={channel.url} target="_blank" rel="noreferrer">
                     Mở kênh ↗
                   </a>
+                  <StatusText
+                    tone={channel.connection?.needs_reconnect ? "danger" : channel.connection ? "success" : "idle"}
+                  >
+                    {channel.connection?.needs_reconnect
+                      ? "Cần kết nối lại"
+                      : channel.connection
+                        ? `Đã kết nối (${channel.connected_by ?? "—"})`
+                        : "Chưa kết nối"}
+                  </StatusText>
                   <Typography.Text type="secondary">
                     {channel.created_by} · {channel.post_count} bài
                   </Typography.Text>

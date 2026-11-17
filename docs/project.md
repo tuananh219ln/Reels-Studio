@@ -147,7 +147,8 @@ app replaces CapCut, so the output is a finished MP4.
    [content.md](content.md#monetization-and-publishing-context)), and a ready package of MP4, caption, and hashtags. Members post and pin the affiliate
    comment manually.
 3. **Later, in no fixed order:** topic calendar, 48-hour metrics tracking (built), API
-   auto-posting beyond Facebook Pages (built), YouTube Shorts, English content, the disclaimer and functional-food sentence, and
+   auto-posting beyond Facebook Pages (built), YouTube Shorts (uploading private through a member's own connection is
+   built; making it public stays in YouTube Studio), English content, the disclaimer and functional-food sentence, and
    AI image generation. Concrete items are [GitHub Issues](https://github.com/tuananh219ln/Reels-Studio/issues).
 
 Posting to connected Facebook Pages is built. The rest of API auto-posting is deferred for these reasons:

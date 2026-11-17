@@ -209,7 +209,7 @@ def mark_pending(body: PendingBody, me: Session = Depends(current_member), db: D
         select(Publication.id).where(
             Publication.video_id == video.id,
             Publication.platform == body.platform,
-            Publication.status.in_(("pending_link", "pending", "scheduled", "published")),
+            Publication.status.in_(("pending_link", "pending", "scheduled", "private", "published")),
         )
     )
     if already is None:

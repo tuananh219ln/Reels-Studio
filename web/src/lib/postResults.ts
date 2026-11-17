@@ -67,10 +67,24 @@ export function platformResults(video: VideoDetail): PlatformResult[] {
     });
   }
 
-  for (const platform of ["youtube", "instagram"] as const) {
-    const manual = video.manual_posts.find((post) => post.platform === platform);
-    if (manual) results.push(row(platform, "ok", manual.at, manual.url, null));
+  // YouTube: recorded by hand, or uploaded private through the member's connection, which waits ("wait") until its
+  // member makes it public in YouTube Studio.
+  const youtube = video.manual_posts.filter((post) => post.platform === "youtube");
+  const youtubeLive = youtube.find((post) => post.status === "published");
+  const youtubePrivate = youtube.find((post) => post.status === "private");
+  const youtubePending = youtube.find((post) => post.status === "pending");
+  if (youtubeLive) {
+    results.push(row("youtube", "ok", youtubeLive.at, youtubeLive.url, null));
+  } else if (youtubePrivate) {
+    results.push(row("youtube", "wait", youtubePrivate.planned_at, youtubePrivate.url, null));
+  } else if (youtubePending && failed?.kind === "youtube_publish") {
+    results.push({ ...row("youtube", "err", null, null, null), error: failed.error, retryJobId: failed.id });
+  } else if (youtubePending) {
+    results.push(row("youtube", "wait", null, null, null));
   }
+
+  const instagram = video.manual_posts.find((post) => post.platform === "instagram");
+  if (instagram) results.push(row("instagram", "ok", instagram.at, instagram.url, null));
   return results;
 }
 
