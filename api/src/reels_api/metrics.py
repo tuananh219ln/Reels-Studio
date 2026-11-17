@@ -135,8 +135,8 @@ def readable(at: datetime, youtube_on: bool | None = None):
         Publication.platform == "youtube",
         Publication.external_id.is_not(None),
         Publication.match_status != "ignored",
-        # A removed Short is looked at again for a week, in case it comes back.
-        or_(Publication.status == "published", Publication.status == "deleted"),
+        # A removed Short is looked at again for a week, in case it comes back; a private upload until it is public.
+        Publication.status.in_(("published", "deleted", "private")),
     )
     return or_(facebook_post, youtube_post)
 
@@ -180,6 +180,9 @@ RETRY_LATER = timedelta(hours=1)
 GONE_CONFIRM = timedelta(hours=1)
 REMOVED_EVERY = timedelta(hours=24)
 REMOVED_FOLLOW = timedelta(days=7)
+# A private YouTube upload is looked at hourly from the time its member planned to make it public, until it is public,
+# for this long at most.
+PRIVATE_FOLLOW = timedelta(days=14)
 # (age up to which it applies, reading every, marks read on the dot within it)
 SCHEDULE = (
     (timedelta(hours=48), timedelta(hours=1), (timedelta(hours=1), timedelta(hours=24), timedelta(hours=48))),
@@ -320,7 +323,8 @@ def measure(db: DbSession, post: Publication) -> None:
 
 def measure_youtube(db: DbSession, posts: list[Publication]) -> None:
     """Read YouTube Shorts in one call. A Short missing twice, an hour apart, is removed (§3.6); one found again is
-    published again. A call that fails reads nothing and tries again in an hour. Commits."""
+    published again. A private upload found is public now: published, its planned time dropped; missing, it is still
+    private and looked at again in an hour. A call that fails reads nothing and tries again in an hour. Commits."""
     if not posts:
         return
     at = now()
@@ -336,12 +340,18 @@ def measure_youtube(db: DbSession, posts: list[Publication]) -> None:
         return
     for post in posts:
         item = items.get(post.external_id)
+        if item is None and post.status == "private":
+            post.metrics_error = None
+            post.next_snapshot_at = at + RETRY_LATER if at - _live(post) < PRIVATE_FOLLOW else None
+            continue
         if item is None:
             _missing(post, at)
             continue
         post.metrics_error, post.gone_since = None, None
         if post.status == "deleted" and post.closed_by_id is None:
             post.status, post.closed_at = "published", None
+        if post.status == "private":
+            post.status, post.scheduled_at, post.published_at = "published", None, at
         published = youtube.published_at(item)
         if published is not None and post.published_at_source != "user":
             post.published_at, post.published_at_source = published, "api"

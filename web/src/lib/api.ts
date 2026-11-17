@@ -180,6 +180,7 @@ export type JobInfo = {
     | "revise"
     | "motion"
     | "tiktok_publish"
+    | "youtube_publish"
     | "image_edit"
     | "image_marks";
   /** The one scene an image job makes a photo for; null for every other job. */
@@ -418,6 +419,8 @@ export type VideoDetail = VideoRow & {
     knowledge_topic_id: number | null;
     /** The TikTok account picked for the Page on /fanpages; null until one is picked. */
     tiktok_account_id: number | null;
+    /** The YouTube channel picked for the Page on /fanpages: "Tải lên YouTube" opens with it. */
+    youtube_channel_id: number | null;
     error: string | null;
   }[];
   /** The newest post still on its way or on Facebook; `pending` until the publish job has finished. */
@@ -526,6 +529,27 @@ export type ManualPost = {
   at: string;
   created_by: string;
   created_by_id: number;
+  /** `pending` uploading to YouTube, `private` uploaded and waiting to be made public in YouTube Studio; one recorded
+   * by hand is `published`. */
+  status: "pending" | "private" | "published" | "deleted";
+  /** The YouTube channel it went to, when known. */
+  channel: string | null;
+  /** A private upload: when its member planned to make it public (a reminder only). */
+  planned_at: string | null;
+  /** A private upload's page in YouTube Studio, where it is made public or scheduled. */
+  studio_url: string | null;
+};
+
+/** A member's YouTube channel connected through Google; the tokens never leave the server. */
+export type YouTubeConnection = {
+  id: number;
+  channel_id: number;
+  title: string;
+  owner_id: number;
+  last_error: string | null;
+  /** Google revoked it or it ended: "Kết nối lại". */
+  needs_reconnect: boolean;
+  connected_at: string | null;
 };
 
 export type TikTokPost = {
@@ -644,6 +668,8 @@ export type Fanpage = {
   tiktok_account: { id: number; name: string; connected: boolean } | null;
   /** What the worker sends to TikTok when a video of the Page goes live on Facebook: a draft, or a public post. */
   tiktok_auto_mode: "draft" | "direct";
+  /** The YouTube channel its videos open with on "Tải lên YouTube", shown only to its owner. */
+  youtube_channel: { id: number; name: string; connected: boolean } | null;
   /** The Page's brand ("Kênh") and its logo, laid on the videos made for it; null until a logo is added. */
   brand: { id: number; name: string; logo_badge_url: string | null; logo_default_on: boolean; owner_id: number } | null;
   /** The worker's last check of the token (api fanpages.check). */
@@ -2012,5 +2038,8 @@ export type Channels = {
     created_by_id: number;
     created_by: string;
     post_count: number;
+    /** Connected through Google ("Kết nối YouTube"): its owner uploads private videos to it. */
+    connection: YouTubeConnection | null;
+    connected_by: string | null;
   }[];
 };

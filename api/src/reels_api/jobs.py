@@ -51,6 +51,7 @@ from . import (
     source_keys,
     text_looks,
     tiktok_publish,
+    youtube_publish,
 )
 from .claude import (
     BACKDROP_FORMAT,
@@ -181,6 +182,11 @@ def run_job(
                 try:
                     tiktok_publish.run(db, job, storage)
                 except tiktok_publish.PublishFailed as err:
+                    raise JobFailure(err.message, err.detail) from None
+            elif job.kind == "youtube_publish":
+                try:
+                    youtube_publish.run(db, job, storage)
+                except youtube_publish.PublishFailed as err:
                     raise JobFailure(err.message, err.detail) from None
             elif job.kind == "check":
                 run_check_job(db, job)

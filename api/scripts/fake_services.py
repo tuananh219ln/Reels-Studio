@@ -66,6 +66,10 @@ TIKTOK_CLIENT_KEY = "fake-tiktok-client-key"
 TIKTOK_CLIENT_SECRET = "fake-tiktok-client-secret"
 TIKTOK_CODE = "fake-tiktok-code"  # the code TikTok's authorize page sends back for TIKTOK_OPEN_ID
 TIKTOK_OPEN_ID = "tt-open-an"
+GOOGLE_CLIENT_ID = "fake-google-client-id"
+GOOGLE_CLIENT_SECRET = "fake-google-client-secret"
+GOOGLE_CODE = "fake-google-code"  # the code Google's consent page sends back for YOUTUBE_CHANNEL_ID
+YOUTUBE_CHANNEL_ID = "UCfakeAnNgonSongKhoe0001"
 # What /v2/user/info/ reads with user.info.basic; username, bio and stats need other scopes.
 TIKTOK_BASIC_FIELDS = {"open_id", "union_id", "avatar_url", "avatar_url_100", "avatar_large_url", "display_name"}
 
@@ -424,6 +428,21 @@ class FakeServices:
         self.youtube_gone: set[str] = set()
         self.youtube_error: int | None = None
         self.youtube_calls: list[list[str]] = []
+        # Google's OAuth and YouTube's resumable upload: the channel each code, access and refresh token is for.
+        self.google_codes: dict[str, str] = {GOOGLE_CODE: YOUTUBE_CHANNEL_ID}
+        self.google_access: dict[str, str] = {}
+        self.google_refresh: dict[str, str] = {}
+        self.google_token_count = 0
+        self.google_expires_in = 3600
+        self.google_revoked: list[str] = []
+        self.youtube_channels: dict[str, dict] = {
+            YOUTUBE_CHANNEL_ID: {"title": "Ăn Ngon Sống Khỏe", "customUrl": "@anngonsongkhoe"}
+        }
+        # Upload sessions by id: {channel, body, size, bytes, video}; `video` is the YouTube id once complete.
+        self.youtube_uploads: dict[str, dict] = {}
+        self.youtube_upload_error: str | None = None  # a reason every new session answers 403 with
+        self.youtube_upload_cuts = 0  # that many file sends keep only half the bytes and answer 503
+        self.youtube_upload_calls: list[str] = []  # "init", "send", "query", in order
         # Reels on a Page posted outside the app (Meta Business Suite), by Page id: what /video_reels lists,
         # {id, description, created_time (Graph's format), length, picture, published}.
         self.page_reels: dict[str, list[dict]] = {}
@@ -478,6 +497,10 @@ class FakeServices:
             "YOUTUBE_OEMBED_URL": f"{self.url}/oembed/youtube",
             "TIKTOK_CLIENT_KEY": TIKTOK_CLIENT_KEY,
             "TIKTOK_CLIENT_SECRET": TIKTOK_CLIENT_SECRET,
+            "GOOGLE_CLIENT_ID": GOOGLE_CLIENT_ID,
+            "GOOGLE_CLIENT_SECRET": GOOGLE_CLIENT_SECRET,
+            "GOOGLE_OAUTH_URL": f"{self.url}/google",
+            "YOUTUBE_UPLOAD_URL": f"{self.url}/youtube-upload",
         }
 
     def image_url(self, name: str) -> str:
@@ -1564,6 +1587,117 @@ class FakeServices:
         return 200, {"items": items}
 
     @staticmethod
+    def _google_failed(status: int, reason: str) -> tuple[int, dict]:
+        return status, {"error": {"code": status, "message": reason, "errors": [{"reason": reason}]}}
+
+    def _google_token(self, form: dict) -> tuple[int, dict]:
+        if form.get("client_id") != GOOGLE_CLIENT_ID or form.get("client_secret") != GOOGLE_CLIENT_SECRET:
+            return 401, {"error": "invalid_client", "error_description": "The OAuth client was not found."}
+        with self.lock:
+            if form.get("grant_type") == "authorization_code":
+                channel = self.google_codes.get(form.get("code", ""))
+                if channel is None or not form.get("redirect_uri"):
+                    return 400, {"error": "invalid_grant", "error_description": "Bad Request"}
+                refresh = f"g-refresh-{self.google_token_count + 1}"
+                self.google_refresh[refresh] = channel
+            elif form.get("grant_type") == "refresh_token":
+                channel = self.google_refresh.get(form.get("refresh_token", ""))
+                if channel is None:
+                    return 400, {"error": "invalid_grant", "error_description": "Token has been expired or revoked."}
+                refresh = None  # Google keeps the refresh token: a refresh answers without one
+            else:
+                return 400, {"error": "unsupported_grant_type"}
+            self.google_token_count += 1
+            access = f"g-access-{self.google_token_count}"
+            self.google_access[access] = channel
+        answer = {
+            "access_token": access,
+            "expires_in": self.google_expires_in,
+            "scope": "https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",
+            "token_type": "Bearer",
+        }
+        return 200, answer | ({"refresh_token": refresh} if refresh else {})
+
+    def _google_revoke(self, form: dict) -> tuple[int, dict]:
+        token = form.get("token", "")
+        with self.lock:
+            self.google_revoked.append(token)
+            channel = self.google_refresh.pop(token, None)
+            for access in [key for key, value in self.google_access.items() if value == channel]:
+                self.google_access.pop(access)
+        return 200, {}
+
+    def _google_channel(self, authorization: str | None) -> str | None:
+        return self.google_access.get((authorization or "").removeprefix("Bearer "))
+
+    def _youtube_mine(self, authorization: str | None) -> tuple[int, dict]:
+        channel = self._google_channel(authorization)
+        if channel is None:
+            return self._google_failed(401, "authError")
+        info = self.youtube_channels[channel]
+        return 200, {"items": [{"id": channel, "snippet": {"title": info["title"], "customUrl": info["customUrl"]}}]}
+
+    def _youtube_upload_start(self, authorization: str | None, query: dict, size: str, body: dict):
+        channel = self._google_channel(authorization)
+        if channel is None:
+            return (*self._google_failed(401, "authError"), {})
+        if query.get("uploadType") != "resumable" or not size.isdigit():
+            return (*self._google_failed(400, "badRequest"), {})
+        if self.youtube_upload_error:
+            return (*self._google_failed(403, self.youtube_upload_error), {})
+        with self.lock:
+            self.youtube_upload_calls.append("init")
+            session = f"s{len(self.youtube_uploads) + 1}"
+            self.youtube_uploads[session] = {
+                "channel": channel,
+                "body": body,
+                "size": int(size),
+                "bytes": 0,
+                "video": None,
+            }
+        return 200, {}, {"Location": f"{self.url}/youtube-upload/session/{session}"}
+
+    @staticmethod
+    def _youtube_video(upload: dict) -> dict:
+        return {
+            "id": upload["video"],
+            "snippet": upload["body"].get("snippet", {}),
+            "status": {**upload["body"].get("status", {}), "uploadStatus": "uploaded"},
+        }
+
+    def _youtube_upload_send(self, session: str, authorization: str | None, content_range: str, raw: bytes):
+        upload = self.youtube_uploads.get(session)
+        if upload is None:
+            return 404, {"error": "not found"}, {}
+        if self._google_channel(authorization) != upload["channel"]:
+            return (*self._google_failed(401, "authError"), {})
+        with self.lock:
+            if content_range.startswith("bytes */"):
+                self.youtube_upload_calls.append("query")
+                if upload["video"]:
+                    return 200, self._youtube_video(upload), {}
+                return 308, {}, ({"Range": f"bytes=0-{upload['bytes'] - 1}"} if upload["bytes"] else {})
+            self.youtube_upload_calls.append("send")
+            start = 0
+            if content_range:
+                match = re.fullmatch(r"bytes (\d+)-(\d+)/(\d+)", content_range)
+                if not match or int(match.group(2)) - int(match.group(1)) + 1 != len(raw):
+                    return 400, {"error": "bad Content-Range"}, {}
+                start = int(match.group(1))
+            if start != upload["bytes"]:
+                return 400, {"error": "resumed from the wrong byte"}, {}
+            if self.youtube_upload_cuts > 0:
+                self.youtube_upload_cuts -= 1
+                upload["bytes"] += len(raw) // 2
+                return 503, {"error": "backend error"}, {}
+            upload["bytes"] += len(raw)
+            if upload["bytes"] != upload["size"]:
+                return 400, {"error": "size mismatch"}, {}
+            done = sum(1 for one in self.youtube_uploads.values() if one["video"])
+            upload["video"] = f"ytUp{done + 1:07d}"
+            return 200, self._youtube_video(upload), {}
+
+    @staticmethod
     def _oembed_default(url: str) -> dict:
         path = urllib.parse.urlsplit(url).path
         if path.startswith("/@") and "/video/" in path:
@@ -1737,7 +1871,9 @@ class FakeServices:
             def log_message(self, *args):
                 pass
 
-            def _send(self, status: int, body: object, content_type: str = "application/json") -> None:
+            def _send(
+                self, status: int, body: object, content_type: str = "application/json", headers: dict | None = None
+            ) -> None:
                 data = (
                     body
                     if isinstance(body, bytes)
@@ -1748,6 +1884,8 @@ class FakeServices:
                 self.send_response(status)
                 self.send_header("Content-Type", content_type)
                 self.send_header("Content-Length", str(len(data)))
+                for name, value in (headers or {}).items():
+                    self.send_header(name, value)
                 self.end_headers()
                 self.wfile.write(data)
 
@@ -1806,6 +1944,19 @@ class FakeServices:
                 if path == "/shopee/graphql":
                     self._send(*fake._shopee(self.headers.get("Authorization"), raw))
                     return
+                if path in ("/google/token", "/google/revoke"):
+                    form = dict(urllib.parse.parse_qsl(raw.decode()))
+                    self._send(*(fake._google_token(form) if path == "/google/token" else fake._google_revoke(form)))
+                    return
+                if path == "/youtube-upload/videos":
+                    status, reply, headers = fake._youtube_upload_start(
+                        self.headers.get("Authorization"),
+                        dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(self.path).query)),
+                        self.headers.get("X-Upload-Content-Length", ""),
+                        json.loads(raw or b"{}"),
+                    )
+                    self._send(status, reply, headers=headers)
+                    return
                 if path.startswith("/tiktok/"):
                     target = path.removeprefix("/tiktok")
                     with fake.lock:
@@ -1847,6 +1998,15 @@ class FakeServices:
                 length = int(self.headers.get("Content-Length") or 0)
                 raw = self.rfile.read(length)
                 path = urllib.parse.urlsplit(self.path).path
+                if path.startswith("/youtube-upload/session/"):
+                    status, reply, headers = fake._youtube_upload_send(
+                        path.removeprefix("/youtube-upload/session/"),
+                        self.headers.get("Authorization"),
+                        self.headers.get("Content-Range", ""),
+                        raw,
+                    )
+                    self._send(status, reply, headers=headers)
+                    return
                 if path.startswith("/tiktok-upload/"):
                     publish_id = path.removeprefix("/tiktok-upload/")
                     with fake.lock:
@@ -1914,6 +2074,8 @@ class FakeServices:
                         self._send(*fake._reel_insights(target.removesuffix("/video_insights"), query))
                     else:
                         self._send(*fake._reel_status(target, query))
+                elif parts.path == "/youtube/v3/channels":
+                    self._send(*fake._youtube_mine(self.headers.get("Authorization")))
                 elif parts.path == "/youtube/v3/videos":
                     self._send(*fake._youtube_videos(dict(urllib.parse.parse_qsl(parts.query))))
                 elif parts.path in ("/oembed/tiktok", "/oembed/youtube"):

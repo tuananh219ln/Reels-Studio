@@ -9,10 +9,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 from sqlalchemy.orm import joinedload
 
-from . import affiliate, brands, facebook, fanpages, page_dashboard, tiktok_connections
+from . import affiliate, brands, facebook, fanpages, page_dashboard, tiktok_connections, youtube_connections
 from .db import get_db
 from .errors import ApiError
-from .models import AffiliateAccount, Brand, Fanpage, FanpageFollowers, Session, TikTokConnection
+from .models import AffiliateAccount, Brand, Channel, Fanpage, FanpageFollowers, Session, TikTokConnection
 from .ownership import ensure_owner
 from .routes_videos import invalid
 from .sessions import current_member
@@ -40,6 +40,10 @@ class ShopeeAccountBody(BaseModel):
 
 class TikTokAccountBody(BaseModel):
     account_id: int | None
+
+
+class YouTubeChannelBody(BaseModel):
+    channel_id: int | None
 
 
 class TikTokAutoModeBody(BaseModel):
@@ -94,6 +98,22 @@ def _tiktok_account(db: DbSession, row: Fanpage, me: Session) -> dict | None:
     }
 
 
+def _youtube_channel(db: DbSession, row: Fanpage, me: Session) -> dict | None:
+    """The Page's YouTube channel, shown only to the Page's owner, who connected it."""
+    if row.owner_id != me.user_id or row.youtube_channel_id is None:
+        return None
+    channel = db.get(Channel, row.youtube_channel_id)
+    connection = youtube_connections.of_channel(db, row.youtube_channel_id)
+    if channel is None:
+        return None
+    mine = connection is not None and connection.owner_id == me.user_id
+    return {
+        "id": channel.id,
+        "name": channel.name,
+        "connected": mine and not youtube_connections.needs_reconnect(connection),
+    }
+
+
 def _brand(brand: Brand | None) -> dict | None:
     if brand is None:
         return None
@@ -137,6 +157,7 @@ def _rows(db: DbSession, me: Session) -> list[dict]:
             "shopee_account": _shopee_account(db, row, me),
             "tiktok_account": _tiktok_account(db, row, me),
             "tiktok_auto_mode": row.tiktok_auto_mode,
+            "youtube_channel": _youtube_channel(db, row, me),
             # The Page's brand ("Kênh") and its logo, laid on the videos made for it (brands.py).
             "brand": _brand(brand_of_page.get(row.id)),
             "check": checks[row.id],
@@ -253,6 +274,23 @@ def set_tiktok_account(
         if not account.active:
             raise invalid(f"Tài khoản “{account.name}” đang ngừng dùng")
     row.tiktok_account_id = body.account_id
+    db.commit()
+    return _rows(db, me)
+
+
+@router.put("/{fanpage_id}/youtube-channel")
+def set_youtube_channel(
+    fanpage_id: int, body: YouTubeChannelBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)
+) -> list[dict]:
+    """The YouTube channel the Page's videos open with on their "Tải lên YouTube": one its owner connected."""
+    row = _fanpage(db, fanpage_id)
+    if row.owner_id != me.user_id:
+        raise ApiError(403, "not_page_owner", "Chỉ chủ của Fanpage mới gắn được kênh YouTube")
+    if body.channel_id is not None:
+        connection = youtube_connections.of_channel(db, body.channel_id)
+        if connection is None or connection.owner_id != me.user_id:
+            raise invalid("Hãy chọn một kênh YouTube bạn đã kết nối")
+    row.youtube_channel_id = body.channel_id
     db.commit()
     return _rows(db, me)
 

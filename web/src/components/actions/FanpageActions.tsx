@@ -2,7 +2,15 @@
 import FormDrawer from "@/components/FormDrawer";
 import PhotoLogoDrawer from "@/components/actions/PhotoLogoDrawer";
 import { useMe } from "@/components/MeContext";
-import { api, errorMessage, upload, type AffiliateAccount, type BrandLogoResult, type Fanpage } from "@/lib/api";
+import {
+  api,
+  errorMessage,
+  upload,
+  type AffiliateAccount,
+  type BrandLogoResult,
+  type Fanpage,
+  type YouTubeConnection,
+} from "@/lib/api";
 import { DeleteOutlined, FacebookOutlined, MoreOutlined, StopOutlined } from "@ant-design/icons";
 import { App, Button, Dropdown, Flex, Input, Popconfirm, Select, Spin, Switch, Typography } from "antd";
 import { useEffect, useState } from "react";
@@ -10,10 +18,13 @@ import { useEffect, useState } from "react";
 export function OwnerLine({
   row,
   accounts,
+  youtube = [],
   onRows,
 }: {
   row: Fanpage;
   accounts: AffiliateAccount[];
+  /** The member's own connected YouTube channels, the ones the Page's YouTube select offers. */
+  youtube?: YouTubeConnection[];
   onRows: (rows: Fanpage[]) => void;
 }) {
   const { message } = App.useApp();
@@ -113,6 +124,29 @@ export function OwnerLine({
               : "Video lên Facebook lúc nào, bản nháp vào hộp thư TikTok của bạn trong khoảng 1 phút sau đó. Caption, giỏ hàng và nhãn AI bạn tự thêm trong app TikTok."}
           </Typography.Text>
         </>
+      )}
+      <Select
+        size="small"
+        aria-label={`Kênh YouTube của ${row.name}`}
+        placeholder="Chưa gắn kênh YouTube (chọn tay ở từng video)"
+        allowClear
+        value={row.youtube_channel?.id ?? null}
+        options={[
+          ...youtube.map((connection) => ({ value: connection.channel_id, label: `YouTube: ${connection.title}` })),
+          // The channel already picked keeps its name even where the member's connections were not loaded.
+          ...(row.youtube_channel && !youtube.some((connection) => connection.channel_id === row.youtube_channel?.id)
+            ? [{ value: row.youtube_channel.id, label: `YouTube: ${row.youtube_channel.name}` }]
+            : []),
+        ]}
+        onChange={(channelId: number | undefined) =>
+          call(`/fanpages/${row.id}/youtube-channel`, "PUT", { channel_id: channelId ?? null })
+        }
+        notFoundContent={<Typography.Text type="secondary">Bấm Kết nối YouTube ở thẻ kênh bên dưới</Typography.Text>}
+      />
+      {row.youtube_channel && !row.youtube_channel.connected && (
+        <Typography.Text type="warning" style={{ fontSize: 12 }}>
+          Kênh YouTube mất kết nối, hãy bấm Kết nối YouTube lại ở thẻ kênh bên dưới
+        </Typography.Text>
       )}
       <LogoLine row={row} onRows={onRows} />
     </Flex>

@@ -17,6 +17,7 @@ import {
   type FanpageChoice,
   type QueueOverview,
   type QueuePage,
+  type YouTubeConnection,
 } from "@/lib/api";
 import { useFreshenOnOpen } from "@/lib/freshen";
 import { usePolling } from "@/lib/polling";
@@ -108,12 +109,14 @@ const OWN_CLICK = "a, button, input, .ant-select, .ant-dropdown, .ant-popover, .
 function PageCard({
   row,
   accounts,
+  youtube,
   queue,
   onRows,
   onToken,
 }: {
   row: Fanpage;
   accounts: AffiliateAccount[];
+  youtube: YouTubeConnection[];
   queue: QueueOverview | null;
   onRows: (rows: Fanpage[]) => void;
   onToken: (row: Fanpage) => void;
@@ -205,7 +208,7 @@ function PageCard({
           {insights.error}
         </Typography.Text>
       )}
-      <OwnerLine row={row} accounts={accounts} onRows={onRows} />
+      <OwnerLine row={row} accounts={accounts} youtube={youtube} onRows={onRows} />
       {scheduled && <ScheduleLine page={scheduled} />}
 
       <Flex justify="space-between" align="center" gap={8} style={{ marginTop: "auto" }}>
@@ -415,11 +418,13 @@ function Fanpages() {
   const [adding, setAdding] = useState(false);
   const [replacing, setReplacing] = useState<Fanpage | null>(null);
   const [accounts, setAccounts] = useState<AffiliateAccount[]>([]);
+  const [youtube, setYouTube] = useState<YouTubeConnection[]>([]);
   const [queue, setQueue] = useState<QueueOverview | null>(null);
 
   useEffect(() => {
     // Without them a Page shows its owner but offers no account to choose.
     api<AffiliateAccount[]>("/affiliate-accounts").then(setAccounts, () => undefined);
+    api<YouTubeConnection[]>("/youtube/connections").then(setYouTube, () => undefined);
   }, []);
 
   const load = useCallback(async () => {
@@ -522,6 +527,7 @@ function Fanpages() {
                 key={row.id}
                 row={row}
                 accounts={accounts}
+                youtube={youtube}
                 queue={queue}
                 onRows={setRows}
                 onToken={setReplacing}

@@ -319,6 +319,7 @@ def test_the_publish_dialog_knows_a_page_with_a_broken_token(an, db, me, storage
         "owner_id": me.id,
         "knowledge_topic_id": None,
         "tiktok_account_id": None,
+        "youtube_channel_id": None,
         "error": page.check_error,
     }
 
