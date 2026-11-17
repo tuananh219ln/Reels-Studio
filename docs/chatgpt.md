@@ -1,6 +1,6 @@
 # ChatGPT and Claude connection
 
-Members can use ChatGPT, Claude (web, Desktop, mobile), Claude Code or Muse (Meta's assistant) to search and read the shared
+Members can use ChatGPT, Claude (web, Desktop, mobile), Claude Code, Gemini CLI or Muse (Meta's assistant) to search and read the shared
 video library, edit a scene's text, voice text and clip part, edit caption/hashtags/pinned comment,
 create a video with a script job or from a script the assistant writes itself, give a scene a photo
 or clip from a link, attach approved affiliate products, and request a render.
@@ -18,7 +18,7 @@ Where the script is written decides who pays, and the video page says which one 
 | Started from | Written by | Cost | Video page shows |
 | --- | --- | --- | --- |
 | "Tạo video" in the app (or `create_video` over MCP) | The team's AI service, a script job | API key on Cài đặt › Mô hình AI | "Kịch bản viết bởi Claude · <model>" (provider and model of the job) |
-| A chat in an assistant connected here (ChatGPT, Claude, Claude Code, Muse) | The member's own assistant | The member's own plan, nothing to the team | "Kịch bản viết bởi <assistant> của thành viên qua kết nối MCP", e.g. "Muse của thành viên…" ("Trợ lý AI" for videos made before 2026-11-08) |
+| A chat in an assistant connected here (ChatGPT, Claude, Claude Code, Gemini CLI, Muse) | The member's own assistant | The member's own plan, nothing to the team | "Kịch bản viết bởi <assistant> của thành viên qua kết nối MCP", e.g. "Muse của thành viên…" ("Trợ lý AI" for videos made before 2026-11-08) |
 
 A topic group's video is written with the group's own prompt either way:
 
@@ -193,6 +193,7 @@ failed check, look at the MP4's frames after it, and say the video is done only 
      **OAuth**. The workspace owner may need to allow custom connections.
    - **Claude (web, Desktop):** Settings › Connectors › add a custom connector with that URL.
    - **Claude Code:** `claude mcp add --transport http reels-studio <URL>`, then `/mcp` to sign in.
+   - **Gemini CLI:** `gemini mcp add --transport http reels-studio <URL>`, then `/mcp auth reels-studio` to sign in.
 
    This server supports dynamic client registration (DCR), public clients and S256 PKCE; it does not
    support CIMD or a client secret, so Claude falls back to DCR.
@@ -223,7 +224,9 @@ identification is enabled, so ChatGPT's redirect URI is
 [connector authentication](https://claude.com/docs/connectors/building/authentication) page:
 `https://claude.ai/api/mcp/auth_callback` for the hosted apps (and `https://claude.com/...`, where it
 may move), and for Claude Code a loopback `http://localhost:<port>/callback` or
-`http://127.0.0.1:<port>/callback` whose port changes every session. Muse's is exactly
+`http://127.0.0.1:<port>/callback` whose port changes every session, and for Gemini CLI the same loopback on
+`/oauth/callback` (its docs; named "Gemini", and a client registered on one of the two paths may not go back to the
+other). Muse's is exactly
 `https://agent.meta.ai/api/hatch/oauth/callback`, read from the refused-registration log below (no other
 path on that host is accepted). A client may register up to
 four of these and nothing else. A loopback callback matches its registered host and path on any
