@@ -1,0 +1,9 @@
+{
+  "comment": "Facebook's markup changes often: the scan follows links and text, never Facebook's generated class names. Edit here, not in facebook-reels.js.",
+  "reelLink": "a[href*=\"/reel/\"]",
+  "reelId": "/reel/(\d{5,30})",
+  "views": "^\s*\d[\d.,\s]*\s*(K|N|M|Tr|B|Tỷ|nghìn|triệu)?\s*(lượt xem|lượt phát|views?|plays?)?\s*$",
+  "pageName": "h1",
+  "checkpointUrl": ["/checkpoint/", "/login", "/two_step_verification/"],
+  "checkpointText": ["Bạn tạm thời bị chặn", "You're Temporarily Blocked", "Xác nhận đó là bạn", "Confirm it's you"]
+}

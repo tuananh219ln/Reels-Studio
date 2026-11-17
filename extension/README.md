@@ -1,4 +1,4 @@
-# Reels Studio – Google Ảnh (Chrome extension)
+# Reels Studio – Google Ảnh và Đối thủ (Chrome extension)
 
 Takes photos from Google Ảnh for Reels Studio's scenes inside a member's own Chrome; the server never searches
 Google (see `docs/decisions.md`, 2026-11-08).
@@ -10,11 +10,18 @@ Google (see `docs/decisions.md`, 2026-11-08).
 - On any site, an image's right-click menu has "Gửi ảnh vào Reels Studio: <scene>", which sends it to the scene whose
   "Tìm trên Google" was pressed last.
 
+- On "Phân tích đối thủ" (`/competitors`), while the page is open, the extension reads a competitor's Facebook Reels
+  grid for each scan the page claims: it opens the grid in a window of this Chrome (signed in to Facebook), scrolls a
+  screen every 1.5–3 s, reads each reel's id and view count with `selectors.json`, and sends them to the page in
+  batches. A checkpoint or login page stops it and is left open for the member; it is never answered. See
+  `docs/decisions/2026-11-17-competitor-analyzer.md`. Use a second Facebook account if you can.
+
 ## Install (each member, once)
 
 1. Chrome › `chrome://extensions` › turn on "Developer mode".
 2. "Load unpacked" › pick this `extension/` folder.
 3. Reload the Reels Studio tab. The video page shows "Lấy ảnh Google cho cảnh thiếu ảnh" once it sees the extension.
 
-The extension runs only on `https://reels.quangdang.xyz`, `http://localhost:3000` and Google's search pages. A new
+The extension runs only on `https://reels.quangdang.xyz`, `http://localhost:3000`, Google's search pages and the
+Facebook windows it opens for a scan. A new
 version of the app domain needs `manifest.json` changed.

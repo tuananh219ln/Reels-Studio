@@ -129,6 +129,12 @@ app replaces CapCut, so the output is a finished MP4.
     mẫu", is cut by what is said (pauses and fillers out, each stretch a scene keeping its own sound, captions on the
     real words) with no AI writing. Any clip scene can keep its sound ("Tiếng gốc"). Next: the AI picks the hook,
     on-screen text and effects; then a long video cut into several shorts.
+12. **Phân tích đối thủ (built, parts M1–M2 of 5, `/competitors`):** a member pastes a competitor's Facebook link;
+    the team's Chrome extension reads its Reels grid (each reel and its views) in the member's own signed-in Chrome,
+    the api sums the numbers (total, median, buckets, the top 10's share), and the member's Claude analyses topics,
+    viewers' pains and what to make through MCP, on the member's plan. Next: captions, sound and reactions of the top
+    videos (M3), sample comments and saved reports (M4), the Videos tab and posting dates (M5). See
+    [decision](decisions/2026-11-17-competitor-analyzer.md).
 
 ---
 

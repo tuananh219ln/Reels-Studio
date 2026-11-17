@@ -15,16 +15,19 @@
       announce();
       return;
     }
-    // "find": photos for some keywords; "target": the scene "Gửi ảnh vào Reels Studio" sends to.
+    // "find": photos for some keywords; "target": the scene "Gửi ảnh vào Reels Studio" sends to; "scan-reels": read
+    // a competitor's Reels grid.
     chrome.runtime.sendMessage(data, (answer) => {
       if (data.id) {
         window.postMessage({ source: "reels-extension", type: "answer", id: data.id, ...(answer || {}) }, "*");
       }
     });
   });
-  // "Gửi ảnh vào Reels Studio" from another tab: the page puts the photo on the scene.
+  // "Gửi ảnh vào Reels Studio" from another tab: the page puts the photo on the scene. A competitor scan's batches,
+  // progress and end ("Phân tích đối thủ") go to the page that started it, which saves them.
+  const TO_PAGE = new Set(["send-image", "scan-batch", "scan-tick", "scan-done"]);
   chrome.runtime.onMessage.addListener((message) => {
-    if (message?.type === "send-image") {
+    if (TO_PAGE.has(message?.type)) {
       window.postMessage({ source: "reels-extension", ...message }, "*");
     }
   });
