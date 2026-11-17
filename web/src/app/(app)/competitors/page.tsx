@@ -329,6 +329,7 @@ function ScanDetailView({ scanId }: { scanId: number }) {
         ))}
       </Descriptions>
       <Table<TopVideo>
+        data-testid="competitor-top-videos"
         size="small"
         rowKey="fb_video_id"
         pagination={false}

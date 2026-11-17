@@ -113,7 +113,9 @@ test("a pasted link is scanned with the second account and its top videos get th
   expect(seen.comments).toEqual(["1000001", "1000002", "1000003"]);
 
   await row.getByRole("button", { name: /Expand row|Mở rộng/ }).click();
-  const top = page.getByRole("row", { name: /https:\/\/www\.facebook\.com\/reel\/1000001\// });
+  const top = page
+    .getByTestId("competitor-top-videos")
+    .getByRole("row", { name: /https:\/\/www\.facebook\.com\/reel\/1000001\// });
   await expect(top.getByText("4.500.000", { exact: true })).toBeVisible();
   await expect(top.getByText("Caption của 1000001: 3 món giúp xương chắc")).toBeVisible();
   await expect(top.getByText("1.200 · 45 · —", { exact: true })).toBeVisible();
