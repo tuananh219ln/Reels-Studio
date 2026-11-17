@@ -110,9 +110,10 @@ async function reelsStudioScanReels(scanId, maxVideos, selectors) {
 
 /**
  * One reel's own page (/reel/<id>/): its caption (after pressing "Xem thêm"), sound, length and the reaction, comment
- * and share counts as written ("1,2K"). Returns {stopped} on a checkpoint or login page instead.
+ * and share counts as written ("1,2K"), and with `withComments` a sample of its comments. Returns {stopped} on a
+ * checkpoint or login page instead.
  */
-async function reelsStudioReadReel(selectors) {
+async function reelsStudioReadReel(selectors, withComments) {
   const pause = (low, high) => new Promise((wait) => setTimeout(wait, low + Math.random() * (high - low)));
   const text = (element) => (element ? (element.innerText || element.textContent || "").trim() : "");
   await pause(2000, 3500);
@@ -170,5 +171,50 @@ async function reelsStudioReadReel(selectors) {
     reactions_raw: counts.reactions || null,
     comments_raw: counts.comments || null,
     shares_raw: counts.shares || null,
+    comment_samples: withComments ? await commentSamples() : [],
   };
+
+  /**
+   * Up to 30 of the first comments shown under the reel (M4): opens the comments, scrolls their list a few times like
+   * a reader, and keeps each comment's text and its likes as written. Who wrote it is never read.
+   */
+  async function commentSamples() {
+    const opener = [...document.querySelectorAll(selectors.button)].find(
+      (element) => outsideComments(element) && selectors.commentOpeners.includes(element.getAttribute("aria-label")),
+    );
+    if (opener) {
+      opener.click();
+      await pause(1500, 2500);
+    }
+    const samples = new Map(); // text -> likes as written
+    for (let round = 0; round < selectors.commentScrolls && samples.size < selectors.commentsPerVideo; round += 1) {
+      const articles = [...document.querySelectorAll(selectors.comment)];
+      for (const article of articles) {
+        // The body is the comment's own text block; the author's name is a link, outside it.
+        const body = [...article.querySelectorAll(selectors.commentText)].find(
+          (element) => !element.closest("a") && text(element).length > 1,
+        );
+        const value = text(body).slice(0, 2000);
+        if (!value || samples.has(value)) continue;
+        let likes = null;
+        for (const pattern of selectors.counts.reactions) {
+          const expression = new RegExp(pattern, "i");
+          const found = [...article.querySelectorAll("[aria-label]")]
+            .map((element) => element.getAttribute("aria-label").match(expression))
+            .find(Boolean);
+          if (found) {
+            likes = found[1];
+            break;
+          }
+        }
+        samples.set(value, likes);
+        if (samples.size >= selectors.commentsPerVideo) break;
+      }
+      const last = articles[articles.length - 1];
+      if (!last) break;
+      last.scrollIntoView({ block: "end" });
+      await pause(1200, 2200);
+    }
+    return [...samples].map(([value, likes]) => ({ text: value, likes_raw: likes }));
+  }
 }

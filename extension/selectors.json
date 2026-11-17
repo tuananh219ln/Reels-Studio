@@ -14,6 +14,10 @@
   "captionCandidates": "div[dir=\"auto\"], span[dir=\"auto\"]",
   "captionMinLength": 15,
   "audioLink": "a[href*=\"/reels/audio/\"]",
+  "commentOpeners": ["Bình luận", "Viết bình luận", "Comment", "Leave a comment"],
+  "commentText": "div[dir=\"auto\"]",
+  "commentsPerVideo": 30,
+  "commentScrolls": 6,
   "counts": {
     "reactions": [
       "^(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)\\s+(?:cảm xúc|lượt thích|reactions?|likes?)",

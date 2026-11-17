@@ -1,4 +1,5 @@
-"""'Phân tích đối thủ': a member's competitors on Facebook, their scans and the videos each scan saw.
+"""'Phân tích đối thủ': a member's competitors on Facebook, their scans, the videos each scan saw, sample
+comments of the most viewed and the reports their Claude saved.
 
 Revision ID: 0097
 Revises: 0096
@@ -72,9 +73,33 @@ def upgrade() -> None:
         sa.CheckConstraint("type IN ('reel', 'video')", name="ck_competitor_videos_type"),
     )
     op.create_index("ix_competitor_videos_scan_id", "competitor_videos", ["scan_id"])
+    op.create_table(
+        "competitor_comments",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("video_id", sa.Integer(), sa.ForeignKey("competitor_videos.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),
+        sa.Column("text", sa.Text(), nullable=False),
+        sa.Column("like_count", sa.BigInteger(), nullable=True),
+    )
+    op.create_index("ix_competitor_comments_video_id", "competitor_comments", ["video_id"])
+    op.create_table(
+        "competitor_reports",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("scan_id", sa.Integer(), sa.ForeignKey("competitor_scans.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column("written_by", sa.String(40), server_default="", nullable=False),
+        sa.Column("summary", JSONB(), nullable=False),
+        sa.Column("topics", JSONB(), nullable=False),
+        sa.Column("pain_points", JSONB(), nullable=False),
+        sa.Column("recommendations", JSONB(), nullable=False),
+        sa.Column("markdown", sa.Text(), nullable=False),
+    )
+    op.create_index("ix_competitor_reports_scan_id", "competitor_reports", ["scan_id"])
 
 
 def downgrade() -> None:
+    op.drop_table("competitor_reports")
+    op.drop_table("competitor_comments")
     op.drop_table("competitor_videos")
     op.drop_table("competitor_scans")
     op.drop_table("competitors")

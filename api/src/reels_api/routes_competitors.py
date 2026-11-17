@@ -21,6 +21,7 @@ class ScanBody(BaseModel):
     url: str = Field(max_length=500)
     max_videos: int = Field(competitors.MAX_VIDEOS_DEFAULT, ge=1, le=competitors.MAX_VIDEOS_LIMIT)
     fetch_captions_top_n: int = Field(competitors.CAPTIONS_TOP_DEFAULT, ge=0, le=competitors.CAPTIONS_TOP_LIMIT)
+    fetch_comments_top_n: int = Field(competitors.COMMENTS_TOP_DEFAULT, ge=0, le=competitors.COMMENTS_TOP_LIMIT)
 
 
 class GridVideo(BaseModel):
@@ -33,6 +34,11 @@ class VideosBody(BaseModel):
     videos: list[GridVideo] = Field(max_length=competitors.BATCH_LIMIT)
 
 
+class CommentSample(BaseModel):
+    text: str = Field(max_length=5000)
+    likes_raw: str | None = Field(None, max_length=60)
+
+
 class VideoDetail(BaseModel):
     fb_video_id: str = Field(pattern=r"^\d{5,30}$")
     caption: str | None = Field(None, max_length=20_000)
@@ -41,6 +47,8 @@ class VideoDetail(BaseModel):
     reactions_raw: str | None = Field(None, max_length=60)
     comments_raw: str | None = Field(None, max_length=60)
     shares_raw: str | None = Field(None, max_length=60)
+    # Only for the first fetch_comments_top_n reels; their text and likes, never who wrote them.
+    comment_samples: list[CommentSample] = Field(default_factory=list, max_length=60)
 
 
 class DetailsBody(BaseModel):
@@ -64,20 +72,24 @@ def list_competitors(me: Session = Depends(current_member), db: DbSession = Depe
 
 @router.post("/scans", status_code=201)
 def start_scan(body: ScanBody, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    scan = competitors.start_scan(db, me.user_id, body.url, body.max_videos, body.fetch_captions_top_n)
+    scan = competitors.start_scan(
+        db, me.user_id, body.url, body.max_videos, body.fetch_captions_top_n, body.fetch_comments_top_n
+    )
     db.commit()
     return competitors.scan_payload(scan)
 
 
 @router.get("/scans/{scan_id}")
 def get_scan(scan_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The scan, its numbers and its ten most viewed videos, for the page's detail."""
+    """The scan, its numbers, its ten most viewed videos and the latest report its member's Claude saved."""
     scan = competitors.own_scan(db, scan_id, me.user_id)
     top = competitors.videos_of(db, scan.id)[:10]
+    report = competitors.latest_report(db, scan.id)
     return {
         **competitors.scan_payload(scan),
         "stats": competitors.stats(db, scan),
         "top_videos": [competitors.video_payload(video, rank) for rank, video in enumerate(top, start=1)],
+        "report": competitors.report_payload(report) if report else None,
     }
 
 
@@ -135,7 +147,8 @@ def enrich_targets(scan_id: int, me: Session = Depends(current_member), db: DbSe
     scan = competitors.own_scan(db, scan_id, me.user_id, lock=True)
     ids = competitors.enrich_targets(db, scan)
     db.commit()
-    return {"fb_video_ids": ids}
+    # The first of them also have their comments sampled.
+    return {"fb_video_ids": ids, "comment_ids": ids[: competitors.comments_top(scan)]}
 
 
 @router.post("/scans/{scan_id}/details")

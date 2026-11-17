@@ -12,12 +12,12 @@ from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 from urllib.parse import parse_qs, urlsplit
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session as DbSession
 
 from .errors import ApiError
-from .models import Competitor, CompetitorScan, CompetitorVideo, User
+from .models import Competitor, CompetitorComment, CompetitorReport, CompetitorScan, CompetitorVideo, User
 from .sessions import now
 
 MAX_VIDEOS_DEFAULT = 500
@@ -26,6 +26,14 @@ MAX_VIDEOS_LIMIT = 2000
 CAPTIONS_TOP_DEFAULT = 30
 CAPTIONS_TOP_LIMIT = 100
 CAPTION_LIMIT = 5000
+# M4: of those, the most viewed whose comments are sampled, and how many comments each.
+COMMENTS_TOP_DEFAULT = 10
+COMMENTS_TOP_LIMIT = 30
+COMMENTS_PER_VIDEO = 30
+COMMENT_LIMIT = 2000
+# A saved report: what an assistant may write, kept well under the MCP request limit (128 KB).
+REPORT_MARKDOWN_LIMIT = 60_000
+REPORT_LIST_LIMIT = 30
 # A batch the extension sends: 50 at a time, so a closed tab loses little.
 BATCH_LIMIT = 100
 # A running scan whose page has been silent this long was closed mid-way: it is claimed again (resumed).
@@ -170,6 +178,7 @@ def start_scan(
     url: str,
     max_videos: int = MAX_VIDEOS_DEFAULT,
     captions_top: int = CAPTIONS_TOP_DEFAULT,
+    comments_top: int = COMMENTS_TOP_DEFAULT,
 ) -> CompetitorScan:
     """A queued scan of the competitor at `url` (made on first use). One waiting or running scan per competitor: a
     second request answers the one already there."""
@@ -197,6 +206,7 @@ def start_scan(
             "videos": False,
             "max_videos": max(1, min(max_videos, MAX_VIDEOS_LIMIT)),
             "fetch_captions_top_n": max(0, min(captions_top, CAPTIONS_TOP_LIMIT)),
+            "fetch_comments_top_n": max(0, min(comments_top, COMMENTS_TOP_LIMIT, captions_top)),
         },
     )
     db.add(scan)
@@ -287,8 +297,13 @@ def captions_top(scan: CompetitorScan) -> int:
     return (scan.scope or {}).get("fetch_captions_top_n", CAPTIONS_TOP_DEFAULT)
 
 
+def comments_top(scan: CompetitorScan) -> int:
+    return (scan.scope or {}).get("fetch_comments_top_n", 0)
+
+
 def enrich_targets(db: DbSession, scan: CompetitorScan) -> list[str]:
-    """The most viewed videos of a running scan whose own page the extension opens next (M3)."""
+    """The most viewed videos of a running scan whose own page the extension opens next (M3); the first
+    comments_top(scan) of them also have their comments sampled (M4)."""
     ensure_running(scan)
     scan.heartbeat_at = now()
     limit = captions_top(scan)
@@ -329,6 +344,20 @@ def add_details(db: DbSession, scan: CompetitorScan, details: list[dict]) -> int
             value = parse_views(detail.get(f"{field}_raw"))
             if value is not None:
                 setattr(video, field, value)
+        samples = [sample for sample in detail.get("comment_samples") or [] if (sample.get("text") or "").strip()][
+            :COMMENTS_PER_VIDEO
+        ]
+        if samples:
+            db.execute(delete(CompetitorComment).where(CompetitorComment.video_id == video.id))
+            for position, sample in enumerate(samples):
+                db.add(
+                    CompetitorComment(
+                        video_id=video.id,
+                        position=position,
+                        text=sample["text"].strip()[:COMMENT_LIMIT],
+                        like_count=parse_views(sample.get("likes_raw")),
+                    )
+                )
         changed += 1
     scan.heartbeat_at = now()
     return changed
@@ -406,11 +435,18 @@ def stats(db: DbSession, scan: CompetitorScan) -> dict:
         "top10_share": round(top10 / total, 4) if total else None,
         "videos_per_week": per_week,
         "dated_videos": len(dated),
-        "limits": _limits(scan, videos, len(videos), len(views), len(dated)),
+        "limits": _limits(scan, videos, len(videos), len(views), len(dated), _commented(db, scan.id)),
     }
 
 
-def _limits(scan: CompetitorScan, videos: list[CompetitorVideo], count: int, with_views: int, dated: int) -> list[str]:
+def _limits(
+    scan: CompetitorScan,
+    videos: list[CompetitorVideo],
+    count: int,
+    with_views: int,
+    dated: int,
+    commented: set[int],
+) -> list[str]:
     notes = []
     if scan.status != "done":
         notes.append(f"Lượt quét đang ở trạng thái {scan.status}: số liệu có thể chưa đủ.")
@@ -420,12 +456,90 @@ def _limits(scan: CompetitorScan, videos: list[CompetitorVideo], count: int, wit
     if count and top:
         read = sum(1 for video in videos[:top] if video.caption)
         notes.append(f"Caption đọc được cho {read}/{min(top, count)} video nhiều view nhất; video khác chưa có.")
+    sampled = comments_top(scan)
+    if count and sampled:
+        with_comments = sum(1 for video in videos[:sampled] if video.id in commented)
+        notes.append(
+            f"Bình luận mẫu có cho {with_comments}/{min(sampled, count)} video nhiều view nhất "
+            "(tối đa 30 bình luận đầu mỗi video, không phải toàn bộ)."
+        )
     if count and dated == 0:
         notes.append("Lưới Reels không có ngày đăng: chưa tính được tần suất đăng.")
     if count >= (scan.scope or {}).get("max_videos", MAX_VIDEOS_DEFAULT):
         notes.append("Đã chạm giới hạn số video của lượt quét; trang có thể còn video cũ hơn.")
     notes.append("Chỉ quét tab Reels; video thường (tab Video) chưa được quét.")
     return notes
+
+
+def _commented(db: DbSession, scan_id: int) -> set[int]:
+    return set(
+        db.scalars(
+            select(CompetitorComment.video_id)
+            .join(CompetitorVideo, CompetitorVideo.id == CompetitorComment.video_id)
+            .where(CompetitorVideo.scan_id == scan_id)
+            .distinct()
+        )
+    )
+
+
+def comment_samples(db: DbSession, video: CompetitorVideo) -> list[dict]:
+    rows = db.scalars(
+        select(CompetitorComment).where(CompetitorComment.video_id == video.id).order_by(CompetitorComment.position)
+    )
+    return [{"text": row.text, "like_count": row.like_count} for row in rows]
+
+
+def save_report(
+    db: DbSession,
+    scan: CompetitorScan,
+    topics: list,
+    pain_points: list,
+    recommendations: list,
+    markdown: str,
+    written_by: str = "",
+) -> CompetitorReport:
+    """A new report for the scan (earlier ones are kept, the newest is the one read); its numbers are the scan's own,
+    summed here, whatever the assistant wrote."""
+    text = (markdown or "").strip()
+    if not text:
+        raise ApiError(422, "empty_report", "Báo cáo trống: cần nội dung markdown")
+    if len(text) > REPORT_MARKDOWN_LIMIT:
+        raise ApiError(422, "report_too_long", "Báo cáo quá dài (tối đa 60.000 ký tự)")
+    report = CompetitorReport(
+        scan_id=scan.id,
+        written_by=(written_by or "")[:40],
+        summary=stats(db, scan),
+        topics=list(topics)[:REPORT_LIST_LIMIT],
+        pain_points=list(pain_points)[:REPORT_LIST_LIMIT],
+        recommendations=list(recommendations)[:REPORT_LIST_LIMIT],
+        markdown=text,
+    )
+    db.add(report)
+    db.flush()
+    return report
+
+
+def latest_report(db: DbSession, scan_id: int) -> CompetitorReport | None:
+    return db.scalar(
+        select(CompetitorReport)
+        .where(CompetitorReport.scan_id == scan_id)
+        .order_by(CompetitorReport.id.desc())
+        .limit(1)
+    )
+
+
+def report_payload(report: CompetitorReport) -> dict:
+    return {
+        "id": report.id,
+        "scan_id": report.scan_id,
+        "created_at": report.created_at.isoformat() if report.created_at else None,
+        "written_by": report.written_by,
+        "summary": report.summary,
+        "topics": report.topics,
+        "pain_points": report.pain_points,
+        "recommendations": report.recommendations,
+        "markdown": report.markdown,
+    }
 
 
 def video_payload(video: CompetitorVideo, rank: int | None = None) -> dict:
@@ -455,6 +569,7 @@ def scan_payload(scan: CompetitorScan) -> dict:
         "videos_found": scan.videos_found,
         "max_videos": (scan.scope or {}).get("max_videos", MAX_VIDEOS_DEFAULT),
         "fetch_captions_top_n": captions_top(scan),
+        "fetch_comments_top_n": comments_top(scan),
         "created_at": scan.created_at.isoformat() if scan.created_at else None,
         "started_at": scan.started_at.isoformat() if scan.started_at else None,
         "finished_at": scan.finished_at.isoformat() if scan.finished_at else None,

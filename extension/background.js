@@ -191,7 +191,7 @@ async function scanReels(message, appTabId, account) {
   }
 }
 
-async function readReels(ids) {
+async function readReels(ids, commentIds) {
   const scanId = scanning.scanId;
   for (const [index, id] of ids.entries()) {
     if (!scanning || scanning.scanId !== scanId) {
@@ -203,7 +203,7 @@ async function readReels(ids) {
     }
     try {
       await loadIn(scanning.tabId, `https://www.facebook.com/reel/${id}/`);
-      const detail = await run(reelsStudioReadReel, [scanning.selectors]);
+      const detail = await run(reelsStudioReadReel, [scanning.selectors, commentIds.has(id)]);
       if (detail?.stopped === "checkpoint") {
         endScan({
           status: "partial",
@@ -265,7 +265,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type === "scan-details" && scanning && message.scanId === scanning.scanId) {
     const ids = (Array.isArray(message.ids) ? message.ids : []).filter((id) => /^\d{5,30}$/.test(String(id)));
     if (ids.length) {
-      readReels(ids.slice(0, 100));
+      readReels(ids.slice(0, 100), new Set(Array.isArray(message.commentIds) ? message.commentIds.map(String) : []));
     } else {
       endScan({ status: "done" });
     }

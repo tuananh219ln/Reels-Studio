@@ -42,7 +42,7 @@ test("the second account's cookies are read from a header or a cookie-export JSO
 
 async function standIn(page: Page, account: { userId: string | null; incognito: boolean }) {
   await page.addInitScript((saved) => {
-    const seen: { url?: string; details?: string[] } = {};
+    const seen: { url?: string; details?: string[]; comments?: string[] } = {};
     (window as unknown as { __extension: typeof seen }).__extension = seen;
     window.addEventListener("message", (event) => {
       const data = event.data;
@@ -51,7 +51,7 @@ async function standIn(page: Page, account: { userId: string | null; incognito: 
       }
       const answer = (body: object) => window.postMessage({ source: "reels-extension", ...body }, "*");
       if (data.type === "hello") {
-        answer({ type: "ready", version: "1.2.0" });
+        answer({ type: "ready", version: "1.3.0" });
       } else if (data.type === "scan-account") {
         answer({ type: "answer", id: data.id, ...saved });
       } else if (data.type === "scan-reels") {
@@ -66,6 +66,7 @@ async function standIn(page: Page, account: { userId: string | null; incognito: 
         answer({ type: "scan-grid-done", scanId: data.scanId, name: "Linh Đoàn" });
       } else if (data.type === "scan-details") {
         seen.details = data.ids;
+        seen.comments = data.commentIds;
         for (const id of data.ids) {
           answer({
             type: "scan-detail",
@@ -77,6 +78,9 @@ async function standIn(page: Page, account: { userId: string | null; incognito: 
               reactions_raw: "1,2K",
               comments_raw: "45",
               shares_raw: null,
+              comment_samples: data.commentIds.includes(id)
+                ? [{ text: "Mẹ tôi đau gối, ăn được không ạ?", likes_raw: "12" }]
+                : [],
             },
           });
         }
@@ -100,11 +104,13 @@ test("a pasted link is scanned with the second account and its top videos get th
   await expect(row.getByText("3 video", { exact: true })).toBeVisible();
   await expect(row.getByText("4.795.600", { exact: true })).toBeVisible();
   const seen = await page.evaluate(
-    () => (window as unknown as { __extension: { url: string; details: string[] } }).__extension,
+    () => (window as unknown as { __extension: { url: string; details: string[]; comments: string[] } }).__extension,
   );
   expect(seen.url).toBe("https://www.facebook.com/linhdoan/reels/");
   // The most viewed first, every one of them (30 by default).
   expect(seen.details).toEqual(["1000001", "1000002", "1000003"]);
+  // The first 10 of them also have their comments sampled.
+  expect(seen.comments).toEqual(["1000001", "1000002", "1000003"]);
 
   await row.getByRole("button", { name: /Expand row|Mở rộng/ }).click();
   const top = page.getByRole("row", { name: /https:\/\/www\.facebook\.com\/reel\/1000001\// });

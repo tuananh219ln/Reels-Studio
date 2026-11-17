@@ -47,7 +47,8 @@ type TopVideo = {
   comments: number | null;
   shares: number | null;
 };
-type ScanDetail = CompetitorScan & { stats: Stats; top_videos: TopVideo[] };
+type Report = { id: number; created_at: string | null; written_by: string; markdown: string };
+type ScanDetail = CompetitorScan & { stats: Stats; top_videos: TopVideo[]; report: Report | null };
 
 const STATUS: Record<CompetitorScan["status"], { label: string; color: string }> = {
   queued: { label: "Chờ quét", color: "default" },
@@ -372,8 +373,34 @@ function ScanDetailView({ scanId }: { scanId: number }) {
         ]}
       />
       <Typography.Text type="secondary">
-        {stats.limits.join(" ")} Nhờ Claude (kết nối MCP Reels Studio) phân tích chủ đề, nỗi đau và đề xuất nội dung.
+        {stats.limits.join(" ")}
+        {!detail.report &&
+          " Nhờ Claude (kết nối MCP Reels Studio) phân tích chủ đề, nỗi đau và đề xuất nội dung, rồi lưu báo cáo."}
       </Typography.Text>
+      {detail.report && <ReportView report={detail.report} />}
     </Flex>
+  );
+}
+
+/** The latest report the member's Claude saved (competitor_report_save), shown as the text it wrote. */
+function ReportView({ report }: { report: Report }) {
+  return (
+    <Card
+      size="small"
+      title="Báo cáo phân tích"
+      extra={
+        <Typography.Text type="secondary">
+          {report.written_by ? `${report.written_by} · ` : ""}
+          {report.created_at ? formatDateTime(report.created_at) : ""}
+        </Typography.Text>
+      }
+    >
+      <Typography.Paragraph
+        copyable={{ text: report.markdown, tooltips: ["Sao chép báo cáo", "Đã sao chép"] }}
+        style={{ whiteSpace: "pre-wrap", margin: 0, maxHeight: 520, overflow: "auto" }}
+      >
+        {report.markdown}
+      </Typography.Paragraph>
+    </Card>
   );
 }

@@ -15,7 +15,7 @@ Google (see `docs/decisions.md`, 2026-11-08).
   it opens an incognito window, signs it in with that account's cookies (your own Facebook in normal windows is
   untouched), scrolls a screen every 1.5–3 s, reads each reel's id and view count with `selectors.json` and sends
   them to the page in batches, then opens the most viewed reels one by one, 4–8 s apart, for caption, sound and
-  reactions. A checkpoint is left open for the member; it is never answered. The cookies stay in this Chrome and
+  reactions, and for the first of them up to 30 comments (text and likes, never who wrote them). A checkpoint is left open for the member; it is never answered. The cookies stay in this Chrome and
   are never sent to Reels Studio's server. See `docs/decisions/2026-11-17-competitor-analyzer.md`.
 
 ## Second Facebook account (for "Phân tích đối thủ")

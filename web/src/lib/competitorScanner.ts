@@ -151,11 +151,22 @@ function runScan(scan: CompetitorScan, onProgress: (progress: ScanProgress) => v
         // Once the grid is saved, the api names the most viewed reels; the extension opens them one by one.
         save(async () => {
           // Not answered: no reels are opened and the extension closes the scan with the grid saved.
-          const ids = await api<{ fb_video_ids: string[] }>(`/competitors/scans/${scan.id}/enrich-targets`, "POST")
-            .then((answer) => answer.fb_video_ids)
-            .catch(() => [] as string[]);
-          onProgress({ scan, found, details: { read: 0, of: ids.length } });
-          window.postMessage({ source: FROM_PAGE, type: "scan-details", scanId: scan.id, ids }, window.location.origin);
+          // The first of them (comment_ids) also have a sample of their comments read.
+          const targets = await api<{ fb_video_ids: string[]; comment_ids: string[] }>(
+            `/competitors/scans/${scan.id}/enrich-targets`,
+            "POST",
+          ).catch(() => ({ fb_video_ids: [] as string[], comment_ids: [] as string[] }));
+          onProgress({ scan, found, details: { read: 0, of: targets.fb_video_ids.length } });
+          window.postMessage(
+            {
+              source: FROM_PAGE,
+              type: "scan-details",
+              scanId: scan.id,
+              ids: targets.fb_video_ids,
+              commentIds: targets.comment_ids,
+            },
+            window.location.origin,
+          );
         });
       } else if (data.type === "scan-detail" && data.video) {
         const video = data.video;

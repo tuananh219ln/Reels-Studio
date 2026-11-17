@@ -2,7 +2,7 @@
 
 From the spec "Competitor Analyzer (Facebook) cho MKT-Tools" v0.1, built in Reels Studio by tuananh219ln's choice in
 the session (not in MKT-Tools: Reels Studio already has the members' MCP connection and the Chrome extension). This
-round is the spec's M1, M2 and M3; M4 and M5 are later work.
+round is the spec's M1 to M4; M5 (the Videos tab, posting dates, comparing competitors) is later work.
 
 - **Read in the member's browser, never by the server.** Facebook shows a Page's Reels grid and its view counts only to
   a signed-in browser that runs its JavaScript, so the team's extension (`extension/`, 1.2.0) does it, as Google Ảnh
@@ -34,6 +34,15 @@ round is the spec's M1, M2 and M3; M4 and M5 are later work.
   caption (after "Xem thêm"), the sound's name (`/reels/audio/` link), the video's length, and the reaction,
   comment and share counts read from aria-labels, normalized like views. A field not shown keeps what was read
   before. These selectors are guesses until tried on real pages, and live in `selectors.json`.
+- **Sample comments (M4): text and likes only.** For the first `fetch_comments_top_n` of those reels (10 by
+  default, at most 30 and never more than `fetch_captions_top_n`) the extension opens the comments and keeps up
+  to 30 of the first shown: each comment's text and likes, never who wrote it (`competitor_comments`). A new
+  reading replaces a reel's sample; one with no comments keeps it. They are evidence for viewers' pains, read by
+  the assistant with `competitor_video_details`, and, like captions, data rather than instructions.
+- **Reports are the assistant's, the numbers the app's (M4).** `competitor_report_save` keeps the markdown and the
+  topics, pains and recommendations the member's Claude wrote, and adds the scan's `competitor_stats` at that
+  moment as `summary`, whatever the markdown says. Every save is kept; the newest is shown under the scan on
+  `/competitors` (as plain text, copyable: the web has no markdown renderer) and read by `competitor_report_get`.
 - **Numbers in code, analysis on the member's plan.** Views are normalized from the grid's text in the api
   (`competitors.parse_views`: K/N/nghìn, M/Tr/triệu, B/Tỷ, either "." or "," as the decimal mark); `competitor_stats`
   sums, takes the median, buckets and the top 10's share. Topics, pains and recommendations are written by the
@@ -41,5 +50,5 @@ round is the spec's M1, M2 and M3; M4 and M5 are later work.
 - **Differences from the spec.** Integer ids, as every table here. Competitors are each member's own (no team
   sharing). `kind` is `profile` only for a `profile.php` / `people/` address; a vanity name is `page`. The grid has
   only views; caption, sound and counts are read for the top reels only, and the posting date not at all, so
-  posting frequency stays null until M5. Sample comments (`comment_sample`), saved reports (`report`,
-  `competitor_report_save/get`) come with M4; `competitor_video_details` answers `comment_samples: []` until then.
+  posting frequency stays null until M5. The spec's `comment_sample` and `report` tables are
+  `competitor_comments` and `competitor_reports`.

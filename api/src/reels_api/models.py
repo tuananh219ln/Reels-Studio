@@ -1557,3 +1557,34 @@ class CompetitorVideo(Base):
     reactions: Mapped[int | None] = mapped_column(BigInteger)
     comments: Mapped[int | None] = mapped_column(BigInteger)
     shares: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class CompetitorComment(Base):
+    """A sample of the comments under one of the most viewed reels (M4): their text and likes only, never who wrote
+    them. Replaced whole each time the reel is read again."""
+
+    __tablename__ = "competitor_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("competitor_videos.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text)
+    like_count: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class CompetitorReport(Base):
+    """The analysis the member's Claude saved through MCP (competitor_report_save): topics, pains and recommendations
+    as it wrote them, the report as markdown, and the scan's numbers at that moment, summed in code."""
+
+    __tablename__ = "competitor_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scan_id: Mapped[int] = mapped_column(ForeignKey("competitor_scans.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The assistant that saved it (mcp_auth.app_of), "" when unknown.
+    written_by: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    topics: Mapped[list] = mapped_column(JSONB, default=list)
+    pain_points: Mapped[list] = mapped_column(JSONB, default=list)
+    recommendations: Mapped[list] = mapped_column(JSONB, default=list)
+    markdown: Mapped[str] = mapped_column(Text, default="")
