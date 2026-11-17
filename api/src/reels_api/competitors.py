@@ -301,12 +301,12 @@ def parse_posted(raw: str | None, at: datetime) -> datetime | None:
     return posted.astimezone(UTC)
 
 
-def compare(db: DbSession, user_id: int, competitor_ids: list[int]) -> list[dict]:
-    """Competitors side by side (M5): for each, its latest scan that read anything (done or partial) and that scan's
+def compare(db: DbSession, competitor_ids: list[int]) -> list[dict]:
+    """Any of the team's competitors side by side (M5): for each, its latest scan that read anything (done or partial) and that scan's
     numbers, summed in code. A competitor with no such scan is listed with `scan: null`."""
     rows = []
     for competitor_id in competitor_ids:
-        competitor = own_competitor(db, competitor_id, user_id)
+        competitor = team_competitor(db, competitor_id)
         scan = db.scalar(
             select(CompetitorScan)
             .where(CompetitorScan.competitor_id == competitor.id, CompetitorScan.status.in_(("done", "partial")))
@@ -386,18 +386,39 @@ def start_scan(
     return scan
 
 
-def own_scan(db: DbSession, scan_id: int, user_id: int, lock: bool = False) -> CompetitorScan:
-    query = select(CompetitorScan).where(CompetitorScan.id == scan_id, CompetitorScan.owner_id == user_id)
+# The whole team reads every competitor, scan and report (decision 2026-11-17-competitor-team-read); only the member
+# who scans a competitor scans it again, resumes, deletes it or sends its scan's data (the extension's batches).
+NOT_OWNER = "Chỉ người quét đối thủ này mới làm được việc này"
+
+
+def team_scan(db: DbSession, scan_id: int, lock: bool = False) -> CompetitorScan:
+    """Any member's scan, to read (or to save a report on)."""
+    query = select(CompetitorScan).where(CompetitorScan.id == scan_id)
     scan = db.scalar(query.with_for_update() if lock else query)
     if scan is None:
         raise ApiError(404, "scan_not_found", "Không tìm thấy lượt quét này")
     return scan
 
 
-def own_competitor(db: DbSession, competitor_id: int, user_id: int) -> Competitor:
+def team_competitor(db: DbSession, competitor_id: int) -> Competitor:
     competitor = db.get(Competitor, competitor_id)
-    if competitor is None or competitor.owner_id != user_id:
+    if competitor is None:
         raise ApiError(404, "competitor_not_found", "Không tìm thấy đối thủ này")
+    return competitor
+
+
+def own_scan(db: DbSession, scan_id: int, user_id: int, lock: bool = False) -> CompetitorScan:
+    """A scan its member changes: a teammate's answers 403."""
+    scan = team_scan(db, scan_id, lock)
+    if scan.owner_id != user_id:
+        raise ApiError(403, "not_scan_owner", NOT_OWNER)
+    return scan
+
+
+def own_competitor(db: DbSession, competitor_id: int, user_id: int) -> Competitor:
+    competitor = team_competitor(db, competitor_id)
+    if competitor.owner_id != user_id:
+        raise ApiError(403, "not_scan_owner", NOT_OWNER)
     return competitor
 
 
@@ -748,6 +769,7 @@ def save_report(
     recommendations: list,
     markdown: str,
     written_by: str = "",
+    created_by_id: int | None = None,
 ) -> CompetitorReport:
     """A new report for the scan (earlier ones are kept, the newest is the one read); its numbers are the scan's own,
     summed here, whatever the assistant wrote."""
@@ -759,6 +781,7 @@ def save_report(
     report = CompetitorReport(
         scan_id=scan.id,
         written_by=(written_by or "")[:40],
+        created_by_id=created_by_id,
         summary=stats(db, scan),
         topics=list(topics)[:REPORT_LIST_LIMIT],
         pain_points=list(pain_points)[:REPORT_LIST_LIMIT],
@@ -785,6 +808,7 @@ def report_payload(report: CompetitorReport) -> dict:
         "scan_id": report.scan_id,
         "created_at": report.created_at.isoformat() if report.created_at else None,
         "written_by": report.written_by,
+        "created_by": report.created_by.name if report.created_by else None,
         "summary": report.summary,
         "topics": report.topics,
         "pain_points": report.pain_points,
@@ -840,13 +864,15 @@ def competitor_payload(competitor: Competitor) -> dict:
         "followers": competitor.followers,
         "reels_url": parse_url(competitor.fb_url)["reels_url"],
         "videos_url": parse_url(competitor.fb_url)["videos_url"],
+        "owner": {"id": competitor.owner_id, "name": competitor.owner.name},
     }
 
 
 def list_competitors(db: DbSession, user_id: int) -> list[dict]:
-    """The member's competitors, newest first, each with its latest scan and that scan's view total."""
+    """The team's competitors, the member's own first then newest first, each with its latest scan and that scan's
+    view total; `is_mine` says whether the member may scan it again, resume or delete it."""
     competitors = db.scalars(
-        select(Competitor).where(Competitor.owner_id == user_id).order_by(Competitor.id.desc())
+        select(Competitor).order_by((Competitor.owner_id == user_id).desc(), Competitor.id.desc())
     ).all()
     rows = []
     for competitor in competitors:
@@ -862,6 +888,7 @@ def list_competitors(db: DbSession, user_id: int) -> list[dict]:
         rows.append(
             {
                 **competitor_payload(competitor),
+                "is_mine": competitor.owner_id == user_id,
                 "latest_scan": scan_payload(latest) | {"total_views": int(total or 0)} if latest else None,
             }
         )

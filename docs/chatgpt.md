@@ -362,7 +362,8 @@ and never a Page token.
 ## Competitor analysis
 
 Nine tools ([the decision](decisions/2026-11-17-competitor-analyzer.md)) let a member's Claude analyse a competitor's
-Facebook Reels on the member's own plan, with no AI call of the team's:
+Facebook Reels on the member's own plan, with no AI call of the team's. They read every member's competitors
+([team read](decisions/2026-11-17-competitor-team-read.md)); only scanning is the member's own:
 
 - `competitor_scan_start` (write): queues a scan of the pasted link's Reels tab (`max_videos`, 500 by default;
   `fetch_captions_top_n`, 30 by default, the most viewed reels opened for caption, sound and counts;

@@ -48,8 +48,9 @@ round is the spec's M1 to M4; M5 (the Videos tab, posting dates, comparing compe
   (`competitors.parse_views`: K/N/nghìn, M/Tr/triệu, B/Tỷ, either "." or "," as the decimal mark); `competitor_stats`
   sums, takes the median, buckets and the top 10's share. Topics, pains and recommendations are written by the
   member's Claude from `competitor_top_videos`, which carries the spec's analysis prompt; no AI cost to the team.
-- **Differences from the spec.** Integer ids, as every table here. Competitors are each member's own (no team
-  sharing). `kind` is `profile` only for a `profile.php` / `people/` address; a vanity name is `page`. The grid has
+- **Differences from the spec.** Integer ids, as every table here. Competitors were each member's own; since
+  [2026-11-17-competitor-team-read](2026-11-17-competitor-team-read.md) the whole team reads them and only the
+  member who scans one changes it. `kind` is `profile` only for a `profile.php` / `people/` address; a vanity name is `page`. The grid has
   only views; caption, sound and counts are read for the top reels only, and the posting date not at all, so
   posting frequency stays null until M5. The spec's `comment_sample` and `report` tables are
   `competitor_comments` and `competitor_reports`.

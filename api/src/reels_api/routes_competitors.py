@@ -101,20 +101,20 @@ def start_scan(body: ScanBody, me: Session = Depends(current_member), db: DbSess
 
 @router.get("/compare")
 def compare(ids: str, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """ "So sánh": 2–10 of the member's competitors side by side (`ids=1,2,3`), each by its latest scan."""
+    """ "So sánh": 2–10 of the team's competitors side by side (`ids=1,2,3`), each by its latest scan."""
     try:
         wanted = list(dict.fromkeys(int(part) for part in ids.split(",") if part.strip()))
     except ValueError:
         raise ApiError(422, "bad_compare_ids", "Danh sách đối thủ không hợp lệ") from None
     if not 2 <= len(wanted) <= 10:
         raise ApiError(422, "bad_compare_ids", "Chọn từ 2 đến 10 đối thủ để so sánh")
-    return {"competitors": competitors.compare(db, me.user_id, wanted)}
+    return {"competitors": competitors.compare(db, wanted)}
 
 
 @router.get("/scans/{scan_id}")
 def get_scan(scan_id: int, me: Session = Depends(current_member), db: DbSession = Depends(get_db)) -> dict:
-    """The scan, its numbers, its ten most viewed videos and the latest report its member's Claude saved."""
-    scan = competitors.own_scan(db, scan_id, me.user_id)
+    """Any member's scan, its numbers, its ten most viewed videos and the latest report saved on it."""
+    scan = competitors.team_scan(db, scan_id)
     top = competitors.videos_of(db, scan.id)[:10]
     report = competitors.latest_report(db, scan.id)
     return {
