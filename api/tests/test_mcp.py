@@ -587,6 +587,19 @@ def test_claude_code_loopback_matches_any_port_but_the_exchange_needs_the_one_us
         assert authorize(mcp_client, cid, redirect_uri=other).status_code == 400
 
 
+def test_gemini_cli_loopback_connects_on_its_own_path_and_is_named_gemini(mcp_client, db):
+    # Gemini CLI listens on http://localhost:<port>/oauth/callback (its docs), a port of its own each time.
+    cid, details, code = grant_to(
+        mcp_client, db, "http://localhost:7777/oauth/callback", "http://localhost:40555/oauth/callback"
+    )
+    assert details["app"] == "Gemini" and details["loopback"] is True
+    tokens = exchange(mcp_client, cid, code, "http://localhost:40555/oauth/callback")
+    assert tokens.status_code == 200, tokens.text
+    assert [row["app"] for row in mcp_client.get("/api/mcp/connections").json()] == ["Gemini"]
+    # A client registered on one loopback path may not go back to the other.
+    assert authorize(mcp_client, cid, redirect_uri="http://localhost:40555/callback").status_code == 400
+
+
 # Muse (Meta's assistant): the exact callback it sent, read from the "MCP registration refused" log line.
 MUSE_CALLBACK = "https://agent.meta.ai/api/hatch/oauth/callback"
 

@@ -65,7 +65,7 @@ export default function ChatGptPage() {
     <>
       <SettingsHeader
         title="Kết nối MCP"
-        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code và Muse của bạn."
+        description="Cấp quyền và quản lý các kết nối ChatGPT, Claude, Claude Code, Gemini CLI và Muse của bạn."
       />
       <Flex vertical gap={16} style={{ maxWidth: 820 }}>
         {loading && <Spin />}
@@ -87,7 +87,7 @@ export default function ChatGptPage() {
                 type="warning"
                 showIcon
                 title="Kết nối với một chương trình trên máy tính"
-                description="Chỉ cho phép nếu bạn vừa tự kết nối Reels Studio trong Claude Code trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này."
+                description="Chỉ cho phép nếu bạn vừa tự kết nối Reels Studio trong Claude Code hoặc Gemini CLI trên máy này. Một chương trình khác trên máy cũng có thể nhận địa chỉ này."
                 style={{ marginBottom: 16 }}
               />
             )}
@@ -145,6 +145,17 @@ export default function ChatGptPage() {
               style={{ overflowWrap: "anywhere" }}
             >
               {`claude mcp add --transport http reels-studio ${serverUrl}`}
+            </Typography.Paragraph>
+            <Typography.Paragraph>
+              <strong>Gemini CLI:</strong> chạy lệnh dưới đây, rồi gõ{" "}
+              <Typography.Text code>/mcp auth reels-studio</Typography.Text> để đăng nhập.
+            </Typography.Paragraph>
+            <Typography.Paragraph
+              copyable={{ text: `gemini mcp add --transport http reels-studio ${serverUrl}` }}
+              code
+              style={{ overflowWrap: "anywhere" }}
+            >
+              {`gemini mcp add --transport http reels-studio ${serverUrl}`}
             </Typography.Paragraph>
             <Typography.Paragraph>
               <strong>Muse:</strong> trong luồng kết nối công cụ MCP của Muse, dán địa chỉ trên rồi bấm Kết nối.
