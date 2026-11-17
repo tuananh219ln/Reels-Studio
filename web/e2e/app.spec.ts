@@ -377,6 +377,7 @@ test("the menu is four headed groups in the order of the work, with no Bình lu�
     "Kho kiến thức",
     "Kho tư liệu",
     "Thư viện nhạc",
+    "Phân tích đối thủ",
     "Quản lý người dùng",
     "Nhật ký job",
     "Cài đặt",

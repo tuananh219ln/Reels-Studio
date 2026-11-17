@@ -97,7 +97,7 @@ test("a pasted link is scanned with the second account and its top videos get th
   await expect(page.getByText("quét bằng tài khoản phụ 100099999999999", { exact: false })).toBeVisible();
 
   await page.getByLabel("Link Facebook của đối thủ").fill("https://m.facebook.com/linhdoan/reels/?ref=share");
-  await page.getByRole("button", { name: "Quét", exact: true }).click();
+  await page.getByRole("button", { name: /^(search )?Quét$/ }).click();
 
   const row = page.getByRole("row", { name: /Linh Đoàn/ });
   await expect(row.getByText("Xong", { exact: true })).toBeVisible({ timeout: 30_000 });
@@ -127,7 +127,7 @@ test("without a second account saved the page asks for one and claims nothing", 
   await expect(page.getByRole("button", { name: "Cài đặt tài khoản phụ" })).toBeVisible();
 
   await page.getByLabel("Link Facebook của đối thủ").fill("facebook.com/linhdoan");
-  await page.getByRole("button", { name: "Quét", exact: true }).click();
+  await page.getByRole("button", { name: /^(search )?Quét$/ }).click();
   const row = page.getByRole("row", { name: /linhdoan/ });
   await expect(row.getByText("Chờ quét", { exact: true })).toBeVisible();
 });
