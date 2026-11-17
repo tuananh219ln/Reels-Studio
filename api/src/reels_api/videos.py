@@ -160,6 +160,7 @@ JOB_KINDS = {
     "article_image": "Tạo ảnh AI cho bài viết",
     "motion": "Cảnh động",
     "tiktok_publish": "Đăng TikTok",
+    "youtube_publish": "Tải lên YouTube",
 }
 # What a post can still be cancelled or deleted from; `cancelled` and `deleted` are final.
 LIVE_POST_STATUSES = ("scheduled", "published")
@@ -230,6 +231,8 @@ def ensure_unlocked(db: DbSession, video: Video) -> None:
         raise ApiError(409, "video_locked", "Video đang kiểm tra bài trên Facebook, chưa lưu")
     if job.kind == "tiktok_publish":
         raise ApiError(409, "video_locked", "Video đang đăng lên TikTok, chưa lưu")
+    if job.kind == "youtube_publish":
+        raise ApiError(409, "video_locked", "Video đang tải lên YouTube, chưa lưu")
     if job.kind == "voice":
         raise ApiError(409, "video_locked", "Video đang tạo giọng đọc, chưa lưu")
     if job.kind == "revise":
@@ -662,6 +665,7 @@ def _status(db: DbSession, video: Video, job: Job | None, failed: Job | None) ->
             "render": "rendering",
             "publish": "publishing",
             "tiktok_publish": "publishing",
+            "youtube_publish": "publishing",
             "unpublish": "unpublishing",
             "check": "checking",
             "image": "imaging",
@@ -746,14 +750,16 @@ POST_PLATFORMS = ("facebook", "tiktok", "youtube", "instagram")
 
 
 def manual_posts_of(db: DbSession, video_id: int) -> list[Publication]:
-    """The video's posts on YouTube Shorts and Instagram Reels, recorded by hand, newest first."""
+    """The video's posts on YouTube Shorts and Instagram Reels, newest first: recorded by hand, or (YouTube) uploaded
+    private through the member's own connection (routes_youtube.py). An upload that never reached YouTube and was
+    replaced (`cancelled`) is left out."""
     return list(
         db.scalars(
             select(Publication)
             .where(
                 Publication.video_id == video_id,
                 Publication.platform.in_(MANUAL_PLATFORMS),
-                Publication.status != "pending_link",
+                Publication.status.not_in(("pending_link", "cancelled")),
             )
             .order_by(Publication.id.desc())
         )
@@ -769,6 +775,17 @@ def manual_post_payload(post: Publication) -> dict:
         "at": live_at(post).isoformat(),
         "created_by": post.created_by.name,
         "created_by_id": post.created_by_id,
+        # pending (uploading to YouTube) | private (uploaded, waiting to be made public in YouTube Studio) | published
+        # | deleted; one recorded by hand is published.
+        "status": post.status,
+        "channel": post.channel.name if post.channel else None,
+        # A private upload: when its member planned to make it public (a reminder), and where to do it.
+        "planned_at": post.scheduled_at.isoformat() if post.status == "private" and post.scheduled_at else None,
+        "studio_url": (
+            f"https://studio.youtube.com/video/{post.external_id}/edit"
+            if post.platform == "youtube" and post.external_id and post.source == "app_api"
+            else None
+        ),
     }
 
 
@@ -1258,6 +1275,8 @@ def video_payload(db: DbSession, video: Video) -> dict:
                 "knowledge_topic_id": page.knowledge_topic_id,
                 # The TikTok account picked for the Page on /fanpages: its videos' Đăng TikTok card opens with it.
                 "tiktok_account_id": page.tiktok_account_id,
+                # The YouTube channel picked for the Page: its videos' "Tải lên YouTube" opens with it.
+                "youtube_channel_id": page.youtube_channel_id,
                 "error": page.check_error,
             }
             for page in fanpages.in_use(db)
