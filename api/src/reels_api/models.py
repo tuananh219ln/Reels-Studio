@@ -56,6 +56,9 @@ class User(Base):
     auto_approve: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Their last "Cập nhật view" on "Bài đăng" (migration 0088): once per 5 minutes (routes_posts.REFRESH_EVERY).
     views_refreshed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # When their "Đối thủ" page last said the competitor extension is there (migration 0098): MCP tells the
+    # assistant whether a queued scan will be picked up (competitors.scanner_online).
+    competitor_scanner_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     sessions: Mapped[list["Session"]] = relationship(back_populates="user")
 
@@ -1517,3 +1520,114 @@ class VideoPresence(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     editing: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+# "Phân tích đối thủ" (competitors.py, migration 0098): a member's competitors on Facebook, read in their own Chrome by
+# the team's extension, never by the server (docs/decisions/2026-11-17-competitor-analyzer.md).
+COMPETITOR_KINDS = ("page", "profile")
+SCAN_STATUSES = ("queued", "running", "partial", "done", "failed")
+COMPETITOR_VIDEO_TYPES = ("reel", "video")
+
+
+class Competitor(Base):
+    """A Facebook Page or profile one member follows; `fb_url` is its canonical address (competitors.parse_url)."""
+
+    __tablename__ = "competitors"
+    __table_args__ = (
+        UniqueConstraint("owner_id", "fb_url", name="uq_competitors_owner_url"),
+        CheckConstraint(f"kind IN {COMPETITOR_KINDS}", name="kind"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    fb_url: Mapped[str] = mapped_column(Text)
+    # The numeric id of a profile.php address; None for a vanity name.
+    fb_id: Mapped[str | None] = mapped_column(String(40))
+    kind: Mapped[str] = mapped_column(String(16))
+    name: Mapped[str | None] = mapped_column(String(200))
+    followers: Mapped[int | None] = mapped_column(BigInteger)
+    bio: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class CompetitorScan(Base):
+    """One reading of a competitor's videos. Queued by the page or MCP, claimed by the member's open "Đối thủ" page,
+    which drives the extension and sends the videos back in batches; a stalled or stopped one can be resumed."""
+
+    __tablename__ = "competitor_scans"
+    __table_args__ = (CheckConstraint(f"status IN {SCAN_STATUSES}", name="status"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    competitor_id: Mapped[int] = mapped_column(ForeignKey("competitors.id", ondelete="CASCADE"), index=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="queued", server_default="queued")
+    # {"reels": true, "videos": false, "max_videos": 500}.
+    scope: Mapped[dict] = mapped_column(JSONB, default=dict)
+    videos_found: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The last word from the scanning page; a running scan silent for competitors.STALLED_AFTER is claimed again.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+    competitor: Mapped[Competitor] = relationship()
+
+
+class CompetitorVideo(Base):
+    """A reel or video seen on the competitor's grid. The grid shows only the views; the rest comes later (M3)."""
+
+    __tablename__ = "competitor_videos"
+    __table_args__ = (
+        UniqueConstraint("scan_id", "fb_video_id", name="uq_competitor_videos_scan_video"),
+        CheckConstraint(f"type IN {COMPETITOR_VIDEO_TYPES}", name="type"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scan_id: Mapped[int] = mapped_column(ForeignKey("competitor_scans.id", ondelete="CASCADE"), index=True)
+    fb_video_id: Mapped[str] = mapped_column(String(40))
+    url: Mapped[str] = mapped_column(Text)
+    type: Mapped[str] = mapped_column(String(8), default="reel")
+    # Normalized from views_raw (competitors.parse_views); None when the grid showed no number.
+    views: Mapped[int | None] = mapped_column(BigInteger)
+    views_raw: Mapped[str | None] = mapped_column(String(60))
+    # Place on the grid, newest first, as the page lists them: the order of posting while dates are unknown.
+    position: Mapped[int | None] = mapped_column(Integer)
+    caption: Mapped[str | None] = mapped_column(Text)
+    posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_s: Mapped[int | None] = mapped_column(Integer)
+    audio_name: Mapped[str | None] = mapped_column(Text)
+    reactions: Mapped[int | None] = mapped_column(BigInteger)
+    comments: Mapped[int | None] = mapped_column(BigInteger)
+    shares: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class CompetitorComment(Base):
+    """A sample of the comments under one of the most viewed reels (M4): their text and likes only, never who wrote
+    them. Replaced whole each time the reel is read again."""
+
+    __tablename__ = "competitor_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("competitor_videos.id", ondelete="CASCADE"), index=True)
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text)
+    like_count: Mapped[int | None] = mapped_column(BigInteger)
+
+
+class CompetitorReport(Base):
+    """The analysis the member's Claude saved through MCP (competitor_report_save): topics, pains and recommendations
+    as it wrote them, the report as markdown, and the scan's numbers at that moment, summed in code."""
+
+    __tablename__ = "competitor_reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scan_id: Mapped[int] = mapped_column(ForeignKey("competitor_scans.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # The assistant that saved it (mcp_auth.app_of), "" when unknown.
+    written_by: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    summary: Mapped[dict] = mapped_column(JSONB, default=dict)
+    topics: Mapped[list] = mapped_column(JSONB, default=list)
+    pain_points: Mapped[list] = mapped_column(JSONB, default=list)
+    recommendations: Mapped[list] = mapped_column(JSONB, default=list)
+    markdown: Mapped[str] = mapped_column(Text, default="")

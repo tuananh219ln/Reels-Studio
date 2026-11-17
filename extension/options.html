@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>Reels Studio – Tài khoản quét đối thủ</title>
+    <style>
+      body {
+        font: 14px/1.5 system-ui, sans-serif;
+        max-width: 720px;
+        margin: 32px auto;
+        padding: 0 16px;
+        color: #1f1f1f;
+        background: #fff;
+      }
+      textarea {
+        width: 100%;
+        min-height: 140px;
+        font: 12px ui-monospace, monospace;
+        box-sizing: border-box;
+      }
+      button {
+        margin: 8px 8px 0 0;
+        padding: 6px 14px;
+      }
+      .status {
+        padding: 10px 12px;
+        border-radius: 6px;
+        background: #f5f5f5;
+        margin: 12px 0;
+      }
+      .warn {
+        background: #fff7e6;
+      }
+      .ok {
+        background: #f6ffed;
+      }
+      ol li {
+        margin-bottom: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tài khoản Facebook phụ để quét đối thủ</h1>
+    <div id="status" class="status">Đang đọc…</div>
+    <p>
+      Lượt quét "Phân tích đối thủ" chạy trong một cửa sổ <b>ẩn danh</b> đăng nhập bằng cookie của tài khoản phụ, nên
+      Facebook chính của bạn trong các cửa sổ thường không bị đụng tới. Cookie chỉ lưu trong Chrome này, không gửi lên
+      máy chủ Reels Studio.
+    </p>
+    <ol>
+      <li>
+        Mở <code>chrome://extensions</code> › tiện ích này › <b>Chi tiết</b> › bật <b>Cho phép ở chế độ ẩn danh</b>.
+      </li>
+      <li>
+        Trong một cửa sổ ẩn danh, đăng nhập Facebook bằng tài khoản phụ. Copy cookie của facebook.com (tiện ích
+        Cookie-Editor › Export › JSON, hoặc chuỗi <code>c_user=…; xs=…; datr=…</code> trong DevTools › Network ›
+        Request Headers › cookie). Cần ít nhất <code>c_user</code> và <code>xs</code>.
+      </li>
+      <li>
+        Dán vào ô dưới rồi bấm Lưu. Sau đó <b>đóng cửa sổ ẩn danh đó mà không bấm Đăng xuất</b> (đăng xuất làm cookie hết
+        hiệu lực).
+      </li>
+    </ol>
+    <textarea id="cookies" placeholder="Dán cookie tài khoản phụ ở đây" aria-label="Cookie tài khoản phụ"></textarea>
+    <div>
+      <button id="save">Lưu</button>
+      <button id="clear">Xóa cookie đã lưu</button>
+    </div>
+    <p id="message"></p>
+    <script src="scan-account.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

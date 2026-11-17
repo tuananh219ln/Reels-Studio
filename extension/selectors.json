@@ -1,0 +1,35 @@
+{
+  "note": "Facebook's markup changes often: the scan follows links, labels and text, never Facebook's generated class names. Edit here, not in facebook-reels.js. counts: regular expressions over aria-labels whose first group is the number as written.",
+  "reelLink": "a[href*=\"/reel/\"]",
+  "reelId": "/reel/(\\d{5,30})",
+  "views": "^\\s*\\d[\\d.,\\s]*\\s*(K|N|M|Tr|B|Tỷ|nghìn|triệu)?\\s*(lượt xem|lượt phát|views?|plays?)?\\s*$",
+  "pageName": "h1",
+  "loginUrl": ["/login"],
+  "loginForm": "form input[name=\"pass\"]",
+  "checkpointUrl": ["/checkpoint/", "/two_step_verification/"],
+  "checkpointText": ["Bạn tạm thời bị chặn", "You're Temporarily Blocked", "Xác nhận đó là bạn", "Confirm it's you"],
+  "button": "[role=\"button\"]",
+  "seeMore": ["Xem thêm", "See more"],
+  "comment": "[role=\"article\"]",
+  "captionCandidates": "div[dir=\"auto\"], span[dir=\"auto\"]",
+  "captionMinLength": 15,
+  "audioLink": "a[href*=\"/reels/audio/\"]",
+  "commentOpeners": ["Bình luận", "Viết bình luận", "Comment", "Leave a comment"],
+  "commentText": "div[dir=\"auto\"]",
+  "commentsPerVideo": 30,
+  "commentScrolls": 6,
+  "counts": {
+    "reactions": [
+      "^(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)\\s+(?:cảm xúc|lượt thích|reactions?|likes?)",
+      "(?:Thích|Like)[:\\s]+(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)"
+    ],
+    "comments": [
+      "^(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)\\s+(?:bình luận|comments?)",
+      "(?:Bình luận|Comment)[:\\s]+(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)"
+    ],
+    "shares": [
+      "^(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)\\s+(?:lượt chia sẻ|chia sẻ|shares?)",
+      "(?:Chia sẻ|Share)[:\\s]+(\\d[\\d.,]*\\s*(?:K|N|M|Tr)?)"
+    ]
+  }
+}

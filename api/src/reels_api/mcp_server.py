@@ -40,6 +40,7 @@ from . import (
     footage_tools,
     frames,
     jobs,
+    mcp_competitors,
     motion,
     remote_media,
     shuffle,
@@ -410,6 +411,10 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             '"Thêm vào hàng chờ" chỉ khi người dùng yêu cầu rõ; giờ đăng do hàng chờ của Page tự xếp. '
             'Nhiều bản từ một video: "Nhân bản xáo cảnh" đổi thứ tự cảnh; rồi tự viết tiêu đề mới cho từng bản '
             'bằng "Sửa cảnh" theo hướng dẫn của tool. '
+            "Phân tích đối thủ Facebook: competitor_scan_start với link, chờ competitor_scan_get báo done (quét "
+            "trong Chrome của người dùng), rồi competitor_stats và competitor_top_videos, phân tích theo "
+            "analysis_prompt; số liệu tổng lấy từ competitor_stats, không tự cộng; xong thì lưu bằng "
+            "competitor_report_save. "
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
             "Link video mở trong Reels Studio và cần đăng nhập. " + CLIP_RULES + " " + QUALITY
         ),
@@ -2051,6 +2056,7 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
 
         return await run_in_threadpool(invoke, operation)
 
+    mcp_competitors.register(tool, invoke, resource, CALLING_APP.get)
     return mcp
 
 
