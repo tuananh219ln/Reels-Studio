@@ -1585,10 +1585,23 @@ On every list of videos the last column is a vertical "⋮" button (aria-label "
 small dropdown, not a drawer. The video is read once, when the menu is first opened. It holds "Mở video", "Đăng bài,
 hàng chờ, job…" (opens a drawer with the posting dialog, "Duyệt", the queue and retry/cancel, which need their own
 forms; shown when there is an MP4 or a job), "Tải MP4", "Nhân bản", "Nhân bản y hệt" (an exact copy named "… (copy)",
-opened at once to be rendered; the video page's "⋯" menu has it too), "Tạo bản TikTok" (a Facebook video), and, for the
+opened at once to be rendered; the video page's "⋯" menu has it too), "Nhân bản xáo cảnh" (below; in the video
+page's "⋯" menu too), "Tạo bản TikTok" (a Facebook video), and, for the
 maker only, "Chuyển sang nhóm khác" and "Xóa video" (red, after a divider; both off while a job runs). The maker of
 the group a teammate's video sits in sees "Chuyển về nhóm của <tên>" instead, which lists only groups made by the
 video's maker (the video page's "⋯" menu has the same item).
+
+"Nhân bản xáo cảnh" opens a drawer: "Số bản" (1–20, "Tối đa X bản khác nhau" beside it), "Giữ cố định cảnh cuối", "Ghim cảnh khác" (a folded
+list of the content scenes, each a checkbox; shown from 3 scenes; a pinned scene has a pin in the preview),
+"Đánh lại số thứ tự ở đầu chữ và lời đọc" (off and greyed when the scenes are not numbered), and "Xem trước": one
+line per copy, "Bản 1: 5 → 3 → 2 → 4 → 1" with the scenes' short names under it, and "Xáo lại" to draw again. "Tạo N
+bản" makes exactly the orders shown; one copy opens at once, several are listed as links in a notification that
+stays until closed. A video with fewer than 2 scenes to move says "Cần ít nhất 2 cảnh xáo được" instead. On a copy,
+a yellow banner under the header says "Bản xáo cảnh từ «nguồn» — hãy đổi Tiêu đề (cảnh tiêu đề) để tránh trùng
+lặp." with "Đổi tiêu đề" (opens the title scene by "Tiêu đề" and its suggestions) and "Bỏ qua", and names any copy
+or source with the same title; once changed it is a grey line. Lists say "Chưa đổi tiêu đề" under the status. Beside
+"Mở tất cả" a copy has "Xáo lại cảnh" ("Xáo tất cả cảnh nội dung" or "Giữ cố định cảnh cuối"), whose toast offers
+"Hoàn tác" for 8 seconds.
 
 
 ### Kho kiến thức: "Lịch đăng" and the video id

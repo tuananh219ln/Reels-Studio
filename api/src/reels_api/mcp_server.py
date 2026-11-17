@@ -32,7 +32,19 @@ from reels_render.layers import ANIMATIONS, SIZES, STICKERS, TEXT_STYLES
 from reels_render.sounds import MUSIC_LEVELS, SOUND_VOLUMES, SOUNDS
 from reels_render.textbox import FRAME_HEIGHT, FRAME_WIDTH
 
-from . import auto_approve, brands, clips, duplicate, footage_tools, frames, jobs, motion, remote_media, video_options
+from . import (
+    auto_approve,
+    brands,
+    clips,
+    duplicate,
+    footage_tools,
+    frames,
+    jobs,
+    motion,
+    remote_media,
+    shuffle,
+    video_options,
+)
 from . import routes_affiliate as affiliate_routes
 from . import routes_comments as comment_routes
 from . import routes_layers as layer_routes
@@ -396,6 +408,8 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
             'Nhân bản video thắng sang Page khác: "Nhân bản y hệt" (nhóm và logo của Page đích), soát caption, '
             'bình luận và commission_warnings, render, xem bản render bằng "Xem khung hình bản render", rồi '
             '"Thêm vào hàng chờ" chỉ khi người dùng yêu cầu rõ; giờ đăng do hàng chờ của Page tự xếp. '
+            'Nhiều bản từ một video: "Nhân bản xáo cảnh" đổi thứ tự cảnh; rồi tự viết tiêu đề mới cho từng bản '
+            'bằng "Sửa cảnh" theo hướng dẫn của tool. '
             "Job chạy bất đồng bộ: đọc lại video để xem trạng thái, không tự gửi lại yêu cầu. "
             "Link video mở trong Reels Studio và cần đăng nhập. " + CLIP_RULES + " " + QUALITY
         ),
@@ -1883,6 +1897,62 @@ def create_mcp(app: FastAPI) -> FastMCP | None:
                 **changed(saved),
                 **brands.payload_of(db, draft),
                 **_commission_report(db, {"product_ids": product_ids}, me.user_id),
+            }
+
+        return await run_in_threadpool(invoke, operation, write=True)
+
+    @tool("Nhân bản xáo cảnh", read=False)
+    async def shuffle_duplicate_video(
+        video_id: int,
+        count: Annotated[int, Field(ge=1, le=shuffle.MAX_COPIES, description="Số bản, 1–20")] = 1,
+        lock_last: Annotated[bool, Field(description="Giữ cảnh nội dung cuối (cảnh kết, kêu gọi) đứng yên")] = False,
+        pinned_scene_ids: Annotated[
+            list[int] | None, Field(max_length=60, description="Id các cảnh nội dung giữ nguyên vị trí")
+        ] = None,
+        renumber: Annotated[
+            bool, Field(description='Đánh lại số "1.", "2)"… ở đầu chữ và lời đọc theo vị trí mới')
+        ] = True,
+    ) -> dict:
+        """Như "Nhân bản xáo cảnh" trên web: tạo `count` bản copy, mỗi bản đổi thứ tự các cảnh nội dung (khác video
+        gốc và khác các bản đã tạo trước), cảnh tiêu đề luôn đứng đầu; không gọi AI, không copy MP4: render trước khi
+        đăng. Sau khi tạo, viết cho MỖI bản một tiêu đề mới rồi ghi bằng "Sửa cảnh" vào title_scene_id (text, và
+        voice_text nếu cảnh tiêu đề có lời đọc): cùng ý và chủ đề với tiêu đề gốc, không thêm lợi ích, con số hay
+        khẳng định mới; giữ nguyên các con số (nhất là số cảnh); dài gần bằng bản gốc (±20% số từ); giữ cách viết né
+        kiểm duyệt nếu có (vd. "th.uốc"); mỗi bản một cách diễn đạt khác hẳn, khác used_titles; tiếng Việt có dấu,
+        không emoji, không hashtag. Có thể dùng title_options làm gợi ý."""
+
+        def operation(db, me):
+            source = videos.duplicable(db, video_id)
+            pinned = pinned_scene_ids or []
+            offered = shuffle.preview(db, source, count, lock_last, pinned)
+            if not offered["orders"]:
+                raise ApiError(409, "nothing_to_shuffle", "Không còn thứ tự cảnh nào khác để tạo bản mới")
+            copies, renumbered, warnings = shuffle.make_copies(
+                db, get_storage(), source, offered["orders"], lock_last, renumber, me.user_id, pinned
+            )
+            db.commit()
+            made = []
+            for copy in copies:
+                title, scenes = videos.split_scenes(db, copy)
+                made.append(
+                    video_link(
+                        {
+                            "id": copy.id,
+                            "name": copy.name,
+                            "title_scene_id": title.id if title else None,
+                            "title": title.text if title else "",
+                            "title_voice_text": title.voice_text if title else "",
+                            "scenes": [scene.text.splitlines()[0] if scene.text else "" for scene in scenes],
+                        }
+                    )
+                )
+            return {
+                "copies": made,
+                "renumbered": renumbered,
+                "warnings": offered["warnings"] + warnings,
+                "title_options": source.title_options,
+                "used_titles": shuffle.used_titles(db, source),
+                "note": f'Đã tạo {len(made)}/{count} bản. Hãy đổi tiêu đề từng bản bằng "Sửa cảnh" như hướng dẫn.',
             }
 
         return await run_in_threadpool(invoke, operation, write=True)

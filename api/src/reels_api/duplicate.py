@@ -33,6 +33,10 @@ _VIDEO_SKIP = {
     "suggest_by_id",
     "suggested_at",
     "suggest_error",
+    # A "Nhân bản xáo cảnh" copy's own (shuffle.py): an exact copy of it is not a shuffle.
+    "shuffled_from_id",
+    "scene_order",
+    "review_title",
 }
 
 
@@ -78,27 +82,31 @@ def _with_files(values: dict, files: _Files) -> dict:
 
 def duplicate_video(db: DbSession, storage: DirectoryStorage, source: Video, user_id: int) -> Video:
     title, _ = split_scenes(db, source)
-    draft = Video(
-        **_columns(source, _VIDEO_SKIP),
-        name=copy_name(video_name(source, title)),
-        created_by_id=user_id,
-    )
+    return copy_video(db, storage, source, user_id, copy_name(video_name(source, title)))[0]
+
+
+def copy_video(
+    db: DbSession, storage: DirectoryStorage, source: Video, user_id: int, name: str
+) -> tuple[Video, dict[int, Scene]]:
+    """The copy, named `name`, and its scenes by the id of the source's scene each copies."""
+    draft = Video(**_columns(source, _VIDEO_SKIP), name=name, created_by_id=user_id)
     db.add(draft)
     db.flush()
     try:
-        _copy_into(db, source, draft, _Files(storage, draft.id))
+        scenes = _copy_into(db, source, draft, _Files(storage, draft.id))
     except BaseException:
         # Files only stay with the rows: a copy that failed half-way leaves nothing behind.
         storage.delete_prefix(f"videos/{draft.id}")
         raise
-    return draft
+    return draft, scenes
 
 
-def _copy_into(db: DbSession, source: Video, draft: Video, files: _Files) -> None:
+def _copy_into(db: DbSession, source: Video, draft: Video, files: _Files) -> dict[int, Scene]:
     for column in Video.__table__.columns:
         if column.key.endswith("_key"):
             setattr(draft, column.key, files(getattr(draft, column.key)))
     scenes = db.scalars(select(Scene).where(Scene.video_id == source.id).order_by(Scene.id)).all()
+    copied: dict[int, Scene] = {}
     for scene in scenes:
         values = _with_files(_columns(scene, {"id", "video_id"}), files)
         if isinstance(values.get("motion"), dict):
@@ -109,8 +117,10 @@ def _copy_into(db: DbSession, source: Video, draft: Video, files: _Files) -> Non
         ]
         new_scene.sounds = [SceneSound(**_columns(sound, {"id", "scene_id"})) for sound in scene.sounds]
         db.add(new_scene)
+        copied[scene.id] = new_scene
     for product_id in db.scalars(
         select(VideoAffiliateProduct.product_id).where(VideoAffiliateProduct.video_id == source.id)
     ):
         db.add(VideoAffiliateProduct(video_id=draft.id, product_id=product_id))
     db.flush()
+    return copied

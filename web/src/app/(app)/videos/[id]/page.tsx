@@ -13,6 +13,7 @@ import { QcChip } from "@/components/video/QcCard";
 import { FoldedStatus, RenderButtons, RenderStatus, showFirstBlocking } from "@/components/video/RenderBar";
 import SampleCard from "@/components/video/SampleCard";
 import SceneCard from "@/components/video/SceneCard";
+import ShuffleModal from "@/components/video/ShuffleModal";
 import type { PostBlockKey } from "@/components/video/PostContent";
 import { VIDEO_MODES, isBackdrop } from "@/components/video/videoModes";
 import VideoPreview from "@/components/video/VideoPreview";
@@ -43,6 +44,7 @@ import {
   MoreOutlined,
   PlusOutlined,
   SendOutlined,
+  SwapOutlined,
   UpOutlined,
 } from "@ant-design/icons";
 import {
@@ -125,6 +127,7 @@ export default function VideoPage() {
   const askedClone = useSearchParams().get("clone");
   const [cloning, setCloning] = useState<CloneTarget | null>(null);
   const [moving, setMoving] = useState(false);
+  const [shuffling, setShuffling] = useState(false);
   const [seenAsk, setSeenAsk] = useState<string | null>(null);
   if (askedClone !== seenAsk) {
     setSeenAsk(askedClone);
@@ -457,6 +460,52 @@ export default function VideoPage() {
       message.error(errorMessage(err));
     }
   }
+  /** "Xáo lại cảnh" on a "Nhân bản xáo cảnh" copy, the last scene kept or not; `order` puts back the one before
+   * ("Hoàn tác" in the toast). The list numbers follow the new places. */
+  async function reshuffle(lockLast: boolean, order?: number[]) {
+    setBusy(true);
+    try {
+      await editor.flush();
+      const next = await api<VideoDetail & { previous_order: number[] }>(
+        `/shuffle/videos/${id}/reshuffle`,
+        "POST",
+        order ? { order } : { lock_last: lockLast },
+      );
+      receiveOwn(next);
+      if (!order) {
+        const key = `reshuffle-${id}`;
+        message.success({
+          key,
+          content: (
+            <>
+              Đã xáo lại thứ tự cảnh{" "}
+              <Button
+                size="small"
+                type="link"
+                onClick={() => {
+                  message.destroy(key);
+                  void reshuffle(lockLast, next.previous_order);
+                }}
+              >
+                Hoàn tác
+              </Button>
+            </>
+          ),
+          duration: 8,
+        });
+      }
+    } catch (err) {
+      message.error(errorMessage(err));
+      void load();
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** "Đổi tiêu đề" on a shuffled copy's banner: the title scene opens beside "Tiêu đề" and its suggestions. */
+  function changeTitle() {
+    if (video?.title_scene) openOnly(video.title_scene.id);
+    document.querySelector('[data-testid="scenes-toolbar"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
   function remove() {
     modal.confirm({
       title: "Xóa video này?",
@@ -626,6 +675,7 @@ export default function VideoPage() {
                             onClick: () => setCloning("same"),
                           },
                           { key: "duplicate", label: "Nhân bản y hệt", onClick: () => void duplicate() },
+                          { key: "shuffle", label: "Nhân bản xáo cảnh", onClick: () => setShuffling(true) },
                         ]
                       : []),
                     ...(video.has_script && video.platform === "facebook"
@@ -744,6 +794,73 @@ export default function VideoPage() {
           Nhân bản từ “{video.clone_of.title}” — yêu cầu đổi: {video.clone_of.request}
         </Typography.Paragraph>
       )}
+      {video.shuffle &&
+        (video.shuffle.review || video.shuffle.same_title.length > 0 ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12, padding: "6px 12px" }}
+            data-testid="shuffle-banner"
+            title={
+              <>
+                Bản xáo cảnh
+                {video.shuffle.source && (
+                  <>
+                    {" "}
+                    từ «
+                    <Link prefetch={false} href={`/videos/${video.shuffle.source.id}`}>
+                      {video.shuffle.source.name}
+                    </Link>
+                    »
+                  </>
+                )}
+                {video.shuffle.review ? " — hãy đổi Tiêu đề (cảnh tiêu đề) để tránh trùng lặp." : ""}
+              </>
+            }
+            description={
+              video.shuffle.same_title.length > 0 && (
+                <span style={{ fontSize: 13 }}>
+                  Tiêu đề đang trùng với{" "}
+                  {video.shuffle.same_title.map((other, index) => (
+                    <span key={other.id}>
+                      {index > 0 && ", "}
+                      <Link prefetch={false} href={`/videos/${other.id}`}>
+                        {other.name}
+                      </Link>
+                    </span>
+                  ))}
+                </span>
+              )
+            }
+            action={
+              <Flex gap={4} wrap>
+                <Button size="small" onClick={changeTitle} disabled={viewing}>
+                  Đổi tiêu đề
+                </Button>
+                {video.shuffle.review && (
+                  <Button
+                    size="small"
+                    type="text"
+                    disabled={busy}
+                    onClick={() => act(() => api<VideoDetail>(`/shuffle/videos/${id}/title-review`, "DELETE"))}
+                  >
+                    Bỏ qua
+                  </Button>
+                )}
+              </Flex>
+            }
+          />
+        ) : (
+          video.shuffle.source && (
+            <Typography.Paragraph type="secondary" style={{ margin: "0 0 12px", fontSize: 13 }}>
+              Bản xáo cảnh từ «
+              <Link prefetch={false} href={`/videos/${video.shuffle.source.id}`}>
+                {video.shuffle.source.name}
+              </Link>
+              »
+            </Typography.Paragraph>
+          )
+        ))}
       {(video.variant_of || video.variants.length > 0) && (
         <Typography.Paragraph type="secondary" style={{ margin: "0 0 12px", fontSize: 13 }} data-testid="variants">
           {video.variant_of && (
@@ -1022,6 +1139,22 @@ export default function VideoPage() {
                 Cảnh ({scenes.length + (video.title_scene ? 1 : 0)})
               </Typography.Text>
               <Flex gap={4}>
+                {video.shuffle && !viewing && scenes.length >= 2 && (
+                  <Dropdown
+                    trigger={["click"]}
+                    disabled={busy || video.locked}
+                    menu={{
+                      items: [
+                        { key: "all", label: "Xáo tất cả cảnh nội dung", onClick: () => void reshuffle(false) },
+                        { key: "last", label: "Giữ cố định cảnh cuối", onClick: () => void reshuffle(true) },
+                      ],
+                    }}
+                  >
+                    <Button size="small" type="link" icon={<SwapOutlined />}>
+                      Xáo lại cảnh
+                    </Button>
+                  </Dropdown>
+                )}
                 <Button size="small" type="link" onClick={() => setAllExpanded(true)}>
                   Mở tất cả
                 </Button>
@@ -1098,6 +1231,7 @@ export default function VideoPage() {
         />
       )}
       <CloneModal videoId={video.id} target={cloning} onClose={() => setCloning(null)} />
+      <ShuffleModal videoId={video.id} open={shuffling} onClose={() => setShuffling(false)} />
       <MoveGroupDrawer video={video} open={moving} onClose={() => setMoving(false)} onMoved={receive} />
       {outcomes && (
         <PostToast
