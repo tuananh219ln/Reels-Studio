@@ -246,25 +246,44 @@ def test_stats_are_summed_in_code(client, db):
     assert len(detail["top_videos"]) == 10
 
 
-def test_another_members_competitors_are_not_found_and_deleting_removes_everything(client, db):
+def test_the_team_reads_a_members_competitors_but_only_they_change_them(client, db):
+    """Decision 2026-11-17-competitor-team-read: everything is read by the whole team; scanning again, resuming,
+    sending a scan's data and deleting stay the member's who scans the competitor."""
     make_user(db)
     login(client)
     scan = client.post("/api/competitors/scans", json={"url": "facebook.com/linhdoan"}).json()
     client.post("/api/competitors/scanner/claim")
     client.post(f"/api/competitors/scans/{scan['id']}/videos", json={"videos": _grid(0, 3)})
+    client.post(f"/api/competitors/scans/{scan['id']}/finish", json={"status": "partial", "error": "checkpoint"})
 
     make_user(db, email="binh@doi.vn", name="Bình")
     login(client, email="binh@doi.vn")
-    assert client.get(f"/api/competitors/scans/{scan['id']}").status_code == 404
-    assert client.post(f"/api/competitors/scans/{scan['id']}/videos", json={"videos": _grid(0, 1)}).status_code == 404
-    assert client.delete(f"/api/competitors/{scan['competitor']['id']}").status_code == 404
-    assert client.get("/api/competitors").json()["competitors"] == []
-    assert client.post("/api/competitors/scanner/claim").json()["scan"] is None
+    mine = client.post("/api/competitors/scans", json={"url": "facebook.com/other.page"}).json()
+    listed = client.get("/api/competitors").json()["competitors"]
+    # Her own first, then the teammate's, named with who scans it.
+    assert [(row["fb_url"].rsplit("/", 1)[1], row["is_mine"]) for row in listed] == [
+        ("other.page", True),
+        ("linhdoan", False),
+    ]
+    assert listed[1]["owner"]["name"] == "Nguyễn Văn An"
+    detail = client.get(f"/api/competitors/scans/{scan['id']}")
+    assert detail.status_code == 200 and detail.json()["stats"]["videos"] == 3
+    ids = f"{scan['competitor']['id']},{mine['competitor']['id']}"
+    assert client.get(f"/api/competitors/compare?ids={ids}").status_code == 200
 
+    refused = client.post(f"/api/competitors/scans/{scan['id']}/resume")
+    assert refused.status_code == 403 and refused.json()["code"] == "not_scan_owner"
+    assert client.post(f"/api/competitors/scans/{scan['id']}/videos", json={"videos": _grid(0, 1)}).status_code == 403
+    assert client.delete(f"/api/competitors/{scan['competitor']['id']}").status_code == 403
+    # Her open page never picks up the teammate's scans: only her own.
+    assert client.post("/api/competitors/scanner/claim").json()["scan"]["id"] == mine["id"]
+    assert client.get("/api/competitors/scans/999999").status_code == 404
+
+    # Its member deletes it with everything read; the teammate's own competitor stays.
     login(client)
     assert client.delete(f"/api/competitors/{scan['competitor']['id']}").status_code == 204
     assert db.scalars(select(CompetitorVideo)).all() == []
-    assert db.scalars(select(CompetitorScan)).all() == []
+    assert [row.id for row in db.scalars(select(CompetitorScan))] == [mine["id"]]
 
 
 def test_a_batch_refuses_ids_that_are_not_facebooks(client, db):
@@ -425,9 +444,12 @@ def test_competitors_are_compared_by_their_latest_scan(client, db):
 
     assert client.get(f"/api/competitors/compare?ids={ids['linhdoan']}").status_code == 422
     assert client.get("/api/competitors/compare?ids=1,abc").status_code == 422
+    assert client.get(f"/api/competitors/compare?ids={ids['linhdoan']},999999").status_code == 404
+    # A teammate compares them too: the whole team reads every competitor.
     make_user(db, email="binh@doi.vn", name="Bình")
     login(client, email="binh@doi.vn")
-    assert client.get(f"/api/competitors/compare?ids={ids['linhdoan']},{ids['other.page']}").status_code == 404
+    teammate = client.get(f"/api/competitors/compare?ids={ids['linhdoan']},{ids['other.page']}")
+    assert teammate.status_code == 200 and teammate.json()["competitors"][0]["scan"]["total_views"] == 1_010_000
 
 
 def test_mcp_runs_the_flow_from_a_link_to_the_top_videos(mcp_client, db):  # noqa: F811
@@ -518,7 +540,7 @@ def test_mcp_runs_the_flow_from_a_link_to_the_top_videos(mcp_client, db):  # noq
     assert report["id"] == saved["report_id"] and report["markdown"].startswith("# Linh Đoàn")
     assert report["summary"]["total_views"] == 120_000 and report["topics"][0]["name"] == "Xương khớp"
     # The test connection is ChatGPT's callback (test_mcp.CALLBACK).
-    assert report["written_by"] == "ChatGPT"
+    assert report["written_by"] == "ChatGPT" and report["created_by"] == "Nguyễn Văn An"
     page = mcp_client.get(f"/api/competitors/scans/{started['id']}").json()
     assert page["report"]["id"] == saved["report_id"]
 

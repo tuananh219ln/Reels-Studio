@@ -37,6 +37,9 @@ type Competitor = {
   name: string | null;
   followers: number | null;
   reels_url: string;
+  /** Who scans it: the whole team reads it, only they scan it again, resume or delete it. */
+  owner: { id: number; name: string };
+  is_mine: boolean;
   latest_scan: (CompetitorScan & { total_views: number }) | null;
 };
 
@@ -95,7 +98,14 @@ type TopVideo = {
   posted_raw: string | null;
   type: "reel" | "video";
 };
-type Report = { id: number; created_at: string | null; written_by: string; markdown: string };
+type Report = {
+  id: number;
+  created_at: string | null;
+  written_by: string;
+  /** The member whose Claude saved it. */
+  created_by: string | null;
+  markdown: string;
+};
 type ScanDetail = CompetitorScan & { stats: Stats; top_videos: TopVideo[]; report: Report | null };
 
 const STATUS: Record<CompetitorScan["status"], { label: string; color: string }> = {
@@ -167,14 +177,24 @@ export default function CompetitorsPage() {
 
   const columns: ColumnsType<Competitor> = [
     {
+      // The competitor's Page name as the scan read it; before that, its address.
+      title: "Kênh",
+      key: "channel",
+      width: 220,
+      render: (_, row) => (
+        <Typography.Text strong>{row.name || row.fb_url.replace("https://www.facebook.com/", "")}</Typography.Text>
+      ),
+    },
+    {
       title: "Đối thủ",
       key: "name",
+      width: 220,
       render: (_, row) => (
         <Flex vertical gap={2}>
-          <Typography.Text strong>{row.name || row.fb_url.replace("https://www.facebook.com/", "")}</Typography.Text>
           <Typography.Link href={row.reels_url} target="_blank" rel="noreferrer">
             <LinkOutlined /> Mở tab Reels
           </Typography.Link>
+          <Typography.Text type="secondary">{row.is_mine ? "Bạn quét" : `${row.owner.name} quét`}</Typography.Text>
         </Flex>
       ),
     },
@@ -217,6 +237,9 @@ export default function CompetitorsPage() {
       width: 260,
       render: (_, row) => {
         const scan = row.latest_scan;
+        if (!row.is_mine) {
+          return <Typography.Text type="secondary">Chỉ {row.owner.name} quét lại hoặc xóa được</Typography.Text>;
+        }
         return (
           <Space wrap>
             {scan && ["partial", "failed"].includes(scan.status) && (
@@ -575,6 +598,7 @@ function ReportView({ report }: { report: Report }) {
       title="Báo cáo phân tích"
       extra={
         <Typography.Text type="secondary">
+          {report.created_by ? `${report.created_by} · ` : ""}
           {report.written_by ? `${report.written_by} · ` : ""}
           {report.created_at ? formatDateTime(report.created_at) : ""}
         </Typography.Text>

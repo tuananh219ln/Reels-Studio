@@ -1540,6 +1540,8 @@ class Competitor(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # The member who scans it: the whole team reads it, only they scan it again, resume or delete it.
+    owner: Mapped[User] = relationship()
     fb_url: Mapped[str] = mapped_column(Text)
     # The numeric id of a profile.php address; None for a vanity name.
     fb_id: Mapped[str | None] = mapped_column(String(40))
@@ -1629,6 +1631,9 @@ class CompetitorReport(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # The assistant that saved it (mcp_auth.app_of), "" when unknown.
     written_by: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # The member whose Claude saved it (migration 0100): any member may save one on any scan.
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    created_by: Mapped[User | None] = relationship()
     summary: Mapped[dict] = mapped_column(JSONB, default=dict)
     topics: Mapped[list] = mapped_column(JSONB, default=list)
     pain_points: Mapped[list] = mapped_column(JSONB, default=list)
